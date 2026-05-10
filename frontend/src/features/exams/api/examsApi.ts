@@ -49,6 +49,28 @@ export const fetchExamPreview = async (id: number): Promise<ExamPreviewPayload> 
   return res.data as ExamPreviewPayload;
 };
 
+export const downloadExamPreviewDocx = async (id: number): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview-docx`, {
+    responseType: "blob",
+  });
+
+  const blob = new Blob([res.data], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  const filenameMatch = disposition?.match(/filename="?([^"]+)"?/i);
+  const filename = filenameMatch?.[1] || `question-paper-${id}.docx`;
+
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // ============================================
 // EXAM CREATE, UPDATE, DELETE
 // ============================================

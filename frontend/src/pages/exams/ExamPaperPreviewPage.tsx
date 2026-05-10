@@ -7,13 +7,14 @@ import {
   RiArrowRightUpLine,
   RiBookMarkedLine,
   RiCheckLine,
+  RiDownloadLine,
   RiFileList3Line,
   RiLoader4Line,
 } from "react-icons/ri";
 import ExamShell from "@/features/exams/components/ExamShell";
 import ExamStatusBadge from "@/components/ui/ExamStatusBadge";
 import QuestionRenderer from "@/components/questions/QuestionRenderer";
-import { fetchExamPreview, finalizeBlueprintExam } from "@/features/exams/api";
+import { downloadExamPreviewDocx, fetchExamPreview, finalizeBlueprintExam } from "@/features/exams/api";
 import type {
   ExamPreviewPayload,
   ExamStatus,
@@ -66,6 +67,7 @@ export default function ExamPaperPreviewPage() {
   const [preview, setPreview] = useState<ExamPreviewPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadPreview = useCallback(async () => {
@@ -117,6 +119,22 @@ export default function ExamPaperPreviewPage() {
     }
   };
 
+  const handleDownloadDocx = async () => {
+    if (!preview) {
+      toast.error("Preview is not ready yet.");
+      return;
+    }
+    setDownloading(true);
+    try {
+      await downloadExamPreviewDocx(examId);
+      toast.success("Question paper downloaded.");
+    } catch (err) {
+      toast.error(readApiErrorMessage(err, "Failed to download question paper."));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <ExamShell
       title="Question Paper Preview"
@@ -130,6 +148,15 @@ export default function ExamPaperPreviewPage() {
           >
             <RiArrowLeftLine className="h-4 w-4" />
             Back to Builder
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDownloadDocx()}
+            disabled={downloading || loading || !preview}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {downloading ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiDownloadLine className="h-4 w-4" />}
+            {downloading ? "Downloading..." : "Download .docx"}
           </button>
           <button
             type="button"

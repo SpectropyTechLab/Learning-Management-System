@@ -26,6 +26,7 @@ import {
   previewExamSectionGeneration,
   generateExamSectionQuestions,
   getExamPreview,
+  downloadExamPreviewDocx,
   finalizeExamBlueprint,
 } from '../controllers/exams.controller.js';
 import { authenticateToken, attachClientContext, loadPermissions, checkPermission } from '../middleware/auth.js';
@@ -58,6 +59,7 @@ router.put('/exams/:id/sections/:sectionId/configure', checkPermission('exams.up
 router.get('/exams/:id/sections/:sectionId/generation-plan', checkPermission('exams.read'), previewExamSectionGeneration);
 router.post('/exams/:id/sections/:sectionId/generate', checkPermission('exams.update'), generateExamSectionQuestions);
 router.get('/exams/:id/preview', checkPermission('exams.read'), getExamPreview);
+router.get('/exams/:id/preview-docx', checkPermission('exams.read'), downloadExamPreviewDocx);
 router.post('/exams/:id/finalize', checkPermission('exams.update'), finalizeExamBlueprint);
 
 router.post('/exams/:id/sections/:sectionId/questions', checkPermission('exams.update'), addQuestionToSection);

@@ -2,6 +2,8 @@ import { query as dbQuery, getClient } from '../repositories/db.repository.js';
 import { AppError, handleServiceError } from '../utils/errors.js';
 import { parseNullableInt, parseRequiredInt, requireString } from '../schemas/questions.schema.js';
 import { getAttemptResultPayloadByAttemptId } from './student.service.js';
+import { load as loadHtml } from 'cheerio';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 
 const VALID_EXAM_STATUSES = ['draft', 'published', 'active', 'completed'];
 const VALID_BLUEPRINT_STATUSES = ['active', 'inactive', 'archived'];
@@ -1254,6 +1256,289 @@ const buildExamPreviewPayload = async (exam) => {
     },
     all_sections_completed: allSectionsCompleted,
   };
+};
+
+const QUESTION_GROUP_TYPE_LABELS = {
+  direction: 'Direct Questions',
+  similar: 'Similar Questions',
+  previous_year: 'Previous Year Questions',
+  reference: 'Reference Questions',
+};
+
+const stripHtmlToText = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const $ = loadHtml(`<div>${value}</div>`);
+    return $('div').text().replace(/\s+/g, ' ').trim();
+  }
+  if (typeof value === 'object') {
+    const html = value.html ?? value.text ?? '';
+    if (!html) return '';
+    const $ = loadHtml(`<div>${String(html)}</div>`);
+    return $('div').text().replace(/\s+/g, ' ').trim();
+  }
+  return '';
+};
+
+const richTextToMultilineText = (value) => {
+  if (!value) return '';
+  const raw =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'object'
+        ? String(value.html ?? value.text ?? '')
+        : '';
+  if (!raw) return '';
+
+  let normalized = raw;
+  normalized = normalized.replace(/<br\s*\/?>/gi, '\n');
+  normalized = normalized.replace(/<\/p>/gi, '\n');
+  normalized = normalized.replace(/<\/li>/gi, '\n');
+  normalized = normalized.replace(/<\/div>/gi, '\n');
+
+  const $ = loadHtml(`<div>${normalized}</div>`);
+  const text = $('div').text();
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
+};
+
+const extractOptionText = (option) => stripHtmlToText(option?.text);
+
+const optionLabelFromIndex = (index) => String.fromCharCode(65 + index);
+
+const resolveOptionIndex = (options, raw) => {
+  const id = String(raw ?? '').trim();
+  if (!id) return undefined;
+  const byId = options.findIndex((option, index) => String(option?.id ?? index) === id);
+  if (byId >= 0) return byId;
+  if (/^[a-z]$/i.test(id)) {
+    const idx = id.toUpperCase().charCodeAt(0) - 65;
+    if (idx >= 0 && idx < options.length) return idx;
+  }
+  if (/^\d+$/.test(id)) {
+    const num = Number(id);
+    if (num >= 1 && num <= options.length) return num - 1;
+    if (num >= 0 && num < options.length) return num;
+  }
+  return undefined;
+};
+
+const resolveAnswerText = (question) => {
+  const answer = question?.correct_answer;
+  if (answer === null || answer === undefined) return '';
+  if (Array.isArray(question?.options) && question.options.length > 0) {
+    const options = question.options;
+    const toLabeledText = (raw) => {
+      const idx = resolveOptionIndex(options, raw);
+      if (idx === undefined) return String(raw);
+      const txt = extractOptionText(options[idx]);
+      return `${optionLabelFromIndex(idx)}${txt ? `. ${txt}` : ''}`;
+    };
+
+    if (typeof answer === 'string' || typeof answer === 'number' || typeof answer === 'boolean') {
+      return toLabeledText(answer);
+    }
+
+    if (Array.isArray(answer)) return answer.map((item) => toLabeledText(item)).join(', ');
+
+    if (typeof answer === 'object') {
+      if (Array.isArray(answer.answer_ids)) return answer.answer_ids.map((item) => toLabeledText(item)).join(', ');
+      if (Array.isArray(answer.answers)) return answer.answers.map((item) => toLabeledText(item)).join(', ');
+      if (answer.answer !== undefined) return toLabeledText(answer.answer);
+    }
+
+    const flagged = options
+      .map((option, index) => (option?.is_correct ? `${optionLabelFromIndex(index)}. ${extractOptionText(option)}`.trim() : null))
+      .filter(Boolean);
+    if (flagged.length > 0) return flagged.join(', ');
+  }
+
+  if (typeof answer === 'string' || typeof answer === 'number' || typeof answer === 'boolean') {
+    return String(answer);
+  }
+  if (Array.isArray(answer)) return answer.map(String).join(', ');
+  if (typeof answer === 'object') {
+    if (Array.isArray(answer.answer_ids)) return answer.answer_ids.map(String).join(', ');
+    if (Array.isArray(answer.answers)) return answer.answers.map(String).join(', ');
+    if (answer.answer !== undefined) return String(answer.answer);
+    if (answer.value !== undefined) return String(answer.value);
+  }
+  return '';
+};
+
+const resolveSolutionLines = (question) => {
+  const multiline = richTextToMultilineText(question?.solution);
+  if (!multiline) return [];
+  return multiline.split('\n').map((line) => line.trim()).filter(Boolean);
+};
+
+const sanitizeFilenamePart = (value) =>
+  String(value || 'question-paper')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'question-paper';
+
+const buildExamDocxBuffer = async (preview) => {
+  const children = [];
+  const examTitle = preview?.exam?.title || 'Question Paper';
+
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.TITLE,
+      children: [new TextRun({ text: examTitle, bold: true })],
+      spacing: { after: 240 },
+    })
+  );
+
+  if (preview?.blueprint?.name) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: `Blueprint: ${preview.blueprint.name}` })],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  let runningQuestionIndex = 1;
+  const orderedSections = [...(preview?.sections ?? [])].sort(
+    (a, b) => Number(a?.order_index || 0) - Number(b?.order_index || 0)
+  );
+
+  for (let sectionIndex = 0; sectionIndex < orderedSections.length; sectionIndex += 1) {
+    const section = orderedSections[sectionIndex];
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        children: [new TextRun({ text: `Section ${sectionIndex + 1}: ${section.title || 'Untitled'}` })],
+        spacing: { before: 240, after: 120 },
+      })
+    );
+
+    for (const groupType of QUESTION_GROUP_TYPES) {
+      const questions = section?.question_groups?.[groupType] ?? [];
+      if (!Array.isArray(questions) || questions.length === 0) continue;
+
+      children.push(
+        new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          children: [new TextRun({ text: QUESTION_GROUP_TYPE_LABELS[groupType] || groupType })],
+          spacing: { before: 120, after: 120 },
+        })
+      );
+
+      for (const question of questions) {
+        const questionText = stripHtmlToText(question?.question_text) || 'Question text unavailable';
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: `Question ${runningQuestionIndex}: ${questionText}`, bold: true })],
+            spacing: { after: 80 },
+          })
+        );
+
+        if (Array.isArray(question?.options) && question.options.length > 0) {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: 'Options:' })],
+              spacing: { after: 50 },
+            })
+          );
+          question.options.forEach((option, optionIndex) => {
+            const optionPrefix = String.fromCharCode(65 + optionIndex);
+            const optionText = extractOptionText(option);
+            if (!optionText) return;
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `${optionPrefix}. ${optionText}` })],
+                spacing: { after: 50 },
+              })
+            );
+          });
+        } else if (
+          question?.question_type === 'match_following' &&
+          question?.options &&
+          typeof question.options === 'object'
+        ) {
+          const left = Array.isArray(question.options.left) ? question.options.left : [];
+          const right = Array.isArray(question.options.right) ? question.options.right : [];
+          if (left.length > 0 || right.length > 0) {
+            children.push(
+            new Paragraph({
+              children: [new TextRun({ text: 'Options:' })],
+              spacing: { after: 50 },
+            })
+          );
+          }
+          left.forEach((item, idx) => {
+            const text = extractOptionText(item);
+            if (!text) return;
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `L${idx + 1}. ${text}` })],
+                spacing: { after: 40 },
+              })
+            );
+          });
+          right.forEach((item, idx) => {
+            const text = extractOptionText(item);
+            if (!text) return;
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `R${idx + 1}. ${text}` })],
+                spacing: { after: 40 },
+              })
+            );
+          });
+        }
+
+        const solutionLines = resolveSolutionLines(question);
+        if (solutionLines.length > 0) {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: 'Solution:' })],
+              spacing: { after: 40 },
+            })
+          );
+          solutionLines.forEach((line) => {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: line })],
+                spacing: { after: 40 },
+              })
+            );
+          });
+        }
+
+        const answerText = resolveAnswerText(question);
+        if (answerText) {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: `Correct Answer: ${answerText}` })],
+              spacing: { after: 140 },
+            })
+          );
+        }
+
+        runningQuestionIndex += 1;
+      }
+    }
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children,
+      },
+    ],
+  });
+
+  return Packer.toBuffer(doc);
 };
 
 const listAssignedCoursesForExam = async (examId) => {
@@ -3077,6 +3362,27 @@ export const getExamPreview = async (req, res) => {
     res.json(payload);
   } catch (err) {
     handleServiceError(res, err, 'Failed to load exam preview');
+  }
+};
+
+export const downloadExamPreviewDocx = async (req, res) => {
+  try {
+    if (!req.user?.id || !req.user?.role) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
+    const payload = await buildExamPreviewPayload(exam);
+    const fileBuffer = await buildExamDocxBuffer(payload);
+    const datePart = new Date().toISOString().slice(0, 10);
+    const safeTitle = sanitizeFilenamePart(payload?.exam?.title);
+    const filename = `${safeTitle}_${datePart}.docx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(fileBuffer);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to download exam preview docx');
   }
 };
 
