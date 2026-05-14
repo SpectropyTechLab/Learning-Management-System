@@ -14,7 +14,13 @@ import {
 import ExamShell from "@/features/exams/components/ExamShell";
 import ExamStatusBadge from "@/components/ui/ExamStatusBadge";
 import QuestionRenderer from "@/components/questions/QuestionRenderer";
-import { downloadExamPreviewDocx, fetchExamPreview, finalizeBlueprintExam } from "@/features/exams/api";
+import {
+  downloadExamAnswersDocx,
+  downloadExamQuestionsDocx,
+  downloadExamSolutionsDocx,
+  fetchExamPreview,
+  finalizeBlueprintExam,
+} from "@/features/exams/api";
 import type {
   ExamPreviewPayload,
   ExamStatus,
@@ -67,7 +73,7 @@ export default function ExamPaperPreviewPage() {
   const [preview, setPreview] = useState<ExamPreviewPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingType, setDownloadingType] = useState<"questions" | "answers" | "solutions" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadPreview = useCallback(async () => {
@@ -120,19 +126,27 @@ export default function ExamPaperPreviewPage() {
     }
   };
 
-  const handleDownloadDocx = async () => {
+  const handleDownloadDocx = async (type: "questions" | "answers" | "solutions") => {
     if (!preview) {
       toast.error("Preview is not ready yet.");
       return;
     }
-    setDownloading(true);
+    setDownloadingType(type);
     try {
-      await downloadExamPreviewDocx(examId);
-      toast.success("Question paper downloaded.");
+      if (type === "questions") {
+        await downloadExamQuestionsDocx(examId);
+        toast.success("Questions document downloaded.");
+      } else if (type === "answers") {
+        await downloadExamAnswersDocx(examId);
+        toast.success("Answers document downloaded.");
+      } else {
+        await downloadExamSolutionsDocx(examId);
+        toast.success("Solutions document downloaded.");
+      }
     } catch (err) {
-      toast.error(readApiErrorMessage(err, "Failed to download question paper."));
+      toast.error(readApiErrorMessage(err, `Failed to download ${type} document.`));
     } finally {
-      setDownloading(false);
+      setDownloadingType(null);
     }
   };
 
@@ -152,12 +166,30 @@ export default function ExamPaperPreviewPage() {
           </button>
           <button
             type="button"
-            onClick={() => void handleDownloadDocx()}
-            disabled={downloading || loading || !preview || !preview.validation?.can_finalize}
+            onClick={() => void handleDownloadDocx("questions")}
+            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {downloading ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiDownloadLine className="h-4 w-4" />}
-            {downloading ? "Downloading..." : "Download .docx"}
+            {downloadingType === "questions" ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiDownloadLine className="h-4 w-4" />}
+            {downloadingType === "questions" ? "Downloading..." : "Download Questions"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDownloadDocx("answers")}
+            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {downloadingType === "answers" ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiDownloadLine className="h-4 w-4" />}
+            {downloadingType === "answers" ? "Downloading..." : "Download Answers"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDownloadDocx("solutions")}
+            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {downloadingType === "solutions" ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiDownloadLine className="h-4 w-4" />}
+            {downloadingType === "solutions" ? "Downloading..." : "Download Solutions"}
           </button>
           <button
             type="button"

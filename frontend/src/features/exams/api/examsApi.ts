@@ -49,17 +49,12 @@ export const fetchExamPreview = async (id: number): Promise<ExamPreviewPayload> 
   return res.data as ExamPreviewPayload;
 };
 
-export const downloadExamPreviewDocx = async (id: number): Promise<void> => {
-  const res = await api.get(`/exams/${id}/preview-docx`, {
-    responseType: "blob",
-  });
-
-  const blob = new Blob([res.data], {
+const triggerDocxDownload = (blobData: BlobPart, disposition: string | undefined, fallbackFilename: string) => {
+  const blob = new Blob([blobData], {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
-  const disposition = res.headers?.["content-disposition"] as string | undefined;
   const filenameMatch = disposition?.match(/filename="?([^"]+)"?/i);
-  const filename = filenameMatch?.[1] || `question-paper-${id}.docx`;
+  const filename = filenameMatch?.[1] || fallbackFilename;
 
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -69,6 +64,39 @@ export const downloadExamPreviewDocx = async (id: number): Promise<void> => {
   anchor.click();
   anchor.remove();
   window.URL.revokeObjectURL(url);
+};
+
+export const downloadExamPreviewDocx = async (id: number): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview-docx`, {
+    responseType: "blob",
+  });
+
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, `question-paper-${id}.docx`);
+};
+
+export const downloadExamQuestionsDocx = async (id: number): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview/docx/questions`, {
+    responseType: "blob",
+  });
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, `question-paper-${id}-questions.docx`);
+};
+
+export const downloadExamAnswersDocx = async (id: number): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview/docx/answers`, {
+    responseType: "blob",
+  });
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, `question-paper-${id}-answers.docx`);
+};
+
+export const downloadExamSolutionsDocx = async (id: number): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview/docx/solutions`, {
+    responseType: "blob",
+  });
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, `question-paper-${id}-solutions.docx`);
 };
 
 // ============================================

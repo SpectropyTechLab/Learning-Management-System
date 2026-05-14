@@ -2274,6 +2274,48 @@ const resolveAnswerText = (question) => {
   return '';
 };
 
+const resolveAnswerShortText = (question) => {
+  const answer = question?.correct_answer;
+  const options = Array.isArray(question?.options) ? question.options : [];
+
+  const toShortLabel = (raw) => {
+    const idx = resolveOptionIndex(options, raw);
+    if (idx === undefined) return String(raw ?? '').trim();
+    return `(${optionLabelFromIndex(idx)})`;
+  };
+
+  if (options.length > 0) {
+    if (typeof answer === 'string' || typeof answer === 'number' || typeof answer === 'boolean') {
+      return toShortLabel(answer);
+    }
+
+    if (Array.isArray(answer) && answer.length > 0) {
+      return answer.map((item) => toShortLabel(item)).filter(Boolean).join(', ');
+    }
+
+    if (answer && typeof answer === 'object') {
+      const answerList = Array.isArray(answer.answer_ids)
+        ? answer.answer_ids
+        : Array.isArray(answer.answers)
+          ? answer.answers
+          : answer.answer !== undefined
+            ? [answer.answer]
+            : [];
+      if (answerList.length > 0) {
+        return answerList.map((item) => toShortLabel(item)).filter(Boolean).join(', ');
+      }
+    }
+
+    const flagged = options
+      .map((option, index) => (option?.is_correct ? `(${optionLabelFromIndex(index)})` : null))
+      .filter(Boolean);
+    if (flagged.length > 0) return flagged.join(', ');
+  }
+
+  const fallback = resolveAnswerText(question);
+  return fallback || '--';
+};
+
 const resolveSolutionLines = (question) => {
   const multiline = richTextToMultilineText(question?.solution);
   if (!multiline) return [];
@@ -2701,6 +2743,8 @@ const DOCX_FONT_FAMILY = 'Times New Roman';
 const DOCX_BODY_FONT_SIZE = 24;
 const DOCX_QUESTION_AFTER = 160;
 const DOCX_OPTION_AFTER = 160;
+const DOCX_ANSWER_AFTER = 180;
+const DOCX_SOLUTION_LINE_AFTER = 160;
 
 const buildDocxTextRunOptions = ({ text = '', bold = false, italics = false, size = DOCX_BODY_FONT_SIZE } = {}) => ({
   text: String(text || ''),
@@ -2987,7 +3031,7 @@ const buildInstructionsTable = (preview) => {
   });
 };
 
-const buildQuestionParagraphsForSection = (section, startingQuestionIndex) => {
+const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) => {
   const children = [];
   let runningQuestionIndex = startingQuestionIndex;
 
@@ -3076,6 +3120,107 @@ const buildQuestionParagraphsForSection = (section, startingQuestionIndex) => {
   };
 };
 
+const buildAnswerParagraphsForSection = (section, startingQuestionIndex) => {
+  const children = [];
+  let runningQuestionIndex = startingQuestionIndex;
+
+  for (const groupType of QUESTION_GROUP_TYPES) {
+    const questions = section?.question_groups?.[groupType] ?? [];
+    if (!Array.isArray(questions) || questions.length === 0) continue;
+
+    for (const question of questions) {
+      const answerText = resolveAnswerShortText(question) || '--';
+      children.push(
+        new Paragraph({
+          spacing: { after: DOCX_ANSWER_AFTER },
+          children: [
+            new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true })),
+            new TextRun(buildDocxTextRunOptions({ text: answerText })),
+          ],
+        })
+      );
+
+      runningQuestionIndex += 1;
+    }
+  }
+
+  return {
+    children,
+    nextQuestionIndex: runningQuestionIndex,
+  };
+};
+
+const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
+  const children = [];
+  let runningQuestionIndex = startingQuestionIndex;
+
+  for (const groupType of QUESTION_GROUP_TYPES) {
+    const questions = section?.question_groups?.[groupType] ?? [];
+    if (!Array.isArray(questions) || questions.length === 0) continue;
+
+    for (const question of questions) {
+      const solutionHtmlLines = resolveSolutionHtmlLines(question);
+      const solutionLines = resolveSolutionLines(question);
+
+      if (solutionHtmlLines.length > 0) {
+        solutionHtmlLines.forEach((line, lineIndex) => {
+          const lineRuns = htmlToDocxRuns(line, { size: DOCX_BODY_FONT_SIZE });
+          children.push(
+            new Paragraph({
+              spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+              children: [
+                ...(lineIndex === 0
+                  ? [new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true }))]
+                  : []),
+                ...(lineRuns.length > 0
+                  ? lineRuns
+                  : [new TextRun(buildDocxTextRunOptions({ text: stripHtmlToText(line) || line || '--' }))]),
+              ],
+            })
+          );
+        });
+      } else if (solutionLines.length > 0) {
+        solutionLines.forEach((line, lineIndex) => {
+          children.push(
+            new Paragraph({
+              spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+              children: [
+                ...(lineIndex === 0
+                  ? [new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true }))]
+                  : []),
+                new TextRun(buildDocxTextRunOptions({ text: line || '--' })),
+              ],
+            })
+          );
+        });
+      } else {
+        children.push(
+          new Paragraph({
+            spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+            children: [
+              new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true })),
+              new TextRun(buildDocxTextRunOptions({ text: '--' })),
+            ],
+          })
+        );
+      }
+
+      runningQuestionIndex += 1;
+    }
+  }
+
+  return {
+    children,
+    nextQuestionIndex: runningQuestionIndex,
+  };
+};
+
+const buildSectionDocxContentForMode = (section, startingQuestionIndex, mode) => {
+  if (mode === 'answers') return buildAnswerParagraphsForSection(section, startingQuestionIndex);
+  if (mode === 'solutions') return buildSolutionParagraphsForSection(section, startingQuestionIndex);
+  return buildQuestionOnlyParagraphsForSection(section, startingQuestionIndex);
+};
+
 const normalizeExamDocxXml = (xml) => {
   if (!xml || typeof xml !== 'string') return xml;
 
@@ -3119,7 +3264,7 @@ const finalizeExamDocxBuffer = async (doc) => {
   return buffer;
 };
 
-const buildExamDocxBuffer = async (preview) => {
+const buildExamDocxBuffer = async (preview, mode = 'questions') => {
   const firstPageChildren = [
     buildFirstPageInfoTable(preview),
     buildDocxTextParagraph('', { spacing: { after: 140 } }),
@@ -3159,8 +3304,8 @@ const buildExamDocxBuffer = async (preview) => {
       children: headingChildren,
     });
 
-    const questionContent = buildQuestionParagraphsForSection(section, runningQuestionIndex);
-    runningQuestionIndex = questionContent.nextQuestionIndex;
+    const sectionContent = buildSectionDocxContentForMode(section, runningQuestionIndex, mode);
+    runningQuestionIndex = sectionContent.nextQuestionIndex;
 
     questionSections.push({
       properties: buildDocxSectionProperties({
@@ -3169,8 +3314,8 @@ const buildExamDocxBuffer = async (preview) => {
       }),
       headers: { default: buildExamPaperHeader(preview) },
       footers: { default: buildExamPaperFooter() },
-      children: questionContent.children.length > 0
-        ? questionContent.children
+      children: sectionContent.children.length > 0
+        ? sectionContent.children
         : [buildDocxTextParagraph('No questions available in this section.', { size: 18 })],
     });
   }
@@ -5023,30 +5168,59 @@ export const getExamPreview = async (req, res) => {
   }
 };
 
+const downloadExamPreviewDocxByMode = async (req, res, { mode, filenameSuffix }) => {
+  if (!req.user?.id || !req.user?.role) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
+  const payload = await buildExamPreviewPayload(exam);
+  if (!payload?.validation?.can_finalize) {
+    throw new AppError(
+      payload?.validation?.blocking_reasons?.[0] || 'Exam cannot be exported until template validation passes.',
+      400
+    );
+  }
+
+  const fileBuffer = await buildExamDocxBuffer(payload, mode);
+  const datePart = new Date().toISOString().slice(0, 10);
+  const safeTitle = sanitizeFilenamePart(payload?.exam?.title);
+  const filename = `${safeTitle}_${filenameSuffix}_${datePart}.docx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(fileBuffer);
+};
+
 export const downloadExamPreviewDocx = async (req, res) => {
   try {
-    if (!req.user?.id || !req.user?.role) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
-    const payload = await buildExamPreviewPayload(exam);
-    if (!payload?.validation?.can_finalize) {
-      throw new AppError(
-        payload?.validation?.blocking_reasons?.[0] || 'Exam cannot be exported until template validation passes.',
-        400
-      );
-    }
-    const fileBuffer = await buildExamDocxBuffer(payload);
-    const datePart = new Date().toISOString().slice(0, 10);
-    const safeTitle = sanitizeFilenamePart(payload?.exam?.title);
-    const filename = `${safeTitle}_${datePart}.docx`;
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(fileBuffer);
+    await downloadExamPreviewDocxByMode(req, res, { mode: 'questions', filenameSuffix: 'questions' });
   } catch (err) {
     handleServiceError(res, err, 'Failed to download exam preview docx');
+  }
+};
+
+export const downloadExamPreviewQuestionsDocx = async (req, res) => {
+  try {
+    await downloadExamPreviewDocxByMode(req, res, { mode: 'questions', filenameSuffix: 'questions' });
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to download exam questions docx');
+  }
+};
+
+export const downloadExamPreviewAnswersDocx = async (req, res) => {
+  try {
+    await downloadExamPreviewDocxByMode(req, res, { mode: 'answers', filenameSuffix: 'answers' });
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to download exam answers docx');
+  }
+};
+
+export const downloadExamPreviewSolutionsDocx = async (req, res) => {
+  try {
+    await downloadExamPreviewDocxByMode(req, res, { mode: 'solutions', filenameSuffix: 'solutions' });
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to download exam solutions docx');
   }
 };
 
