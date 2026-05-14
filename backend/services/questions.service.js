@@ -4901,10 +4901,21 @@ const parseDataUrlImage = (src) => {
   const match = String(src || '').match(/^data:([^;]+);base64,(.+)$/i);
   if (!match) return null;
   try {
+    const mimeType = String(match[1] || '').toLowerCase();
+    const docxTypeByMime = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/gif': 'gif',
+      'image/bmp': 'bmp',
+    };
+    const type = docxTypeByMime[mimeType];
+    if (!type) return null;
     const buffer = Buffer.from(match[2], 'base64');
     if (!buffer || buffer.length === 0) return null;
     return {
-      mimeType: String(match[1] || '').toLowerCase(),
+      mimeType,
+      type,
       data: buffer,
     };
   } catch (_err) {
@@ -5005,6 +5016,7 @@ const htmlToDocxRuns = (html, styles = {}) => {
         runs.push(
           new ImageRun({
             data: parsed.data,
+            type: parsed.type,
             transformation: {
               width: 220,
               height: 140,

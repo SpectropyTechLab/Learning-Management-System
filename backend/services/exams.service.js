@@ -3,11 +3,154 @@ import { AppError, handleServiceError } from '../utils/errors.js';
 import { parseNullableInt, parseRequiredInt, requireString } from '../schemas/questions.schema.js';
 import { getAttemptResultPayloadByAttemptId } from './student.service.js';
 import { load as loadHtml } from 'cheerio';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import AdmZip from 'adm-zip';
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import {
+  AlignmentType,
+  BorderStyle,
+  Footer,
+  Header,
+  Document,
+  Packer,
+  Paragraph,
+  PageBorderDisplay,
+  PageBorderOffsetFrom,
+  PageBorderZOrder,
+  PageNumber,
+  TextRun,
+  HeadingLevel,
+  ImageRun,
+  SectionType,
+  TabStopType,
+  Table,
+  TableCell,
+  TableLayoutType,
+  TableRow,
+  WidthType,
+  Math as DocxMath,
+  MathRun,
+  MathFraction,
+  MathRadical,
+  MathSuperScript,
+  MathSubScript,
+  MathSubSuperScript,
+} from 'docx';
 
 const VALID_EXAM_STATUSES = ['draft', 'published', 'active', 'completed'];
 const VALID_BLUEPRINT_STATUSES = ['active', 'inactive', 'archived'];
 const QUESTION_GROUP_TYPES = ['direction', 'similar', 'previous_year', 'reference'];
+const PROGRAM_TEMPLATE_PREVIEW_V1 = String(process.env.PROGRAM_TEMPLATE_PREVIEW_V1 || 'true').toLowerCase() !== 'false';
+const MAESTRO_TEMPLATE_FILES = Object.freeze({
+  WT: 'MAESTRO_WT-1_G6_PCMB_QP.docx',
+  UT: 'MAESTRO_UT-1_G6_PCMB_QP (1).docx',
+  GT: 'MAESTRO_GT-1_G6.docx',
+});
+const CATALYST_TEMPLATE_FILES = Object.freeze({
+  PT: 'CATALYST_PT-1_G6_PCMB_QP.docx',
+});
+const FUTURE_FOUNDATION_TEMPLATE_FILES = Object.freeze({
+  WT: 'SLATES_FUTURE_FOUNDATION_WT-1_G6_PCMB_QP.docx',
+});
+const TEMPLATE_ASSET_KEYS = Object.freeze({
+  maestro: 'templates/maestro',
+  catalyst: 'templates/catalyst',
+  future_foundation: 'templates/future-foundation',
+});
+const TEMPLATE_ASSET_FS_ROOTS = Object.freeze([
+  path.resolve(process.cwd(), 'templates'),
+  path.resolve(process.cwd(), 'backend', 'templates'),
+]);
+
+const TEMPLATE_REGISTRY = Object.freeze({
+  catalyst: {
+    template_key: 'catalyst_v3',
+    template_version: '3.1',
+    fallback_template_key: 'default_v1',
+    strict_mode: true,
+  },
+  maestro: {
+    template_key: 'maestro_generic_v1',
+    template_version: '1.2',
+    fallback_template_key: 'default_v1',
+    strict_mode: true,
+  },
+  pioneer: {
+    template_key: 'pioneer_v2',
+    template_version: '2.4',
+    fallback_template_key: 'default_v1',
+    strict_mode: true,
+  },
+  'future foundation': {
+    template_key: 'future_foundation_v1',
+    template_version: '1.0',
+    fallback_template_key: 'default_v1',
+    strict_mode: true,
+  },
+  default: {
+    template_key: 'default_v1',
+    template_version: '1.0',
+    fallback_template_key: null,
+    strict_mode: false,
+  },
+});
+
+const TEMPLATE_SCHEMAS = Object.freeze({
+  catalyst_v3: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  maestro_v1: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  maestro_generic_v1: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  maestro_wt_v1: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  maestro_ut_v1: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  maestro_gt_v1: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  pioneer_v2: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  future_foundation_v1: {
+    required_metadata: ['exam_title', 'duration', 'program_name'],
+    required_regions: ['header', 'sections', 'footer_signature'],
+    required_question_types: [],
+    section_order_mode: 'template_then_order_index',
+  },
+  default_v1: {
+    required_metadata: ['exam_title'],
+    required_regions: ['header', 'sections'],
+    required_question_types: [],
+    section_order_mode: 'order_index',
+  },
+});
 
 const normalizeQuestionGroupTypeFromCategory = (category) => {
   const normalizeToken = (value) => {
@@ -99,6 +242,259 @@ const parseOptionalNumber = (value, fieldName) => {
   const parsed = Number(value);
   if (Number.isNaN(parsed)) throw new AppError(`${fieldName} must be a number`, 400);
   return parsed;
+};
+
+const normalizeProgramLookupKey = (value) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+
+const resolveMaestroExamType = ({ examTitle, blueprintName }) => {
+  const text = `${String(examTitle ?? '')} ${String(blueprintName ?? '')}`
+    .toUpperCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return null;
+
+  const hasWT = /\bWT\b|\bWEEK\s*TEST\b/.test(text);
+  const hasUT = /\bUT\b|\bUNIT\s*TEST\b/.test(text);
+  const hasGT = /\bGT\b|\bGRAND\s*TEST\b/.test(text);
+
+  const matches = [hasWT ? 'WT' : null, hasUT ? 'UT' : null, hasGT ? 'GT' : null].filter(Boolean);
+  if (matches.length !== 1) return null;
+  return matches[0];
+};
+
+const resolveGeneralExamType = ({ examTitle, blueprintName }) => {
+  const text = `${String(examTitle ?? '')} ${String(blueprintName ?? '')}`
+    .toUpperCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return null;
+  if (/\bWT\b|\bWEEK\s*TEST\b/.test(text)) return 'WT';
+  if (/\bUT\b|\bUNIT\s*TEST\b/.test(text)) return 'UT';
+  if (/\bPT\b|\bPERIODIC\s*TEST\b/.test(text)) return 'PT';
+  if (/\bGT\b|\bGRAND\s*TEST\b/.test(text)) return 'GT';
+  return null;
+};
+
+const resolveMaestroTemplateMapping = ({ examType }) => {
+  if (examType === 'WT') {
+    return {
+      template_key: 'maestro_wt_v1',
+      template_version: '1.0',
+      source_file: MAESTRO_TEMPLATE_FILES.WT,
+      source_path: `${TEMPLATE_ASSET_KEYS.maestro}/${MAESTRO_TEMPLATE_FILES.WT}`,
+      strict_mode: true,
+      fallback_template_key: null,
+      fallback_used: false,
+      exam_type: 'WT',
+    };
+  }
+  if (examType === 'UT') {
+    return {
+      template_key: 'maestro_ut_v1',
+      template_version: '1.0',
+      source_file: MAESTRO_TEMPLATE_FILES.UT,
+      source_path: `${TEMPLATE_ASSET_KEYS.maestro}/${MAESTRO_TEMPLATE_FILES.UT}`,
+      strict_mode: true,
+      fallback_template_key: null,
+      fallback_used: false,
+      exam_type: 'UT',
+    };
+  }
+  if (examType === 'GT') {
+    return {
+      template_key: 'maestro_gt_v1',
+      template_version: '1.0',
+      source_file: MAESTRO_TEMPLATE_FILES.GT,
+      source_path: `${TEMPLATE_ASSET_KEYS.maestro}/${MAESTRO_TEMPLATE_FILES.GT}`,
+      strict_mode: true,
+      fallback_template_key: null,
+      fallback_used: false,
+      exam_type: 'GT',
+    };
+  }
+
+  return {
+    template_key: null,
+    template_version: null,
+    source_file: null,
+    source_path: null,
+    strict_mode: true,
+    fallback_template_key: null,
+    fallback_used: false,
+    exam_type: null,
+    maestro_resolution_error: 'Unable to resolve Maestro exam type (expected WT, UT, or GT in exam title/blueprint name).',
+  };
+};
+
+const resolveTemplateMapping = ({ programName, examTitle, blueprintName }) => {
+  const key = normalizeProgramLookupKey(programName);
+  const isMaestroProgram = key.includes('maestro');
+  if (isMaestroProgram) {
+    const examType = resolveMaestroExamType({ examTitle, blueprintName });
+    const maestro = resolveMaestroTemplateMapping({ examType });
+    return {
+      ...maestro,
+      registry_key: key,
+      is_maestro_program: true,
+    };
+  }
+
+  const examType = resolveGeneralExamType({ examTitle, blueprintName });
+  if (key.includes('catalyst')) {
+    const sourceFile = examType === 'PT' ? CATALYST_TEMPLATE_FILES.PT : null;
+    return {
+      ...TEMPLATE_REGISTRY.catalyst,
+      source_file: sourceFile,
+      source_path: sourceFile ? `${TEMPLATE_ASSET_KEYS.catalyst}/${sourceFile}` : null,
+      exam_type: examType,
+      registry_key: key,
+      fallback_used: false,
+      is_maestro_program: false,
+    };
+  }
+
+  if (key.includes('future foundation')) {
+    const sourceFile = examType === 'WT' ? FUTURE_FOUNDATION_TEMPLATE_FILES.WT : null;
+    return {
+      ...TEMPLATE_REGISTRY['future foundation'],
+      source_file: sourceFile,
+      source_path: sourceFile ? `${TEMPLATE_ASSET_KEYS.future_foundation}/${sourceFile}` : null,
+      exam_type: examType,
+      registry_key: key,
+      fallback_used: false,
+      is_maestro_program: false,
+    };
+  }
+
+  const direct = key ? TEMPLATE_REGISTRY[key] : null;
+  if (direct) {
+    return {
+      ...direct,
+      source_file: null,
+      source_path: null,
+      exam_type: null,
+      registry_key: key,
+      fallback_used: false,
+      is_maestro_program: false,
+    };
+  }
+
+  const fallback = TEMPLATE_REGISTRY.default;
+  if (!fallback) {
+    return {
+      template_key: null,
+      template_version: null,
+      fallback_template_key: null,
+      strict_mode: true,
+      registry_key: key || null,
+      fallback_used: false,
+      source_file: null,
+      source_path: null,
+      exam_type: null,
+      is_maestro_program: false,
+    };
+  }
+
+  return {
+    ...fallback,
+    source_file: null,
+    source_path: null,
+    exam_type: null,
+    registry_key: key || null,
+    fallback_used: true,
+    is_maestro_program: false,
+  };
+};
+
+const getTemplateSchema = (templateKey) => TEMPLATE_SCHEMAS[templateKey] ?? TEMPLATE_SCHEMAS.default_v1;
+
+const normalizeSectionTemplateLabel = (section) => {
+  const raw = String(section?.title || section?.blueprint_section_name || '').trim().toUpperCase();
+  if (!raw) return '';
+  if (raw.startsWith('SECTION ')) return raw;
+  if (/^[A-Z]$/.test(raw)) return `SECTION ${raw}`;
+  return raw;
+};
+
+const getTemplateOrderedSections = (sections, schema) => {
+  if (!Array.isArray(sections)) return [];
+  if (schema?.section_order_mode !== 'template_then_order_index') {
+    return [...sections].sort((a, b) => Number(a?.order_index || 0) - Number(b?.order_index || 0));
+  }
+
+  const decorated = sections.map((section, index) => {
+    const label = normalizeSectionTemplateLabel(section);
+    const match = label.match(/^SECTION\s+([A-Z])/);
+    const sectionToken = match?.[1] || null;
+    const sectionRank = sectionToken ? sectionToken.charCodeAt(0) - 64 : Number.POSITIVE_INFINITY;
+    return { section, index, sectionRank };
+  });
+
+  decorated.sort((a, b) => {
+    if (a.sectionRank !== b.sectionRank) return a.sectionRank - b.sectionRank;
+    const orderDiff = Number(a.section?.order_index || 0) - Number(b.section?.order_index || 0);
+    if (orderDiff !== 0) return orderDiff;
+    return a.index - b.index;
+  });
+
+  return decorated.map((item) => item.section);
+};
+
+const buildTemplateValidation = ({ examSummary, orderedSections, schema, templateResolution }) => {
+  const warnings = [];
+  const blockingReasons = [];
+  const metadata = {
+    exam_title: examSummary?.title ?? '',
+    duration: examSummary?.total_duration_minutes ?? examSummary?.duration_minutes ?? '',
+    program_name: examSummary?.program_name ?? '',
+  };
+
+  for (const key of schema.required_metadata ?? []) {
+    const value = metadata[key];
+    if (value === null || value === undefined || String(value).trim() === '') {
+      blockingReasons.push(`Missing required metadata: ${key}`);
+    }
+  }
+
+  if ((schema.required_regions ?? []).includes('sections') && orderedSections.length === 0) {
+    blockingReasons.push('Template requires at least one section, but no sections are available.');
+  }
+
+  for (const section of orderedSections) {
+    const requiredCount = Number(section?.required_question_count || 0);
+    const currentCount = Number(section?.question_count || 0);
+    if (requiredCount > 0 && currentCount !== requiredCount) {
+      blockingReasons.push(
+        `Section "${section?.title || section?.blueprint_section_name || section?.id}" requires ${requiredCount} questions but has ${currentCount}.`
+      );
+    }
+    if (!section?.instructions || String(section.instructions).trim() === '') {
+      warnings.push(`Section "${section?.title || section?.id}" is missing instructions.`);
+    }
+  }
+
+  if (templateResolution?.strict_mode && templateResolution?.fallback_used) {
+    blockingReasons.push('No direct program-template mapping found for strict mode.');
+  }
+  if (templateResolution?.strict_mode && !templateResolution?.template_key) {
+    blockingReasons.push(
+      templateResolution?.maestro_resolution_error || 'No valid template mapping resolved for this exam.'
+    );
+  }
+
+  return {
+    warnings,
+    blocking_reasons: blockingReasons,
+    has_warnings: warnings.length > 0,
+    can_save_draft: true,
+    can_finalize: blockingReasons.length === 0,
+  };
 };
 
 const validateQuestionForExamSection = async ({ exam, questionId }) => {
@@ -324,7 +720,15 @@ const buildExamWhere = async ({ user, query }) => {
 
 const getExamByIdForAccess = async ({ examId, user, requireOwner = false }) => {
   const id = parseRequiredInt(examId, 'id');
-  const result = await dbQuery(`SELECT * FROM exams WHERE id = $1`, [id]);
+  const result = await dbQuery(
+    `
+    SELECT e.*, p.name AS program_name
+    FROM exams e
+    LEFT JOIN programs p ON p.id = e.program_id
+    WHERE e.id = $1
+    `,
+    [id]
+  );
   if (result.rows.length === 0) {
     throw new AppError('Exam not found', 404);
   }
@@ -1156,10 +1560,15 @@ const hydrateSectionRows = async (sectionRows) => {
       order_index: Number(row.order_index),
       question_group_type: row.question_group_type,
       question_type: row.question_type,
-      question_text: row.question_text,
-      options: row.options,
+      question_text: normalizeRichValueForPreview(row.question_text),
+      options: Array.isArray(row.options)
+        ? row.options.map((option) => ({
+          ...option,
+          text: normalizeRichValueForPreview(option?.text),
+        }))
+        : row.options,
       correct_answer: row.correct_answer,
-      solution: row.solution,
+      solution: normalizeRichValueForPreview(row.solution),
       subject_id: row.subject_id ? Number(row.subject_id) : null,
       chapter_id: row.chapter_id ? Number(row.chapter_id) : null,
       topic_id: row.topic_id ? Number(row.topic_id) : null,
@@ -1224,21 +1633,65 @@ const buildExamPreviewPayload = async (exam) => {
     : null;
 
   const sections = await fetchExamSectionsWithBlueprintData(Number(exam.id));
+  const examSummary = {
+    ...exam,
+    id: Number(exam.id),
+    client_id: Number(exam.client_id),
+    school_id: exam.school_id ? Number(exam.school_id) : null,
+    program_id: exam.program_id ? Number(exam.program_id) : null,
+    program_name: exam.program_name ? String(exam.program_name) : null,
+    blueprint_id: exam.blueprint_id ? Number(exam.blueprint_id) : null,
+  };
   const allSectionsCompleted = sections.every(
     (section) =>
       Number(section.question_count) === Number(section.required_question_count || 0) &&
       section.completion_status === 'completed'
   );
+  const templateResolution = PROGRAM_TEMPLATE_PREVIEW_V1
+    ? resolveTemplateMapping({
+      programName: examSummary.program_name,
+      examTitle: examSummary.title,
+      blueprintName: blueprint?.name,
+    })
+    : {
+      template_key: 'default_v1',
+      template_version: '1.0',
+      fallback_template_key: null,
+      strict_mode: false,
+      registry_key: 'default',
+      fallback_used: false,
+      source_file: null,
+      source_path: null,
+      exam_type: null,
+      is_maestro_program: false,
+    };
+  const schema = getTemplateSchema(templateResolution.template_key);
+  const orderedSections = getTemplateOrderedSections(sections, schema);
+  const renderBlocks = orderedSections.map((section) => ({
+    section_id: Number(section.id),
+    section_title: section.title || section.blueprint_section_name || `Section ${section.id}`,
+    section_label: normalizeSectionTemplateLabel(section),
+    order_index: Number(section.order_index || 0),
+    instructions: section.instructions ?? '',
+    question_count: Number(section.question_count || 0),
+    required_question_count: Number(section.required_question_count || 0),
+    question_groups: section.question_groups ?? {},
+    render_metadata: {
+      marks_per_question: section.marks_per_question ?? null,
+      negative_marks: section.negative_marks ?? null,
+      completion_status: section.completion_status ?? null,
+      selected_subject_name: section.selected_subject_name ?? null,
+    },
+  }));
+  const validation = buildTemplateValidation({
+    examSummary,
+    orderedSections,
+    schema,
+    templateResolution,
+  });
 
   return {
-    exam: {
-      ...exam,
-      id: Number(exam.id),
-      client_id: Number(exam.client_id),
-      school_id: exam.school_id ? Number(exam.school_id) : null,
-      program_id: exam.program_id ? Number(exam.program_id) : null,
-      blueprint_id: exam.blueprint_id ? Number(exam.blueprint_id) : null,
-    },
+    exam: examSummary,
     blueprint: blueprint
       ? {
         ...blueprint,
@@ -1247,14 +1700,26 @@ const buildExamPreviewPayload = async (exam) => {
         school_id: blueprint.school_id ? Number(blueprint.school_id) : null,
       }
       : null,
-    sections,
-    totals: {
-      section_count: sections.length,
-      question_count: sections.reduce((sum, section) => sum + Number(section.question_count || 0), 0),
-      required_question_count: sections.reduce((sum, section) => sum + Number(section.required_question_count || 0), 0),
-      completed_section_count: sections.filter((section) => section.completion_status === 'completed').length,
+    sections: orderedSections,
+    template_resolution: {
+      template_key: templateResolution.template_key,
+      template_version: templateResolution.template_version,
+      source_file: templateResolution.source_file ?? null,
+      source_path: templateResolution.source_path ?? null,
+      exam_type: templateResolution.exam_type ?? null,
+      strict_mode: Boolean(templateResolution.strict_mode),
+      fallback_used: Boolean(templateResolution.fallback_used),
+      fallback_template_key: templateResolution.fallback_template_key ?? null,
     },
-    all_sections_completed: allSectionsCompleted,
+    render_blocks: renderBlocks,
+    validation,
+    totals: {
+      section_count: orderedSections.length,
+      question_count: orderedSections.reduce((sum, section) => sum + Number(section.question_count || 0), 0),
+      required_question_count: orderedSections.reduce((sum, section) => sum + Number(section.required_question_count || 0), 0),
+      completed_section_count: orderedSections.filter((section) => section.completion_status === 'completed').length,
+    },
+    all_sections_completed: allSectionsCompleted && validation.can_finalize,
   };
 };
 
@@ -1265,17 +1730,455 @@ const QUESTION_GROUP_TYPE_LABELS = {
   reference: 'Reference Questions',
 };
 
+const normalizeLatexForDocx = (value) => {
+  if (!value) return '';
+  let text = String(value);
+
+  // Normalize escaped delimiters across multiple escaping levels.
+  // Example: \\\(x\\\\) -> \\(x\\)
+  text = text
+    .replace(/\\+\(/g, '\\(')
+    .replace(/\\+\)/g, '\\)')
+    .replace(/\\+\[/g, '\\[')
+    .replace(/\\+\]/g, '\\]');
+
+  // Remove TeX math wrappers while preserving expression content.
+  text = text.replace(/\\\(([\s\S]*?)\\\)/g, '$1');
+  text = text.replace(/\\\[([\s\S]*?)\\\]/g, '$1');
+  text = text.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
+  text = text.replace(/\$([^$]+)\$/g, '$1');
+
+  // Common TeX operator aliases to readable ASCII fallback for DOCX text mode.
+  text = text
+    .replace(/\\times/g, ' x ')
+    .replace(/\\cdot/g, ' * ')
+    .replace(/\\div/g, ' / ')
+    .replace(/\\pm/g, ' +/- ')
+    .replace(/\\neq/g, ' != ')
+    .replace(/\\geq/g, ' >= ')
+    .replace(/\\leq/g, ' <= ')
+    .replace(/\\to/g, ' -> ');
+
+  // Best-effort simplification of \frac{a}{b} => (a)/(b)
+  text = text.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)');
+
+  // Best-effort simplification of \sqrt{a} => sqrt(a)
+  text = text.replace(/\\sqrt\s*\{([^{}]+)\}/g, 'sqrt($1)');
+
+  // Remove remaining escaped braces to avoid noisy output.
+  text = text.replace(/\\\{/g, '{').replace(/\\\}/g, '}');
+  // Strip any remaining delimiter slashes in malformed strings.
+  text = text.replace(/\\([()[\]])/g, '$1');
+
+  return text.replace(/\s+/g, ' ').trim();
+};
+
+const normalizeLatexDelimitersForPreview = (value) => {
+  if (value === null || value === undefined) return value;
+  let text = String(value);
+  for (let i = 0; i < 3; i += 1) {
+    const next = text
+      .replace(/\\\\\(/g, '\\(')
+      .replace(/\\\\\)/g, '\\)')
+      .replace(/\\\\\[/g, '\\[')
+      .replace(/\\\\\]/g, '\\]')
+      .replace(/\\\\\{/g, '\\{')
+      .replace(/\\\\\}/g, '\\}');
+    if (next === text) break;
+    text = next;
+  }
+  return text;
+};
+
+const normalizeRichValueForPreview = (value) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') return normalizeLatexDelimitersForPreview(value);
+  if (typeof value === 'object') {
+    const clone = { ...value };
+    if ('html' in clone && typeof clone.html === 'string') {
+      clone.html = normalizeLatexDelimitersForPreview(clone.html);
+    }
+    if ('text' in clone && typeof clone.text === 'string') {
+      clone.text = normalizeLatexDelimitersForPreview(clone.text);
+    }
+    return clone;
+  }
+  return value;
+};
+
+const extractRichHtmlString = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return String(value);
+  if (typeof value === 'object') return String(value.html ?? value.text ?? '');
+  return '';
+};
+
+const normalizeDocxHtml = (value) =>
+  String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/&nbsp;/gi, ' ')
+    .trim();
+
+const decodeHtmlEntitiesForDocx = (value) => {
+  const $ = loadHtml(`<div>${String(value || '')}</div>`);
+  return $('div').text();
+};
+
+const parseDataUrlImage = (src) => {
+  const match = String(src || '').match(/^data:([^;]+);base64,(.+)$/i);
+  if (!match) return null;
+  try {
+    const mimeType = String(match[1] || '').toLowerCase();
+    const docxTypeByMime = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/gif': 'gif',
+      'image/bmp': 'bmp',
+    };
+    const type = docxTypeByMime[mimeType];
+    if (!type) return null;
+
+    const data = Buffer.from(match[2], 'base64');
+    if (!data || data.length === 0) return null;
+    return { mimeType, data, type };
+  } catch (_err) {
+    return null;
+  }
+};
+
+const htmlMathToLinearText = (mathHtml) => {
+  const source = normalizeDocxHtml(mathHtml);
+  if (!source) return '';
+  const text = decodeHtmlEntitiesForDocx(source)
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalizeLatexForDocx(text);
+};
+
+const LATEX_SYMBOL_MAP = {
+  alpha: 'α',
+  beta: 'β',
+  gamma: 'γ',
+  delta: 'δ',
+  theta: 'θ',
+  lambda: 'λ',
+  mu: 'μ',
+  pi: 'π',
+  sigma: 'σ',
+  phi: 'φ',
+  omega: 'ω',
+  Delta: 'Δ',
+  Sigma: 'Σ',
+  Omega: 'Ω',
+  times: '×',
+  cdot: '·',
+  div: '÷',
+  pm: '±',
+  leq: '≤',
+  geq: '≥',
+  neq: '≠',
+  to: '→',
+};
+
+const latexToMathComponents = (latexInput) => {
+  const input = String(latexInput || '').trim();
+  if (!input) return [];
+
+  let index = 0;
+  const len = input.length;
+
+  const skipSpaces = () => {
+    while (index < len && /\s/.test(input[index])) index += 1;
+  };
+
+  const readGroupRaw = () => {
+    skipSpaces();
+    if (input[index] === '{') {
+      let depth = 0;
+      const start = index + 1;
+      index += 1;
+      while (index < len) {
+        const ch = input[index];
+        if (ch === '{') depth += 1;
+        if (ch === '}') {
+          if (depth === 0) {
+            const value = input.slice(start, index);
+            index += 1;
+            return value;
+          }
+          depth -= 1;
+        }
+        index += 1;
+      }
+      return input.slice(start);
+    }
+    if (index < len) {
+      const ch = input[index];
+      index += 1;
+      return ch;
+    }
+    return '';
+  };
+
+  const parseScript = () => {
+    skipSpaces();
+    if (input[index] === '{') {
+      const raw = readGroupRaw();
+      return latexToMathComponents(raw);
+    }
+    if (index < len) {
+      const ch = input[index];
+      index += 1;
+      if (ch === '\\') {
+        let name = '';
+        while (index < len && /[A-Za-z]/.test(input[index])) {
+          name += input[index];
+          index += 1;
+        }
+        return [new MathRun(LATEX_SYMBOL_MAP[name] || name || '\\')];
+      }
+      return [new MathRun(ch)];
+    }
+    return [new MathRun('')];
+  };
+
+  const parseAtom = () => {
+    skipSpaces();
+    if (index >= len) return [new MathRun('')];
+
+    if (input.startsWith('\\frac', index)) {
+      index += 5;
+      const numeratorRaw = readGroupRaw();
+      const denominatorRaw = readGroupRaw();
+      return [
+        new MathFraction({
+          numerator: latexToMathComponents(numeratorRaw),
+          denominator: latexToMathComponents(denominatorRaw),
+        }),
+      ];
+    }
+
+    if (input.startsWith('\\sqrt', index)) {
+      index += 5;
+      skipSpaces();
+      let degree = null;
+      if (input[index] === '[') {
+        index += 1;
+        const start = index;
+        while (index < len && input[index] !== ']') index += 1;
+        degree = input.slice(start, index);
+        if (input[index] === ']') index += 1;
+      }
+      const bodyRaw = readGroupRaw();
+      return [
+        new MathRadical({
+          children: latexToMathComponents(bodyRaw),
+          degree: degree ? latexToMathComponents(degree) : undefined,
+        }),
+      ];
+    }
+
+    if (input[index] === '\\') {
+      index += 1;
+      let cmd = '';
+      while (index < len && /[A-Za-z]/.test(input[index])) {
+        cmd += input[index];
+        index += 1;
+      }
+      return [new MathRun(LATEX_SYMBOL_MAP[cmd] || cmd || '\\')];
+    }
+
+    if (input[index] === '{') {
+      const raw = readGroupRaw();
+      return latexToMathComponents(raw);
+    }
+
+    const ch = input[index];
+    index += 1;
+    return [new MathRun(ch)];
+  };
+
+  const out = [];
+  while (index < len) {
+    const base = parseAtom();
+    skipSpaces();
+
+    if (input[index] === '^' || input[index] === '_') {
+      const firstOp = input[index];
+      index += 1;
+      const firstScript = parseScript();
+      skipSpaces();
+      if ((firstOp === '^' && input[index] === '_') || (firstOp === '_' && input[index] === '^')) {
+        const secondOp = input[index];
+        index += 1;
+        const secondScript = parseScript();
+        const superScript = firstOp === '^' ? firstScript : secondScript;
+        const subScript = firstOp === '_' ? firstScript : secondScript;
+        out.push(
+          new MathSubSuperScript({
+            children: base,
+            subScript,
+            superScript,
+          })
+        );
+      } else if (firstOp === '^') {
+        out.push(
+          new MathSuperScript({
+            children: base,
+            superScript: firstScript,
+          })
+        );
+      } else {
+        out.push(
+          new MathSubScript({
+            children: base,
+            subScript: firstScript,
+          })
+        );
+      }
+    } else {
+      out.push(...base);
+    }
+  }
+  return out;
+};
+
+const htmlToDocxRuns = (html, styles = {}) => {
+  const source = normalizeDocxHtml(html);
+  if (!source) return [];
+  const $ = loadHtml(`<root>${source}</root>`);
+  const runs = [];
+
+  const pushPlainTextRun = (text, inherited = {}) => {
+    const normalized = normalizeLatexForDocx(text);
+    if (!normalized) return;
+    runs.push(
+      new TextRun({
+        ...buildDocxTextRunOptions({
+          text: normalized,
+          size: inherited.size,
+        }),
+        bold: Boolean(inherited.bold),
+        italics: Boolean(inherited.italics),
+        underline: inherited.underline ? {} : undefined,
+        superScript: Boolean(inherited.superScript),
+        subScript: Boolean(inherited.subScript),
+      })
+    );
+  };
+
+  const splitLatexSegments = (text) => {
+    const source = decodeHtmlEntitiesForDocx(text);
+    if (!source) return [];
+    const regex = /\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]|\$\$([\s\S]*?)\$\$|\$([^\n$]+?)\$/g;
+    const segments = [];
+    let lastIndex = 0;
+    for (const match of source.matchAll(regex)) {
+      const idx = match.index ?? 0;
+      if (idx > lastIndex) {
+        segments.push({ type: 'text', value: source.slice(lastIndex, idx) });
+      }
+      const expr = (match[1] ?? match[2] ?? match[3] ?? match[4] ?? '').trim();
+      if (expr) segments.push({ type: 'math', value: expr });
+      lastIndex = idx + match[0].length;
+    }
+    if (lastIndex < source.length) {
+      segments.push({ type: 'text', value: source.slice(lastIndex) });
+    }
+    if (segments.length === 0) segments.push({ type: 'text', value: source });
+    return segments;
+  };
+
+  const pushTextRun = (text, inherited = {}) => {
+    const segments = splitLatexSegments(text);
+    for (const segment of segments) {
+      if (segment.type === 'math') {
+        const components = latexToMathComponents(String(segment.value));
+        runs.push(
+          new DocxMath({
+            children: components.length > 0 ? components : [new MathRun(normalizeLatexForDocx(String(segment.value)))],
+          })
+        );
+      } else {
+        pushPlainTextRun(String(segment.value), inherited);
+      }
+    }
+  };
+
+  const walk = (node, inherited = {}) => {
+    if (!node) return;
+    if (node.type === 'text') {
+      pushTextRun($(node).text(), inherited);
+      return;
+    }
+    if (node.type !== 'tag') return;
+
+    const tag = String(node.name || '').toLowerCase();
+    if (tag === 'br') {
+      runs.push(new TextRun({ ...buildDocxTextRunOptions({ text: '' }), break: 1 }));
+      return;
+    }
+
+    if (tag === 'img') {
+      const src = $(node).attr('src') || '';
+      const parsed = parseDataUrlImage(src);
+      if (parsed) {
+        runs.push(
+          new ImageRun({
+            data: parsed.data,
+            type: parsed.type,
+            transformation: { width: 220, height: 140 },
+          })
+        );
+      } else {
+        const alt = decodeHtmlEntitiesForDocx($(node).attr('alt') || 'image');
+        runs.push(new TextRun(buildDocxTextRunOptions({ text: `[${alt}]` })));
+      }
+      return;
+    }
+
+    if (tag === 'span') {
+      const className = String($(node).attr('class') || '').toLowerCase();
+      if (className.includes('math-equation') || className.includes('math-matrix')) {
+        const linearMath = htmlMathToLinearText($(node).html() || $(node).text() || '');
+        if (linearMath) {
+          runs.push(new DocxMath({ children: [new MathRun(linearMath)] }));
+        }
+        return;
+      }
+    }
+
+    const next = {
+      ...inherited,
+      bold: inherited.bold || ['strong', 'b'].includes(tag),
+      italics: inherited.italics || ['em', 'i'].includes(tag),
+      underline: inherited.underline || tag === 'u',
+      superScript: inherited.superScript || tag === 'sup',
+      subScript: inherited.subScript || tag === 'sub',
+    };
+
+    (node.children || []).forEach((child) => walk(child, next));
+  };
+
+  $('root')
+    .contents()
+    .each((_, node) => walk(node, styles));
+  return runs;
+};
+
 const stripHtmlToText = (value) => {
   if (!value) return '';
   if (typeof value === 'string') {
     const $ = loadHtml(`<div>${value}</div>`);
-    return $('div').text().replace(/\s+/g, ' ').trim();
+    return normalizeLatexForDocx($('div').text()).replace(/\s+/g, ' ').trim();
   }
   if (typeof value === 'object') {
     const html = value.html ?? value.text ?? '';
     if (!html) return '';
     const $ = loadHtml(`<div>${String(html)}</div>`);
-    return $('div').text().replace(/\s+/g, ' ').trim();
+    return normalizeLatexForDocx($('div').text()).replace(/\s+/g, ' ').trim();
   }
   return '';
 };
@@ -1297,7 +2200,7 @@ const richTextToMultilineText = (value) => {
   normalized = normalized.replace(/<\/div>/gi, '\n');
 
   const $ = loadHtml(`<div>${normalized}</div>`);
-  const text = $('div').text();
+  const text = normalizeLatexForDocx($('div').text());
   return text
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
@@ -1374,7 +2277,156 @@ const resolveAnswerText = (question) => {
 const resolveSolutionLines = (question) => {
   const multiline = richTextToMultilineText(question?.solution);
   if (!multiline) return [];
-  return multiline.split('\n').map((line) => line.trim()).filter(Boolean);
+
+  const explicitLines = multiline
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const lines = [];
+  for (const line of explicitLines) {
+    const normalized = String(line).replace(/\s+/g, ' ').trim();
+    if (!normalized) continue;
+
+    const stepMatches = normalized.match(/(?:Step\s*\d+[.:]?[\s\S]*?)(?=Step\s*\d+[.:]?|$)/gi);
+    if (stepMatches && stepMatches.length > 1) {
+      lines.push(...stepMatches.map((entry) => entry.trim()).filter(Boolean));
+      continue;
+    }
+
+    lines.push(normalized);
+  }
+
+  return lines;
+};
+
+const resolveSolutionHtmlLines = (question) => {
+  const raw = extractRichHtmlString(question?.solution);
+  if (!raw) return [];
+
+  let normalized = raw
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/<br\s*\/?>/gi, '<br/>');
+
+  const $ = loadHtml(`<root>${normalized}</root>`);
+  const root = $('root');
+  const segments = [];
+
+  root.contents().each((_, node) => {
+    if (!node) return;
+    if (node.type === 'text') {
+      const text = $(node).text().trim();
+      if (text) segments.push(text);
+      return;
+    }
+    if (node.type !== 'tag') return;
+
+    const tag = String(node.name || '').toLowerCase();
+    if (['p', 'div', 'li'].includes(tag)) {
+      const innerHtml = $(node).html()?.trim();
+      if (innerHtml) segments.push(innerHtml);
+      return;
+    }
+    if (tag === 'br') return;
+
+    const outerHtml = $.html(node)?.trim();
+    if (outerHtml) segments.push(outerHtml);
+  });
+
+  const lines = [];
+  for (const segment of segments) {
+    const parts = segment
+      .split(/(?=(?:<[^>]+>\s*)*Step\s*\d+[.:]?)/i)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    let pendingInlineTags = '';
+    for (const part of parts) {
+      const plainText = stripHtmlToText(part).trim();
+
+      // If a fragment is only formatting tags, carry it forward so it stays attached
+      // to the next real step content instead of becoming literal text in Word.
+      if (!plainText) {
+        pendingInlineTags += part;
+        continue;
+      }
+
+      const merged = `${pendingInlineTags}${part}`.trim();
+      pendingInlineTags = '';
+      lines.push(merged);
+    }
+  }
+
+  return lines;
+};
+
+const resolveAnswerRuns = (question) => {
+  const prefixRuns = [new TextRun(buildDocxTextRunOptions({ text: 'Correct Answer: ', bold: true }))];
+  const options = Array.isArray(question?.options) ? question.options : [];
+  const answer = question?.correct_answer;
+
+  const buildOptionRuns = (raw) => {
+    const idx = resolveOptionIndex(options, raw);
+    if (idx === undefined || !options[idx]) return null;
+    const label = `${optionLabelFromIndex(idx)}. `;
+    const optionHtml = extractRichHtmlString(options[idx]?.text);
+    const optionRuns = htmlToDocxRuns(optionHtml, { size: DOCX_BODY_FONT_SIZE });
+    const optionText = extractOptionText(options[idx]);
+    return [
+      new TextRun(buildDocxTextRunOptions({ text: label })),
+      ...(optionRuns.length > 0
+        ? optionRuns
+        : optionText
+          ? [new TextRun(buildDocxTextRunOptions({ text: optionText }))]
+          : []),
+    ];
+  };
+
+  if (options.length > 0) {
+    if (typeof answer === 'string' || typeof answer === 'number' || typeof answer === 'boolean') {
+      const runs = buildOptionRuns(answer);
+      if (runs) return [...prefixRuns, ...runs];
+    }
+
+    if (Array.isArray(answer) && answer.length > 0) {
+      const combined = [];
+      answer.forEach((item, index) => {
+        const runs = buildOptionRuns(item);
+        if (!runs) return;
+        if (index > 0) combined.push(new TextRun(buildDocxTextRunOptions({ text: ', ' })));
+        combined.push(...runs);
+      });
+      if (combined.length > 0) return [...prefixRuns, ...combined];
+    }
+
+    if (answer && typeof answer === 'object') {
+      const answerList = Array.isArray(answer.answer_ids)
+        ? answer.answer_ids
+        : Array.isArray(answer.answers)
+          ? answer.answers
+          : answer.answer !== undefined
+            ? [answer.answer]
+            : [];
+      if (answerList.length > 0) {
+        const combined = [];
+        answerList.forEach((item, index) => {
+          const runs = buildOptionRuns(item);
+          if (!runs) return;
+          if (index > 0) combined.push(new TextRun(buildDocxTextRunOptions({ text: ', ' })));
+          combined.push(...runs);
+        });
+        if (combined.length > 0) return [...prefixRuns, ...combined];
+      }
+    }
+  }
+
+  const fallback = resolveAnswerText(question);
+  return [...prefixRuns, new TextRun(buildDocxTextRunOptions({ text: fallback || '--' }))];
 };
 
 const sanitizeFilenamePart = (value) =>
@@ -1384,161 +2436,767 @@ const sanitizeFilenamePart = (value) =>
     .trim()
     .slice(0, 80) || 'question-paper';
 
-const buildExamDocxBuffer = async (preview) => {
-  const children = [];
-  const examTitle = preview?.exam?.title || 'Question Paper';
+const resolveTemplateAssetAbsolutePath = (templateResolution) => {
+  const sourcePath = String(templateResolution?.source_path || '').trim();
+  if (!sourcePath) return null;
+  const normalized = sourcePath.replace(/^[/\\]+/, '').replace(/[\\/]+/g, path.sep);
+  const relativePath = normalized.replace(/^templates[\\/]/i, '');
+  for (const root of TEMPLATE_ASSET_FS_ROOTS) {
+    const abs = path.resolve(root, relativePath);
+    if (existsSync(abs)) return abs;
+  }
+  return null;
+};
 
-  children.push(
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: examTitle, bold: true })],
-      spacing: { after: 240 },
-    })
-  );
+const extractBodyWithoutSectPr = (documentXml) => {
+  const xml = String(documentXml || '');
+  const bodyMatch = xml.match(/<w:body>([\s\S]*?)<\/w:body>/i);
+  if (!bodyMatch) return null;
+  const bodyInner = bodyMatch[1];
+  return bodyInner.replace(/<w:sectPr[\s\S]*?<\/w:sectPr>\s*$/i, '');
+};
 
-  if (preview?.blueprint?.name) {
-    children.push(
-      new Paragraph({
-        children: [new TextRun({ text: `Blueprint: ${preview.blueprint.name}` })],
-        spacing: { after: 200 },
-      })
-    );
+const extractSectPr = (documentXml) => {
+  const xml = String(documentXml || '');
+  const bodyMatch = xml.match(/<w:body>([\s\S]*?)<\/w:body>/i);
+  if (!bodyMatch) return null;
+  const bodyInner = bodyMatch[1];
+  const sect = bodyInner.match(/<w:sectPr[\s\S]*?<\/w:sectPr>\s*$/i);
+  return sect ? sect[0] : null;
+};
+
+const mergeGeneratedBodyIntoTemplate = ({ generatedBuffer, templateAbsolutePath }) => {
+  if (!generatedBuffer || !templateAbsolutePath || !existsSync(templateAbsolutePath)) return generatedBuffer;
+
+  const generatedZip = new AdmZip(generatedBuffer);
+  const templateZip = new AdmZip(templateAbsolutePath);
+  const generatedEntry = generatedZip.getEntry('word/document.xml');
+  const templateEntry = templateZip.getEntry('word/document.xml');
+  if (!generatedEntry || !templateEntry) return generatedBuffer;
+
+  const generatedXml = generatedEntry.getData().toString('utf8');
+  let templateXml = templateEntry.getData().toString('utf8');
+  let generatedBody = extractBodyWithoutSectPr(generatedXml);
+  const templateSectPr = extractSectPr(templateXml);
+  if (!generatedBody || !templateSectPr) return generatedBuffer;
+
+  // Ensure template root declares all namespaces required by injected generated body.
+  const generatedRootTag = (generatedXml.match(/<w:document\b[\s\S]*?>/i) || [null])[0];
+  const templateRootTag = (templateXml.match(/<w:document\b[\s\S]*?>/i) || [null])[0];
+  if (generatedRootTag && templateRootTag) {
+    const generatedNs = new Map();
+    const templateNs = new Set();
+    for (const m of generatedRootTag.matchAll(/(xmlns:[A-Za-z0-9_\-]+)="([^"]+)"/g)) {
+      generatedNs.set(m[1], m[2]);
+    }
+    for (const m of templateRootTag.matchAll(/(xmlns:[A-Za-z0-9_\-]+)="([^"]+)"/g)) {
+      templateNs.add(m[1]);
+    }
+
+    let mergedRootTag = templateRootTag;
+    for (const [nsAttr, nsValue] of generatedNs.entries()) {
+      if (!templateNs.has(nsAttr)) {
+        mergedRootTag = mergedRootTag.replace(/>$/, ` ${nsAttr}="${nsValue}">`);
+      }
+    }
+
+    // Ensure drawing namespaces required by image/picture runs are always present.
+    const requiredNs = {
+      'xmlns:a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+      'xmlns:pic': 'http://schemas.openxmlformats.org/drawingml/2006/picture',
+    };
+    for (const [nsAttr, nsValue] of Object.entries(requiredNs)) {
+      if (!new RegExp(`${nsAttr}=`).test(mergedRootTag)) {
+        mergedRootTag = mergedRootTag.replace(/>$/, ` ${nsAttr}="${nsValue}">`);
+      }
+    }
+    templateXml = templateXml.replace(templateRootTag, mergedRootTag);
   }
 
-  let runningQuestionIndex = 1;
-  const orderedSections = [...(preview?.sections ?? [])].sort(
-    (a, b) => Number(a?.order_index || 0) - Number(b?.order_index || 0)
-  );
+  const generatedRelsEntry = generatedZip.getEntry('word/_rels/document.xml.rels');
+  const templateRelsEntry = templateZip.getEntry('word/_rels/document.xml.rels');
+  const generatedCtEntry = generatedZip.getEntry('[Content_Types].xml');
+  const templateCtEntry = templateZip.getEntry('[Content_Types].xml');
+  if (!generatedRelsEntry || !templateRelsEntry || !generatedCtEntry || !templateCtEntry) return generatedBuffer;
 
-  for (let sectionIndex = 0; sectionIndex < orderedSections.length; sectionIndex += 1) {
-    const section = orderedSections[sectionIndex];
-    children.push(
-      new Paragraph({
-        heading: HeadingLevel.HEADING_1,
-        children: [new TextRun({ text: `Section ${sectionIndex + 1}: ${section.title || 'Untitled'}` })],
-        spacing: { before: 240, after: 120 },
-      })
+  const generatedRelsXml = generatedRelsEntry.getData().toString('utf8');
+  let templateRelsXml = templateRelsEntry.getData().toString('utf8');
+  const generatedCtXml = generatedCtEntry.getData().toString('utf8');
+  let templateCtXml = templateCtEntry.getData().toString('utf8');
+
+  const usedRelIds = new Set();
+  const relRefRegex = /r:(?:embed|id|link)="([^"]+)"/g;
+  for (const match of generatedBody.matchAll(relRefRegex)) {
+    if (match[1]) usedRelIds.add(match[1]);
+  }
+
+  const parseRelationshipTag = (tag) => {
+    const attrs = {};
+    const attrRegex = /([A-Za-z:]+)="([^"]*)"/g;
+    for (const m of tag.matchAll(attrRegex)) {
+      attrs[m[1]] = m[2];
+    }
+    return attrs;
+  };
+
+  const generatedRelationships = new Map();
+  const relTagRegex = /<Relationship\b[^>]*\/>/g;
+  for (const tagMatch of generatedRelsXml.matchAll(relTagRegex)) {
+    const tag = tagMatch[0];
+    const attrs = parseRelationshipTag(tag);
+    if (attrs.Id) generatedRelationships.set(attrs.Id, { tag, attrs });
+  }
+
+  const existingTemplateIds = new Set();
+  for (const tagMatch of templateRelsXml.matchAll(relTagRegex)) {
+    const attrs = parseRelationshipTag(tagMatch[0]);
+    if (attrs.Id) existingTemplateIds.add(attrs.Id);
+  }
+
+  const allocateRelId = () => {
+    let n = 1;
+    while (existingTemplateIds.has(`rId${n}`)) n += 1;
+    const allocated = `rId${n}`;
+    existingTemplateIds.add(allocated);
+    return allocated;
+  };
+
+  const relIdMap = new Map();
+  for (const oldId of usedRelIds) {
+    const rel = generatedRelationships.get(oldId);
+    if (!rel) continue;
+    const newId = allocateRelId();
+    relIdMap.set(oldId, { newId, attrs: rel.attrs });
+  }
+
+  // Remap relationship ids in generated body.
+  generatedBody = generatedBody.replace(/r:(embed|id|link)="([^"]+)"/g, (full, attrName, id) => {
+    const mapped = relIdMap.get(id);
+    if (!mapped) return full;
+    return `r:${attrName}="${mapped.newId}"`;
+  });
+
+  const copiedPartPaths = new Set();
+  // Append remapped relationships and copy target parts into template zip.
+  for (const [oldId, mapped] of relIdMap.entries()) {
+    const attrs = { ...mapped.attrs, Id: mapped.newId };
+    const relTag =
+      `<Relationship Id="${attrs.Id}"` +
+      `${attrs.Type ? ` Type="${attrs.Type}"` : ''}` +
+      `${attrs.Target ? ` Target="${attrs.Target}"` : ''}` +
+      `${attrs.TargetMode ? ` TargetMode="${attrs.TargetMode}"` : ''}` +
+      '/>';
+
+    templateRelsXml = templateRelsXml.replace('</Relationships>', `  ${relTag}\n</Relationships>`);
+
+    if (!attrs.Target || String(attrs.TargetMode || '').toLowerCase() === 'external') continue;
+    const normalizedTarget = attrs.Target.replace(/\\/g, '/');
+    const sourcePartPath = path.posix.normalize(path.posix.join('word', normalizedTarget));
+    const sourceEntry = generatedZip.getEntry(sourcePartPath);
+    if (!sourceEntry) continue;
+    const existingEntry = templateZip.getEntry(sourcePartPath);
+    if (!existingEntry) {
+      templateZip.addFile(sourcePartPath, sourceEntry.getData());
+      copiedPartPaths.add(`/${sourcePartPath}`);
+    }
+  }
+
+  if (copiedPartPaths.size > 0) {
+    const templateDefaultExts = new Set(
+      Array.from(templateCtXml.matchAll(/<Default\s+Extension="([^"]+)"/gi)).map((m) => m[1].toLowerCase())
+    );
+    const templateOverrides = new Set(
+      Array.from(templateCtXml.matchAll(/<Override\s+PartName="([^"]+)"/gi)).map((m) => m[1])
     );
 
-    for (const groupType of QUESTION_GROUP_TYPES) {
-      const questions = section?.question_groups?.[groupType] ?? [];
-      if (!Array.isArray(questions) || questions.length === 0) continue;
+    const generatedDefaults = new Map();
+    for (const m of generatedCtXml.matchAll(/<Default\s+Extension="([^"]+)"\s+ContentType="([^"]+)"\s*\/>/gi)) {
+      generatedDefaults.set(m[1].toLowerCase(), m[2]);
+    }
+    const generatedOverrides = new Map();
+    for (const m of generatedCtXml.matchAll(/<Override\s+PartName="([^"]+)"\s+ContentType="([^"]+)"\s*\/>/gi)) {
+      generatedOverrides.set(m[1], m[2]);
+    }
 
+    let insertion = '';
+    for (const partName of copiedPartPaths) {
+      if (generatedOverrides.has(partName) && !templateOverrides.has(partName)) {
+        insertion += `<Override PartName="${partName}" ContentType="${generatedOverrides.get(partName)}"/>\n`;
+        templateOverrides.add(partName);
+        continue;
+      }
+
+      const ext = partName.split('.').pop()?.toLowerCase() || '';
+      if (!ext || templateDefaultExts.has(ext) || !generatedDefaults.has(ext)) continue;
+      insertion += `<Default Extension="${ext}" ContentType="${generatedDefaults.get(ext)}"/>\n`;
+      templateDefaultExts.add(ext);
+    }
+
+    if (insertion) {
+      templateCtXml = templateCtXml.replace('</Types>', `${insertion}</Types>`);
+    }
+  }
+
+  const mergedXml = templateXml.replace(
+    /<w:body>[\s\S]*?<\/w:body>/i,
+    `<w:body>${generatedBody}${templateSectPr}</w:body>`
+  );
+
+  templateZip.updateFile('word/document.xml', Buffer.from(mergedXml, 'utf8'));
+  templateZip.updateFile('word/_rels/document.xml.rels', Buffer.from(templateRelsXml, 'utf8'));
+  templateZip.updateFile('[Content_Types].xml', Buffer.from(templateCtXml, 'utf8'));
+  return templateZip.toBuffer();
+};
+
+const getDocxLayoutProfile = (preview) => {
+  const templateKey = String(preview?.template_resolution?.template_key || '').toLowerCase();
+  const examType = String(preview?.template_resolution?.exam_type || '').toUpperCase();
+  const programName = String(preview?.exam?.program_name || '').toUpperCase();
+
+  // Catalyst PT format: two-column body with explicit exam info fields.
+  if (templateKey === 'catalyst_v3' && examType === 'PT' && programName.includes('CATALYST')) {
+    return {
+      twoColumn: true,
+      includeStructuredHeader: true,
+      headerLabel: 'CATALYST PERIODIC TEST',
+    };
+  }
+
+  return {
+    twoColumn: false,
+    includeStructuredHeader: false,
+    headerLabel: null,
+  };
+};
+
+const DOCX_PAGE_BORDER = Object.freeze({
+  pageBorders: {
+    display: PageBorderDisplay.ALL_PAGES,
+    offsetFrom: PageBorderOffsetFrom.PAGE,
+    zOrder: PageBorderZOrder.FRONT,
+  },
+  top: { style: BorderStyle.SINGLE, size: 4, color: '000000', space: 24 },
+  bottom: { style: BorderStyle.SINGLE, size: 4, color: '000000', space: 24 },
+  left: { style: BorderStyle.SINGLE, size: 4, color: '000000', space: 24 },
+  right: { style: BorderStyle.SINGLE, size: 4, color: '000000', space: 24 },
+});
+
+const DOCX_TABLE_BORDER = Object.freeze({
+  top: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+  bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+  left: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+  right: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+  insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+  insideVertical: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+});
+
+const DOCX_CELL_MARGINS = Object.freeze({
+  top: 80,
+  bottom: 80,
+  left: 90,
+  right: 90,
+});
+
+const DOCX_FONT_FAMILY = 'Times New Roman';
+const DOCX_BODY_FONT_SIZE = 24;
+const DOCX_QUESTION_AFTER = 160;
+const DOCX_OPTION_AFTER = 160;
+
+const buildDocxTextRunOptions = ({ text = '', bold = false, italics = false, size = DOCX_BODY_FONT_SIZE } = {}) => ({
+  text: String(text || ''),
+  bold,
+  italics,
+  size,
+  font: DOCX_FONT_FAMILY,
+});
+
+const buildDocxSectionProperties = ({ columns = 1, type = undefined } = {}) => ({
+  page: {
+    margin: {
+      top: 720,
+      right: 720,
+      bottom: 720,
+      left: 720,
+      header: 220,
+      footer: 220,
+      gutter: 0,
+    },
+    borders: DOCX_PAGE_BORDER,
+  },
+  column: columns > 1
+    ? {
+      count: columns,
+      space: 520,
+      equalWidth: true,
+      sep: true,
+    }
+    : {
+      count: 1,
+      space: 0,
+    },
+  ...(type ? { type } : {}),
+});
+
+const getExamDurationMinutes = (preview) =>
+  Number(preview?.exam?.total_duration_minutes || preview?.exam?.duration_minutes || 0) || null;
+
+const getExamMaxMarks = (preview) => {
+  const sectionMarks = (preview?.sections ?? []).reduce((sum, section) => {
+    const perQuestion = Number(section?.marks_per_question || 0);
+    const count = Number(section?.required_question_count || section?.question_count || 0);
+    return sum + (Number.isFinite(perQuestion) ? perQuestion : 0) * (Number.isFinite(count) ? count : 0);
+  }, 0);
+  return sectionMarks > 0 ? sectionMarks : null;
+};
+
+const buildDocxTextParagraph = (text, options = {}) =>
+  new Paragraph({
+    ...(options.alignment ? { alignment: options.alignment } : {}),
+    ...(options.spacing ? { spacing: options.spacing } : {}),
+    ...(options.indent ? { indent: options.indent } : {}),
+    children: [
+      new TextRun(
+        buildDocxTextRunOptions({
+          text,
+          bold: Boolean(options.bold),
+          italics: Boolean(options.italics),
+          size: options.size,
+        })
+      ),
+    ],
+  });
+
+const buildDocxCell = ({
+  text = '',
+  children = null,
+  bold = false,
+  size = 20,
+  alignment = AlignmentType.CENTER,
+  widthPct = null,
+  columnSpan = undefined,
+} = {}) =>
+  new TableCell({
+    children:
+      children ??
+      [
+        new Paragraph({
+          alignment,
+          spacing: { after: 0, before: 0 },
+          children: [new TextRun(buildDocxTextRunOptions({ text, bold, size }))],
+        }),
+      ],
+    margins: DOCX_CELL_MARGINS,
+    verticalAlign: 'center',
+    ...(widthPct !== null
+      ? {
+        width: {
+          size: widthPct,
+          type: WidthType.PERCENTAGE,
+        },
+      }
+      : {}),
+    ...(columnSpan ? { columnSpan } : {}),
+  });
+
+const buildExamPaperHeader = (preview) => {
+  const classLabel = String(
+    preview?.exam?.description || preview?.exam?.grade_name || preview?.exam?.grade_label || preview?.exam?.grade_id || '--'
+  );
+  const title = String(preview?.exam?.title || 'QUESTION PAPER').toUpperCase();
+
+  return new Header({
+    children: [
+      new Paragraph({
+        spacing: { before: 0, after: 0 },
+        tabStops: [
+          { type: TabStopType.CENTER, position: 4680 },
+          { type: TabStopType.RIGHT, position: 9360 },
+        ],
+        children: [
+          new TextRun(buildDocxTextRunOptions({ text: `CLASS ${classLabel}`, bold: true, size: 15 })),
+          new TextRun({ text: '\t' }),
+          new TextRun(buildDocxTextRunOptions({ text: title, bold: true, size: 15 })),
+          new TextRun({ text: '\t' }),
+          new TextRun(buildDocxTextRunOptions({ text: 'SPECTROPY', bold: true, size: 15 })),
+        ],
+      }),
+    ],
+  });
+};
+
+const buildExamPaperFooter = () =>
+  new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 80, after: 0 },
+        children: [
+          new TextRun({
+            ...buildDocxTextRunOptions({ size: 16 }),
+            children: ['Page ', PageNumber.CURRENT],
+          }),
+        ],
+      }),
+    ],
+  });
+
+const collectSectionOverviewRows = (preview) =>
+  (preview?.sections ?? []).map((section, index) => ({
+    label: section?.title || `Section ${index + 1}`,
+    subject: section?.selected_subject_name || '--',
+    chapter:
+      Array.isArray(section?.chapters) && section.chapters.length > 0
+        ? section.chapters
+          .map((item) => item?.name || item?.title || item)
+          .filter(Boolean)
+          .join(', ')
+        : '--',
+    topic:
+      Array.isArray(section?.topics) && section.topics.length > 0
+        ? section.topics
+          .map((item) => item?.name || item?.title || item)
+          .filter(Boolean)
+          .join(', ')
+        : '--',
+  }));
+
+const buildFirstPageInfoTable = (preview) => {
+  const classLabel = String(
+    preview?.exam?.description || preview?.exam?.grade_name || preview?.exam?.grade_label || preview?.exam?.grade_id || '--'
+  );
+  const title = String(preview?.exam?.program_name || 'QUESTION PAPER').toUpperCase();
+  const examCode = String(preview?.exam?.title || preview?.template_resolution?.exam_type || 'EXAM').toUpperCase();
+  const duration = getExamDurationMinutes(preview);
+  const maxMarks = getExamMaxMarks(preview);
+
+  return new Table({
+    width: { size: 96, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    borders: DOCX_TABLE_BORDER,
+    columnWidths: [1800, 6000, 2200],
+    rows: [
+      new TableRow({
+        children: [
+          buildDocxCell({
+            text: `CLASS: ${classLabel}`,
+            bold: true,
+            size: 18,
+          }),
+          buildDocxCell({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 0, after: 60 },
+                children: [new TextRun(buildDocxTextRunOptions({ text: title, bold: true, size: 28 }))],
+              }),
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 0, after: 0 },
+                children: [new TextRun(buildDocxTextRunOptions({ text: examCode, bold: true, size: 24 }))],
+              }),
+            ],
+          }),
+          buildDocxCell({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.LEFT,
+                spacing: { before: 0, after: 80 },
+                children: [new TextRun(buildDocxTextRunOptions({ text: `TIME: ${duration ?? '--'} minutes`, bold: true, size: 18 }))],
+              }),
+              new Paragraph({
+                alignment: AlignmentType.LEFT,
+                spacing: { before: 0, after: 0 },
+                children: [new TextRun(buildDocxTextRunOptions({ text: `Max. Marks: ${maxMarks ?? '--'}`, bold: true, size: 18 }))],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+};
+
+const buildSectionOverviewTable = (preview) => {
+  const rows = collectSectionOverviewRows(preview);
+  const tableRows = [
+      new TableRow({
+        children: [
+          buildDocxCell({ text: 'Section', bold: true, size: 24 }),
+          buildDocxCell({ text: 'Subject', bold: true, size: 24 }),
+          buildDocxCell({ text: 'Chapters', bold: true, size: 24 }),
+          buildDocxCell({ text: 'Topics', bold: true, size: 24 }),
+        ],
+      }),
+    ...rows.map((row) =>
+      new TableRow({
+        children: [
+          buildDocxCell({ text: row.label, size: 18 }),
+          buildDocxCell({ text: row.subject, size: 18 }),
+          buildDocxCell({ text: row.chapter, size: 18 }),
+          buildDocxCell({ text: row.topic, size: 18 }),
+        ],
+      })
+    ),
+  ];
+
+  return new Table({
+    width: { size: 96, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    borders: DOCX_TABLE_BORDER,
+    columnWidths: [1700, 2200, 3200, 2900],
+    rows: tableRows,
+  });
+};
+
+const buildInstructionsTable = (preview) => {
+  const customInstructions = richTextToMultilineText(preview?.exam?.instructions || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const lines = customInstructions.length > 0 ? customInstructions : ['--'];
+
+  return new Table({
+    width: { size: 96, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    borders: DOCX_TABLE_BORDER,
+    rows: [
+      new TableRow({
+        children: [
+          buildDocxCell({
+            text: 'Instructions',
+            bold: true,
+            size: 24,
+          }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          buildDocxCell({
+            alignment: AlignmentType.LEFT,
+            children: lines.map((line) =>
+              new Paragraph({
+                alignment: AlignmentType.LEFT,
+                spacing: { before: 0, after: 40, line: 360, lineRule: 'auto' },
+                children: [new TextRun(buildDocxTextRunOptions({ text: line, size: 24 }))],
+              })
+            ),
+          }),
+        ],
+      }),
+    ],
+  });
+};
+
+const buildQuestionParagraphsForSection = (section, startingQuestionIndex) => {
+  const children = [];
+  let runningQuestionIndex = startingQuestionIndex;
+
+  for (const groupType of QUESTION_GROUP_TYPES) {
+    const questions = section?.question_groups?.[groupType] ?? [];
+    if (!Array.isArray(questions) || questions.length === 0) continue;
+
+    for (const question of questions) {
+      const questionHtml = extractRichHtmlString(question?.question_text);
+      const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE });
+      const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
       children.push(
         new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [new TextRun({ text: QUESTION_GROUP_TYPE_LABELS[groupType] || groupType })],
-          spacing: { before: 120, after: 120 },
+          spacing: { after: DOCX_QUESTION_AFTER },
+          children: [
+            new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+            ...(questionRuns.length > 0 ? questionRuns : [new TextRun(buildDocxTextRunOptions({ text: questionFallback }))]),
+          ],
         })
       );
 
-      for (const question of questions) {
-        const questionText = stripHtmlToText(question?.question_text) || 'Question text unavailable';
-        children.push(
-          new Paragraph({
-            children: [new TextRun({ text: `Question ${runningQuestionIndex}: ${questionText}`, bold: true })],
-            spacing: { after: 80 },
-          })
-        );
-
-        if (Array.isArray(question?.options) && question.options.length > 0) {
+      if (Array.isArray(question?.options) && question.options.length > 0) {
+        question.options.forEach((option, optionIndex) => {
+          const optionPrefix = String.fromCharCode(97 + optionIndex);
+          const optionHtml = extractRichHtmlString(option?.text);
+          const optionRuns = htmlToDocxRuns(optionHtml, { size: DOCX_BODY_FONT_SIZE });
+          const optionText = extractOptionText(option);
+          if (!optionText && optionRuns.length === 0) return;
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: 'Options:' })],
-              spacing: { after: 50 },
+              spacing: { after: DOCX_OPTION_AFTER },
+              indent: { left: 220, hanging: 120 },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `(${optionPrefix}) ` })),
+                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text: optionText }))]),
+              ],
             })
           );
-          question.options.forEach((option, optionIndex) => {
-            const optionPrefix = String.fromCharCode(65 + optionIndex);
-            const optionText = extractOptionText(option);
-            if (!optionText) return;
-            children.push(
-              new Paragraph({
-                children: [new TextRun({ text: `${optionPrefix}. ${optionText}` })],
-                spacing: { after: 50 },
-              })
-            );
-          });
-        } else if (
-          question?.question_type === 'match_following' &&
-          question?.options &&
-          typeof question.options === 'object'
-        ) {
-          const left = Array.isArray(question.options.left) ? question.options.left : [];
-          const right = Array.isArray(question.options.right) ? question.options.right : [];
-          if (left.length > 0 || right.length > 0) {
-            children.push(
-            new Paragraph({
-              children: [new TextRun({ text: 'Options:' })],
-              spacing: { after: 50 },
-            })
-          );
-          }
-          left.forEach((item, idx) => {
-            const text = extractOptionText(item);
-            if (!text) return;
-            children.push(
-              new Paragraph({
-                children: [new TextRun({ text: `L${idx + 1}. ${text}` })],
-                spacing: { after: 40 },
-              })
-            );
-          });
-          right.forEach((item, idx) => {
-            const text = extractOptionText(item);
-            if (!text) return;
-            children.push(
-              new Paragraph({
-                children: [new TextRun({ text: `R${idx + 1}. ${text}` })],
-                spacing: { after: 40 },
-              })
-            );
-          });
-        }
-
-        const solutionLines = resolveSolutionLines(question);
-        if (solutionLines.length > 0) {
+        });
+      } else if (
+        question?.question_type === 'match_following' &&
+        question?.options &&
+        typeof question.options === 'object'
+      ) {
+        const left = Array.isArray(question.options.left) ? question.options.left : [];
+        const right = Array.isArray(question.options.right) ? question.options.right : [];
+        left.forEach((item, idx) => {
+          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
+          const text = extractOptionText(item);
+          if (!text && optionRuns.length === 0) return;
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: 'Solution:' })],
-              spacing: { after: 40 },
+              spacing: { after: DOCX_OPTION_AFTER },
+              indent: { left: 220, hanging: 120 },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `L${idx + 1}. ` })),
+                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
+              ],
             })
           );
-          solutionLines.forEach((line) => {
-            children.push(
-              new Paragraph({
-                children: [new TextRun({ text: line })],
-                spacing: { after: 40 },
-              })
-            );
-          });
-        }
-
-        const answerText = resolveAnswerText(question);
-        if (answerText) {
+        });
+        right.forEach((item, idx) => {
+          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
+          const text = extractOptionText(item);
+          if (!text && optionRuns.length === 0) return;
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: `Correct Answer: ${answerText}` })],
-              spacing: { after: 140 },
+              spacing: { after: DOCX_OPTION_AFTER },
+              indent: { left: 220, hanging: 120 },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `R${idx + 1}. ` })),
+                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
+              ],
             })
           );
-        }
-
-        runningQuestionIndex += 1;
+        });
       }
+
+      runningQuestionIndex += 1;
     }
+  }
+
+  return {
+    children,
+    nextQuestionIndex: runningQuestionIndex,
+  };
+};
+
+const normalizeExamDocxXml = (xml) => {
+  if (!xml || typeof xml !== 'string') return xml;
+
+  let normalized = xml.replace(
+    /<w:pgBorders\b([^>]*)\/>/g,
+    '<w:pgBorders$1><w:top w:val="single" w:sz="4" w:space="24" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="24" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="24" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="24" w:color="auto"/></w:pgBorders>'
+  );
+
+  normalized = normalized.replace(
+    /<w:cols\b([^>]*\bw:num="2"[^>]*)\/>/g,
+    (match, attrs) => {
+      if (/\bw:sep="/.test(match)) return match;
+      return `<w:cols${attrs} w:sep="1"/>`;
+    }
+  );
+
+  normalized = normalized.replace(
+    /<w:cols\b([^>]*\bw:num="2"[^>]*)>/g,
+    (match, attrs) => {
+      if (/\bw:sep="/.test(match)) return match;
+      return `<w:cols${attrs} w:sep="1">`;
+    }
+  );
+
+  return normalized;
+};
+
+const finalizeExamDocxBuffer = async (doc) => {
+  const buffer = await Packer.toBuffer(doc);
+  const zip = new AdmZip(buffer);
+  const documentEntry = zip.getEntry('word/document.xml');
+  if (!documentEntry) return buffer;
+
+  const documentXml = zip.readAsText(documentEntry);
+  const normalizedXml = normalizeExamDocxXml(documentXml);
+  if (normalizedXml !== documentXml) {
+    zip.updateFile('word/document.xml', Buffer.from(normalizedXml, 'utf8'));
+    return zip.toBuffer();
+  }
+
+  return buffer;
+};
+
+const buildExamDocxBuffer = async (preview) => {
+  const firstPageChildren = [
+    buildFirstPageInfoTable(preview),
+    buildDocxTextParagraph('', { spacing: { after: 140 } }),
+    buildSectionOverviewTable(preview),
+    buildDocxTextParagraph('', { spacing: { after: 140 } }),
+    buildInstructionsTable(preview),
+  ];
+
+  const questionSections = [];
+  let runningQuestionIndex = 1;
+
+  for (let sectionIndex = 0; sectionIndex < (preview?.sections ?? []).length; sectionIndex += 1) {
+    const section = preview.sections[sectionIndex];
+    const headingChildren = [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 120, after: 60 },
+        children: [
+          new TextRun(
+            buildDocxTextRunOptions({
+              text: `${section?.title || `Section ${sectionIndex + 1}`}`.toUpperCase(),
+              bold: true,
+              size: 24,
+            })
+          ),
+        ],
+      }),
+    ];
+
+    questionSections.push({
+      properties: buildDocxSectionProperties({
+        columns: 1,
+        type: sectionIndex === 0 ? undefined : SectionType.CONTINUOUS,
+      }),
+      headers: { default: buildExamPaperHeader(preview) },
+      footers: { default: buildExamPaperFooter() },
+      children: headingChildren,
+    });
+
+    const questionContent = buildQuestionParagraphsForSection(section, runningQuestionIndex);
+    runningQuestionIndex = questionContent.nextQuestionIndex;
+
+    questionSections.push({
+      properties: buildDocxSectionProperties({
+        columns: 2,
+        type: SectionType.CONTINUOUS,
+      }),
+      headers: { default: buildExamPaperHeader(preview) },
+      footers: { default: buildExamPaperFooter() },
+      children: questionContent.children.length > 0
+        ? questionContent.children
+        : [buildDocxTextParagraph('No questions available in this section.', { size: 18 })],
+    });
   }
 
   const doc = new Document({
     sections: [
       {
-        properties: {},
-        children,
+        properties: buildDocxSectionProperties({ columns: 1 }),
+        headers: { default: buildExamPaperHeader(preview) },
+        footers: { default: buildExamPaperFooter() },
+        children: firstPageChildren,
       },
+      ...(questionSections.length > 0
+      ? questionSections
+      : [
+        {
+          properties: buildDocxSectionProperties({ columns: 1 }),
+          headers: { default: buildExamPaperHeader(preview) },
+          footers: { default: buildExamPaperFooter() },
+          children: [buildDocxTextParagraph('No questions available in this exam.', { size: 18 })],
+        },
+      ]),
     ],
   });
 
-  return Packer.toBuffer(doc);
+  return finalizeExamDocxBuffer(doc);
 };
 
 const listAssignedCoursesForExam = async (examId) => {
@@ -3373,6 +5031,12 @@ export const downloadExamPreviewDocx = async (req, res) => {
 
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
     const payload = await buildExamPreviewPayload(exam);
+    if (!payload?.validation?.can_finalize) {
+      throw new AppError(
+        payload?.validation?.blocking_reasons?.[0] || 'Exam cannot be exported until template validation passes.',
+        400
+      );
+    }
     const fileBuffer = await buildExamDocxBuffer(payload);
     const datePart = new Date().toISOString().slice(0, 10);
     const safeTitle = sanitizeFilenamePart(payload?.exam?.title);
@@ -3396,6 +5060,12 @@ export const finalizeExamBlueprint = async (req, res) => {
     ensureExamEditable(exam);
 
     const preview = await buildExamPreviewPayload(exam);
+    if (!preview.validation?.can_finalize) {
+      throw new AppError(
+        preview?.validation?.blocking_reasons?.[0] || 'Exam cannot be finalized until template validation passes.',
+        400
+      );
+    }
     if (!preview.all_sections_completed) {
       throw new AppError('All blueprint sections must be completed before finalizing the exam', 400);
     }

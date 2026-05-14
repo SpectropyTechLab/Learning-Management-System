@@ -94,14 +94,15 @@ export default function ExamPaperPreviewPage() {
   }, [loadPreview]);
 
   const orderedSections = useMemo(
-    () =>
-      [...(preview?.sections ?? [])].sort(
-        (left, right) => (left.order_index ?? 0) - (right.order_index ?? 0)
-      ),
+    () => [...(preview?.sections ?? [])],
     [preview]
   );
 
   const handleSaveExam = async () => {
+    if (!preview?.validation?.can_finalize) {
+      toast.error(preview?.validation?.blocking_reasons?.[0] || "Resolve template validation issues before saving.");
+      return;
+    }
     if (!preview?.all_sections_completed) {
       toast.error("Complete every section before saving the exam.");
       return;
@@ -152,7 +153,7 @@ export default function ExamPaperPreviewPage() {
           <button
             type="button"
             onClick={() => void handleDownloadDocx()}
-            disabled={downloading || loading || !preview}
+            disabled={downloading || loading || !preview || !preview.validation?.can_finalize}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {downloading ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiDownloadLine className="h-4 w-4" />}
@@ -161,7 +162,7 @@ export default function ExamPaperPreviewPage() {
           <button
             type="button"
             onClick={() => void handleSaveExam()}
-            disabled={saving || !preview?.all_sections_completed}
+            disabled={saving || !preview?.validation?.can_finalize}
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiArrowRightUpLine className="h-4 w-4" />}
@@ -206,6 +207,18 @@ export default function ExamPaperPreviewPage() {
                     <RiCheckLine className="h-4 w-4 text-slate-400" />
                     Total Questions: {preview.totals.question_count}
                   </span>
+                  {preview.template_resolution?.template_key ? (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                      <RiFileList3Line className="h-4 w-4 text-slate-400" />
+                      Template: {preview.template_resolution.template_key}
+                      {preview.template_resolution.template_version
+                        ? ` (${preview.template_resolution.template_version})`
+                        : ""}
+                      {preview.template_resolution.exam_type
+                        ? ` · ${preview.template_resolution.exam_type}`
+                        : ""}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
@@ -220,6 +233,11 @@ export default function ExamPaperPreviewPage() {
                 </div>
               </div>
             </div>
+            {preview.validation?.blocking_reasons?.length ? (
+              <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {preview.validation.blocking_reasons[0]}
+              </div>
+            ) : null}
           </section>
 
           {orderedSections.map((section, sectionIndex) => (

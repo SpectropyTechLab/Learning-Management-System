@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { typesetMathJax } from "@/components/ui/mathjax";
 import { sanitizeHtml } from "@/utils/htmlSanitizer";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 export type RichTextLike =
   | { html?: string | null; text?: string | null }
@@ -87,14 +89,34 @@ const QUESTION_TYPE_LABELS: Record<string, string> = {
   comprehensive: "Comprehensive",
 };
 
+const normalizeLatexDelimitersForRender = (input: string) => {
+  if (!input) return "";
+  let next = String(input);
+
+  // Collapse repeated escaping: \\( ... \\) or \\\\( ... \\\\) => \( ... \)
+  for (let i = 0; i < 3; i += 1) {
+    const updated = next
+      .replace(/\\\\\(/g, "\\(")
+      .replace(/\\\\\)/g, "\\)")
+      .replace(/\\\\\[/g, "\\[")
+      .replace(/\\\\\]/g, "\\]")
+      .replace(/\\\\\{/g, "\\{")
+      .replace(/\\\\\}/g, "\\}");
+    if (updated === next) break;
+    next = updated;
+  }
+
+  return next;
+};
+
 const getHtml = (value: RichTextLike) => {
   if (!value) return "";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return normalizeLatexDelimitersForRender(value);
   if (typeof value === "object" && "html" in value) {
-    return String(value.html ?? value.text ?? "");
+    return normalizeLatexDelimitersForRender(String(value.html ?? value.text ?? ""));
   }
   if (typeof value === "object" && "text" in value) {
-    return String(value.text ?? "");
+    return normalizeLatexDelimitersForRender(String(value.text ?? ""));
   }
   return "";
 };
@@ -118,9 +140,76 @@ const wrapTablesInHtml = (html: string) => {
   }
 };
 
-const renderHtml = (value: RichTextLike) => ({
-  __html: sanitizeHtml(wrapTablesInHtml(getHtml(value))),
-});
+const renderLatexWithKatex = (html: string) => {
+  if (!html || typeof window === "undefined") return html;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const skipTags = new Set(["script", "style", "textarea", "code", "pre"]);
+    const latexPattern =
+      /\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$\$([\s\S]+?)\$\$|\$([^\n$]+?)\$/g;
+
+    const renderTextNode = (textNode: Text) => {
+      const content = textNode.nodeValue ?? "";
+      if (!content || !latexPattern.test(content)) return;
+      latexPattern.lastIndex = 0;
+
+      const fragment = doc.createDocumentFragment();
+      let lastIndex = 0;
+      for (const match of content.matchAll(latexPattern)) {
+        const index = match.index ?? 0;
+        if (index > lastIndex) {
+          fragment.appendChild(doc.createTextNode(content.slice(lastIndex, index)));
+        }
+
+        const expression = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";
+        const displayMode = Boolean(match[1] || match[3]);
+        const span = doc.createElement("span");
+        span.className = displayMode ? "katex-display-wrap" : "katex-inline-wrap";
+        try {
+          span.innerHTML = katex.renderToString(expression.trim(), {
+            throwOnError: false,
+            displayMode,
+            output: "htmlAndMathml",
+          });
+        } catch {
+          span.textContent = match[0];
+        }
+        fragment.appendChild(span);
+        lastIndex = index + match[0].length;
+      }
+
+      if (lastIndex < content.length) {
+        fragment.appendChild(doc.createTextNode(content.slice(lastIndex)));
+      }
+      textNode.parentNode?.replaceChild(fragment, textNode);
+    };
+
+    const walk = (node: Node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as Element;
+        if (skipTags.has(el.tagName.toLowerCase())) return;
+      }
+      const children = Array.from(node.childNodes);
+      if (node.nodeType === Node.TEXT_NODE) {
+        renderTextNode(node as Text);
+        return;
+      }
+      children.forEach(walk);
+    };
+
+    walk(doc.body);
+    return doc.body.innerHTML;
+  } catch {
+    return html;
+  }
+};
+
+const renderHtml = (value: RichTextLike) => {
+  const sanitized = sanitizeHtml(wrapTablesInHtml(getHtml(value)));
+  // Important: run KaTeX AFTER sanitization so its generated layout styles are preserved.
+  return { __html: renderLatexWithKatex(sanitized) };
+};
 
 const stripHtml = (value: string) => value.replace(/<[^>]*>/g, "").trim();
 

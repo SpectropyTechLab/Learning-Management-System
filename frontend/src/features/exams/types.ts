@@ -188,9 +188,42 @@ export interface ExamPreviewPayload {
     client_id?: number | null;
     school_id?: number | null;
     program_id?: number | null;
+    program_name?: string | null;
     blueprint_id?: number | null;
     total_duration_minutes?: number | null;
     max_attempts?: number | null;
+  };
+  template_resolution?: {
+    template_key?: string | null;
+    template_version?: string | null;
+    source_file?: string | null;
+    exam_type?: "WT" | "UT" | "GT" | null;
+    strict_mode?: boolean;
+    fallback_used?: boolean;
+    fallback_template_key?: string | null;
+  };
+  render_blocks?: Array<{
+    section_id: number;
+    section_title: string;
+    section_label?: string;
+    order_index?: number;
+    instructions?: string;
+    question_count?: number;
+    required_question_count?: number;
+    question_groups?: Record<QuestionGroupType, GeneratedExamQuestion[]>;
+    render_metadata?: {
+      marks_per_question?: number | null;
+      negative_marks?: number | null;
+      completion_status?: string | null;
+      selected_subject_name?: string | null;
+    };
+  }>;
+  validation?: {
+    can_save_draft: boolean;
+    can_finalize: boolean;
+    has_warnings: boolean;
+    warnings: string[];
+    blocking_reasons: string[];
   };
   blueprint: BlueprintSummary | null;
   sections: ExamBuilderSection[];

@@ -1730,6 +1730,11 @@ export default function ExamBuilderPage() {
   };
 
   const handleOpenSavePreview = () => {
+    if (!preview?.validation?.can_finalize) {
+      const firstReason = preview?.validation?.blocking_reasons?.[0];
+      toast.error(firstReason || "Resolve template validation issues before saving the exam.");
+      return;
+    }
     if (!preview?.all_sections_completed) {
       toast.error("Complete every blueprint section before saving the exam.");
       return;
@@ -1766,7 +1771,7 @@ export default function ExamBuilderPage() {
             <button
               type="button"
               onClick={handleOpenSavePreview}
-              disabled={!preview?.all_sections_completed}
+              disabled={!preview?.validation?.can_finalize}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RiArrowRightUpLine className="h-4 w-4" />
@@ -1807,12 +1812,24 @@ export default function ExamBuilderPage() {
                     </span>
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
                       <RiFolderChartLine className="h-4 w-4 text-slate-400" />
-                      Program: {preview.exam.program_id ?? "--"}
+                      Program: {preview.exam.program_name ?? preview.exam.program_id ?? "--"}
                     </span>
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
                       <RiSparklingLine className="h-4 w-4 text-slate-400" />
                       Window: {formatDateTime(preview.exam.start_datetime)} to {formatDateTime(preview.exam.end_datetime)}
                     </span>
+                    {preview.template_resolution?.template_key ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                        <RiDraftLine className="h-4 w-4 text-slate-400" />
+                        Template: {preview.template_resolution.template_key}
+                        {preview.template_resolution.template_version
+                          ? ` (${preview.template_resolution.template_version})`
+                          : ""}
+                        {preview.template_resolution.exam_type
+                          ? ` · ${preview.template_resolution.exam_type}`
+                          : ""}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
@@ -1858,6 +1875,12 @@ export default function ExamBuilderPage() {
                   </div>
                 </div>
               </div>
+
+              {preview.validation?.blocking_reasons?.length ? (
+                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                  {preview.validation.blocking_reasons[0]}
+                </div>
+              ) : null}
             </section>
 
             <section className="hidden rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">

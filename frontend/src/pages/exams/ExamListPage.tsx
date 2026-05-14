@@ -21,6 +21,7 @@ interface CourseOption {
 interface ExamEditForm {
   title: string;
   description: string;
+  instructions: string;
   total_duration_minutes: string;
   start_datetime: string;
   end_datetime: string;
@@ -191,6 +192,7 @@ export default function ExamListPage() {
   const [editForm, setEditForm] = useState<ExamEditForm>({
     title: "",
     description: "",
+    instructions: "",
     total_duration_minutes: "",
     start_datetime: "",
     end_datetime: "",
@@ -350,6 +352,7 @@ export default function ExamListPage() {
     setEditForm({
       title: "",
       description: "",
+      instructions: "",
       total_duration_minutes: "",
       start_datetime: "",
       end_datetime: "",
@@ -386,6 +389,10 @@ export default function ExamListPage() {
           typeof payload.description === "string"
             ? payload.description
             : exam.description ?? "",
+        instructions:
+          typeof payload.instructions === "string"
+            ? payload.instructions
+            : "",
         total_duration_minutes:
           durationValue !== null ? String(durationValue) : "",
         start_datetime: toDateTimeLocalValue(payload.start_datetime ?? exam.start_datetime),
@@ -444,6 +451,7 @@ export default function ExamListPage() {
       await api.put(`/exams/${editingExamId}`, {
         title: trimmedTitle,
         description: editForm.description.trim() || null,
+        instructions: editForm.instructions.trim() || null,
         total_duration_minutes: duration,
         start_datetime: startIso,
         end_datetime: endIso,
@@ -776,13 +784,25 @@ export default function ExamListPage() {
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-xs font-semibold text-slate-500">Description</label>
+                    <label className="text-xs font-semibold text-slate-500">Class/Grade Heading</label>
                     <textarea
                       value={editForm.description}
                       onChange={(event) =>
                         setEditForm((prev) => ({ ...prev, description: event.target.value }))
                       }
                       rows={3}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                      disabled={editSaving}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-semibold text-slate-500">Instructions</label>
+                    <textarea
+                      value={editForm.instructions}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({ ...prev, instructions: event.target.value }))
+                      }
+                      rows={4}
                       className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
                       disabled={editSaving}
                     />
