@@ -34,7 +34,7 @@ interface QuestionFormProps {
 type ComprehensionMode = "new" | "existing";
 
 const QUESTION_GROUP_TYPE_OPTIONS: Array<{ value: QuestionGroupType; label: string }> = [
-  { value: "direction", label: "Direction" },
+  { value: "direct", label: "Direct" },
   { value: "similar", label: "Similar" },
   { value: "previous_year", label: "Previous Year" },
   { value: "reference", label: "Reference" },
@@ -42,7 +42,7 @@ const QUESTION_GROUP_TYPE_OPTIONS: Array<{ value: QuestionGroupType; label: stri
 
 const normalizeCategorySelection = (category: Question["category"] | undefined): QuestionGroupType | "" => {
   if (typeof category !== "string") return "";
-  const normalized = category.trim();
+  const normalized = category.trim().toLowerCase() === "direction" ? "direct" : category.trim();
   return QUESTION_GROUP_TYPE_OPTIONS.some((option) => option.value === normalized) ? (normalized as QuestionGroupType) : "";
 };
 

@@ -12,6 +12,7 @@ import { load as loadHtml } from 'cheerio';
 import {
   Document,
   ImageRun,
+  ImportedXmlComponent,
   Math as DocxMath,
   MathRun,
   Packer,
@@ -20,12 +21,14 @@ import {
   TableRow,
   TableCell,
   TextRun,
+  WidthType,
+  BorderStyle,
 } from 'docx';
 
 const VALID_QUESTION_TYPES = [
   'mcq_single',
   'mcq_multiple',
-  'comprehension',
+  'comprehensive',
   'numerical',
   'true_false',
   'short_answer',
@@ -560,7 +563,7 @@ const normalizeBulkQuestionType = (value) => {
     return 'mcq_multiple';
   }
   if (['comprehension', 'comprehension_based', 'passage_based'].includes(raw)) {
-    return 'comprehension';
+    return 'comprehensive';
   }
   if (['numeric', 'integer', 'float'].includes(raw)) {
     return 'numerical';
@@ -1083,6 +1086,8 @@ const forceUppercaseStemStatementsToNewLine = (html) => {
     // Example: "...?(A)..." -> "...?<br/>(A)..."
     .replace(/([?])(?=\(A\)\s*)/g, '$1<br/>')
     .replace(/([?])(?=A[\).]\s*)/g, '$1<br/>')
+    .replace(/\s+(?=Assertion\s*\(A\)\s*:)/gi, '<br/>')
+    .replace(/\s+(?=Reason\s*\(R\)\s*:)/gi, '<br/>')
     // If marker already has spaces, still normalize to explicit line break.
     .replace(/\s+(?=\([A-D]\)\s*)/g, '<br/>')
     .replace(/\s+(?=[A-D][\).]\s*)/g, '<br/>')
@@ -1209,10 +1214,13 @@ const parseOMathToHtml = (mathXml) => {
   transformed = transformed.replace(/<m:f[\s\S]*?<\/m:f>/g, (block) => {
     const numBlock = block.match(/<m:num[\s\S]*?<\/m:num>/i)?.[0] || '';
     const denBlock = block.match(/<m:den[\s\S]*?<\/m:den>/i)?.[0] || '';
-    const num = escapeHtml(extractMathTextFromBlock(numBlock));
-    const den = escapeHtml(extractMathTextFromBlock(denBlock));
+    const numHtml = normalizeDocxCellHtml(parseOMathToHtml(numBlock));
+    const denHtml = normalizeDocxCellHtml(parseOMathToHtml(denBlock));
+    const num = numHtml || escapeHtml(extractMathTextFromBlock(numBlock));
+    const den = denHtml || escapeHtml(extractMathTextFromBlock(denBlock));
     if (!num && !den) return '';
-    return den ? `${num}/${den}` : num;
+    if (!den) return num;
+    return `<span class="math-fraction"><span class="math-fraction__numerator">${num}</span><span class="math-fraction__denominator">${den}</span></span>`;
   });
 
   transformed = transformed.replace(/<m:t[^>]*>([\s\S]*?)<\/m:t>/g, (_full, text) =>
@@ -1553,13 +1561,80 @@ const loadDocxExtractionContext = (buffer) => {
   };
 };
 
+const extractTopLevelWordBlocks = (xml, tagName) => {
+  const source = String(xml || '');
+  const blocks = [];
+  const tokenRegex = new RegExp(`<w:${tagName}\\b[^>]*>|</w:${tagName}>`, 'g');
+  let depth = 0;
+  let startIndex = -1;
+  let match;
+
+  while ((match = tokenRegex.exec(source)) !== null) {
+    const token = match[0];
+    if (token.startsWith('</')) {
+      if (depth > 0) {
+        depth -= 1;
+        if (depth === 0 && startIndex >= 0) {
+          blocks.push(source.slice(startIndex, tokenRegex.lastIndex));
+          startIndex = -1;
+        }
+      }
+      continue;
+    }
+
+    if (depth === 0) {
+      startIndex = match.index;
+    }
+    depth += 1;
+  }
+
+  return blocks;
+};
+
+const extractDocxBodyBlocks = (documentXml) => {
+  const bodyMatch = String(documentXml || '').match(/<w:body[^>]*>([\s\S]*?)<\/w:body>/);
+  const bodyXml = bodyMatch ? bodyMatch[1] : String(documentXml || '');
+  const blocks = [];
+  const blockStartRegex = /<w:(p|tbl)\b[^>]*>/g;
+  let match;
+
+  while ((match = blockStartRegex.exec(bodyXml)) !== null) {
+    const tagName = match[1];
+    const startIndex = match.index;
+    const block = extractTopLevelWordBlocks(bodyXml.slice(startIndex), tagName)[0];
+    if (!block) break;
+
+    blocks.push(block);
+    blockStartRegex.lastIndex = startIndex + block.length;
+  }
+
+  return blocks;
+};
+
 const extractDocxTableCellContent = (cellXml, relationshipMap, zip) => {
-  const paragraphMatches = cellXml.match(/<w:p[\s\S]*?<\/w:p>/g) || [];
+  const cellSource = String(cellXml || '');
+  const cellStart = cellSource.indexOf('>');
+  const cellEnd = cellSource.lastIndexOf('</w:tc>');
+  const cellBodyXml = cellStart >= 0 && cellEnd > cellStart
+    ? cellSource.slice(cellStart + 1, cellEnd)
+    : cellSource;
+  const cellBlocks = extractDocxBodyBlocks(cellBodyXml);
   let html = '';
   const textParts = [];
 
-  paragraphMatches.forEach((paragraphXml) => {
-    const { paragraphHtml, detectionText } = extractParagraphContent(paragraphXml, relationshipMap, zip);
+  cellBlocks.forEach((blockXml) => {
+    if (/^<w:tbl\b/.test(blockXml)) {
+      const { tableHtml, detectionText } = extractDocxTableBlockContent(blockXml, relationshipMap, zip);
+      if (tableHtml) {
+        html = appendRichHtmlBlock(html, tableHtml);
+      }
+      if (detectionText) {
+        textParts.push(detectionText);
+      }
+      return;
+    }
+
+    const { paragraphHtml, detectionText } = extractParagraphContent(blockXml, relationshipMap, zip);
     if (paragraphHtml) {
       html = appendRichHtmlBlock(html, paragraphHtml);
     }
@@ -1571,6 +1646,48 @@ const extractDocxTableCellContent = (cellXml, relationshipMap, zip) => {
   return {
     html: normalizeDocxCellHtml(html),
     text: normalizeBulkTextValue(textParts.join('\n')),
+  };
+};
+
+const extractDocxTableBlockContent = (tableXml, relationshipMap, zip) => {
+  const tableSource = String(tableXml || '');
+  const tableStart = tableSource.indexOf('>');
+  const tableEnd = tableSource.lastIndexOf('</w:tbl>');
+  const tableBodyXml = tableStart >= 0 && tableEnd > tableStart
+    ? tableSource.slice(tableStart + 1, tableEnd)
+    : tableSource;
+  const rowMatches = extractTopLevelWordBlocks(tableBodyXml, 'tr');
+  const rows = rowMatches.map((rowXml) => {
+    const rowSource = String(rowXml || '');
+    const rowStart = rowSource.indexOf('>');
+    const rowEnd = rowSource.lastIndexOf('</w:tr>');
+    const rowBodyXml = rowStart >= 0 && rowEnd > rowStart
+      ? rowSource.slice(rowStart + 1, rowEnd)
+      : rowSource;
+    const cellMatches = extractTopLevelWordBlocks(rowBodyXml, 'tc');
+    return cellMatches.map((cellXml) => extractDocxTableCellContent(cellXml, relationshipMap, zip));
+  });
+  const maxColumnCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+
+  const tableRowsHtml = rows.map((row, rowIndex) => {
+    const isHeaderRow =
+      rowIndex === 0 &&
+      row.some((cell) => /\bcolumn\b/i.test(cell.text) || /\bcol(?:umn)?\s*[i12]\b/i.test(cell.text));
+    const cellTag = isHeaderRow ? 'th' : 'td';
+    const cells = [...row];
+    while (cells.length < maxColumnCount) {
+      cells.push({ html: '', text: '' });
+    }
+    return `<tr>${cells.map((cell) => `<${cellTag}>${cell.html || escapeHtml(cell.text || '')}</${cellTag}>`).join('')}</tr>`;
+  });
+
+  const text = rows
+    .map((row) => row.map((cell) => cell.text).join('\t'))
+    .join('\n');
+
+  return {
+    tableHtml: normalizeDocxCellHtml(`<table>${tableRowsHtml.join('')}</table>`),
+    detectionText: normalizeBulkTextValue(text),
   };
 };
 
@@ -1752,7 +1869,7 @@ const normalizeDocxSectionQuestionType = (value) => {
     return 'mcq_single';
   }
   if (/comprehension/i.test(text)) {
-    return 'comprehension';
+    return 'comprehensive';
   }
   if (/multiple\s+correct|more options may be correct|more than one option/i.test(text)) {
     return 'mcq_multiple';
@@ -1809,6 +1926,27 @@ const normalizeDocxTagHeading = (value) => {
   if (!text) return '';
   const cleaned = text.replace(/\s+(level)$/i, '');
   return normalizeBulkTextValue(cleaned);
+};
+
+const parseDocxSubsectionHeading = (value) => {
+  const text = normalizeDocxTagHeading(value);
+  if (!text) {
+    return { tag: '', difficulty: null };
+  }
+
+  const difficultyMatch = text.match(/\b(easy|medium|hard)\b/i);
+  const difficulty = difficultyMatch ? String(difficultyMatch[1] || '').toLowerCase() : null;
+  const tag = normalizeBulkTextValue(
+    text
+      .replace(/\s*[-:]\s*(easy|medium|hard)\b/gi, ' ')
+      .replace(/\b(easy|medium|hard)\b/gi, ' ')
+      .replace(/\s*[-:]\s*$/g, ' ')
+  );
+
+  return {
+    tag,
+    difficulty,
+  };
 };
 
 const buildDocxQuestionLookupKey = (value) => {
@@ -2214,12 +2352,100 @@ const resolveTopicReference = async ({ value, chapterId, clientId, queryRunner =
   return { id: byName.rows[0].id, chapterId: byName.rows[0].chapter_id };
 };
 
+const normalizeExistingMatchTable = (html) => {
+  const normalized = normalizeDocxCellHtml(html);
+  if (!/<table[\s>]/i.test(normalized)) return null;
+
+  const $ = loadHtml(`<root>${normalized}</root>`);
+  const tableEl = $('root table').first();
+  if (!tableEl.length) return null;
+
+  const rows = [];
+  let maxColumnCount = 0;
+  tableEl.children('tbody, thead, tfoot').addBack().find('> tr').each((_, trEl) => {
+    const cells = [];
+    $(trEl)
+      .children('th, td')
+      .each((__, cellEl) => {
+        const tagName = cellEl.tagName === 'th' ? 'th' : 'td';
+        const colspan = Number.parseInt($(cellEl).attr('colspan') || '1', 10);
+        const rowspan = Number.parseInt($(cellEl).attr('rowspan') || '1', 10);
+        cells.push({
+          tagName,
+          html: normalizeDocxCellHtml($(cellEl).html() || ''),
+          text: normalizeBulkTextValue($(cellEl).text() || ''),
+          colspan: Number.isFinite(colspan) && colspan > 1 ? colspan : null,
+          rowspan: Number.isFinite(rowspan) && rowspan > 1 ? rowspan : null,
+        });
+      });
+    maxColumnCount = Math.max(maxColumnCount, cells.length);
+    rows.push(cells);
+  });
+
+  if (rows.length === 0 || maxColumnCount === 0) return null;
+
+  const tableHtml = `<table>${rows
+    .map((cells) => {
+      const paddedCells = [...cells];
+      while (paddedCells.length < maxColumnCount) {
+        paddedCells.push({ tagName: 'td', html: '', text: '', colspan: null, rowspan: null });
+      }
+      return `<tr>${paddedCells
+        .map((cell) => {
+          const attrs = [
+            cell.colspan ? ` colspan="${cell.colspan}"` : '',
+            cell.rowspan ? ` rowspan="${cell.rowspan}"` : '',
+          ].join('');
+          return `<${cell.tagName}${attrs}>${cell.html}</${cell.tagName}>`;
+        })
+        .join('')}</tr>`;
+    })
+    .join('')}</table>`;
+
+  const tableNode = tableEl.get(0);
+  const surroundingHtml = [];
+  $('root')
+    .contents()
+    .each((_, node) => {
+      if (node === tableNode) return;
+      surroundingHtml.push($.html(node));
+    });
+
+  const filteredStemHtml = surroundingHtml.filter((block) => {
+    const blockHtml = normalizeDocxCellHtml(block);
+    if (!blockHtml) return false;
+    const blockText = normalizeBulkTextValue(loadHtml(`<root>${blockHtml}</root>`)('root').text() || '');
+    if (!blockText) return false;
+    if (
+      /\bcolumn\s+i\b/i.test(blockText) ||
+      /\bcolumn\s+ii\b/i.test(blockText) ||
+      /\b\d+\.\s+.+\b[A-D]\.\s+/i.test(blockText)
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  return {
+    html: normalizeDocxCellHtml(`${filteredStemHtml.join('')}${tableHtml}`),
+    matchPairs: rows.map((cells) => ({
+      left: cells[0]?.text ?? '',
+      right: cells[1]?.text ?? '',
+    })),
+  };
+};
+
 const finalizeDocxQuestion = (question, defaults, rowNumber) => {
   if (!question || !question.question_text) {
     return null;
   }
 
   let normalizedQuestionText = forceUppercaseStemStatementsToNewLine(question.question_text);
+  if (question.display_type === 'assertion_reasoning') {
+    normalizedQuestionText = normalizeDocxCellHtml(
+      normalizedQuestionText.replace(/\s*(Reason\s*\(R\)\s*:)/gi, '<br/>$1')
+    );
+  }
 
   let options = (question.options || []).map((option, index) => ({
     id: option.id || `opt-${index + 1}`,
@@ -2244,91 +2470,122 @@ const finalizeDocxQuestion = (question, defaults, rowNumber) => {
 
   const questionType = inferredQuestionType || 'mcq_single';
   if (questionType === 'match_following') {
+    const existingTable = normalizeExistingMatchTable(normalizedQuestionText);
+
+    if (existingTable) {
+      normalizedQuestionText = existingTable.html;
+      question.match_pairs = existingTable.matchPairs;
+    } else {
     const plainQuestion = toPlainBulkText(normalizedQuestionText);
-    const optionPlainText = options
-      .map((option) => toPlainBulkText(option?.text || ''))
-      .filter((line) => line.length > 0)
-      .join(' ');
-    const matchSourceText = normalizeBulkTextValue(`${plainQuestion} ${optionPlainText}`);
-    const optionsStartMatch = matchSourceText.match(/\boptions\s*[:.-]\s*/i);
-    const optionsStartIndex = optionsStartMatch?.index ?? -1;
-    const columnSourceText =
-      optionsStartIndex >= 0 ? matchSourceText.slice(0, optionsStartIndex).trim() : matchSourceText;
-    const optionsSourceText =
-      optionsStartIndex >= 0
-        ? matchSourceText.slice(optionsStartIndex + String(optionsStartMatch?.[0] || '').length).trim()
-        : '';
 
-    const splitByColumns = columnSourceText.match(
-      /([\s\S]*?)\bcolumn[\s-]*i\b[\s:.-]*([\s\S]*?)\bcolumn[\s-]*ii\b[\s:.-]*([\s\S]*)/i
+    // Separate MCQ-code options (e.g. "P-4, Q-3, R-2, S-1") from Column II value options.
+    // Code options contain letter–number pairs like "P-4", "P–4", or "P—4".
+    const matchCodePattern = /\b[P-Wp-w]\s*[-–—]\s*\d/;
+    const codeOptions = options.filter((opt) =>
+      matchCodePattern.test(toPlainBulkText(opt?.text || ''))
     );
-    if (splitByColumns) {
-      const stem = normalizeBulkTextValue(splitByColumns[1] || '');
-      const leftRaw = normalizeBulkTextValue(splitByColumns[2] || '');
-      const rightRaw = normalizeBulkTextValue(splitByColumns[3] || '');
+    const colIIOptions = options.filter(
+      (opt) => !matchCodePattern.test(toPlainBulkText(opt?.text || ''))
+    );
 
-      const parseColumnItems = (value) =>
-        String(value || '')
-          .split(/(?=\([A-Za-z0-9]+\)\s*)/g)
-          .map((entry) => normalizeBulkTextValue(entry))
-          .map((entry) => entry.replace(/^\([A-Za-z0-9]+\)\s*/i, '').trim())
-          .filter((entry) => entry.length > 0);
+    // --- Attempt 1: (P)/(Q)/(R)/(S) label format in question_text ---
+    const colIRegex = /\(([P-Wp-w])\)\s*((?:(?!\([P-Wp-w]\)|\bCodes\b|\bOptions\b).)*)/g;
+    const leftItems = [];
+    let colIMatch;
+    while ((colIMatch = colIRegex.exec(plainQuestion)) !== null) {
+      const text = normalizeBulkTextValue(colIMatch[2]).trim();
+      if (text) leftItems.push(text);
+    }
 
-      const parseMatchChoices = (value) => {
-        const chunks = String(value || '')
-          .split(/(?=\([A-Da-d]\)\s*)/g)
-          .map((entry) => normalizeBulkTextValue(entry))
-          .filter((entry) => entry.length > 0);
-        return chunks
-          .map((entry, index) => {
-            const withoutLabel = entry.replace(/^\([A-Da-d]\)\s*/i, '').trim();
-            if (!withoutLabel) return null;
-            return {
-              id: `opt-${index + 1}`,
-              text: withoutLabel,
-            };
-          })
-          .filter(Boolean);
-      };
+    let rightItems = colIIOptions
+      .map((opt) => normalizeBulkTextValue(toPlainBulkText(opt?.text || '')).trim())
+      .filter((t) => t.length > 0);
 
-      const leftItems = parseColumnItems(leftRaw);
-      const rightItems = parseColumnItems(rightRaw);
+    // --- Attempt 2: digit-numbered format (1., 2., ...) for Column I and
+    //     letter-labeled (A., B., ...) for Column II — each in a separate <p> block
+    //     inside the question HTML (appended by the parser via appendRichHtmlBlock). ---
+    if (leftItems.length === 0) {
+      const $q = loadHtml(`<root>${normalizedQuestionText}</root>`);
+      const digitLeftItems = [];
+      const letterRightItems = [];
+
+      $q('p').each((_, el) => {
+        // A single <p> may contain <br/> sub-lines from forceUppercaseStemStatementsToNewLine.
+        // Split on <br/> first, then use cheerio .text() to extract clean text — this correctly
+        // handles bold/italic/span tags (e.g. <strong>A.</strong> → "A.") without leaving
+        // stray spaces from a blanket tag-strip regex.
+        const pHtml = $q(el).html() || '';
+        const subHtmls = pHtml.split(/<br\s*\/?>/i);
+        for (const subHtml of subHtmls) {
+          const line = normalizeBulkTextValue(
+            loadHtml(`<s>${subHtml}</s>`)('s').text()
+          ).trim();
+          if (!line) continue;
+
+          const dMatch = line.match(/^(\d+)\s*[.)]\s+(.+)$/);
+          if (dMatch) {
+            digitLeftItems.push(normalizeBulkTextValue(dMatch[2]).trim());
+            continue;
+          }
+          // Match single uppercase letter A–D followed by . or ) — NOT "All", "Are" etc.
+          const lMatch = line.match(/^([A-D])[.)]\s+(.+)$/);
+          if (lMatch) {
+            letterRightItems.push(normalizeBulkTextValue(lMatch[2]).trim());
+          }
+        }
+      });
+
+      if (digitLeftItems.length > 0) {
+        leftItems.push(...digitLeftItems);
+        if (letterRightItems.length > 0) rightItems = letterRightItems;
+      }
+    }
+
+    // Build stem: everything before the first Column I label, stripping column header words.
+    const firstPQIdx = plainQuestion.search(/\([P-Wp-w]\)\s*/);
+    const firstDigitIdx = plainQuestion.search(/\b\d+\s*[.)]\s+/);
+    const stemEnd =
+      firstPQIdx > 0 ? firstPQIdx : firstDigitIdx > 0 ? firstDigitIdx : -1;
+    const stemRaw = stemEnd > 0 ? plainQuestion.slice(0, stemEnd) : plainQuestion;
+    const stem = normalizeBulkTextValue(stemRaw)
+      .replace(/\bcolumn[\s-]*(?:i{1,2}|[ab12])\b\s*(?:\([^)]*\))?\s*[:.-]?\s*/gi, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    if (leftItems.length > 0 || rightItems.length > 0) {
+      // Build Column I / Column II HTML table.
       const rowCount = Math.max(leftItems.length, rightItems.length);
-
-      if (rowCount > 0) {
-        const rowsHtml = [];
-        rowsHtml.push('<tr><th>Column I</th><th>Column II</th></tr>');
-        for (let i = 0; i < rowCount; i += 1) {
-          rowsHtml.push(
-            `<tr><td>${escapeHtml(leftItems[i] || '')}</td><td>${escapeHtml(rightItems[i] || '')}</td></tr>`
-          );
-        }
-        const stemHtml = stem ? `<p>${escapeHtml(stem)}</p>` : '';
-        normalizedQuestionText = `${stemHtml}<table>${rowsHtml.join('')}</table>`;
-        question.match_pairs = rowsHtml.slice(1).map((rowHtml, index) => ({
-          left: leftItems[index] || '',
-          right: rightItems[index] || '',
-        }));
-        const parsedChoices = parseMatchChoices(optionsSourceText || optionPlainText);
-        if (parsedChoices.length > 0) {
-          options = parsedChoices;
-          question.options = parsedChoices;
-        }
-      } else {
-        normalizedQuestionText = normalizeDocxCellHtml(
-          String(normalizedQuestionText || '')
-            .replace(/\bcolumn\s*i\b\s*[:.-]?\s*/gi, ' ')
-            .replace(/\bcolumn\s*ii\b\s*[:.-]?\s*/gi, ' ')
-            .replace(/\s{2,}/g, ' ')
+      const rowsHtml = ['<tr><th>Column I</th><th>Column II</th></tr>'];
+      for (let i = 0; i < rowCount; i += 1) {
+        rowsHtml.push(
+          `<tr><td>${escapeHtml(leftItems[i] || '')}</td><td>${escapeHtml(rightItems[i] || '')}</td></tr>`
         );
       }
+      const stemHtml = stem ? `<p>${escapeHtml(stem)}</p>` : '';
+      normalizedQuestionText = `${stemHtml}<table>${rowsHtml.join('')}</table>`;
+      question.match_pairs = Array.from({ length: rowCount }, (_, index) => ({
+        left: leftItems[index] || '',
+        right: rightItems[index] || '',
+      }));
+      // (P)/(Q) format: code options become the MCQ answer choices.
+      // Digit format: original options are already the MCQ answer choices — keep them as-is.
+      if (codeOptions.length > 0) {
+        const namedOptions = codeOptions.map((opt, index) => ({
+          id: `opt-${index + 1}`,
+          text: opt.text,
+        }));
+        options = namedOptions;
+        question.options = namedOptions;
+      }
     } else {
+      // Fallback for non-standard format: clean up column header markers from question text.
       normalizedQuestionText = normalizeDocxCellHtml(
         String(normalizedQuestionText || '')
-          .replace(/\bcolumn\s*i\b\s*[:.-]?\s*/gi, ' ')
-          .replace(/\bcolumn\s*ii\b\s*[:.-]?\s*/gi, ' ')
+          .replace(/\bcolumn[\s-]*i\b\s*[:.-]?\s*/gi, ' ')
+          .replace(/\bcolumn[\s-]*ii\b\s*[:.-]?\s*/gi, ' ')
           .replace(/\s{2,}/g, ' ')
       );
+    }
     }
   }
   let correctAnswer = answerRaw;
@@ -2336,7 +2593,10 @@ const finalizeDocxQuestion = (question, defaults, rowNumber) => {
     const answerValue = String(answerRaw || '').trim().toLowerCase();
     correctAnswer = answerValue === 'true';
   } else if (questionType === 'numerical') {
-    correctAnswer = Number(answerRaw);
+    // Strip parentheses/whitespace then parse; keep raw text if not a pure number
+    const rawNum = toPlainBulkText(String(answerRaw || '')).trim().replace(/^\(|\)$/g, '').trim();
+    const parsed = Number(rawNum);
+    correctAnswer = Number.isNaN(parsed) ? (rawNum || '') : parsed;
   } else if (questionType === 'mcq_single') {
     const mapped = mapAnswerTokenToOptionId(answerRaw, options);
     correctAnswer = mapped ?? String(answerRaw || '').trim();
@@ -2349,14 +2609,21 @@ const finalizeDocxQuestion = (question, defaults, rowNumber) => {
       .map((token) => mapAnswerTokenToOptionId(token, options))
       .filter(Boolean);
     correctAnswer = mapped.length > 0 ? mapped : tokens;
-  } else if (questionType === 'comprehension') {
-    const mapped = mapAnswerTokenToOptionId(answerRaw, options);
-    correctAnswer = mapped ?? String(answerRaw || '').trim();
+  } else if (questionType === 'comprehensive') {
+    // Keep the raw key letter (a/b/c/d) without mapping to opt-id,
+    // so the converter output shows the original answer value directly.
+    const raw = toPlainBulkText(String(answerRaw || '')).trim();
+    // Strip surrounding parentheses: (a) → a, (A) → a
+    const cleaned = raw.replace(/^\(([a-dA-D])\)$/, '$1').toLowerCase();
+    correctAnswer = cleaned || raw;
   }
 
   const prepared = applyBulkDefaults(
     {
       question_type: questionType,
+      // display_type carries the human-readable section label (e.g. 'assertion_reasoning',
+      // 'hybrid') used in the converter output Type column without affecting DB storage.
+      display_type: question.display_type ?? questionType ?? null,
       question_text: normalizedQuestionText,
       options: options.length > 0 ? options : null,
       correct_answer: correctAnswer,
@@ -2395,9 +2662,9 @@ const finalizeDocxQuestion = (question, defaults, rowNumber) => {
 
 const extractDocxRows = (buffer, defaults) => {
   const { zip, relationshipMap, documentXml } = loadDocxExtractionContext(buffer);
-  const paragraphMatches = documentXml.match(/<w:p[\s\S]*?<\/w:p>/g) || [];
-  if (paragraphMatches.length === 0) {
-    throw new AppError('Word file has no readable paragraph content', 400);
+  const blockMatches = extractDocxBodyBlocks(documentXml);
+  if (blockMatches.length === 0) {
+    throw new AppError('Word file has no readable paragraph or table content', 400);
   }
 
   const rawQuestions = [];
@@ -2407,6 +2674,7 @@ const extractDocxRows = (buffer, defaults) => {
   let current = null;
   let pendingPassage = null;
   let sectionQuestionType = '';
+  let sectionDisplayType = '';
   let sectionDifficultyLevel = null;
   let sectionComprehensionMode = false;
   let sectionComprehensionPassage = '';
@@ -2451,7 +2719,47 @@ const extractDocxRows = (buffer, defaults) => {
     currentSolutionHtml = '';
   };
 
-  paragraphMatches.forEach((paragraphXml) => {
+  blockMatches.forEach((blockXml) => {
+    if (/^<w:tbl\b/.test(blockXml)) {
+      const { tableHtml, detectionText } = extractDocxTableBlockContent(
+        blockXml,
+        relationshipMap,
+        zip
+      );
+      if (!tableHtml) return;
+      parsedParagraphs.push({ paragraphHtml: tableHtml, detectionText, mathBlocks: [] });
+      if (!current) {
+        if (sectionQuestionType === 'match_following') {
+          current = {
+            ...globalMeta,
+            question_number: rawQuestions.length + 1,
+            question_type: sectionQuestionType,
+            display_type: sectionDisplayType || sectionQuestionType,
+            difficulty_level: sectionDifficultyLevel || null,
+            question_text: tableHtml,
+            options: [],
+            exam_tags: [...sectionTags],
+            _debugMathBlocks: [],
+          };
+          currentSection = 'question';
+          return;
+        }
+        if (pendingPassage) {
+          pendingPassage = appendRichHtmlBlock(pendingPassage, tableHtml);
+        }
+        return;
+      }
+      if (current._collecting_solution || currentSection === 'solution') {
+        current.solution = appendRichHtmlBlock(current.solution, tableHtml);
+        currentSection = 'solution';
+        return;
+      }
+      current.question_text = appendRichHtmlBlock(current.question_text, tableHtml);
+      currentSection = 'question';
+      return;
+    }
+
+    const paragraphXml = blockXml;
     const { paragraphHtml, detectionText, mathBlocks } = extractParagraphContent(
       paragraphXml,
       relationshipMap,
@@ -2559,6 +2867,15 @@ const extractDocxRows = (buffer, defaults) => {
     if (isDocxSectionHeading(detectionText)) {
       pushCurrent();
       sectionQuestionType = normalizeDocxSectionQuestionType(detectionText);
+      // Preserve a human-readable display type for special sections
+      // (used in the converter output file's Type column; does not affect DB storage)
+      if (/assertion.*reason|reason.*assertion/i.test(detectionText)) {
+        sectionDisplayType = 'assertion_reasoning';
+      } else if (/hybrid/i.test(detectionText)) {
+        sectionDisplayType = 'hybrid';
+      } else {
+        sectionDisplayType = sectionQuestionType;
+      }
       sectionComprehensionMode = /comprehension/i.test(detectionText);
       sectionComprehensionPassage = '';
       sectionDifficultyLevel = null;
@@ -2572,9 +2889,12 @@ const extractDocxRows = (buffer, defaults) => {
     }
 
     if (isDocxTagHeading(detectionText)) {
-      const normalizedTag = normalizeDocxTagHeading(detectionText);
-      if (normalizedTag) {
-        sectionTags = [normalizedTag];
+      const subsectionHeading = parseDocxSubsectionHeading(detectionText);
+      if (subsectionHeading.tag) {
+        sectionTags = [subsectionHeading.tag];
+      }
+      if (subsectionHeading.difficulty) {
+        sectionDifficultyLevel = subsectionHeading.difficulty;
       }
       return;
     }
@@ -2630,6 +2950,22 @@ const extractDocxRows = (buffer, defaults) => {
       detectionText.match(/^q\d+\s*[:.-]\s*(.*)$/i) ||
       detectionText.match(/^\d+\s*[\).:-]\s*(.*)$/i);
     if (questionMatch) {
+      // Suppress numeric-only question starts (e.g. "1. Equilateral Triangle") when already
+      // inside a match_following question — these are match-pair labels, not new questions.
+      const isOnlyNumericPattern =
+        !detectionText.match(/^question(?:\s+\d+)?\s*[:.-]\s*(.*)$/i) &&
+        !detectionText.match(/^q\d+\s*[:.-]\s*(.*)$/i);
+      if (
+        isOnlyNumericPattern &&
+        current &&
+        (current.question_type === 'match_following' || sectionQuestionType === 'match_following')
+      ) {
+        current.question_text = appendRichHtmlBlock(
+          current.question_text,
+          paragraphHtml || escapeHtml(detectionText)
+        );
+        return;
+      }
       pushCurrent();
       const inlineTag = extractInlineDocxTag(detectionText);
       const questionNumber = extractDocxQuestionNumber(detectionText);
@@ -2641,6 +2977,7 @@ const extractDocxRows = (buffer, defaults) => {
         ...globalMeta,
         question_number: questionNumber,
         question_type: sectionQuestionType || '',
+        display_type: sectionDisplayType || sectionQuestionType || '',
         difficulty_level: sectionDifficultyLevel || null,
         question_text: '',
         options: [],
@@ -3215,6 +3552,7 @@ const buildQuestionInsertPayload = async ({ input, user, role, clientId, queryRu
       user,
       role,
       clientId,
+      queryRunner,
     });
     if (error) {
       throw new AppError(error.body.error, error.status);
@@ -4870,6 +5208,20 @@ const htmlMathNodeToLinear = ($, node) => {
   const tag = String(node.name || '').toLowerCase();
   if (tag === 'br') return ' ';
 
+  if (tag === 'span' && String($(node).attr('class') || '').toLowerCase().includes('math-fraction')) {
+    const numerator =
+      normalizeDocxCellHtml($(node).find('.math-fraction__numerator').first().html() || '') ||
+      decodeHtmlEntitiesForDocx($(node).attr('data-num') || '');
+    const denominator =
+      normalizeDocxCellHtml($(node).find('.math-fraction__denominator').first().html() || '') ||
+      decodeHtmlEntitiesForDocx($(node).attr('data-den') || '');
+    if (numerator || denominator) {
+      const numeratorText = numerator.includes('<') ? htmlMathToLinearText(numerator) : numerator;
+      const denominatorText = denominator.includes('<') ? htmlMathToLinearText(denominator) : denominator;
+      return denominatorText ? `${numeratorText}/${denominatorText}` : numeratorText;
+    }
+  }
+
   if (tag === 'sup') {
     return mapStringWithUnicode($(node).text(), SUPERSCRIPT_UNICODE_MAP, '^');
   }
@@ -4897,25 +5249,100 @@ const htmlMathToLinearText = (mathHtml) => {
   return normalizeBulkTextValue(linear);
 };
 
+const createImportedXmlElement = (name, attrs = null, children = []) => {
+  const component = new ImportedXmlComponent(name, attrs || undefined);
+  children.forEach((child) => component.push(child));
+  return component;
+};
+
+const createOfficeMathRun = (text) =>
+  createImportedXmlElement('m:r', null, [
+    createImportedXmlElement('w:rPr', null, [
+      createImportedXmlElement('w:rFonts', {
+        'w:ascii': 'Cambria Math',
+        'w:hAnsi': 'Cambria Math',
+      }),
+    ]),
+    createImportedXmlElement('m:t', null, [text]),
+  ]);
+
+const createOfficeMathBarFraction = (numerator, denominator) =>
+  createImportedXmlElement('m:f', null, [
+    createImportedXmlElement('m:fPr', null, [
+      createImportedXmlElement('m:type', { 'm:val': 'bar' }),
+      createImportedXmlElement('m:ctrlPr', null, [
+        createImportedXmlElement('w:rPr', null, [
+          createImportedXmlElement('w:rFonts', {
+            'w:ascii': 'Cambria Math',
+            'w:hAnsi': 'Cambria Math',
+          }),
+          createImportedXmlElement('w:i'),
+        ]),
+      ]),
+    ]),
+    createImportedXmlElement('m:num', null, [createOfficeMathRun(numerator || '')]),
+    createImportedXmlElement('m:den', null, [createOfficeMathRun(denominator || '')]),
+  ]);
+
+const htmlMathNodeToDocxComponents = ($, node) => {
+  if (!node) return [];
+  if (node.type === 'text') {
+    const text = decodeHtmlEntitiesForDocx($(node).text());
+    return text ? [new MathRun(text)] : [];
+  }
+  if (node.type !== 'tag') return [];
+
+  const tag = String(node.name || '').toLowerCase();
+  if (tag === 'br') return [new MathRun(' ')];
+
+  if (tag === 'span' && String($(node).attr('class') || '').toLowerCase().includes('math-fraction')) {
+    const numeratorHtml =
+      normalizeDocxCellHtml($(node).find('.math-fraction__numerator').first().html() || '') ||
+      decodeHtmlEntitiesForDocx($(node).attr('data-num') || '');
+    const denominatorHtml =
+      normalizeDocxCellHtml($(node).find('.math-fraction__denominator').first().html() || '') ||
+      decodeHtmlEntitiesForDocx($(node).attr('data-den') || '');
+    const numerator =
+      typeof numeratorHtml === 'string' && numeratorHtml.includes('<')
+        ? htmlMathToLinearText(numeratorHtml)
+        : decodeHtmlEntitiesForDocx(numeratorHtml || '');
+    const denominator =
+      typeof denominatorHtml === 'string' && denominatorHtml.includes('<')
+        ? htmlMathToLinearText(denominatorHtml)
+        : decodeHtmlEntitiesForDocx(denominatorHtml || '');
+    if (numerator || denominator) {
+      return [createOfficeMathBarFraction(numerator, denominator)];
+    }
+  }
+
+  const components = [];
+  (node.children || []).forEach((child) => {
+    components.push(...htmlMathNodeToDocxComponents($, child));
+  });
+  return components;
+};
+
+const htmlMathToDocxComponents = (mathHtml) => {
+  const source = normalizeDocxCellHtml(mathHtml);
+  if (!source) return [];
+  const $ = loadHtml(`<root>${source}</root>`);
+  const components = [];
+  $('root')
+    .contents()
+    .each((_, node) => {
+      components.push(...htmlMathNodeToDocxComponents($, node));
+    });
+  return components;
+};
+
 const parseDataUrlImage = (src) => {
   const match = String(src || '').match(/^data:([^;]+);base64,(.+)$/i);
   if (!match) return null;
   try {
-    const mimeType = String(match[1] || '').toLowerCase();
-    const docxTypeByMime = {
-      'image/png': 'png',
-      'image/jpeg': 'jpg',
-      'image/jpg': 'jpg',
-      'image/gif': 'gif',
-      'image/bmp': 'bmp',
-    };
-    const type = docxTypeByMime[mimeType];
-    if (!type) return null;
     const buffer = Buffer.from(match[2], 'base64');
     if (!buffer || buffer.length === 0) return null;
     return {
-      mimeType,
-      type,
+      mimeType: String(match[1] || '').toLowerCase(),
       data: buffer,
     };
   } catch (_err) {
@@ -5016,7 +5443,6 @@ const htmlToDocxRuns = (html, styles = {}) => {
         runs.push(
           new ImageRun({
             data: parsed.data,
-            type: parsed.type,
             transformation: {
               width: 220,
               height: 140,
@@ -5033,7 +5459,17 @@ const htmlToDocxRuns = (html, styles = {}) => {
     if (tag === 'span') {
       const className = String($(node).attr('class') || '').toLowerCase();
       if (className.includes('math-equation') || className.includes('math-matrix')) {
-        const linearMath = htmlMathToLinearText($(node).html() || $(node).text() || '');
+        const mathHtml = $(node).html() || $(node).text() || '';
+        const mathComponents = htmlMathToDocxComponents(mathHtml);
+        if (mathComponents.length > 0) {
+          runs.push(
+            new DocxMath({
+              children: mathComponents,
+            })
+          );
+          return;
+        }
+        const linearMath = htmlMathToLinearText(mathHtml);
         if (linearMath) {
           runs.push(
             new DocxMath({
@@ -5062,6 +5498,146 @@ const htmlToDocxRuns = (html, styles = {}) => {
   return runs;
 };
 
+const htmlToDocxRunsSafe = (html, styles = {}) => {
+  const source = normalizeDocxCellHtml(html);
+  if (!source) return [];
+
+  const $ = loadHtml(`<root>${source}</root>`);
+  const root = $('root');
+  const runs = [];
+  const inlineMathTokenRegex =
+    /((?:\b\d+\s*\/\s*\d+\b)|(?:\b(?:sin|cos|tan)\s*(?:\([^)]+\)|[A-Za-zθπ]+)\b)|(?:(?<![A-Za-z])(?:[A-Za-zθπ])\s*\/\s*\d+(?![A-Za-z]))|(?:(?<![A-Za-z])(?:[A-Za-zθπ])\s*\^\s*-?\d+(?![A-Za-z])))/gi;
+
+  const pushTextRun = (text, inheritedStyles = {}) => {
+    runs.push(
+      new TextRun({
+        text,
+        bold: Boolean(inheritedStyles.bold),
+        italics: Boolean(inheritedStyles.italics),
+        underline: inheritedStyles.underline ? {} : undefined,
+        superScript: Boolean(inheritedStyles.superScript),
+        subScript: Boolean(inheritedStyles.subScript),
+      })
+    );
+  };
+
+  const pushInlineTextWithMath = (text, inheritedStyles = {}) => {
+    const input = decodeHtmlEntitiesForDocx(text);
+    if (!input) return;
+
+    inlineMathTokenRegex.lastIndex = 0;
+    const matches = Array.from(input.matchAll(inlineMathTokenRegex));
+    if (matches.length === 0) {
+      pushTextRun(input, inheritedStyles);
+      return;
+    }
+
+    let lastIndex = 0;
+    for (const tokenMatch of matches) {
+      const tokenStart = tokenMatch.index ?? 0;
+      const tokenText = String(tokenMatch[0] || '').trim();
+      if (tokenStart > lastIndex) {
+        pushTextRun(input.slice(lastIndex, tokenStart), inheritedStyles);
+      }
+      if (tokenText) {
+        runs.push(
+          new DocxMath({
+            children: [new MathRun(tokenText.replace(/\s+/g, ' ').trim())],
+          })
+        );
+      }
+      lastIndex = tokenStart + String(tokenMatch[0] || '').length;
+    }
+    if (lastIndex < input.length) {
+      pushTextRun(input.slice(lastIndex), inheritedStyles);
+    }
+  };
+
+  const walkNode = (node, inheritedStyles = {}) => {
+    if (!node) return;
+
+    if (node.type === 'text') {
+      const text = $(node).text();
+      if (!text) return;
+      pushInlineTextWithMath(text, inheritedStyles);
+      return;
+    }
+
+    if (node.type !== 'tag') return;
+    const tag = String(node.name || '').toLowerCase();
+
+    if (tag === 'br') {
+      runs.push(new TextRun({ text: '', break: 1 }));
+      return;
+    }
+
+    if (tag === 'img') {
+      const src = $(node).attr('src') || '';
+      const parsed = parseDataUrlImage(src);
+      if (parsed) {
+        runs.push(
+          new ImageRun({
+            data: parsed.data,
+            transformation: {
+              width: 220,
+              height: 140,
+            },
+          })
+        );
+      } else {
+        const altText = decodeHtmlEntitiesForDocx($(node).attr('alt') || 'image');
+        runs.push(new TextRun({ text: `[${altText}]` }));
+      }
+      return;
+    }
+
+    if (tag === 'span') {
+      const className = String($(node).attr('class') || '').toLowerCase();
+      if (className.includes('math-equation') || className.includes('math-matrix')) {
+        const mathHtml = $(node).html() || $(node).text() || '';
+        if (/<(?:sup|sub)\b/i.test(mathHtml) && !/math-fraction/i.test(mathHtml)) {
+          (node.children || []).forEach((child) => walkNode(child, inheritedStyles));
+          return;
+        }
+
+        const mathComponents = htmlMathToDocxComponents(mathHtml);
+        if (mathComponents.length > 0) {
+          runs.push(
+            new DocxMath({
+              children: mathComponents,
+            })
+          );
+          return;
+        }
+
+        const linearMath = htmlMathToLinearText(mathHtml);
+        if (linearMath) {
+          runs.push(
+            new DocxMath({
+              children: [new MathRun(linearMath)],
+            })
+          );
+        }
+        return;
+      }
+    }
+
+    const nextStyles = {
+      ...inheritedStyles,
+      bold: inheritedStyles.bold || ['strong', 'b'].includes(tag),
+      italics: inheritedStyles.italics || ['em', 'i'].includes(tag),
+      underline: inheritedStyles.underline || tag === 'u',
+      superScript: inheritedStyles.superScript || tag === 'sup',
+      subScript: inheritedStyles.subScript || tag === 'sub',
+    };
+
+    (node.children || []).forEach((child) => walkNode(child, nextStyles));
+  };
+
+  root.contents().each((_, node) => walkNode(node, styles));
+  return runs;
+};
+
 const buildPlainCell = (value) =>
   new TableCell({
     children: [new Paragraph({ children: [new TextRun(String(value ?? ''))] })],
@@ -5073,9 +5649,87 @@ const buildRichCell = (html) => {
     return buildPlainCell('');
   }
 
-  const runs = htmlToDocxRuns(normalized);
+  const runs = htmlToDocxRunsSafe(normalized);
   return new TableCell({
     children: [new Paragraph({ children: runs.length ? runs : [new TextRun('')] })],
+  });
+};
+
+const thinBorder = { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' };
+const cellBorders = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+const buildMatchFollowingCell = (html) => {
+  const normalized = normalizeDocxCellHtml(html);
+  const $ = loadHtml(`<root>${normalized}</root>`);
+  const tableEl = $('root > table').first();
+
+  // No nested table — fall back to plain rich cell
+  if (!tableEl.length) return buildRichCell(html);
+
+  const cellChildren = [];
+
+  // Render stem paragraph(s) that appear before the table
+  $('root > p').each((_, el) => {
+    const stemRuns = htmlToDocxRunsSafe(normalizeDocxCellHtml($.html(el)));
+    cellChildren.push(new Paragraph({ children: stemRuns.length ? stemRuns : [new TextRun('')] }));
+  });
+
+  // Build the nested table from the preserved source rows/cells.
+  const nestedRows = [];
+  let maxColumnCount = 0;
+  const rowCells = [];
+  tableEl.children('tbody, thead, tfoot').addBack().find('> tr').each((_, trEl) => {
+    const docxCells = [];
+    $(trEl).children('th, td').each((_, cellEl) => {
+      const isHeader = cellEl.tagName === 'th';
+      const cellHtml = normalizeDocxCellHtml($(cellEl).html() || '');
+      const cellRuns = htmlToDocxRunsSafe(cellHtml);
+      docxCells.push({
+        isHeader,
+        columnSpan: Number.parseInt($(cellEl).attr('colspan') || '1', 10),
+        children: [
+          new Paragraph({
+            children: cellRuns.length ? cellRuns : [new TextRun({ text: '', bold: isHeader })],
+          }),
+        ],
+      });
+    });
+    maxColumnCount = Math.max(maxColumnCount, docxCells.length);
+    rowCells.push(docxCells);
+  });
+
+  rowCells.forEach((cells) => {
+    const paddedCells = [...cells];
+    while (paddedCells.length < maxColumnCount) {
+      paddedCells.push({
+        isHeader: false,
+        columnSpan: null,
+        children: [new Paragraph({ children: [new TextRun('')] })],
+      });
+    }
+    nestedRows.push(new TableRow({
+      children: paddedCells.map((cell) =>
+        new TableCell({
+          borders: cellBorders,
+          columnSpan: Number.isFinite(cell.columnSpan) && cell.columnSpan > 1 ? cell.columnSpan : undefined,
+          width: { size: Math.floor(100 / Math.max(maxColumnCount, 1)), type: WidthType.PERCENTAGE },
+          children: cell.children,
+        })
+      ),
+    }));
+  });
+
+  if (nestedRows.length > 0) {
+    cellChildren.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: nestedRows,
+      })
+    );
+  }
+
+  return new TableCell({
+    children: cellChildren.length ? cellChildren : [new Paragraph({ children: [new TextRun('')] })],
   });
 };
 
@@ -5084,7 +5738,7 @@ const buildOptionsCell = (options) => {
 
   const paragraphs = options.map((option, index) => {
     const label = `${String.fromCharCode(65 + index)}) `;
-    const optionRuns = htmlToDocxRuns(option?.text || '');
+    const optionRuns = htmlToDocxRunsSafe(option?.text || '');
     return new Paragraph({
       children: [new TextRun({ text: label, bold: true }), ...(optionRuns.length ? optionRuns : [new TextRun('')])],
     });
@@ -5133,7 +5787,7 @@ const buildSolutionCell = (solutionHtml) => {
   if (lines.length === 0) return buildPlainCell('');
 
   const paragraphs = lines.map((line) => {
-    const runs = htmlToDocxRuns(line);
+    const runs = htmlToDocxRunsSafe(line);
     return new Paragraph({
       bullet: { level: 0 },
       children: runs.length ? runs : [new TextRun('')],
@@ -5151,6 +5805,75 @@ const mapOptionIdToLabel = (optionId, options = []) => {
   return String.fromCharCode(65 + index);
 };
 
+const isConverterComprehensionRow = (row = {}) => {
+  const typeText = `${row.display_type ?? ''} ${row.question_type ?? ''}`.toLowerCase();
+  return Boolean(
+    row.has_comprehension ||
+      row.comprehension_passage_id ||
+      row.comprehension_passage ||
+      row.passage_content ||
+      row.passage_title ||
+      row.passage_key ||
+      row.comprehension ||
+      /\bcomprehension\b|\bcomprehensive\b/.test(typeText)
+  );
+};
+
+const normalizeConverterComprehensionRows = (rows = []) => {
+  let activePassage = null;
+  let passageSequence = 0;
+
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return row;
+
+    const isComprehensionRow = isConverterComprehensionRow(row);
+    const rowPassageContent =
+      row.passage_content ??
+      row.comprehension_passage ??
+      row.comprehension?.passage_content ??
+      null;
+    const rowPassageTitle =
+      row.passage_title ??
+      row.comprehension?.title ??
+      null;
+    const rowPassageKey =
+      row.passage_key ??
+      row.comprehension_passage_id ??
+      row.comprehension?.id ??
+      null;
+    const hasPassageContent = hasMeaningfulRichContent(rowPassageContent);
+    const hasPassageTitle = !isPlaceholderBulkValue(rowPassageTitle);
+    const hasPassageKey = !isPlaceholderBulkValue(rowPassageKey);
+
+    if (isComprehensionRow && (hasPassageContent || hasPassageTitle || hasPassageKey)) {
+      passageSequence += hasPassageContent && (!activePassage || toPlainBulkText(rowPassageContent) !== toPlainBulkText(activePassage.content))
+        ? 1
+        : 0;
+      if (passageSequence === 0) passageSequence = 1;
+      activePassage = {
+        key: hasPassageKey ? rowPassageKey : `P${passageSequence}`,
+        title: hasPassageTitle ? rowPassageTitle : `Passage ${passageSequence}`,
+        content: hasPassageContent ? rowPassageContent : activePassage?.content ?? '',
+      };
+    } else if (!isComprehensionRow) {
+      activePassage = null;
+    }
+
+    if (!isComprehensionRow || !activePassage) return row;
+
+    return {
+      ...row,
+      has_comprehension: true,
+      passage_key: !isPlaceholderBulkValue(row.passage_key) ? row.passage_key : activePassage.key,
+      passage_title: !isPlaceholderBulkValue(row.passage_title) ? row.passage_title : activePassage.title,
+      passage_content: hasMeaningfulRichContent(row.passage_content) ? row.passage_content : activePassage.content,
+      comprehension_passage: hasMeaningfulRichContent(row.comprehension_passage)
+        ? row.comprehension_passage
+        : activePassage.content,
+    };
+  });
+};
+
 const buildConverterOutputRow = (row, _index) => {
   const options = Array.isArray(row.options) ? row.options : [];
   let correctAnswer = '';
@@ -5162,6 +5885,9 @@ const buildConverterOutputRow = (row, _index) => {
     correctAnswer = answers.map((answer) => mapOptionIdToLabel(answer, options)).join(';');
   } else if (row.question_type === 'true_false') {
     correctAnswer = row.correct_answer === true ? 'true' : 'false';
+  } else if (row.question_type === 'comprehensive') {
+    // correct_answer is stored as the raw key letter (a/b/c/d) — output as-is
+    correctAnswer = String(row.correct_answer ?? '');
   } else {
     correctAnswer = Array.isArray(row.correct_answer)
       ? row.correct_answer.join(';')
@@ -5172,15 +5898,18 @@ const buildConverterOutputRow = (row, _index) => {
     row.has_comprehension ||
       row.comprehension_passage ||
       row.passage_content ||
-      row.passage_title
+      row.passage_title ||
+      row.comprehension_passage_id ||
+      (Array.isArray(row.comprehension_questions) && row.comprehension_questions.length > 0) ||
+      (row.comprehension && (row.comprehension.passage_content || row.comprehension.id))
   );
 
   return [
     _index + 1,
-    row.question_type || '',
+    row.display_type || row.question_type || '',
     row.question_text ?? '',
     options,
-    row.question_type === 'match_following' || row.question_type === 'fill_in_blank' ? '' : correctAnswer,
+    row.question_type === 'fill_in_blank' ? '' : correctAnswer,
     row.solution ?? '',
     row.difficulty_level || '',
     row.marks_positive ?? '',
@@ -5211,7 +5940,7 @@ const convertManualDocxRows = async ({ file, defaults }) => {
     throw new AppError(String(firstError._bulk_error || 'Failed to parse uploaded file'), 400);
   }
 
-  return rows;
+  return normalizeConverterComprehensionRows(rows);
 };
 
 const buildConverterTemplateBuffer = async (rows) => {
@@ -5244,7 +5973,7 @@ const buildConverterTemplateBuffer = async (rows) => {
       children: [
         buildPlainCell(sno),
         buildPlainCell(questionType),
-        buildRichCell(questionHtml),
+        questionType === 'match_following' ? buildMatchFollowingCell(questionHtml) : buildRichCell(questionHtml),
         buildOptionsCell(optionList),
         buildPlainCell(correctAnswer),
         buildSolutionCell(solutionHtml),
@@ -5327,11 +6056,16 @@ const resolveBulkComprehensionPassageId = async ({
     return cache.get(cacheKey);
   }
 
-  const title = row.passage_title ?? null;
   const passageContent = row.passage_content ?? row.comprehension_passage ?? null;
-  if (!title || !passageContent) {
-    throw new AppError('passage_title and passage_content are required for linked comprehension rows', 400);
+  if (!passageContent) {
+    throw new AppError('passage_content is required for linked comprehension rows', 400);
   }
+  // Use the explicit title if provided; otherwise derive one from the first 80 chars
+  // of the passage text (paragraph-parser rows never set passage_title explicitly).
+  const explicitTitle = row.passage_title && !isPlaceholderBulkValue(row.passage_title)
+    ? String(row.passage_title).trim()
+    : null;
+  const title = explicitTitle || (toPlainBulkText(passageContent).slice(0, 80).trim() || 'Passage');
 
   const passage = await createComprehensionPassageRecord({
     input: {

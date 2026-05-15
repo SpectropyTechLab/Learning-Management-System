@@ -21,7 +21,8 @@ const typeLabels: Record<string, string> = {
 };
 
 const questionGroupTypeLabels: Record<string, string> = {
-  direction: "Direction",
+  direction: "Direct",
+  direct: "Direct",
   similar: "Similar",
   previous_year: "Previous Year",
   reference: "Reference",

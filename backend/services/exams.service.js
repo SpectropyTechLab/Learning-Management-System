@@ -3159,6 +3159,88 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
     if (!Array.isArray(questions) || questions.length === 0) continue;
 
     for (const question of questions) {
+      const questionHtml = extractRichHtmlString(question?.question_text);
+      const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE });
+      const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
+      children.push(
+        new Paragraph({
+          spacing: { after: DOCX_QUESTION_AFTER },
+          children: [
+            new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+            ...(questionRuns.length > 0 ? questionRuns : [new TextRun(buildDocxTextRunOptions({ text: questionFallback }))]),
+          ],
+        })
+      );
+
+      if (Array.isArray(question?.options) && question.options.length > 0) {
+        question.options.forEach((option, optionIndex) => {
+          const optionPrefix = String.fromCharCode(97 + optionIndex);
+          const optionHtml = extractRichHtmlString(option?.text);
+          const optionRuns = htmlToDocxRuns(optionHtml, { size: DOCX_BODY_FONT_SIZE });
+          const optionText = extractOptionText(option);
+          if (!optionText && optionRuns.length === 0) return;
+          children.push(
+            new Paragraph({
+              spacing: { after: DOCX_OPTION_AFTER },
+              indent: { left: 220, hanging: 120 },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `(${optionPrefix}) ` })),
+                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text: optionText }))]),
+              ],
+            })
+          );
+        });
+      } else if (
+        question?.question_type === 'match_following' &&
+        question?.options &&
+        typeof question.options === 'object'
+      ) {
+        const left = Array.isArray(question.options.left) ? question.options.left : [];
+        const right = Array.isArray(question.options.right) ? question.options.right : [];
+        left.forEach((item, idx) => {
+          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
+          const text = extractOptionText(item);
+          if (!text && optionRuns.length === 0) return;
+          children.push(
+            new Paragraph({
+              spacing: { after: DOCX_OPTION_AFTER },
+              indent: { left: 220, hanging: 120 },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `L${idx + 1}. ` })),
+                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
+              ],
+            })
+          );
+        });
+        right.forEach((item, idx) => {
+          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
+          const text = extractOptionText(item);
+          if (!text && optionRuns.length === 0) return;
+          children.push(
+            new Paragraph({
+              spacing: { after: DOCX_OPTION_AFTER },
+              indent: { left: 220, hanging: 120 },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `R${idx + 1}. ` })),
+                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
+              ],
+            })
+          );
+        });
+      }
+
+      const answerText = resolveAnswerText(question) || '--';
+      children.push(
+        new Paragraph({
+          spacing: { after: DOCX_ANSWER_AFTER },
+          indent: { left: 220 },
+          children: [
+            new TextRun(buildDocxTextRunOptions({ text: 'Correct Answer: ', bold: true })),
+            new TextRun(buildDocxTextRunOptions({ text: answerText })),
+          ],
+        })
+      );
+
       const solutionHtmlLines = resolveSolutionHtmlLines(question);
       const solutionLines = resolveSolutionLines(question);
 
@@ -3168,9 +3250,10 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           children.push(
             new Paragraph({
               spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+              indent: { left: 220 },
               children: [
                 ...(lineIndex === 0
-                  ? [new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true }))]
+                  ? [new TextRun(buildDocxTextRunOptions({ text: 'Solution: ', bold: true }))]
                   : []),
                 ...(lineRuns.length > 0
                   ? lineRuns
@@ -3184,9 +3267,10 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           children.push(
             new Paragraph({
               spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+              indent: { left: 220 },
               children: [
                 ...(lineIndex === 0
-                  ? [new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true }))]
+                  ? [new TextRun(buildDocxTextRunOptions({ text: 'Solution: ', bold: true }))]
                   : []),
                 new TextRun(buildDocxTextRunOptions({ text: line || '--' })),
               ],
@@ -3197,8 +3281,9 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
         children.push(
           new Paragraph({
             spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+            indent: { left: 220 },
             children: [
-              new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true })),
+              new TextRun(buildDocxTextRunOptions({ text: 'Solution: ', bold: true })),
               new TextRun(buildDocxTextRunOptions({ text: '--' })),
             ],
           })

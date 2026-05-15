@@ -298,7 +298,7 @@ export default function QuestionBulkUploadPage() {
                         <td className="border border-slate-200 px-2 py-1">-</td>
                         <td className="border border-slate-200 px-2 py-1">-</td>
                         <td className="border border-slate-200 px-2 py-1">-</td>
-                        <td className="border border-slate-200 px-2 py-1">direction</td>
+                        <td className="border border-slate-200 px-2 py-1">direct</td>
                       </tr>
                       <tr>
                         <td className="border border-slate-200 px-2 py-1">2</td>
@@ -371,7 +371,7 @@ export default function QuestionBulkUploadPage() {
                         <td className="border border-slate-200 px-2 py-1">-</td>
                         <td className="border border-slate-200 px-2 py-1">-</td>
                         <td className="border border-slate-200 px-2 py-1">-</td>
-                        <td className="border border-slate-200 px-2 py-1">direction</td>
+                        <td className="border border-slate-200 px-2 py-1">direct</td>
                       </tr>
                     </tbody>
                   </table>

@@ -228,7 +228,7 @@ export default function QuestionFilters({
               className="mt-0.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
             >
               <option value="">All</option>
-              <option value="direction">Direction</option>
+              <option value="direct">Direct</option>
               <option value="similar">Similar</option>
               <option value="previous_year">Previous Year</option>
               <option value="reference">Reference</option>
@@ -284,7 +284,7 @@ export default function QuestionFilters({
               className="mt-0.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
             >
               <option value="">All</option>
-              <option value="direction">Direction</option>
+              <option value="direct">Direct</option>
               <option value="similar">Similar</option>
               <option value="previous_year">Previous Year</option>
               <option value="reference">Reference</option>

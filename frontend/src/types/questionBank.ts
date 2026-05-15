@@ -14,7 +14,7 @@ export type DifficultyLevel = "easy" | "medium" | "hard";
 
 export type QuestionStatus = "draft" | "approved" | "rejected";
 
-export type QuestionGroupType = "direction" | "similar" | "previous_year" | "reference";
+export type QuestionGroupType = "direct" | "similar" | "previous_year" | "reference";
 
 export type CorrectAnswer =
   | string
@@ -155,10 +155,16 @@ export const formatSubjectDisplay = (
 
 export const formatQuestionCategory = (category: QuestionCategory) => {
   if (category === undefined || category === null) return "";
-  if (typeof category === "string") return category.trim();
+  if (typeof category === "string") {
+    const trimmed = category.trim();
+    return trimmed.toLowerCase() === "direction" ? "direct" : trimmed;
+  }
   if (Array.isArray(category)) {
     return category
-      .map((entry) => String(entry).trim())
+      .map((entry) => {
+        const trimmed = String(entry).trim();
+        return trimmed.toLowerCase() === "direction" ? "direct" : trimmed;
+      })
       .filter(Boolean)
       .join(", ");
   }
@@ -169,7 +175,8 @@ export const formatQuestionCategory = (category: QuestionCategory) => {
       category.value ??
       category.type ??
       (Array.isArray(category.tags) ? category.tags.join(", ") : "");
-    return String(preferred ?? "").trim();
+    const trimmed = String(preferred ?? "").trim();
+    return trimmed.toLowerCase() === "direction" ? "direct" : trimmed;
   }
   return String(category).trim();
 };

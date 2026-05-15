@@ -91,3 +91,33 @@
 .question-render img:not([width]) {
   max-width: min(100%, 320px);
 }
+
+.question-render .question-math-fraction {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  line-height: 1;
+  font-family: "Cambria Math", "Times New Roman", serif;
+  font-size: 0.95em;
+  margin: 0 0.08em;
+}
+
+.question-render .question-math-fraction__numerator,
+.question-render .question-math-fraction__denominator {
+  display: block;
+  min-width: 100%;
+  padding: 0 0.16em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.question-render .question-math-fraction__numerator {
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 0.08em;
+}
+
+.question-render .question-math-fraction__denominator {
+  padding-top: 0.08em;
+}

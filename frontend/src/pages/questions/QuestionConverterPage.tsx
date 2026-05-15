@@ -12,7 +12,7 @@ type InsertSummary = {
 };
 
 const CATEGORY_OPTIONS = [
-  { value: "direction", label: "Direction" },
+  { value: "direct", label: "Direct" },
   { value: "similar", label: "Similar" },
   { value: "previous_year", label: "Previous Year" },
   { value: "reference", label: "Reference" },
@@ -70,7 +70,7 @@ export default function QuestionConverterPage() {
   const [subjectId, setSubjectId] = useState("");
   const [chapterId, setChapterId] = useState("");
   const [topicId, setTopicId] = useState("");
-  const [category, setCategory] = useState<(typeof CATEGORY_OPTIONS)[number]["value"]>("direction");
+  const [category, setCategory] = useState<(typeof CATEGORY_OPTIONS)[number]["value"]>("direct");
   const [marksPositive, setMarksPositive] = useState("4");
   const [marksNegative, setMarksNegative] = useState("0");
 
