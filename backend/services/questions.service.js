@@ -1914,34 +1914,38 @@ const stripInlineDocxTag = (value) =>
 
 const isDocxSectionHeading = (value) => /^section\s+\d+\b/i.test(toPlainBulkText(value));
 
+const DOCX_TAG_HEADING_REGEX =
+  /^(?:[A-Z]\.\s*)?[A-Za-z][A-Za-z\s/&()]{0,60}?(?:\s+(?:based|level))?(?:(?:\s*[-:—–]\s*|\s+)(?:easy|medium|hard))?\s*$/i;
+
 const isDocxTagHeading = (value) => {
   const text = toPlainBulkText(value);
   if (!text) return false;
-  return /(?:remember|understand|apply|analyse|analyze|evaluate|hots|higher order|based)\b/i.test(text)
-    && /\b(level|based)\b/i.test(text);
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const wordCount = normalized.split(' ').filter(Boolean).length;
+  if (wordCount === 0 || wordCount > 6) return false;
+  return DOCX_TAG_HEADING_REGEX.test(normalized);
 };
 
 const normalizeDocxTagHeading = (value) => {
   const text = normalizeBulkTextValue(value);
   if (!text) return '';
-  const cleaned = text.replace(/\s+(level)$/i, '');
+  const cleaned = text
+    .replace(/^[A-Z]\.\s*/i, '')
+    .replace(/(?:\s*[-:—–]\s*|\s+)?(easy|medium|hard)\s*[-:—–]*$/i, '')
+    .replace(/\s+(level|based)\b/gi, '')
+    .replace(/\s*[-:—–]+\s*$/g, '');
   return normalizeBulkTextValue(cleaned);
 };
 
 const parseDocxSubsectionHeading = (value) => {
-  const text = normalizeDocxTagHeading(value);
-  if (!text) {
+  const sourceText = normalizeBulkTextValue(value).replace(/^[A-Z]\.\s*/i, '');
+  if (!sourceText) {
     return { tag: '', difficulty: null };
   }
 
-  const difficultyMatch = text.match(/\b(easy|medium|hard)\b/i);
+  const difficultyMatch = sourceText.match(/(?:^|[-:—–\s])(easy|medium|hard)\s*[-:—–]*$/i);
   const difficulty = difficultyMatch ? String(difficultyMatch[1] || '').toLowerCase() : null;
-  const tag = normalizeBulkTextValue(
-    text
-      .replace(/\s*[-:]\s*(easy|medium|hard)\b/gi, ' ')
-      .replace(/\b(easy|medium|hard)\b/gi, ' ')
-      .replace(/\s*[-:]\s*$/g, ' ')
-  );
+  const tag = normalizeDocxTagHeading(sourceText);
 
   return {
     tag,
