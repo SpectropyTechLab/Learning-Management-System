@@ -559,6 +559,12 @@ const normalizeBulkQuestionType = (value) => {
   if (['mcq', 'single', 'single_choice', 'singlechoice', 'single_select'].includes(raw)) {
     return 'mcq_single';
   }
+  if (['assertion_reasoning', 'assertion_reason', 'reason_assertion'].includes(raw)) {
+    return 'mcq_single';
+  }
+  if (['hybrid'].includes(raw)) {
+    return 'mcq_single';
+  }
   if (['multiple', 'multiple_choice', 'multiplechoice', 'multi_select', 'mcq_multi'].includes(raw)) {
     return 'mcq_multiple';
   }
@@ -623,6 +629,16 @@ const detectImageMimeTypeFromBuffer = (buffer, filename = '') => {
   }
 
   return 'image/png';
+};
+
+const isConverterInsertDebugEnabled = () => {
+  const rawValue =
+    process.env.QUESTION_CONVERTER_INSERT_DEBUG ??
+    process.env.CONVERTER_INSERT_DEBUG ??
+    process.env.QUESTION_CONVERTER_DEBUG ??
+    process.env.CONVERTER_DEBUG ??
+    '';
+  return ['1', 'true', 'yes', 'on'].includes(String(rawValue).trim().toLowerCase());
 };
 
 const normalizeBulkDefaults = (source) => {
@@ -1421,11 +1437,9 @@ const normalizeDocxTableAnswer = ({
   }
 
   if (questionType === 'numerical') {
-    const parsed = Number(toPlainBulkText(resolvedAnswer));
-    if (Number.isNaN(parsed)) {
-      throw new AppError(`Row ${rowNumber}: Correct Answer must be a number for numerical questions`, 400);
-    }
-    return parsed;
+    const raw = toPlainBulkText(String(resolvedAnswer || '')).trim().replace(/^\(|\)$/g, '').trim();
+    const parsed = Number(raw);
+    return Number.isNaN(parsed) ? (raw || '') : parsed;
   }
 
   if (questionType === 'mcq_single') {
@@ -1534,6 +1548,23 @@ const normalizeDocxTableRowInput = (rawRow, defaults, rowNumber) => {
     );
   }
 
+  if (isConverterInsertDebugEnabled()) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[converter:insert-debug] parsed-row row=${rowNumber} ` +
+        JSON.stringify({
+          question_type: prepared.question_type,
+          difficulty_level: prepared.difficulty_level,
+          exam_tags: prepared.exam_tags,
+          program_id: prepared.program_id,
+          grade_id: prepared.grade_id,
+          subject_id: prepared.subject_id,
+          chapter_id: prepared.chapter_id,
+          topic_id: prepared.topic_id,
+        })
+    );
+  }
+
   return prepared;
 };
 
@@ -1595,14 +1626,23 @@ const extractDocxBodyBlocks = (documentXml) => {
   const bodyMatch = String(documentXml || '').match(/<w:body[^>]*>([\s\S]*?)<\/w:body>/);
   const bodyXml = bodyMatch ? bodyMatch[1] : String(documentXml || '');
   const blocks = [];
-  const blockStartRegex = /<w:(p|tbl)\b[^>]*>/g;
+  const blockStartRegex = /<w:(p|tbl)\b[^>]*\/>|<w:(p|tbl)\b[^>]*>/g;
   let match;
 
   while ((match = blockStartRegex.exec(bodyXml)) !== null) {
-    const tagName = match[1];
+    const tagName = match[1] || match[2];
     const startIndex = match.index;
+    const token = match[0];
+    if (token.endsWith('/>')) {
+      if (tagName === 'p') {
+        continue;
+      }
+      break;
+    }
     const block = extractTopLevelWordBlocks(bodyXml.slice(startIndex), tagName)[0];
-    if (!block) break;
+    if (!block) {
+      continue;
+    }
 
     blocks.push(block);
     blockStartRegex.lastIndex = startIndex + block.length;
@@ -1693,7 +1733,8 @@ const extractDocxTableBlockContent = (tableXml, relationshipMap, zip) => {
 
 const extractDocxTableRows = async (buffer, defaults) => {
   const { zip, relationshipMap, documentXml } = loadDocxExtractionContext(buffer);
-  const tableMatches = documentXml.match(/<w:tbl[\s\S]*?<\/w:tbl>/g) || [];
+  const bodyBlocks = extractDocxBodyBlocks(documentXml);
+  const tableMatches = bodyBlocks.filter((blockXml) => /^<w:tbl\b/.test(blockXml));
   if (tableMatches.length === 0) {
     return [{ _bulk_error: 'DOCX has no table content. Converter-template table layout is required.', _bulk_row_number: 2 }];
   }
@@ -1711,33 +1752,46 @@ const extractDocxTableRows = async (buffer, defaults) => {
   let sawHeaderRow = false;
 
   tableMatches.forEach((tableXml) => {
-    const tableRows = tableXml.match(/<w:tr[\s\S]*?<\/w:tr>/g) || [];
+    const tableSource = String(tableXml || '');
+    const tableStart = tableSource.indexOf('>');
+    const tableEnd = tableSource.lastIndexOf('</w:tbl>');
+    const tableBodyXml = tableStart >= 0 && tableEnd > tableStart
+      ? tableSource.slice(tableStart + 1, tableEnd)
+      : tableSource;
+    const tableRows = extractTopLevelWordBlocks(tableBodyXml, 'tr');
     if (tableRows.length < 2) return;
-    sawTableWithRows = true;
 
-    const headerCells = tableRows[0].match(/<w:tc[\s\S]*?<\/w:tc>/g) || [];
+    const headerRowSource = String(tableRows[0] || '');
+    const headerRowStart = headerRowSource.indexOf('>');
+    const headerRowEnd = headerRowSource.lastIndexOf('</w:tr>');
+    const headerRowBodyXml = headerRowStart >= 0 && headerRowEnd > headerRowStart
+      ? headerRowSource.slice(headerRowStart + 1, headerRowEnd)
+      : headerRowSource;
+    const headerCells = extractTopLevelWordBlocks(headerRowBodyXml, 'tc');
     const headers = headerCells.map((cellXml) => {
       const { text } = extractDocxTableCellContent(cellXml, relationshipMap, zip);
       const normalizedKey = normalizeBulkHeaderKey(text);
       return BULK_DOCX_TABLE_HEADER_ALIASES[normalizedKey] || normalizedKey;
     });
 
+    if (!headers.includes('question_text')) {
+      return;
+    }
+
+    sawTableWithRows = true;
     if (headers.length > 0) {
       sawHeaderRow = true;
     }
 
-    if (!headers.includes('question_text')) {
-      rows.push({
-        _bulk_error:
-          'DOCX table header is invalid. Required header: Question (or Question Text).',
-        _bulk_row_number: 2,
-      });
-      return;
-    }
-
     tableRows.slice(1).forEach((rowXml, rowIndex) => {
       const rowNumber = rowIndex + 2;
-      const cellMatches = rowXml.match(/<w:tc[\s\S]*?<\/w:tc>/g) || [];
+      const rowSource = String(rowXml || '');
+      const rowStart = rowSource.indexOf('>');
+      const rowEnd = rowSource.lastIndexOf('</w:tr>');
+      const rowBodyXml = rowStart >= 0 && rowEnd > rowStart
+        ? rowSource.slice(rowStart + 1, rowEnd)
+        : rowSource;
+      const cellMatches = extractTopLevelWordBlocks(rowBodyXml, 'tc');
       const row = {};
 
       cellMatches.forEach((cellXml, cellIndex) => {
@@ -1760,7 +1814,10 @@ const extractDocxTableRows = async (buffer, defaults) => {
   });
 
   if (!sawTableWithRows) {
-    return [{ _bulk_error: 'DOCX tables were found, but no data rows were detected.', _bulk_row_number: 2 }];
+    return [{
+      _bulk_error: 'DOCX table header is invalid. Required header: Question (or Question Text).',
+      _bulk_row_number: 2,
+    }];
   }
   if (!sawHeaderRow) {
     return [{ _bulk_error: 'DOCX table header row could not be read.', _bulk_row_number: 2 }];
@@ -2150,6 +2207,21 @@ const resolveSubjectReference = async ({
       throw new AppError(`Subject not found for value "${value}"`, 404);
     }
     const subject = byId.rows[0];
+    if (isConverterInsertDebugEnabled()) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[converter:insert-debug] resolve-subject by-id ` +
+          JSON.stringify({
+            input: value,
+            requested_grade_id: gradeId ?? null,
+            requested_program_id: programId ?? null,
+            resolved_subject_id: subject.id,
+            resolved_grade_id: subject.grade_id,
+            resolved_program_id: subject.program_id,
+            resolved_client_id: subject.client_id,
+          })
+      );
+    }
     if (gradeId && Number(subject.grade_id) !== Number(gradeId)) {
       throw new AppError('Subject does not belong to the provided grade', 400);
     }
@@ -2415,23 +2487,23 @@ const normalizeExistingMatchTable = (html) => {
       surroundingHtml.push($.html(node));
     });
 
-  const filteredStemHtml = surroundingHtml.filter((block) => {
+  const preservedStemHtml = surroundingHtml.find((block) => {
     const blockHtml = normalizeDocxCellHtml(block);
     if (!blockHtml) return false;
     const blockText = normalizeBulkTextValue(loadHtml(`<root>${blockHtml}</root>`)('root').text() || '');
     if (!blockText) return false;
     if (
-      /\bcolumn\s+i\b/i.test(blockText) ||
-      /\bcolumn\s+ii\b/i.test(blockText) ||
-      /\b\d+\.\s+.+\b[A-D]\.\s+/i.test(blockText)
+      /\bcolumn\s+[ab12i]+\b/i.test(blockText) ||
+      /^[A-D]\.\s+.+\b[1-9]\.\s+/i.test(blockText) ||
+      /\b(correct description|process\s*\/\s*term|example|property)\b/i.test(blockText)
     ) {
       return false;
     }
-    return true;
+    return /^(?:q(?:uestion)?\s*\d+[\).:\-]?\s*)?match\b/i.test(blockText);
   });
 
   return {
-    html: normalizeDocxCellHtml(`${filteredStemHtml.join('')}${tableHtml}`),
+    html: normalizeDocxCellHtml(`${preservedStemHtml ? normalizeDocxCellHtml(preservedStemHtml) : ''}${tableHtml}`),
     matchPairs: rows.map((cells) => ({
       left: cells[0]?.text ?? '',
       right: cells[1]?.text ?? '',
@@ -3397,8 +3469,11 @@ const extractBulkRowsFromFile = async (file, defaults) => {
     const validTableRows = tableRows.filter(
       (row) => !(row && typeof row === 'object' && row._bulk_error)
     );
+    const hasTableErrors = tableRows.some(
+      (row) => row && typeof row === 'object' && row._bulk_error
+    );
     if (validTableRows.length > 0) {
-      return validTableRows;
+      return hasTableErrors ? tableRows : validTableRows;
     }
     if (hasTableRows) {
       const firstTableErrorRow = tableRows.find(
@@ -3406,13 +3481,7 @@ const extractBulkRowsFromFile = async (file, defaults) => {
       );
       if (firstTableErrorRow && firstTableErrorRow._bulk_error) {
         const tableErrorText = String(firstTableErrorRow._bulk_error || '');
-        const shouldFallbackToParagraphParser =
-          /no table content|no data rows|header row could not be read|header is invalid|no rows could be parsed/i.test(
-            tableErrorText
-          );
-        if (!shouldFallbackToParagraphParser) {
-          throw new AppError(tableErrorText, 400);
-        }
+        throw new AppError(tableErrorText, 400);
       }
     }
     return extractDocxRows(file.buffer, defaults);
@@ -3498,6 +3567,25 @@ const buildQuestionInsertPayload = async ({ input, user, role, clientId, queryRu
   const subjectId = resolvedSubject.id;
   const chapterId = resolvedChapter.id;
   const topicId = resolvedTopic.id;
+
+  if (isConverterInsertDebugEnabled()) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[converter:insert-debug] build-payload ` +
+        JSON.stringify({
+          input_program_id: input.program_id ?? input.program ?? null,
+          input_grade_id: input.grade_id ?? input.grade ?? null,
+          input_subject_id: input.subject_id ?? input.subject ?? null,
+          input_chapter_id: input.chapter_id ?? input.chapter ?? null,
+          input_topic_id: input.topic_id ?? input.topic ?? null,
+          resolved_program_id: programId,
+          resolved_grade_id: gradeId,
+          resolved_subject_id: subjectId,
+          resolved_chapter_id: chapterId,
+          resolved_topic_id: topicId,
+        })
+    );
+  }
 
   await ensureCurriculumScope({
     programId,
@@ -6207,6 +6295,21 @@ const prepareBulkInsertPayloads = async ({
         cache: passageCache,
         queryRunner,
       });
+      if (isConverterInsertDebugEnabled()) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[converter:insert-debug] prepare-row row=${rowNumber} ` +
+            JSON.stringify({
+              program_id: row?.program_id ?? null,
+              grade_id: row?.grade_id ?? null,
+              subject_id: row?.subject_id ?? null,
+              chapter_id: row?.chapter_id ?? null,
+              topic_id: row?.topic_id ?? null,
+              question_type: row?.question_type ?? null,
+              tags: row?.exam_tags ?? null,
+            })
+        );
+      }
       const payload = await buildQuestionInsertPayload({
         input: sanitizeBulkRowForInsert(row, comprehensionPassageId),
         user,
