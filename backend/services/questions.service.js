@@ -38,6 +38,7 @@ const VALID_QUESTION_TYPES = [
 const VALID_DIFFICULTY_LEVELS = ['easy', 'medium', 'hard'];
 const VALID_STATUSES = ['draft', 'approved', 'rejected', 'archived'];
 const VALID_SCORING_MODES = ['all_or_nothing', 'partial', 'mixed'];
+const VALID_QUESTION_GROUP_TYPES = ['direction', 'direct', 'similar', 'previous_year', 'reference'];
 
 const isSuperAdmin = (role) => role === 'super_admin';
 const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
@@ -258,6 +259,31 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
       throw new AppError('Invalid difficulty filter', 400);
     }
     conditions.push(`q.difficulty_level = ${addParam(difficulty)}`);
+  }
+
+  const questionGroupTypeFilter = query.question_group_type ?? query.category ?? null;
+  if (questionGroupTypeFilter) {
+    const schemaSupport = await getQuestionSchemaSupport();
+    const rawGroupType = String(questionGroupTypeFilter).trim().toLowerCase();
+    if (!VALID_QUESTION_GROUP_TYPES.includes(rawGroupType)) {
+      throw new AppError('Invalid category filter', 400);
+    }
+    const normalizedGroupType = rawGroupType === 'direct' ? 'direction' : rawGroupType;
+    const likePattern = `%${normalizedGroupType}%`;
+    const directLikePattern = normalizedGroupType === 'direction' ? '%direct%' : likePattern;
+    const categoryConditions = [];
+    if (schemaSupport.hasQuestionGroupType) {
+      categoryConditions.push(`q.question_group_type = ${addParam(normalizedGroupType)}`);
+    }
+    categoryConditions.push(`lower(coalesce(q.category::text, '')) LIKE ${addParam(likePattern)}`);
+    if (normalizedGroupType === 'direction') {
+      categoryConditions.push(`lower(coalesce(q.category::text, '')) LIKE ${addParam(directLikePattern)}`);
+    }
+    conditions.push(
+      `(
+        ${categoryConditions.join('\n        OR ')}
+      )`
+    );
   }
 
   if (query.folder_id !== undefined) {
@@ -1736,7 +1762,7 @@ const extractDocxTableRows = async (buffer, defaults) => {
   const bodyBlocks = extractDocxBodyBlocks(documentXml);
   const tableMatches = bodyBlocks.filter((blockXml) => /^<w:tbl\b/.test(blockXml));
   if (tableMatches.length === 0) {
-    return [{ _bulk_error: 'DOCX has no table content. Converter-template table layout is required.', _bulk_row_number: 2 }];
+    return [];
   }
 
   const rows = [];
@@ -1748,8 +1774,30 @@ const extractDocxTableRows = async (buffer, defaults) => {
     'passage_title',
     'passage_content',
   ]);
+  const converterHeaderKeys = new Set([
+    'sno',
+    'question_type',
+    'options',
+    'correct_answer',
+    'solution',
+    'difficulty_level',
+    'marks_positive',
+    'marks_negative',
+    'exam_tags',
+    'program_id',
+    'grade_id',
+    'subject_id',
+    'chapter_id',
+    'topic_id',
+    'has_comprehension',
+    'passage_key',
+    'passage_title',
+    'passage_content',
+    'category',
+  ]);
   let sawTableWithRows = false;
   let sawHeaderRow = false;
+  let sawConverterLikeHeader = false;
 
   tableMatches.forEach((tableXml) => {
     const tableSource = String(tableXml || '');
@@ -1774,7 +1822,17 @@ const extractDocxTableRows = async (buffer, defaults) => {
       return BULK_DOCX_TABLE_HEADER_ALIASES[normalizedKey] || normalizedKey;
     });
 
+    const converterHeaderMatchCount = headers.filter((header) => converterHeaderKeys.has(header)).length;
+    const isConverterLikeTable = headers.includes('question_text') || converterHeaderMatchCount >= 3;
+
+    if (!isConverterLikeTable) {
+      return;
+    }
+
+    sawConverterLikeHeader = true;
+
     if (!headers.includes('question_text')) {
+      sawTableWithRows = true;
       return;
     }
 
@@ -1813,6 +1871,9 @@ const extractDocxTableRows = async (buffer, defaults) => {
     });
   });
 
+  if (!sawConverterLikeHeader) {
+    return [];
+  }
   if (!sawTableWithRows) {
     return [{
       _bulk_error: 'DOCX table header is invalid. Required header: Question (or Question Text).',
@@ -3691,7 +3752,7 @@ const getQuestionSchemaSupport = async () => {
       AND table_name = 'questions'
       AND column_name = ANY($1::text[])
     `,
-    [['comprehension_passage', 'comprehension_questions', 'comprehension_passage_id', 'folder_id']]
+    [['comprehension_passage', 'comprehension_questions', 'comprehension_passage_id', 'folder_id', 'question_group_type']]
   );
 
   const tableResult = await dbQuery(
@@ -3711,6 +3772,7 @@ const getQuestionSchemaSupport = async () => {
     hasComprehensionQuestions: existingColumns.has('comprehension_questions'),
     hasComprehensionPassageId: existingColumns.has('comprehension_passage_id'),
     hasFolderId: existingColumns.has('folder_id'),
+    hasQuestionGroupType: existingColumns.has('question_group_type'),
   };
   return questionSchemaSupportCache;
 };

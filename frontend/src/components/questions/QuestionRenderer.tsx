@@ -219,6 +219,11 @@ const formatOptionLabel = (option: QuestionOptionLike, index: number) => {
   return text ? `${letter}. ${text}` : letter;
 };
 
+const isMatchFollowingOptions = (
+  options: QuestionOptionLike[] | MatchFollowingOptionsLike | null | undefined
+): options is MatchFollowingOptionsLike =>
+  Boolean(options && !Array.isArray(options) && (options.left || options.right));
+
 const resolveOptionIndex = (options: QuestionOptionLike[], id: string) => {
   const optionIndexById = new Map(
     options.map((option, index) => [String(option.id ?? index), index])
@@ -227,6 +232,26 @@ const resolveOptionIndex = (options: QuestionOptionLike[], id: string) => {
   if (direct !== undefined) return direct;
 
   const normalized = id.trim();
+  const embeddedLetterMatch = normalized.match(/[\(\[\{]\s*([A-H])\s*[\)\]\}]/i);
+  if (embeddedLetterMatch?.[1]) {
+    const index = embeddedLetterMatch[1].toUpperCase().charCodeAt(0) - 65;
+    if (index >= 0 && index < options.length) return index;
+  }
+
+  const labelledPrefixMatch = normalized.match(
+    /^\(?\s*([A-H])\s*\)?(?:[\)\].:;,\-])*(?:\s+.*)?$/i
+  );
+  if (labelledPrefixMatch?.[1]) {
+    const index = labelledPrefixMatch[1].toUpperCase().charCodeAt(0) - 65;
+    if (index >= 0 && index < options.length) return index;
+  }
+
+  const optionWordMatch = normalized.match(/\b(?:option|opt)\s*([A-H])\b/i);
+  if (optionWordMatch?.[1]) {
+    const index = optionWordMatch[1].toUpperCase().charCodeAt(0) - 65;
+    if (index >= 0 && index < options.length) return index;
+  }
+
   if (/^[a-z]$/i.test(normalized)) {
     const index = normalized.toUpperCase().charCodeAt(0) - 65;
     if (index >= 0 && index < options.length) return index;
@@ -283,6 +308,53 @@ const resolveCorrectFromOptions = (
   return null;
 };
 
+const resolveMatchOptionIndex = (options: QuestionOptionLike[] | undefined, id: string) => {
+  if (!options || options.length === 0) return undefined;
+  const byId = new Map(options.map((option, index) => [String(option.id ?? index), index]));
+  const direct = byId.get(id);
+  if (direct !== undefined) return direct;
+
+  const normalized = id.trim();
+  if (/^[a-z]$/i.test(normalized)) {
+    const index = normalized.toUpperCase().charCodeAt(0) - 65;
+    if (index >= 0 && index < options.length) return index;
+  }
+  if (/^\d+$/.test(normalized)) {
+    const num = Number(normalized);
+    if (num >= 1 && num <= options.length) return num - 1;
+    if (num >= 0 && num < options.length) return num;
+  }
+  return undefined;
+};
+
+const formatMatchPairMappings = (
+  matchOptions: MatchFollowingOptionsLike,
+  answer: unknown
+) => {
+  if (!matchOptions.left?.length || !matchOptions.right?.length || !answer || typeof answer !== "object") {
+    return null;
+  }
+
+  const typed = answer as Record<string, unknown>;
+  const pairs = Array.isArray(typed.pairs) ? typed.pairs : [];
+  if (!pairs.length) return null;
+
+  const labels = pairs
+    .map((pair) => {
+      if (!pair || typeof pair !== "object") return null;
+      const record = pair as Record<string, unknown>;
+      const leftIndex = resolveMatchOptionIndex(matchOptions.left, String(record.left_id ?? ""));
+      const rightIndex = resolveMatchOptionIndex(matchOptions.right, String(record.right_id ?? ""));
+      if (leftIndex === undefined || rightIndex === undefined) return null;
+      const leftLabel = String.fromCharCode(65 + leftIndex);
+      const rightLabel = String(rightIndex + 1);
+      return `${leftLabel}-${rightLabel}`;
+    })
+    .filter(Boolean) as string[];
+
+  return labels.length ? labels.join(", ") : null;
+};
+
 const resolveCorrectOptionIndexes = (
   options: QuestionOptionLike[] | undefined,
   answer: unknown
@@ -323,6 +395,10 @@ const resolveCorrectOptionIndexes = (
 const formatCorrectAnswer = (question: RenderableQuestion) => {
   const answer = question.correct_answer;
   if (answer === null || answer === undefined) return "";
+  if (question.question_type === "match_following" && isMatchFollowingOptions(question.options)) {
+    const mappedPairs = formatMatchPairMappings(question.options, answer);
+    if (mappedPairs) return mappedPairs;
+  }
   if (Array.isArray(question.options)) {
     const fromOptions = resolveCorrectFromOptions(question.options, answer);
     if (fromOptions) return fromOptions;
@@ -451,17 +527,27 @@ export default function QuestionRenderer({
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <div className="text-xs font-semibold text-slate-500">Left</div>
-              {matchOptions.left?.map((item) => (
-                <div key={item.id ?? Math.random().toString(36)} className="mt-2 rounded-lg border border-slate-200 px-3 py-2">
-                  <span dangerouslySetInnerHTML={renderHtml(item.text)} />
+              {matchOptions.left?.map((item, index) => (
+                <div key={item.id ?? `left-${index}`} className="mt-2 rounded-lg border border-slate-200 px-3 py-2">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                      {String.fromCharCode(65 + index)}
+                    </span>
+                    <span dangerouslySetInnerHTML={renderHtml(item.text)} />
+                  </div>
                 </div>
               ))}
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500">Right</div>
-              {matchOptions.right?.map((item) => (
-                <div key={item.id ?? Math.random().toString(36)} className="mt-2 rounded-lg border border-slate-200 px-3 py-2">
-                  <span dangerouslySetInnerHTML={renderHtml(item.text)} />
+              {matchOptions.right?.map((item, index) => (
+                <div key={item.id ?? `right-${index}`} className="mt-2 rounded-lg border border-slate-200 px-3 py-2">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                      {index + 1}
+                    </span>
+                    <span dangerouslySetInnerHTML={renderHtml(item.text)} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -502,10 +588,20 @@ export default function QuestionRenderer({
             <div className="mt-2 space-y-2">
               {question.comprehension_questions.map((sub) => (
                 <div key={sub.id ?? Math.random().toString(36)} className="rounded-lg border border-slate-200 px-3 py-2">
-                  <div className="text-xs font-semibold text-slate-500">
-                    {(sub.question_type && QUESTION_TYPE_LABELS[sub.question_type]) || "Question"}
-                  </div>
-                  <div dangerouslySetInnerHTML={renderHtml(sub.question_text)} />
+                  <QuestionRenderer
+                    question={{
+                      question_type: sub.question_type,
+                      question_text: sub.question_text,
+                      options: sub.options,
+                      correct_answer: sub.correct_answer,
+                      marks_positive: sub.marks_positive,
+                      marks_negative: sub.marks_negative,
+                    }}
+                    showMeta={false}
+                    showComprehension={false}
+                    showSolution={false}
+                    showAnswer={showAnswer}
+                  />
                 </div>
               ))}
             </div>

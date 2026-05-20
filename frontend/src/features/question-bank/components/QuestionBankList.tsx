@@ -91,6 +91,19 @@ const normalizeOptions = (options: any) => {
   });
 };
 
+const normalizeComprehensionQuestions = (questions: any[] | undefined) =>
+  Array.isArray(questions)
+    ? questions.map((item, index) => ({
+        id: item?.id ?? `sub-${index}`,
+        question_type: item?.question_type ?? "mcq_single",
+        question_text: resolveQuestionText(item?.question_text),
+        options: normalizeOptions(item?.options),
+        correct_answer: item?.correct_answer ?? null,
+        marks_positive: Number(item?.marks_positive ?? 0),
+        marks_negative: Number(item?.marks_negative ?? 0),
+      }))
+    : [];
+
 const normalizeQuestions = (items: any[]): Question[] =>
   items.map((item) => ({
     id: item.id ?? item.question_id ?? `${Math.random()}`,
@@ -104,7 +117,7 @@ const normalizeQuestions = (items: any[]): Question[] =>
     comprehension_passage_id: item.comprehension_passage_id ?? null,
     comprehension: item.comprehension ?? null,
     comprehension_passage: resolveQuestionText(item.comprehension_passage),
-    comprehension_questions: item.comprehension_questions ?? [],
+    comprehension_questions: normalizeComprehensionQuestions(item.comprehension_questions),
     program_id: item.program_id ?? null,
     grade_id: item.grade_id ?? null,
     subject_id: item.subject_id ?? null,

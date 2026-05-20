@@ -211,6 +211,7 @@ export default function QuestionFilters({
               <option value="short_answer">Short Answer</option>
               <option value="numerical">Numerical</option>
               <option value="match_following">Match the Following</option>
+              <option value="comprehensive">Comprehensive</option>
               <option value="fill_in_blank">Fill in the Blank</option>
               <option value="true_false">True/False</option>
             </select>
@@ -267,6 +268,7 @@ export default function QuestionFilters({
               <option value="short_answer">Short Answer</option>
               <option value="numerical">Numerical</option>
               <option value="match_following">Match the Following</option>
+              <option value="comprehensive">Comprehensive</option>
               <option value="fill_in_blank">Fill in the Blank</option>
               <option value="true_false">True/False</option>
             </select>
