@@ -27,6 +27,7 @@ import {
 
 const VALID_QUESTION_TYPES = [
   'mcq_single',
+  'assertion_reasoning',
   'mcq_multiple',
   'comprehensive',
   'numerical',
@@ -251,6 +252,15 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
       throw new AppError('Invalid question type filter', 400);
     }
     conditions.push(`q.question_type = ${addParam(type)}`);
+  }
+
+  const excludedQuestionTypes = parseStringArrayParam(query.exclude_question_type, 'exclude_question_type');
+  if (excludedQuestionTypes.length > 0) {
+    const invalidExcludedType = excludedQuestionTypes.find((type) => !VALID_QUESTION_TYPES.includes(type));
+    if (invalidExcludedType) {
+      throw new AppError('Invalid excluded question type filter', 400);
+    }
+    conditions.push(`NOT (q.question_type = ANY(${addParam(excludedQuestionTypes)}::text[]))`);
   }
 
   if (query.difficulty_level) {
@@ -586,7 +596,7 @@ const normalizeBulkQuestionType = (value) => {
     return 'mcq_single';
   }
   if (['assertion_reasoning', 'assertion_reason', 'reason_assertion'].includes(raw)) {
-    return 'mcq_single';
+    return 'assertion_reasoning';
   }
   if (['hybrid'].includes(raw)) {
     return 'mcq_single';
@@ -1468,7 +1478,7 @@ const normalizeDocxTableAnswer = ({
     return Number.isNaN(parsed) ? (raw || '') : parsed;
   }
 
-  if (questionType === 'mcq_single') {
+  if (questionType === 'mcq_single' || questionType === 'assertion_reasoning') {
     const token = toPlainBulkText(resolvedAnswer);
     if (!token) {
       throw new AppError(`Row ${rowNumber}: Correct Answer is required for MCQ single`, 400);
@@ -1984,7 +1994,7 @@ const normalizeDocxSectionQuestionType = (value) => {
     return 'mcq_multiple';
   }
   if (/assertion|reason/i.test(text)) {
-    return 'mcq_single';
+    return 'assertion_reasoning';
   }
   if (/comprehension/i.test(text)) {
     return 'comprehensive';
@@ -1992,7 +2002,7 @@ const normalizeDocxSectionQuestionType = (value) => {
   if (/multiple\s+correct|more options may be correct|more than one option/i.test(text)) {
     return 'mcq_multiple';
   }
-  if (/single\s+correct|assertion|reason|passage-based|interdisciplinary|mcq/i.test(text)) {
+  if (/single\s+correct|passage-based|interdisciplinary|mcq/i.test(text)) {
     return 'mcq_single';
   }
   if (/short\s+answer|very\s+short/i.test(text)) {
@@ -2734,7 +2744,7 @@ const finalizeDocxQuestion = (question, defaults, rowNumber) => {
     const rawNum = toPlainBulkText(String(answerRaw || '')).trim().replace(/^\(|\)$/g, '').trim();
     const parsed = Number(rawNum);
     correctAnswer = Number.isNaN(parsed) ? (rawNum || '') : parsed;
-  } else if (questionType === 'mcq_single') {
+  } else if (questionType === 'mcq_single' || questionType === 'assertion_reasoning') {
     const mapped = mapAnswerTokenToOptionId(answerRaw, options);
     correctAnswer = mapped ?? String(answerRaw || '').trim();
   } else if (questionType === 'mcq_multiple') {
@@ -3738,6 +3748,57 @@ const buildQuestionInsertPayload = async ({ input, user, role, clientId, queryRu
 };
 
 let questionSchemaSupportCache = null;
+let questionTypeConstraintEnsured = false;
+
+const ensureQuestionTypeConstraintSupport = async (queryRunner = dbQuery) => {
+  if (questionTypeConstraintEnsured) return;
+
+  const runQuery = getQueryRunner(queryRunner);
+  const constraintResult = await runQuery(
+    `
+    SELECT pg_get_constraintdef(c.oid) AS definition
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    WHERE n.nspname = 'public'
+      AND t.relname = 'questions'
+      AND c.conname = 'questions_question_type_check'
+    LIMIT 1
+    `
+  );
+
+  const definition = String(constraintResult.rows[0]?.definition ?? '');
+  if (definition.toLowerCase().includes('assertion_reasoning')) {
+    questionTypeConstraintEnsured = true;
+    return;
+  }
+
+  await runQuery(`
+    ALTER TABLE public.questions
+    DROP CONSTRAINT IF EXISTS questions_question_type_check
+  `);
+
+  await runQuery(`
+    ALTER TABLE public.questions
+    ADD CONSTRAINT questions_question_type_check CHECK (
+      (question_type)::text = ANY (
+        ARRAY[
+          'mcq_single'::character varying,
+          'assertion_reasoning'::character varying,
+          'mcq_multiple'::character varying,
+          'numerical'::character varying,
+          'true_false'::character varying,
+          'short_answer'::character varying,
+          'match_following'::character varying,
+          'fill_in_blank'::character varying,
+          'comprehensive'::character varying
+        ]::text[]
+      )
+    )
+  `);
+
+  questionTypeConstraintEnsured = true;
+};
 
 const getQuestionSchemaSupport = async () => {
   if (questionSchemaSupportCache) {
@@ -3950,6 +4011,7 @@ const getQuestionByIdScoped = async ({ id, user, role, clientId }) => {
 
 const insertQuestion = async (payload, queryRunner = dbQuery) => {
   const runQuery = getQueryRunner(queryRunner);
+  await ensureQuestionTypeConstraintSupport(queryRunner);
   const schemaSupport = await getQuestionSchemaSupport();
   const columns = [
     'client_id',
@@ -4204,6 +4266,7 @@ export const updateQuestion = async (req, res) => {
       if (!VALID_QUESTION_TYPES.includes(req.body.question_type)) {
         throw new AppError('Invalid question_type', 400);
       }
+      await ensureQuestionTypeConstraintSupport();
       updates.question_type = req.body.question_type;
     }
 
@@ -6032,7 +6095,7 @@ const buildConverterOutputRow = (row, _index) => {
   const options = Array.isArray(row.options) ? row.options : [];
   let correctAnswer = '';
 
-  if (row.question_type === 'mcq_single') {
+  if (row.question_type === 'mcq_single' || row.question_type === 'assertion_reasoning') {
     correctAnswer = mapOptionIdToLabel(row.correct_answer, options);
   } else if (row.question_type === 'mcq_multiple') {
     const answers = Array.isArray(row.correct_answer) ? row.correct_answer : [];

@@ -226,6 +226,7 @@ export default function QuestionForm({
             disabled={disabled}
           >
             <option value="mcq_single">MCQ (Single)</option>
+            <option value="assertion_reasoning">Assertion Reasoning</option>
             <option value="mcq_multiple">MCQ (Multiple)</option>
             <option value="true_false">True / False</option>
             <option value="numerical">Numerical</option>

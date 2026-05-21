@@ -18,7 +18,7 @@ const stripHtml = (value: { html?: string | null } | null | undefined) =>
   String(value?.html ?? "").replace(/<[^>]*>/g, "").trim();
 
 const normalizePassage = (item: any): ComprehensionPassage => ({
-  id: item.id,
+  id: (item.id ?? "") as string | number,
   title: normalizeRichText(item.title),
   passage_content: normalizeRichText(item.passage_content),
   program_id: item.program_id ?? null,

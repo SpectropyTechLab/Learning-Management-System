@@ -1,5 +1,6 @@
 export type QuestionType =
   | "mcq_single"
+  | "assertion_reasoning"
   | "mcq_multiple"
   | "numerical"
   | "true_false"

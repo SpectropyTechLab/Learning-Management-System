@@ -208,10 +208,25 @@ const normalizeQuestionGroupTypeFromCategory = (category) => {
   return null;
 };
 
+const normalizePassageTitle = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  }
+  if (typeof value === 'object') {
+    const html = typeof value.html === 'string' ? value.html.trim() : '';
+    const text = typeof value.text === 'string' ? value.text.trim() : '';
+    return html || text || null;
+  }
+  return null;
+};
+
 let examResultColumnsEnsured = false;
 let examInstructionsColumnKnown = null;
 let blueprintDistributionColumnsKnown = null;
 let examSectionDistributionColumnsKnown = null;
+let questionComprehensionSupportKnown = null;
 
 const isSuperAdmin = (role) => role === 'super_admin';
 const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
@@ -521,7 +536,8 @@ const validateQuestionForExamSection = async ({ exam, questionId }) => {
 
   return {
     ...question,
-    normalized_question_group_type: normalizeQuestionGroupTypeFromCategory(question.category),
+    normalized_question_group_type:
+      question.question_group_type || normalizeQuestionGroupTypeFromCategory(question.category),
   };
 };
 
@@ -604,6 +620,37 @@ const hasExamSectionDistributionColumns = async () => {
 
   examSectionDistributionColumnsKnown = result.rows.length === 4;
   return examSectionDistributionColumnsKnown;
+};
+
+const getQuestionComprehensionSupport = async () => {
+  if (questionComprehensionSupportKnown) return questionComprehensionSupportKnown;
+
+  const columnResult = await dbQuery(
+    `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'questions'
+        AND column_name = 'comprehension_passage_id'
+      LIMIT 1
+    `
+  );
+
+  const tableResult = await dbQuery(
+    `
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = 'comprehension_passages'
+      LIMIT 1
+    `
+  );
+
+  questionComprehensionSupportKnown = {
+    hasComprehensionPassageId: columnResult.rows.length > 0,
+    hasComprehensionPassageTable: tableResult.rows.length > 0,
+  };
+  return questionComprehensionSupportKnown;
 };
 
 const ensureClientScope = (clientId, role) => {
@@ -1463,6 +1510,25 @@ const hydrateSectionRows = async (sectionRows) => {
   if (sectionRows.length === 0) return [];
 
   const sectionIds = sectionRows.map((row) => Number(row.id));
+  const comprehensionSupport = await getQuestionComprehensionSupport();
+  const questionSelectPassageFields = comprehensionSupport.hasComprehensionPassageId
+    ? `,
+            q.comprehension_passage_id`
+    : `,
+            NULL::int AS comprehension_passage_id`;
+  const questionSelectPassageJoin =
+    comprehensionSupport.hasComprehensionPassageId && comprehensionSupport.hasComprehensionPassageTable
+      ? `
+          LEFT JOIN comprehension_passages cp ON cp.id = q.comprehension_passage_id`
+      : '';
+  const questionSelectPassageSummaryFields =
+    comprehensionSupport.hasComprehensionPassageId && comprehensionSupport.hasComprehensionPassageTable
+      ? `,
+            cp.title AS comprehension_passage_title,
+            cp.passage_content AS comprehension_passage_content`
+      : `,
+            NULL::text AS comprehension_passage_title,
+            NULL::text AS comprehension_passage_content`;
   let chaptersResult;
   let topicsResult;
   let questionsResult;
@@ -1507,11 +1573,12 @@ const hydrateSectionRows = async (sectionRows) => {
             q.solution,
             q.subject_id,
             q.chapter_id,
-            q.topic_id,
+            q.topic_id${questionSelectPassageFields},
             q.difficulty_level,
-            q.status
+            q.status${questionSelectPassageSummaryFields}
           FROM exam_questions eq
           JOIN questions q ON q.id = eq.question_id
+          ${questionSelectPassageJoin}
           WHERE eq.section_id = ANY($1::int[])
           ORDER BY eq.section_id, eq.order_index, eq.id
         `,
@@ -1572,6 +1639,14 @@ const hydrateSectionRows = async (sectionRows) => {
       subject_id: row.subject_id ? Number(row.subject_id) : null,
       chapter_id: row.chapter_id ? Number(row.chapter_id) : null,
       topic_id: row.topic_id ? Number(row.topic_id) : null,
+      comprehension:
+        row.comprehension_passage_id && row.comprehension_passage_content
+          ? {
+            id: Number(row.comprehension_passage_id),
+            title: normalizePassageTitle(row.comprehension_passage_title),
+            passage_content: normalizeRichValueForPreview(row.comprehension_passage_content),
+          }
+          : null,
       difficulty_level: row.difficulty_level,
       status: row.status,
     });
@@ -1581,6 +1656,14 @@ const hydrateSectionRows = async (sectionRows) => {
   return sectionRows.map((row) => {
     const sectionId = Number(row.id);
     const questionRows = questionsBySection.get(sectionId) ?? [];
+    const requiredQuestionCount = row.required_question_count ? Number(row.required_question_count) : 0;
+    const hasSyllabus = Boolean(row.selected_subject_id);
+    const completionStatus =
+      requiredQuestionCount > 0 && questionRows.length === requiredQuestionCount
+        ? 'completed'
+        : hasSyllabus
+          ? 'configured'
+          : 'pending';
     return {
       ...row,
       chapter_ids: (chaptersBySection.get(sectionId) ?? []).map((item) => item.id),
@@ -1588,6 +1671,8 @@ const hydrateSectionRows = async (sectionRows) => {
       chapters: chaptersBySection.get(sectionId) ?? [],
       topics: topicsBySection.get(sectionId) ?? [],
       question_count: questionRows.length,
+      completion_status: completionStatus,
+      syllabus_locked: completionStatus === 'completed',
       question_groups: groupQuestionsByType(questionRows),
     };
   });
@@ -3509,6 +3594,12 @@ export const addQuestionToSection = async (req, res) => {
       throw new AppError('Question does not belong to the same school scope as the exam', 403);
     }
 
+    const normalized_question_group_type =
+      question.question_group_type || normalizeQuestionGroupTypeFromCategory(question.category);
+    if (!normalized_question_group_type) {
+      throw new AppError('Question is missing a valid question group type', 400);
+    }
+
     const duplicateCheck = await dbQuery(
       'SELECT 1 FROM exam_questions WHERE section_id = $1 AND question_id = $2',
       [section.id, questionId]
@@ -3543,16 +3634,28 @@ export const addQuestionToSection = async (req, res) => {
       orderIndex = Number(nextResult.rows[0].next_index);
     }
 
-    const insertResult = await dbQuery(
-      `
-        INSERT INTO exam_questions
-          (section_id, question_id, order_index, question_group_type, generated_from_topic_selection)
-        VALUES
-          ($1, $2, $3, $4, FALSE)
-        RETURNING *
-      `,
-      [section.id, questionId, orderIndex, normalized_question_group_type]
-    );
+    const tx = await getClient();
+    let insertResult;
+    try {
+      await tx.query('BEGIN');
+      insertResult = await tx.query(
+        `
+          INSERT INTO exam_questions
+            (section_id, question_id, order_index, question_group_type, generated_from_topic_selection)
+          VALUES
+            ($1, $2, $3, $4, FALSE)
+          RETURNING *
+        `,
+        [section.id, questionId, orderIndex, normalized_question_group_type]
+      );
+      await syncSectionCompletionState(tx, Number(section.id));
+      await tx.query('COMMIT');
+    } catch (error) {
+      await tx.query('ROLLBACK');
+      throw error;
+    } finally {
+      tx.release();
+    }
 
     res.status(201).json(insertResult.rows[0]);
   } catch (err) {
@@ -3760,18 +3863,29 @@ export const replaceQuestionInSection = async (req, res) => {
       throw new AppError('Question already exists in this exam', 409);
     }
 
-    const updateResult = await dbQuery(
-      `
-        UPDATE exam_questions
-        SET question_id = $1,
-            question_group_type = $2,
-            generated_from_topic_selection = FALSE
-        WHERE section_id = $3
-          AND question_id = $4
-        RETURNING *
-      `,
-      [newQuestionId, replacementQuestion.normalized_question_group_type, section.id, currentQuestionId]
-    );
+    const tx = await getClient();
+    try {
+      await tx.query('BEGIN');
+      await tx.query(
+        `
+          UPDATE exam_questions
+          SET question_id = $1,
+              question_group_type = $2,
+              generated_from_topic_selection = FALSE
+          WHERE section_id = $3
+            AND question_id = $4
+          RETURNING *
+        `,
+        [newQuestionId, replacementQuestion.normalized_question_group_type, section.id, currentQuestionId]
+      );
+      await syncSectionCompletionState(tx, Number(section.id));
+      await tx.query('COMMIT');
+    } catch (error) {
+      await tx.query('ROLLBACK');
+      throw error;
+    } finally {
+      tx.release();
+    }
 
     const sections = await fetchExamSectionsWithBlueprintData(Number(exam.id));
     const updatedSection = sections.find((item) => Number(item.id) === Number(section.id));

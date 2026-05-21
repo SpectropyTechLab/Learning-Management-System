@@ -1,4 +1,5 @@
 import type {
+  RenderableQuestion,
   MatchFollowingOptionsLike,
   QuestionOptionLike,
   RichTextLike,
@@ -100,6 +101,7 @@ export interface GeneratedExamQuestion {
   topic_id?: number | null;
   difficulty_level?: string;
   status?: string | null;
+  comprehension?: RenderableQuestion["comprehension"];
 }
 
 export interface ExamBuilderSection {

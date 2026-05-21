@@ -80,6 +80,7 @@ interface QuestionRendererProps {
 
 const QUESTION_TYPE_LABELS: Record<string, string> = {
   mcq_single: "MCQ Single",
+  assertion_reasoning: "Assertion Reasoning",
   mcq_multiple: "MCQ Multiple",
   numerical: "Numerical",
   true_false: "True/False",

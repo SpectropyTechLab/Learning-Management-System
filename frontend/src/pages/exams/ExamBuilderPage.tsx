@@ -87,6 +87,7 @@ type PickerQuestion = RenderableQuestion & {
   id: number;
   topic_id?: number | null;
   category?: RenderableQuestion["category"];
+  question_group_type?: QuestionGroupType | null;
 };
 
 type PickerState = {
@@ -100,6 +101,7 @@ type PickerState = {
   error: string | null;
   search: string;
   selectedTopicId: string;
+  selectedQuestionType: string;
   selectedQuestionIds: string[];
   questions: PickerQuestion[];
 };
@@ -165,6 +167,7 @@ const createDefaultPickerState = (): PickerState => ({
   error: null,
   search: "",
   selectedTopicId: "",
+  selectedQuestionType: "",
   selectedQuestionIds: [],
   questions: [],
 });
@@ -462,6 +465,9 @@ const toRenderableField = <K extends keyof RenderableQuestionFields>(
 
 const normalizePickerQuestion = (item: unknown): PickerQuestion => {
   const source = asRecord(item);
+  const questionGroupType =
+    normalizeQuestionGroupTypeFromCategory(source.question_group_type) ??
+    normalizeQuestionGroupTypeFromCategory(source.category);
   return {
     id: Number(source.id ?? source.question_id),
     question_type: typeof source.question_type === "string" ? source.question_type : "mcq_single",
@@ -473,6 +479,7 @@ const normalizePickerQuestion = (item: unknown): PickerQuestion => {
       typeof source.difficulty_level === "string" ? source.difficulty_level : undefined,
     topic_id: source.topic_id ? Number(source.topic_id) : null,
     category: source.category as RenderableQuestion["category"],
+    question_group_type: questionGroupType,
     comprehension: toRenderableField(source, "comprehension", null),
     comprehension_passage: toRenderableField(source, "comprehension_passage", null),
     comprehension_questions: toRenderableField(source, "comprehension_questions", null),
@@ -946,6 +953,7 @@ function QuestionPickerModal({
   sectionTitle,
   topics,
   selectedTopicId,
+  selectedQuestionType,
   search,
   selectedQuestionIds,
   questions,
@@ -955,6 +963,7 @@ function QuestionPickerModal({
   onClose,
   onSearchChange,
   onTopicChange,
+  onQuestionTypeChange,
   onToggleQuestion,
   onSave,
 }: {
@@ -964,6 +973,7 @@ function QuestionPickerModal({
   sectionTitle: string;
   topics: TopicAllocationRow[];
   selectedTopicId: string;
+  selectedQuestionType: string;
   search: string;
   selectedQuestionIds: string[];
   questions: PickerQuestion[];
@@ -973,6 +983,7 @@ function QuestionPickerModal({
   onClose: () => void;
   onSearchChange: (value: string) => void;
   onTopicChange: (value: string) => void;
+  onQuestionTypeChange: (value: string) => void;
   onToggleQuestion: (questionId: string) => void;
   onSave: () => void;
 }) {
@@ -993,6 +1004,9 @@ function QuestionPickerModal({
                 ? "Choose one approved question to replace the current question in this part."
                 : "Choose additional approved questions for this part using the filters below."}
             </p>
+            <p className="mt-2 text-xs text-slate-400">
+              Legacy comprehension parent records are excluded here. Add the linked child questions instead.
+            </p>
           </div>
           <button
             type="button"
@@ -1003,7 +1017,7 @@ function QuestionPickerModal({
           </button>
         </div>
 
-        <div className="grid gap-4 border-b border-slate-200 bg-slate-50/70 px-6 py-4 md:grid-cols-[1.3fr_0.7fr]">
+        <div className="grid gap-4 border-b border-slate-200 bg-slate-50/70 px-6 py-4 md:grid-cols-[1.1fr_0.7fr_0.7fr]">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Search</span>
             <input
@@ -1029,6 +1043,24 @@ function QuestionPickerModal({
               ))}
             </select>
           </label>
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Type</span>
+            <select
+              value={selectedQuestionType}
+              onChange={(event) => onQuestionTypeChange(event.target.value)}
+              className="mt-2 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+            >
+              <option value="">All types</option>
+              <option value="mcq_single">MCQ Single</option>
+              <option value="assertion_reasoning">Assertion Reasoning</option>
+              <option value="mcq_multiple">MCQ Multiple</option>
+              <option value="true_false">True/False</option>
+              <option value="numerical">Numerical</option>
+              <option value="short_answer">Short Answer</option>
+              <option value="match_following">Match the Following</option>
+              <option value="fill_in_blank">Fill in the Blank</option>
+            </select>
+          </label>
         </div>
 
         <div className="max-h-[58vh] overflow-y-auto px-6 py-5">
@@ -1046,7 +1078,7 @@ function QuestionPickerModal({
             </div>
           ) : (
             <div className="space-y-4">
-              {questions.map((question) => {
+              {questions.map((question, index) => {
                 const checked = selectedQuestionIds.includes(String(question.id));
                 return (
                   <label
@@ -1066,7 +1098,7 @@ function QuestionPickerModal({
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                            #{question.id}
+                            {index + 1}
                           </span>
                           <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                             {question.question_type}
@@ -1594,7 +1626,14 @@ export default function ExamBuilderPage() {
           page_size: 100,
           status: "approved",
           subject_id: Number(pickerEditor.subjectId),
+          exclude_question_type: "comprehensive",
         };
+        if (picker.groupType) {
+          params.question_group_type = picker.groupType;
+        }
+        if (picker.selectedQuestionType) {
+          params.question_type = picker.selectedQuestionType;
+        }
         if (pickerEditor.selectedChapterIds.length === 1) {
           params.chapter_id = Number(pickerEditor.selectedChapterIds[0]);
         }
@@ -1610,7 +1649,8 @@ export default function ExamBuilderPage() {
         const payload = Array.isArray(res.data?.data) ? res.data.data : [];
         const nextQuestions: PickerQuestion[] = payload
           .map(normalizePickerQuestion)
-          .filter((question: PickerQuestion) => normalizeQuestionGroupTypeFromCategory(question.category) === picker.groupType)
+          .filter((question: PickerQuestion) => question.question_type !== "comprehensive")
+          .filter((question: PickerQuestion) => question.question_group_type === picker.groupType)
           .filter((question: PickerQuestion) => !usedQuestionIds.has(question.id))
           .filter((question: PickerQuestion) =>
             question.topic_id ? allowedTopicIds.has(Number(question.topic_id)) : true
@@ -1645,6 +1685,7 @@ export default function ExamBuilderPage() {
   }, [
     deferredPickerSearch,
     picker.open,
+    picker.selectedQuestionType,
     picker.selectedTopicId,
     picker.groupType,
     pickerEditor,
@@ -2082,6 +2123,7 @@ export default function ExamBuilderPage() {
         sectionTitle={pickerSection?.title ?? "Section"}
         topics={pickerEditor?.allocationRows ?? []}
         selectedTopicId={picker.selectedTopicId}
+        selectedQuestionType={picker.selectedQuestionType}
         search={picker.search}
         selectedQuestionIds={picker.selectedQuestionIds}
         questions={picker.questions}
@@ -2101,9 +2143,15 @@ export default function ExamBuilderPage() {
             selectedTopicId: value,
           }))
         }
+        onQuestionTypeChange={(value) =>
+          setPicker((current) => ({
+            ...current,
+            selectedQuestionType: value,
+          }))
+        }
         onToggleQuestion={handleTogglePickerQuestion}
         onSave={() => void handleSavePickedQuestions()}
-        />
+      />
       </>
     );
   }

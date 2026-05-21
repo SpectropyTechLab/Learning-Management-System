@@ -207,6 +207,7 @@ export default function QuestionFilters({
             >
               <option value="">All</option>
               <option value="mcq_single">MCQ Single</option>
+              <option value="assertion_reasoning">Assertion Reasoning</option>
               <option value="mcq_multiple">MCQ Multiple</option>
               <option value="short_answer">Short Answer</option>
               <option value="numerical">Numerical</option>
@@ -264,6 +265,7 @@ export default function QuestionFilters({
             >
               <option value="">All</option>
               <option value="mcq_single">MCQ Single</option>
+              <option value="assertion_reasoning">Assertion Reasoning</option>
               <option value="mcq_multiple">MCQ Multiple</option>
               <option value="short_answer">Short Answer</option>
               <option value="numerical">Numerical</option>

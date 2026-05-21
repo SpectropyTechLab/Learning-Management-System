@@ -149,7 +149,7 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
 const normalizePassages = (items: any[]): ComprehensionPassage[] =>
   items
     .map((item) => ({
-      id: item.id,
+      id: (item.id ?? "") as string | number,
       title: normalizeRichText(item.title),
       passage_content: normalizeRichText(item.passage_content),
       program_id: item.program_id ?? null,
@@ -160,7 +160,7 @@ const normalizePassages = (items: any[]): ComprehensionPassage[] =>
       created_at: item.created_at ?? undefined,
       updated_at: item.updated_at ?? undefined,
     }))
-    .filter((item) => item.id !== undefined && item.id !== null);
+    .filter((item): item is ComprehensionPassage => item.id !== "");
 
 export default function QuestionForm({
   open = true,
@@ -439,7 +439,7 @@ export default function QuestionForm({
       }
 
       const correct = initialQuestion.correct_answer as CorrectAnswer;
-      if (initialQuestion.question_type === "mcq_single") {
+      if (initialQuestion.question_type === "mcq_single" || initialQuestion.question_type === "assertion_reasoning") {
         if (typeof correct === "string") {
           setCorrectAnswer(correct);
         } else if (typeof correct === "object" && correct && "answer_ids" in correct) {
@@ -567,9 +567,9 @@ export default function QuestionForm({
   }, [comprehensionMode, comprehensionPassageId, comprehensionPassages, hasComprehension]);
   const handleTypeChange = (nextType: QuestionType) => {
     setQuestionType(nextType);
-    if (nextType === "mcq_single" || nextType === "mcq_multiple") {
+    if (nextType === "mcq_single" || nextType === "assertion_reasoning" || nextType === "mcq_multiple") {
       if (options.length === 0) setOptions(makeDefaultOptions());
-      if (nextType === "mcq_single" && Array.isArray(correctAnswer)) {
+      if ((nextType === "mcq_single" || nextType === "assertion_reasoning") && Array.isArray(correctAnswer)) {
         setCorrectAnswer(correctAnswer[0] ?? null);
       }
       if (nextType === "mcq_multiple" && typeof correctAnswer === "string") {
@@ -589,7 +589,7 @@ export default function QuestionForm({
 
   const removeOption = (id: string) => {
     setOptions((prev) => prev.filter((option) => option.id !== id));
-    if (questionType === "mcq_single" && correctAnswer === id) {
+    if ((questionType === "mcq_single" || questionType === "assertion_reasoning") && correctAnswer === id) {
       setCorrectAnswer(null);
     }
     if (questionType === "mcq_multiple" && Array.isArray(correctAnswer)) {
@@ -663,13 +663,13 @@ export default function QuestionForm({
     }
 
     if (
-      (questionType === "mcq_single" || questionType === "mcq_multiple") &&
+      (questionType === "mcq_single" || questionType === "assertion_reasoning" || questionType === "mcq_multiple") &&
       options.some((option) => !hasRichContent(option.text))
     ) {
       alert("All options must contain text or an image.");
       return;
     }
-    if (questionType === "mcq_single" && !correctAnswer) {
+    if ((questionType === "mcq_single" || questionType === "assertion_reasoning") && !correctAnswer) {
       alert("Select the correct option.");
       return;
     }
@@ -726,18 +726,18 @@ export default function QuestionForm({
     let finalOptions: QuestionOption[] | MatchFollowingOptions | undefined = undefined;
     let finalCorrectAnswer: CorrectAnswer = null;
 
-    if (questionType === "mcq_single" || questionType === "mcq_multiple") {
+    if (questionType === "mcq_single" || questionType === "assertion_reasoning" || questionType === "mcq_multiple") {
       finalOptions = options.map((option) => ({
         ...option,
         is_correct:
-          questionType === "mcq_single"
+          questionType === "mcq_single" || questionType === "assertion_reasoning"
             ? option.id === correctAnswer
             : Array.isArray(correctAnswer)
             ? correctAnswer.includes(option.id)
             : false,
       }));
       const answerIds =
-        questionType === "mcq_single"
+        questionType === "mcq_single" || questionType === "assertion_reasoning"
           ? typeof correctAnswer === "string"
             ? [correctAnswer]
             : []
@@ -894,6 +894,7 @@ export default function QuestionForm({
             className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
           >
             <option value="mcq_single">MCQ Single</option>
+            <option value="assertion_reasoning">Assertion Reasoning</option>
             <option value="mcq_multiple">MCQ Multiple</option>
             <option value="short_answer">Short Answer</option>
             <option value="numerical">Numeric Response</option>
@@ -1074,13 +1075,13 @@ export default function QuestionForm({
         </div>
       </div>
 
-      {(questionType === "mcq_single" || questionType === "mcq_multiple") && (
+      {(questionType === "mcq_single" || questionType === "assertion_reasoning" || questionType === "mcq_multiple") && (
         <div>
           <label className="text-xs font-semibold text-slate-500">Options</label>
           <div className="mt-2 space-y-3">
             {options.map((option, index) => (
               <div key={option.id} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
-                {questionType === "mcq_single" ? (
+                {questionType === "mcq_single" || questionType === "assertion_reasoning" ? (
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                     <input
                       type="radio"
