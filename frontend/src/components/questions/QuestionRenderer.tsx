@@ -300,6 +300,10 @@ const resolveCorrectFromOptions = (
       if (index !== undefined) return formatOptionLabel(options[index], index);
     }
   }
+  if (Array.isArray(answer)) {
+    const labels = resolveLabelsFromIds(options, answer.map(String));
+    if (labels) return labels.join(", ");
+  }
 
   const fallback = options
     .map((option, index) => (option.is_correct ? formatOptionLabel(option, index) : null))

@@ -1097,6 +1097,10 @@ function QuestionPickerModal({
                   selectedQuestionType === "comprehensive" && question.comprehension?.passage_content
                     ? "comprehensive"
                     : question.question_type;
+                const displayQuestionTypeKey =
+                  displayQuestionType && displayQuestionType in PICKER_QUESTION_TYPE_LABELS
+                    ? displayQuestionType
+                    : undefined;
                 return (
                   <label
                     key={question.id}
@@ -1118,7 +1122,9 @@ function QuestionPickerModal({
                             {index + 1}
                           </span>
                           <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                            {PICKER_QUESTION_TYPE_LABELS[displayQuestionType] ?? displayQuestionType}
+                            {displayQuestionTypeKey
+                              ? PICKER_QUESTION_TYPE_LABELS[displayQuestionTypeKey]
+                              : displayQuestionType ?? "question"}
                           </span>
                           {question.difficulty_level ? (
                             <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
