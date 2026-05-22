@@ -522,10 +522,6 @@ const validateQuestionForExamSection = async ({ exam, questionId }) => {
   if (String(question.status).toLowerCase() !== 'approved') {
     throw new AppError('Only approved questions can be added', 400);
   }
-  if (String(question.question_type).toLowerCase() === 'comprehensive') {
-    throw new AppError('Legacy comprehensive parent records cannot be added to exams. Add linked child questions instead.', 400);
-  }
-
   if (question.client_id && Number(question.client_id) !== Number(exam.client_id)) {
     throw new AppError('Question does not belong to the same client scope as the exam', 403);
   }
@@ -627,12 +623,11 @@ const getQuestionComprehensionSupport = async () => {
 
   const columnResult = await dbQuery(
     `
-      SELECT 1
+      SELECT column_name
       FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'questions'
-        AND column_name = 'comprehension_passage_id'
-      LIMIT 1
+        AND column_name IN ('comprehension_passage_id', 'comprehension_passage', 'comprehension_questions')
     `
   );
 
@@ -646,8 +641,12 @@ const getQuestionComprehensionSupport = async () => {
     `
   );
 
+  const existingColumns = new Set(columnResult.rows.map((row) => row.column_name));
+
   questionComprehensionSupportKnown = {
-    hasComprehensionPassageId: columnResult.rows.length > 0,
+    hasComprehensionPassageId: existingColumns.has('comprehension_passage_id'),
+    hasLegacyComprehensionPassage: existingColumns.has('comprehension_passage'),
+    hasLegacyComprehensionQuestions: existingColumns.has('comprehension_questions'),
     hasComprehensionPassageTable: tableResult.rows.length > 0,
   };
   return questionComprehensionSupportKnown;
@@ -1516,6 +1515,18 @@ const hydrateSectionRows = async (sectionRows) => {
             q.comprehension_passage_id`
     : `,
             NULL::int AS comprehension_passage_id`;
+  const questionSelectLegacyComprehensionFields = [
+    comprehensionSupport.hasLegacyComprehensionPassage
+      ? `,
+            q.comprehension_passage`
+      : `,
+            NULL::jsonb AS comprehension_passage`,
+    comprehensionSupport.hasLegacyComprehensionQuestions
+      ? `,
+            q.comprehension_questions`
+      : `,
+            NULL::jsonb AS comprehension_questions`,
+  ].join('');
   const questionSelectPassageJoin =
     comprehensionSupport.hasComprehensionPassageId && comprehensionSupport.hasComprehensionPassageTable
       ? `
@@ -1572,12 +1583,18 @@ const hydrateSectionRows = async (sectionRows) => {
             q.correct_answer,
             q.solution,
             q.subject_id,
+            s.name AS subject_name,
             q.chapter_id,
-            q.topic_id${questionSelectPassageFields},
+            c.name AS chapter_name,
+            q.topic_id${questionSelectPassageFields}${questionSelectLegacyComprehensionFields},
+            t.name AS topic_name,
             q.difficulty_level,
             q.status${questionSelectPassageSummaryFields}
           FROM exam_questions eq
           JOIN questions q ON q.id = eq.question_id
+          LEFT JOIN subjects s ON s.id = q.subject_id
+          LEFT JOIN chapters c ON c.id = q.chapter_id
+          LEFT JOIN topics t ON t.id = q.topic_id
           ${questionSelectPassageJoin}
           WHERE eq.section_id = ANY($1::int[])
           ORDER BY eq.section_id, eq.order_index, eq.id
@@ -1620,6 +1637,9 @@ const hydrateSectionRows = async (sectionRows) => {
   }
 
   const questionsBySection = new Map();
+  const fallbackSubjectsBySection = new Map();
+  const fallbackChaptersBySection = new Map();
+  const fallbackTopicsBySection = new Map();
   for (const row of questionsResult.rows) {
     const current = questionsBySection.get(Number(row.section_id)) ?? [];
     current.push({
@@ -1647,15 +1667,58 @@ const hydrateSectionRows = async (sectionRows) => {
             passage_content: normalizeRichValueForPreview(row.comprehension_passage_content),
           }
           : null,
+      comprehension_passage: normalizeRichValueForPreview(row.comprehension_passage),
+      comprehension_questions: Array.isArray(row.comprehension_questions)
+        ? row.comprehension_questions.map((item) => ({
+          ...item,
+          question_text: normalizeRichValueForPreview(item?.question_text),
+          options: Array.isArray(item?.options)
+            ? item.options.map((option) => ({
+              ...option,
+              text: normalizeRichValueForPreview(option?.text),
+            }))
+            : item?.options,
+        }))
+        : row.comprehension_questions,
       difficulty_level: row.difficulty_level,
       status: row.status,
     });
     questionsBySection.set(Number(row.section_id), current);
+
+    const sectionId = Number(row.section_id);
+    if (row.subject_id && row.subject_name) {
+      const subjectMap = fallbackSubjectsBySection.get(sectionId) ?? new Map();
+      subjectMap.set(Number(row.subject_id), String(row.subject_name));
+      fallbackSubjectsBySection.set(sectionId, subjectMap);
+    }
+    if (row.chapter_id && row.chapter_name) {
+      const chapterMap = fallbackChaptersBySection.get(sectionId) ?? new Map();
+      chapterMap.set(Number(row.chapter_id), {
+        id: Number(row.chapter_id),
+        name: String(row.chapter_name),
+      });
+      fallbackChaptersBySection.set(sectionId, chapterMap);
+    }
+    if (row.topic_id && row.topic_name) {
+      const topicMap = fallbackTopicsBySection.get(sectionId) ?? new Map();
+      topicMap.set(Number(row.topic_id), {
+        id: Number(row.topic_id),
+        name: String(row.topic_name),
+      });
+      fallbackTopicsBySection.set(sectionId, topicMap);
+    }
   }
 
   return sectionRows.map((row) => {
     const sectionId = Number(row.id);
     const questionRows = questionsBySection.get(sectionId) ?? [];
+    const configuredChapters = chaptersBySection.get(sectionId) ?? [];
+    const configuredTopics = topicsBySection.get(sectionId) ?? [];
+    const fallbackSubjectNames = Array.from((fallbackSubjectsBySection.get(sectionId) ?? new Map()).values());
+    const fallbackChapters = Array.from((fallbackChaptersBySection.get(sectionId) ?? new Map()).values());
+    const fallbackTopics = Array.from((fallbackTopicsBySection.get(sectionId) ?? new Map()).values());
+    const resolvedChapters = configuredChapters.length > 0 ? configuredChapters : fallbackChapters;
+    const resolvedTopics = configuredTopics.length > 0 ? configuredTopics : fallbackTopics;
     const requiredQuestionCount = row.required_question_count ? Number(row.required_question_count) : 0;
     const hasSyllabus = Boolean(row.selected_subject_id);
     const completionStatus =
@@ -1666,10 +1729,13 @@ const hydrateSectionRows = async (sectionRows) => {
           : 'pending';
     return {
       ...row,
-      chapter_ids: (chaptersBySection.get(sectionId) ?? []).map((item) => item.id),
-      topic_ids: (topicsBySection.get(sectionId) ?? []).map((item) => item.id),
-      chapters: chaptersBySection.get(sectionId) ?? [],
-      topics: topicsBySection.get(sectionId) ?? [],
+      selected_subject_name:
+        row.selected_subject_name ||
+        (fallbackSubjectNames.length > 0 ? fallbackSubjectNames.join(', ') : row.title || null),
+      chapter_ids: resolvedChapters.map((item) => item.id),
+      topic_ids: resolvedTopics.map((item) => item.id),
+      chapters: resolvedChapters,
+      topics: resolvedTopics,
       question_count: questionRows.length,
       completion_status: completionStatus,
       syllabus_locked: completionStatus === 'completed',
@@ -3077,6 +3143,202 @@ const buildSectionOverviewTable = (preview) => {
   });
 };
 
+const buildComprehensionPassageParagraphs = (question) => {
+  const passageTitle =
+    normalizePassageTitle(question?.comprehension?.title) ||
+    normalizePassageTitle(question?.comprehension_passage?.title) ||
+    'Passage';
+  const passageSource =
+    question?.comprehension?.passage_content ||
+    question?.comprehension_passage ||
+    null;
+  const passageHtml = extractRichHtmlString(passageSource);
+  const passageRuns = htmlToDocxRuns(passageHtml, { size: DOCX_BODY_FONT_SIZE });
+  const passageFallback = stripHtmlToText(passageSource) || '--';
+
+  if (!passageSource) return [];
+
+  return [
+    new Paragraph({
+      spacing: { after: 40 },
+      children: [
+        new TextRun(buildDocxTextRunOptions({ text: 'LINKED PASSAGE', bold: true, size: 18 })),
+      ],
+    }),
+    new Paragraph({
+      spacing: { after: 40 },
+      children: [
+        new TextRun(buildDocxTextRunOptions({ text: String(passageTitle), bold: true, size: 18 })),
+      ],
+    }),
+    new Paragraph({
+      spacing: { after: DOCX_QUESTION_AFTER },
+      children:
+        passageRuns.length > 0
+          ? passageRuns
+          : [new TextRun(buildDocxTextRunOptions({ text: passageFallback }))],
+    }),
+  ];
+};
+
+const buildMatchFollowingTable = (question) => {
+  const left = Array.isArray(question?.options?.left) ? question.options.left : [];
+  const right = Array.isArray(question?.options?.right) ? question.options.right : [];
+  const rowCount = Math.max(left.length, right.length);
+
+  if (rowCount === 0) return null;
+
+  const rows = [
+    new TableRow({
+      children: [
+        buildDocxCell({
+          text: 'Column A',
+          bold: true,
+          size: 20,
+        }),
+        buildDocxCell({
+          text: 'Column B',
+          bold: true,
+          size: 20,
+        }),
+      ],
+    }),
+  ];
+
+  for (let index = 0; index < rowCount; index += 1) {
+    const leftOption = left[index];
+    const rightOption = right[index];
+    const leftLabel = leftOption ? `${String.fromCharCode(65 + index)}. ${extractOptionText(leftOption)}`.trim() : '';
+    const rightLabel = rightOption ? `${index + 1}. ${extractOptionText(rightOption)}`.trim() : '';
+
+    rows.push(
+      new TableRow({
+        children: [
+          buildDocxCell({
+            text: leftLabel || '--',
+            size: 18,
+            alignment: AlignmentType.LEFT,
+          }),
+          buildDocxCell({
+            text: rightLabel || '--',
+            size: 18,
+            alignment: AlignmentType.LEFT,
+          }),
+        ],
+      })
+    );
+  }
+
+  return new Table({
+    width: { size: 96, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    borders: DOCX_TABLE_BORDER,
+    columnWidths: [5000, 5000],
+    rows,
+  });
+};
+
+const buildDocxTableFromHtml = (html) => {
+  const normalized = normalizeDocxHtml(html);
+  if (!normalized) return null;
+
+  const $ = loadHtml(`<root>${normalized}</root>`);
+  const tableEl = $('root > table').first();
+  if (!tableEl.length) return null;
+
+  const nestedRows = [];
+  let maxColumnCount = 0;
+  const rowCells = [];
+
+  tableEl.children('tbody, thead, tfoot').addBack().find('> tr').each((_, trEl) => {
+    const docxCells = [];
+    $(trEl).children('th, td').each((_, cellEl) => {
+      const isHeader = cellEl.tagName === 'th';
+      const cellHtml = normalizeDocxHtml($(cellEl).html() || '');
+      const cellRuns = htmlToDocxRuns(cellHtml, { size: DOCX_BODY_FONT_SIZE, bold: isHeader });
+      docxCells.push({
+        columnSpan: Number.parseInt($(cellEl).attr('colspan') || '1', 10),
+        children: [
+          new Paragraph({
+            children: cellRuns.length
+              ? cellRuns
+              : [new TextRun(buildDocxTextRunOptions({ text: '', bold: isHeader }))],
+          }),
+        ],
+      });
+    });
+    maxColumnCount = Math.max(maxColumnCount, docxCells.length);
+    rowCells.push(docxCells);
+  });
+
+  rowCells.forEach((cells) => {
+    const paddedCells = [...cells];
+    while (paddedCells.length < maxColumnCount) {
+      paddedCells.push({
+        columnSpan: null,
+        children: [new Paragraph({ children: [new TextRun('')] })],
+      });
+    }
+
+    nestedRows.push(
+      new TableRow({
+        children: paddedCells.map((cell) =>
+          new TableCell({
+            borders: DOCX_TABLE_BORDER,
+            columnSpan:
+              Number.isFinite(cell.columnSpan) && cell.columnSpan > 1 ? cell.columnSpan : undefined,
+            width: { size: Math.floor(100 / Math.max(maxColumnCount, 1)), type: WidthType.PERCENTAGE },
+            children: cell.children,
+          })
+        ),
+      })
+    );
+  });
+
+  return nestedRows.length > 0
+    ? new Table({
+      width: { size: 96, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
+      borders: DOCX_TABLE_BORDER,
+      rows: nestedRows,
+    })
+    : null;
+};
+
+const buildMatchFollowingBlocks = (question) => {
+  const questionHtml = extractRichHtmlString(question?.question_text);
+  const normalized = normalizeDocxHtml(questionHtml);
+  const $ = loadHtml(`<root>${normalized}</root>`);
+  const stemParagraphs = [];
+
+  $('root > p').each((_, el) => {
+    const stemHtml = normalizeDocxHtml($.html(el) || '');
+    const stemRuns = htmlToDocxRuns(stemHtml, {
+      size: DOCX_BODY_FONT_SIZE,
+      bold: true,
+    });
+    if (stemRuns.length > 0) {
+      stemParagraphs.push({
+        runs: stemRuns,
+        spacing: { after: DOCX_QUESTION_AFTER },
+      });
+    }
+  });
+
+  const htmlTable = buildDocxTableFromHtml(questionHtml);
+  if (htmlTable) {
+    return {
+      questionParagraphs: stemParagraphs,
+      optionTable: htmlTable,
+    };
+  }
+
+  return {
+    questionParagraphs: [],
+    optionTable: buildMatchFollowingTable(question),
+  };
+};
+
 const buildInstructionsTable = (preview) => {
   const customInstructions = richTextToMultilineText(preview?.exam?.instructions || '')
     .split('\n')
@@ -3125,18 +3387,75 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
     if (!Array.isArray(questions) || questions.length === 0) continue;
 
     for (const question of questions) {
-      const questionHtml = extractRichHtmlString(question?.question_text);
-      const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE });
-      const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
-      children.push(
-        new Paragraph({
-          spacing: { after: DOCX_QUESTION_AFTER },
-          children: [
-            new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
-            ...(questionRuns.length > 0 ? questionRuns : [new TextRun(buildDocxTextRunOptions({ text: questionFallback }))]),
-          ],
-        })
-      );
+      const passageParagraphs = buildComprehensionPassageParagraphs(question);
+      if (passageParagraphs.length > 0) {
+        children.push(...passageParagraphs);
+      }
+
+      const isMatchFollowing =
+        question?.question_type === 'match_following' &&
+        question?.options &&
+        typeof question.options === 'object';
+
+      if (isMatchFollowing) {
+        const { questionParagraphs, optionTable } = buildMatchFollowingBlocks(question);
+        if (questionParagraphs.length > 0) {
+          const [firstParagraph, ...restParagraphs] = questionParagraphs;
+          children.push(
+            new Paragraph({
+              spacing: firstParagraph.spacing,
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+                ...firstParagraph.runs,
+              ],
+            })
+          );
+          if (restParagraphs.length > 0) {
+            children.push(
+              ...restParagraphs.map(
+                (paragraph) =>
+                  new Paragraph({
+                    spacing: paragraph.spacing,
+                    children: paragraph.runs,
+                  })
+              )
+            );
+          }
+        } else {
+          const questionHtml = extractRichHtmlString(question?.question_text);
+          const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
+          const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
+          children.push(
+            new Paragraph({
+              spacing: { after: DOCX_QUESTION_AFTER },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+                ...(questionRuns.length > 0
+                  ? questionRuns
+                  : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
+              ],
+            })
+          );
+        }
+        if (optionTable) {
+          children.push(optionTable);
+        }
+      } else {
+        const questionHtml = extractRichHtmlString(question?.question_text);
+        const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
+        const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
+        children.push(
+          new Paragraph({
+            spacing: { after: DOCX_QUESTION_AFTER },
+            children: [
+              new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+              ...(questionRuns.length > 0
+                ? questionRuns
+                : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
+            ],
+          })
+        );
+      }
 
       if (Array.isArray(question?.options) && question.options.length > 0) {
         question.options.forEach((option, optionIndex) => {
@@ -3156,45 +3475,7 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
             })
           );
         });
-      } else if (
-        question?.question_type === 'match_following' &&
-        question?.options &&
-        typeof question.options === 'object'
-      ) {
-        const left = Array.isArray(question.options.left) ? question.options.left : [];
-        const right = Array.isArray(question.options.right) ? question.options.right : [];
-        left.forEach((item, idx) => {
-          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
-          const text = extractOptionText(item);
-          if (!text && optionRuns.length === 0) return;
-          children.push(
-            new Paragraph({
-              spacing: { after: DOCX_OPTION_AFTER },
-              indent: { left: 220, hanging: 120 },
-              children: [
-                new TextRun(buildDocxTextRunOptions({ text: `L${idx + 1}. ` })),
-                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
-              ],
-            })
-          );
-        });
-        right.forEach((item, idx) => {
-          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
-          const text = extractOptionText(item);
-          if (!text && optionRuns.length === 0) return;
-          children.push(
-            new Paragraph({
-              spacing: { after: DOCX_OPTION_AFTER },
-              indent: { left: 220, hanging: 120 },
-              children: [
-                new TextRun(buildDocxTextRunOptions({ text: `R${idx + 1}. ` })),
-                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
-              ],
-            })
-          );
-        });
       }
-
       runningQuestionIndex += 1;
     }
   }
@@ -3244,18 +3525,75 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
     if (!Array.isArray(questions) || questions.length === 0) continue;
 
     for (const question of questions) {
-      const questionHtml = extractRichHtmlString(question?.question_text);
-      const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE });
-      const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
-      children.push(
-        new Paragraph({
-          spacing: { after: DOCX_QUESTION_AFTER },
-          children: [
-            new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
-            ...(questionRuns.length > 0 ? questionRuns : [new TextRun(buildDocxTextRunOptions({ text: questionFallback }))]),
-          ],
-        })
-      );
+      const passageParagraphs = buildComprehensionPassageParagraphs(question);
+      if (passageParagraphs.length > 0) {
+        children.push(...passageParagraphs);
+      }
+
+      const isMatchFollowing =
+        question?.question_type === 'match_following' &&
+        question?.options &&
+        typeof question.options === 'object';
+
+      if (isMatchFollowing) {
+        const { questionParagraphs, optionTable } = buildMatchFollowingBlocks(question);
+        if (questionParagraphs.length > 0) {
+          const [firstParagraph, ...restParagraphs] = questionParagraphs;
+          children.push(
+            new Paragraph({
+              spacing: firstParagraph.spacing,
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+                ...firstParagraph.runs,
+              ],
+            })
+          );
+          if (restParagraphs.length > 0) {
+            children.push(
+              ...restParagraphs.map(
+                (paragraph) =>
+                  new Paragraph({
+                    spacing: paragraph.spacing,
+                    children: paragraph.runs,
+                  })
+              )
+            );
+          }
+        } else {
+          const questionHtml = extractRichHtmlString(question?.question_text);
+          const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
+          const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
+          children.push(
+            new Paragraph({
+              spacing: { after: DOCX_QUESTION_AFTER },
+              children: [
+                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+                ...(questionRuns.length > 0
+                  ? questionRuns
+                  : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
+              ],
+            })
+          );
+        }
+        if (optionTable) {
+          children.push(optionTable);
+        }
+      } else {
+        const questionHtml = extractRichHtmlString(question?.question_text);
+        const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
+        const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
+        children.push(
+          new Paragraph({
+            spacing: { after: DOCX_QUESTION_AFTER },
+            children: [
+              new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
+              ...(questionRuns.length > 0
+                ? questionRuns
+                : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
+            ],
+          })
+        );
+      }
 
       if (Array.isArray(question?.options) && question.options.length > 0) {
         question.options.forEach((option, optionIndex) => {
@@ -3275,45 +3613,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
             })
           );
         });
-      } else if (
-        question?.question_type === 'match_following' &&
-        question?.options &&
-        typeof question.options === 'object'
-      ) {
-        const left = Array.isArray(question.options.left) ? question.options.left : [];
-        const right = Array.isArray(question.options.right) ? question.options.right : [];
-        left.forEach((item, idx) => {
-          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
-          const text = extractOptionText(item);
-          if (!text && optionRuns.length === 0) return;
-          children.push(
-            new Paragraph({
-              spacing: { after: DOCX_OPTION_AFTER },
-              indent: { left: 220, hanging: 120 },
-              children: [
-                new TextRun(buildDocxTextRunOptions({ text: `L${idx + 1}. ` })),
-                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
-              ],
-            })
-          );
-        });
-        right.forEach((item, idx) => {
-          const optionRuns = htmlToDocxRuns(extractRichHtmlString(item?.text), { size: DOCX_BODY_FONT_SIZE });
-          const text = extractOptionText(item);
-          if (!text && optionRuns.length === 0) return;
-          children.push(
-            new Paragraph({
-              spacing: { after: DOCX_OPTION_AFTER },
-              indent: { left: 220, hanging: 120 },
-              children: [
-                new TextRun(buildDocxTextRunOptions({ text: `R${idx + 1}. ` })),
-                ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text }))]),
-              ],
-            })
-          );
-        });
       }
-
       const answerText = resolveAnswerText(question) || '--';
       children.push(
         new Paragraph({
@@ -3582,10 +3882,6 @@ export const addQuestionToSection = async (req, res) => {
     if (String(question.status).toLowerCase() !== 'approved') {
       throw new AppError('Only approved questions can be added', 400);
     }
-    if (String(question.question_type).toLowerCase() === 'comprehensive') {
-      throw new AppError('Legacy comprehensive parent records cannot be added to exams. Add linked child questions instead.', 400);
-    }
-
     if (question.client_id && Number(question.client_id) !== Number(exam.client_id)) {
       throw new AppError('Question does not belong to the same client scope as the exam', 403);
     }

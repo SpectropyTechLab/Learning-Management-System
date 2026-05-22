@@ -330,6 +330,31 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
     conditions.push(`q.exam_tags && ${addParam(examTags)}::text[]`);
   }
 
+  if (query.has_comprehension !== undefined) {
+    const schemaSupport = await getQuestionSchemaSupport();
+    const parsedHasComprehension = coerceLooseValue(query.has_comprehension);
+    const shouldRequireComprehension = parsedHasComprehension === true || parsedHasComprehension === 'true';
+
+    if (shouldRequireComprehension) {
+      const comprehensionConditions = [];
+      if (schemaSupport.hasComprehensionPassageId) {
+        comprehensionConditions.push('q.comprehension_passage_id IS NOT NULL');
+      }
+      if (schemaSupport.hasComprehensionPassage) {
+        comprehensionConditions.push(`coalesce(q.comprehension_passage::text, '') <> ''`);
+      }
+      if (comprehensionConditions.length === 0) {
+        conditions.push('1 = 0');
+      } else {
+        conditions.push(
+          `(
+            ${comprehensionConditions.join('\n            OR ')}
+          )`
+        );
+      }
+    }
+  }
+
   return { conditions, params };
 };
 

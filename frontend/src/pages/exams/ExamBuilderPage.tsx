@@ -142,6 +142,18 @@ const QUESTION_GROUP_HELP: Record<QuestionGroupType, string> = {
   reference: "Reference questions mapped to the configured topic selection.",
 };
 
+const PICKER_QUESTION_TYPE_LABELS: Record<string, string> = {
+  mcq_single: "mcq_single",
+  assertion_reasoning: "assertion_reasoning",
+  mcq_multiple: "mcq_multiple",
+  true_false: "true_false",
+  numerical: "numerical",
+  short_answer: "short_answer",
+  match_following: "match_following",
+  fill_in_blank: "fill_in_blank",
+  comprehensive: "comprehensive",
+};
+
 const createDefaultEditorState = (): SectionEditorState => ({
   subjectId: "",
   selectedChapterIds: [],
@@ -1059,6 +1071,7 @@ function QuestionPickerModal({
               <option value="short_answer">Short Answer</option>
               <option value="match_following">Match the Following</option>
               <option value="fill_in_blank">Fill in the Blank</option>
+              <option value="comprehensive">Comprehensive</option>
             </select>
           </label>
         </div>
@@ -1080,6 +1093,10 @@ function QuestionPickerModal({
             <div className="space-y-4">
               {questions.map((question, index) => {
                 const checked = selectedQuestionIds.includes(String(question.id));
+                const displayQuestionType =
+                  selectedQuestionType === "comprehensive" && question.comprehension?.passage_content
+                    ? "comprehensive"
+                    : question.question_type;
                 return (
                   <label
                     key={question.id}
@@ -1101,7 +1118,7 @@ function QuestionPickerModal({
                             {index + 1}
                           </span>
                           <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                            {question.question_type}
+                            {PICKER_QUESTION_TYPE_LABELS[displayQuestionType] ?? displayQuestionType}
                           </span>
                           {question.difficulty_level ? (
                             <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
@@ -1626,13 +1643,19 @@ export default function ExamBuilderPage() {
           page_size: 100,
           status: "approved",
           subject_id: Number(pickerEditor.subjectId),
-          exclude_question_type: "comprehensive",
         };
+        if (picker.selectedQuestionType !== "comprehensive") {
+          params.exclude_question_type = "comprehensive";
+        }
         if (picker.groupType) {
           params.question_group_type = picker.groupType;
         }
         if (picker.selectedQuestionType) {
-          params.question_type = picker.selectedQuestionType;
+          if (picker.selectedQuestionType === "comprehensive") {
+            params.has_comprehension = "true";
+          } else {
+            params.question_type = picker.selectedQuestionType;
+          }
         }
         if (pickerEditor.selectedChapterIds.length === 1) {
           params.chapter_id = Number(pickerEditor.selectedChapterIds[0]);
@@ -1649,7 +1672,15 @@ export default function ExamBuilderPage() {
         const payload = Array.isArray(res.data?.data) ? res.data.data : [];
         const nextQuestions: PickerQuestion[] = payload
           .map(normalizePickerQuestion)
-          .filter((question: PickerQuestion) => question.question_type !== "comprehensive")
+          .filter((question: PickerQuestion) =>
+            picker.selectedQuestionType === "comprehensive"
+              ? Boolean(
+                  question.comprehension?.passage_content ||
+                  question.comprehension_passage ||
+                  question.question_type === "comprehensive"
+                )
+              : question.question_type !== "comprehensive"
+          )
           .filter((question: PickerQuestion) => question.question_group_type === picker.groupType)
           .filter((question: PickerQuestion) => !usedQuestionIds.has(question.id))
           .filter((question: PickerQuestion) =>
