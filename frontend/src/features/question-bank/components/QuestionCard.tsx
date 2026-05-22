@@ -127,12 +127,12 @@ function QuestionCard({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {isEditable && (
           <button
             type="button"
             onClick={() => onEdit(question)}
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
           >
             Edit
           </button>
@@ -141,7 +141,7 @@ function QuestionCard({
           <button
             type="button"
             onClick={() => onDelete(question)}
-            className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+            className="w-full rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 sm:w-auto"
           >
             Delete
           </button>
@@ -150,7 +150,7 @@ function QuestionCard({
           <button
             type="button"
             onClick={() => onApprove(question)}
-            className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600"
+            className="w-full rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 sm:w-auto"
           >
             Approve
           </button>
@@ -159,7 +159,7 @@ function QuestionCard({
           <button
             type="button"
             onClick={() => onReject(question)}
-            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+            className="w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 sm:w-auto"
           >
             Reject
           </button>

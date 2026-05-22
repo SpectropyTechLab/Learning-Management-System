@@ -1,4 +1,5 @@
 // src/pages/student/StudentDashboard.tsx
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import spectropyLogo from "/logo.png";
@@ -8,6 +9,7 @@ import { getDashboardTheme } from '@/components/layout/dashboardTheme';
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isClientTenant = false;
   const brandLogo = spectropyLogo;
@@ -26,9 +28,18 @@ export default function StudentDashboard() {
   return (
     <div className={theme.shellClass}>
       <div className={theme.layoutClass}>
+        {mobileMenuOpen ? (
+          <button
+            type="button"
+            aria-label="Close menu overlay"
+            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 z-30 bg-slate-950/30 lg:hidden"
+          />
+        ) : null}
+
         {/* Left Sidebar */}
         <aside
-          className={`flex w-full flex-col border-b lg:w-72 lg:border-b-0 lg:border-r ${isClientTenant ? 'border-amber-100 bg-white/90 backdrop-blur' : 'border-blue-100 bg-white'
+          className={`fixed inset-y-0 left-0 z-40 flex w-[88vw] max-w-xs flex-col border-r transition-transform lg:static lg:z-auto lg:w-72 lg:max-w-none lg:translate-x-0 lg:border-b-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} ${isClientTenant ? 'border-amber-100 bg-white/90 backdrop-blur' : 'border-blue-100 bg-white'
             }`}
         >
           <div className={`p-6 border-b ${isClientTenant ? 'border-amber-100' : 'border-blue-100'}`}>
@@ -52,7 +63,10 @@ export default function StudentDashboard() {
 
           <nav className="flex-1 p-4 space-y-2">
             <button
-              onClick={() => navigate('/student/dashboard')}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigate('/student/dashboard');
+              }}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-2xl transition-colors ${isClientTenant
                 ? 'bg-amber-100 text-amber-900 border-l-4 border-amber-600'
                 : 'bg-blue-100 text-blue-900 border-l-4 border-blue-700'
@@ -129,16 +143,40 @@ export default function StudentDashboard() {
         {/* Right Panel */}
         <section className="flex-1 overflow-y-auto">
           <div
-            className={`border-b px-6 py-6 backdrop-blur ${isClientTenant ? 'border-amber-100 bg-white/70' : 'border-blue-100 bg-white'
+            className={`border-b px-4 py-4 backdrop-blur sm:px-6 sm:py-6 ${isClientTenant ? 'border-amber-100 bg-white/70' : 'border-blue-100 bg-white'
               }`}
           >
+            <div className="mb-3 flex items-center justify-between gap-3 lg:hidden">
+              <button
+                type="button"
+                aria-label="Open menu"
+                onClick={() => setMobileMenuOpen(true)}
+                className="inline-flex items-center rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mr-2 h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+                Menu
+              </button>
+            </div>
             <h1 className="text-2xl font-bold">Active Courses</h1>
             <p className="text-slate-600 mt-1">
               {`Continue your learning with ${brandName} course modules.`}
             </p>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="max-w-6xl mx-auto">
               <AdminCourseManager
                 mode="student"

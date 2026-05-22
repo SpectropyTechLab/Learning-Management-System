@@ -43,6 +43,7 @@ export default function StudentCourseView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!courseId) {
@@ -282,8 +283,17 @@ export default function StudentCourseView() {
   return (
     <div className="min-h-screen bg-gray-50 text-slate-900">
       <div className="flex min-h-screen flex-col lg:flex-row">
+        {mobileMenuOpen ? (
+          <button
+            type="button"
+            aria-label="Close course menu overlay"
+            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 z-30 bg-slate-950/30 lg:hidden"
+          />
+        ) : null}
+
         {/* LEFT BAR - Navigation & Progress */}
-        <div className="w-full border-b border-blue-100 bg-white flex flex-col lg:w-72 lg:border-b-0 lg:border-r">
+        <div className={`fixed inset-y-0 left-0 z-40 flex w-[88vw] max-w-xs flex-col border-r border-blue-100 bg-white transition-transform lg:static lg:z-auto lg:w-72 lg:max-w-none lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           {/* Logo/Brand */}
           <div className="p-6 border-b border-blue-100">
             <div className="flex items-center space-x-2 cursor-pointer">
@@ -326,7 +336,10 @@ export default function StudentCourseView() {
                       <div
                         key={item.id}
                         className="font-semibold text-base mb-1.8 flex items-center gap-2 py-1 px-2 rounded hover:bg-blue-50 cursor-pointer"
-                        onClick={() => navigate(`content/${item.id}`)}
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          navigate(`content/${item.id}`);
+                        }}
                       >
                         {/* ✅ Completion Tick */}
                         {item.completion_status === 'completed' && (
@@ -343,7 +356,11 @@ export default function StudentCourseView() {
           </div>
 
           <div className="p-4 border-t border-blue-100">
-            <Link to="/student/dashboard" className="w-full flex items-center justify-center rounded-full border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">
+            <Link
+              to="/student/dashboard"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full flex items-center justify-center rounded-full border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-4 w-4 mr-2"
@@ -366,8 +383,32 @@ export default function StudentCourseView() {
         {/* RIGHT BAR - Content Viewer */}
         <div className="flex-1 overflow-y-auto">
           {/* Header */}
-          <div className="p-6 border-b border-blue-100 bg-white">
-            <div className="flex justify-between items-center">
+          <div className="border-b border-blue-100 bg-white px-4 py-4 sm:px-6 sm:py-6">
+            <div className="mb-3 flex items-center justify-between gap-3 lg:hidden">
+              <button
+                type="button"
+                aria-label="Open course menu"
+                onClick={() => setMobileMenuOpen(true)}
+                className="inline-flex items-center rounded-xl border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mr-2 h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+                Menu
+              </button>
+            </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 {/* ✅ Dynamic title: Course — Chapter: Content */}
                 {currentChapterTitle && currentContentTitle ? (
@@ -378,7 +419,7 @@ export default function StudentCourseView() {
                   <h1 className="text-2xl font-bold">{course.title}</h1>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={goToPrevious}
                   disabled={currentIndex <= 0}

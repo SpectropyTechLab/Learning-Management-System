@@ -517,7 +517,7 @@ export default function QuestionRenderer({
                 >
                   {String.fromCharCode(65 + index)}
                 </span>
-                <span dangerouslySetInnerHTML={renderHtml(option.text)} />
+                <span className="min-w-0 flex-1 break-words" dangerouslySetInnerHTML={renderHtml(option.text)} />
               </div>
             </div>
           ))}
@@ -538,7 +538,7 @@ export default function QuestionRenderer({
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
                       {String.fromCharCode(65 + index)}
                     </span>
-                    <span dangerouslySetInnerHTML={renderHtml(item.text)} />
+                    <span className="min-w-0 flex-1 break-words" dangerouslySetInnerHTML={renderHtml(item.text)} />
                   </div>
                 </div>
               ))}
@@ -551,7 +551,7 @@ export default function QuestionRenderer({
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
                       {index + 1}
                     </span>
-                    <span dangerouslySetInnerHTML={renderHtml(item.text)} />
+                    <span className="min-w-0 flex-1 break-words" dangerouslySetInnerHTML={renderHtml(item.text)} />
                   </div>
                 </div>
               ))}
@@ -668,7 +668,7 @@ export default function QuestionRenderer({
       ) : null}
 
       {showAnswer && question.correct_answer !== null && question.correct_answer !== undefined ? (
-        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 break-words">
           Correct answer: {formatCorrectAnswer(question)}
         </div>
       ) : null}
