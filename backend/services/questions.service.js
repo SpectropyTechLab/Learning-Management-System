@@ -584,7 +584,7 @@ const BULK_CSV_HEADER_ALIASES = {
   'exam tags': 'exam_tags',
   category: 'category',
   catagory: 'category',
-  comprehensive_subquestions: 'category',
+  comprehensive_subquestions: 'comprehensive_subquestions',
   'option a': 'option_a',
   'option b': 'option_b',
   'option c': 'option_c',
@@ -972,7 +972,15 @@ const normalizeCsvRowInput = (rawRow, defaults) => {
       if (normalized.correct_answer !== undefined && normalized.correct_answer !== null) {
         const answerValue = String(normalized.correct_answer).trim();
         if (answerValue.length > 0) {
-          const questionType = normalizeBulkQuestionType(normalized.question_type || 'mcq_single');
+          const questionType = inferHybridBulkQuestionType({
+            rawQuestionType: normalized.question_type || 'mcq_single',
+            options,
+            answerValue,
+            matchPairsValue: normalized.match_pairs,
+            blanksValue: normalized.blanks,
+            subQuestionsValue: normalized.comprehensive_subquestions,
+            questionTextValue: normalized.question_text,
+          });
           if (questionType === 'mcq_multiple') {
             const tokens = answerValue
               .split(/[|,;]/)
@@ -1000,7 +1008,15 @@ const normalizeCsvRowInput = (rawRow, defaults) => {
   if (!normalized.question_type || String(normalized.question_type).trim().length === 0) {
     normalized.question_type = 'mcq_single';
   } else {
-    normalized.question_type = normalizeBulkQuestionType(normalized.question_type);
+    normalized.question_type = inferHybridBulkQuestionType({
+      rawQuestionType: normalized.question_type,
+      options: Array.isArray(normalized.options) ? normalized.options : parseBulkOptionText(normalized.options),
+      answerValue: normalized.correct_answer,
+      matchPairsValue: normalized.match_pairs,
+      blanksValue: normalized.blanks,
+      subQuestionsValue: normalized.comprehensive_subquestions,
+      questionTextValue: normalized.question_text,
+    });
   }
 
   optionKeys.forEach((optionKey) => {
@@ -1057,7 +1073,7 @@ const BULK_DOCX_TABLE_HEADER_ALIASES = {
   status: 'status',
   comprehensive_passage: 'comprehension_passage',
   comprehension_passage: 'comprehension_passage',
-  comprehensive_subquestions: 'category',
+  comprehensive_subquestions: 'comprehensive_subquestions',
   comprehension_questions: 'comprehension_questions',
   category: 'category',
   catagory: 'category',
@@ -1121,6 +1137,64 @@ const parseBulkBoolean = (value) => {
   const normalized = toPlainBulkText(value).toLowerCase();
   if (!normalized) return false;
   return ['true', '1', 'yes', 'y'].includes(normalized);
+};
+
+const isHybridBulkQuestionType = (value) => toPlainBulkText(value).toLowerCase() === 'hybrid';
+
+const isLikelyBulkNumericalAnswer = (value) => {
+  const normalized = toPlainBulkText(value)
+    .replace(/^\(|\)$/g, '')
+    .trim();
+  if (!normalized) return false;
+  return /^-?\d+(?:\.\d+)?$/.test(normalized);
+};
+
+const inferHybridBulkQuestionType = ({
+  rawQuestionType,
+  options,
+  answerValue,
+  matchPairsValue,
+  blanksValue,
+  subQuestionsValue,
+  questionTextValue,
+}) => {
+  if (!isHybridBulkQuestionType(rawQuestionType)) {
+    return normalizeBulkQuestionType(rawQuestionType || 'mcq_single');
+  }
+
+  if (!isPlaceholderBulkValue(subQuestionsValue)) {
+    return 'comprehensive';
+  }
+
+  if (
+    !isPlaceholderBulkValue(matchPairsValue) ||
+    /\bmatch(?:ing)?\b|\bmatch\s+the\s+following\b/i.test(toPlainBulkText(questionTextValue))
+  ) {
+    return 'match_following';
+  }
+
+  if (
+    !isPlaceholderBulkValue(blanksValue) ||
+    /\bfill\s+in\s+the\s+blank\b/i.test(toPlainBulkText(questionTextValue))
+  ) {
+    return 'fill_in_blank';
+  }
+
+  const questionText = toPlainBulkText(questionTextValue);
+  if (/assertion/i.test(questionText) && (/\breason\b/i.test(questionText) || /\(r\)/i.test(questionText))) {
+    return 'assertion_reasoning';
+  }
+
+  if (Array.isArray(options) && options.length > 0) {
+    const answerLabels = extractOptionLabelsFromAnswer(answerValue);
+    return answerLabels.length > 1 ? 'mcq_multiple' : 'mcq_single';
+  }
+
+  if (isLikelyBulkNumericalAnswer(answerValue)) {
+    return 'numerical';
+  }
+
+  return 'short_answer';
 };
 
 const normalizeBulkPassageAction = (value) => {
@@ -1535,7 +1609,16 @@ const normalizeDocxTableRowInput = (rawRow, defaults, rowNumber) => {
     return null;
   }
 
-  const questionType = normalizeBulkQuestionType(rawRow.question_type || 'mcq_single');
+  const options = parseBulkOptionText(rawRow.options);
+  const questionType = inferHybridBulkQuestionType({
+    rawQuestionType: rawRow.question_type || 'mcq_single',
+    options,
+    answerValue: rawRow.correct_answer,
+    matchPairsValue: rawRow.match_pairs,
+    blanksValue: rawRow.blanks,
+    subQuestionsValue: rawRow.comprehensive_subquestions,
+    questionTextValue: rawRow.question_text,
+  });
   if (!VALID_QUESTION_TYPES.includes(questionType)) {
     throw new AppError(`Row ${rowNumber}: Invalid question type "${toPlainBulkText(rawRow.question_type)}"`, 400);
   }
@@ -1547,7 +1630,6 @@ const normalizeDocxTableRowInput = (rawRow, defaults, rowNumber) => {
 
   const passageHtml = toRichHtmlValue(rawRow.comprehension_passage);
 
-  const options = parseBulkOptionText(rawRow.options);
   if (questionType.startsWith('mcq') && (!options || options.length === 0)) {
     throw new AppError(`Row ${rowNumber}: Options are required for MCQ questions`, 400);
   }
