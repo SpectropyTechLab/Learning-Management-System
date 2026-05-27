@@ -44,10 +44,14 @@ const VALID_QUESTION_GROUP_TYPES = ['direction', 'direct', 'similar', 'previous_
 const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
 const isSuperAdmin = (role) => role === 'super_admin';
+const isContentAuthorizer = (role) => role === 'content_authorizer';
 const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
 const isClientAdmin = (role) => role === 'client_admin';
 const isSchoolOwner = (role) => role === 'school_owner';
 const isTeacher = (role) => role === 'teacher';
+
+const resolveOwnedQuestionBankClientId = (clientId, role) =>
+  isContentAuthorizer(role) ? PLATFORM_PROGRAM_OWNER_CLIENT_ID : clientId;
 
 const getReadableQuestionClientIds = (clientId, role) => {
   if (isPlatformAdmin(role) || !clientId) return [];
@@ -3865,7 +3869,7 @@ const buildQuestionInsertPayload = async ({ input, user, role, clientId, queryRu
   }
 
   return {
-    client_id: clientId,
+    client_id: resolveOwnedQuestionBankClientId(clientId, role),
     school_id: schoolId,
     question_type: questionType,
     question_text: questionText,
@@ -4793,7 +4797,10 @@ export const createComprehensionPassage = async (req, res) => {
     }
 
     const role = req.user.role;
-    const clientId = ensureClientScope(req.user.client_id ?? null, role);
+    const clientId = resolveOwnedQuestionBankClientId(
+      ensureClientScope(req.user.client_id ?? null, role),
+      role
+    );
     const passage = await createComprehensionPassageRecord({
       input: req.body,
       user: req.user,
@@ -5220,7 +5227,10 @@ export const createQuestionFolder = async (req, res) => {
     }
 
     const role = req.user.role;
-    let clientId = ensureClientScope(req.user.client_id ?? null, role);
+    let clientId = resolveOwnedQuestionBankClientId(
+      ensureClientScope(req.user.client_id ?? null, role),
+      role
+    );
     if (!clientId) {
       clientId = parseNullableInt(req.body.client_id, 'client_id');
       if (!clientId) {

@@ -70,9 +70,11 @@ type SectionDistributionTargets = AllocationTotals & {
 };
 
 type SectionEditorState = {
+  gradeId: string;
   subjectId: string;
   selectedChapterIds: string[];
   selectedTopicIds: string[];
+  grades: CurriculumOption[];
   subjects: CurriculumOption[];
   chapters: CurriculumOption[];
   topics: CurriculumOption[];
@@ -155,9 +157,11 @@ const PICKER_QUESTION_TYPE_LABELS: Record<string, string> = {
 };
 
 const createDefaultEditorState = (): SectionEditorState => ({
+  gradeId: "",
   subjectId: "",
   selectedChapterIds: [],
   selectedTopicIds: [],
+  grades: [],
   subjects: [],
   chapters: [],
   topics: [],
@@ -1236,6 +1240,9 @@ export default function ExamBuilderPage() {
       for (const section of preview.sections) {
         const current = previous[section.id] ?? createDefaultEditorState();
         const subjectId = current.subjectId || (section.selected_subject_id ? String(section.selected_subject_id) : "");
+        const gradeId =
+          current.gradeId ||
+          String(current.subjects.find((subject) => String(subject.id) === subjectId)?.grade_id ?? "");
         const selectedChapterIds =
           current.selectedChapterIds.length > 0
             ? current.selectedChapterIds
@@ -1252,6 +1259,7 @@ export default function ExamBuilderPage() {
 
         next[section.id] = {
           ...current,
+          gradeId,
           subjectId,
           selectedChapterIds,
           selectedTopicIds,
@@ -1294,6 +1302,12 @@ export default function ExamBuilderPage() {
       setEditors((previous) => {
         const current = previous[section.id] ?? createDefaultEditorState();
         const nextTopics = payload.topics ?? [];
+        const nextGrades = payload.grades ?? [];
+        const resolvedGradeId = nextSubjectId
+          ? String(payload.subjects?.find((subject) => String(subject.id) === nextSubjectId)?.grade_id ?? "")
+          : current.gradeId && nextGrades.some((grade) => String(grade.id) === current.gradeId)
+            ? current.gradeId
+            : "";
         const selectedTopicIds =
           nextChapterIds.length === 0
             ? []
@@ -1309,9 +1323,11 @@ export default function ExamBuilderPage() {
           ...previous,
           [section.id]: {
             ...current,
+            gradeId: resolvedGradeId,
             subjectId: nextSubjectId,
             selectedChapterIds: nextChapterIds,
             selectedTopicIds: effectiveSelectedTopicIds,
+            grades: nextGrades,
             subjects: payload.subjects ?? [],
             chapters: payload.chapters ?? [],
             topics: nextTopics,
@@ -1348,6 +1364,22 @@ export default function ExamBuilderPage() {
     }
   }, [activeEditor, activeSection, loadSectionOptions]);
 
+  const handleGradeChange = (section: ExamBuilderSection, gradeId: string) => {
+    setEditors((previous) => ({
+      ...previous,
+      [section.id]: {
+        ...(previous[section.id] ?? createDefaultEditorState()),
+        gradeId,
+        subjectId: "",
+        selectedChapterIds: [],
+        selectedTopicIds: [],
+        chapters: [],
+        topics: [],
+        allocationRows: [],
+      },
+    }));
+  };
+
   const handleReplaceQuestion = (
     section: ExamBuilderSection,
     question: GeneratedExamQuestion,
@@ -1371,10 +1403,14 @@ export default function ExamBuilderPage() {
   };
 
   const handleSubjectChange = async (section: ExamBuilderSection, subjectId: string) => {
+    const editor = editors[section.id] ?? createDefaultEditorState();
     setEditors((previous) => ({
       ...previous,
       [section.id]: {
         ...(previous[section.id] ?? createDefaultEditorState()),
+        gradeId: subjectId
+          ? String(editor.subjects.find((subject) => String(subject.id) === subjectId)?.grade_id ?? "")
+          : editor.gradeId,
         subjectId,
         selectedChapterIds: [],
         selectedTopicIds: [],
@@ -2025,16 +2061,38 @@ export default function ExamBuilderPage() {
                     </div>
                   </div>
 
-                  <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <SelectionDropdown
+                      label="Grade"
+                      placeholder="Select grade"
+                      multiple={false}
+                      values={activeEditor.gradeId ? [activeEditor.gradeId] : []}
+                      options={activeEditor.grades.map((grade) => ({
+                        value: String(grade.id),
+                        label:
+                          grade.grade_number !== undefined && grade.grade_number !== null
+                            ? `Grade ${grade.grade_number}`
+                            : grade.name,
+                      }))}
+                      onChange={(nextValues) => handleGradeChange(activeSection, nextValues[0] ?? "")}
+                    />
                     <SelectionDropdown
                       label="Subject"
                       placeholder="Select subject"
                       multiple={false}
                       values={activeEditor.subjectId ? [activeEditor.subjectId] : []}
-                      options={activeEditor.subjects.map((subject) => ({
-                        value: String(subject.id),
-                        label: subject.name,
-                      }))}
+                      options={activeEditor.subjects
+                        .filter((subject) =>
+                          !activeEditor.gradeId || String(subject.grade_id ?? "") === activeEditor.gradeId
+                        )
+                        .map((subject) => ({
+                          value: String(subject.id),
+                          label: subject.name,
+                          meta:
+                            subject.grade_number !== undefined && subject.grade_number !== null
+                              ? `Grade ${subject.grade_number}`
+                              : undefined,
+                        }))}
                       onChange={(nextValues) => void handleSubjectChange(activeSection, nextValues[0] ?? "")}
                     />
 

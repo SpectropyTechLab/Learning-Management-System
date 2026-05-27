@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import TeachingSessionsShell from '@/features/teaching-sessions/components/TeachingSessionsShell';
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import StatusBadge from '@/features/teaching-sessions/components/StatusBadge';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
 import type { ClientEntitlement, ProgramOption } from '@/features/teaching-sessions/types';
+import SuperAdminShell from '@/pages/dashboard/superadmin/components/SuperAdminShell';
 
 type ClientOption = {
   id: number;
@@ -173,7 +173,7 @@ export default function ClientEntitlementsPage() {
   const selectedClient = clients.find((client) => Number(client.id) === Number(clientId)) ?? null;
 
   return (
-    <TeachingSessionsShell
+    <SuperAdminShell
       title="Tracker Entitlements"
       subtitle="Enable Teacher Session Tracker for a client and select the programs that client can use."
     >
@@ -343,6 +343,6 @@ export default function ClientEntitlementsPage() {
           </div>
         </SectionCard>
       </div>
-    </TeachingSessionsShell>
+    </SuperAdminShell>
   );
 }

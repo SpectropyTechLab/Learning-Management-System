@@ -186,7 +186,7 @@ export default function AppRoutes() {
       </Route>
 
       {/* Content Authorizer */}
-      <Route element={<Protect roles={['content_authorizer', 'super_admin']} />}>
+      <Route element={<Protect roles={['content_authorizer']} />}>
         <Route path="/content-authorizer/dashboard" element={<ContentAuthorizerDashboard />} />
         <Route path="/content-authorizer/courses" element={<ContentAuthorizerCourses />} />
         <Route path="/content-authorizer/packs" element={<ContentAuthorizerPacksPage />} />
@@ -242,7 +242,7 @@ export default function AppRoutes() {
         <Route path="/teacher/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
       </Route>
 
-      <Route element={<Protect roles={['super_admin', 'client_admin']} />}>
+      <Route element={<Protect roles={['client_admin']} />}>
         <Route path="/admin/teaching-sessions/setup" element={<TeachingSessionSetupPage />} />
         <Route path="/admin/teaching-sessions/permissions" element={<TeacherTrackerPermissionsPage />} />
         <Route path="/admin/teaching-sessions/sessions" element={<TeachingSessionsListPage />} />

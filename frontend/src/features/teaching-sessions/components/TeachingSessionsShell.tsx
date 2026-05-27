@@ -53,7 +53,7 @@ export default function TeachingSessionsShell({
       },
     ];
 
-    if (role === 'content_authorizer' || role === 'super_admin') {
+    if (role === 'content_authorizer') {
       items.push(
         {
           key: 'micro',
@@ -89,7 +89,7 @@ export default function TeachingSessionsShell({
       });
     }
 
-    if (role === 'client_admin' || role === 'super_admin') {
+    if (role === 'client_admin') {
       items.push(
         {
           key: 'setup',
@@ -206,9 +206,6 @@ export default function TeachingSessionsShell({
                 Menu
               </button>
               <div>
-                <p className="mb-2 text-sm font-semibold text-red-600">
-                  Teacher Session Tracker will be accessed from June 1. All the best for the academic year.
-                </p>
                 <h1 className="text-xl font-bold text-slate-900 md:text-2xl">{title}</h1>
                 {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
               </div>

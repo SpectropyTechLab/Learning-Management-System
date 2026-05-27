@@ -1113,6 +1113,21 @@ const fetchSubjectsForProgram = async ({ programId, clientId }) => {
   return result.rows;
 };
 
+const fetchGradesForProgram = async ({ programId, clientId }) => {
+  const result = await dbQuery(
+    `
+      SELECT g.*, p.client_id
+      FROM grades g
+      JOIN programs p ON p.id = g.program_id
+      WHERE g.program_id = $1
+        AND ($2::int IS NULL OR p.client_id = $2)
+      ORDER BY g.grade_number, g.id
+    `,
+    [programId, clientId]
+  );
+  return result.rows;
+};
+
 const ensureSubjectWithinProgram = async ({ subjectId, programId, clientId }) => {
   const result = await dbQuery(
     `
@@ -5472,6 +5487,10 @@ export const getExamSectionSyllabusOptions = async (req, res) => {
       ? parsePositiveIntArray(String(req.query.chapter_ids).split(',').filter(Boolean), 'chapter_ids')
       : [];
 
+    const grades = await fetchGradesForProgram({
+      programId: Number(exam.program_id),
+      clientId,
+    });
     const subjects = await fetchSubjectsForProgram({
       programId: Number(exam.program_id),
       clientId,
@@ -5497,6 +5516,7 @@ export const getExamSectionSyllabusOptions = async (req, res) => {
       program_id: Number(exam.program_id),
       section_id: Number(section.id),
       selected_subject_id: section.selected_subject_id ? Number(section.selected_subject_id) : null,
+      grades,
       subjects,
       chapters,
       topics,

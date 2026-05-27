@@ -146,6 +146,7 @@ export interface ExamSectionSyllabusOptions {
   program_id: number;
   section_id: number;
   selected_subject_id: number | null;
+  grades: CurriculumOption[];
   subjects: CurriculumOption[];
   chapters: CurriculumOption[];
   topics: CurriculumOption[];
