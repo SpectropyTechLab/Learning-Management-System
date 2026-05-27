@@ -68,6 +68,27 @@ export default function SuperAdminShell({
         onClick: () => navigate('/superadmin/entitlements'),
       },
       {
+        key: 'tracker-entitlements',
+        label: 'Tracker Entitlements',
+        icon: <RiFileList3Line />,
+        active: isActive('/superadmin/teaching-sessions/entitlements'),
+        onClick: () => navigate('/superadmin/teaching-sessions/entitlements'),
+      },
+      {
+        key: 'question-bank-entitlements',
+        label: 'Question Bank Entitlements',
+        icon: <RiFileList3Line />,
+        active: isActive('/superadmin/question-bank/entitlements'),
+        onClick: () => navigate('/superadmin/question-bank/entitlements'),
+      },
+      {
+        key: 'exam-entitlements',
+        label: 'Exam Entitlements',
+        icon: <RiFileList3Line />,
+        active: isActive('/superadmin/exams/entitlements'),
+        onClick: () => navigate('/superadmin/exams/entitlements'),
+      },
+      {
         key: 'users',
         label: 'Users',
         icon: <PiUsersBold />,

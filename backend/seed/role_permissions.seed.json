@@ -29,6 +29,18 @@
     "schools.delete",
     "schools.read",
     "schools.update",
+    "teaching_sessions.analytics_client",
+    "teaching_sessions.analytics_own",
+    "teaching_sessions.analytics_school",
+    "teaching_sessions.assign_teacher",
+    "teaching_sessions.client_setup",
+    "teaching_sessions.feature_enable",
+    "teaching_sessions.program_publish",
+    "teaching_sessions.program_upload",
+    "teaching_sessions.read_client",
+    "teaching_sessions.read_own",
+    "teaching_sessions.read_school",
+    "teaching_sessions.update_own",
     "users.create",
     "users.delete",
     "users.read",
@@ -104,6 +116,16 @@
       "role": "content_authorizer",
       "permission": "courses.publish",
       "granted": true
+    },
+    {
+      "role": "content_authorizer",
+      "permission": "teaching_sessions.program_upload",
+      "granted": true
+    },
+    {
+      "role": "content_authorizer",
+      "permission": "teaching_sessions.program_publish",
+      "granted": true
     }
   ],
   "tenant_permissions": [
@@ -158,6 +180,26 @@
       "granted": true
     },
     {
+      "role": "client_admin",
+      "permission": "teaching_sessions.client_setup",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "teaching_sessions.assign_teacher",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "teaching_sessions.read_client",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "teaching_sessions.analytics_client",
+      "granted": true
+    },
+    {
       "role": "school_owner",
       "permission": "questions.read",
       "granted": true
@@ -208,6 +250,16 @@
       "granted": true
     },
     {
+      "role": "school_owner",
+      "permission": "teaching_sessions.read_school",
+      "granted": true
+    },
+    {
+      "role": "school_owner",
+      "permission": "teaching_sessions.analytics_school",
+      "granted": true
+    },
+    {
       "role": "teacher",
       "permission": "questions.read",
       "granted": true
@@ -235,6 +287,21 @@
     {
       "role": "teacher",
       "permission": "exams.publish",
+      "granted": true
+    },
+    {
+      "role": "teacher",
+      "permission": "teaching_sessions.read_own",
+      "granted": true
+    },
+    {
+      "role": "teacher",
+      "permission": "teaching_sessions.update_own",
+      "granted": true
+    },
+    {
+      "role": "teacher",
+      "permission": "teaching_sessions.analytics_own",
       "granted": true
     }
   ]

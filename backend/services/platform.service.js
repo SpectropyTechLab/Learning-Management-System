@@ -10,6 +10,8 @@ const parseNullableInt = (value, fieldName) => {
   return parsed;
 };
 
+const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
+
 // ----- Clients (Super Admin only) -----
 export const listClients = async (req, res) => {
   try {
@@ -217,6 +219,34 @@ export const removeContentPackItem = async (req, res) => {
   } catch (err) {
     console.error('Failed to remove content pack item:', err);
     res.status(500).json({ error: 'Failed to remove content pack item' });
+  }
+};
+
+// ----- Programs (Super Admin only) -----
+export const listPrograms = async (req, res) => {
+  try {
+    const clientId = parseNullableInt(req.query?.client_id, 'client_id');
+    const params = [];
+    let query = `
+      SELECT id, client_id, name, code, is_active, created_at, updated_at
+      FROM programs
+    `;
+
+    if (clientId) {
+      params.push(clientId, PLATFORM_PROGRAM_OWNER_CLIENT_ID);
+      query += `
+        WHERE client_id = $1
+           OR client_id = $2
+      `;
+    }
+
+    query += ` ORDER BY name ASC, id ASC`;
+
+    const result = await dbQuery(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Failed to load programs:', err);
+    res.status(500).json({ error: 'Failed to load programs' });
   }
 };
 

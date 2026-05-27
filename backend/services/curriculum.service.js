@@ -7,6 +7,9 @@ import {
   requireString,
 } from '../schemas/curriculum.schema.js';
 import * as curriculumRepo from '../repositories/curriculum.repository.js';
+import { getEnabledProgramIdsIfFeatureEnabled } from './moduleEntitlements.service.js';
+
+const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
 const resolveClientId = (user, sourceClientId) => {
   if (user?.role === 'super_admin') {
@@ -26,6 +29,15 @@ const ensureClientAccess = (ownerClientId, requester) => {
   }
 };
 
+const getReadableSharedProgramIds = async (clientId) => {
+  if (!clientId) return [];
+  const [questionBankProgramIds, examProgramIds] = await Promise.all([
+    getEnabledProgramIdsIfFeatureEnabled('question_bank', clientId),
+    getEnabledProgramIdsIfFeatureEnabled('exams', clientId),
+  ]);
+  return Array.from(new Set([...questionBankProgramIds, ...examProgramIds])).filter((value) => Number.isInteger(value));
+};
+
 const generateProgramCode = (name) =>
   String(name || '')
     .trim()
@@ -36,14 +48,16 @@ const generateProgramCode = (name) =>
 
 export const listPrograms = async ({ user, query }) => {
   const clientId = resolveClientId(user, query?.client_id);
-  const result = await curriculumRepo.fetchPrograms(clientId || null);
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchPrograms(clientId || null, sharedProgramIds);
   return result.rows;
 };
 
 export const getProgram = async ({ user, params }) => {
   const id = parseRequiredInt(params?.id, 'id');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchProgramById(id, clientId || null);
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchProgramById(id, clientId || null, sharedProgramIds);
   if (result.rows.length === 0) {
     throw new AppError('Program not found', 404);
   }
@@ -109,14 +123,16 @@ export const deleteProgram = async ({ user, params }) => {
 export const listGrades = async ({ user, params }) => {
   const programId = parseRequiredInt(params?.programId, 'programId');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchGradesByProgram({ programId, clientId });
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchGradesByProgram({ programId, clientId, sharedProgramIds });
   return result.rows;
 };
 
 export const getGrade = async ({ user, params }) => {
   const id = parseRequiredInt(params?.id, 'id');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchGradeById({ id, clientId });
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchGradeById({ id, clientId, sharedProgramIds });
   if (result.rows.length === 0) {
     throw new AppError('Grade not found', 404);
   }
@@ -185,21 +201,24 @@ export const deleteGrade = async ({ user, params }) => {
 export const listSubjects = async ({ user, query }) => {
   const clientId = resolveClientId(user, query?.client_id);
   const gradeId = parseNullableInt(query?.grade_id, 'grade_id');
-  const result = await curriculumRepo.fetchSubjects(clientId || null, gradeId);
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchSubjects(clientId || null, gradeId, sharedProgramIds);
   return result.rows;
 };
 
 export const listSubjectsByGrade = async ({ user, params }) => {
   const gradeId = parseRequiredInt(params?.gradeId, 'gradeId');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchSubjectsByGrade({ gradeId, clientId });
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchSubjectsByGrade({ gradeId, clientId, sharedProgramIds });
   return result.rows;
 };
 
 export const getSubject = async ({ user, params }) => {
   const id = parseRequiredInt(params?.id, 'id');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchSubjectById(id, clientId || null);
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchSubjectById(id, clientId || null, sharedProgramIds);
   if (result.rows.length === 0) {
     throw new AppError('Subject not found', 404);
   }
@@ -296,14 +315,16 @@ export const deleteSubject = async ({ user, params }) => {
 export const listChapters = async ({ user, params }) => {
   const subjectId = parseRequiredInt(params?.subjectId, 'subjectId');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchChaptersBySubject({ subjectId, clientId });
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchChaptersBySubject({ subjectId, clientId, sharedProgramIds });
   return result.rows;
 };
 
 export const getChapter = async ({ user, params }) => {
   const id = parseRequiredInt(params?.id, 'id');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchChapterById({ id, clientId });
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchChapterById({ id, clientId, sharedProgramIds });
   if (result.rows.length === 0) {
     throw new AppError('Chapter not found', 404);
   }
@@ -377,14 +398,16 @@ export const deleteChapter = async ({ user, params }) => {
 export const listTopics = async ({ user, params }) => {
   const chapterId = parseRequiredInt(params?.chapterId, 'chapterId');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchTopicsByChapter({ chapterId, clientId });
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchTopicsByChapter({ chapterId, clientId, sharedProgramIds });
   return result.rows;
 };
 
 export const getTopic = async ({ user, params }) => {
   const id = parseRequiredInt(params?.id, 'id');
   const clientId = user?.role === 'super_admin' ? null : user?.client_id;
-  const result = await curriculumRepo.fetchTopicById({ id, clientId });
+  const sharedProgramIds = user?.role === 'super_admin' ? [] : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchTopicById({ id, clientId, sharedProgramIds });
   if (result.rows.length === 0) {
     throw new AppError('Topic not found', 404);
   }

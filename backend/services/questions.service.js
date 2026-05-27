@@ -24,6 +24,7 @@ import {
   WidthType,
   BorderStyle,
 } from 'docx';
+import { getEnabledProgramIdsForModule } from './moduleEntitlements.service.js';
 
 const VALID_QUESTION_TYPES = [
   'mcq_single',
@@ -40,12 +41,41 @@ const VALID_DIFFICULTY_LEVELS = ['easy', 'medium', 'hard'];
 const VALID_STATUSES = ['draft', 'approved', 'rejected', 'archived'];
 const VALID_SCORING_MODES = ['all_or_nothing', 'partial', 'mixed'];
 const VALID_QUESTION_GROUP_TYPES = ['direction', 'direct', 'similar', 'previous_year', 'reference'];
+const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
 const isSuperAdmin = (role) => role === 'super_admin';
 const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
 const isClientAdmin = (role) => role === 'client_admin';
 const isSchoolOwner = (role) => role === 'school_owner';
 const isTeacher = (role) => role === 'teacher';
+
+const getReadableQuestionClientIds = (clientId, role) => {
+  if (isPlatformAdmin(role) || !clientId) return [];
+  return Array.from(new Set([Number(clientId), PLATFORM_PROGRAM_OWNER_CLIENT_ID]));
+};
+
+const appendQuestionBankProgramConditions = async ({ conditions, params, user }) => {
+  if (isPlatformAdmin(user?.role)) return;
+  const clientId = user?.client_id ?? null;
+  if (!clientId) return;
+
+  const entitledProgramIds = await getEnabledProgramIdsForModule('question_bank', clientId);
+  if (entitledProgramIds.length === 0) {
+    conditions.push('1 = 0');
+    return;
+  }
+
+  params.push(entitledProgramIds);
+  conditions.push(
+    `EXISTS (
+      SELECT 1
+      FROM subjects entitled_subjects
+      JOIN grades entitled_grades ON entitled_grades.id = entitled_subjects.grade_id
+      WHERE entitled_subjects.id = q.subject_id
+        AND entitled_grades.program_id = ANY($${params.length})
+    )`
+  );
+};
 
 const getQueryRunner = (queryRunner = dbQuery) =>
   typeof queryRunner === 'function' ? queryRunner : queryRunner.query.bind(queryRunner);
@@ -175,7 +205,7 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
   };
 
   if (clientId) {
-    conditions.push(`q.client_id = ${addParam(clientId)}`);
+    conditions.push(`q.client_id = ANY(${addParam(getReadableQuestionClientIds(clientId, role))})`);
   }
 
   const isScopedBySchool = isTeacher(role) || isSchoolOwner(role);
@@ -244,6 +274,11 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
         WHERE s.id = q.subject_id AND g.program_id = ${addParam(programId)}
       )`
     );
+  }
+
+  await appendQuestionBankProgramConditions({ conditions, params, user });
+  if (clientId) {
+    conditions.push(`(q.client_id <> ${PLATFORM_PROGRAM_OWNER_CLIENT_ID} OR q.status = 'approved')`);
   }
 
   if (query.question_type) {
@@ -4264,8 +4299,8 @@ export const getQuestionById = async (req, res) => {
     const params = [id];
 
     if (clientId) {
-      conditions.push(`q.client_id = $${params.length + 1}`);
-      params.push(clientId);
+      conditions.push(`q.client_id = ANY($${params.length + 1})`);
+      params.push(getReadableQuestionClientIds(clientId, role));
     }
 
     if (isTeacher(role) || isSchoolOwner(role)) {
@@ -4297,6 +4332,20 @@ export const getQuestionById = async (req, res) => {
     const result = await dbQuery(query, params);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Question not found' });
+    }
+
+    if (!isPlatformAdmin(role)) {
+      const entitledProgramIds = await getEnabledProgramIdsForModule('question_bank', req.user.client_id);
+      const questionProgramId = result.rows[0]?.program_id ? Number(result.rows[0].program_id) : null;
+      if (!questionProgramId || !entitledProgramIds.includes(questionProgramId)) {
+        return res.status(403).json({ error: 'Client is not entitled to this program' });
+      }
+      if (
+        Number(result.rows[0]?.client_id) === PLATFORM_PROGRAM_OWNER_CLIENT_ID &&
+        result.rows[0]?.status !== 'approved'
+      ) {
+        return res.status(403).json({ error: 'Only approved shared questions can be viewed' });
+      }
     }
 
     const [hydrated] = await attachComprehensionSummaries(result.rows);

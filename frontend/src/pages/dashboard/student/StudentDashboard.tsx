@@ -182,7 +182,6 @@ export default function StudentDashboard() {
                 mode="student"
                 role={user?.role}
                 theme={theme}
-                isGvjbClient={false}
                 brandLogo={brandLogo}
                 brandName={brandName}
                 courseBannerClass="bg-blue-50"

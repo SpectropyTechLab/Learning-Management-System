@@ -36,6 +36,10 @@ import {
   MathSubScript,
   MathSubSuperScript,
 } from 'docx';
+import {
+  ensureProgramEntitledForModule,
+  getEnabledProgramIdsForModule,
+} from './moduleEntitlements.service.js';
 
 const VALID_EXAM_STATUSES = ['draft', 'published', 'active', 'completed'];
 const VALID_BLUEPRINT_STATUSES = ['active', 'inactive', 'archived'];
@@ -233,6 +237,21 @@ const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_au
 const isClientAdmin = (role) => role === 'client_admin';
 const isSchoolOwner = (role) => role === 'school_owner';
 const isTeacher = (role) => role === 'teacher';
+
+const appendExamProgramConditions = async ({ conditions, params, user }) => {
+  if (isPlatformAdmin(user?.role)) return;
+  const clientId = user?.client_id ?? null;
+  if (!clientId) return;
+
+  const entitledProgramIds = await getEnabledProgramIdsForModule('exams', clientId);
+  if (entitledProgramIds.length === 0) {
+    conditions.push('1 = 0');
+    return;
+  }
+
+  params.push(entitledProgramIds);
+  conditions.push(`e.program_id = ANY($${params.length})`);
+};
 
 const parseBoolean = (value, fieldName) => {
   if (value === undefined || value === null || value === '') return null;
@@ -761,6 +780,8 @@ const buildExamWhere = async ({ user, query }) => {
     }
   }
 
+  await appendExamProgramConditions({ conditions, params, user });
+
   return { conditions, params };
 };
 
@@ -784,6 +805,9 @@ const getExamByIdForAccess = async ({ examId, user, requireOwner = false }) => {
     const clientId = user?.client_id;
     if (!clientId || Number(exam.client_id) !== Number(clientId)) {
       throw new AppError('Exam not found', 404);
+    }
+    if (exam.program_id) {
+      await ensureProgramEntitledForModule('exams', clientId, Number(exam.program_id));
     }
   }
 
@@ -4939,6 +4963,9 @@ export const createExam = async (req, res) => {
 
     if (programId) {
       await ensureProgramAccess({ programId, user: req.user, clientId: Number(clientId) });
+      if (!isPlatformAdmin(req.user.role)) {
+        await ensureProgramEntitledForModule('exams', Number(clientId), programId);
+      }
     }
 
     let blueprint = null;
@@ -5207,6 +5234,9 @@ export const updateExam = async (req, res) => {
       const programId = parseNullableInt(req.body.program_id, 'program_id');
       if (programId) {
         await ensureProgramAccess({ programId, user: req.user, clientId: Number(exam.client_id) });
+        if (!isPlatformAdmin(req.user.role)) {
+          await ensureProgramEntitledForModule('exams', Number(exam.client_id), programId);
+        }
       }
       addUpdate('program_id', programId);
     }

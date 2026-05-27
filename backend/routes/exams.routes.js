@@ -33,19 +33,24 @@ import {
   finalizeExamBlueprint,
 } from '../controllers/exams.controller.js';
 import { authenticateToken, attachClientContext, loadPermissions, checkPermission } from '../middleware/auth.js';
+import {
+  requireExamFeatureEntitlement,
+  requireExamProgramEntitlement,
+} from '../middleware/moduleEntitlements.js';
 
 const router = Router();
 
 router.use(
   authenticateToken,
   attachClientContext,
-  loadPermissions
+  loadPermissions,
+  requireExamFeatureEntitlement
 );
 
-router.get('/exams', checkPermission('exams.read'), listExams);
-router.get('/exams/:id', checkPermission('exams.read'), getExamById);
-router.post('/exams', checkPermission('exams.create'), createExam);
-router.put('/exams/:id', checkPermission('exams.update'), updateExam);
+router.get('/exams', requireExamProgramEntitlement, checkPermission('exams.read'), listExams);
+router.get('/exams/:id', requireExamProgramEntitlement, checkPermission('exams.read'), getExamById);
+router.post('/exams', requireExamProgramEntitlement, checkPermission('exams.create'), createExam);
+router.put('/exams/:id', requireExamProgramEntitlement, checkPermission('exams.update'), updateExam);
 router.delete('/exams/:id', checkPermission('exams.delete'), deleteExam);
 
 router.get('/blueprints', checkPermission('exams.read'), listBlueprints);
@@ -54,27 +59,27 @@ router.post('/blueprints', checkPermission('exams.create'), createBlueprint);
 router.put('/blueprints/:id', checkPermission('exams.update'), updateBlueprint);
 router.delete('/blueprints/:id', checkPermission('exams.delete'), deleteBlueprint);
 
-router.post('/exams/:id/sections', checkPermission('exams.update'), createExamSection);
-router.put('/exams/:id/sections/:sectionId', checkPermission('exams.update'), updateExamSection);
-router.delete('/exams/:id/sections/:sectionId', checkPermission('exams.update'), deleteExamSection);
-router.get('/exams/:id/sections/:sectionId/syllabus-options', checkPermission('exams.read'), getExamSectionSyllabusOptions);
-router.put('/exams/:id/sections/:sectionId/configure', checkPermission('exams.update'), configureExamSectionSyllabus);
-router.get('/exams/:id/sections/:sectionId/generation-plan', checkPermission('exams.read'), previewExamSectionGeneration);
-router.post('/exams/:id/sections/:sectionId/generate', checkPermission('exams.update'), generateExamSectionQuestions);
-router.get('/exams/:id/preview', checkPermission('exams.read'), getExamPreview);
-router.get('/exams/:id/preview-docx', checkPermission('exams.read'), downloadExamPreviewDocx);
-router.get('/exams/:id/preview/docx/questions', checkPermission('exams.read'), downloadExamPreviewQuestionsDocx);
-router.get('/exams/:id/preview/docx/answers', checkPermission('exams.read'), downloadExamPreviewAnswersDocx);
-router.get('/exams/:id/preview/docx/solutions', checkPermission('exams.read'), downloadExamPreviewSolutionsDocx);
-router.post('/exams/:id/finalize', checkPermission('exams.update'), finalizeExamBlueprint);
+router.post('/exams/:id/sections', requireExamProgramEntitlement, checkPermission('exams.update'), createExamSection);
+router.put('/exams/:id/sections/:sectionId', requireExamProgramEntitlement, checkPermission('exams.update'), updateExamSection);
+router.delete('/exams/:id/sections/:sectionId', requireExamProgramEntitlement, checkPermission('exams.update'), deleteExamSection);
+router.get('/exams/:id/sections/:sectionId/syllabus-options', requireExamProgramEntitlement, checkPermission('exams.read'), getExamSectionSyllabusOptions);
+router.put('/exams/:id/sections/:sectionId/configure', requireExamProgramEntitlement, checkPermission('exams.update'), configureExamSectionSyllabus);
+router.get('/exams/:id/sections/:sectionId/generation-plan', requireExamProgramEntitlement, checkPermission('exams.read'), previewExamSectionGeneration);
+router.post('/exams/:id/sections/:sectionId/generate', requireExamProgramEntitlement, checkPermission('exams.update'), generateExamSectionQuestions);
+router.get('/exams/:id/preview', requireExamProgramEntitlement, checkPermission('exams.read'), getExamPreview);
+router.get('/exams/:id/preview-docx', requireExamProgramEntitlement, checkPermission('exams.read'), downloadExamPreviewDocx);
+router.get('/exams/:id/preview/docx/questions', requireExamProgramEntitlement, checkPermission('exams.read'), downloadExamPreviewQuestionsDocx);
+router.get('/exams/:id/preview/docx/answers', requireExamProgramEntitlement, checkPermission('exams.read'), downloadExamPreviewAnswersDocx);
+router.get('/exams/:id/preview/docx/solutions', requireExamProgramEntitlement, checkPermission('exams.read'), downloadExamPreviewSolutionsDocx);
+router.post('/exams/:id/finalize', requireExamProgramEntitlement, checkPermission('exams.update'), finalizeExamBlueprint);
 
-router.post('/exams/:id/sections/:sectionId/questions', checkPermission('exams.update'), addQuestionToSection);
-router.delete('/exams/:id/sections/:sectionId/questions/:questionId', checkPermission('exams.update'), removeQuestionFromSection);
-router.delete('/exams/:id/sections/:sectionId/questions/group/:groupType', checkPermission('exams.update'), clearQuestionGroupFromSection);
-router.put('/exams/:id/sections/:sectionId/questions/replace', checkPermission('exams.update'), replaceQuestionInSection);
-router.post('/exams/:id/publish', checkPermission('exams.publish'), publishExam);
-router.get('/exams/:id/results', checkPermission('exams.read'), getExamResults);
-router.get('/exams/:id/courses', checkPermission('exams.read'), getExamAssignedCourses);
-router.put('/exams/:id/courses', checkPermission('exams.update'), assignExamCourses);
+router.post('/exams/:id/sections/:sectionId/questions', requireExamProgramEntitlement, checkPermission('exams.update'), addQuestionToSection);
+router.delete('/exams/:id/sections/:sectionId/questions/:questionId', requireExamProgramEntitlement, checkPermission('exams.update'), removeQuestionFromSection);
+router.delete('/exams/:id/sections/:sectionId/questions/group/:groupType', requireExamProgramEntitlement, checkPermission('exams.update'), clearQuestionGroupFromSection);
+router.put('/exams/:id/sections/:sectionId/questions/replace', requireExamProgramEntitlement, checkPermission('exams.update'), replaceQuestionInSection);
+router.post('/exams/:id/publish', requireExamProgramEntitlement, checkPermission('exams.publish'), publishExam);
+router.get('/exams/:id/results', requireExamProgramEntitlement, checkPermission('exams.read'), getExamResults);
+router.get('/exams/:id/courses', requireExamProgramEntitlement, checkPermission('exams.read'), getExamAssignedCourses);
+router.put('/exams/:id/courses', requireExamProgramEntitlement, checkPermission('exams.update'), assignExamCourses);
 
 export default router;

@@ -23,6 +23,9 @@ import orgRoutes from './routes/org.routes.js';
 import curriculumRoutes from './routes/curriculum.routes.js';
 import questionsRoutes from './routes/questions.routes.js';
 import examsRoutes from './routes/exams.routes.js';
+import teachingSessionsRoutes from './routes/teachingSessions.routes.js';
+import questionBankEntitlementsRoutes from './routes/questionBankEntitlements.routes.js';
+import examEntitlementsRoutes from './routes/examEntitlements.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
 import { startAttemptExpiryCron } from './services/student.service.js';
@@ -189,12 +192,15 @@ app.use('/api/course', CourseRouter);
 
 app.use('/api/users', userRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/platform', questionBankEntitlementsRoutes);
+app.use('/api/platform', examEntitlementsRoutes);
 app.use('/api', clientContentRoutes);
 app.use('/api/org', orgRoutes);
 app.use('/api', curriculumRoutes);
 app.use('/api', questionsRoutes);
 app.use('/api', examsRoutes);
 app.use('/api', packBuilderRoutes);
+app.use('/api', teachingSessionsRoutes);
 
 
 

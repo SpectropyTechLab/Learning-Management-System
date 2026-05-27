@@ -4,9 +4,8 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold } from "react-icons/pi";
 import AdminCourseManager from "@/features/courses/components/list/AdminCourseManager";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
@@ -62,11 +61,11 @@ export default function SchoolOwnerCourses() {
         }]
       : []),
     {
-      key: "users",
-      label: "Users",
-      icon: <PiUsersBold />,
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => { },
+      onClick: () => navigate("/school-owner/teaching-sessions/analytics"),
     },
   ];
 

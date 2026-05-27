@@ -4,9 +4,9 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
-import { RiHome2Line, RiFileList3Line, RiStackLine } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line, RiStackLine } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold, PiChatsCircleBold } from "react-icons/pi";
+import { PiChatsCircleBold } from "react-icons/pi";
 import AdminCourseManager from "@/features/courses/components/list/AdminCourseManager";
 
 export default function ContentAuthorizerCourses() {
@@ -48,18 +48,11 @@ export default function ContentAuthorizerCourses() {
       onClick: () => navigate("/content-authorizer/packs"),
     },
     {
-      key: "users",
-      label: "Users",
-      icon: <PiUsersBold />,
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => { },
-    },
-    {
-      key: "community",
-      label: "Community",
-      icon: <PiChatsCircleBold />,
-      active: false,
-      onClick: () => { },
+      onClick: () => navigate("/content-authorizer/teaching-sessions/micro-schedules"),
     },
   ];
 

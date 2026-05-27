@@ -5,9 +5,8 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold } from 'react-icons/pi';
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
@@ -67,11 +66,11 @@ export default function TeacherHome() {
         }]
       : []),
     {
-      key: "users",
-      label: "Students",
-      icon: <PiUsersBold />,
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => { },
+      onClick: () => navigate("/teacher/teaching-sessions"),
     },
   ];
 

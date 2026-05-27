@@ -4,11 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
 import spectropyLogo from "/logo.png";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold } from 'react-icons/pi';
 import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
-import UserManagement from './UserManagement';
 import DashboardHome from './Home';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
@@ -47,7 +45,7 @@ export default function CourseStudents() {
   const questionPermissions = getQuestionPermissions(user);
   const examPermissions = getExamPermissions(user);
 
-  const [activeTab, setActiveTab] = useState<'courses' | 'home' | 'users'>('home');
+  const [activeTab, setActiveTab] = useState<'courses' | 'home'>('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -96,6 +94,15 @@ export default function CourseStudents() {
           onClick: () => navigate('/admin/licensed-content'),
         }]
       : []),
+    ...(user?.role === 'client_admin'
+      ? [{
+          key: 'teaching-sessions',
+          label: 'Teacher Session Tracker',
+          icon: <RiCalendarCheckLine />,
+          active: false,
+          onClick: () => navigate('/admin/teaching-sessions/setup'),
+        }]
+      : []),
     ...(questionPermissions.canView
       ? [{
           key: 'question-bank',
@@ -114,13 +121,6 @@ export default function CourseStudents() {
           onClick: () => navigate('/exams'),
         }]
       : []),
-    {
-      key: 'users',
-      label: 'Users',
-      icon: <PiUsersBold />,
-      active: activeTab === 'users',
-      onClick: () => setActiveTab('users'),
-    },
   ];
 
   const handleBackToLogin = async () => {
@@ -166,7 +166,7 @@ export default function CourseStudents() {
               <h1 className="text-xl md:text-2xl font-bold">
                 {activeTab === 'courses' && 'Courses'}
                 {activeTab === 'home' && homeTitle}
-                {activeTab === 'users' && 'User Management'}
+                
               </h1>
 
               <p
@@ -175,7 +175,7 @@ export default function CourseStudents() {
                 {activeTab === 'courses' &&
                   'Set up your courses and share your knowledge.'}
                 {activeTab === 'home' && 'Key metrics at a glance'}
-                {activeTab === 'users' && 'Manage your users and their activities.'}
+                
               </p>
             </div>
           </div>
@@ -214,7 +214,6 @@ export default function CourseStudents() {
 
         {activeTab === 'home' && <DashboardHome />}
 
-        {activeTab === 'users' && <UserManagement />}
       </div>
     </DashboardLayout>
   );

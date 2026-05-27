@@ -10,6 +10,7 @@ import {
   deactivateContentPack,
   addContentPackItems,
   removeContentPackItem,
+  listPrograms,
   listEntitlements,
   createEntitlement,
   updateEntitlement,
@@ -34,6 +35,9 @@ router.patch('/content-packs/:id', requireRole(['super_admin', 'content_authoriz
 router.delete('/content-packs/:id', requireRole(['super_admin', 'content_authorizer']), deactivateContentPack);
 router.post('/content-packs/:id/items', requireRole(['super_admin', 'content_authorizer']), addContentPackItems);
 router.delete('/content-packs/:id/items/:contentId', requireRole(['super_admin', 'content_authorizer']), removeContentPackItem);
+
+// Programs (super_admin)
+router.get('/programs', requireRole(['super_admin']), listPrograms);
 
 // Entitlements (super_admin, content_authorizer)
 router.get('/entitlements', requireRole(['super_admin', 'content_authorizer']), listEntitlements);

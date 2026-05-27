@@ -15,6 +15,8 @@ import ClientsPage from '@/pages/dashboard/superadmin/ClientsPage';
 import PacksPage from '@/pages/dashboard/superadmin/PacksPage';
 import PackManagePage from '@/pages/dashboard/superadmin/PackManagePage';
 import EntitlementsPage from '@/pages/dashboard/superadmin/EntitlementsPage';
+import QuestionBankEntitlementsPage from '@/pages/dashboard/superadmin/QuestionBankEntitlementsPage';
+import ExamEntitlementsPage from '@/pages/dashboard/superadmin/ExamEntitlementsPage';
 import UsersPage from '@/pages/dashboard/superadmin/UsersPage';
 import PermissionsPage from '@/pages/dashboard/superadmin/PermissionsPage';
 
@@ -86,6 +88,16 @@ import ExamBuilderPage from '@/pages/exams/ExamBuilderPage';
 import ExamPaperPreviewPage from '@/pages/exams/ExamPaperPreviewPage';
 import ExamSectionQuestionsPage from '@/pages/exams/ExamSectionQuestionsPage';
 import BlueprintsPage from '@/pages/exams/BlueprintsPage';
+import ProgramMicroScheduleUploadPage from '@/pages/teaching-sessions/ProgramMicroScheduleUploadPage';
+import ProgramLessonPlannerUploadPage from '@/pages/teaching-sessions/ProgramLessonPlannerUploadPage';
+import ProgramTemplateMappingPage from '@/pages/teaching-sessions/ProgramTemplateMappingPage';
+import ClientEntitlementsPage from '@/pages/teaching-sessions/ClientEntitlementsPage';
+import TeachingSessionSetupPage from '@/pages/teaching-sessions/TeachingSessionSetupPage';
+import TeacherTrackerPermissionsPage from '@/pages/teaching-sessions/TeacherTrackerPermissionsPage';
+import TeachingSessionsListPage from '@/pages/teaching-sessions/TeachingSessionsListPage';
+import MyTeachingSessionsPage from '@/pages/teaching-sessions/MyTeachingSessionsPage';
+import TeachingSessionDetailPage from '@/pages/teaching-sessions/TeachingSessionDetailPage';
+import TeachingSessionAnalyticsPage from '@/pages/teaching-sessions/TeachingSessionAnalyticsPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -121,6 +133,9 @@ export default function AppRoutes() {
         <Route path="/superadmin/packs" element={<PacksPage />} />
         <Route path="/superadmin/packs/:packId" element={<PackManagePage />} />
         <Route path="/superadmin/entitlements" element={<EntitlementsPage />} />
+        <Route path="/superadmin/question-bank/entitlements" element={<QuestionBankEntitlementsPage />} />
+        <Route path="/superadmin/exams/entitlements" element={<ExamEntitlementsPage />} />
+        <Route path="/superadmin/teaching-sessions/entitlements" element={<ClientEntitlementsPage />} />
         <Route path="/superadmin/users" element={<UsersPage />} />
         <Route path="/superadmin/permissions" element={<PermissionsPage />} />
         <Route path="/superadmin/register" element={<RegisterAdmin />} />
@@ -178,12 +193,16 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/packs/:packId" element={<ContentAuthorizerPackManagePage />} />
         <Route path="/content-authorizer/courses/:courseId/content" element={<ContentAuthorizerCourseContent />} />
         <Route path="/content-authorizer/profile" element={<ContentAuthorizerProfile />} />
+        <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />
+        <Route path="/content-authorizer/teaching-sessions/lesson-planners" element={<ProgramLessonPlannerUploadPage />} />
+        <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
       </Route>
 
       {/* School Owner */}
       <Route element={<Protect roles={['school_owner', 'client_admin', 'super_admin']} />}>
         <Route path="/school-owner/dashboard" element={<SchoolOwnerDashboard />} />
         <Route path="/school-owner/profile" element={<SchoolOwnerProfile />} />
+        <Route path="/school-owner/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
       </Route>
 
       <Route element={<Protect roles={['school_owner', 'client_admin', 'super_admin']} permissions={['courses.read']} />}>
@@ -218,6 +237,16 @@ export default function AppRoutes() {
         <Route path="/teacher" element={<TeacherHome />} />
         <Route path="/teacher/dashboard" element={<TeacherHome />} />
         <Route path="/teacher/profile" element={<TeacherProfile />} />
+        <Route path="/teacher/teaching-sessions" element={<MyTeachingSessionsPage />} />
+        <Route path="/teacher/teaching-sessions/:id" element={<TeachingSessionDetailPage />} />
+        <Route path="/teacher/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
+      </Route>
+
+      <Route element={<Protect roles={['super_admin', 'client_admin']} />}>
+        <Route path="/admin/teaching-sessions/setup" element={<TeachingSessionSetupPage />} />
+        <Route path="/admin/teaching-sessions/permissions" element={<TeacherTrackerPermissionsPage />} />
+        <Route path="/admin/teaching-sessions/sessions" element={<TeachingSessionsListPage />} />
+        <Route path="/admin/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
       </Route>
 
       <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} permissions={['courses.read']} />}>

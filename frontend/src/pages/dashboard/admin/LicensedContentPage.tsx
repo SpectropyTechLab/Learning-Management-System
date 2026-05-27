@@ -6,10 +6,9 @@ import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import api from "@/lib/api";
 import spectropyLogo from "/logo.png";
-import { RiFileList3Line, RiHome2Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
 import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
-import { PiUsersBold, PiChatsCircleBold } from "react-icons/pi";
 import ContentViewer from "@/features/courses/components/player/ContentViewer";
 
 type LicensedPack = {
@@ -83,25 +82,18 @@ export default function LicensedContentPage() {
       onClick: () => navigate("/admin/licensed-content"),
     },
     {
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
+      active: false,
+      onClick: () => navigate("/admin/teaching-sessions/setup"),
+    },
+    {
       key: "question-bank",
       label: "Question Bank",
       icon: <RiFileList3Line />,
       active: false,
       onClick: () => navigate("/question-bank"),
-    },
-    {
-      key: "users",
-      label: "Users",
-      icon: <PiUsersBold />,
-      active: false,
-      onClick: () => navigate("/admin/dashboard"),
-    },
-    {
-      key: "community",
-      label: "Community",
-      icon: <PiChatsCircleBold />,
-      active: false,
-      onClick: () => navigate("/admin/dashboard"),
     },
   ];
 

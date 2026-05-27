@@ -1,23 +1,34 @@
 // backend/repositories/curriculum.repository.js
 import { query as dbQuery } from './db.repository.js';
 
-export const fetchPrograms = async (clientId) => {
+const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
+
+export const fetchPrograms = async (clientId, sharedProgramIds = []) => {
   const params = [];
   let query = `SELECT * FROM programs`;
   if (clientId) {
-    query += ` WHERE client_id = $1`;
     params.push(clientId);
+    query += ` WHERE client_id = $1`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (client_id = $2 AND id = ANY($3))`;
+    }
   }
   query += ` ORDER BY name`;
   return dbQuery(query, params);
 };
 
-export const fetchProgramById = async (id, clientId) => {
+export const fetchProgramById = async (id, clientId, sharedProgramIds = []) => {
   const params = [id];
   let query = `SELECT * FROM programs WHERE id = $1`;
   if (clientId) {
-    query += ` AND client_id = $2`;
     params.push(clientId);
+    query += ` AND (client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (client_id = $3 AND id = ANY($4))`;
+    }
+    query += `)`;
   }
   return dbQuery(query, params);
 };
@@ -68,7 +79,7 @@ export const fetchProgramContext = async (programId) => {
   return dbQuery(`SELECT id, client_id FROM programs WHERE id = $1`, [programId]);
 };
 
-export const fetchGradesByProgram = async ({ programId, clientId }) => {
+export const fetchGradesByProgram = async ({ programId, clientId, sharedProgramIds = [] }) => {
   const params = [programId];
   let query = `
     SELECT g.*
@@ -77,14 +88,19 @@ export const fetchGradesByProgram = async ({ programId, clientId }) => {
     WHERE g.program_id = $1
   `;
   if (clientId) {
-    query += ` AND p.client_id = $2`;
     params.push(clientId);
+    query += ` AND (p.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (p.client_id = $3 AND p.id = ANY($4))`;
+    }
+    query += `)`;
   }
   query += ` ORDER BY g.grade_number`;
   return dbQuery(query, params);
 };
 
-export const fetchGradeById = async ({ id, clientId }) => {
+export const fetchGradeById = async ({ id, clientId, sharedProgramIds = [] }) => {
   const params = [id];
   let query = `
     SELECT g.*
@@ -93,8 +109,13 @@ export const fetchGradeById = async ({ id, clientId }) => {
     WHERE g.id = $1
   `;
   if (clientId) {
-    query += ` AND p.client_id = $2`;
     params.push(clientId);
+    query += ` AND (p.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (p.client_id = $3 AND p.id = ANY($4))`;
+    }
+    query += `)`;
   }
   return dbQuery(query, params);
 };
@@ -141,7 +162,7 @@ export const fetchGradeContext = async (gradeId) => {
   );
 };
 
-export const fetchSubjectsByGrade = async ({ gradeId, clientId }) => {
+export const fetchSubjectsByGrade = async ({ gradeId, clientId, sharedProgramIds = [] }) => {
   const params = [gradeId];
   let query = `
     SELECT s.*, g.grade_number, g.program_id
@@ -151,14 +172,19 @@ export const fetchSubjectsByGrade = async ({ gradeId, clientId }) => {
     WHERE s.grade_id = $1
   `;
   if (clientId) {
-    query += ` AND p.client_id = $2`;
     params.push(clientId);
+    query += ` AND (p.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (p.client_id = $3 AND p.id = ANY($4))`;
+    }
+    query += `)`;
   }
   query += ` ORDER BY s.display_order, s.name`;
   return dbQuery(query, params);
 };
 
-export const fetchSubjects = async (clientId, gradeId = null) => {
+export const fetchSubjects = async (clientId, gradeId = null, sharedProgramIds = []) => {
   const params = [];
   const conditions = [];
   let query = `
@@ -167,8 +193,13 @@ export const fetchSubjects = async (clientId, gradeId = null) => {
     LEFT JOIN grades g ON g.id = s.grade_id
   `;
   if (clientId) {
-    conditions.push(`s.client_id = $1`);
     params.push(clientId);
+    let clientCondition = `s.client_id = $1`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      clientCondition += ` OR (s.client_id = $2 AND g.program_id = ANY($3))`;
+    }
+    conditions.push(`(${clientCondition})`);
   }
   if (gradeId) {
     conditions.push(`s.grade_id = $${params.length + 1}`);
@@ -181,7 +212,7 @@ export const fetchSubjects = async (clientId, gradeId = null) => {
   return dbQuery(query, params);
 };
 
-export const fetchSubjectById = async (id, clientId) => {
+export const fetchSubjectById = async (id, clientId, sharedProgramIds = []) => {
   const params = [id];
   let query = `
     SELECT s.*, g.grade_number, g.program_id
@@ -190,8 +221,13 @@ export const fetchSubjectById = async (id, clientId) => {
     WHERE s.id = $1
   `;
   if (clientId) {
-    query += ` AND s.client_id = $2`;
     params.push(clientId);
+    query += ` AND (s.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (s.client_id = $3 AND g.program_id = ANY($4))`;
+    }
+    query += `)`;
   }
   return dbQuery(query, params);
 };
@@ -250,33 +286,45 @@ export const fetchSubjectContext = async (subjectId) => {
   return dbQuery(`SELECT id, client_id FROM subjects WHERE id = $1`, [subjectId]);
 };
 
-export const fetchChaptersBySubject = async ({ subjectId, clientId }) => {
+export const fetchChaptersBySubject = async ({ subjectId, clientId, sharedProgramIds = [] }) => {
   const params = [subjectId];
   let query = `
     SELECT c.*
     FROM chapters c
     JOIN subjects s ON s.id = c.subject_id
+    LEFT JOIN grades g ON g.id = s.grade_id
     WHERE s.id = $1
   `;
   if (clientId) {
-    query += ` AND s.client_id = $2`;
     params.push(clientId);
+    query += ` AND (s.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (s.client_id = $3 AND g.program_id = ANY($4))`;
+    }
+    query += `)`;
   }
   query += ` ORDER BY c.chapter_number`;
   return dbQuery(query, params);
 };
 
-export const fetchChapterById = async ({ id, clientId }) => {
+export const fetchChapterById = async ({ id, clientId, sharedProgramIds = [] }) => {
   const params = [id];
   let query = `
     SELECT c.*
     FROM chapters c
     JOIN subjects s ON s.id = c.subject_id
+    LEFT JOIN grades g ON g.id = s.grade_id
     WHERE c.id = $1
   `;
   if (clientId) {
-    query += ` AND s.client_id = $2`;
     params.push(clientId);
+    query += ` AND (s.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (s.client_id = $3 AND g.program_id = ANY($4))`;
+    }
+    query += `)`;
   }
   return dbQuery(query, params);
 };
@@ -323,35 +371,47 @@ export const fetchChapterContext = async (chapterId) => {
   );
 };
 
-export const fetchTopicsByChapter = async ({ chapterId, clientId }) => {
+export const fetchTopicsByChapter = async ({ chapterId, clientId, sharedProgramIds = [] }) => {
   const params = [chapterId];
   let query = `
     SELECT t.*
     FROM topics t
     JOIN chapters c ON c.id = t.chapter_id
     JOIN subjects s ON s.id = c.subject_id
+    LEFT JOIN grades g ON g.id = s.grade_id
     WHERE c.id = $1
   `;
   if (clientId) {
-    query += ` AND s.client_id = $2`;
     params.push(clientId);
+    query += ` AND (s.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (s.client_id = $3 AND g.program_id = ANY($4))`;
+    }
+    query += `)`;
   }
   query += ` ORDER BY t.topic_number`;
   return dbQuery(query, params);
 };
 
-export const fetchTopicById = async ({ id, clientId }) => {
+export const fetchTopicById = async ({ id, clientId, sharedProgramIds = [] }) => {
   const params = [id];
   let query = `
     SELECT t.*
     FROM topics t
     JOIN chapters c ON c.id = t.chapter_id
     JOIN subjects s ON s.id = c.subject_id
+    LEFT JOIN grades g ON g.id = s.grade_id
     WHERE t.id = $1
   `;
   if (clientId) {
-    query += ` AND s.client_id = $2`;
     params.push(clientId);
+    query += ` AND (s.client_id = $2`;
+    if (sharedProgramIds.length > 0) {
+      params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
+      query += ` OR (s.client_id = $3 AND g.program_id = ANY($4))`;
+    }
+    query += `)`;
   }
   return dbQuery(query, params);
 };

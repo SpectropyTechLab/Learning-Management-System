@@ -1,8 +1,7 @@
 import { ReactNode, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { RiFileList3Line, RiHome2Line, RiStackLine } from 'react-icons/ri';
+import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiStackLine } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
-import { PiChatsCircleBold, PiUsersBold } from 'react-icons/pi';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
@@ -63,18 +62,11 @@ export default function ContentAuthorizerShell({
         onClick: () => navigate('/question-bank'),
       },
       {
-        key: 'users',
-        label: 'Users',
-        icon: <PiUsersBold />,
-        active: false,
-        onClick: () => {},
-      },
-      {
-        key: 'community',
-        label: 'Community',
-        icon: <PiChatsCircleBold />,
-        active: false,
-        onClick: () => {},
+        key: 'teaching-sessions',
+        label: 'Teacher Session Tracker',
+        icon: <RiCalendarCheckLine />,
+        active: isActive('/content-authorizer/teaching-sessions'),
+        onClick: () => navigate('/content-authorizer/teaching-sessions/micro-schedules'),
       },
     ],
     [location.pathname, navigate],
