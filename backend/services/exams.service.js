@@ -2459,6 +2459,7 @@ const resolveAnswerText = (question) => {
     if (Array.isArray(answer.answer_ids)) return answer.answer_ids.map(String).join(', ');
     if (Array.isArray(answer.answers)) return answer.answers.map(String).join(', ');
     if (answer.answer !== undefined) return String(answer.answer);
+    if (answer.raw !== undefined) return String(answer.raw);
     if (answer.value !== undefined) return String(answer.value);
   }
   return '';

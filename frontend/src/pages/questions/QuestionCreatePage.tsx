@@ -67,9 +67,10 @@ export default function QuestionCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const folderId = searchParams.get("folderId") ?? "";
+  const returnTo = searchParams.get("returnTo") ?? "";
   const returnPath = useMemo(
-    () => (folderId ? `/question-bank/folders/${folderId}` : "/question-bank"),
-    [folderId]
+    () => (returnTo || (folderId ? `/question-bank/folders/${folderId}` : "/question-bank")),
+    [folderId, returnTo]
   );
 
   const [programs, setPrograms] = useState<CurriculumItem[]>([]);
@@ -102,8 +103,9 @@ export default function QuestionCreatePage() {
       const requestPayload = folderId ? { ...payload, folder_id: folderId } : payload;
       const res = await api.post("/questions", requestPayload);
       if (res.data) {
-        const created = normalizeQuestion(res.data);
-        navigate(returnPath, { state: { createdQuestion: created } });
+        navigate(returnPath, {
+          state: !folderId ? { refreshQuestionList: true } : null,
+        });
         return;
       }
     } catch (error) {

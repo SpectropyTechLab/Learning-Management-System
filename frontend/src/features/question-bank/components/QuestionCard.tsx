@@ -59,6 +59,8 @@ function QuestionCard({
   onReject,
 }: QuestionCardProps) {
   const isEditable = permissions.canEdit;
+  const isLegacyComprehensiveParent =
+    question.question_type === "comprehensive" && !question.comprehension_passage_id;
   const categoryLabel = formatQuestionCategory(question.category ?? null);
 
   return (
@@ -134,7 +136,7 @@ function QuestionCard({
             onClick={() => onEdit(question)}
             className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
           >
-            Edit
+            {isLegacyComprehensiveParent ? "Open Passage Library" : "Edit"}
           </button>
         )}
         {permissions.canDelete && onDelete && (

@@ -2,8 +2,10 @@ import { query as dbQuery } from '../repositories/db.repository.js';
 
 export const COURSE_SCOPE_ADMIN = 'admin';
 export const COURSE_SCOPE_SCHOOL_OWNER = 'school_owner';
+export const COURSE_SCOPE_TEACHER = 'teacher';
 
 const SCHOOL_OWNER_ROLE_SCOPES = ['school_owner', 'admin'];
+const TEACHER_ROLE_SCOPES = ['teacher'];
 
 let courseSchoolAssignmentsEnsured = false;
 
@@ -16,8 +18,20 @@ const normalizeNumberArray = (value) => {
 
 export const getRequestCourseScope = (req) => {
   const baseUrl = String(req?.baseUrl ?? '').toLowerCase();
+  const role = String(req?.user?.role ?? '').toLowerCase();
+
+  if (role === 'teacher') {
+    return COURSE_SCOPE_TEACHER;
+  }
+
+  if (role === 'school_owner') {
+    return COURSE_SCOPE_SCHOOL_OWNER;
+  }
+
   return baseUrl.includes('/school-owner')
     ? COURSE_SCOPE_SCHOOL_OWNER
+    : baseUrl.includes('/teacher')
+      ? COURSE_SCOPE_TEACHER
     : COURSE_SCOPE_ADMIN;
 };
 
@@ -67,6 +81,25 @@ export const getManagedSchoolIdsForUser = async (userId) => {
     .filter((schoolId) => Number.isInteger(schoolId) && schoolId > 0);
 };
 
+export const getTeacherSchoolIdsForUser = async (userId) => {
+  if (!userId) return [];
+
+  const result = await dbQuery(
+    `
+      SELECT DISTINCT school_id
+      FROM school_memberships
+      WHERE user_id = $1
+        AND status = 'active'
+        AND role_scope = ANY($2::text[])
+    `,
+    [userId, TEACHER_ROLE_SCOPES]
+  );
+
+  return result.rows
+    .map((row) => Number(row.school_id))
+    .filter((schoolId) => Number.isInteger(schoolId) && schoolId > 0);
+};
+
 const mapCourseRow = ({ row, req, scope, managedSchoolIds = [] }) => {
   const assignedSchoolIds = normalizeNumberArray(row.assigned_school_ids);
   const assignedSchoolNames = Array.isArray(row.assigned_school_names)
@@ -75,6 +108,7 @@ const mapCourseRow = ({ row, req, scope, managedSchoolIds = [] }) => {
   const isCreatedByMe = Number(row.created_by) === Number(req.user?.id);
   const isAssignedToMySchool = managedSchoolIds.some((schoolId) => assignedSchoolIds.includes(schoolId));
   const isSchoolOwnerScope = scope === COURSE_SCOPE_SCHOOL_OWNER;
+  const isTeacherScope = scope === COURSE_SCOPE_TEACHER;
   const canMutateAsSchoolOwner = isCreatedByMe;
 
   return {
@@ -91,11 +125,11 @@ const mapCourseRow = ({ row, req, scope, managedSchoolIds = [] }) => {
     assigned_school_count: Number(row.assigned_school_count ?? assignedSchoolIds.length ?? 0),
     is_created_by_me: isCreatedByMe,
     is_assigned_to_my_school: isAssignedToMySchool,
-    can_edit_course: isSchoolOwnerScope ? canMutateAsSchoolOwner : true,
-    can_publish_course: isSchoolOwnerScope ? canMutateAsSchoolOwner : true,
-    can_delete_course: isSchoolOwnerScope ? canMutateAsSchoolOwner : true,
-    can_manage_content: isSchoolOwnerScope ? canMutateAsSchoolOwner : true,
-    can_enroll: isSchoolOwnerScope ? isAssignedToMySchool : true,
+    can_edit_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
+    can_publish_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
+    can_delete_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
+    can_manage_content: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
+    can_enroll: isTeacherScope ? false : (isSchoolOwnerScope ? isAssignedToMySchool : true),
   };
 };
 
@@ -133,7 +167,9 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
   const shouldScopeToClient = Boolean(clientId) && role !== 'super_admin';
   const managedSchoolIds = scope === COURSE_SCOPE_SCHOOL_OWNER
     ? await getManagedSchoolIdsForUser(req.user?.id)
-    : [];
+    : scope === COURSE_SCOPE_TEACHER
+      ? await getTeacherSchoolIdsForUser(req.user?.id)
+      : [];
 
   const conditions = [];
   const params = [];
@@ -143,7 +179,7 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
     params.push(clientId);
   }
 
-  if (scope === COURSE_SCOPE_SCHOOL_OWNER) {
+  if (scope === COURSE_SCOPE_SCHOOL_OWNER || scope === COURSE_SCOPE_TEACHER) {
     if (managedSchoolIds.length === 0) {
       return [];
     }
@@ -203,7 +239,9 @@ export const getCourseAccessContext = async ({ courseId, req, scope = getRequest
   const userClientId = req.user?.client_id ?? null;
   const managedSchoolIds = scope === COURSE_SCOPE_SCHOOL_OWNER
     ? await getManagedSchoolIdsForUser(req.user?.id)
-    : [];
+    : scope === COURSE_SCOPE_TEACHER
+      ? await getTeacherSchoolIdsForUser(req.user?.id)
+      : [];
 
   if (role !== 'super_admin' && userClientId && Number(courseRow.client_id) !== Number(userClientId)) {
     return { ok: false, status: 403, error: 'Access denied' };
@@ -211,7 +249,7 @@ export const getCourseAccessContext = async ({ courseId, req, scope = getRequest
 
   const course = mapCourseRow({ row: courseRow, req, scope, managedSchoolIds });
 
-  if (scope === COURSE_SCOPE_SCHOOL_OWNER && !course.is_assigned_to_my_school) {
+  if ((scope === COURSE_SCOPE_SCHOOL_OWNER || scope === COURSE_SCOPE_TEACHER) && !course.is_assigned_to_my_school) {
     return { ok: false, status: 403, error: 'Access denied' };
   }
 
@@ -231,6 +269,14 @@ export const ensureCourseActionAccess = async ({
 }) => {
   const context = await getCourseAccessContext({ courseId, req, scope });
   if (!context.ok) return context;
+
+  if (scope === COURSE_SCOPE_TEACHER) {
+    const allowedActions = new Set(['read']);
+    if (!allowedActions.has(action)) {
+      return { ok: false, status: 403, error: 'Access denied' };
+    }
+    return context;
+  }
 
   if (scope !== COURSE_SCOPE_SCHOOL_OWNER) {
     return context;

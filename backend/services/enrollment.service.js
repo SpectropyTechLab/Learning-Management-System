@@ -213,6 +213,18 @@ export const getStudentCourse = async (req, res) => {
         userId,
       });
 
+      const normalizeStudentContentItem = (item) => ({
+        id: item.id,
+        title: item.title,
+        item_type: item.item_type,
+        content_url: item.content_url,
+        metadata: item.metadata ?? {},
+        completion_status: item.completion_status,
+        is_linked_content: item.is_linked_content,
+        linked_content_id: item.linked_content_id,
+        download_allowed: item.download_allowed,
+      });
+
       const folders = mergedContent
         .filter((item) => item.item_type === 'folder' && item.parent_id === null)
         .map((item) => ({
@@ -227,17 +239,18 @@ export const getStudentCourse = async (req, res) => {
         position: folder.order_index || 0,
         content_items: mergedContent
           .filter((item) => item.parent_id === folder.id && item.item_type !== 'folder')
-          .map((item) => ({
-            id: item.id,
-            title: item.title,
-            item_type: item.item_type,
-            content_url: item.content_url,
-            metadata: item.metadata ?? {},
-            completion_status: item.completion_status,
-            is_linked_content: item.is_linked_content,
-            linked_content_id: item.linked_content_id,
-            download_allowed: item.download_allowed,
-          })),
+          .map(normalizeStudentContentItem),
+        topics: mergedContent
+          .filter((item) => item.parent_id === folder.id && item.item_type === 'folder')
+          .map((topic) => ({
+            id: topic.id,
+            title: topic.title,
+            position: topic.order_index || 0,
+            content_items: mergedContent
+              .filter((item) => item.parent_id === topic.id && item.item_type !== 'folder')
+              .map(normalizeStudentContentItem),
+          }))
+          .sort((a, b) => a.position - b.position),
       }));
 
       const orphanedItems = mergedContent.filter(
@@ -249,17 +262,8 @@ export const getStudentCourse = async (req, res) => {
           id: -1,
           title: 'General Content',
           position: -1,
-          content_items: orphanedItems.map((item) => ({
-            id: item.id,
-            title: item.title,
-            item_type: item.item_type,
-            content_url: item.content_url,
-            metadata: item.metadata ?? {},
-            completion_status: item.completion_status,
-            is_linked_content: item.is_linked_content,
-            linked_content_id: item.linked_content_id,
-            download_allowed: item.download_allowed,
-          })),
+          content_items: orphanedItems.map(normalizeStudentContentItem),
+          topics: [],
         });
       }
 

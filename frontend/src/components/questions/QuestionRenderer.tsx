@@ -415,6 +415,7 @@ const formatCorrectAnswer = (question: RenderableQuestion) => {
     const typed = answer as Record<string, unknown>;
     if (Array.isArray(typed.answer_ids)) return typed.answer_ids.join(", ");
     if (typed.answer !== undefined) return String(typed.answer);
+    if (typed.raw !== undefined) return String(typed.raw);
     if (typed.value !== undefined) {
       const tolerance = typed.tolerance ?? 0;
       return `Value: ${typed.value} (+/-${tolerance})`;
@@ -422,7 +423,6 @@ const formatCorrectAnswer = (question: RenderableQuestion) => {
     if (Array.isArray(typed.answers)) return typed.answers.join(", ");
     if (Array.isArray(typed.pairs)) return `${typed.pairs.length} pairs`;
     if (Array.isArray(typed.blanks)) return `${typed.blanks.length} blanks`;
-    if (typed.raw !== undefined) return String(typed.raw);
   }
   return "Available";
 };

@@ -1368,7 +1368,12 @@ const extractNumericValueAndTolerance = (value, defaultTolerance = 0.01) => {
   if (isBlankValue(value)) return { value: null, tolerance: defaultTolerance };
 
   if (isObject(value)) {
-    const resolvedValue = value.value !== undefined ? value.value : value.answer;
+    const resolvedValue =
+      value.raw !== undefined
+        ? value.raw
+        : value.value !== undefined
+          ? value.value
+          : value.answer;
     const resolvedTolerance = value.tolerance !== undefined
       ? toFiniteNumber(value.tolerance, defaultTolerance)
       : defaultTolerance;
@@ -1479,7 +1484,10 @@ const gradeNumerical = (studentAnswer, correctAnswer, defaultTolerance = 0.01) =
   const correctNum = parseFloat(String(correctValue).replace(/,/g, ""));
 
   if (Number.isNaN(studentNum) || Number.isNaN(correctNum)) {
-    return { isCorrect: false, isUnattempted: false };
+    return {
+      isCorrect: normalizeAnswerString(studentValue) === normalizeAnswerString(correctValue),
+      isUnattempted: false,
+    };
   }
 
   return {

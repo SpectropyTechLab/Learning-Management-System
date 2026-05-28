@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import api from "@/lib/api";
@@ -32,8 +32,15 @@ const normalizePassage = (item: any): ComprehensionPassage => ({
 
 export default function QuestionPassagesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const permissions = getQuestionPermissions(user);
+  const returnTo = searchParams.get("returnTo") ?? "";
+  const backPath = useMemo(() => returnTo || "/question-bank", [returnTo]);
+  const passageEditorQuery = useMemo(
+    () => (returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""),
+    [returnTo]
+  );
   const [passages, setPassages] = useState<ComprehensionPassage[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,14 +76,14 @@ export default function QuestionPassagesPage() {
       actions={
         <div className="flex gap-2">
           <button
-            onClick={() => navigate("/question-bank")}
+            onClick={() => navigate(backPath)}
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
           >
             Back to Questions
           </button>
           {permissions.canCreate ? (
             <button
-              onClick={() => navigate("/question-bank/passages/new")}
+              onClick={() => navigate(`/question-bank/passages/new${passageEditorQuery}`)}
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
             >
               Create Passage
@@ -108,7 +115,9 @@ export default function QuestionPassagesPage() {
                 </div>
                 {permissions.canCreate ? (
                   <button
-                    onClick={() => navigate(`/question-bank/passages/${passage.id}/edit`)}
+                    onClick={() =>
+                      navigate(`/question-bank/passages/${passage.id}/edit${passageEditorQuery}`)
+                    }
                     className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                   >
                     Edit

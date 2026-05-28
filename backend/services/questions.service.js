@@ -280,6 +280,17 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
     );
   }
 
+  if (query.comprehension_passage_id !== undefined) {
+    const schemaSupport = await getQuestionSchemaSupport();
+    if (!schemaSupport.hasComprehensionPassageId) {
+      throw new AppError('This database does not support linked comprehension passages yet', 400);
+    }
+    const comprehensionPassageId = parseNullableInt(query.comprehension_passage_id, 'comprehension_passage_id');
+    if (comprehensionPassageId) {
+      conditions.push(`q.comprehension_passage_id = ${addParam(comprehensionPassageId)}`);
+    }
+  }
+
   await appendQuestionBankProgramConditions({ conditions, params, user });
   if (clientId) {
     conditions.push(`(q.client_id <> ${PLATFORM_PROGRAM_OWNER_CLIENT_ID} OR q.status = 'approved')`);

@@ -32,12 +32,29 @@ interface QuestionFormProps {
 }
 
 type ComprehensionMode = "new" | "existing";
+type QuestionTypeSelection = QuestionType | "comprehension";
+type MatchRow = {
+  id: string;
+  left: RichTextValue;
+  right: RichTextValue;
+};
 
 const QUESTION_GROUP_TYPE_OPTIONS: Array<{ value: QuestionGroupType; label: string }> = [
   { value: "direct", label: "Direct" },
   { value: "similar", label: "Similar" },
   { value: "previous_year", label: "Previous Year" },
   { value: "reference", label: "Reference" },
+];
+
+const BASE_QUESTION_TYPE_OPTIONS: Array<{ value: QuestionType; label: string }> = [
+  { value: "mcq_single", label: "MCQ Single" },
+  { value: "assertion_reasoning", label: "Assertion Reasoning" },
+  { value: "mcq_multiple", label: "MCQ Multiple" },
+  { value: "short_answer", label: "Short Answer" },
+  { value: "numerical", label: "Numeric Response" },
+  { value: "true_false", label: "True/False" },
+  { value: "match_following", label: "Match the Following" },
+  { value: "fill_in_blank", label: "Fill in the Blank" },
 ];
 
 const normalizeCategorySelection = (category: Question["category"] | undefined): QuestionGroupType | "" => {
@@ -76,11 +93,20 @@ const toNullableNumber = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const isNumericLike = (value: string) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return false;
+  return Number.isFinite(Number(normalized.replace(/,/g, "")));
+};
+
 const makeDefaultOptions = () =>
   Array.from({ length: 4 }).map(() => ({ id: makeId(), text: emptyRichText() }));
 
 const makeDefaultMatchSide = () =>
   Array.from({ length: 4 }).map(() => ({ id: makeId(), text: emptyRichText() }));
+
+const makeDefaultMatchRows = () =>
+  Array.from({ length: 4 }).map(() => ({ id: makeId(), left: emptyRichText(), right: emptyRichText() }));
 
 type MatchOptionWithSide = QuestionOption & { side?: "left" | "right" };
 
@@ -124,6 +150,43 @@ const normalizeMatchOptions = (options: unknown): MatchFollowingOptions | null =
   }
 
   return null;
+};
+
+const buildMatchRowsFromSavedQuestion = (
+  matchOptions: MatchFollowingOptions | null,
+  pairs: MatchFollowingPair[] | undefined
+): MatchRow[] => {
+  const leftItems = matchOptions?.left ?? [];
+  const rightItems = matchOptions?.right ?? [];
+  const savedPairs = Array.isArray(pairs) ? pairs : [];
+
+  if (savedPairs.length > 0) {
+    const rows = savedPairs
+      .map((pair, index) => {
+        const left = leftItems.find((item) => item.id === pair.left_id);
+        const right = rightItems.find((item) => item.id === pair.right_id);
+        if (!left && !right) return null;
+        return {
+          id: `${pair.left_id}-${pair.right_id}-${index}`,
+          left: normalizeRichText(left?.text),
+          right: normalizeRichText(right?.text),
+        };
+      })
+      .filter((row): row is MatchRow => Boolean(row));
+
+    if (rows.length > 0) return rows;
+  }
+
+  const maxLength = Math.max(leftItems.length, rightItems.length);
+  if (maxLength > 0) {
+    return Array.from({ length: maxLength }).map((_, index) => ({
+      id: makeId(),
+      left: normalizeRichText(leftItems[index]?.text),
+      right: normalizeRichText(rightItems[index]?.text),
+    }));
+  }
+
+  return makeDefaultMatchRows();
 };
 
 const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
@@ -179,13 +242,11 @@ export default function QuestionForm({
   const [options, setOptions] = useState<QuestionOption[]>(makeDefaultOptions());
   const [correctAnswer, setCorrectAnswer] = useState<string | string[] | null>(null);
   const [trueFalseAnswer, setTrueFalseAnswer] = useState(true);
-  const [numericalValue, setNumericalValue] = useState<number | "">("");
+  const [numericalValue, setNumericalValue] = useState("");
   const [numericalTolerance, setNumericalTolerance] = useState<number>(0.01);
   const [shortAnswers, setShortAnswers] = useState("");
   const [shortCaseSensitive, setShortCaseSensitive] = useState(false);
-  const [matchLeft, setMatchLeft] = useState<QuestionOption[]>(makeDefaultMatchSide());
-  const [matchRight, setMatchRight] = useState<QuestionOption[]>(makeDefaultMatchSide());
-  const [matchPairs, setMatchPairs] = useState<MatchFollowingPair[]>([]);
+  const [matchRows, setMatchRows] = useState<MatchRow[]>(makeDefaultMatchRows());
   const [fillBlanks, setFillBlanks] = useState<FillBlankAnswer[]>([]);
   const [hasComprehension, setHasComprehension] = useState(false);
   const [comprehensionMode, setComprehensionMode] = useState<ComprehensionMode>("new");
@@ -210,6 +271,10 @@ export default function QuestionForm({
   const [dynamicChapters, setDynamicChapters] = useState<CurriculumItem[]>([]);
   const [dynamicTopics, setDynamicTopics] = useState<CurriculumItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const selectedQuestionType = useMemo<QuestionTypeSelection>(
+    () => (hasComprehension ? "comprehension" : questionType),
+    [hasComprehension, questionType]
+  );
 
   const availableGrades = useMemo(
     () => {
@@ -439,7 +504,11 @@ export default function QuestionForm({
       }
 
       const correct = initialQuestion.correct_answer as CorrectAnswer;
-      if (initialQuestion.question_type === "mcq_single" || initialQuestion.question_type === "assertion_reasoning") {
+      if (
+        initialQuestion.question_type === "mcq_single" ||
+        initialQuestion.question_type === "assertion_reasoning" ||
+        initialQuestion.question_type === "match_following"
+      ) {
         if (typeof correct === "string") {
           setCorrectAnswer(correct);
         } else if (typeof correct === "object" && correct && "answer_ids" in correct) {
@@ -469,9 +538,15 @@ export default function QuestionForm({
         }
       }
       if (initialQuestion.question_type === "numerical") {
-        if (typeof correct === "object" && correct && "value" in correct) {
-          setNumericalValue((correct as { value?: number }).value ?? "");
-          setNumericalTolerance((correct as { tolerance?: number }).tolerance ?? 0.01);
+        if (typeof correct === "object" && correct) {
+          const typed = correct as { value?: number | string; raw?: string; answer?: string; tolerance?: number };
+          const resolvedValue =
+            typed.raw ??
+            typed.value ??
+            typed.answer ??
+            "";
+          setNumericalValue(String(resolvedValue ?? ""));
+          setNumericalTolerance(typed.tolerance ?? 0.01);
         }
       }
       if (initialQuestion.question_type === "short_answer") {
@@ -479,19 +554,6 @@ export default function QuestionForm({
           const answers = (correct as { answers?: string[] }).answers ?? [];
           setShortAnswers(answers.join(", "));
           setShortCaseSensitive(Boolean((correct as { case_sensitive?: boolean }).case_sensitive));
-        }
-      }
-      if (initialQuestion.question_type === "match_following") {
-        const matchOptions = normalizeMatchOptions(initialQuestion.options);
-        if (matchOptions?.left && matchOptions?.right) {
-          setMatchLeft(matchOptions.left);
-          setMatchRight(matchOptions.right);
-        } else {
-          setMatchLeft(makeDefaultMatchSide());
-          setMatchRight(makeDefaultMatchSide());
-        }
-        if (typeof correct === "object" && correct && "pairs" in correct) {
-          setMatchPairs((correct as { pairs?: MatchFollowingPair[] }).pairs ?? []);
         }
       }
       if (initialQuestion.question_type === "fill_in_blank") {
@@ -531,9 +593,7 @@ export default function QuestionForm({
     setNumericalTolerance(0.01);
     setShortAnswers("");
     setShortCaseSensitive(false);
-    setMatchLeft(makeDefaultMatchSide());
-    setMatchRight(makeDefaultMatchSide());
-    setMatchPairs([]);
+    setMatchRows(makeDefaultMatchRows());
     setFillBlanks([]);
     setHasComprehension(false);
     setComprehensionMode("new");
@@ -567,9 +627,19 @@ export default function QuestionForm({
   }, [comprehensionMode, comprehensionPassageId, comprehensionPassages, hasComprehension]);
   const handleTypeChange = (nextType: QuestionType) => {
     setQuestionType(nextType);
-    if (nextType === "mcq_single" || nextType === "assertion_reasoning" || nextType === "mcq_multiple") {
+    if (
+      nextType === "mcq_single" ||
+      nextType === "assertion_reasoning" ||
+      nextType === "mcq_multiple" ||
+      nextType === "match_following"
+    ) {
       if (options.length === 0) setOptions(makeDefaultOptions());
-      if ((nextType === "mcq_single" || nextType === "assertion_reasoning") && Array.isArray(correctAnswer)) {
+      if (
+        (nextType === "mcq_single" ||
+          nextType === "assertion_reasoning" ||
+          nextType === "match_following") &&
+        Array.isArray(correctAnswer)
+      ) {
         setCorrectAnswer(correctAnswer[0] ?? null);
       }
       if (nextType === "mcq_multiple" && typeof correctAnswer === "string") {
@@ -583,13 +653,31 @@ export default function QuestionForm({
     }
   };
 
+  const handleTypeSelectionChange = (nextType: QuestionTypeSelection) => {
+    if (nextType === "comprehension") {
+      setHasComprehension(true);
+      if (questionType === "comprehensive") {
+        handleTypeChange("mcq_single");
+      }
+      return;
+    }
+
+    setHasComprehension(false);
+    handleTypeChange(nextType);
+  };
+
   const updateOptionText = (id: string, value: RichTextValue) => {
     setOptions((prev) => prev.map((option) => (option.id === id ? { ...option, text: value } : option)));
   };
 
   const removeOption = (id: string) => {
     setOptions((prev) => prev.filter((option) => option.id !== id));
-    if ((questionType === "mcq_single" || questionType === "assertion_reasoning") && correctAnswer === id) {
+    if (
+      (questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following") &&
+      correctAnswer === id
+    ) {
       setCorrectAnswer(null);
     }
     if (questionType === "mcq_multiple" && Array.isArray(correctAnswer)) {
@@ -606,31 +694,18 @@ export default function QuestionForm({
     });
   };
 
-  const updateMatchOption = (
-    side: "left" | "right",
-    id: string,
-    value: RichTextValue
-  ) => {
-    const updater = side === "left" ? setMatchLeft : setMatchRight;
-    updater((prev) => prev.map((opt) => (opt.id === id ? { ...opt, text: value } : opt)));
-  };
-
-  const addMatchPair = () => {
-    if (!matchLeft.length || !matchRight.length) return;
-    setMatchPairs((prev) => [
-      ...prev,
-      { left_id: matchLeft[0].id, right_id: matchRight[0].id },
-    ]);
-  };
-
-  const updateMatchPair = (index: number, key: "left_id" | "right_id", value: string) => {
-    setMatchPairs((prev) =>
-      prev.map((pair, idx) => (idx === index ? { ...pair, [key]: value } : pair))
+  const updateMatchRow = (id: string, side: "left" | "right", value: RichTextValue) => {
+    setMatchRows((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, [side]: value } : row))
     );
   };
 
-  const removeMatchPair = (index: number) => {
-    setMatchPairs((prev) => prev.filter((_, idx) => idx !== index));
+  const addMatchRow = () => {
+    setMatchRows((prev) => [...prev, { id: makeId(), left: emptyRichText(), right: emptyRichText() }]);
+  };
+
+  const removeMatchRow = (id: string) => {
+    setMatchRows((prev) => prev.filter((row) => row.id !== id));
   };
 
   const addBlank = () => {
@@ -663,13 +738,23 @@ export default function QuestionForm({
     }
 
     if (
-      (questionType === "mcq_single" || questionType === "assertion_reasoning" || questionType === "mcq_multiple") &&
+      (
+        questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "mcq_multiple" ||
+        questionType === "match_following"
+      ) &&
       options.some((option) => !hasRichContent(option.text))
     ) {
       alert("All options must contain text or an image.");
       return;
     }
-    if ((questionType === "mcq_single" || questionType === "assertion_reasoning") && !correctAnswer) {
+    if (
+      (questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following") &&
+      !correctAnswer
+    ) {
       alert("Select the correct option.");
       return;
     }
@@ -687,11 +772,10 @@ export default function QuestionForm({
         return;
       }
     }
-    if (questionType === "match_following" && matchPairs.length === 0) {
-      alert("Add at least one match pair.");
+    if (questionType === "numerical" && String(numericalValue).trim().length === 0) {
+      alert("Correct answer is required.");
       return;
     }
-
     const parsedTags = tags
       .split(",")
       .map((tag) => tag.trim())
@@ -726,18 +810,27 @@ export default function QuestionForm({
     let finalOptions: QuestionOption[] | MatchFollowingOptions | undefined = undefined;
     let finalCorrectAnswer: CorrectAnswer = null;
 
-    if (questionType === "mcq_single" || questionType === "assertion_reasoning" || questionType === "mcq_multiple") {
+    if (
+      questionType === "mcq_single" ||
+      questionType === "assertion_reasoning" ||
+      questionType === "mcq_multiple" ||
+      questionType === "match_following"
+    ) {
       finalOptions = options.map((option) => ({
         ...option,
         is_correct:
-          questionType === "mcq_single" || questionType === "assertion_reasoning"
+          questionType === "mcq_single" ||
+          questionType === "assertion_reasoning" ||
+          questionType === "match_following"
             ? option.id === correctAnswer
             : Array.isArray(correctAnswer)
             ? correctAnswer.includes(option.id)
             : false,
       }));
       const answerIds =
-        questionType === "mcq_single" || questionType === "assertion_reasoning"
+        questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following"
           ? typeof correctAnswer === "string"
             ? [correctAnswer]
             : []
@@ -752,10 +845,17 @@ export default function QuestionForm({
     }
 
     if (questionType === "numerical") {
-      finalCorrectAnswer = {
-        value: Number(numericalValue) || 0,
-        tolerance: Number(numericalTolerance) || 0,
-      };
+      const normalizedValue = String(numericalValue).trim();
+      if (isNumericLike(normalizedValue)) {
+        finalCorrectAnswer = {
+          value: Number(normalizedValue.replace(/,/g, "")),
+          tolerance: Number(numericalTolerance) || 0,
+        };
+      } else {
+        finalCorrectAnswer = {
+          raw: normalizedValue,
+        };
+      }
     }
 
     if (questionType === "short_answer") {
@@ -764,14 +864,6 @@ export default function QuestionForm({
         .map((ans) => ans.trim())
         .filter(Boolean);
       finalCorrectAnswer = { answers, case_sensitive: shortCaseSensitive };
-    }
-
-    if (questionType === "match_following") {
-      finalOptions = [
-        ...matchLeft.map((option) => ({ ...option, side: "left" as const })),
-        ...matchRight.map((option) => ({ ...option, side: "right" as const })),
-      ];
-      finalCorrectAnswer = { pairs: matchPairs };
     }
 
     if (questionType === "fill_in_blank") {
@@ -889,16 +981,16 @@ export default function QuestionForm({
         <div>
           <label className="text-xs font-semibold text-slate-500">Question Type</label>
           <select
-            value={questionType}
-            onChange={(event) => handleTypeChange(event.target.value as QuestionType)}
+            value={selectedQuestionType}
+            onChange={(event) => handleTypeSelectionChange(event.target.value as QuestionTypeSelection)}
             className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
           >
-            <option value="mcq_single">MCQ Single</option>
-            <option value="assertion_reasoning">Assertion Reasoning</option>
-            <option value="mcq_multiple">MCQ Multiple</option>
-            <option value="short_answer">Short Answer</option>
-            <option value="numerical">Numeric Response</option>
-            <option value="true_false">True/False</option>
+            {BASE_QUESTION_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="comprehension">Comprehension</option>
           </select>
         </div>
         <div>
@@ -965,6 +1057,24 @@ export default function QuestionForm({
 
         {hasComprehension ? (
           <div className="mt-4 space-y-4 rounded-xl border border-sky-200 bg-white p-4">
+            <div>
+              <label className="text-xs font-semibold text-slate-500">Child Question Type</label>
+              <select
+                value={questionType}
+                onChange={(event) => handleTypeChange(event.target.value as QuestionType)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              >
+                {BASE_QUESTION_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Choose the question type that appears below this passage.
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1075,13 +1185,20 @@ export default function QuestionForm({
         </div>
       </div>
 
-      {(questionType === "mcq_single" || questionType === "assertion_reasoning" || questionType === "mcq_multiple") && (
+      {(
+        questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "mcq_multiple" ||
+        questionType === "match_following"
+      ) && (
         <div>
           <label className="text-xs font-semibold text-slate-500">Options</label>
           <div className="mt-2 space-y-3">
             {options.map((option, index) => (
               <div key={option.id} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
-                {questionType === "mcq_single" || questionType === "assertion_reasoning" ? (
+                {questionType === "mcq_single" ||
+                questionType === "assertion_reasoning" ||
+                questionType === "match_following" ? (
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                     <input
                       type="radio"
@@ -1170,12 +1287,15 @@ export default function QuestionForm({
           <div>
             <label className="text-xs font-semibold text-slate-500">Correct Answer</label>
             <input
-              type="number"
+              type="text"
               value={numericalValue}
-              onChange={(event) => setNumericalValue(Number(event.target.value))}
+              onChange={(event) => setNumericalValue(event.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-              placeholder="Enter numeric answer"
+              placeholder="Enter number, text, symbolic answer, or equation"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Accepts numbers, alphabets, strings, and symbolic expressions.
+            </p>
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500">Tolerance</label>
@@ -1183,8 +1303,12 @@ export default function QuestionForm({
               type="number"
               value={numericalTolerance}
               onChange={(event) => setNumericalTolerance(Number(event.target.value))}
+              disabled={!isNumericLike(numericalValue)}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Used only when the correct answer is numeric.
+            </p>
           </div>
         </div>
       )}
@@ -1202,87 +1326,6 @@ export default function QuestionForm({
           </select>
         </div>
       )}
-      {questionType === "match_following" && (
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold text-slate-500">Left Items</label>
-              <div className="mt-2 space-y-2">
-                {matchLeft.map((item, index) => (
-                  <RichTextEditor
-                    key={item.id}
-                    value={item.text}
-                    onChange={(value) => updateMatchOption("left", item.id, value)}
-                    placeholder={`Left ${index + 1}`}
-                    height={90}
-                  />
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500">Right Items</label>
-              <div className="mt-2 space-y-2">
-                {matchRight.map((item, index) => (
-                  <RichTextEditor
-                    key={item.id}
-                    value={item.text}
-                    onChange={(value) => updateMatchOption("right", item.id, value)}
-                    placeholder={`Right ${index + 1}`}
-                    height={90}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500">Pairs</label>
-            <div className="mt-2 space-y-2">
-              {matchPairs.map((pair, index) => (
-                <div key={`${pair.left_id}-${pair.right_id}-${index}`} className="flex items-center gap-2">
-                  <select
-                    value={pair.left_id}
-                    onChange={(event) => updateMatchPair(index, "left_id", event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  >
-                    {matchLeft.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {stripHtml(item.text) || item.id}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-xs text-slate-400">→</span>
-                  <select
-                    value={pair.right_id}
-                    onChange={(event) => updateMatchPair(index, "right_id", event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  >
-                    {matchRight.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {stripHtml(item.text) || item.id}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => removeMatchPair(index)}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={addMatchPair}
-              className="mt-2 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
-            >
-              Add pair
-            </button>
-          </div>
-        </div>
-      )}
-
       {questionType === "fill_in_blank" && (
         <div>
           <label className="text-xs font-semibold text-slate-500">Blanks</label>

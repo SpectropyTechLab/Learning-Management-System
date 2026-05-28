@@ -7,7 +7,7 @@ import {
 } from "@hello-pangea/dnd";
 
 import { BsThreeDotsVertical } from "react-icons/bs";
-import { FiChevronDown, FiChevronRight } from "react-icons/fi";
+import { FiChevronDown, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { MdAdd } from "react-icons/md";
 import { AiOutlineArrowLeft } from "react-icons/ai";
 import CourseProgressBar from "@/features/courses/components/player/CourseProgressBar";
@@ -40,10 +40,17 @@ interface CourseItem {
     linked_content_id?: number | null;
 }
 
+interface TopicFolder {
+    id: number;
+    title: string;
+    items: CourseItem[];
+}
+
 interface Chapter {
     id: number;
     title: string;
     items: CourseItem[];
+    topics: TopicFolder[];
 }
 
 interface Props {
@@ -52,12 +59,16 @@ interface Props {
     allItems: CourseItem[];
     onSelectItem: (item: CourseItem) => void;
     onAddChapter: () => void;
-    onAddItem: (chapterId: number) => void;
-    onAddLicensedContent?: (chapterId: number) => void;
+    onAddTopic: (chapterId: number, chapterTitle: string) => void;
+    onAddItem: (parentId: number, parentLabel: string) => void;
+    onAddLicensedContent?: (parentId: number, parentLabel: string) => void;
     onReorderChapters: (newChapters: Chapter[]) => void;
+    onReorderTopics: (chapterId: number, newTopics: TopicFolder[]) => void;
     onReorderItems: (chapterId: number, newItems: CourseItem[]) => void;
+    onReorderTopicItems: (topicId: number, newItems: CourseItem[]) => void;
     onUpdateFile: (item: CourseItem) => void;
     onRemoveLinkedItem?: (item: CourseItem) => void | Promise<void>;
+    onRefreshContent: () => void | Promise<void>;
     selectedItemId?: number;
     isGvjbClient?: boolean;
     apiPrefix?: string;
@@ -65,6 +76,8 @@ interface Props {
     onBack?: () => void;
     panelTitle?: string;
     hideProgress?: boolean;
+    collapsed?: boolean;
+    onToggleCollapsed?: () => void;
 }
 
 const LeftPanel: React.FC<Props> = ({
@@ -73,12 +86,16 @@ const LeftPanel: React.FC<Props> = ({
     allItems,
     onSelectItem,
     onAddChapter,
+    onAddTopic,
     onAddItem,
     onAddLicensedContent,
     onReorderChapters,
+    onReorderTopics,
     onReorderItems,
+    onReorderTopicItems,
     onUpdateFile,
     onRemoveLinkedItem,
+    onRefreshContent,
     selectedItemId,
     isGvjbClient = false,
     apiPrefix = "/admin",
@@ -86,9 +103,13 @@ const LeftPanel: React.FC<Props> = ({
     onBack,
     panelTitle = "Course Content",
     hideProgress = false,
+    collapsed = false,
+    onToggleCollapsed,
 }) => {
     const [expanded, setExpanded] = useState<number | null>(null);
+    const [expandedTopics, setExpandedTopics] = useState<number[]>([]);
     const [openMenu, setOpenMenu] = useState<number | null>(null);
+    const [openTopicMenu, setOpenTopicMenu] = useState<number | null>(null);
     const [openItemMenu, setOpenItemMenu] = useState<number | null>(null);
     const totalItems = allItems.length;
     const completedItems = allItems.filter(i => i.completion_status === "completed").length;
@@ -100,10 +121,17 @@ const LeftPanel: React.FC<Props> = ({
         setExpanded(expanded === chapterId ? null : chapterId);
     };
 
+    const toggleTopicExpand = (topicId: number) => {
+        setExpandedTopics((prev) =>
+            prev.includes(topicId) ? prev.filter((id) => id !== topicId) : [...prev, topicId],
+        );
+    };
+
 
     useEffect(() => {
         const handleClickOutside = () => {
             setOpenMenu(null);
+            setOpenTopicMenu(null);
             setOpenItemMenu(null);
         };
 
@@ -117,10 +145,19 @@ const LeftPanel: React.FC<Props> = ({
     useEffect(() => {
         if (selectedItemId) {
             const activeChapter = chapters.find((ch) =>
-                ch.items.some((item) => item.id === selectedItemId)
+                ch.items.some((item) => item.id === selectedItemId) ||
+                ch.topics.some((topic) => topic.items.some((item) => item.id === selectedItemId))
             );
             if (activeChapter) {
                 setExpanded(activeChapter.id);
+                const activeTopic = activeChapter.topics.find((topic) =>
+                    topic.items.some((item) => item.id === selectedItemId),
+                );
+                if (activeTopic) {
+                    setExpandedTopics((prev) =>
+                        prev.includes(activeTopic.id) ? prev : [...prev, activeTopic.id],
+                    );
+                }
             }
         }
     }, [selectedItemId, chapters]);
@@ -136,9 +173,7 @@ const LeftPanel: React.FC<Props> = ({
                 return;
             }
             await api.delete(`${normalizedPrefix}/courses/${resolvedCourseId}/content/${chapterId}`);
-
-            const updated = chapters.filter(ch => ch.id !== chapterId);
-            onReorderChapters(updated);
+            await onRefreshContent();
 
         } catch (err) {
             console.error("âŒ Failed to delete chapter", err);
@@ -148,9 +183,9 @@ const LeftPanel: React.FC<Props> = ({
 
 
 
-    const deleteItem = async (itemId: number, chapterId: number) => {
+    const deleteContentNode = async (itemId: number, promptText = "Delete this item?") => {
         if (!canEdit) return;
-        if (!window.confirm("Delete this item?")) return;
+        if (!window.confirm(promptText)) return;
 
         try {
             if (!resolvedCourseId) {
@@ -159,14 +194,7 @@ const LeftPanel: React.FC<Props> = ({
             }
 
             await api.delete(`${normalizedPrefix}/courses/${resolvedCourseId}/content/${itemId}`);
-
-            const updatedChapters = chapters.map(ch =>
-                ch.id === chapterId
-                    ? { ...ch, items: ch.items.filter(i => i.id !== itemId) }
-                    : ch
-            );
-
-            onReorderChapters(updatedChapters);
+            await onRefreshContent();
 
         } catch (err) {
             console.error("âŒ Failed to delete item", err);
@@ -187,39 +215,16 @@ const LeftPanel: React.FC<Props> = ({
         await api.put(`${normalizedPrefix}/courses/${resolvedCourseId}/content/${chapterId}/rename`, {
             title: newName,
         });
-
-
-        const updated = chapters.map(ch =>
-            ch.id === chapterId ? { ...ch, title: newName } : ch
-        );
-
-        onReorderChapters(updated);
+        await onRefreshContent();
     };
 
-    // âœ¨ Rename Item
-    const renameItem = async (itemId: number, chapterId: number, newName: string) => {
+    const renameNode = async (itemId: number, newName: string) => {
         if (!canEdit) return;
         if (!resolvedCourseId) return;
         await api.put(`${normalizedPrefix}/courses/${resolvedCourseId}/content/${itemId}/rename`, {
             title: newName,
         });
-
-
-
-
-
-        const updatedChapters = chapters.map(ch =>
-            ch.id === chapterId
-                ? {
-                    ...ch,
-                    items: ch.items.map(i =>
-                        i.id === itemId ? { ...i, title: newName } : i
-                    )
-                }
-                : ch
-        );
-
-        onReorderChapters(updatedChapters);
+        await onRefreshContent();
     };
 
     const getIconForType = (type: string) => {
@@ -265,6 +270,277 @@ const LeftPanel: React.FC<Props> = ({
 
             onReorderItems(chapterId, reorderedItems);
         }
+
+        if (type.startsWith("TOPIC-")) {
+            const chapterId = parseInt(type.split("-")[1]);
+            const chapter = chapters.find((c) => c.id === chapterId);
+            if (!chapter) return;
+
+            const reorderedTopics = Array.from(chapter.topics);
+            const [movedTopic] = reorderedTopics.splice(source.index, 1);
+            reorderedTopics.splice(destination.index, 0, movedTopic);
+
+            onReorderTopics(chapterId, reorderedTopics);
+            return;
+        }
+
+        if (type.startsWith("TOPICITEM-")) {
+            const topicId = parseInt(type.split("-")[1]);
+            const parentTopic = chapters.flatMap((chapter) => chapter.topics).find((topic) => topic.id === topicId);
+            if (!parentTopic) return;
+
+            const reorderedItems = Array.from(parentTopic.items);
+            const [movedItem] = reorderedItems.splice(source.index, 1);
+            reorderedItems.splice(destination.index, 0, movedItem);
+
+            onReorderTopicItems(topicId, reorderedItems);
+        }
+    };
+
+    if (collapsed) {
+        return (
+            <div
+                className={`w-full h-full border-r flex flex-col items-center py-3 ${isGvjbClient
+                    ? "bg-white/90 border-amber-100"
+                    : "bg-white border-gray-200"
+                    }`}
+            >
+                <button
+                    type="button"
+                    onClick={onToggleCollapsed}
+                    className={`hidden md:flex items-center justify-center rounded-md border p-2 ${isGvjbClient
+                        ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                        : "border-gray-300 text-slate-700 hover:bg-gray-50"
+                        }`}
+                    aria-label="Expand left panel"
+                    title="Expand left panel"
+                >
+                    <FiChevronRight className="text-lg" />
+                </button>
+                <div className="mt-4 hidden md:block text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+                    {panelTitle}
+                </div>
+            </div>
+        );
+    }
+
+    const renderContentItem = (item: CourseItem, parentTitle: string) => (
+        <div
+            key={item.id}
+            onClick={() => onSelectItem(item)}
+            className={`flex justify-between items-start gap-2 p-1 my-1 relative group cursor-pointer 
+                    ${selectedItemId === item.id
+                    ? isGvjbClient
+                        ? "bg-amber-100 border border-amber-200 rounded"
+                        : "bg-blue-100 border border-blue-200 rounded"
+                    : isGvjbClient
+                        ? "hover:bg-amber-50 hover:rounded"
+                        : "hover:bg-blue-50 hover:rounded"
+                }
+`}
+        >
+            <div className="flex min-w-0 flex-1 items-start gap-2">
+                <div className="shrink-0 pt-0.5">{getIconForType(item.item_type)}</div>
+                <span className="min-w-0 whitespace-normal break-words leading-snug text-gray-700 font-medium text-[14px]">
+                    {item.title}
+                </span>
+                {item.is_linked_content && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        Licensed
+                    </span>
+                )}
+            </div>
+
+            {canEdit && (
+                <div
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenItemMenu(openItemMenu === item.id ? null : item.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition shrink-0 pt-0.5"
+                >
+                    <BsThreeDotsVertical className="text-gray-500 hover:text-black cursor-pointer" />
+                </div>
+            )}
+
+            {canEdit && openItemMenu === item.id && (
+                <div className={`absolute right-2 top-10 w-40 bg-white shadow-md border rounded-md z-50 ${isGvjbClient ? "border-amber-200" : "border-gray-200"}`}>
+                    {!item.is_linked_content && (
+                        <button
+                            className={`w-full text-left px-3 py-2 text-sm ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-100"}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenItemMenu(null);
+
+                                const newName = prompt("Enter new item name:", item.title);
+                                if (newName && newName.trim()) {
+                                    void renameNode(item.id, newName.trim());
+                                }
+                            }}
+                        >
+                            Rename
+                        </button>
+                    )}
+
+                    {!item.is_linked_content && ["video", "audio", "pdf", "scorm", "html", "text"].includes(item.item_type) && (
+                        <button
+                            className={`w-full text-left px-3 py-2 text-sm ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-100"}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenItemMenu(null);
+                                onUpdateFile(item);
+                            }}
+                        >
+                            Update
+                        </button>
+                    )}
+
+                    <button
+                        className={`w-full text-left px-3 py-2 text-sm text-red-600 ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-100"}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenItemMenu(null);
+                            if (item.is_linked_content) {
+                                void removeLinkedItem(item);
+                            } else {
+                                void deleteContentNode(item.id, `Delete "${item.title}" from ${parentTitle}?`);
+                            }
+                        }}
+                    >
+                        {item.is_linked_content ? "Remove from Course" : "Delete"}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderTopic = (topic: TopicFolder, chapter: Chapter, topicIndex: number) => {
+        const isExpanded = expandedTopics.includes(topic.id);
+        const parentLabel = `${chapter.title} / ${topic.title}`;
+
+        return (
+            <Draggable key={topic.id} draggableId={`topic-${chapter.id}-${topic.id}`} index={topicIndex}>
+                {(topicProvided) => (
+                    <div
+                        ref={topicProvided.innerRef}
+                        {...topicProvided.draggableProps}
+                        className="mt-2 rounded border border-gray-200 bg-gray-50"
+                    >
+                        <div
+                            className={`flex items-start justify-between gap-2 px-2 py-2 ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-100"}`}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => toggleTopicExpand(topic.id)}
+                                {...topicProvided.dragHandleProps}
+                                className="flex min-w-0 flex-1 items-start gap-1 text-left text-sm"
+                            >
+                                <span className="shrink-0 pt-0.5">
+                                    {isExpanded ? <FiChevronDown className="text-sm" /> : <FiChevronRight className="text-sm" />}
+                                </span>
+                                <FaFolder className="mt-0.5 shrink-0 text-sm text-gray-500" />
+                                <span className="min-w-0 whitespace-normal break-words leading-snug font-medium text-gray-800">{topic.title}</span>
+                            </button>
+
+                            {canEdit && (
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenTopicMenu(openTopicMenu === topic.id ? null : topic.id);
+                                    }}
+                                    className="relative"
+                                >
+                                    <BsThreeDotsVertical className="text-gray-500 hover:text-black cursor-pointer" />
+
+                                    {openTopicMenu === topic.id && (
+                                        <div className={`absolute right-0 top-6 bg-white border shadow-md rounded-md w-40 z-20 ${isGvjbClient ? "border-amber-200" : "border-gray-200"}`}>
+                                            <button
+                                                className={`block w-full px-3 py-2 text-left text-sm ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-100"}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenTopicMenu(null);
+                                                    const newName = prompt("Enter new topic name:", topic.title);
+                                                    if (newName && newName.trim()) {
+                                                        void renameNode(topic.id, newName.trim());
+                                                    }
+                                                }}
+                                            >
+                                                Rename
+                                            </button>
+
+                                            <button
+                                                className={`block w-full px-3 py-2 text-left text-sm text-red-600 ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-100"}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenTopicMenu(null);
+                                                    void deleteContentNode(
+                                                        topic.id,
+                                                        `Delete topic "${topic.title}" and all of its content?`,
+                                                    );
+                                                }}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {isExpanded && (
+                            <Droppable droppableId={`topic-items-${topic.id}`} type={`TOPICITEM-${topic.id}`}>
+                                {(topicDropProvided) => (
+                                    <div
+                                        className="border-t border-gray-200 bg-white px-3 py-2"
+                                        ref={topicDropProvided.innerRef}
+                                        {...topicDropProvided.droppableProps}
+                                    >
+                                        {topic.items.length === 0 ? (
+                                            <p className="px-1 py-1 text-xs text-gray-500">No content added yet.</p>
+                                        ) : (
+                                            topic.items.map((item, itemIndex) => (
+                                                <Draggable key={item.id} draggableId={`topic-item-${topic.id}-${item.id}`} index={itemIndex}>
+                                                    {(itemProvided) => (
+                                                        <div
+                                                            ref={itemProvided.innerRef}
+                                                            {...itemProvided.draggableProps}
+                                                            {...itemProvided.dragHandleProps}
+                                                        >
+                                                            {renderContentItem(item, parentLabel)}
+                                                        </div>
+                                                    )}
+                                                </Draggable>
+                                            ))
+                                        )}
+
+                                        {topicDropProvided.placeholder}
+
+                                        {canEdit && (
+                                            <div className="mt-2 flex flex-col gap-1">
+                                                <button
+                                                    onClick={() => onAddItem(topic.id, parentLabel)}
+                                                    className={`text-left text-sm hover:underline ${isGvjbClient ? "text-amber-700" : "text-blue-600"}`}
+                                                >
+                                                    + Add Content
+                                                </button>
+                                                {onAddLicensedContent && (
+                                                    <button
+                                                        onClick={() => onAddLicensedContent(topic.id, parentLabel)}
+                                                        className={`text-left text-sm hover:underline ${isGvjbClient ? "text-amber-700" : "text-blue-600"}`}
+                                                    >
+                                                        + Add from Content Pack
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </Droppable>
+                        )}
+                    </div>
+                )}
+            </Draggable>
+        );
     };
 
     return (
@@ -278,19 +554,36 @@ const LeftPanel: React.FC<Props> = ({
             {/* Header WITHOUT Add Chapter button */}
             <div className={`shrink-0 flex flex-col ${isGvjbClient ? "border-amber-100" : "border-gray-200"}`}>
                 {/* LEFT SIDE â€” BACK */}
-                <div className={`px-4 py-3 border-b flex justify-between items-center w-full ${isGvjbClient ? "border-amber-100" : "border-gray-200"}`}>
-                    {onBack ? (
-                        <button
-                            onClick={onBack}
-                            className={`text-lg ${isGvjbClient ? "hover:text-amber-700" : "hover:text-lightmain"}`}
-                        >
-                            <AiOutlineArrowLeft />
-                        </button>
-                    ) : (
-                        <div className="w-5" />
-                    )}
+                <div className={`px-4 py-3 border-b flex justify-between items-start gap-3 w-full ${isGvjbClient ? "border-amber-100" : "border-gray-200"}`}>
+                    <div className="flex min-w-0 items-start gap-3">
+                        {onBack ? (
+                            <button
+                                onClick={onBack}
+                                className={`text-lg shrink-0 ${isGvjbClient ? "hover:text-amber-700" : "hover:text-lightmain"}`}
+                            >
+                                <AiOutlineArrowLeft />
+                            </button>
+                        ) : (
+                            <div className="w-5 shrink-0" />
+                        )}
 
-                    <h1 className="text-lg font-semibold">{panelTitle}</h1>
+                        <h1 className="whitespace-normal break-words leading-snug text-lg font-semibold">{panelTitle}</h1>
+                    </div>
+
+                    {onToggleCollapsed ? (
+                        <button
+                            type="button"
+                            onClick={onToggleCollapsed}
+                            className={`hidden shrink-0 md:flex items-center justify-center rounded-md border p-1.5 ${isGvjbClient
+                                ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                                : "border-gray-300 text-slate-700 hover:bg-gray-50"
+                                }`}
+                            aria-label="Collapse left panel"
+                            title="Collapse left panel"
+                        >
+                            <FiChevronLeft className="text-base" />
+                        </button>
+                    ) : null}
                 </div>
                 {/* Progress Bar*/}
                 {!hideProgress && (
@@ -322,19 +615,21 @@ const LeftPanel: React.FC<Props> = ({
 
                                             {/* Chapter Header */}
                                             <div
-                                                className={`flex justify-between items-center px-2 py-2 rounded-t-lg ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-50"}`}
+                                                className={`flex justify-between items-start gap-2 px-2 py-2 rounded-t-lg ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-50"}`}
                                             >
                                                 <div
                                                     {...dragProvided.dragHandleProps}
-                                                    className="flex items-center gap-1 flex-1 text-sm "
+                                                    className="flex items-start gap-1 flex-1 text-sm "
                                                     onClick={() => toggleExpand(chapter.id)}
                                                 >
-                                                    {expanded === chapter.id ? (
-                                                        <FiChevronDown className="text-sm" />
-                                                    ) : (
-                                                        <FiChevronRight className="text-sm" />
-                                                    )}
-                                                    <span className="font-medium">{chapter.title}</span>
+                                                    <span className="shrink-0 pt-0.5">
+                                                        {expanded === chapter.id ? (
+                                                            <FiChevronDown className="text-sm" />
+                                                        ) : (
+                                                            <FiChevronRight className="text-sm" />
+                                                        )}
+                                                    </span>
+                                                    <span className="min-w-0 whitespace-normal break-words leading-snug font-medium">{chapter.title}</span>
                                                 </div>
 
 
@@ -398,6 +693,18 @@ const LeftPanel: React.FC<Props> = ({
                                                             ref={dropProvided.innerRef}
                                                             {...dropProvided.droppableProps}
                                                         >
+                                                            <Droppable droppableId={`topics-${chapter.id}`} type={`TOPIC-${chapter.id}`}>
+                                                                {(topicDropProvided) => (
+                                                                    <div
+                                                                        ref={topicDropProvided.innerRef}
+                                                                        {...topicDropProvided.droppableProps}
+                                                                    >
+                                                                        {chapter.topics.map((topic, topicIndex) => renderTopic(topic, chapter, topicIndex))}
+                                                                        {topicDropProvided.placeholder}
+                                                                    </div>
+                                                                )}
+                                                            </Droppable>
+
                                                             {chapter.items.map((item, itemIndex) => (
                                                                 <Draggable
                                                                     key={item.id}
@@ -410,7 +717,7 @@ const LeftPanel: React.FC<Props> = ({
                                                                             {...itemProvided.draggableProps}
                                                                             {...itemProvided.dragHandleProps}
                                                                             onClick={() => onSelectItem(item)}
-                                                                            className={`flex justify-between items-center p-1 my-1 relative group cursor-pointer 
+                                                                            className={`flex justify-between items-start gap-2 p-1 my-1 relative group cursor-pointer 
                                                                                     ${selectedItemId === item.id
                                                                                     ? isGvjbClient
                                                                                         ? "bg-amber-100 border border-amber-200 rounded"
@@ -421,9 +728,9 @@ const LeftPanel: React.FC<Props> = ({
                                                                                 }
 `}
                                                                         >
-                                                                            <div className="flex items-center gap-2">
-                                                                                {getIconForType(item.item_type)}
-                                                                                <span className="text-gray-700 font-medium text-[14px]">
+                                                                            <div className="flex min-w-0 flex-1 items-start gap-2">
+                                                                                <div className="shrink-0 pt-0.5">{getIconForType(item.item_type)}</div>
+                                                                                <span className="min-w-0 whitespace-normal break-words leading-snug text-gray-700 font-medium text-[14px]">
                                                                                     {item.title}
                                                                                 </span>
                                                                                 {item.is_linked_content && (
@@ -441,7 +748,7 @@ const LeftPanel: React.FC<Props> = ({
                                                                                             openItemMenu === item.id ? null : item.id
                                                                                         );
                                                                                     }}
-                                                                                    className="opacity-0 group-hover:opacity-100 transition"
+                                                                                    className="opacity-0 group-hover:opacity-100 transition shrink-0 pt-0.5"
                                                                                 >
                                                                                     <BsThreeDotsVertical className="text-gray-500 hover:text-black cursor-pointer" />
                                                                                 </div>
@@ -459,11 +766,11 @@ const LeftPanel: React.FC<Props> = ({
 
                                                                                                 const newName = prompt("Enter new item name:", item.title);
                                                                                                 if (newName && newName.trim()) {
-                                                                                                    renameItem(item.id, chapter.id, newName.trim());
+                                                                                                    void renameNode(item.id, newName.trim());
                                                                                                 }
                                                                                             }}
                                                                                         >
-                                                                                            âœ Rename
+                                                                                            Rename
                                                                                         </button>
                                                                                     )}
 
@@ -476,7 +783,7 @@ const LeftPanel: React.FC<Props> = ({
                                                                                                 onUpdateFile(item);
                                                                                             }}
                                                                                         >
-                                                                                            ðŸ”„ Update
+                                                                                            Update
                                                                                         </button>
                                                                                     )}
 
@@ -488,11 +795,11 @@ const LeftPanel: React.FC<Props> = ({
                                                                                             if (item.is_linked_content) {
                                                                                                 void removeLinkedItem(item);
                                                                                             } else {
-                                                                                                deleteItem(item.id, chapter.id);
+                                                                                                void deleteContentNode(item.id, `Delete "${item.title}" from ${chapter.title}?`);
                                                                                             }
                                                                                         }}
                                                                                     >
-                                                                                        {item.is_linked_content ? "Remove from Course" : "ðŸ—‘ Delete"}
+                                                                                        {item.is_linked_content ? "Remove from Course" : "Delete"}
                                                                                     </button>
                                                                                 </div>
                                                                             )}
@@ -507,14 +814,20 @@ const LeftPanel: React.FC<Props> = ({
                                                             {canEdit && (
                                                                 <div className="mt-2 flex flex-col gap-1">
                                                                     <button
-                                                                        onClick={() => onAddItem(chapter.id)}
+                                                                        onClick={() => onAddTopic(chapter.id, chapter.title)}
                                                                         className={`text-left text-sm hover:underline ${isGvjbClient ? "text-amber-700" : "text-blue-600"}`}
                                                                     >
                                                                         + Add Topic
                                                                     </button>
+                                                                    <button
+                                                                        onClick={() => onAddItem(chapter.id, chapter.title)}
+                                                                        className={`text-left text-sm hover:underline ${isGvjbClient ? "text-amber-700" : "text-blue-600"}`}
+                                                                    >
+                                                                        + Add Content
+                                                                    </button>
                                                                     {onAddLicensedContent && (
                                                                         <button
-                                                                            onClick={() => onAddLicensedContent(chapter.id)}
+                                                                            onClick={() => onAddLicensedContent(chapter.id, chapter.title)}
                                                                             className={`text-left text-sm hover:underline ${isGvjbClient ? "text-amber-700" : "text-blue-600"}`}
                                                                         >
                                                                             + Add from Content Pack

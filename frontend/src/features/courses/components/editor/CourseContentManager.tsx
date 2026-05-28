@@ -33,10 +33,17 @@ interface ExamOption {
   status?: string | null;
 }
 
+interface TopicFolder {
+  id: number;
+  title: string;
+  items: ContentItem[];
+}
+
 interface Chapter {
   id: number;
   title: string;
   items: ContentItem[];
+  topics: TopicFolder[];
 }
 
 interface LicensedPack {
@@ -84,7 +91,8 @@ export default function CourseContentManager({
   const navigate = useNavigate();
   const { user } = useAuth();
   const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
+  const [selectedParentId, setSelectedParentId] = useState<number | null>(null);
+  const [selectedParentLabel, setSelectedParentLabel] = useState("");
 
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [itemType, setItemType] = useState("video");
@@ -104,6 +112,7 @@ export default function CourseContentManager({
   const [isUpdating, setIsUpdating] = useState(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [showLicensedContentModal, setShowLicensedContentModal] = useState(false);
   const [licensedPacks, setLicensedPacks] = useState<LicensedPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
@@ -116,6 +125,9 @@ export default function CourseContentManager({
 
   const [chapterTitle, setChapterTitle] = useState("");
   const [addingChapter, setAddingChapter] = useState(false);
+  const [topicTitle, setTopicTitle] = useState("");
+  const [addingTopic, setAddingTopic] = useState(false);
+  const [topicParentChapterId, setTopicParentChapterId] = useState<number | null>(null);
   const [courseMeta, setCourseMeta] = useState<{ can_manage_content?: boolean } | null>(null);
 
   const normalizedPrefix = apiPrefix.startsWith("/") ? apiPrefix : `/${apiPrefix}`;
@@ -150,11 +162,20 @@ export default function CourseContentManager({
   };
 
   const syncContentState = (itemsToSync: ContentItem[]) => {
-    const topChapters = itemsToSync.filter((i) => i.parent_id === null);
+    const topChapters = itemsToSync.filter((i) => i.parent_id === null && i.item_type === "folder");
     const chapterMap: Chapter[] = topChapters.map((chapter: ContentItem) => ({
       id: chapter.id,
       title: chapter.title,
-      items: itemsToSync.filter((i: ContentItem) => i.parent_id === chapter.id),
+      items: itemsToSync.filter((i: ContentItem) => i.parent_id === chapter.id && i.item_type !== "folder"),
+      topics: itemsToSync
+        .filter((i: ContentItem) => i.parent_id === chapter.id && i.item_type === "folder")
+        .map((topic: ContentItem) => ({
+          id: topic.id,
+          title: topic.title,
+          items: itemsToSync.filter(
+            (i: ContentItem) => i.parent_id === topic.id && i.item_type !== "folder",
+          ),
+        })),
     }));
 
     setChapters(chapterMap);
@@ -272,13 +293,13 @@ export default function CourseContentManager({
   };
 
   const handleLinkLicensedItem = async (item: ContentItem) => {
-    if (!canLinkLicensedContent || selectedChapter === null || !resolvedCourseId) return;
+    if (!canLinkLicensedContent || selectedParentId === null || !resolvedCourseId) return;
     setLinkingLicensedContent(true);
     try {
       await api.post(`/admin/courses/${resolvedCourseId}/linked-content`, {
         content_item_id: item.id,
         source_pack_id: selectedPackId,
-        parent_content_id: selectedChapter,
+        parent_content_id: selectedParentId,
       });
       toast.success("Licensed content added to the course.");
       setShowLicensedContentModal(false);
@@ -294,12 +315,12 @@ export default function CourseContentManager({
   };
 
   const handleLinkLicensedPack = async () => {
-    if (!canLinkLicensedContent || selectedChapter === null || !resolvedCourseId || !selectedPackId) return;
+    if (!canLinkLicensedContent || selectedParentId === null || !resolvedCourseId || !selectedPackId) return;
     setLinkingLicensedContent(true);
     try {
       await api.post(`/admin/courses/${resolvedCourseId}/linked-content/bulk`, {
         pack_id: selectedPackId,
-        parent_content_id: selectedChapter,
+        parent_content_id: selectedParentId,
       });
       toast.success("Licensed pack added to the course.");
       setShowLicensedContentModal(false);
@@ -323,6 +344,17 @@ export default function CourseContentManager({
       toast.error(String(message));
     }
   };
+
+  useEffect(() => {
+    const savedState = window.localStorage.getItem("course-left-panel-collapsed");
+    if (savedState === "true") {
+      setLeftPanelCollapsed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("course-left-panel-collapsed", leftPanelCollapsed ? "true" : "false");
+  }, [leftPanelCollapsed]);
 
   useEffect(() => {
     if (!resolvedCourseId) return;
@@ -463,7 +495,26 @@ export default function CourseContentManager({
     fetchContent();
   };
 
-  const handleAddItem = async (chapterId: number) => {
+  const handleAddTopic = async () => {
+    if (!canEdit || !resolvedCourseId || topicParentChapterId === null) return;
+    if (!topicTitle.trim()) {
+      alert("Enter a topic title");
+      return;
+    }
+
+    await api.post(`${normalizedPrefix}/courses/${resolvedCourseId}/content`, {
+      item_type: "folder",
+      title: topicTitle.trim(),
+      parent_id: topicParentChapterId,
+    });
+
+    setTopicTitle("");
+    setTopicParentChapterId(null);
+    setAddingTopic(false);
+    fetchContent();
+  };
+
+  const handleAddItem = async (parentId: number) => {
     if (!canEdit || !resolvedCourseId) {
       toast.error("Read-only mode");
       return;
@@ -489,7 +540,7 @@ export default function CourseContentManager({
         const formData = new FormData();
         formData.append("item_type", itemType);
         formData.append("title", normalizedTitle);
-        formData.append("parent_id", chapterId.toString());
+        formData.append("parent_id", parentId.toString());
         formData.append("file", selectedFile);
 
         await api.post(
@@ -510,7 +561,7 @@ export default function CourseContentManager({
         await api.post(`${normalizedPrefix}/courses/${resolvedCourseId}/content`, {
           item_type: itemType,
           title: normalizedTitle,
-          parent_id: chapterId,
+          parent_id: parentId,
           content_url: publicUrl.trim(),
         });
 
@@ -527,7 +578,7 @@ export default function CourseContentManager({
         await api.post(`${normalizedPrefix}/courses/${resolvedCourseId}/content`, {
           item_type: "exam",
           title: normalizedTitle || selectedExam?.title || "Exam",
-          parent_id: chapterId,
+          parent_id: parentId,
           exam_id: selectedExamId,
         });
 
@@ -546,14 +597,56 @@ export default function CourseContentManager({
     }
   };
 
+  const persistReorder = async (
+    parentId: number | null,
+    itemIds: number[],
+    reorderScope: "chapters" | "topics" | "items",
+  ) => {
+    if (!resolvedCourseId || !canEdit) return;
+
+    try {
+      await api.put(`${normalizedPrefix}/courses/${resolvedCourseId}/content/reorder`, {
+        parent_id: parentId,
+        reorder_scope: reorderScope,
+        item_ids: itemIds,
+      });
+      await fetchContent();
+    } catch (err) {
+      console.error("Failed to persist course content order:", err);
+      toast.error("Failed to save content order.");
+      await fetchContent();
+    }
+  };
+
   const handleReorderChapters = (newOrder: Chapter[]) => {
     setChapters(newOrder);
+    void persistReorder(null, newOrder.map((chapter) => chapter.id), "chapters");
   };
 
   const handleReorderItems = (chapterId: number, newItems: ContentItem[]) => {
     setChapters((prev) =>
       prev.map((ch) => (ch.id === chapterId ? { ...ch, items: newItems } : ch))
     );
+    void persistReorder(chapterId, newItems.map((item) => item.id), "items");
+  };
+
+  const handleReorderTopics = (chapterId: number, newTopics: TopicFolder[]) => {
+    setChapters((prev) =>
+      prev.map((ch) => (ch.id === chapterId ? { ...ch, topics: newTopics } : ch))
+    );
+    void persistReorder(chapterId, newTopics.map((topic) => topic.id), "topics");
+  };
+
+  const handleReorderTopicItems = (topicId: number, newItems: ContentItem[]) => {
+    setChapters((prev) =>
+      prev.map((chapter) => ({
+        ...chapter,
+        topics: chapter.topics.map((topic) =>
+          topic.id === topicId ? { ...topic, items: newItems } : topic
+        ),
+      }))
+    );
+    void persistReorder(topicId, newItems.map((item) => item.id), "items");
   };
 
   if (!resolvedCourseId) {
@@ -583,6 +676,7 @@ export default function CourseContentManager({
           shrink-0
           transform transition-transform duration-300
           ${leftPanelOpen ? "translate-x-0" : "-translate-x-full"}
+          ${leftPanelCollapsed ? "md:w-16" : "md:w-[320px]"}
           md:translate-x-0
         `}
       >
@@ -603,13 +697,22 @@ export default function CourseContentManager({
             }
           })}
           panelTitle={panelTitle}
+          collapsed={leftPanelCollapsed}
+          onToggleCollapsed={() => setLeftPanelCollapsed((prev) => !prev)}
           onSelectItem={(item: ContentItem) => {
             setSelectedItem(item);
             setLeftPanelOpen(false);
           }}
           onAddChapter={() => setAddingChapter(true)}
-          onAddItem={(id) => {
-            setSelectedChapter(id);
+          onAddTopic={(chapterId, chapterTitleValue) => {
+            setTopicParentChapterId(chapterId);
+            setTopicTitle("");
+            setSelectedParentLabel(chapterTitleValue);
+            setAddingTopic(true);
+          }}
+          onAddItem={(id, parentLabel) => {
+            setSelectedParentId(id);
+            setSelectedParentLabel(parentLabel);
             setItemType("video");
             setItemTitle("");
             setSelectedFile(null);
@@ -618,16 +721,20 @@ export default function CourseContentManager({
             setExamSearch("");
             setShowAddItemModal(true);
           }}
-          onAddLicensedContent={canLinkLicensedContent ? (id) => {
-            setSelectedChapter(id);
+          onAddLicensedContent={canLinkLicensedContent ? (id, parentLabel) => {
+            setSelectedParentId(id);
+            setSelectedParentLabel(parentLabel);
             setLicensedSearch("");
             setLicensedSearchResults([]);
             setShowLicensedContentModal(true);
           } : undefined}
           onReorderChapters={handleReorderChapters}
           onReorderItems={handleReorderItems}
+          onReorderTopics={handleReorderTopics}
+          onReorderTopicItems={handleReorderTopicItems}
           onUpdateFile={openReplaceModal}
           onRemoveLinkedItem={canLinkLicensedContent ? handleRemoveLinkedItem : undefined}
+          onRefreshContent={fetchContent}
           hideProgress
         />
       </div>
@@ -724,6 +831,10 @@ export default function CourseContentManager({
           >
             <h3 className="text-lg font-semibold mb-4">Add Item</h3>
 
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Adding to {selectedParentLabel || "Selected Content Folder"}
+            </p>
+
             <select
               value={itemType}
               onChange={(e) => setItemType(e.target.value)}
@@ -741,7 +852,7 @@ export default function CourseContentManager({
               type="text"
               value={itemTitle}
               onChange={(e) => setItemTitle(e.target.value)}
-              placeholder={EXAM_ITEM_TYPES.includes(itemType) ? "Display title (optional)" : "Topic Name"}
+              placeholder={EXAM_ITEM_TYPES.includes(itemType) ? "Display title (optional)" : "Content Name"}
               className={`w-full p-2 border rounded mb-3 border-gray-300
                 }`}
             />
@@ -820,8 +931,8 @@ export default function CourseContentManager({
 
               <button
                 onClick={() => {
-                  if (selectedChapter !== null) {
-                    handleAddItem(selectedChapter);
+                  if (selectedParentId !== null) {
+                    handleAddItem(selectedParentId);
                   }
                 }}
                 className={`px-4 py-2 rounded bg-blue-900 text-white hover:bg-blue-700
@@ -862,6 +973,52 @@ export default function CourseContentManager({
 
               <button
                 onClick={handleAddChapter}
+                className={`px-4 py-2 rounded bg-blue-900 text-white hover:bg-blue-700
+                  }`}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addingTopic && canEdit && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
+          <div
+            className={`bg-white w-96 p-6 rounded shadow-lg 
+              }`}
+          >
+            <h3 className="text-lg font-semibold mb-4">Add Topic</h3>
+
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Chapter: {selectedParentLabel || "Selected Chapter"}
+            </p>
+
+            <input
+              type="text"
+              value={topicTitle}
+              onChange={(e) => setTopicTitle(e.target.value)}
+              placeholder="Topic title"
+              className={`w-full p-2 border rounded mb-3 border-gray-300
+                }`}
+            />
+
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setAddingTopic(false);
+                  setTopicParentChapterId(null);
+                  setTopicTitle("");
+                }}
+                className={`px-4 py-2 border rounded border-gray-300 hover:bg-gray-50
+                  }`}
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleAddTopic}
                 className={`px-4 py-2 rounded bg-blue-900 text-white hover:bg-blue-700
                   }`}
               >
@@ -1033,11 +1190,11 @@ export default function CourseContentManager({
                     <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
                       <p className="font-semibold text-slate-900">How this works</p>
                       <p className="mt-2">Linked items stay platform-owned. Client admins can place them into a chapter, but cannot rename, replace, or download them.</p>
-                      <p className="mt-3 text-xs uppercase tracking-wide text-slate-500">Selected chapter</p>
+                      <p className="mt-3 text-xs uppercase tracking-wide text-slate-500">Selected content folder</p>
                       <p className="mt-1 font-medium text-slate-900">
-                        {selectedChapter !== null
-                          ? chapters.find((chapter) => chapter.id === selectedChapter)?.title ?? "Chapter"
-                          : "No chapter selected"}
+                        {selectedParentId !== null
+                          ? selectedParentLabel || "Selected Content Folder"
+                          : "No content folder selected"}
                       </p>
                     </div>
                   </div>

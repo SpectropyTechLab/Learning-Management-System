@@ -68,9 +68,17 @@ export default function QuestionEditPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const folderId = searchParams.get("folderId") ?? "";
+  const returnTo = searchParams.get("returnTo") ?? "";
   const returnPath = useMemo(
-    () => (folderId ? `/question-bank/folders/${folderId}` : "/question-bank"),
-    [folderId]
+    () => (returnTo || (folderId ? `/question-bank/folders/${folderId}` : "/question-bank")),
+    [folderId, returnTo]
+  );
+  const passageLibraryPath = useMemo(
+    () =>
+      returnTo
+        ? `/question-bank/passages?returnTo=${encodeURIComponent(returnTo)}`
+        : "/question-bank/passages",
+    [returnTo]
   );
   const [question, setQuestion] = useState<Question | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,9 +128,10 @@ export default function QuestionEditPage() {
   const handleSave = async (payload: Omit<Question, "id">) => {
     if (!id) return;
     try {
-      const res = await api.put(`/questions/${id}`, payload);
-      const updated = res.data ? normalizeQuestion(res.data) : { ...payload, id };
-      navigate(returnPath, { state: { updatedQuestion: updated } });
+      await api.put(`/questions/${id}`, payload);
+      navigate(returnPath, {
+        state: !folderId ? { refreshQuestionList: true } : null,
+      });
       return;
     } catch {
       alert("Failed to update question.");
@@ -154,8 +163,19 @@ export default function QuestionEditPage() {
         </div>
       ) : question?.question_type === "comprehensive" ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-800">
-          Legacy comprehensive parent records can no longer be edited in-place.
-          Create or edit a linked passage from the passage library, then work with the migrated child questions.
+          <p>
+            Legacy comprehensive parent records can no longer be edited in-place.
+            Create or edit a linked passage from the passage library, then work with the migrated child questions.
+          </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => navigate(passageLibraryPath)}
+              className="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+            >
+              Go to Passage Library
+            </button>
+          </div>
         </div>
       ) : question ? (
         <QuestionForm

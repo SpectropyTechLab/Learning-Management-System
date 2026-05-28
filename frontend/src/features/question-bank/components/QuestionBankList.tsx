@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -149,6 +149,65 @@ const sortByIdAsc = (items: Question[]) => {
   });
 };
 
+const DEFAULT_FILTERS: QuestionFiltersState = {
+  search: "",
+  programId: "",
+  gradeId: "",
+  subjectId: "",
+  chapterId: "",
+  topicId: "",
+  difficulty: "",
+  type: "",
+  questionGroupType: "",
+  status: "",
+};
+
+const FILTER_PARAM_KEYS = {
+  search: "q",
+  programId: "program_id",
+  gradeId: "grade_id",
+  subjectId: "subject_id",
+  chapterId: "chapter_id",
+  topicId: "topic_id",
+  difficulty: "difficulty_level",
+  type: "question_type",
+  questionGroupType: "question_group_type",
+  status: "status",
+} as const;
+
+const readFiltersFromSearchParams = (searchParams: URLSearchParams): QuestionFiltersState => ({
+  search: searchParams.get(FILTER_PARAM_KEYS.search) ?? "",
+  programId: searchParams.get(FILTER_PARAM_KEYS.programId) ?? "",
+  gradeId: searchParams.get(FILTER_PARAM_KEYS.gradeId) ?? "",
+  subjectId: searchParams.get(FILTER_PARAM_KEYS.subjectId) ?? "",
+  chapterId: searchParams.get(FILTER_PARAM_KEYS.chapterId) ?? "",
+  topicId: searchParams.get(FILTER_PARAM_KEYS.topicId) ?? "",
+  difficulty: searchParams.get(FILTER_PARAM_KEYS.difficulty) ?? "",
+  type: searchParams.get(FILTER_PARAM_KEYS.type) ?? "",
+  questionGroupType: searchParams.get(FILTER_PARAM_KEYS.questionGroupType) ?? "",
+  status: searchParams.get(FILTER_PARAM_KEYS.status) ?? "",
+});
+
+const readPageFromSearchParams = (searchParams: URLSearchParams) => {
+  const parsed = Number(searchParams.get("page") ?? "1");
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+};
+
+const areFiltersEqual = (left: QuestionFiltersState, right: QuestionFiltersState) =>
+  left.search === right.search &&
+  left.programId === right.programId &&
+  left.gradeId === right.gradeId &&
+  left.subjectId === right.subjectId &&
+  left.chapterId === right.chapterId &&
+  left.topicId === right.topicId &&
+  left.difficulty === right.difficulty &&
+  left.type === right.type &&
+  left.questionGroupType === right.questionGroupType &&
+  left.status === right.status;
+
+const isLegacyComprehensiveParent = (question: Question) =>
+  question.question_type === "comprehensive" && !question.comprehension_passage_id;
+
 export default function QuestionBankList({
   filtersPlacement = "sidebar",
   folderId = null,
@@ -160,6 +219,7 @@ export default function QuestionBankList({
   const permissions = getQuestionPermissions(user);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarHost, setSidebarHost] = useState<Element | null>(null);
 
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -171,26 +231,16 @@ export default function QuestionBankList({
   const [chapters, setChapters] = useState<CurriculumItem[]>([]);
   const [topics, setTopics] = useState<CurriculumItem[]>([]);
 
-  const [filters, setFilters] = useState<QuestionFiltersState>({
-    search: "",
-    programId: "",
-    gradeId: "",
-    subjectId: "",
-    chapterId: "",
-    topicId: "",
-    difficulty: "",
-    type: "",
-    questionGroupType: "",
-    status: "",
-  });
+  const [filters, setFilters] = useState<QuestionFiltersState>(() => readFiltersFromSearchParams(searchParams));
 
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectQuestion, setRejectQuestion] = useState<Question | null>(null);
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => readPageFromSearchParams(searchParams));
   const pageSize = 25;
   const [total, setTotal] = useState(0);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const authHeaders = useMemo(
     () => (token ? { Authorization: `Bearer ${token}` } : undefined),
     [token]
@@ -273,7 +323,7 @@ export default function QuestionBankList({
     return () => {
       isMounted = false;
     };
-  }, [filters, currentPage, pageSize, authHeaders, folderId]);
+  }, [filters, currentPage, pageSize, authHeaders, folderId, refreshNonce]);
 
   useEffect(() => {
     let isMounted = true;
@@ -445,35 +495,47 @@ export default function QuestionBankList({
   }, []);
 
   useEffect(() => {
+    const nextFilters = readFiltersFromSearchParams(searchParams);
+    const nextPage = readPageFromSearchParams(searchParams);
+    setFilters((previous) => (areFiltersEqual(previous, nextFilters) ? previous : nextFilters));
+    setCurrentPage((previous) => (previous === nextPage ? previous : nextPage));
+  }, [searchParams]);
+
+  useEffect(() => {
     const state = location.state as
       | {
-        createdQuestion?: Question;
-        updatedQuestion?: Question;
-        deletedQuestionId?: string | number;
+        refreshQuestionList?: boolean;
       }
       | null;
-    if (!state) return;
+    if (!state?.refreshQuestionList) return;
 
-    if (state.createdQuestion) {
-      setQuestions((prev) => [state.createdQuestion as Question, ...prev]);
-    }
-    if (state.updatedQuestion) {
-      setQuestions((prev) =>
-        prev.map((item) =>
-          String(item.id) === String(state.updatedQuestion?.id)
-            ? (state.updatedQuestion as Question)
-            : item
-        )
-      );
-    }
-    if (state.deletedQuestionId) {
-      setQuestions((prev) =>
-        prev.filter((item) => String(item.id) !== String(state.deletedQuestionId))
-      );
-    }
+    setRefreshNonce((previous) => previous + 1);
+    navigate(`${location.pathname}${location.search}`, { replace: true });
+  }, [location.pathname, location.search, location.state, navigate]);
 
-    navigate(location.pathname, { replace: true });
-  }, [location.pathname, location.state, navigate]);
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    Object.values(FILTER_PARAM_KEYS).forEach((key) => nextParams.delete(key));
+    nextParams.delete("page");
+
+    if (filters.search.trim()) nextParams.set(FILTER_PARAM_KEYS.search, filters.search.trim());
+    if (filters.programId) nextParams.set(FILTER_PARAM_KEYS.programId, filters.programId);
+    if (filters.gradeId) nextParams.set(FILTER_PARAM_KEYS.gradeId, filters.gradeId);
+    if (filters.subjectId) nextParams.set(FILTER_PARAM_KEYS.subjectId, filters.subjectId);
+    if (filters.chapterId) nextParams.set(FILTER_PARAM_KEYS.chapterId, filters.chapterId);
+    if (filters.topicId) nextParams.set(FILTER_PARAM_KEYS.topicId, filters.topicId);
+    if (filters.difficulty) nextParams.set(FILTER_PARAM_KEYS.difficulty, filters.difficulty);
+    if (filters.type) nextParams.set(FILTER_PARAM_KEYS.type, filters.type);
+    if (filters.questionGroupType) nextParams.set(FILTER_PARAM_KEYS.questionGroupType, filters.questionGroupType);
+    if (filters.status) nextParams.set(FILTER_PARAM_KEYS.status, filters.status);
+    if (currentPage > 1) nextParams.set("page", String(currentPage));
+
+    const currentSerialized = searchParams.toString();
+    const nextSerialized = nextParams.toString();
+    if (currentSerialized !== nextSerialized) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [currentPage, filters, searchParams, setSearchParams]);
 
   const availableChapters = useMemo(
     () =>
@@ -495,7 +557,7 @@ export default function QuestionBankList({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, folderId]);
+  }, [folderId]);
 
   const totalCount = total;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -559,7 +621,10 @@ export default function QuestionBankList({
         subjects={subjects}
         chapters={availableChapters}
         topics={availableTopics}
-        onChange={setFilters}
+        onChange={(nextFilters) => {
+          setFilters(nextFilters);
+          setCurrentPage(1);
+        }}
       />
     </div>
   );
@@ -598,7 +663,10 @@ export default function QuestionBankList({
               subjects={subjects}
               chapters={availableChapters}
               topics={availableTopics}
-              onChange={setFilters}
+              onChange={(nextFilters) => {
+                setFilters(nextFilters);
+                setCurrentPage(1);
+              }}
             />
           </div>
         </details>
@@ -622,18 +690,31 @@ export default function QuestionBankList({
               number={(currentPage - 1) * pageSize + index + 1}
               question={question}
               permissions={permissions}
-              onEdit={(item) =>
+              onEdit={(item) => {
+                if (isLegacyComprehensiveParent(item)) {
+                  navigate(
+                    `/question-bank/passages?returnTo=${encodeURIComponent(
+                      `${location.pathname}${location.search}`
+                    )}`
+                  );
+                  return;
+                }
+
                 navigate(
                   folderId
                     ? `/question-bank/${item.id}/edit?folderId=${encodeURIComponent(String(folderId))}`
-                    : `/question-bank/${item.id}/edit`
-                )
-              }
+                    : `/question-bank/${item.id}/edit?returnTo=${encodeURIComponent(
+                        `${location.pathname}${location.search}`
+                      )}`
+                );
+              }}
               onDelete={(item) =>
                 navigate(
                   folderId
                     ? `/question-bank/${item.id}/delete?folderId=${encodeURIComponent(String(folderId))}`
-                    : `/question-bank/${item.id}/delete`
+                    : `/question-bank/${item.id}/delete?returnTo=${encodeURIComponent(
+                        `${location.pathname}${location.search}`
+                      )}`
                 )
               }
               onApprove={handleApprove}

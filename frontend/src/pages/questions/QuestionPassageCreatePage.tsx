@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
 import QuestionBankLayout from "@/features/question-bank/components/QuestionBankLayout";
 import ComprehensionPassageForm from "@/features/question-bank/components/ComprehensionPassageForm";
@@ -25,6 +25,15 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
 
 export default function QuestionPassageCreatePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo") ?? "";
+  const passagesListPath = useMemo(
+    () =>
+      returnTo
+        ? `/question-bank/passages?returnTo=${encodeURIComponent(returnTo)}`
+        : "/question-bank/passages",
+    [returnTo]
+  );
   const [programs, setPrograms] = useState<CurriculumItem[]>([]);
 
   useEffect(() => {
@@ -43,7 +52,7 @@ export default function QuestionPassageCreatePage() {
   const handleSave = async (payload: Record<string, unknown>) => {
     try {
       await api.post("/comprehension-passages", payload);
-      navigate("/question-bank/passages");
+      navigate(passagesListPath);
     } catch (error: any) {
       alert(error?.response?.data?.error || "Failed to create passage.");
     }
@@ -60,7 +69,7 @@ export default function QuestionPassageCreatePage() {
         subjects={[]}
         chapters={[]}
         topics={[]}
-        onClose={() => navigate("/question-bank/passages")}
+        onClose={() => navigate(passagesListPath)}
         onSave={handleSave}
       />
     </QuestionBankLayout>
