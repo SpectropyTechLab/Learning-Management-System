@@ -212,12 +212,18 @@ const renderHtml = (value: RichTextLike) => {
   return { __html: renderLatexWithKatex(sanitized) };
 };
 
-const stripHtml = (value: string) => value.replace(/<[^>]*>/g, "").trim();
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
-const formatOptionLabel = (option: QuestionOptionLike, index: number) => {
+const formatOptionLabelHtml = (option: QuestionOptionLike, index: number) => {
   const letter = String.fromCharCode(65 + index);
-  const text = stripHtml(getHtml(option.text));
-  return text ? `${letter}. ${text}` : letter;
+  const optionHtml = getHtml(option.text);
+  return optionHtml ? `${escapeHtml(letter)}. ${optionHtml}` : escapeHtml(letter);
 };
 
 const isMatchFollowingOptions = (
@@ -267,46 +273,46 @@ const resolveOptionIndex = (options: QuestionOptionLike[], id: string) => {
   return undefined;
 };
 
-const resolveLabelsFromIds = (options: QuestionOptionLike[], ids: string[]) => {
+const resolveLabelsFromIdsHtml = (options: QuestionOptionLike[], ids: string[]) => {
   const labels = ids
     .map((id) => resolveOptionIndex(options, String(id)))
     .filter((index) => index !== undefined)
-    .map((index) => formatOptionLabel(options[index as number], index as number));
+    .map((index) => formatOptionLabelHtml(options[index as number], index as number));
   return labels.length ? labels : null;
 };
 
-const resolveCorrectFromOptions = (
+const resolveCorrectFromOptionsHtml = (
   options: QuestionOptionLike[] | undefined,
   answer: unknown
 ) => {
   if (!options || options.length === 0) return null;
   if (typeof answer === "string") {
     const index = resolveOptionIndex(options, answer);
-    if (index !== undefined) return formatOptionLabel(options[index], index);
+    if (index !== undefined) return formatOptionLabelHtml(options[index], index);
   }
 
   if (typeof answer === "object" && answer) {
     const typed = answer as Record<string, unknown>;
     if (Array.isArray(typed.answer_ids)) {
-      const labels = resolveLabelsFromIds(options, typed.answer_ids.map(String));
+      const labels = resolveLabelsFromIdsHtml(options, typed.answer_ids.map(String));
       if (labels) return labels.join(", ");
     }
     if (Array.isArray(typed.answers)) {
-      const labels = resolveLabelsFromIds(options, typed.answers.map(String));
+      const labels = resolveLabelsFromIdsHtml(options, typed.answers.map(String));
       if (labels) return labels.join(", ");
     }
     if (typeof typed.answer === "string") {
       const index = resolveOptionIndex(options, typed.answer);
-      if (index !== undefined) return formatOptionLabel(options[index], index);
+      if (index !== undefined) return formatOptionLabelHtml(options[index], index);
     }
   }
   if (Array.isArray(answer)) {
-    const labels = resolveLabelsFromIds(options, answer.map(String));
+    const labels = resolveLabelsFromIdsHtml(options, answer.map(String));
     if (labels) return labels.join(", ");
   }
 
   const fallback = options
-    .map((option, index) => (option.is_correct ? formatOptionLabel(option, index) : null))
+    .map((option, index) => (option.is_correct ? formatOptionLabelHtml(option, index) : null))
     .filter(Boolean) as string[];
   if (fallback.length) return fallback.join(", ");
 
@@ -397,32 +403,32 @@ const resolveCorrectOptionIndexes = (
   return indexes;
 };
 
-const formatCorrectAnswer = (question: RenderableQuestion) => {
+const formatCorrectAnswerHtml = (question: RenderableQuestion) => {
   const answer = question.correct_answer;
   if (answer === null || answer === undefined) return "";
   if (question.question_type === "match_following" && isMatchFollowingOptions(question.options)) {
     const mappedPairs = formatMatchPairMappings(question.options, answer);
-    if (mappedPairs) return mappedPairs;
+    if (mappedPairs) return escapeHtml(mappedPairs);
   }
   if (Array.isArray(question.options)) {
-    const fromOptions = resolveCorrectFromOptions(question.options, answer);
+    const fromOptions = resolveCorrectFromOptionsHtml(question.options, answer);
     if (fromOptions) return fromOptions;
   }
   if (typeof answer === "string" || typeof answer === "number" || typeof answer === "boolean") {
-    return String(answer);
+    return escapeHtml(answer);
   }
   if (typeof answer === "object") {
     const typed = answer as Record<string, unknown>;
-    if (Array.isArray(typed.answer_ids)) return typed.answer_ids.join(", ");
-    if (typed.answer !== undefined) return String(typed.answer);
-    if (typed.raw !== undefined) return String(typed.raw);
+    if (Array.isArray(typed.answer_ids)) return escapeHtml(typed.answer_ids.join(", "));
+    if (typed.answer !== undefined) return escapeHtml(typed.answer);
+    if (typed.raw !== undefined) return escapeHtml(typed.raw);
     if (typed.value !== undefined) {
       const tolerance = typed.tolerance ?? 0;
-      return `Value: ${typed.value} (+/-${tolerance})`;
+      return escapeHtml(`Value: ${typed.value} (+/-${tolerance})`);
     }
-    if (Array.isArray(typed.answers)) return typed.answers.join(", ");
-    if (Array.isArray(typed.pairs)) return `${typed.pairs.length} pairs`;
-    if (Array.isArray(typed.blanks)) return `${typed.blanks.length} blanks`;
+    if (Array.isArray(typed.answers)) return escapeHtml(typed.answers.join(", "));
+    if (Array.isArray(typed.pairs)) return escapeHtml(`${typed.pairs.length} pairs`);
+    if (Array.isArray(typed.blanks)) return escapeHtml(`${typed.blanks.length} blanks`);
   }
   return "Available";
 };
@@ -495,6 +501,7 @@ export default function QuestionRenderer({
   const marksPositive = question.marks_positive ?? 0;
   const marksNegative = question.marks_negative ?? 0;
   const categoryLabel = formatCategoryLabel(question.category);
+  const correctAnswerHtml = formatCorrectAnswerHtml(question);
 
   const renderOptions = () => {
     if (!showOptions) return null;
@@ -669,7 +676,8 @@ export default function QuestionRenderer({
 
       {showAnswer && question.correct_answer !== null && question.correct_answer !== undefined ? (
         <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 wrap-break-word">
-          Correct answer: {formatCorrectAnswer(question)}
+          <span className="font-medium">Correct answer:</span>{" "}
+          <span dangerouslySetInnerHTML={renderHtml(correctAnswerHtml)} />
         </div>
       ) : null}
     </div>

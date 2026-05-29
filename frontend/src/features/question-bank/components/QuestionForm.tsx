@@ -113,6 +113,39 @@ type MatchOptionWithSide = QuestionOption & { side?: "left" | "right" };
 const getArrayOptions = (options: Question["options"] | undefined): QuestionOption[] =>
   Array.isArray(options) ? options : [];
 
+const inferLinkedChildQuestionType = (question: Question): QuestionType => {
+  const savedAnswer = question.correct_answer as CorrectAnswer;
+  const matchOptions = normalizeMatchOptions(question.options);
+  if (matchOptions) return "match_following";
+
+  if (typeof savedAnswer === "object" && savedAnswer) {
+    if ("blanks" in savedAnswer && Array.isArray(savedAnswer.blanks)) return "fill_in_blank";
+    if ("answers" in savedAnswer && Array.isArray(savedAnswer.answers)) return "short_answer";
+    if ("value" in savedAnswer || "raw" in savedAnswer) return "numerical";
+    if ("answer" in savedAnswer && typeof savedAnswer.answer === "boolean") return "true_false";
+    if ("answer_ids" in savedAnswer && Array.isArray(savedAnswer.answer_ids)) {
+      return savedAnswer.answer_ids.length > 1 ? "mcq_multiple" : "mcq_single";
+    }
+  }
+
+  if (Array.isArray(savedAnswer)) return savedAnswer.length > 1 ? "mcq_multiple" : "mcq_single";
+  if (typeof savedAnswer === "boolean") return "true_false";
+  if (typeof savedAnswer === "number") return "numerical";
+  if (typeof savedAnswer === "string") return "mcq_single";
+
+  const arrayOptions = getArrayOptions(question.options);
+  const selectedCount = arrayOptions.filter((opt) => opt.is_correct).length;
+  if (selectedCount > 1) return "mcq_multiple";
+  if (selectedCount === 1 || arrayOptions.length > 0) return "mcq_single";
+
+  return "mcq_single";
+};
+
+const getEditableQuestionType = (question: Question): QuestionType =>
+  question.question_type === "comprehensive" && question.comprehension_passage_id
+    ? inferLinkedChildQuestionType(question)
+    : question.question_type;
+
 const normalizeMatchOptions = (options: unknown): MatchFollowingOptions | null => {
   if (options && typeof options === "object" && !Array.isArray(options)) {
     const typed = options as { left?: QuestionOption[]; right?: QuestionOption[] };
@@ -489,7 +522,8 @@ export default function QuestionForm({
   useEffect(() => {
     if (!open) return;
     if (initialQuestion) {
-      setQuestionType(initialQuestion.question_type);
+      const editableQuestionType = getEditableQuestionType(initialQuestion);
+      setQuestionType(editableQuestionType);
       setQuestionText(normalizeRichText(initialQuestion.question_text));
       if (Array.isArray(initialQuestion.options)) {
         setOptions(
@@ -505,9 +539,9 @@ export default function QuestionForm({
 
       const correct = initialQuestion.correct_answer as CorrectAnswer;
       if (
-        initialQuestion.question_type === "mcq_single" ||
-        initialQuestion.question_type === "assertion_reasoning" ||
-        initialQuestion.question_type === "match_following"
+        editableQuestionType === "mcq_single" ||
+        editableQuestionType === "assertion_reasoning" ||
+        editableQuestionType === "match_following"
       ) {
         if (typeof correct === "string") {
           setCorrectAnswer(correct);
@@ -518,7 +552,7 @@ export default function QuestionForm({
           setCorrectAnswer(selected?.id ?? null);
         }
       }
-      if (initialQuestion.question_type === "mcq_multiple") {
+      if (editableQuestionType === "mcq_multiple") {
         if (Array.isArray(correct)) {
           setCorrectAnswer(correct);
         } else if (typeof correct === "object" && correct && "answer_ids" in correct) {
@@ -530,14 +564,14 @@ export default function QuestionForm({
           setCorrectAnswer(selected);
         }
       }
-      if (initialQuestion.question_type === "true_false") {
+      if (editableQuestionType === "true_false") {
         if (typeof correct === "boolean") {
           setTrueFalseAnswer(correct);
         } else if (typeof correct === "object" && correct && "answer" in correct) {
           setTrueFalseAnswer(Boolean((correct as { answer?: boolean }).answer));
         }
       }
-      if (initialQuestion.question_type === "numerical") {
+      if (editableQuestionType === "numerical") {
         if (typeof correct === "object" && correct) {
           const typed = correct as { value?: number | string; raw?: string; answer?: string; tolerance?: number };
           const resolvedValue =
@@ -549,14 +583,14 @@ export default function QuestionForm({
           setNumericalTolerance(typed.tolerance ?? 0.01);
         }
       }
-      if (initialQuestion.question_type === "short_answer") {
+      if (editableQuestionType === "short_answer") {
         if (typeof correct === "object" && correct && "answers" in correct) {
           const answers = (correct as { answers?: string[] }).answers ?? [];
           setShortAnswers(answers.join(", "));
           setShortCaseSensitive(Boolean((correct as { case_sensitive?: boolean }).case_sensitive));
         }
       }
-      if (initialQuestion.question_type === "fill_in_blank") {
+      if (editableQuestionType === "fill_in_blank") {
         if (typeof correct === "object" && correct && "blanks" in correct) {
           setFillBlanks((correct as { blanks?: FillBlankAnswer[] }).blanks ?? []);
         }
@@ -776,6 +810,19 @@ export default function QuestionForm({
       alert("Correct answer is required.");
       return;
     }
+    if (
+      (questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following") &&
+      typeof correctAnswer !== "string"
+    ) {
+      alert("Select the correct answer.");
+      return;
+    }
+    if (questionType === "mcq_multiple" && (!Array.isArray(correctAnswer) || correctAnswer.length === 0)) {
+      alert("Select at least one correct answer.");
+      return;
+    }
     const parsedTags = tags
       .split(",")
       .map((tag) => tag.trim())
@@ -935,9 +982,12 @@ export default function QuestionForm({
         }
       }
 
+      const persistedQuestionType: QuestionType =
+        resolvedComprehensionPassageId !== null ? "comprehensive" : questionType;
+
       await onSave(
         {
-          question_type: questionType,
+          question_type: persistedQuestionType,
           question_text: questionText,
           options: finalOptions,
           correct_answer: finalCorrectAnswer,

@@ -50,6 +50,15 @@ const isClientAdmin = (role) => role === 'client_admin';
 const isSchoolOwner = (role) => role === 'school_owner';
 const isTeacher = (role) => role === 'teacher';
 
+const hasLinkedComprehensionPassage = (question) =>
+  question?.comprehension_passage_id !== undefined &&
+  question?.comprehension_passage_id !== null &&
+  String(question.comprehension_passage_id).trim() !== '';
+
+const isLegacyComprehensiveParentQuestion = (question) =>
+  String(question?.question_type || '').toLowerCase() === 'comprehensive' &&
+  !hasLinkedComprehensionPassage(question);
+
 const resolveOwnedQuestionBankClientId = (clientId, role) =>
   isContentAuthorizer(role) ? PLATFORM_PROGRAM_OWNER_CLIENT_ID : clientId;
 
@@ -4420,7 +4429,7 @@ export const updateQuestion = async (req, res) => {
       }
     }
 
-    if (question.question_type === 'comprehensive') {
+    if (isLegacyComprehensiveParentQuestion(question)) {
       return res.status(400).json({ error: 'Legacy comprehensive questions cannot be edited in-place. Migrate them to linked passages first.' });
     }
 
@@ -4448,6 +4457,10 @@ export const updateQuestion = async (req, res) => {
       req.body.comprehensive_subquestions !== undefined
     ) {
       throw new AppError('Legacy comprehensive payloads are no longer supported. Link a comprehension_passage_id instead.', 400);
+    }
+
+    if (req.body.correct_answer === null) {
+      throw new AppError('correct_answer is required', 400);
     }
 
     if (req.body.question_text !== undefined) updates.question_text = toDbJsonParam(req.body.question_text);

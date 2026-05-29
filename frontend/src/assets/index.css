@@ -92,7 +92,8 @@
   max-width: min(100%, 320px);
 }
 
-.question-render .question-math-fraction {
+.question-render .question-math-fraction,
+.question-render .math-fraction {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -105,7 +106,9 @@
 }
 
 .question-render .question-math-fraction__numerator,
-.question-render .question-math-fraction__denominator {
+.question-render .question-math-fraction__denominator,
+.question-render .math-fraction__numerator,
+.question-render .math-fraction__denominator {
   display: block;
   min-width: 100%;
   padding: 0 0.16em;
@@ -113,11 +116,13 @@
   white-space: nowrap;
 }
 
-.question-render .question-math-fraction__numerator {
+.question-render .question-math-fraction__numerator,
+.question-render .math-fraction__numerator {
   border-bottom: 1px solid currentColor;
   padding-bottom: 0.08em;
 }
 
-.question-render .question-math-fraction__denominator {
+.question-render .question-math-fraction__denominator,
+.question-render .math-fraction__denominator {
   padding-top: 0.08em;
 }

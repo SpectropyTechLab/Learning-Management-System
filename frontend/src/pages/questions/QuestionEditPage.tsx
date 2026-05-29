@@ -63,6 +63,13 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
     }))
     .filter((item) => item.id !== undefined && item.id !== null);
 
+const isLegacyComprehensiveParent = (question: Question | null) =>
+  Boolean(
+    question &&
+      question.question_type === "comprehensive" &&
+      !question.comprehension_passage_id
+  );
+
 export default function QuestionEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -133,8 +140,12 @@ export default function QuestionEditPage() {
         state: !folderId ? { refreshQuestionList: true } : null,
       });
       return;
-    } catch {
-      alert("Failed to update question.");
+    } catch (error) {
+      const message =
+        typeof error === "object" && error && "response" in error
+          ? (error as { response?: { data?: { error?: unknown } } }).response?.data?.error
+          : null;
+      alert(typeof message === "string" ? message : "Failed to update question.");
       return;
     }
   };
@@ -161,7 +172,7 @@ export default function QuestionEditPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
           Loading question...
         </div>
-      ) : question?.question_type === "comprehensive" ? (
+      ) : isLegacyComprehensiveParent(question) ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-800">
           <p>
             Legacy comprehensive parent records can no longer be edited in-place.
