@@ -374,43 +374,6 @@ const calculateAllocationTotals = (rows: TopicAllocationRow[]): AllocationTotals
     { direction: 0, similar: 0, previous_year: 0, reference: 0, total: 0 }
   );
 
-const replaceSectionInPreview = (
-  preview: ExamPreviewPayload,
-  updatedSection: ExamBuilderSection
-): ExamPreviewPayload => {
-  const sections = preview.sections.map((section) =>
-    section.id === updatedSection.id ? updatedSection : section
-  );
-  const completedSectionCount = sections.filter(
-    (section) => section.completion_status === "completed"
-  ).length;
-  const questionCount = sections.reduce(
-    (sum, section) => sum + Number(section.question_count ?? 0),
-    0
-  );
-  const requiredQuestionCount = sections.reduce(
-    (sum, section) => sum + Number(section.required_question_count ?? 0),
-    0
-  );
-
-  return {
-    ...preview,
-    sections,
-    totals: {
-      section_count: sections.length,
-      question_count: questionCount,
-      required_question_count: requiredQuestionCount,
-      completed_section_count: completedSectionCount,
-    },
-    all_sections_completed: sections.every(
-      (section) =>
-        Number(section.question_count ?? 0) ===
-          Number(section.required_question_count ?? 0) &&
-        section.completion_status === "completed"
-    ),
-  };
-};
-
 const normalizeQuestionGroupTypeFromCategory = (category: unknown): QuestionGroupType | null => {
   const normalizeToken = (value: unknown) => {
     const normalized = String(value ?? "")
@@ -1226,6 +1189,20 @@ export default function ExamBuilderPage() {
     }
   }, [examId]);
 
+  const refreshPreview = useCallback(async () => {
+    if (!Number.isInteger(examId) || examId <= 0) return;
+
+    const previewPayload = await fetchExamPreview(examId);
+    setPreview((current) => ({
+      ...previewPayload,
+      exam: {
+        ...previewPayload.exam,
+        status: previewPayload.exam.status ?? current?.exam.status,
+        title: previewPayload.exam.title ?? current?.exam.title,
+      },
+    }));
+  }, [examId]);
+
   useEffect(() => {
     void loadPreview();
   }, [loadPreview]);
@@ -1550,7 +1527,7 @@ export default function ExamBuilderPage() {
         });
       }
 
-      const generatedSection = await generateExamSectionQuestions(examId, section.id, {
+      await generateExamSectionQuestions(examId, section.id, {
         generation_plan: {
           topics: editor.allocationRows.map((row) => ({
             topic_id: Number(row.topicId),
@@ -1562,9 +1539,7 @@ export default function ExamBuilderPage() {
         },
       });
 
-      setPreview((current) =>
-        current ? replaceSectionInPreview(current, generatedSection) : current
-      );
+      await refreshPreview();
       toast.success(`${section.title} generated successfully.`);
     } catch (err) {
       toast.error(readApiErrorMessage(err, "Failed to generate section questions."));
@@ -1589,10 +1564,8 @@ export default function ExamBuilderPage() {
     }));
 
     try {
-      const updatedSection = await removeQuestionFromExamSection(examId, section.id, question.question_id);
-      setPreview((current) =>
-        current ? replaceSectionInPreview(current, updatedSection) : current
-      );
+      await removeQuestionFromExamSection(examId, section.id, question.question_id);
+      await refreshPreview();
       toast.success("Question removed from section.");
     } catch (err) {
       toast.error(readApiErrorMessage(err, "Failed to remove question."));
@@ -1617,10 +1590,8 @@ export default function ExamBuilderPage() {
     }));
 
     try {
-      const updatedSection = await clearExamSectionQuestionGroup(examId, section.id, groupType);
-      setPreview((current) =>
-        current ? replaceSectionInPreview(current, updatedSection) : current
-      );
+      await clearExamSectionQuestionGroup(examId, section.id, groupType);
+      await refreshPreview();
       toast.success(`${QUESTION_GROUP_LABELS[groupType]}s removed.`);
     } catch (err) {
       toast.error(readApiErrorMessage(err, "Failed to clear question group."));
@@ -1803,14 +1774,12 @@ export default function ExamBuilderPage() {
         }
 
         const replacementQuestionId = Number(picker.selectedQuestionIds[0]);
-        const updatedSection = await replaceQuestionInSection(examId, pickerSection.id, {
+        await replaceQuestionInSection(examId, pickerSection.id, {
           current_question_id: picker.replaceQuestionId,
           new_question_id: replacementQuestionId,
         });
 
-        setPreview((current) =>
-          current ? replaceSectionInPreview(current, updatedSection) : current
-        );
+        await refreshPreview();
         setPicker(createDefaultPickerState());
         toast.success(`Question replaced in ${pickerSection.title}.`);
         return;
@@ -1834,7 +1803,7 @@ export default function ExamBuilderPage() {
       if (failed === 0) {
         setPicker(createDefaultPickerState());
       }
-      await loadPreview();
+      await refreshPreview();
     } finally {
       setPicker((current) => ({
         ...current,

@@ -231,12 +231,23 @@ let examInstructionsColumnKnown = null;
 let blueprintDistributionColumnsKnown = null;
 let examSectionDistributionColumnsKnown = null;
 let questionComprehensionSupportKnown = null;
+const PLATFORM_EXAM_OWNER_CLIENT_ID = 17;
 
 const isSuperAdmin = (role) => role === 'super_admin';
+const isContentAuthorizer = (role) => role === 'content_authorizer';
 const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
 const isClientAdmin = (role) => role === 'client_admin';
 const isSchoolOwner = (role) => role === 'school_owner';
 const isTeacher = (role) => role === 'teacher';
+const isPlatformOwnedExamClientId = (clientId) => Number(clientId) === PLATFORM_EXAM_OWNER_CLIENT_ID;
+const resolveExamOwnerClientId = (clientId, role) =>
+  isContentAuthorizer(role) ? PLATFORM_EXAM_OWNER_CLIENT_ID : clientId;
+const getReadableExamClientIds = (clientId, role) => {
+  if (isSuperAdmin(role)) return [];
+  if (isContentAuthorizer(role)) return [PLATFORM_EXAM_OWNER_CLIENT_ID];
+  if (!clientId) return [];
+  return Array.from(new Set([Number(clientId), PLATFORM_EXAM_OWNER_CLIENT_ID]));
+};
 
 const appendExamProgramConditions = async ({ conditions, params, user }) => {
   if (isPlatformAdmin(user?.role)) return;
@@ -730,10 +741,12 @@ const buildExamWhere = async ({ user, query }) => {
   };
 
   const explicitClientId = parseNullableInt(query?.client_id, 'client_id');
-  const clientId = isPlatformAdmin(user?.role) ? explicitClientId : (user?.client_id ?? null);
+  const readableClientIds = isSuperAdmin(user?.role)
+    ? (explicitClientId ? [explicitClientId] : [])
+    : getReadableExamClientIds(resolveExamOwnerClientId(user?.client_id ?? null, user?.role), user?.role);
 
-  if (clientId) {
-    conditions.push(`e.client_id = ${addParam(clientId)}`);
+  if (readableClientIds.length > 0) {
+    conditions.push(`e.client_id = ANY(${addParam(readableClientIds)})`);
   }
 
   let schoolIds = [];
@@ -802,10 +815,11 @@ const getExamByIdForAccess = async ({ examId, user, requireOwner = false }) => {
   const exam = result.rows[0];
 
   if (!isPlatformAdmin(user?.role)) {
-    const clientId = user?.client_id;
-    if (!clientId || Number(exam.client_id) !== Number(clientId)) {
+    const readableClientIds = getReadableExamClientIds(user?.client_id ?? null, user?.role);
+    if (!readableClientIds.includes(Number(exam.client_id))) {
       throw new AppError('Exam not found', 404);
     }
+    const clientId = user?.client_id;
     if (exam.program_id) {
       await ensureProgramEntitledForModule('exams', clientId, Number(exam.program_id));
     }
@@ -1084,8 +1098,11 @@ const ensureBlueprintAccessible = async ({ blueprintId, user, clientId }) => {
   }
 
   const blueprint = result.rows[0];
-  if (!isPlatformAdmin(user?.role) && Number(blueprint.client_id) !== Number(clientId)) {
-    throw new AppError('Blueprint not found', 404);
+  if (!isPlatformAdmin(user?.role)) {
+    const readableClientIds = getReadableExamClientIds(clientId, user?.role);
+    if (!readableClientIds.includes(Number(blueprint.client_id))) {
+      throw new AppError('Blueprint not found', 404);
+    }
   }
 
   if ((isSchoolOwner(user?.role) || isTeacher(user?.role)) && blueprint.school_id) {
@@ -3886,8 +3903,16 @@ const validateCoursesForExamAssignment = async ({ courseIds, exam, user }) => {
   }
 
   for (const course of courseResult.rows) {
-    if (Number(course.client_id) !== Number(exam.client_id)) {
+    const courseClientId = Number(course.client_id);
+    const examClientId = Number(exam.client_id);
+    if (!isPlatformOwnedExamClientId(examClientId) && courseClientId !== examClientId) {
       throw new AppError('Course does not belong to the same client as the exam', 403);
+    }
+    if (isPlatformOwnedExamClientId(examClientId) && !isPlatformAdmin(user?.role)) {
+      const requesterClientId = Number(user?.client_id);
+      if (!requesterClientId || courseClientId !== requesterClientId) {
+        throw new AppError('Course does not belong to the requester client scope', 403);
+      }
     }
 
     if (exam.school_id && Number(course.school_id) !== Number(exam.school_id)) {
@@ -4377,12 +4402,14 @@ export const listBlueprints = async (req, res) => {
     }
 
     const explicitClientId = parseNullableInt(req.query?.client_id, 'client_id');
-    const clientId = isPlatformAdmin(req.user.role) ? explicitClientId : (req.clientId || req.user.client_id);
+    const readableClientIds = isSuperAdmin(req.user.role)
+      ? (explicitClientId ? [explicitClientId] : [])
+      : getReadableExamClientIds(resolveExamOwnerClientId(req.clientId || req.user.client_id, req.user.role), req.user.role);
     const schoolId = parseNullableInt(req.query?.school_id, 'school_id');
     const status = req.query?.status ? requireString(req.query.status, 'status') : null;
     if (status) ensureBlueprintStatus(status);
 
-    if (!clientId && !isPlatformAdmin(req.user.role)) {
+    if (readableClientIds.length === 0 && !isPlatformAdmin(req.user.role)) {
       throw new AppError('client_id is required', 400);
     }
 
@@ -4393,8 +4420,8 @@ export const listBlueprints = async (req, res) => {
       return `$${params.length}`;
     };
 
-    if (clientId) {
-      conditions.push(`b.client_id = ${addParam(clientId)}`);
+    if (readableClientIds.length > 0) {
+      conditions.push(`b.client_id = ANY(${addParam(readableClientIds)})`);
     }
     if (schoolId) {
       conditions.push(`b.school_id = ${addParam(schoolId)}`);
@@ -4492,7 +4519,9 @@ export const createBlueprint = async (req, res) => {
 
     const name = requireString(req.body?.name, 'name');
     const sections = await parseBlueprintSectionsInput(req.body?.sections);
-    const clientId = isPlatformAdmin(req.user.role) ? parseRequiredInt(req.body?.client_id, 'client_id') : (req.clientId || req.user.client_id);
+    const clientId = isSuperAdmin(req.user.role)
+      ? parseRequiredInt(req.body?.client_id, 'client_id')
+      : resolveExamOwnerClientId(req.clientId || req.user.client_id, req.user.role);
     if (!clientId) throw new AppError('client_id is required', 400);
 
     const schoolIdInput = parseNullableInt(req.body?.school_id, 'school_id');
@@ -4955,7 +4984,9 @@ export const createExam = async (req, res) => {
       throw new AppError('end_datetime must be after start_datetime', 400);
     }
 
-    const clientId = isPlatformAdmin(req.user.role) ? parseRequiredInt(req.body?.client_id, 'client_id') : (req.clientId || req.user.client_id);
+    const clientId = isSuperAdmin(req.user.role)
+      ? parseRequiredInt(req.body?.client_id, 'client_id')
+      : resolveExamOwnerClientId(req.clientId || req.user.client_id, req.user.role);
     if (!clientId) throw new AppError('client_id is required', 400);
 
     const schoolIdInput = parseNullableInt(req.body?.school_id, 'school_id');
