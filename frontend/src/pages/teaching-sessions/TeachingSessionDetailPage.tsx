@@ -21,6 +21,9 @@ export default function TeachingSessionDetailPage() {
     remarks: '',
   });
 
+  const getDisplayStatus = (currentSession: TeachingSession | null) =>
+    currentSession?.is_expired ? 'expired' : currentSession?.status || 'not_started';
+
   const loadSession = async () => {
     if (!id) return;
     try {
@@ -39,7 +42,7 @@ export default function TeachingSessionDetailPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!id) return;
+    if (!id || session?.is_expired) return;
     try {
       const result = await teachingSessionsApi.createTeachingSessionUpdate(id, {
         ...form,
@@ -68,13 +71,18 @@ export default function TeachingSessionDetailPage() {
                 <div className="text-sm font-semibold text-slate-900">{session.session_label}</div>
                 <div className="mt-1 text-sm text-slate-600">{session.planner_title || session.topic_label || session.chapter_label}</div>
                 <div className="mt-2 text-xs text-slate-500">Planned: {session.planned_date} • {session.period_slot || 'Slot TBD'}</div>
+                {session.is_expired ? (
+                  <div className="mt-2 text-xs font-medium text-orange-600">
+                    Session expired{session.expiry_date ? ` on ${session.expiry_date}` : ''}.
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-start justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Current Completion</div>
                   <div className="mt-2 text-2xl font-semibold text-slate-900">{session.completion_percentage}%</div>
                 </div>
-                <StatusBadge status={session.status} />
+                <StatusBadge status={getDisplayStatus(session)} />
               </div>
             </div>
           )}
@@ -82,19 +90,24 @@ export default function TeachingSessionDetailPage() {
 
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <SectionCard title="Submit Daily Update">
+            {session?.is_expired ? (
+              <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50 p-4 text-sm text-orange-700">
+                This session is expired and no longer accepts daily updates.
+              </div>
+            ) : null}
             <form onSubmit={handleSubmit} className="space-y-3">
-              <select value={form.status_submitted} onChange={(e) => setForm((current) => ({ ...current, status_submitted: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <select value={form.status_submitted} onChange={(e) => setForm((current) => ({ ...current, status_submitted: e.target.value }))} disabled={session?.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
                 <option value="completed">Completed</option>
                 <option value="partially_completed">Partially Completed</option>
                 <option value="not_completed">Not Completed</option>
               </select>
-              <input value={form.completion_percentage} onChange={(e) => setForm((current) => ({ ...current, completion_percentage: e.target.value }))} placeholder="Completion Percentage" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-              <input type="date" value={form.actual_date} onChange={(e) => setForm((current) => ({ ...current, actual_date: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-              <textarea value={form.topics_covered} onChange={(e) => setForm((current) => ({ ...current, topics_covered: e.target.value }))} rows={3} placeholder="Topics Covered" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-              <textarea value={form.pending_topics} onChange={(e) => setForm((current) => ({ ...current, pending_topics: e.target.value }))} rows={3} placeholder="Pending Topics" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-              <input value={form.reason_code} onChange={(e) => setForm((current) => ({ ...current, reason_code: e.target.value }))} placeholder="Reason Code" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-              <textarea value={form.remarks} onChange={(e) => setForm((current) => ({ ...current, remarks: e.target.value }))} rows={3} placeholder="Remarks" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-              <button className="w-full rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white">Submit Update</button>
+              <input value={form.completion_percentage} onChange={(e) => setForm((current) => ({ ...current, completion_percentage: e.target.value }))} placeholder="Completion Percentage" disabled={session?.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <input type="date" value={form.actual_date} onChange={(e) => setForm((current) => ({ ...current, actual_date: e.target.value }))} disabled={session?.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <textarea value={form.topics_covered} onChange={(e) => setForm((current) => ({ ...current, topics_covered: e.target.value }))} rows={3} placeholder="Topics Covered" disabled={session?.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <textarea value={form.pending_topics} onChange={(e) => setForm((current) => ({ ...current, pending_topics: e.target.value }))} rows={3} placeholder="Pending Topics" disabled={session?.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <input value={form.reason_code} onChange={(e) => setForm((current) => ({ ...current, reason_code: e.target.value }))} placeholder="Reason Code" disabled={session?.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <textarea value={form.remarks} onChange={(e) => setForm((current) => ({ ...current, remarks: e.target.value }))} rows={3} placeholder="Remarks" disabled={session?.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <button disabled={session?.is_expired} className="w-full rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">Submit Update</button>
             </form>
           </SectionCard>
 

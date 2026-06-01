@@ -97,29 +97,43 @@ export const listTrackerSubjectsForPlatform = (programId, gradeId) =>
 export const listTrackerSubjectsForClient = (clientId, programId, gradeId) =>
   dbQuery(
     `
-    SELECT DISTINCT s.id, s.grade_id, g.program_id, s.name, s.code, s.is_active
-    FROM subjects s
-    JOIN grades g ON g.id = s.grade_id
-    JOIN programs p ON p.id = g.program_id
-    JOIN client_entitlements ce
-      ON ce.program_id = p.id
-     AND ce.entitlement_type = 'program'
-     AND ce.enabled = TRUE
-    WHERE ce.client_id = $1
-      AND g.program_id = $2
-      AND s.grade_id = $3
-      AND COALESCE(s.is_active, TRUE) = TRUE
-      AND COALESCE(g.is_active, TRUE) = TRUE
-      AND COALESCE(p.is_active, TRUE) = TRUE
-      AND EXISTS (
-        SELECT 1
-        FROM client_entitlements feature
-        WHERE feature.client_id = ce.client_id
-          AND feature.entitlement_type = 'feature'
-          AND feature.feature_key = 'teacher_session_tracker'
-          AND feature.enabled = TRUE
-      )
-    ORDER BY s.display_order ASC, s.name ASC
+    SELECT subject_options.id,
+           subject_options.grade_id,
+           subject_options.program_id,
+           subject_options.name,
+           subject_options.code,
+           subject_options.is_active
+    FROM (
+      SELECT DISTINCT s.id,
+             s.grade_id,
+             g.program_id,
+             s.name,
+             s.code,
+             s.is_active,
+             s.display_order
+      FROM subjects s
+      JOIN grades g ON g.id = s.grade_id
+      JOIN programs p ON p.id = g.program_id
+      JOIN client_entitlements ce
+        ON ce.program_id = p.id
+       AND ce.entitlement_type = 'program'
+       AND ce.enabled = TRUE
+      WHERE ce.client_id = $1
+        AND g.program_id = $2
+        AND s.grade_id = $3
+        AND COALESCE(s.is_active, TRUE) = TRUE
+        AND COALESCE(g.is_active, TRUE) = TRUE
+        AND COALESCE(p.is_active, TRUE) = TRUE
+        AND EXISTS (
+          SELECT 1
+          FROM client_entitlements feature
+          WHERE feature.client_id = ce.client_id
+            AND feature.entitlement_type = 'feature'
+            AND feature.feature_key = 'teacher_session_tracker'
+            AND feature.enabled = TRUE
+        )
+    ) AS subject_options
+    ORDER BY subject_options.display_order ASC, subject_options.name ASC
     `,
     [clientId, programId, gradeId]
   );
@@ -556,8 +570,12 @@ export const insertTeachingSession = (executor, payload) =>
 export const listTeachingSessions = ({ whereSql = '1=1', params = [] }) =>
   dbQuery(
     `
-    SELECT ts.*
+    SELECT ts.*,
+           s.name AS school_name,
+           u.full_name AS teacher_name
     FROM teaching_sessions ts
+    LEFT JOIN schools s ON s.id = ts.school_id
+    LEFT JOIN users u ON u.id = ts.teacher_user_id
     WHERE ${whereSql}
     ORDER BY ts.planned_date ASC, ts.session_no ASC, ts.id ASC
     `,
@@ -625,11 +643,22 @@ export const insertTeacherSessionTrackerPermission = (payload) =>
 export const listTeacherSessionTrackerPermissions = ({ clientId = null, teacherUserId = null }) =>
   dbQuery(
     `
-    SELECT *
-    FROM teacher_session_tracker_permissions
-    WHERE ($1::int IS NULL OR client_id = $1)
-      AND ($2::int IS NULL OR teacher_user_id = $2)
-    ORDER BY created_at DESC
+    SELECT tsp.*,
+           c.name AS client_name,
+           u.full_name AS teacher_name,
+           s.name AS school_name,
+           b.name AS batch_name,
+           p.name AS program_name,
+           p.code AS program_code
+    FROM teacher_session_tracker_permissions tsp
+    LEFT JOIN clients c ON c.id = tsp.client_id
+    LEFT JOIN users u ON u.id = tsp.teacher_user_id
+    LEFT JOIN schools s ON s.id = tsp.school_id
+    LEFT JOIN batches b ON b.id = tsp.batch_id
+    LEFT JOIN programs p ON p.id = tsp.program_id
+    WHERE ($1::int IS NULL OR tsp.client_id = $1)
+      AND ($2::int IS NULL OR tsp.teacher_user_id = $2)
+    ORDER BY tsp.created_at DESC
     `,
     [clientId, teacherUserId]
   );

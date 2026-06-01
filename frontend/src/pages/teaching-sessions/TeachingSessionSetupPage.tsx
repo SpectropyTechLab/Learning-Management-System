@@ -6,15 +6,22 @@ import TeachingSessionsShell from '@/features/teaching-sessions/components/Teach
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
 import type {
+  BatchOption,
   GradeOption,
   ProgramOption,
   ProgramSessionTemplate,
+  SchoolMembership,
   SubjectOption,
   TeachingSession,
 } from '@/features/teaching-sessions/types';
 
 type DraftSessionItem = {
   template_id: number;
+  grade_label: string;
+  subject_label: string;
+  session_no: number;
+  session_label: string;
+  part_type: ProgramSessionTemplate['part_type'];
   planned_date: string;
   period_slot: string;
   batch_id: string;
@@ -49,6 +56,8 @@ export default function TeachingSessionSetupPage() {
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [grades, setGrades] = useState<GradeOption[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [batches, setBatches] = useState<BatchOption[]>([]);
+  const [schoolMemberships, setSchoolMemberships] = useState<SchoolMembership[]>([]);
   const [templates, setTemplates] = useState<ProgramSessionTemplate[]>([]);
   const [draftItems, setDraftItems] = useState<Record<number, DraftSessionItem>>({});
   const [createdSessions, setCreatedSessions] = useState<TeachingSession[]>([]);
@@ -58,6 +67,8 @@ export default function TeachingSessionSetupPage() {
   const [programsLoading, setProgramsLoading] = useState(false);
   const [gradesLoading, setGradesLoading] = useState(false);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [teachersLoading, setTeachersLoading] = useState(false);
 
   const selectedGrade = useMemo(
     () => grades.find((item) => Number(item.id) === Number(gradeId)) ?? null,
@@ -94,6 +105,48 @@ export default function TeachingSessionSetupPage() {
     return schools.filter((school) => !school.client_id || Number(school.client_id) === Number(clientId));
   }, [schools, clientId]);
 
+  const teacherOptions = useMemo(
+    () =>
+      schoolMemberships.filter(
+        (membership) =>
+          membership.status === 'active' &&
+          (membership.role_scope === 'teacher' || membership.role === 'teacher')
+      ),
+    [schoolMemberships]
+  );
+
+  const activeBatches = useMemo(
+    () => batches.filter((batch) => batch.is_active !== false),
+    [batches]
+  );
+
+  const buildDraftItems = (
+    nextTemplates: ProgramSessionTemplate[],
+    existingDrafts: Record<number, DraftSessionItem> = {}
+  ) => {
+    const nextItems: Record<number, DraftSessionItem> = {};
+    nextTemplates.forEach((template) => {
+      const existing = existingDrafts[template.id];
+      nextItems[template.id] = {
+        template_id: template.id,
+        grade_label: template.grade_label,
+        subject_label: template.subject_label,
+        session_no: template.session_no,
+        session_label: template.session_label,
+        part_type: template.part_type,
+        planned_date: existing?.planned_date || '',
+        period_slot: existing?.period_slot || '',
+        batch_id: existing?.batch_id || '',
+        teacher_user_id: existing?.teacher_user_id || '',
+        duration_minutes:
+          existing?.duration_minutes ||
+          (template.duration_minutes ? String(template.duration_minutes) : ''),
+        remarks: existing?.remarks || '',
+      };
+    });
+    return nextItems;
+  };
+
   const loadClients = async () => {
     if (user?.role !== 'super_admin') {
       if (user?.client_id) {
@@ -125,6 +178,42 @@ export default function TeachingSessionSetupPage() {
       toast.error('Failed to load schools');
     } finally {
       setSchoolsLoading(false);
+    }
+  };
+
+  const loadBatchOptions = async (nextSchoolId: string) => {
+    if (!nextSchoolId) {
+      setBatches([]);
+      setBatchesLoading(false);
+      return;
+    }
+
+    try {
+      setBatchesLoading(true);
+      setBatches(await teachingSessionsApi.listBatchOptions(nextSchoolId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load batch options');
+    } finally {
+      setBatchesLoading(false);
+    }
+  };
+
+  const loadTeacherOptions = async (nextSchoolId: string) => {
+    if (!nextSchoolId) {
+      setSchoolMemberships([]);
+      setTeachersLoading(false);
+      return;
+    }
+
+    try {
+      setTeachersLoading(true);
+      setSchoolMemberships(await teachingSessionsApi.listSchoolMemberships(nextSchoolId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load teacher options');
+    } finally {
+      setTeachersLoading(false);
     }
   };
 
@@ -192,19 +281,7 @@ export default function TeachingSessionSetupPage() {
         (entry) => entry.mapping_status === 'matched' && entry.is_published && matchesSelectedScope(entry)
       );
       setTemplates(matched);
-      const nextItems: Record<number, DraftSessionItem> = {};
-      matched.forEach((template) => {
-        nextItems[template.id] = {
-          template_id: template.id,
-          planned_date: '',
-          period_slot: '',
-          batch_id: '',
-          teacher_user_id: '',
-          duration_minutes: template.duration_minutes ? String(template.duration_minutes) : '',
-          remarks: '',
-        };
-      });
-      setDraftItems(nextItems);
+      setDraftItems(buildDraftItems(matched));
     } catch (error) {
       console.error(error);
       toast.error('Failed to load published templates');
@@ -258,7 +335,48 @@ export default function TeachingSessionSetupPage() {
 
   useEffect(() => {
     setSchoolId('');
+    setBatches([]);
+    setSchoolMemberships([]);
   }, [clientId]);
+
+  useEffect(() => {
+    setDraftItems((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([templateId, item]) => [
+          Number(templateId),
+          {
+            ...item,
+            batch_id: '',
+            teacher_user_id: '',
+          },
+        ])
+      )
+    );
+    loadBatchOptions(schoolId);
+    loadTeacherOptions(schoolId);
+  }, [schoolId]);
+
+  useEffect(() => {
+    setDraftItems((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([templateId, item]) => [
+          Number(templateId),
+          {
+            ...item,
+            batch_id:
+              item.batch_id && activeBatches.some((batch) => Number(batch.id) === Number(item.batch_id))
+                ? item.batch_id
+                : '',
+            teacher_user_id:
+              item.teacher_user_id &&
+              teacherOptions.some((teacher) => Number(teacher.user_id) === Number(item.teacher_user_id))
+                ? item.teacher_user_id
+                : '',
+          },
+        ])
+      )
+    );
+  }, [activeBatches, teacherOptions]);
 
   const handleGenerate = async () => {
     if (!programId || !gradeId || !subjectId || !schoolId) {
@@ -270,6 +388,11 @@ export default function TeachingSessionSetupPage() {
       .filter((item) => item.planned_date)
       .map((item) => ({
         template_id: item.template_id,
+        grade_label: item.grade_label,
+        subject_label: item.subject_label,
+        session_no: item.session_no,
+        session_label: item.session_label,
+        part_type: item.part_type,
         planned_date: item.planned_date,
         period_slot: item.period_slot || undefined,
         batch_id: item.batch_id ? Number(item.batch_id) : undefined,
@@ -285,6 +408,26 @@ export default function TeachingSessionSetupPage() {
 
     try {
       setLoading(true);
+      const latestTemplates = await teachingSessionsApi.listProgramTemplates(programId, {
+        template_version_no: Number(templateVersionNo || '1'),
+      });
+      const latestMatchedTemplates = latestTemplates.filter(
+        (entry) => entry.mapping_status === 'matched' && entry.is_published && matchesSelectedScope(entry)
+      );
+      const latestTemplateIds = new Set(latestMatchedTemplates.map((template) => Number(template.id)));
+      const invalidTemplateIds = sessionItems
+        .map((item) => Number(item.template_id))
+        .filter((templateId) => !latestTemplateIds.has(templateId));
+
+      if (invalidTemplateIds.length > 0) {
+        setTemplates(latestMatchedTemplates);
+        setDraftItems((current) => buildDraftItems(latestMatchedTemplates, current));
+        toast.error(
+          `Some templates are no longer available (${invalidTemplateIds.join(', ')}). Templates were refreshed.`
+        );
+        return;
+      }
+
       const result = await teachingSessionsApi.generateTeachingSessions({
         client_id: clientId ? Number(clientId) : undefined,
         program_id: Number(programId),
@@ -466,18 +609,48 @@ export default function TeachingSessionSetupPage() {
                       onChange={(e) => updateDraft(template.id, 'period_slot', e.target.value)}
                       className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
                     />
-                    <input
-                      placeholder="Batch ID"
+                    <select
                       value={draft?.batch_id || ''}
                       onChange={(e) => updateDraft(template.id, 'batch_id', e.target.value)}
+                      disabled={!schoolId || batchesLoading}
                       className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    />
-                    <input
-                      placeholder="Teacher User ID"
+                    >
+                      <option value="">
+                        {!schoolId
+                          ? 'Select a school first'
+                          : batchesLoading
+                            ? 'Loading batches...'
+                            : activeBatches.length === 0
+                              ? 'No batches found'
+                              : 'Select a batch'}
+                      </option>
+                      {activeBatches.map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          {batch.code ? `${batch.name} (${batch.code})` : batch.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
                       value={draft?.teacher_user_id || ''}
                       onChange={(e) => updateDraft(template.id, 'teacher_user_id', e.target.value)}
+                      disabled={!schoolId || teachersLoading}
                       className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    />
+                    >
+                      <option value="">
+                        {!schoolId
+                          ? 'Select a school first'
+                          : teachersLoading
+                            ? 'Loading teachers...'
+                            : teacherOptions.length === 0
+                              ? 'No teachers found'
+                              : 'Select a teacher'}
+                      </option>
+                      {teacherOptions.map((teacher) => (
+                        <option key={teacher.id} value={teacher.user_id}>
+                          {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       placeholder="Duration"
                       value={draft?.duration_minutes || ''}

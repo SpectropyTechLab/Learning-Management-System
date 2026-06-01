@@ -1,5 +1,6 @@
 import api from '@/lib/api';
 import type {
+  BatchOption,
   ClientEntitlement,
   GradeOption,
   LessonPlannerSession,
@@ -7,6 +8,7 @@ import type {
   ProgramOption,
   ProgramSessionTemplate,
   ProgramUpload,
+  SchoolMembership,
   SubjectOption,
   TeacherTrackerPermission,
   TeachingAnalyticsSummary,
@@ -33,6 +35,18 @@ export const teachingSessionsApi = {
     const res = await api.get<SubjectOption[]>(`/teaching-sessions/program-options/${programId}/grades/${gradeId}/subjects`, {
       params: clientId ? { client_id: clientId } : undefined,
     });
+    return res.data;
+  },
+
+  listBatchOptions: async (schoolId: string | number) => {
+    const res = await api.get<BatchOption[]>('/org/batches', {
+      params: { school_id: schoolId },
+    });
+    return res.data;
+  },
+
+  listSchoolMemberships: async (schoolId: string | number) => {
+    const res = await api.get<SchoolMembership[]>(`/org/schools/${schoolId}/memberships`);
     return res.data;
   },
 

@@ -411,12 +411,69 @@ const parseLessonPlannerDocx = async (buffer, programId) => {
   return dedupePlannerSessions(sessions);
 };
 
-const buildTemplateRecords = ({ programId, templateVersionNo, microRows, plannerSessions }) => {
+const buildTemplateIdentityKey = ({
+  gradeLabel,
+  subjectLabel,
+  sessionNo,
+  sessionLabel,
+  partType,
+}) =>
+  [
+    normalizeText(gradeLabel) ?? 'unknown',
+    normalizeText(subjectLabel) ?? 'unknown',
+    Number(sessionNo) || 0,
+    normalizeText(sessionLabel) ?? 'unknown',
+    normalizeText(partType) ?? 'unknown',
+  ].join('|');
+
+const buildTemplateIdentityKeyFromRequestItem = (item) =>
+  buildTemplateIdentityKey({
+    gradeLabel: item?.grade_label,
+    subjectLabel: item?.subject_label,
+    sessionNo: parseOptionalInt(item?.session_no, 'session_no'),
+    sessionLabel: item?.session_label,
+    partType: item?.part_type,
+  });
+
+const buildTemplateRecords = ({ programId, templateVersionNo, microRows, plannerSessions, existingTemplates = [] }) => {
   const plannerBySessionNo = new Map();
   for (const session of plannerSessions) {
     if (!plannerBySessionNo.has(session.session_no)) plannerBySessionNo.set(session.session_no, []);
     plannerBySessionNo.get(session.session_no).push(session);
   }
+
+  const existingPublishedByKey = new Map();
+  for (const template of existingTemplates) {
+    if (!template?.is_published) continue;
+    const key = buildTemplateIdentityKey({
+      gradeLabel: template.grade_label,
+      subjectLabel: template.subject_label,
+      sessionNo: template.session_no,
+      sessionLabel: template.session_label,
+      partType: template.part_type,
+    });
+    if (!existingPublishedByKey.has(key)) {
+      existingPublishedByKey.set(key, template);
+    }
+  }
+
+  const getPublishState = (record) => {
+    const existing = existingPublishedByKey.get(
+      buildTemplateIdentityKey({
+        gradeLabel: record.gradeLabel,
+        subjectLabel: record.subjectLabel,
+        sessionNo: record.sessionNo,
+        sessionLabel: record.sessionLabel,
+        partType: record.partType,
+      })
+    );
+
+    return {
+      isPublished: Boolean(existing?.is_published),
+      publishedByUserId: existing?.published_by_user_id ?? null,
+      publishedAt: existing?.published_at ?? null,
+    };
+  };
 
   const usedPlannerIds = new Set();
   const records = [];
@@ -427,6 +484,13 @@ const buildTemplateRecords = ({ programId, templateVersionNo, microRows, planner
     if (matches.length === 1) {
       const planner = matches[0];
       usedPlannerIds.add(planner.id);
+      const publishState = getPublishState({
+        gradeLabel: microRow.grade_label,
+        subjectLabel: microRow.subject_label,
+        sessionNo: microRow.session_no,
+        sessionLabel: microRow.session_label,
+        partType: planner.part_type,
+      });
       records.push({
         programId,
         templateVersionNo,
@@ -454,13 +518,20 @@ const buildTemplateRecords = ({ programId, templateVersionNo, microRows, planner
         lessonPlannerSessionId: planner.id,
         mappingStatus: 'matched',
         issueDetails: {},
-        isPublished: false,
-        publishedByUserId: null,
-        publishedAt: null,
+        isPublished: publishState.isPublished,
+        publishedByUserId: publishState.publishedByUserId,
+        publishedAt: publishState.publishedAt,
       });
       continue;
     }
 
+    const publishState = getPublishState({
+      gradeLabel: microRow.grade_label,
+      subjectLabel: microRow.subject_label,
+      sessionNo: microRow.session_no,
+      sessionLabel: microRow.session_label,
+      partType: 'teaching',
+    });
     records.push({
       programId,
       templateVersionNo,
@@ -491,14 +562,21 @@ const buildTemplateRecords = ({ programId, templateVersionNo, microRows, planner
         reason: matches.length === 0 ? 'No planner session found for micro schedule row' : 'Multiple planner sessions found for micro schedule row',
         plannerSessionIds: matches.map((entry) => entry.id),
       },
-      isPublished: false,
-      publishedByUserId: null,
-      publishedAt: null,
+      isPublished: publishState.isPublished,
+      publishedByUserId: publishState.publishedByUserId,
+      publishedAt: publishState.publishedAt,
     });
   }
 
   for (const planner of plannerSessions) {
     if (usedPlannerIds.has(planner.id)) continue;
+    const publishState = getPublishState({
+      gradeLabel: 'UNKNOWN',
+      subjectLabel: 'UNKNOWN',
+      sessionNo: planner.session_no,
+      sessionLabel: planner.session_label,
+      partType: planner.part_type,
+    });
     records.push({
       programId,
       templateVersionNo,
@@ -528,9 +606,9 @@ const buildTemplateRecords = ({ programId, templateVersionNo, microRows, planner
       issueDetails: {
         reason: 'Planner session has no matching micro schedule row',
       },
-      isPublished: false,
-      publishedByUserId: null,
-      publishedAt: null,
+      isPublished: publishState.isPublished,
+      publishedByUserId: publishState.publishedByUserId,
+      publishedAt: publishState.publishedAt,
     });
   }
 
@@ -604,6 +682,34 @@ const computeLiveStatus = ({ statusSubmitted, plannedDate, completionPercentage 
   }
   if (completionPercentage === 100) return 'completed';
   return 'not_started';
+};
+
+const getCurrentDateInIndia = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+  }).format(new Date());
+
+const addDaysToDateString = (dateString, days) => {
+  if (!dateString) return null;
+  const [year, month, day] = String(dateString).slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return null;
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  utcDate.setUTCDate(utcDate.getUTCDate() + days);
+  return utcDate.toISOString().slice(0, 10);
+};
+
+const decorateSessionExpiry = (session) => {
+  if (!session) return session;
+  const plannedDate = session.planned_date ? String(session.planned_date).slice(0, 10) : null;
+  const expiryDate = addDaysToDateString(plannedDate, 2);
+  const currentDate = getCurrentDateInIndia();
+  const isExpired = Boolean(expiryDate && currentDate > expiryDate);
+  return {
+    ...session,
+    planned_date: plannedDate ?? session.planned_date,
+    expiry_date: expiryDate,
+    is_expired: isExpired,
+  };
 };
 
 const parseCompletionPercentage = (value) => {
@@ -863,11 +969,12 @@ export const mapProgramSessionTemplates = async (req, res) => {
     const lessonPlannerUploadId = parseRequiredInt(req.body?.lesson_planner_upload_id, 'lesson_planner_upload_id');
     const templateVersionNo = parseOptionalInt(req.body?.template_version_no, 'template_version_no') ?? 1;
 
-    const [microUploadResult, plannerUploadResult, microRowsResult, plannerSessionsResult] = await Promise.all([
+    const [microUploadResult, plannerUploadResult, microRowsResult, plannerSessionsResult, existingTemplatesResult] = await Promise.all([
       repo.fetchMicroScheduleUploadById(microScheduleUploadId),
       repo.fetchLessonPlannerUploadById(lessonPlannerUploadId),
       repo.fetchMicroScheduleRowsByUploadId(microScheduleUploadId),
       repo.fetchLessonPlannerSessionsByUploadId(lessonPlannerUploadId),
+      repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true }),
     ]);
 
     const microUpload = microUploadResult.rows[0];
@@ -897,6 +1004,7 @@ export const mapProgramSessionTemplates = async (req, res) => {
       templateVersionNo,
       microRows: microRowsResult.rows,
       plannerSessions: plannerSessionsResult.rows,
+      existingTemplates: existingTemplatesResult.rows,
     });
 
     const client = await getClient();
@@ -1038,7 +1146,21 @@ export const generateTeachingSessions = async (req, res) => {
     await ensureProgramEntitled(clientId, programId);
 
     const templatesResult = await repo.fetchProgramTemplatesForVersion({ programId, templateVersionNo });
-    const templatesById = new Map(templatesResult.rows.map((row) => [row.id, row]));
+    const templatesById = new Map(
+      templatesResult.rows.map((row) => [Number(row.id), row])
+    );
+    const templatesByIdentity = new Map(
+      templatesResult.rows.map((row) => [
+        buildTemplateIdentityKey({
+          gradeLabel: row.grade_label,
+          subjectLabel: row.subject_label,
+          sessionNo: row.session_no,
+          sessionLabel: row.session_label,
+          partType: row.part_type,
+        }),
+        row,
+      ])
+    );
     if (templatesById.size === 0) {
       throw new AppError('No published templates found for the selected program/version', 404);
     }
@@ -1049,9 +1171,13 @@ export const generateTeachingSessions = async (req, res) => {
       await client.query('BEGIN');
       for (const item of sessionItems) {
         const templateId = parseRequiredInt(item?.template_id, 'template_id');
-        const template = templatesById.get(templateId);
+        const templateIdentityKey = buildTemplateIdentityKeyFromRequestItem(item);
+        const template = templatesById.get(templateId) ?? templatesByIdentity.get(templateIdentityKey);
         if (!template) {
-          throw new AppError(`Template ${templateId} is not available for generation`, 400);
+          throw new AppError(
+            `Template ${templateId} is not available for generation for program ${programId} version ${templateVersionNo}. Reload published matched templates and try again.`,
+            400
+          );
         }
 
         const created = await repo.insertTeachingSession(client, {
@@ -1290,7 +1416,7 @@ export const listMyTeachingSessions = async (req, res) => {
       whereSql: where.join(' AND '),
       params,
     });
-    res.json(result.rows);
+    res.json(result.rows.map(decorateSessionExpiry));
   } catch (err) {
     handleServiceError(res, err, 'Failed to load assigned teaching sessions');
   }
@@ -1318,7 +1444,7 @@ export const getMyTeachingSessionById = async (req, res) => {
 
     const updates = await repo.listTeachingSessionUpdatesBySessionId(session.id);
     res.json({
-      session,
+      session: decorateSessionExpiry(session),
       updates: updates.rows,
     });
   } catch (err) {
@@ -1345,6 +1471,11 @@ export const createTeachingSessionUpdate = async (req, res) => {
     const trackerPermission = permission.rows[0];
     if (!trackerPermission || trackerPermission.can_update_tracker !== true) {
       throw new AppError('Tracker update access is not granted for this session', 403);
+    }
+
+    const decoratedSession = decorateSessionExpiry(session);
+    if (decoratedSession?.is_expired) {
+      throw new AppError('This session is expired and can no longer accept daily updates', 403);
     }
 
     const statusSubmitted = parseEnum(
@@ -1388,7 +1519,7 @@ export const createTeachingSessionUpdate = async (req, res) => {
 
     res.status(201).json({
       update: updateResult.rows[0],
-      session: updatedSession.rows[0],
+      session: decorateSessionExpiry(updatedSession.rows[0]),
     });
   } catch (err) {
     handleServiceError(res, err, 'Failed to submit teaching session update');

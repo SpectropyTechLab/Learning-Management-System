@@ -37,6 +37,28 @@ export interface SubjectOption {
   code?: string | null;
 }
 
+export interface BatchOption {
+  id: number;
+  client_id: number;
+  school_id: number;
+  name: string;
+  code?: string | null;
+  is_active?: boolean | null;
+}
+
+export interface SchoolMembership {
+  id: number;
+  school_id: number;
+  user_id: number;
+  role_scope: 'school_owner' | 'teacher' | 'student' | 'admin';
+  status: string;
+  is_primary?: boolean | null;
+  joined_at?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  role?: string | null;
+}
+
 export interface MicroScheduleRow {
   id: number;
   micro_schedule_upload_id: number;
@@ -109,6 +131,7 @@ export interface TeachingSession {
   id: number;
   client_id: number;
   school_id: number;
+  school_name?: string | null;
   batch_id?: number | null;
   program_id: number;
   program_session_template_id?: number | null;
@@ -122,11 +145,14 @@ export interface TeachingSession {
   period_slot?: string | null;
   duration_minutes?: number | null;
   teacher_user_id?: number | null;
+  teacher_name?: string | null;
   learning_goal?: string | null;
   topic_label?: string | null;
   planner_title?: string | null;
-  status: 'not_started' | 'completed' | 'partially_completed' | 'not_completed' | 'update_pending' | 'lagging';
+  status: 'not_started' | 'completed' | 'partially_completed' | 'not_completed' | 'update_pending' | 'lagging' | 'expired';
   completion_percentage: number;
+  expiry_date?: string | null;
+  is_expired?: boolean;
   actual_date?: string | null;
   topics_covered?: string | null;
   pending_topics?: string | null;
@@ -151,10 +177,16 @@ export interface TeachingSessionUpdate {
 export interface TeacherTrackerPermission {
   id: number;
   client_id: number;
+  client_name?: string | null;
   teacher_user_id: number;
+  teacher_name?: string | null;
   school_id?: number | null;
+  school_name?: string | null;
   batch_id?: number | null;
+  batch_name?: string | null;
   program_id?: number | null;
+  program_name?: string | null;
+  program_code?: string | null;
   can_view_tracker: boolean;
   can_update_tracker: boolean;
   granted_by_user_id: number;

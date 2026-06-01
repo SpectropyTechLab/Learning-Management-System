@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import api from '@/lib/api';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import TeachingSessionsShell from '@/features/teaching-sessions/components/TeachingSessionsShell';
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import StatusBadge from '@/features/teaching-sessions/components/StatusBadge';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
-import type { TeachingSession } from '@/features/teaching-sessions/types';
+import type { BatchOption, ProgramOption, SchoolMembership, TeachingSession } from '@/features/teaching-sessions/types';
+
+type SchoolOption = {
+  id: number;
+  name: string;
+  school_code?: string | null;
+};
 
 export default function TeachingSessionsListPage() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState({
     school_id: '',
     program_id: '',
@@ -26,6 +35,85 @@ export default function TeachingSessionsListPage() {
     duration_minutes: '',
     remarks: '',
   });
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [filterTeachers, setFilterTeachers] = useState<SchoolMembership[]>([]);
+  const [assignmentTeachers, setAssignmentTeachers] = useState<SchoolMembership[]>([]);
+  const [assignmentBatches, setAssignmentBatches] = useState<BatchOption[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const [programsLoading, setProgramsLoading] = useState(false);
+  const [filterTeachersLoading, setFilterTeachersLoading] = useState(false);
+  const [assignmentTeachersLoading, setAssignmentTeachersLoading] = useState(false);
+  const [assignmentBatchesLoading, setAssignmentBatchesLoading] = useState(false);
+
+  const teacherOptions = filterTeachers.filter(
+    (membership) =>
+      membership.status === 'active' &&
+      (membership.role_scope === 'teacher' || membership.role === 'teacher')
+  );
+
+  const assignmentTeacherOptions = assignmentTeachers.filter(
+    (membership) =>
+      membership.status === 'active' &&
+      (membership.role_scope === 'teacher' || membership.role === 'teacher')
+  );
+
+  const activeAssignmentBatches = assignmentBatches.filter((batch) => batch.is_active !== false);
+
+  const loadFilterOptions = async () => {
+    try {
+      setSchoolsLoading(true);
+      setProgramsLoading(true);
+      const [schoolsResponse, programsResponse] = await Promise.all([
+        api.get<SchoolOption[]>('/org/schools'),
+        teachingSessionsApi.listPrograms(user?.client_id),
+      ]);
+      setSchools(schoolsResponse.data);
+      setPrograms(programsResponse);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load filter options');
+    } finally {
+      setSchoolsLoading(false);
+      setProgramsLoading(false);
+    }
+  };
+
+  const loadTeacherOptions = async (schoolId: string, setter: (value: SchoolMembership[]) => void, loadingSetter: (value: boolean) => void) => {
+    if (!schoolId) {
+      setter([]);
+      loadingSetter(false);
+      return;
+    }
+
+    try {
+      loadingSetter(true);
+      setter(await teachingSessionsApi.listSchoolMemberships(schoolId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load teacher options');
+    } finally {
+      loadingSetter(false);
+    }
+  };
+
+  const loadAssignmentBatchOptions = async (schoolId: string) => {
+    if (!schoolId) {
+      setAssignmentBatches([]);
+      setAssignmentBatchesLoading(false);
+      return;
+    }
+
+    try {
+      setAssignmentBatchesLoading(true);
+      setAssignmentBatches(await teachingSessionsApi.listBatchOptions(schoolId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load batch options');
+    } finally {
+      setAssignmentBatchesLoading(false);
+    }
+  };
 
   const loadSessions = async () => {
     try {
@@ -41,8 +129,14 @@ export default function TeachingSessionsListPage() {
   };
 
   useEffect(() => {
+    loadFilterOptions();
     loadSessions();
   }, []);
+
+  useEffect(() => {
+    setFilters((current) => ({ ...current, teacher_user_id: '' }));
+    loadTeacherOptions(filters.school_id, setFilterTeachers, setFilterTeachersLoading);
+  }, [filters.school_id]);
 
   useEffect(() => {
     const session = sessions.find((entry) => entry.id === selectedId);
@@ -57,6 +151,11 @@ export default function TeachingSessionsListPage() {
       remarks: session.remarks || '',
     });
   }, [selectedId, sessions]);
+
+  useEffect(() => {
+    loadTeacherOptions(assignment.school_id, setAssignmentTeachers, setAssignmentTeachersLoading);
+    loadAssignmentBatchOptions(assignment.school_id);
+  }, [assignment.school_id]);
 
   const selectedSession = sessions.find((entry) => entry.id === selectedId) || null;
 
@@ -90,10 +189,36 @@ export default function TeachingSessionsListPage() {
       <div className="space-y-6">
         <SectionCard title="Filters">
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <input placeholder="School ID" value={filters.school_id} onChange={(e) => setFilters((current) => ({ ...current, school_id: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input placeholder="Program ID" value={filters.program_id} onChange={(e) => setFilters((current) => ({ ...current, program_id: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input placeholder="Teacher ID" value={filters.teacher_user_id} onChange={(e) => setFilters((current) => ({ ...current, teacher_user_id: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input placeholder="Status" value={filters.status} onChange={(e) => setFilters((current) => ({ ...current, status: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            <select value={filters.school_id} onChange={(e) => setFilters((current) => ({ ...current, school_id: e.target.value }))} disabled={schoolsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{schoolsLoading ? 'Loading schools...' : 'All Schools'}</option>
+              {schools.map((school) => (
+                <option key={school.id} value={school.id}>
+                  {school.school_code ? `${school.name} (${school.school_code})` : school.name}
+                </option>
+              ))}
+            </select>
+            <select value={filters.program_id} onChange={(e) => setFilters((current) => ({ ...current, program_id: e.target.value }))} disabled={programsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{programsLoading ? 'Loading programs...' : 'All Programs'}</option>
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.code ? `${program.name} (${program.code})` : program.name}
+                </option>
+              ))}
+            </select>
+            <select value={filters.teacher_user_id} onChange={(e) => setFilters((current) => ({ ...current, teacher_user_id: e.target.value }))} disabled={!filters.school_id || filterTeachersLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{!filters.school_id ? 'Select a school first' : filterTeachersLoading ? 'Loading teachers...' : teacherOptions.length === 0 ? 'No teachers found' : 'All Teachers'}</option>
+              {teacherOptions.map((teacher) => (
+                <option key={teacher.id} value={teacher.user_id}>
+                  {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
+                </option>
+              ))}
+            </select>
+            <select value={filters.status} onChange={(e) => setFilters((current) => ({ ...current, status: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="partially_completed">Partially Completed</option>
+              <option value="not_completed">Not Completed</option>
+            </select>
             <input type="date" value={filters.date_from} onChange={(e) => setFilters((current) => ({ ...current, date_from: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
             <input type="date" value={filters.date_to} onChange={(e) => setFilters((current) => ({ ...current, date_to: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
           </div>
@@ -129,9 +254,30 @@ export default function TeachingSessionsListPage() {
             {!selectedSession && <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-slate-500">Select a session from the left to edit assignment details.</div>}
             {selectedSession && (
               <form onSubmit={handleUpdate} className="space-y-3">
-                <input placeholder="School ID" value={assignment.school_id} onChange={(e) => setAssignment((current) => ({ ...current, school_id: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-                <input placeholder="Batch ID" value={assignment.batch_id} onChange={(e) => setAssignment((current) => ({ ...current, batch_id: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-                <input placeholder="Teacher User ID" value={assignment.teacher_user_id} onChange={(e) => setAssignment((current) => ({ ...current, teacher_user_id: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                <select value={assignment.school_id} onChange={(e) => setAssignment((current) => ({ ...current, school_id: e.target.value, batch_id: '', teacher_user_id: '' }))} disabled={schoolsLoading} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                  <option value="">{schoolsLoading ? 'Loading schools...' : 'Select a school'}</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.school_code ? `${school.name} (${school.school_code})` : school.name}
+                    </option>
+                  ))}
+                </select>
+                <select value={assignment.batch_id} onChange={(e) => setAssignment((current) => ({ ...current, batch_id: e.target.value }))} disabled={!assignment.school_id || assignmentBatchesLoading} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                  <option value="">{!assignment.school_id ? 'Select a school first' : assignmentBatchesLoading ? 'Loading batches...' : activeAssignmentBatches.length === 0 ? 'No batches found' : 'Select a batch'}</option>
+                  {activeAssignmentBatches.map((batch) => (
+                    <option key={batch.id} value={batch.id}>
+                      {batch.code ? `${batch.name} (${batch.code})` : batch.name}
+                    </option>
+                  ))}
+                </select>
+                <select value={assignment.teacher_user_id} onChange={(e) => setAssignment((current) => ({ ...current, teacher_user_id: e.target.value }))} disabled={!assignment.school_id || assignmentTeachersLoading} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                  <option value="">{!assignment.school_id ? 'Select a school first' : assignmentTeachersLoading ? 'Loading teachers...' : assignmentTeacherOptions.length === 0 ? 'No teachers found' : 'Select a teacher'}</option>
+                  {assignmentTeacherOptions.map((teacher) => (
+                    <option key={teacher.id} value={teacher.user_id}>
+                      {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
+                    </option>
+                  ))}
+                </select>
                 <input type="date" value={assignment.planned_date} onChange={(e) => setAssignment((current) => ({ ...current, planned_date: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                 <input placeholder="Period / Slot" value={assignment.period_slot} onChange={(e) => setAssignment((current) => ({ ...current, period_slot: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                 <input placeholder="Duration Minutes" value={assignment.duration_minutes} onChange={(e) => setAssignment((current) => ({ ...current, duration_minutes: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />

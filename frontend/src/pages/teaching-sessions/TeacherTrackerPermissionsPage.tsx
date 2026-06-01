@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import api from '@/lib/api';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import TeachingSessionsShell from '@/features/teaching-sessions/components/TeachingSessionsShell';
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
-import type { TeacherTrackerPermission } from '@/features/teaching-sessions/types';
+import type { BatchOption, ProgramOption, SchoolMembership, TeacherTrackerPermission } from '@/features/teaching-sessions/types';
+
+type SchoolOption = {
+  id: number;
+  name: string;
+  school_code?: string | null;
+};
 
 export default function TeacherTrackerPermissionsPage() {
+  const { user } = useAuth();
   const [clientId, setClientId] = useState('');
   const [teacherUserId, setTeacherUserId] = useState('');
   const [schoolId, setSchoolId] = useState('');
@@ -14,6 +23,22 @@ export default function TeacherTrackerPermissionsPage() {
   const [permissions, setPermissions] = useState<TeacherTrackerPermission[]>([]);
   const [canView, setCanView] = useState(true);
   const [canUpdate, setCanUpdate] = useState(true);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [teachers, setTeachers] = useState<SchoolMembership[]>([]);
+  const [batches, setBatches] = useState<BatchOption[]>([]);
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const [teachersLoading, setTeachersLoading] = useState(false);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [programsLoading, setProgramsLoading] = useState(false);
+
+  const teacherOptions = teachers.filter(
+    (membership) =>
+      membership.status === 'active' &&
+      (membership.role_scope === 'teacher' || membership.role === 'teacher')
+  );
+
+  const activeBatches = batches.filter((batch) => batch.is_active !== false);
 
   const loadPermissions = async () => {
     try {
@@ -29,8 +54,77 @@ export default function TeacherTrackerPermissionsPage() {
   };
 
   useEffect(() => {
+    if (user?.client_id) {
+      setClientId(String(user.client_id));
+    }
     loadPermissions();
-  }, []);
+  }, [user?.client_id]);
+
+  const loadFilterOptions = async () => {
+    try {
+      setSchoolsLoading(true);
+      setProgramsLoading(true);
+      const [schoolsResponse, programsResponse] = await Promise.all([
+        api.get<SchoolOption[]>('/org/schools'),
+        teachingSessionsApi.listPrograms(user?.client_id),
+      ]);
+      setSchools(schoolsResponse.data);
+      setPrograms(programsResponse);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load grant access options');
+    } finally {
+      setSchoolsLoading(false);
+      setProgramsLoading(false);
+    }
+  };
+
+  const loadTeacherOptions = async (nextSchoolId: string) => {
+    if (!nextSchoolId) {
+      setTeachers([]);
+      setTeachersLoading(false);
+      return;
+    }
+
+    try {
+      setTeachersLoading(true);
+      setTeachers(await teachingSessionsApi.listSchoolMemberships(nextSchoolId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load teacher options');
+    } finally {
+      setTeachersLoading(false);
+    }
+  };
+
+  const loadBatchOptions = async (nextSchoolId: string) => {
+    if (!nextSchoolId) {
+      setBatches([]);
+      setBatchesLoading(false);
+      return;
+    }
+
+    try {
+      setBatchesLoading(true);
+      setBatches(await teachingSessionsApi.listBatchOptions(nextSchoolId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load batch options');
+    } finally {
+      setBatchesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFilterOptions();
+  }, [user?.client_id]);
+
+  useEffect(() => {
+    setTeacherUserId('');
+    setBatchId('');
+    loadTeacherOptions(schoolId);
+    loadBatchOptions(schoolId);
+  }, [schoolId]);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -68,6 +162,20 @@ export default function TeacherTrackerPermissionsPage() {
     }
   };
 
+  const formatScope = (permission: TeacherTrackerPermission) => {
+    const parts = [];
+    if (permission.school_name) parts.push(permission.school_name);
+    if (permission.batch_name) parts.push(permission.batch_name);
+    if (permission.program_name) {
+      parts.push(
+        permission.program_code
+          ? `${permission.program_name} (${permission.program_code})`
+          : permission.program_name
+      );
+    }
+    return parts.length > 0 ? parts.join(' • ') : '-';
+  };
+
   return (
     <TeachingSessionsShell
       title="Teacher Tracker Permissions"
@@ -76,11 +184,41 @@ export default function TeacherTrackerPermissionsPage() {
       <div className="space-y-6">
         <SectionCard title="Grant Access">
           <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-3">
-            <input placeholder="Client ID" value={clientId} onChange={(e) => setClientId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input placeholder="Teacher User ID" value={teacherUserId} onChange={(e) => setTeacherUserId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input placeholder="School ID" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input placeholder="Batch ID" value={batchId} onChange={(e) => setBatchId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input placeholder="Program ID" value={programId} onChange={(e) => setProgramId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            <select value={clientId} onChange={(e) => setClientId(e.target.value)} disabled className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{user?.client_id ? `Client ${user.client_id}` : 'Client unavailable'}</option>
+            </select>
+            <select value={programId} onChange={(e) => setProgramId(e.target.value)} disabled={programsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{programsLoading ? 'Loading programs...' : 'Select a program'}</option>
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.code ? `${program.name} (${program.code})` : program.name}
+                </option>
+              ))}
+            </select>
+            <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} disabled={schoolsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{schoolsLoading ? 'Loading schools...' : 'Select a school'}</option>
+              {schools.map((school) => (
+                <option key={school.id} value={school.id}>
+                  {school.school_code ? `${school.name} (${school.school_code})` : school.name}
+                </option>
+              ))}
+            </select>
+            <select value={teacherUserId} onChange={(e) => setTeacherUserId(e.target.value)} disabled={!schoolId || teachersLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{!schoolId ? 'Select a school first' : teachersLoading ? 'Loading teachers...' : teacherOptions.length === 0 ? 'No teachers found' : 'Select a teacher'}</option>
+              {teacherOptions.map((teacher) => (
+                <option key={teacher.id} value={teacher.user_id}>
+                  {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
+                </option>
+              ))}
+            </select>
+            <select value={batchId} onChange={(e) => setBatchId(e.target.value)} disabled={!schoolId || batchesLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">{!schoolId ? 'Select a school first' : batchesLoading ? 'Loading batches...' : activeBatches.length === 0 ? 'No batches found' : 'Select a batch'}</option>
+              {activeBatches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.code ? `${batch.name} (${batch.code})` : batch.name}
+                </option>
+              ))}
+            </select>
             <div className="flex items-center gap-4 rounded-xl border border-slate-200 px-3 py-2 text-sm">
               <label className="flex items-center gap-2"><input type="checkbox" checked={canView} onChange={(e) => setCanView(e.target.checked)} /> View</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={canUpdate} onChange={(e) => setCanUpdate(e.target.checked)} /> Update</label>
@@ -108,11 +246,9 @@ export default function TeacherTrackerPermissionsPage() {
                   )}
                   {permissions.map((permission) => (
                     <tr key={permission.id}>
-                      <td className="px-3 py-2">{permission.teacher_user_id}</td>
-                      <td className="px-3 py-2">{permission.client_id}</td>
-                      <td className="px-3 py-2">
-                        S:{permission.school_id || '-'} • B:{permission.batch_id || '-'} • P:{permission.program_id || '-'}
-                      </td>
+                      <td className="px-3 py-2">{permission.teacher_name || permission.teacher_user_id}</td>
+                      <td className="px-3 py-2">{permission.client_name || permission.client_id}</td>
+                      <td className="px-3 py-2">{formatScope(permission)}</td>
                       <td className="px-3 py-2">
                         {permission.can_view_tracker ? 'View' : 'No View'} / {permission.can_update_tracker ? 'Update' : 'Read Only'}
                       </td>

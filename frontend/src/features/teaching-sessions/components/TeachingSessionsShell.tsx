@@ -11,7 +11,7 @@ import { HiOutlineBuildingOffice2 } from 'react-icons/hi2';
 
 interface TeachingSessionsShellProps {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
 }

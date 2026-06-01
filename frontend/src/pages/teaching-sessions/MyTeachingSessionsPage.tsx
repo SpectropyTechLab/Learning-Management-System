@@ -12,6 +12,9 @@ export default function MyTeachingSessionsPage() {
   const [status, setStatus] = useState('');
   const [sessions, setSessions] = useState<TeachingSession[]>([]);
 
+  const getDisplayStatus = (session: TeachingSession) =>
+    session.is_expired ? 'expired' : session.status;
+
   const loadSessions = async () => {
     try {
       const data = await teachingSessionsApi.listMyTeachingSessions(status ? { status } : undefined);
@@ -29,7 +32,11 @@ export default function MyTeachingSessionsPage() {
   return (
     <TeachingSessionsShell
       title="My Teaching Sessions"
-      subtitle="Track and update only the sessions assigned to you."
+      subtitle={
+        <span className="text-yellow-600">
+          Track your assigned sessions and complete each daily update within 2 days of the planned date.
+        </span>
+      }
       actions={
         <div className="flex items-center gap-2">
           <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status filter" className="rounded-full border border-slate-200 px-3 py-2 text-xs" />
@@ -53,8 +60,13 @@ export default function MyTeachingSessionsPage() {
                   <div className="mt-1 text-xs text-slate-500">
                     {session.planned_date} • {session.period_slot || 'Slot TBD'} • Completion {session.completion_percentage}%
                   </div>
+                  {session.is_expired ? (
+                    <div className="mt-1 text-xs font-medium text-orange-600">
+                      Session expired{session.expiry_date ? ` on ${session.expiry_date}` : ''}.
+                    </div>
+                  ) : null}
                 </div>
-                <StatusBadge status={session.status} />
+                <StatusBadge status={getDisplayStatus(session)} />
               </div>
             </button>
           ))}
