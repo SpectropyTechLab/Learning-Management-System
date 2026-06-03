@@ -1,6 +1,7 @@
 import { query as dbQuery } from './db.repository.js';
 
 const execute = (executor, text, params) => (executor ? executor.query(text, params) : dbQuery(text, params));
+const toJsonParam = (value) => (value == null ? null : JSON.stringify(value));
 
 export const listTrackerProgramsForPlatform = () =>
   dbQuery(
@@ -257,14 +258,16 @@ export const insertLessonPlannerUpload = (executor, payload) =>
     executor,
     `
     INSERT INTO program_lesson_planner_uploads
-    (program_id, grade_id, subject_id, uploaded_by_user_id, file_name, file_storage_path, source_type, version_no, status, notes)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    (program_id, grade_id, subject_id, micro_schedule_upload_id, target_session_no, uploaded_by_user_id, file_name, file_storage_path, source_type, version_no, status, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING *
     `,
     [
       payload.programId,
       payload.gradeId,
       payload.subjectId,
+      payload.microScheduleUploadId,
+      payload.targetSessionNo,
       payload.uploadedByUserId,
       payload.fileName,
       payload.fileStoragePath,
@@ -294,7 +297,7 @@ export const insertLessonPlannerSession = (executor, payload) =>
       payload.title,
       payload.chapterLabel,
       payload.topicLabel,
-      payload.learningObjectives,
+      toJsonParam(payload.learningObjectives ?? []),
       payload.materialsNeeded,
       payload.worksheetQuestionsCovered,
       payload.shortcutsIntroduced,
@@ -302,17 +305,17 @@ export const insertLessonPlannerSession = (executor, payload) =>
       payload.homework,
       payload.nextSessionPreview,
       payload.pedagogyNote,
-      payload.minutePlanJson,
+      toJsonParam(payload.minutePlanJson ?? []),
       payload.teacherScriptText,
-      payload.rawSourceJson,
+      toJsonParam(payload.rawSourceJson ?? {}),
       payload.normalizedKey,
     ]
   );
 
-export const listLessonPlannerUploads = ({ programId = null, gradeId = null, subjectId = null }) =>
+export const listLessonPlannerUploads = ({ programId = null, gradeId = null, subjectId = null, microScheduleUploadId = null, targetSessionNo = null }) =>
   dbQuery(
     `
-    SELECT u.id, u.program_id, u.grade_id, u.subject_id, u.uploaded_by_user_id, u.file_name, u.file_storage_path, u.source_type, u.version_no, u.status, u.notes, u.created_at, u.updated_at,
+    SELECT u.id, u.program_id, u.grade_id, u.subject_id, u.micro_schedule_upload_id, u.target_session_no, u.uploaded_by_user_id, u.file_name, u.file_storage_path, u.source_type, u.version_no, u.status, u.notes, u.created_at, u.updated_at,
            g.grade_number,
            s.name AS subject_name,
            s.code AS subject_code
@@ -322,9 +325,11 @@ export const listLessonPlannerUploads = ({ programId = null, gradeId = null, sub
     WHERE ($1::int IS NULL OR u.program_id = $1)
       AND ($2::int IS NULL OR u.grade_id = $2)
       AND ($3::int IS NULL OR u.subject_id = $3)
+      AND ($4::int IS NULL OR u.micro_schedule_upload_id = $4)
+      AND ($5::int IS NULL OR u.target_session_no = $5)
     ORDER BY u.created_at DESC
     `,
-    [programId, gradeId, subjectId]
+    [programId, gradeId, subjectId, microScheduleUploadId, targetSessionNo]
   );
 
 export const fetchLessonPlannerUploadById = (id) =>
@@ -343,12 +348,51 @@ export const fetchLessonPlannerUploadById = (id) =>
 export const fetchLessonPlannerSessionsByUploadId = (uploadId) =>
   dbQuery(
     `
-    SELECT *
-    FROM program_lesson_planner_sessions
-    WHERE lesson_planner_upload_id = $1
-    ORDER BY session_no ASC, part_type ASC
+    SELECT s.*,
+           u.file_name,
+           u.file_storage_path,
+           u.target_session_no,
+           u.micro_schedule_upload_id
+    FROM program_lesson_planner_sessions s
+    JOIN program_lesson_planner_uploads u
+      ON u.id = s.lesson_planner_upload_id
+    WHERE s.lesson_planner_upload_id = $1
+    ORDER BY s.session_no ASC, s.part_type ASC
     `,
     [uploadId]
+  );
+
+export const fetchLessonPlannerUploadsForMicroSchedule = (microScheduleUploadId) =>
+  dbQuery(
+    `
+    SELECT u.id, u.program_id, u.grade_id, u.subject_id, u.micro_schedule_upload_id, u.target_session_no, u.uploaded_by_user_id, u.file_name, u.file_storage_path, u.source_type, u.version_no, u.status, u.notes, u.created_at, u.updated_at,
+           g.grade_number,
+           s.name AS subject_name,
+           s.code AS subject_code
+    FROM program_lesson_planner_uploads u
+    LEFT JOIN grades g ON g.id = u.grade_id
+    LEFT JOIN subjects s ON s.id = u.subject_id
+    WHERE u.micro_schedule_upload_id = $1
+    ORDER BY u.target_session_no ASC, u.created_at DESC
+    `,
+    [microScheduleUploadId]
+  );
+
+export const fetchLessonPlannerSessionScopeByMicroSchedule = (microScheduleUploadId) =>
+  dbQuery(
+    `
+    SELECT s.*,
+           u.file_name,
+           u.file_storage_path,
+           u.target_session_no,
+           u.micro_schedule_upload_id
+    FROM program_lesson_planner_sessions s
+    JOIN program_lesson_planner_uploads u
+      ON u.id = s.lesson_planner_upload_id
+    WHERE u.micro_schedule_upload_id = $1
+    ORDER BY u.target_session_no ASC, s.session_no ASC, s.part_type ASC
+    `,
+    [microScheduleUploadId]
   );
 
 export const deleteProgramSessionTemplatesByVersion = (executor, { programId, templateVersionNo }) =>
@@ -380,7 +424,7 @@ export const insertProgramSessionTemplate = (executor, payload) =>
       payload.plannerTitle,
       payload.partType,
       payload.durationMinutes,
-      payload.learningObjectives,
+      toJsonParam(payload.learningObjectives ?? []),
       payload.materialsNeeded,
       payload.worksheetQuestionsCovered,
       payload.shortcutsIntroduced,
@@ -388,12 +432,12 @@ export const insertProgramSessionTemplate = (executor, payload) =>
       payload.homework,
       payload.nextSessionPreview,
       payload.pedagogyNote,
-      payload.minutePlanJson,
+      toJsonParam(payload.minutePlanJson ?? []),
       payload.teacherScriptText,
       payload.microScheduleRowId,
       payload.lessonPlannerSessionId,
       payload.mappingStatus,
-      payload.issueDetails,
+      toJsonParam(payload.issueDetails ?? {}),
       payload.isPublished,
       payload.publishedByUserId,
       payload.publishedAt,
@@ -403,12 +447,20 @@ export const insertProgramSessionTemplate = (executor, payload) =>
 export const listProgramSessionTemplates = ({ programId, templateVersionNo = null, includeUnpublished = true }) =>
   dbQuery(
     `
-    SELECT *
-    FROM program_session_templates
-    WHERE program_id = $1
-      AND ($2::int IS NULL OR template_version_no = $2)
-      AND ($3::boolean = TRUE OR is_published = TRUE)
-    ORDER BY template_version_no DESC, session_no ASC, id ASC
+    SELECT pst.*,
+           planner_upload.id AS lesson_planner_upload_id,
+           planner_upload.file_name AS lesson_plan_file_name,
+           planner_upload.file_storage_path AS lesson_plan_file_storage_path,
+           planner_upload.target_session_no AS lesson_plan_target_session_no
+    FROM program_session_templates pst
+    LEFT JOIN program_lesson_planner_sessions planner_session
+      ON planner_session.id = pst.lesson_planner_session_id
+    LEFT JOIN program_lesson_planner_uploads planner_upload
+      ON planner_upload.id = planner_session.lesson_planner_upload_id
+    WHERE pst.program_id = $1
+      AND ($2::int IS NULL OR pst.template_version_no = $2)
+      AND ($3::boolean = TRUE OR pst.is_published = TRUE)
+    ORDER BY pst.template_version_no DESC, pst.session_no ASC, pst.id ASC
     `,
     [programId, templateVersionNo, includeUnpublished]
   );
@@ -506,13 +558,21 @@ export const fetchClientProgramEntitlement = ({ clientId, programId }) =>
 export const fetchProgramTemplatesForVersion = ({ programId, templateVersionNo }) =>
   dbQuery(
     `
-    SELECT *
-    FROM program_session_templates
-    WHERE program_id = $1
-      AND template_version_no = $2
-      AND is_published = TRUE
-      AND mapping_status = 'matched'
-    ORDER BY session_no ASC, id ASC
+    SELECT pst.*,
+           planner_upload.id AS lesson_planner_upload_id,
+           planner_upload.file_name AS lesson_plan_file_name,
+           planner_upload.file_storage_path AS lesson_plan_file_storage_path,
+           planner_upload.target_session_no AS lesson_plan_target_session_no
+    FROM program_session_templates pst
+    LEFT JOIN program_lesson_planner_sessions planner_session
+      ON planner_session.id = pst.lesson_planner_session_id
+    LEFT JOIN program_lesson_planner_uploads planner_upload
+      ON planner_upload.id = planner_session.lesson_planner_upload_id
+    WHERE pst.program_id = $1
+      AND pst.template_version_no = $2
+      AND pst.is_published = TRUE
+      AND pst.mapping_status = 'matched'
+    ORDER BY pst.session_no ASC, pst.id ASC
     `,
     [programId, templateVersionNo]
   );
@@ -545,7 +605,7 @@ export const insertTeachingSession = (executor, payload) =>
       payload.learningGoal,
       payload.topicLabel,
       payload.plannerTitle,
-      payload.learningObjectives,
+      toJsonParam(payload.learningObjectives ?? []),
       payload.materialsNeeded,
       payload.worksheetQuestionsCovered,
       payload.shortcutsIntroduced,
@@ -553,7 +613,7 @@ export const insertTeachingSession = (executor, payload) =>
       payload.homework,
       payload.nextSessionPreview,
       payload.pedagogyNote,
-      payload.minutePlanJson,
+      toJsonParam(payload.minutePlanJson ?? []),
       payload.teacherScriptText,
       payload.status,
       payload.completionPercentage,
@@ -572,10 +632,34 @@ export const listTeachingSessions = ({ whereSql = '1=1', params = [] }) =>
     `
     SELECT ts.*,
            s.name AS school_name,
-           u.full_name AS teacher_name
+           u.full_name AS teacher_name,
+           COALESCE(planner_upload.id, fallback_planner_upload.id) AS lesson_planner_upload_id,
+           COALESCE(planner_upload.file_name, fallback_planner_upload.file_name) AS lesson_plan_file_name,
+           COALESCE(planner_upload.file_storage_path, fallback_planner_upload.file_storage_path) AS lesson_plan_file_storage_path
     FROM teaching_sessions ts
     LEFT JOIN schools s ON s.id = ts.school_id
     LEFT JOIN users u ON u.id = ts.teacher_user_id
+    LEFT JOIN program_session_templates pst ON pst.id = ts.program_session_template_id
+    LEFT JOIN program_lesson_planner_sessions planner_session
+      ON planner_session.id = pst.lesson_planner_session_id
+    LEFT JOIN program_lesson_planner_uploads planner_upload
+      ON planner_upload.id = planner_session.lesson_planner_upload_id
+    LEFT JOIN LATERAL (
+      SELECT fallback_pst.lesson_planner_session_id
+      FROM program_session_templates fallback_pst
+      WHERE fallback_pst.program_id = ts.program_id
+        AND fallback_pst.grade_label = ts.grade_label
+        AND fallback_pst.subject_label = ts.subject_label
+        AND fallback_pst.session_no = ts.session_no
+        AND fallback_pst.mapping_status = 'matched'
+        AND fallback_pst.is_published = TRUE
+      ORDER BY fallback_pst.template_version_no DESC, fallback_pst.id DESC
+      LIMIT 1
+    ) fallback_template ON planner_session.id IS NULL
+    LEFT JOIN program_lesson_planner_sessions fallback_planner_session
+      ON fallback_planner_session.id = fallback_template.lesson_planner_session_id
+    LEFT JOIN program_lesson_planner_uploads fallback_planner_upload
+      ON fallback_planner_upload.id = fallback_planner_session.lesson_planner_upload_id
     WHERE ${whereSql}
     ORDER BY ts.planned_date ASC, ts.session_no ASC, ts.id ASC
     `,
@@ -752,10 +836,34 @@ export const updateTeachingSessionProgress = ({ id, fields }) =>
 export const fetchTeacherOwnedSession = ({ sessionId, teacherUserId }) =>
   dbQuery(
     `
-    SELECT *
-    FROM teaching_sessions
-    WHERE id = $1
-      AND teacher_user_id = $2
+    SELECT ts.*,
+           COALESCE(planner_upload.id, fallback_planner_upload.id) AS lesson_planner_upload_id,
+           COALESCE(planner_upload.file_name, fallback_planner_upload.file_name) AS lesson_plan_file_name,
+           COALESCE(planner_upload.file_storage_path, fallback_planner_upload.file_storage_path) AS lesson_plan_file_storage_path
+    FROM teaching_sessions ts
+    LEFT JOIN program_session_templates pst ON pst.id = ts.program_session_template_id
+    LEFT JOIN program_lesson_planner_sessions planner_session
+      ON planner_session.id = pst.lesson_planner_session_id
+    LEFT JOIN program_lesson_planner_uploads planner_upload
+      ON planner_upload.id = planner_session.lesson_planner_upload_id
+    LEFT JOIN LATERAL (
+      SELECT fallback_pst.lesson_planner_session_id
+      FROM program_session_templates fallback_pst
+      WHERE fallback_pst.program_id = ts.program_id
+        AND fallback_pst.grade_label = ts.grade_label
+        AND fallback_pst.subject_label = ts.subject_label
+        AND fallback_pst.session_no = ts.session_no
+        AND fallback_pst.mapping_status = 'matched'
+        AND fallback_pst.is_published = TRUE
+      ORDER BY fallback_pst.template_version_no DESC, fallback_pst.id DESC
+      LIMIT 1
+    ) fallback_template ON planner_session.id IS NULL
+    LEFT JOIN program_lesson_planner_sessions fallback_planner_session
+      ON fallback_planner_session.id = fallback_template.lesson_planner_session_id
+    LEFT JOIN program_lesson_planner_uploads fallback_planner_upload
+      ON fallback_planner_upload.id = fallback_planner_session.lesson_planner_upload_id
+    WHERE ts.id = $1
+      AND ts.teacher_user_id = $2
     LIMIT 1
     `,
     [sessionId, teacherUserId]

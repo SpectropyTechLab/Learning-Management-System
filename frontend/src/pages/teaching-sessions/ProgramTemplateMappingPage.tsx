@@ -4,37 +4,27 @@ import TeachingSessionsShell from '@/features/teaching-sessions/components/Teach
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import StatusBadge from '@/features/teaching-sessions/components/StatusBadge';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
+import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 import type {
   GradeOption,
+  PlannerChecklist,
   ProgramOption,
   ProgramSessionTemplate,
   ProgramUpload,
   SubjectOption,
 } from '@/features/teaching-sessions/types';
 
-const uploadLabel = (upload: ProgramUpload) => {
-  const gradeLabel = upload.grade_number ? `Grade ${upload.grade_number}` : `Grade ${upload.grade_id}`;
-  const subjectLabel = upload.subject_name
-    ? upload.subject_code
-      ? `${upload.subject_name} (${upload.subject_code})`
-      : upload.subject_name
-    : `Subject ${upload.subject_id}`;
-
-  return `${upload.file_name} • ${gradeLabel} • ${subjectLabel} • v${upload.version_no}`;
-};
-
 export default function ProgramTemplateMappingPage() {
   const [programId, setProgramId] = useState('');
   const [gradeId, setGradeId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [microUploadId, setMicroUploadId] = useState('');
-  const [plannerUploadId, setPlannerUploadId] = useState('');
   const [templateVersionNo, setTemplateVersionNo] = useState('1');
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [grades, setGrades] = useState<GradeOption[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [microUploads, setMicroUploads] = useState<ProgramUpload[]>([]);
-  const [plannerUploads, setPlannerUploads] = useState<ProgramUpload[]>([]);
+  const [checklist, setChecklist] = useState<PlannerChecklist | null>(null);
   const [mappingSummary, setMappingSummary] = useState<Record<string, unknown> | null>(null);
   const [templates, setTemplates] = useState<ProgramSessionTemplate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,7 +55,6 @@ export default function ProgramTemplateMappingPage() {
       setGrades([]);
       return;
     }
-
     try {
       setGradesLoading(true);
       setGrades(await teachingSessionsApi.listGrades(nextProgramId));
@@ -82,7 +71,6 @@ export default function ProgramTemplateMappingPage() {
       setSubjects([]);
       return;
     }
-
     try {
       setSubjectsLoading(true);
       setSubjects(await teachingSessionsApi.listSubjects(nextProgramId, nextGradeId));
@@ -94,29 +82,38 @@ export default function ProgramTemplateMappingPage() {
     }
   };
 
-  const loadScopedUploads = async () => {
+  const loadMicroUploads = async () => {
     if (!programId || !gradeId || !subjectId) {
       setMicroUploads([]);
-      setPlannerUploads([]);
+      setMicroUploadId('');
+      setChecklist(null);
       return;
     }
-
     try {
       setUploadsLoading(true);
-      const params = { programId, gradeId, subjectId };
-      const [micro, planner] = await Promise.all([
-        teachingSessionsApi.listMicroScheduleUploads(params),
-        teachingSessionsApi.listLessonPlannerUploads(params),
-      ]);
-      setMicroUploads(micro);
-      setPlannerUploads(planner);
-      setMicroUploadId((current) => (current && micro.some((item) => Number(item.id) === Number(current)) ? current : ''));
-      setPlannerUploadId((current) => (current && planner.some((item) => Number(item.id) === Number(current)) ? current : ''));
+      const data = await teachingSessionsApi.listMicroScheduleUploads({ programId, gradeId, subjectId });
+      setMicroUploads(data);
+      setMicroUploadId((current) =>
+        current && data.some((upload) => Number(upload.id) === Number(current)) ? current : String(data[0]?.id ?? '')
+      );
     } catch (error) {
       console.error(error);
-      toast.error('Failed to load scoped uploads');
+      toast.error('Failed to load micro schedules');
     } finally {
       setUploadsLoading(false);
+    }
+  };
+
+  const loadChecklist = async (nextMicroUploadId: string) => {
+    if (!nextMicroUploadId) {
+      setChecklist(null);
+      return;
+    }
+    try {
+      setChecklist(await teachingSessionsApi.getPlannerChecklist(nextMicroUploadId));
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load planner checklist');
     }
   };
 
@@ -142,28 +139,31 @@ export default function ProgramTemplateMappingPage() {
     setGradeId('');
     setSubjectId('');
     setMicroUploadId('');
-    setPlannerUploadId('');
-    setSubjects([]);
+    setChecklist(null);
     loadGrades(programId);
   }, [programId]);
 
   useEffect(() => {
     setSubjectId('');
     setMicroUploadId('');
-    setPlannerUploadId('');
+    setChecklist(null);
     loadSubjects(programId, gradeId);
   }, [programId, gradeId]);
 
   useEffect(() => {
     setMicroUploadId('');
-    setPlannerUploadId('');
-    loadScopedUploads();
+    setChecklist(null);
+    loadMicroUploads();
   }, [programId, gradeId, subjectId]);
+
+  useEffect(() => {
+    loadChecklist(microUploadId);
+  }, [microUploadId]);
 
   const handleMap = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!programId || !gradeId || !subjectId || !microUploadId || !plannerUploadId) {
-      toast.error('Program, grade, subject, micro upload, and planner upload are required');
+    if (!programId || !microUploadId) {
+      toast.error('Program and micro schedule upload are required');
       return;
     }
 
@@ -171,7 +171,6 @@ export default function ProgramTemplateMappingPage() {
       setLoading(true);
       const result = await teachingSessionsApi.mapProgramTemplates(programId, {
         micro_schedule_upload_id: Number(microUploadId),
-        lesson_planner_upload_id: Number(plannerUploadId),
         template_version_no: Number(templateVersionNo || '1'),
       });
       setMappingSummary(result);
@@ -205,28 +204,19 @@ export default function ProgramTemplateMappingPage() {
   return (
     <TeachingSessionsShell
       title="Program Template Mapping"
-      subtitle="Map micro schedules with lesson planners and publish reusable templates."
+      subtitle="Map template records only after every required lesson planner is uploaded session-by-session."
       actions={
-        <button
-          type="button"
-          onClick={loadTemplates}
-          className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700"
-        >
+        <button type="button" onClick={loadTemplates} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
           Refresh Templates
         </button>
       }
     >
       <div className="space-y-6">
-        <SectionCard title="Run Mapping" subtitle="Choose one academic scope and map the uploaded files within it.">
+        <SectionCard title="Run Mapping" subtitle="Mapping now works against a selected micro schedule upload plus its completed planner checklist.">
           <form onSubmit={handleMap} className="grid gap-4 md:grid-cols-3">
             <label className="text-sm text-slate-600">
               Program
-              <select
-                value={programId}
-                onChange={(e) => setProgramId(e.target.value)}
-                disabled={programsLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
+              <select value={programId} onChange={(e) => setProgramId(e.target.value)} disabled={programsLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
                 <option value="">{programsLoading ? 'Loading programs...' : 'Select a program'}</option>
                 {programs.map((program) => (
                   <option key={program.id} value={program.id}>
@@ -237,28 +227,18 @@ export default function ProgramTemplateMappingPage() {
             </label>
             <label className="text-sm text-slate-600">
               Grade
-              <select
-                value={gradeId}
-                onChange={(e) => setGradeId(e.target.value)}
-                disabled={!programId || gradesLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
+              <select value={gradeId} onChange={(e) => setGradeId(e.target.value)} disabled={!programId || gradesLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
                 <option value="">{!programId ? 'Select a program first' : gradesLoading ? 'Loading grades...' : 'Select a grade'}</option>
                 {grades.map((grade) => (
                   <option key={grade.id} value={grade.id}>
-                    {`Grade ${grade.grade_number}`}
+                    Grade {grade.grade_number}
                   </option>
                 ))}
               </select>
             </label>
             <label className="text-sm text-slate-600">
               Subject
-              <select
-                value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value)}
-                disabled={!gradeId || subjectsLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
+              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} disabled={!gradeId || subjectsLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
                 <option value="">{!gradeId ? 'Select a grade first' : subjectsLoading ? 'Loading subjects...' : 'Select a subject'}</option>
                 {subjects.map((subject) => (
                   <option key={subject.id} value={subject.id}>
@@ -269,61 +249,55 @@ export default function ProgramTemplateMappingPage() {
             </label>
             <label className="text-sm text-slate-600">
               Micro Schedule Upload
-              <select
-                value={microUploadId}
-                onChange={(e) => setMicroUploadId(e.target.value)}
-                disabled={!subjectId || uploadsLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
-                <option value="">{!subjectId ? 'Select a subject first' : uploadsLoading ? 'Loading uploads...' : 'Select a micro upload'}</option>
+              <select value={microUploadId} onChange={(e) => setMicroUploadId(e.target.value)} disabled={!subjectId || uploadsLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
+                <option value="">{!subjectId ? 'Select a subject first' : uploadsLoading ? 'Loading micro schedules...' : 'Select a micro schedule'}</option>
                 {microUploads.map((upload) => (
                   <option key={upload.id} value={upload.id}>
-                    {uploadLabel(upload)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm text-slate-600">
-              Lesson Planner Upload
-              <select
-                value={plannerUploadId}
-                onChange={(e) => setPlannerUploadId(e.target.value)}
-                disabled={!subjectId || uploadsLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
-                <option value="">{!subjectId ? 'Select a subject first' : uploadsLoading ? 'Loading uploads...' : 'Select a planner upload'}</option>
-                {plannerUploads.map((upload) => (
-                  <option key={upload.id} value={upload.id}>
-                    {uploadLabel(upload)}
+                    {upload.file_name} | v{upload.version_no}
                   </option>
                 ))}
               </select>
             </label>
             <label className="text-sm text-slate-600">
               Template Version
-              <input
-                value={templateVersionNo}
-                onChange={(e) => setTemplateVersionNo(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              />
+              <input value={templateVersionNo} onChange={(e) => setTemplateVersionNo(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
             </label>
-            <button
-              disabled={loading}
-              className="rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white md:col-span-3"
-            >
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              {checklist
+                ? `${checklist.completed_sessions}/${checklist.total_required_sessions} session planners complete`
+                : 'Select a micro schedule upload to inspect planner readiness.'}
+            </div>
+            <button disabled={loading || !checklist?.is_publish_ready} className="rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 md:col-span-3">
               {loading ? 'Processing...' : 'Run Mapping'}
             </button>
           </form>
         </SectionCard>
+
+        {checklist ? (
+          <SectionCard title="Planner Readiness" subtitle="Publish and generation are blocked until every required session planner is complete.">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Required Sessions</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.total_required_sessions}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Completed Planners</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.completed_sessions}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Ready</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.is_publish_ready ? 'Yes' : 'No'}</div>
+              </div>
+            </div>
+          </SectionCard>
+        ) : null}
 
         {mappingSummary ? (
           <SectionCard title="Mapping Summary">
             <div className="grid gap-4 md:grid-cols-3">
               {Object.entries(mappingSummary).map(([key, value]) => (
                 <div key={key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    {key.replace(/_/g, ' ')}
-                  </div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{key.replace(/_/g, ' ')}</div>
                   <div className="mt-2 text-xl font-semibold text-slate-900">{String(value)}</div>
                 </div>
               ))}
@@ -336,15 +310,10 @@ export default function ProgramTemplateMappingPage() {
           subtitle={
             selectedProgram
               ? `Showing template records for ${selectedProgram.code ? `${selectedProgram.name} (${selectedProgram.code})` : selectedProgram.name}.`
-              : 'Matched rows are publishable; unmatched and conflict rows remain visible for cleanup.'
+              : 'Matched rows are publishable only when every required session planner exists.'
           }
           actions={
-            <button
-              type="button"
-              onClick={handlePublish}
-              disabled={loading || !programId}
-              className="rounded-full bg-[#073b8a] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            <button type="button" onClick={handlePublish} disabled={loading || !checklist?.is_publish_ready || !programId} className="rounded-full bg-[#073b8a] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
               Publish Matched Rows
             </button>
           }
@@ -357,6 +326,7 @@ export default function ProgramTemplateMappingPage() {
                     <th className="px-3 py-2 text-left">Session</th>
                     <th className="px-3 py-2 text-left">Chapter</th>
                     <th className="px-3 py-2 text-left">Planner Title</th>
+                    <th className="px-3 py-2 text-left">Lesson Plan</th>
                     <th className="px-3 py-2 text-left">Status</th>
                     <th className="px-3 py-2 text-left">Published</th>
                   </tr>
@@ -364,7 +334,7 @@ export default function ProgramTemplateMappingPage() {
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {templates.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-slate-500">
+                      <td colSpan={6} className="px-3 py-4 text-slate-500">
                         Run mapping or refresh templates to see results.
                       </td>
                     </tr>
@@ -374,6 +344,15 @@ export default function ProgramTemplateMappingPage() {
                       <td className="px-3 py-2">{template.session_label}</td>
                       <td className="px-3 py-2">{template.chapter_label || '-'}</td>
                       <td className="px-3 py-2">{template.planner_title || '-'}</td>
+                      <td className="px-3 py-2">
+                        {template.lesson_plan_file_storage_path ? (
+                          <a href={resolveAssetUrl(template.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                            {template.lesson_plan_file_name || 'Download'}
+                          </a>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                       <td className="px-3 py-2">
                         <StatusBadge status={template.mapping_status} />
                       </td>

@@ -1,9 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import TeachingSessionsShell from '@/features/teaching-sessions/components/TeachingSessionsShell';
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
+import StatusBadge from '@/features/teaching-sessions/components/StatusBadge';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
-import type { GradeOption, LessonPlannerSession, ProgramOption, ProgramUpload, SubjectOption } from '@/features/teaching-sessions/types';
+import { resolveAssetUrl } from '@/lib/apiBaseUrl';
+import type {
+  GradeOption,
+  PlannerChecklist,
+  ProgramOption,
+  ProgramUpload,
+  SubjectOption,
+} from '@/features/teaching-sessions/types';
 
 export default function ProgramLessonPlannerUploadPage() {
   const [programId, setProgramId] = useState('');
@@ -11,45 +19,29 @@ export default function ProgramLessonPlannerUploadPage() {
   const [subjectId, setSubjectId] = useState('');
   const [versionNo, setVersionNo] = useState('1');
   const [notes, setNotes] = useState('');
+  const [targetSessionNo, setTargetSessionNo] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [grades, setGrades] = useState<GradeOption[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
-  const [uploads, setUploads] = useState<ProgramUpload[]>([]);
-  const [selectedUploadId, setSelectedUploadId] = useState<number | null>(null);
-  const [sessions, setSessions] = useState<LessonPlannerSession[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [microUploads, setMicroUploads] = useState<ProgramUpload[]>([]);
+  const [selectedMicroUploadId, setSelectedMicroUploadId] = useState('');
+  const [checklist, setChecklist] = useState<PlannerChecklist | null>(null);
   const [programsLoading, setProgramsLoading] = useState(false);
   const [gradesLoading, setGradesLoading] = useState(false);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [uploadsLoading, setUploadsLoading] = useState(false);
+  const [checklistLoading, setChecklistLoading] = useState(false);
 
-  const getProgramLabel = (uploadProgramId: number) => {
-    const program = programs.find((item) => Number(item.id) === Number(uploadProgramId));
-    if (!program) return `Program ${uploadProgramId}`;
-    return program.code ? `${program.name} (${program.code})` : program.name;
-  };
-
-  const getGradeLabel = (upload: ProgramUpload) => {
-    if (upload.grade_number) return `Grade ${upload.grade_number}`;
-    const grade = grades.find((item) => Number(item.id) === Number(upload.grade_id));
-    return grade ? `Grade ${grade.grade_number}` : `Grade ${upload.grade_id}`;
-  };
-
-  const getSubjectLabel = (upload: ProgramUpload) => {
-    if (upload.subject_name) {
-      return upload.subject_code ? `${upload.subject_name} (${upload.subject_code})` : upload.subject_name;
-    }
-    const subject = subjects.find((item) => Number(item.id) === Number(upload.subject_id));
-    if (!subject) return `Subject ${upload.subject_id}`;
-    return subject.code ? `${subject.name} (${subject.code})` : subject.name;
-  };
+  const selectedChecklistSession = useMemo(
+    () => checklist?.sessions.find((session) => Number(session.session_no) === Number(targetSessionNo)) ?? null,
+    [checklist, targetSessionNo]
+  );
 
   const loadPrograms = async () => {
     try {
       setProgramsLoading(true);
-      const data = await teachingSessionsApi.listPrograms();
-      setPrograms(data);
+      setPrograms(await teachingSessionsApi.listPrograms());
     } catch (error) {
       console.error(error);
       toast.error('Failed to load programs');
@@ -66,8 +58,7 @@ export default function ProgramLessonPlannerUploadPage() {
 
     try {
       setGradesLoading(true);
-      const data = await teachingSessionsApi.listGrades(nextProgramId);
-      setGrades(data);
+      setGrades(await teachingSessionsApi.listGrades(nextProgramId));
     } catch (error) {
       console.error(error);
       toast.error('Failed to load grades');
@@ -84,8 +75,7 @@ export default function ProgramLessonPlannerUploadPage() {
 
     try {
       setSubjectsLoading(true);
-      const data = await teachingSessionsApi.listSubjects(nextProgramId, nextGradeId);
-      setSubjects(data);
+      setSubjects(await teachingSessionsApi.listSubjects(nextProgramId, nextGradeId));
     } catch (error) {
       console.error(error);
       toast.error('Failed to load subjects');
@@ -94,43 +84,54 @@ export default function ProgramLessonPlannerUploadPage() {
     }
   };
 
-  const loadUploads = async () => {
+  const loadMicroUploads = async () => {
     if (!programId || !gradeId || !subjectId) {
-      setUploads([]);
-      setSelectedUploadId(null);
+      setMicroUploads([]);
+      setSelectedMicroUploadId('');
+      setChecklist(null);
       return;
     }
 
     try {
-      setLoading(true);
-      const data = await teachingSessionsApi.listLessonPlannerUploads({
-        programId: programId || undefined,
-        gradeId: gradeId || undefined,
-        subjectId: subjectId || undefined,
+      setUploadsLoading(true);
+      const data = await teachingSessionsApi.listMicroScheduleUploads({
+        programId,
+        gradeId,
+        subjectId,
       });
-      setUploads(data);
-      setSelectedUploadId((current) => {
-        if (current && data.some((upload) => upload.id === current)) return current;
-        return null;
-      });
+      setMicroUploads(data);
+      setSelectedMicroUploadId((current) =>
+        current && data.some((upload) => Number(upload.id) === Number(current)) ? current : String(data[0]?.id ?? '')
+      );
     } catch (error) {
       console.error(error);
-      toast.error('Failed to load lesson planner uploads');
+      toast.error('Failed to load micro schedule uploads');
     } finally {
-      setLoading(false);
+      setUploadsLoading(false);
     }
   };
 
-  const loadSessions = async (uploadId: number) => {
+  const loadChecklist = async (microUploadId: string) => {
+    if (!microUploadId) {
+      setChecklist(null);
+      return;
+    }
+
     try {
-      setSessionsLoading(true);
-      const data = await teachingSessionsApi.getLessonPlannerSessions(uploadId);
-      setSessions(data);
+      setChecklistLoading(true);
+      const data = await teachingSessionsApi.getPlannerChecklist(microUploadId);
+      setChecklist(data);
+      setTargetSessionNo((current) => {
+        if (current && data.sessions.some((session) => Number(session.session_no) === Number(current))) {
+          return current;
+        }
+        return String(data.sessions.find((session) => session.planner_status !== 'complete')?.session_no ?? data.sessions[0]?.session_no ?? '');
+      });
     } catch (error) {
       console.error(error);
-      toast.error('Failed to load planner sessions');
+      toast.error('Failed to load planner checklist');
     } finally {
-      setSessionsLoading(false);
+      setChecklistLoading(false);
     }
   };
 
@@ -141,31 +142,35 @@ export default function ProgramLessonPlannerUploadPage() {
   useEffect(() => {
     setGradeId('');
     setSubjectId('');
-    setSubjects([]);
+    setMicroUploads([]);
+    setSelectedMicroUploadId('');
+    setChecklist(null);
     loadGrades(programId);
   }, [programId]);
 
   useEffect(() => {
     setSubjectId('');
+    setMicroUploads([]);
+    setSelectedMicroUploadId('');
+    setChecklist(null);
     loadSubjects(programId, gradeId);
   }, [programId, gradeId]);
 
   useEffect(() => {
-    loadUploads();
+    setMicroUploads([]);
+    setSelectedMicroUploadId('');
+    setChecklist(null);
+    loadMicroUploads();
   }, [programId, gradeId, subjectId]);
 
   useEffect(() => {
-    if (selectedUploadId) {
-      loadSessions(selectedUploadId);
-    } else {
-      setSessions([]);
-    }
-  }, [selectedUploadId]);
+    loadChecklist(selectedMicroUploadId);
+  }, [selectedMicroUploadId]);
 
   const handleUpload = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!programId || !gradeId || !subjectId || !file) {
-      toast.error('Program, grade, subject, and planner file are required');
+    if (!programId || !gradeId || !subjectId || !selectedMicroUploadId || !targetSessionNo || !file) {
+      toast.error('Program, grade, subject, micro schedule, target session, and planner file are required');
       return;
     }
 
@@ -174,14 +179,16 @@ export default function ProgramLessonPlannerUploadPage() {
       formData.append('program_id', programId);
       formData.append('grade_id', gradeId);
       formData.append('subject_id', subjectId);
+      formData.append('micro_schedule_upload_id', selectedMicroUploadId);
+      formData.append('target_session_no', targetSessionNo);
       formData.append('version_no', versionNo || '1');
       formData.append('notes', notes);
       formData.append('file', file);
       await teachingSessionsApi.uploadLessonPlanner(formData);
-      toast.success('Lesson planner uploaded');
+      toast.success(`Lesson planner uploaded for SESSION-${targetSessionNo}`);
       setFile(null);
       setNotes('');
-      await loadUploads();
+      await loadChecklist(selectedMicroUploadId);
     } catch (error) {
       console.error(error);
       toast.error('Failed to upload lesson planner');
@@ -191,19 +198,14 @@ export default function ProgramLessonPlannerUploadPage() {
   return (
     <TeachingSessionsShell
       title="Lesson Planner Uploads"
-      subtitle="Upload and review session-wise teaching planner Word documents by program, grade, and subject."
+      subtitle="Upload exactly one lesson planner per parsed micro-schedule session before publishing templates."
     >
       <div className="space-y-6">
-        <SectionCard title="Upload Lesson Planner" subtitle="Word planner files mapped to a program, grade, and subject.">
-          <form onSubmit={handleUpload} className="grid gap-4 md:grid-cols-3">
+        <SectionCard title="Select Micro Schedule Scope" subtitle="Choose the academic scope and then the exact micro schedule version that defines required planner sessions.">
+          <div className="grid gap-4 md:grid-cols-4">
             <label className="text-sm text-slate-600">
               Program
-              <select
-                value={programId}
-                onChange={(e) => setProgramId(e.target.value)}
-                disabled={programsLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
+              <select value={programId} onChange={(e) => setProgramId(e.target.value)} disabled={programsLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
                 <option value="">{programsLoading ? 'Loading programs...' : 'Select a program'}</option>
                 {programs.map((program) => (
                   <option key={program.id} value={program.id}>
@@ -214,28 +216,18 @@ export default function ProgramLessonPlannerUploadPage() {
             </label>
             <label className="text-sm text-slate-600">
               Grade
-              <select
-                value={gradeId}
-                onChange={(e) => setGradeId(e.target.value)}
-                disabled={!programId || gradesLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
+              <select value={gradeId} onChange={(e) => setGradeId(e.target.value)} disabled={!programId || gradesLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
                 <option value="">{!programId ? 'Select a program first' : gradesLoading ? 'Loading grades...' : 'Select a grade'}</option>
                 {grades.map((grade) => (
                   <option key={grade.id} value={grade.id}>
-                    {`Grade ${grade.grade_number}`}
+                    Grade {grade.grade_number}
                   </option>
                 ))}
               </select>
             </label>
             <label className="text-sm text-slate-600">
               Subject
-              <select
-                value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value)}
-                disabled={!gradeId || subjectsLoading}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-              >
+              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} disabled={!gradeId || subjectsLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
                 <option value="">{!gradeId ? 'Select a grade first' : subjectsLoading ? 'Loading subjects...' : 'Select a subject'}</option>
                 {subjects.map((subject) => (
                   <option key={subject.id} value={subject.id}>
@@ -245,71 +237,125 @@ export default function ProgramLessonPlannerUploadPage() {
               </select>
             </label>
             <label className="text-sm text-slate-600">
+              Micro Schedule Version
+              <select value={selectedMicroUploadId} onChange={(e) => setSelectedMicroUploadId(e.target.value)} disabled={!subjectId || uploadsLoading} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
+                <option value="">{!subjectId ? 'Select a subject first' : uploadsLoading ? 'Loading micro schedules...' : 'Select a micro schedule'}</option>
+                {microUploads.map((upload) => (
+                  <option key={upload.id} value={upload.id}>
+                    {upload.file_name} | v{upload.version_no}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Upload Session Planner" subtitle="Each upload must contain exactly one planner for the selected target session.">
+          <form onSubmit={handleUpload} className="grid gap-4 md:grid-cols-3">
+            <label className="text-sm text-slate-600">
+              Target Session
+              <select value={targetSessionNo} onChange={(e) => setTargetSessionNo(e.target.value)} disabled={!checklist} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">
+                <option value="">{checklist ? 'Select a session' : 'Choose a micro schedule first'}</option>
+                {checklist?.sessions.map((session) => (
+                  <option key={session.micro_schedule_row_id} value={session.session_no}>
+                    {session.session_label} - {session.topic_label || session.chapter_label || 'No topic'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm text-slate-600">
               Version
               <input value={versionNo} onChange={(e) => setVersionNo(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
             </label>
-            <label className="text-sm text-slate-600 md:col-span-2">
-              Notes
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
-            </label>
-            <label className="text-sm text-slate-600 md:col-span-2">
+            <label className="text-sm text-slate-600">
               Planner File
               <input type="file" accept=".docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
             </label>
-            <button className="rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white md:col-span-2">Upload Lesson Planner</button>
+            <label className="text-sm text-slate-600 md:col-span-3">
+              Notes
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <div className="md:col-span-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              {selectedChecklistSession ? (
+                <>
+                  <div className="font-semibold text-slate-900">{selectedChecklistSession.session_label}</div>
+                  <div className="mt-1">
+                    {selectedChecklistSession.topic_label || selectedChecklistSession.chapter_label || 'No chapter/topic'} | Current status:{' '}
+                    <span className="font-medium">{selectedChecklistSession.planner_status.replace(/_/g, ' ')}</span>
+                  </div>
+                  {selectedChecklistSession.issue ? <div className="mt-1 text-rose-600">{selectedChecklistSession.issue}</div> : null}
+                </>
+              ) : (
+                'Select a target session to see its current planner status.'
+              )}
+            </div>
+            <button className="rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white md:col-span-3">Upload Session Planner</button>
           </form>
         </SectionCard>
 
-        <SectionCard title="Parsed Sessions" subtitle="Review extracted session blocks before mapping.">
-          <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-            <div className="space-y-3">
-              {loading && <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Loading uploads...</div>}
-              {!loading && uploads.length === 0 && <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">No lesson planner uploads yet.</div>}
-              {uploads.map((upload) => (
-                <button
-                  type="button"
-                  key={upload.id}
-                  onClick={() =>
-                    setSelectedUploadId((current) => (current === upload.id ? null : upload.id))
-                  }
-                  className={`w-full rounded-2xl border p-4 text-left ${selectedUploadId === upload.id ? 'border-[#073b8a] bg-sky-50' : 'border-slate-200 bg-white'}`}
-                >
-                  <div className="text-sm font-semibold text-slate-900">{upload.file_name}</div>
-                  <div className="mt-1 text-xs text-slate-500">{getProgramLabel(upload.program_id)} | {getGradeLabel(upload)} | {getSubjectLabel(upload)} | v{upload.version_no} | {upload.status}</div>
-                </button>
-              ))}
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-slate-200">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Session</th>
-                      <th className="px-3 py-2 text-left">Title</th>
-                      <th className="px-3 py-2 text-left">Part</th>
-                      <th className="px-3 py-2 text-left">Duration</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {sessionsLoading && (
-                      <tr><td colSpan={4} className="px-3 py-4 text-slate-500">Loading planner sessions...</td></tr>
-                    )}
-                    {!sessionsLoading && sessions.length === 0 && (
-                      <tr><td colSpan={4} className="px-3 py-4 text-slate-500">Select an upload to preview sessions.</td></tr>
-                    )}
-                    {sessions.map((session) => (
-                      <tr key={session.id}>
-                        <td className="px-3 py-2">{session.session_label}</td>
-                        <td className="px-3 py-2">{session.title}</td>
-                        <td className="px-3 py-2 capitalize">{session.part_type.replace('_', ' ')}</td>
-                        <td className="px-3 py-2">{session.duration_minutes ?? '-'} min</td>
+        <SectionCard title="Planner Checklist" subtitle="All required sessions must be complete before template mapping and publish can proceed.">
+          {checklistLoading && (
+            <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Loading planner checklist...</div>
+          )}
+          {!checklistLoading && !checklist && (
+            <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Select a micro schedule upload to review required planner sessions.</div>
+          )}
+          {checklist ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Required Sessions</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.total_required_sessions}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Completed</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.completed_sessions}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Publish Ready</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.is_publish_ready ? 'Yes' : 'No'}</div>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Session</th>
+                        <th className="px-3 py-2 text-left">Chapter</th>
+                        <th className="px-3 py-2 text-left">Topic</th>
+                        <th className="px-3 py-2 text-left">Planner</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Issue</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {checklist.sessions.map((session) => (
+                        <tr key={session.micro_schedule_row_id}>
+                          <td className="px-3 py-2 font-medium text-slate-900">{session.session_label}</td>
+                          <td className="px-3 py-2">{session.chapter_label || '-'}</td>
+                          <td className="px-3 py-2">{session.topic_label || '-'}</td>
+                          <td className="px-3 py-2">
+                            {session.lesson_plan_file_storage_path ? (
+                              <a href={resolveAssetUrl(session.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                                {session.lesson_plan_file_name || 'Download'}
+                              </a>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <StatusBadge status={session.planner_status} />
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{session.issue || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </SectionCard>
       </div>
     </TeachingSessionsShell>

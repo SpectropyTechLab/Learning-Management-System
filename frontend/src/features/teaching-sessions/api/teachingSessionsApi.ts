@@ -5,6 +5,7 @@ import type {
   GradeOption,
   LessonPlannerSession,
   MicroScheduleRow,
+  PlannerChecklist,
   ProgramOption,
   ProgramSessionTemplate,
   ProgramUpload,
@@ -79,11 +80,13 @@ export const teachingSessionsApi = {
   listLessonPlannerUploads: async (params?: { programId?: string | number; gradeId?: string | number; subjectId?: string | number }) => {
     const res = await api.get<ProgramUpload[]>('/teaching-sessions/programs/lesson-planners', {
       params:
-        params && (params.programId || params.gradeId || params.subjectId)
+        params && (params.programId || params.gradeId || params.subjectId || (params as Record<string, unknown>).microScheduleUploadId || (params as Record<string, unknown>).targetSessionNo)
           ? {
               program_id: params.programId,
               grade_id: params.gradeId,
               subject_id: params.subjectId,
+              micro_schedule_upload_id: (params as Record<string, unknown>).microScheduleUploadId,
+              target_session_no: (params as Record<string, unknown>).targetSessionNo,
             }
           : undefined,
     });
@@ -99,6 +102,11 @@ export const teachingSessionsApi = {
 
   getLessonPlannerSessions: async (uploadId: string | number) => {
     const res = await api.get<LessonPlannerSession[]>(`/teaching-sessions/programs/lesson-planners/${uploadId}/sessions`);
+    return res.data;
+  },
+
+  getPlannerChecklist: async (microScheduleUploadId: string | number) => {
+    const res = await api.get<PlannerChecklist>(`/teaching-sessions/programs/micro-schedules/${microScheduleUploadId}/planner-checklist`);
     return res.data;
   },
 

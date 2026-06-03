@@ -7,6 +7,7 @@ import {
   uploadMicroSchedule,
   listMicroScheduleUploads,
   getMicroScheduleRows,
+  getPlannerChecklistByMicroScheduleUploadId,
   uploadLessonPlanner,
   listLessonPlannerUploads,
   getLessonPlannerSessions,
@@ -74,6 +75,12 @@ router.get(
   requireRole(['super_admin', 'content_authorizer']),
   checkPermission('teaching_sessions.program_upload'),
   getMicroScheduleRows
+);
+router.get(
+  '/teaching-sessions/programs/micro-schedules/:uploadId/planner-checklist',
+  requireRole(['super_admin', 'content_authorizer']),
+  checkPermission('teaching_sessions.program_upload'),
+  getPlannerChecklistByMicroScheduleUploadId
 );
 
 router.get(

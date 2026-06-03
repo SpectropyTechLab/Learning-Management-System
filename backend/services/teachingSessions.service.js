@@ -275,6 +275,63 @@ const extractLessonPlannerDocxText = (buffer) => {
     .join('\n');
 };
 
+const splitPlannerLines = (rawText) =>
+  String(rawText || '')
+    .split('\n')
+    .map((line) => normalizeText(line))
+    .filter(Boolean);
+
+const findLineIndex = (lines, matcher) =>
+  lines.findIndex((line) => {
+    if (!line) return false;
+    if (matcher instanceof RegExp) return matcher.test(line);
+    return line.toLowerCase() === String(matcher).toLowerCase();
+  });
+
+const getLineAfter = (lines, matcher) => {
+  const index = findLineIndex(lines, matcher);
+  if (index < 0) return null;
+  return normalizeText(lines[index + 1]);
+};
+
+const getSectionBlock = (rawText, heading, nextHeadings = []) => {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedNextHeadings = nextHeadings.map((entry) => entry.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const lookahead = escapedNextHeadings.length > 0 ? `(?=\\n(?:${escapedNextHeadings.join('|')})\\b|$)` : '(?=$)';
+  const match = rawText.match(new RegExp(`${escapedHeading}\\s+([\\s\\S]*?)${lookahead}`, 'i'));
+  return normalizeText(match?.[1]);
+};
+
+const extractSessionIdentity = (rawText, lines) => {
+  const headingLine = lines.find((line) => /session\s*[-:]?\s*0*\d+/i.test(line)) ?? null;
+  const headingMatch = rawText.match(/([^\n]*session\s*[-:]?\s*0*(\d+)[^\n]*)/i);
+  const sessionNo = parseOptionalInt(headingMatch?.[2], 'session_no');
+  if (!sessionNo) return null;
+
+  const rawLabel =
+    normalizeText(headingLine?.match(/session\s*[-:]?\s*0*\d+/i)?.[0]) ??
+    `SESSION-${sessionNo}`;
+
+  return {
+    sessionNo,
+    sessionLabel: rawLabel.replace(/session/i, 'SESSION').replace(/\s+/g, '-'),
+    headingLine: normalizeText(headingLine ?? headingMatch?.[1]),
+  };
+};
+
+const extractSingleSessionPlannerTitle = (lines, identity) => {
+  const titledValue = getLineAfter(lines, /^title$/i);
+  if (titledValue) return titledValue;
+
+  const headingWithInlineTitle = identity?.headingLine?.match(/session\s*[-:]?\s*0*\d+\s*[-:|]\s*(.+)$/i)?.[1];
+  if (headingWithInlineTitle) return normalizeText(headingWithInlineTitle);
+
+  const topicValue = getLineAfter(lines, /^topic$/i);
+  if (topicValue) return topicValue;
+
+  return null;
+};
+
 const mergeUniqueStrings = (...collections) => {
   const values = [];
 
@@ -349,7 +406,7 @@ const dedupePlannerSessions = (sessions) => {
   });
 };
 
-const parseLessonPlannerDocx = async (buffer, programId) => {
+const parseLessonPlannerDocxLegacy = async (buffer, programId) => {
   const rawText = extractLessonPlannerDocxText(buffer);
   if (!rawText) {
     throw new AppError('Lesson planner document is empty or could not be parsed', 400);
@@ -411,6 +468,98 @@ const parseLessonPlannerDocx = async (buffer, programId) => {
   return dedupePlannerSessions(sessions);
 };
 
+const parseLessonPlannerDocx = async (buffer, programId) => {
+  const rawText = extractLessonPlannerDocxText(buffer);
+  if (!rawText) {
+    throw new AppError('Lesson planner document is empty or could not be parsed', 400);
+  }
+
+  const lines = splitPlannerLines(rawText);
+  const identity = extractSessionIdentity(rawText, lines);
+  if (!identity?.sessionNo) {
+    throw new AppError('Could not extract session number from the uploaded lesson planner.', 400);
+  }
+
+  const title = extractSingleSessionPlannerTitle(lines, identity);
+  if (!title) {
+    throw new AppError('Could not extract title from the uploaded lesson planner.', 400);
+  }
+
+  const durationMinutes = parseOptionalInt(rawText.match(/Duration\s*:?\s*(\d+)/i)?.[1], 'duration_minutes');
+  const chapterLabel = getLineAfter(lines, /^chapter$/i);
+  const topicLabel = getLineAfter(lines, /^topic$/i) ?? getLineAfter(lines, /^concept focus$/i);
+  const inClassQuestions = getLineAfter(lines, /^in-class teach questions$/i);
+  const homeworkQuestions = getLineAfter(lines, /^homework questions$/i);
+  const materialsNeeded = getSectionBlock(rawText, 'Materials', [
+    'Prerequisites and Bridge Concepts',
+    'In-Class Teach Questions',
+    'Homework Questions',
+    'Common Errors to Diagnose',
+    'Pedagogy Note',
+    'Minute-by-Minute Coaching Plan',
+    'Next Session Preview',
+  ]);
+  const commonErrorsAddressed = getSectionBlock(rawText, 'Common Errors to Diagnose', [
+    'Pedagogy Note',
+    'Minute-by-Minute Coaching Plan',
+    'Next Session Preview',
+  ]);
+  const pedagogyNote = getSectionBlock(rawText, 'Pedagogy Note', [
+    'Minute-by-Minute Coaching Plan',
+    'Next Session Preview',
+  ]);
+  const nextSessionPreview = getSectionBlock(rawText, 'Next Session Preview');
+  const objectivesBlock = getSectionBlock(rawText, 'Objectives and Skill Outcomes', [
+    'Materials',
+    'Prerequisites and Bridge Concepts',
+    'In-Class Teach Questions',
+    'Homework Questions',
+    'Common Errors to Diagnose',
+    'Pedagogy Note',
+    'Minute-by-Minute Coaching Plan',
+    'Next Session Preview',
+  ]);
+  const learningObjectives = String(objectivesBlock || '')
+    .split(/\n|•|;|,/g)
+    .map((entry) => normalizeText(entry))
+    .filter(Boolean);
+  const minutePlanBlock = getSectionBlock(rawText, 'Minute-by-Minute Coaching Plan', ['Next Session Preview']);
+
+  const session = {
+    sessionNo: identity.sessionNo,
+    sessionLabel: identity.sessionLabel || `SESSION-${identity.sessionNo}`,
+    partType: /board exam/i.test(identity.headingLine || '') ? 'board_exam' : 'teaching',
+    durationMinutes,
+    title,
+    chapterLabel,
+    topicLabel,
+    learningObjectives,
+    materialsNeeded,
+    worksheetQuestionsCovered: inClassQuestions,
+    shortcutsIntroduced: null,
+    commonErrorsAddressed,
+    homework: homeworkQuestions,
+    nextSessionPreview,
+    pedagogyNote,
+    minutePlanJson: [],
+    teacherScriptText: minutePlanBlock,
+    rawSourceJson: {
+      block: rawText,
+      parser_mode: 'single_session_minimal',
+      extracted_heading: identity.headingLine,
+    },
+  };
+  session.normalizedKey = normalizeKey({
+    programId,
+    gradeLabel: null,
+    subjectLabel: null,
+    chapterLabel: session.chapterLabel,
+    sessionNo: session.sessionNo,
+  });
+
+  return [session];
+};
+
 const buildTemplateIdentityKey = ({
   gradeLabel,
   subjectLabel,
@@ -434,6 +583,83 @@ const buildTemplateIdentityKeyFromRequestItem = (item) =>
     sessionLabel: item?.session_label,
     partType: item?.part_type,
   });
+
+const buildPlannerChecklist = ({ microUpload, microRows, plannerUploads, plannerSessions }) => {
+  const plannerUploadsBySessionNo = new Map();
+  for (const upload of plannerUploads) {
+    const sessionNo = Number(upload.target_session_no);
+    if (!sessionNo) continue;
+    if (!plannerUploadsBySessionNo.has(sessionNo)) plannerUploadsBySessionNo.set(sessionNo, []);
+    plannerUploadsBySessionNo.get(sessionNo).push(upload);
+  }
+
+  const plannerSessionsByUploadId = new Map();
+  for (const plannerSession of plannerSessions) {
+    const uploadId = Number(plannerSession.lesson_planner_upload_id);
+    if (!plannerSessionsByUploadId.has(uploadId)) plannerSessionsByUploadId.set(uploadId, []);
+    plannerSessionsByUploadId.get(uploadId).push(plannerSession);
+  }
+
+  const sessionRequirements = microRows.map((microRow) => {
+    const sessionNo = Number(microRow.session_no);
+    const uploadsForSession = plannerUploadsBySessionNo.get(sessionNo) ?? [];
+    const latestUpload = uploadsForSession[0] ?? null;
+    const uploadSessions = latestUpload ? (plannerSessionsByUploadId.get(Number(latestUpload.id)) ?? []) : [];
+    const parsedSessionNos = Array.from(new Set(uploadSessions.map((entry) => Number(entry.session_no)).filter(Boolean)));
+    const matchedSession = uploadSessions.find((entry) => Number(entry.session_no) === sessionNo) ?? null;
+
+    let status = 'missing';
+    let issue = null;
+    if (uploadsForSession.length > 1) {
+      status = 'duplicate_upload';
+      issue = `Multiple planner uploads are linked to session ${sessionNo}.`;
+    } else if (latestUpload && parsedSessionNos.length === 0) {
+      status = 'parse_error';
+      issue = 'Planner upload did not produce any parsed session.';
+    } else if (latestUpload && parsedSessionNos.length > 1) {
+      status = 'invalid_multi_session';
+      issue = 'Planner upload must contain exactly one session.';
+    } else if (latestUpload && parsedSessionNos.length === 1 && parsedSessionNos[0] !== sessionNo) {
+      status = 'session_mismatch';
+      issue = `Planner content parsed as SESSION-${parsedSessionNos[0]} instead of SESSION-${sessionNo}.`;
+    } else if (latestUpload && matchedSession) {
+      status = 'complete';
+    }
+
+    return {
+      micro_schedule_row_id: microRow.id,
+      session_no: sessionNo,
+      session_label: microRow.session_label,
+      chapter_label: microRow.chapter_label,
+      learning_goal: microRow.learning_goal,
+      topic_label: microRow.topic_label,
+      planner_status: status,
+      issue,
+      lesson_planner_upload_id: latestUpload?.id ?? null,
+      lesson_plan_file_name: latestUpload?.file_name ?? null,
+      lesson_plan_file_storage_path: latestUpload?.file_storage_path ?? null,
+      planner_session_id: matchedSession?.id ?? null,
+      planner_title: matchedSession?.title ?? null,
+      planner_part_type: matchedSession?.part_type ?? null,
+      parsed_session_nos: parsedSessionNos,
+      upload_count: uploadsForSession.length,
+    };
+  });
+
+  const completeCount = sessionRequirements.filter((entry) => entry.planner_status === 'complete').length;
+
+  return {
+    micro_schedule_upload_id: microUpload.id,
+    program_id: microUpload.program_id,
+    grade_id: microUpload.grade_id,
+    subject_id: microUpload.subject_id,
+    total_required_sessions: sessionRequirements.length,
+    completed_sessions: completeCount,
+    missing_sessions: sessionRequirements.filter((entry) => entry.planner_status !== 'complete').map((entry) => entry.session_no),
+    is_publish_ready: sessionRequirements.length > 0 && completeCount === sessionRequirements.length,
+    sessions: sessionRequirements,
+  };
+};
 
 const buildTemplateRecords = ({ programId, templateVersionNo, microRows, plannerSessions, existingTemplates = [] }) => {
   const plannerBySessionNo = new Map();
@@ -561,6 +787,7 @@ const buildTemplateRecords = ({ programId, templateVersionNo, microRows, planner
       issueDetails: {
         reason: matches.length === 0 ? 'No planner session found for micro schedule row' : 'Multiple planner sessions found for micro schedule row',
         plannerSessionIds: matches.map((entry) => entry.id),
+        plannerUploadIds: matches.map((entry) => entry.lesson_planner_upload_id).filter(Boolean),
       },
       isPublished: publishState.isPublished,
       publishedByUserId: publishState.publishedByUserId,
@@ -605,6 +832,7 @@ const buildTemplateRecords = ({ programId, templateVersionNo, microRows, planner
       mappingStatus: 'unmatched_planner',
       issueDetails: {
         reason: 'Planner session has no matching micro schedule row',
+        plannerUploadId: planner.lesson_planner_upload_id ?? null,
       },
       isPublished: publishState.isPublished,
       publishedByUserId: publishState.publishedByUserId,
@@ -877,10 +1105,25 @@ export const uploadLessonPlanner = async (req, res) => {
     const programId = parseRequiredInt(req.body?.program_id, 'program_id');
     const gradeId = parseRequiredInt(req.body?.grade_id, 'grade_id');
     const subjectId = parseRequiredInt(req.body?.subject_id, 'subject_id');
+    const microScheduleUploadId = parseRequiredInt(req.body?.micro_schedule_upload_id, 'micro_schedule_upload_id');
+    const targetSessionNo = parseRequiredInt(req.body?.target_session_no, 'target_session_no');
     const versionNo = parseOptionalInt(req.body?.version_no, 'version_no') ?? 1;
     const notes = parseOptionalString(req.body?.notes);
     await ensureGradeBelongsToProgram(programId, gradeId);
     await ensureSubjectBelongsToScope({ programId, gradeId, subjectId });
+    const microUploadResult = await repo.fetchMicroScheduleUploadById(microScheduleUploadId);
+    const microUpload = microUploadResult.rows[0];
+    if (!microUpload) {
+      throw new AppError('Micro schedule upload not found', 404);
+    }
+    if (Number(microUpload.program_id) !== Number(programId) || Number(microUpload.grade_id) !== Number(gradeId) || Number(microUpload.subject_id) !== Number(subjectId)) {
+      throw new AppError('Micro schedule upload does not belong to the selected program, grade, and subject', 400);
+    }
+    const microRowsResult = await repo.fetchMicroScheduleRowsByUploadId(microScheduleUploadId);
+    const microRow = microRowsResult.rows.find((entry) => Number(entry.session_no) === Number(targetSessionNo));
+    if (!microRow) {
+      throw new AppError('Target session does not exist in the selected micro schedule', 404);
+    }
     const sourceType = parseEnum(
       path.extname(req.file.originalname).replace('.', '').toLowerCase(),
       'source_type',
@@ -889,6 +1132,12 @@ export const uploadLessonPlanner = async (req, res) => {
     );
     const fileStoragePath = await saveUploadedFile(req.file, 'lesson_planner');
     const sessions = await parseLessonPlannerDocx(req.file.buffer, programId);
+    if (sessions.length !== 1) {
+      throw new AppError('Each lesson planner upload must contain exactly one session.', 400);
+    }
+    if (Number(sessions[0].sessionNo) !== Number(targetSessionNo)) {
+      throw new AppError(`Uploaded lesson planner must match SESSION-${targetSessionNo}.`, 400);
+    }
 
     const client = await getClient();
     try {
@@ -897,6 +1146,8 @@ export const uploadLessonPlanner = async (req, res) => {
         programId,
         gradeId,
         subjectId,
+        microScheduleUploadId,
+        targetSessionNo,
         uploadedByUserId: req.user.id,
         fileName: req.file.originalname,
         fileStoragePath,
@@ -931,6 +1182,15 @@ export const uploadLessonPlanner = async (req, res) => {
           409
         );
       }
+      if (
+        error?.code === '23505' &&
+        error?.constraint === 'uq_program_lesson_planner_uploads_micro_session'
+      ) {
+        throw new AppError(
+          `A lesson planner is already uploaded for SESSION-${targetSessionNo} in the selected micro schedule.`,
+          409
+        );
+      }
       throw error;
     } finally {
       client.release();
@@ -945,7 +1205,9 @@ export const listLessonPlannerUploads = async (req, res) => {
     const programId = parseOptionalInt(req.query?.program_id, 'program_id');
     const gradeId = parseOptionalInt(req.query?.grade_id, 'grade_id');
     const subjectId = parseOptionalInt(req.query?.subject_id, 'subject_id');
-    const result = await repo.listLessonPlannerUploads({ programId, gradeId, subjectId });
+    const microScheduleUploadId = parseOptionalInt(req.query?.micro_schedule_upload_id, 'micro_schedule_upload_id');
+    const targetSessionNo = parseOptionalInt(req.query?.target_session_no, 'target_session_no');
+    const result = await repo.listLessonPlannerUploads({ programId, gradeId, subjectId, microScheduleUploadId, targetSessionNo });
     res.json(result.rows);
   } catch (err) {
     handleServiceError(res, err, 'Failed to list lesson planner uploads');
@@ -962,41 +1224,66 @@ export const getLessonPlannerSessions = async (req, res) => {
   }
 };
 
+export const getPlannerChecklistByMicroScheduleUploadId = async (req, res) => {
+  try {
+    const uploadId = parseRequiredInt(req.params?.uploadId, 'uploadId');
+    const [microUploadResult, microRowsResult, plannerUploadsResult, plannerSessionsResult] = await Promise.all([
+      repo.fetchMicroScheduleUploadById(uploadId),
+      repo.fetchMicroScheduleRowsByUploadId(uploadId),
+      repo.fetchLessonPlannerUploadsForMicroSchedule(uploadId),
+      repo.fetchLessonPlannerSessionScopeByMicroSchedule(uploadId),
+    ]);
+
+    const microUpload = microUploadResult.rows[0];
+    if (!microUpload) {
+      throw new AppError('Micro schedule upload not found', 404);
+    }
+
+    res.json(
+      buildPlannerChecklist({
+        microUpload,
+        microRows: microRowsResult.rows,
+        plannerUploads: plannerUploadsResult.rows,
+        plannerSessions: plannerSessionsResult.rows,
+      })
+    );
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to load planner checklist');
+  }
+};
+
 export const mapProgramSessionTemplates = async (req, res) => {
   try {
     const programId = parseRequiredInt(req.params?.programId, 'programId');
     const microScheduleUploadId = parseRequiredInt(req.body?.micro_schedule_upload_id, 'micro_schedule_upload_id');
-    const lessonPlannerUploadId = parseRequiredInt(req.body?.lesson_planner_upload_id, 'lesson_planner_upload_id');
     const templateVersionNo = parseOptionalInt(req.body?.template_version_no, 'template_version_no') ?? 1;
 
-    const [microUploadResult, plannerUploadResult, microRowsResult, plannerSessionsResult, existingTemplatesResult] = await Promise.all([
+    const [microUploadResult, microRowsResult, plannerUploadsResult, plannerSessionsResult, existingTemplatesResult] = await Promise.all([
       repo.fetchMicroScheduleUploadById(microScheduleUploadId),
-      repo.fetchLessonPlannerUploadById(lessonPlannerUploadId),
       repo.fetchMicroScheduleRowsByUploadId(microScheduleUploadId),
-      repo.fetchLessonPlannerSessionsByUploadId(lessonPlannerUploadId),
+      repo.fetchLessonPlannerUploadsForMicroSchedule(microScheduleUploadId),
+      repo.fetchLessonPlannerSessionScopeByMicroSchedule(microScheduleUploadId),
       repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true }),
     ]);
 
     const microUpload = microUploadResult.rows[0];
-    const plannerUpload = plannerUploadResult.rows[0];
 
     if (!microUpload) {
       throw new AppError('Micro schedule upload not found', 404);
     }
-    if (!plannerUpload) {
-      throw new AppError('Lesson planner upload not found', 404);
-    }
     if (Number(microUpload.program_id) !== Number(programId)) {
       throw new AppError('Selected micro schedule upload does not belong to this program', 400);
     }
-    if (Number(plannerUpload.program_id) !== Number(programId)) {
-      throw new AppError('Selected lesson planner upload does not belong to this program', 400);
-    }
-    if (Number(microUpload.grade_id) !== Number(plannerUpload.grade_id)) {
-      throw new AppError('Micro schedule and lesson planner must belong to the same grade', 400);
-    }
-    if (Number(microUpload.subject_id) !== Number(plannerUpload.subject_id)) {
-      throw new AppError('Micro schedule and lesson planner must belong to the same subject', 400);
+
+    const checklist = buildPlannerChecklist({
+      microUpload,
+      microRows: microRowsResult.rows,
+      plannerUploads: plannerUploadsResult.rows,
+      plannerSessions: plannerSessionsResult.rows,
+    });
+
+    if (!checklist.is_publish_ready) {
+      throw new AppError(`Lesson planner checklist is incomplete. Missing or invalid sessions: ${checklist.missing_sessions.join(', ')}`, 400);
     }
 
     const templates = buildTemplateRecords({
@@ -1055,6 +1342,15 @@ export const publishProgramSessionTemplates = async (req, res) => {
   try {
     const programId = parseRequiredInt(req.params?.programId, 'programId');
     const templateVersionNo = parseRequiredInt(req.body?.template_version_no, 'template_version_no');
+    const templatesResult = await repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true });
+    const templates = templatesResult.rows;
+    if (templates.length === 0) {
+      throw new AppError('No template records found for the selected version', 404);
+    }
+    const invalidTemplates = templates.filter((template) => template.mapping_status !== 'matched');
+    if (invalidTemplates.length > 0) {
+      throw new AppError('All micro schedule sessions must have valid lesson planners before publish.', 400);
+    }
     const client = await getClient();
     try {
       await client.query('BEGIN');
@@ -1146,6 +1442,11 @@ export const generateTeachingSessions = async (req, res) => {
     await ensureProgramEntitled(clientId, programId);
 
     const templatesResult = await repo.fetchProgramTemplatesForVersion({ programId, templateVersionNo });
+    const fullTemplatesResult = await repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true });
+    const nonMatchedTemplates = fullTemplatesResult.rows.filter((row) => row.mapping_status !== 'matched');
+    if (nonMatchedTemplates.length > 0) {
+      throw new AppError('Teaching sessions cannot be generated until every required lesson planner is uploaded and published.', 400);
+    }
     const templatesById = new Map(
       templatesResult.rows.map((row) => [Number(row.id), row])
     );
