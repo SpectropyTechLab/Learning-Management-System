@@ -3,6 +3,9 @@
 
 BEGIN;
 
+ALTER TABLE program_micro_schedule_rows
+  ADD COLUMN IF NOT EXISTS planned_date DATE;
+
 ALTER TABLE program_lesson_planner_uploads
   ADD COLUMN IF NOT EXISTS micro_schedule_upload_id INTEGER REFERENCES program_micro_schedule_uploads(id) ON DELETE CASCADE,
   ADD COLUMN IF NOT EXISTS target_session_no INTEGER;

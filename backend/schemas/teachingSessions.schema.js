@@ -36,17 +36,62 @@ export const parseOptionalBoolean = (value) => {
   throw new AppError('Invalid boolean value', 400);
 };
 
+const isValidDateParts = (year, month, day) => {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
 export const parseDateString = (value, fieldName, { required = false } = {}) => {
   if (value === undefined || value === null || value === '') {
     if (required) throw new AppError(`${fieldName} is required`, 400);
     return null;
   }
 
-  const next = String(value).trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) {
-    throw new AppError(`${fieldName} must be in YYYY-MM-DD format`, 400);
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new AppError(`${fieldName} must be a valid date`, 400);
+    }
+    return value.toISOString().slice(0, 10);
   }
-  return next;
+
+  const next = String(value).trim();
+  const isoDateOnlyMatch = next.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDateOnlyMatch) {
+    const year = Number(isoDateOnlyMatch[1]);
+    const month = Number(isoDateOnlyMatch[2]);
+    const day = Number(isoDateOnlyMatch[3]);
+    if (!isValidDateParts(year, month, day)) {
+      throw new AppError(`${fieldName} must be a valid date`, 400);
+    }
+    return next;
+  }
+
+  const indianDateMatch = next.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (indianDateMatch) {
+    const day = Number(indianDateMatch[1]);
+    const month = Number(indianDateMatch[2]);
+    const year = Number(indianDateMatch[3]);
+    if (!isValidDateParts(year, month, day)) {
+      throw new AppError(`${fieldName} must be a valid date`, 400);
+    }
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const isoTimestampMatch = next.match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (isoTimestampMatch) {
+    return parseDateString(isoTimestampMatch[1], fieldName, { required: true });
+  }
+
+  const parsed = new Date(next);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  throw new AppError(`${fieldName} must be in DD-MM-YYYY format`, 400);
 };
 
 export const parseJsonArrayField = (value, fieldName, { required = false } = {}) => {

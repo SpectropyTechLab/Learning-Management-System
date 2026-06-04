@@ -15,6 +15,22 @@ import type {
   TeachingSession,
 } from '@/features/teaching-sessions/types';
 
+const formatIndianDate = (value?: string | null) => {
+  if (!value) return '-';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  }).format(date).replace(/\//g, '-');
+};
+
 type DraftSessionItem = {
   template_id: number;
   grade_label: string;
@@ -22,10 +38,6 @@ type DraftSessionItem = {
   session_no: number;
   session_label: string;
   part_type: ProgramSessionTemplate['part_type'];
-  planned_date: string;
-  period_slot: string;
-  batch_id: string;
-  teacher_user_id: string;
   duration_minutes: string;
   remarks: string;
 };
@@ -60,6 +72,11 @@ export default function TeachingSessionSetupPage() {
   const [schoolMemberships, setSchoolMemberships] = useState<SchoolMembership[]>([]);
   const [templates, setTemplates] = useState<ProgramSessionTemplate[]>([]);
   const [draftItems, setDraftItems] = useState<Record<number, DraftSessionItem>>({});
+  const [sharedBatchId, setSharedBatchId] = useState('');
+  const [sharedTeacherUserId, setSharedTeacherUserId] = useState('');
+  const [existingSessions, setExistingSessions] = useState<TeachingSession[]>([]);
+  const [existingSessionsLoading, setExistingSessionsLoading] = useState(false);
+  const [scopeBlockedMessage, setScopeBlockedMessage] = useState('');
   const [createdSessions, setCreatedSessions] = useState<TeachingSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [clientsLoading, setClientsLoading] = useState(false);
@@ -120,6 +137,17 @@ export default function TeachingSessionSetupPage() {
     [batches]
   );
 
+  const filteredExistingSessions = useMemo(
+    () =>
+      existingSessions.filter((session) => {
+        const batchMatches = !sharedBatchId || String(session.batch_id || '') === sharedBatchId;
+        const teacherMatches =
+          !sharedTeacherUserId || String(session.teacher_user_id || '') === sharedTeacherUserId;
+        return batchMatches && teacherMatches;
+      }),
+    [existingSessions, sharedBatchId, sharedTeacherUserId]
+  );
+
   const buildDraftItems = (
     nextTemplates: ProgramSessionTemplate[],
     existingDrafts: Record<number, DraftSessionItem> = {}
@@ -134,10 +162,6 @@ export default function TeachingSessionSetupPage() {
         session_no: template.session_no,
         session_label: template.session_label,
         part_type: template.part_type,
-        planned_date: existing?.planned_date || '',
-        period_slot: existing?.period_slot || '',
-        batch_id: existing?.batch_id || '',
-        teacher_user_id: existing?.teacher_user_id || '',
         duration_minutes:
           existing?.duration_minutes ||
           (template.duration_minutes ? String(template.duration_minutes) : ''),
@@ -272,8 +296,19 @@ export default function TeachingSessionSetupPage() {
       return;
     }
 
+    if (existingSessions.length > 0) {
+      setTemplates([]);
+      setDraftItems({});
+      setScopeBlockedMessage(
+        'Teaching sessions are already assigned for this selected program, grade, subject, school, and template version.'
+      );
+      toast.error('This template scope is already assigned and cannot be loaded again');
+      return;
+    }
+
     try {
       setLoading(true);
+      setScopeBlockedMessage('');
       const data = await teachingSessionsApi.listProgramTemplates(programId, {
         template_version_no: Number(templateVersionNo || '1'),
       });
@@ -334,75 +369,98 @@ export default function TeachingSessionSetupPage() {
   }, [subjectId, templateVersionNo]);
 
   useEffect(() => {
+    const loadExistingSessions = async () => {
+      if (!clientId || !programId || !gradeId || !subjectId || !schoolId) {
+        setExistingSessions([]);
+        setScopeBlockedMessage('');
+        return;
+      }
+
+      const grade = grades.find((item) => Number(item.id) === Number(gradeId));
+      const subject = subjects.find((item) => Number(item.id) === Number(subjectId));
+
+      if (!grade || !subject) {
+        setExistingSessions([]);
+        setScopeBlockedMessage('');
+        return;
+      }
+
+      try {
+        setExistingSessionsLoading(true);
+        const data = await teachingSessionsApi.listTeachingSessions({
+          client_id: Number(clientId),
+          school_id: Number(schoolId),
+          program_id: Number(programId),
+          template_version_no: Number(templateVersionNo || '1'),
+          grade_label: `GRADE-${grade.grade_number}`,
+          subject_label: subject.name,
+        });
+        setExistingSessions(data);
+
+        if (data.length > 0) {
+          setTemplates([]);
+          setDraftItems({});
+          setScopeBlockedMessage(
+            'Teaching sessions are already assigned for this selected program, grade, subject, school, and template version.'
+          );
+        } else {
+          setScopeBlockedMessage('');
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error('Failed to load existing assigned sessions');
+      } finally {
+        setExistingSessionsLoading(false);
+      }
+    };
+
+    loadExistingSessions();
+  }, [clientId, programId, gradeId, subjectId, schoolId, templateVersionNo, grades, subjects]);
+
+  useEffect(() => {
     setSchoolId('');
     setBatches([]);
     setSchoolMemberships([]);
+    setSharedBatchId('');
+    setSharedTeacherUserId('');
   }, [clientId]);
 
   useEffect(() => {
-    setDraftItems((current) =>
-      Object.fromEntries(
-        Object.entries(current).map(([templateId, item]) => [
-          Number(templateId),
-          {
-            ...item,
-            batch_id: '',
-            teacher_user_id: '',
-          },
-        ])
-      )
-    );
+    setSharedBatchId('');
+    setSharedTeacherUserId('');
     loadBatchOptions(schoolId);
     loadTeacherOptions(schoolId);
   }, [schoolId]);
 
-  useEffect(() => {
-    setDraftItems((current) =>
-      Object.fromEntries(
-        Object.entries(current).map(([templateId, item]) => [
-          Number(templateId),
-          {
-            ...item,
-            batch_id:
-              item.batch_id && activeBatches.some((batch) => Number(batch.id) === Number(item.batch_id))
-                ? item.batch_id
-                : '',
-            teacher_user_id:
-              item.teacher_user_id &&
-              teacherOptions.some((teacher) => Number(teacher.user_id) === Number(item.teacher_user_id))
-                ? item.teacher_user_id
-                : '',
-          },
-        ])
-      )
-    );
-  }, [activeBatches, teacherOptions]);
-
   const handleGenerate = async () => {
     if (!programId || !gradeId || !subjectId || !schoolId) {
-      toast.error('Program, grade, subject, and school id are required');
+      toast.error('Program, grade, subject, and school are required');
       return;
     }
 
-    const sessionItems = Object.values(draftItems)
-      .filter((item) => item.planned_date)
-      .map((item) => ({
-        template_id: item.template_id,
-        grade_label: item.grade_label,
-        subject_label: item.subject_label,
-        session_no: item.session_no,
-        session_label: item.session_label,
-        part_type: item.part_type,
-        planned_date: item.planned_date,
-        period_slot: item.period_slot || undefined,
-        batch_id: item.batch_id ? Number(item.batch_id) : undefined,
-        teacher_user_id: item.teacher_user_id ? Number(item.teacher_user_id) : undefined,
-        duration_minutes: item.duration_minutes ? Number(item.duration_minutes) : undefined,
-        remarks: item.remarks || undefined,
-      }));
+    if (!sharedBatchId || !sharedTeacherUserId) {
+      toast.error('Select one batch and one teacher for all sessions');
+      return;
+    }
+
+    const sessionItems = Object.values(draftItems).map((item) => ({
+      template_id: item.template_id,
+      grade_label: item.grade_label,
+      subject_label: item.subject_label,
+      session_no: item.session_no,
+      session_label: item.session_label,
+      part_type: item.part_type,
+      duration_minutes: item.duration_minutes ? Number(item.duration_minutes) : undefined,
+      remarks: item.remarks || undefined,
+    }));
 
     if (sessionItems.length === 0) {
-      toast.error('Add at least one planned date before generating');
+      toast.error('Load at least one template before generating');
+      return;
+    }
+
+    if (templates.some((template) => !template.planned_date)) {
+      toast.error('One or more templates are missing planned dates from the micro schedule');
       return;
     }
 
@@ -433,6 +491,8 @@ export default function TeachingSessionSetupPage() {
         program_id: Number(programId),
         template_version_no: Number(templateVersionNo || '1'),
         school_id: Number(schoolId),
+        batch_id: Number(sharedBatchId),
+        teacher_user_id: Number(sharedTeacherUserId),
         session_items: sessionItems,
       });
       setCreatedSessions(result.sessions ?? []);
@@ -520,7 +580,9 @@ export default function TeachingSessionSetupPage() {
                 disabled={!programId || gradesLoading}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
               >
-                <option value="">{!programId ? 'Select a program first' : gradesLoading ? 'Loading grades...' : 'Select a grade'}</option>
+                <option value="">
+                  {!programId ? 'Select a program first' : gradesLoading ? 'Loading grades...' : 'Select a grade'}
+                </option>
                 {grades.map((grade) => (
                   <option key={grade.id} value={grade.id}>
                     {`Grade ${grade.grade_number}`}
@@ -536,7 +598,9 @@ export default function TeachingSessionSetupPage() {
                 disabled={!gradeId || subjectsLoading}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
               >
-                <option value="">{!gradeId ? 'Select a grade first' : subjectsLoading ? 'Loading subjects...' : 'Select a subject'}</option>
+                <option value="">
+                  {!gradeId ? 'Select a grade first' : subjectsLoading ? 'Loading subjects...' : 'Select a subject'}
+                </option>
                 {subjects.map((subject) => (
                   <option key={subject.id} value={subject.id}>
                     {subject.code ? `${subject.name} (${subject.code})` : subject.name}
@@ -577,8 +641,55 @@ export default function TeachingSessionSetupPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Template-to-Session Generation" subtitle="Fill planned dates and assignment details for selected templates.">
+        <SectionCard
+          title="Template-to-Session Generation"
+          subtitle="Micro schedule dates are fixed here. Select one batch and one teacher for all sessions."
+        >
           <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <select
+                value={sharedBatchId}
+                onChange={(e) => setSharedBatchId(e.target.value)}
+                disabled={!schoolId || batchesLoading}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              >
+                <option value="">
+                  {!schoolId
+                    ? 'Select a school first'
+                    : batchesLoading
+                      ? 'Loading batches...'
+                      : activeBatches.length === 0
+                        ? 'No batches found'
+                        : 'Select one batch for all sessions'}
+                </option>
+                {activeBatches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.code ? `${batch.name} (${batch.code})` : batch.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={sharedTeacherUserId}
+                onChange={(e) => setSharedTeacherUserId(e.target.value)}
+                disabled={!schoolId || teachersLoading}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              >
+                <option value="">
+                  {!schoolId
+                    ? 'Select a school first'
+                    : teachersLoading
+                      ? 'Loading teachers...'
+                      : teacherOptions.length === 0
+                        ? 'No teachers found'
+                        : 'Select one teacher for all sessions'}
+                </option>
+                {teacherOptions.map((teacher) => (
+                  <option key={teacher.id} value={teacher.user_id}>
+                    {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
             {loading && templates.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-slate-500">
                 Loading templates...
@@ -586,7 +697,8 @@ export default function TeachingSessionSetupPage() {
             )}
             {!loading && templates.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-slate-500">
-                Load a published program template for the selected program, grade, and subject to begin.
+                {scopeBlockedMessage ||
+                  'Load a published program template for the selected program, grade, and subject to begin.'}
               </div>
             )}
             {templates.map((template) => {
@@ -596,61 +708,19 @@ export default function TeachingSessionSetupPage() {
                   <div className="mb-3 text-sm font-semibold text-slate-900">
                     {template.session_label} • {template.planner_title || template.topic_label || template.chapter_label}
                   </div>
-                  <div className="grid gap-3 md:grid-cols-5">
-                    <input
-                      type="date"
-                      value={draft?.planned_date || ''}
-                      onChange={(e) => updateDraft(template.id, 'planned_date', e.target.value)}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    />
-                    <input
-                      placeholder="Period / Slot"
-                      value={draft?.period_slot || ''}
-                      onChange={(e) => updateDraft(template.id, 'period_slot', e.target.value)}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    />
-                    <select
-                      value={draft?.batch_id || ''}
-                      onChange={(e) => updateDraft(template.id, 'batch_id', e.target.value)}
-                      disabled={!schoolId || batchesLoading}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    >
-                      <option value="">
-                        {!schoolId
-                          ? 'Select a school first'
-                          : batchesLoading
-                            ? 'Loading batches...'
-                            : activeBatches.length === 0
-                              ? 'No batches found'
-                              : 'Select a batch'}
-                      </option>
-                      {activeBatches.map((batch) => (
-                        <option key={batch.id} value={batch.id}>
-                          {batch.code ? `${batch.name} (${batch.code})` : batch.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={draft?.teacher_user_id || ''}
-                      onChange={(e) => updateDraft(template.id, 'teacher_user_id', e.target.value)}
-                      disabled={!schoolId || teachersLoading}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    >
-                      <option value="">
-                        {!schoolId
-                          ? 'Select a school first'
-                          : teachersLoading
-                            ? 'Loading teachers...'
-                            : teacherOptions.length === 0
-                              ? 'No teachers found'
-                              : 'Select a teacher'}
-                      </option>
-                      {teacherOptions.map((teacher) => (
-                        <option key={teacher.id} value={teacher.user_id}>
-                          {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Planned Date</div>
+                      <div className="mt-1 font-medium text-slate-900">
+                        {template.planned_date ? formatIndianDate(template.planned_date) : 'Date missing in micro schedule'}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Grade / Subject</div>
+                      <div className="mt-1 font-medium text-slate-900">
+                        {template.grade_label} / {template.subject_label}
+                      </div>
+                    </div>
                     <input
                       placeholder="Duration"
                       value={draft?.duration_minutes || ''}
@@ -672,12 +742,61 @@ export default function TeachingSessionSetupPage() {
               <button
                 type="button"
                 onClick={handleGenerate}
-                disabled={loading}
+                disabled={loading || existingSessions.length > 0}
                 className="rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? 'Generating...' : 'Generate Teaching Sessions'}
               </button>
             )}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Existing Assigned Sessions"
+          subtitle="Already assigned sessions for the selected scope are shown here. Batch and teacher selectors filter this list."
+        >
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Session</th>
+                    <th className="px-3 py-2 text-left">Planned Date</th>
+                    <th className="px-3 py-2 text-left">Batch</th>
+                    <th className="px-3 py-2 text-left">Teacher</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {existingSessionsLoading && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-4 text-slate-500">
+                        Loading existing assigned sessions...
+                      </td>
+                    </tr>
+                  )}
+                  {!existingSessionsLoading && filteredExistingSessions.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-4 text-slate-500">
+                        {existingSessions.length > 0
+                          ? 'No existing sessions match the selected batch and teacher filters.'
+                          : 'No assigned sessions found yet for the selected scope.'}
+                      </td>
+                    </tr>
+                  )}
+                  {!existingSessionsLoading &&
+                    filteredExistingSessions.map((session) => (
+                      <tr key={`existing-${session.id}`}>
+                        <td className="px-3 py-2">{session.session_label}</td>
+                        <td className="px-3 py-2">{formatIndianDate(session.planned_date)}</td>
+                        <td className="px-3 py-2">{session.batch_name || session.batch_id || '-'}</td>
+                        <td className="px-3 py-2">{session.teacher_name || session.teacher_user_id || '-'}</td>
+                        <td className="px-3 py-2">{session.status}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </SectionCard>
 
@@ -689,7 +808,7 @@ export default function TeachingSessionSetupPage() {
                   <tr>
                     <th className="px-3 py-2 text-left">Session</th>
                     <th className="px-3 py-2 text-left">Planned Date</th>
-                    <th className="px-3 py-2 text-left">Teacher ID</th>
+                    <th className="px-3 py-2 text-left">Teacher</th>
                     <th className="px-3 py-2 text-left">Status</th>
                   </tr>
                 </thead>
@@ -704,8 +823,8 @@ export default function TeachingSessionSetupPage() {
                   {createdSessions.map((session) => (
                     <tr key={session.id}>
                       <td className="px-3 py-2">{session.session_label}</td>
-                      <td className="px-3 py-2">{session.planned_date}</td>
-                      <td className="px-3 py-2">{session.teacher_user_id || '-'}</td>
+                      <td className="px-3 py-2">{formatIndianDate(session.planned_date)}</td>
+                      <td className="px-3 py-2">{session.teacher_name || session.teacher_user_id || '-'}</td>
                       <td className="px-3 py-2">{session.status}</td>
                     </tr>
                   ))}

@@ -5,6 +5,22 @@ import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
 import type { GradeOption, MicroScheduleRow, ProgramOption, ProgramUpload, SubjectOption } from '@/features/teaching-sessions/types';
 
+const formatIndianDate = (value?: string | null) => {
+  if (!value) return '-';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  }).format(date).replace(/\//g, '-');
+};
+
 export default function ProgramMicroScheduleUploadPage() {
   const [programId, setProgramId] = useState('');
   const [gradeId, setGradeId] = useState('');
@@ -284,6 +300,7 @@ export default function ProgramMicroScheduleUploadPage() {
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50">
                     <tr>
+                      <th className="px-3 py-2 text-left">Date</th>
                       <th className="px-3 py-2 text-left">Session</th>
                       <th className="px-3 py-2 text-left">Chapter</th>
                       <th className="px-3 py-2 text-left">Learning Goal</th>
@@ -292,13 +309,14 @@ export default function ProgramMicroScheduleUploadPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {rowsLoading && (
-                      <tr><td colSpan={4} className="px-3 py-4 text-slate-500">Loading parsed rows...</td></tr>
+                      <tr><td colSpan={5} className="px-3 py-4 text-slate-500">Loading parsed rows...</td></tr>
                     )}
                     {!rowsLoading && rows.length === 0 && (
-                      <tr><td colSpan={4} className="px-3 py-4 text-slate-500">Select an upload to preview rows.</td></tr>
+                      <tr><td colSpan={5} className="px-3 py-4 text-slate-500">Select an upload to preview rows.</td></tr>
                     )}
                     {rows.map((row) => (
                       <tr key={row.id}>
+                        <td className="px-3 py-2">{formatIndianDate(row.planned_date)}</td>
                         <td className="px-3 py-2">{row.session_label}</td>
                         <td className="px-3 py-2">{row.chapter_label}</td>
                         <td className="px-3 py-2">{row.learning_goal || '-'}</td>

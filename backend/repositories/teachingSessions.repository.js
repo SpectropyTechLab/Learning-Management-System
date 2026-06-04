@@ -190,8 +190,8 @@ export const insertMicroScheduleRow = (executor, payload) =>
     executor,
     `
     INSERT INTO program_micro_schedule_rows
-    (micro_schedule_upload_id, program_id, row_no, serial_no, grade_label, subject_label, session_label, session_no, chapter_label, learning_goal, topic_label, raw_row_json, normalized_key)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+    (micro_schedule_upload_id, program_id, row_no, serial_no, grade_label, subject_label, session_label, session_no, chapter_label, learning_goal, topic_label, planned_date, raw_row_json, normalized_key)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
     RETURNING *
     `,
     [
@@ -206,7 +206,8 @@ export const insertMicroScheduleRow = (executor, payload) =>
       payload.chapterLabel,
       payload.learningGoal,
       payload.topicLabel,
-      payload.rawRowJson,
+      payload.plannedDate,
+      toJsonParam(payload.rawRowJson ?? {}),
       payload.normalizedKey,
     ]
   );
@@ -448,11 +449,14 @@ export const listProgramSessionTemplates = ({ programId, templateVersionNo = nul
   dbQuery(
     `
     SELECT pst.*,
+           micro_row.planned_date,
            planner_upload.id AS lesson_planner_upload_id,
            planner_upload.file_name AS lesson_plan_file_name,
            planner_upload.file_storage_path AS lesson_plan_file_storage_path,
            planner_upload.target_session_no AS lesson_plan_target_session_no
     FROM program_session_templates pst
+    LEFT JOIN program_micro_schedule_rows micro_row
+      ON micro_row.id = pst.micro_schedule_row_id
     LEFT JOIN program_lesson_planner_sessions planner_session
       ON planner_session.id = pst.lesson_planner_session_id
     LEFT JOIN program_lesson_planner_uploads planner_upload
@@ -559,11 +563,14 @@ export const fetchProgramTemplatesForVersion = ({ programId, templateVersionNo }
   dbQuery(
     `
     SELECT pst.*,
+           micro_row.planned_date,
            planner_upload.id AS lesson_planner_upload_id,
            planner_upload.file_name AS lesson_plan_file_name,
            planner_upload.file_storage_path AS lesson_plan_file_storage_path,
            planner_upload.target_session_no AS lesson_plan_target_session_no
     FROM program_session_templates pst
+    LEFT JOIN program_micro_schedule_rows micro_row
+      ON micro_row.id = pst.micro_schedule_row_id
     LEFT JOIN program_lesson_planner_sessions planner_session
       ON planner_session.id = pst.lesson_planner_session_id
     LEFT JOIN program_lesson_planner_uploads planner_upload
@@ -632,12 +639,14 @@ export const listTeachingSessions = ({ whereSql = '1=1', params = [] }) =>
     `
     SELECT ts.*,
            s.name AS school_name,
+           b.name AS batch_name,
            u.full_name AS teacher_name,
            COALESCE(planner_upload.id, fallback_planner_upload.id) AS lesson_planner_upload_id,
            COALESCE(planner_upload.file_name, fallback_planner_upload.file_name) AS lesson_plan_file_name,
            COALESCE(planner_upload.file_storage_path, fallback_planner_upload.file_storage_path) AS lesson_plan_file_storage_path
     FROM teaching_sessions ts
     LEFT JOIN schools s ON s.id = ts.school_id
+    LEFT JOIN batches b ON b.id = ts.batch_id
     LEFT JOIN users u ON u.id = ts.teacher_user_id
     LEFT JOIN program_session_templates pst ON pst.id = ts.program_session_template_id
     LEFT JOIN program_lesson_planner_sessions planner_session

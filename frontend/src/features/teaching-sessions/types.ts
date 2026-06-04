@@ -74,6 +74,7 @@ export interface MicroScheduleRow {
   chapter_label: string;
   learning_goal?: string | null;
   topic_label?: string | null;
+  planned_date: string;
 }
 
 export interface LessonPlannerSession {
@@ -112,6 +113,7 @@ export interface ProgramSessionTemplate {
   planner_title?: string | null;
   part_type: 'teaching' | 'board_exam';
   duration_minutes?: number | null;
+  planned_date?: string | null;
   mapping_status: 'matched' | 'unmatched_micro' | 'unmatched_planner' | 'conflict';
   issue_details?: Record<string, unknown>;
   is_published: boolean;
@@ -170,6 +172,7 @@ export interface TeachingSession {
   school_id: number;
   school_name?: string | null;
   batch_id?: number | null;
+  batch_name?: string | null;
   program_id: number;
   program_session_template_id?: number | null;
   grade_label: string;

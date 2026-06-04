@@ -126,40 +126,107 @@ const getPlannerValue = (record, aliases) => {
   return null;
 };
 
+const getWorkbookValue = (rowMap, headerMap, fixedColumn, aliases = []) => {
+  for (const alias of aliases) {
+    const normalizedAlias = normalizePlannerHeader(alias);
+    for (const [columnName, headerName] of headerMap.entries()) {
+      if (headerName === normalizedAlias) {
+        const value = rowMap.get(columnName);
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          return value;
+        }
+      }
+    }
+  }
+
+  if (!fixedColumn) return null;
+  const fallbackValue = rowMap.get(fixedColumn);
+  return fallbackValue !== undefined && fallbackValue !== null && String(fallbackValue).trim() !== ''
+    ? fallbackValue
+    : null;
+};
+
+const normalizeWorkbookDateValue = (value) => {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  if (/^\d+(\.\d+)?$/.test(raw)) {
+    const excelSerial = Number(raw);
+    if (!Number.isNaN(excelSerial) && excelSerial > 0) {
+      const utcDate = new Date(Date.UTC(1899, 11, 30));
+      utcDate.setUTCDate(utcDate.getUTCDate() + Math.floor(excelSerial));
+      return utcDate.toISOString().slice(0, 10);
+    }
+  }
+
+  return raw;
+};
+
 const parseMicroScheduleFile = async (buffer, programId) => {
   const rows = await parseWorkbookRows(buffer);
+  const headerMap = new Map(
+    Array.from((rows[0]?.rowMap ?? new Map()).entries()).map(([columnName, value]) => [
+      columnName,
+      normalizePlannerHeader(value),
+    ])
+  );
   const parsedRows = [];
 
   for (const row of rows) {
-    const { rowNumber, rowMap } = row;
+      const { rowNumber, rowMap } = row;
 
-    const sessionLabel = normalizeText(rowMap.get('D'));
-    const gradeLabel = normalizeText(rowMap.get('B'));
-    const subjectLabel = normalizeText(rowMap.get('C'));
-    const chapterLabel = normalizeText(rowMap.get('E'));
+      const sessionLabel = normalizeText(
+        getWorkbookValue(rowMap, headerMap, 'D', ['session label', 'session', 'session_name'])
+      );
+      const gradeLabel = normalizeText(
+        getWorkbookValue(rowMap, headerMap, 'B', ['grade', 'grade label'])
+      );
+      const subjectLabel = normalizeText(
+        getWorkbookValue(rowMap, headerMap, 'C', ['subject', 'subject label'])
+      );
+      const chapterLabel = normalizeText(
+        getWorkbookValue(rowMap, headerMap, 'E', ['chapter', 'chapter label'])
+      );
 
-    if (!sessionLabel || !/^session[-\s]?\d+/i.test(sessionLabel)) {
-      continue;
-    }
+      if (!sessionLabel || !/^session[-\s]?\d+/i.test(sessionLabel)) {
+        continue;
+      }
 
     const sessionNoMatch = sessionLabel.match(/(\d+)/);
     const sessionNo = sessionNoMatch ? Number(sessionNoMatch[1]) : null;
     if (!sessionNo) continue;
 
-    const payload = {
-      rowNo: rowNumber,
-      serialNo: parseOptionalInt(rowMap.get('A'), 'serial_no'),
-      gradeLabel: gradeLabel ?? 'UNKNOWN',
-      subjectLabel: subjectLabel ?? 'UNKNOWN',
-      sessionLabel,
-      sessionNo,
-      chapterLabel: chapterLabel ?? 'UNKNOWN',
-      learningGoal: normalizeText(rowMap.get('F')),
-      topicLabel: normalizeText(rowMap.get('G')),
-      rawRowJson: {
-        columns: Object.fromEntries(Array.from(rowMap.entries())),
-      },
-    };
+      const plannedDate = parseDateString(
+        normalizeWorkbookDateValue(
+          getWorkbookValue(rowMap, headerMap, 'H', ['planned date', 'date', 'session date', 'planned_date'])
+        ),
+        `planned_date (row ${rowNumber})`,
+        { required: true }
+      );
+
+      const payload = {
+        rowNo: rowNumber,
+        serialNo: parseOptionalInt(
+          getWorkbookValue(rowMap, headerMap, 'A', ['serial no', 'serial number', 's.no', 's no']),
+          'serial_no'
+        ),
+        gradeLabel: gradeLabel ?? 'UNKNOWN',
+        subjectLabel: subjectLabel ?? 'UNKNOWN',
+        sessionLabel,
+        sessionNo,
+        chapterLabel: chapterLabel ?? 'UNKNOWN',
+        learningGoal: normalizeText(
+          getWorkbookValue(rowMap, headerMap, 'F', ['learning goal', 'learning outcome', 'learning_goal'])
+        ),
+        topicLabel: normalizeText(
+          getWorkbookValue(rowMap, headerMap, 'G', ['topic', 'topic label', 'topic_label'])
+        ),
+        plannedDate,
+        rawRowJson: {
+          columns: Object.fromEntries(Array.from(rowMap.entries())),
+        },
+      };
 
     payload.normalizedKey = normalizeKey({
       programId,
@@ -900,6 +967,27 @@ const ensureSubjectBelongsToScope = async ({ programId, gradeId, subjectId }) =>
   return subject;
 };
 
+const normalizeStoredDateValue = (value) => {
+  if (value === undefined || value === null || value === '') return value;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return value;
+    return value.toISOString().slice(0, 10);
+  }
+
+  const next = String(value).trim();
+  if (!next) return null;
+
+  const isoTimestampMatch = next.match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (isoTimestampMatch) return isoTimestampMatch[1];
+
+  const parsed = new Date(next);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return next;
+};
+
 const computeLiveStatus = ({ statusSubmitted, plannedDate, completionPercentage }) => {
   if (statusSubmitted === 'completed') return 'completed';
   if (statusSubmitted === 'partially_completed') return 'partially_completed';
@@ -1435,7 +1523,8 @@ export const generateTeachingSessions = async (req, res) => {
     const programId = parseRequiredInt(req.body?.program_id, 'program_id');
     const templateVersionNo = parseRequiredInt(req.body?.template_version_no, 'template_version_no');
     const schoolId = parseRequiredInt(req.body?.school_id, 'school_id');
-    const defaultBatchId = parseOptionalInt(req.body?.batch_id, 'batch_id');
+    const defaultBatchId = parseRequiredInt(req.body?.batch_id, 'batch_id');
+    const defaultTeacherUserId = parseRequiredInt(req.body?.teacher_user_id, 'teacher_user_id');
     const sessionItems = parseJsonArrayField(req.body?.session_items, 'session_items', { required: true });
 
     await ensureTrackerFeatureEnabled(clientId);
@@ -1466,10 +1555,39 @@ export const generateTeachingSessions = async (req, res) => {
       throw new AppError('No published templates found for the selected program/version', 404);
     }
 
+    const selectedTemplateIds = sessionItems
+      .map((item) => parseRequiredInt(item?.template_id, 'template_id'))
+      .filter(Boolean);
+    const selectedTemplates = selectedTemplateIds
+      .map((templateId) => templatesById.get(templateId))
+      .filter(Boolean);
+    const scopeEntries = Array.from(
+      new Set(
+        selectedTemplates.map((template) => `${template.grade_label}|${template.subject_label}`)
+      )
+    ).map((entry) => {
+      const [gradeLabel, subjectLabel] = entry.split('|');
+      return { gradeLabel, subjectLabel };
+    });
+
     const client = await getClient();
     const createdSessions = [];
     try {
       await client.query('BEGIN');
+      for (const scopeEntry of scopeEntries) {
+        const existingScopeSessions = await repo.listTeachingSessions({
+          whereSql:
+            'ts.client_id = $1 AND ts.school_id = $2 AND ts.program_id = $3 AND pst.template_version_no = $4 AND ts.grade_label = $5 AND ts.subject_label = $6',
+          params: [clientId, schoolId, programId, templateVersionNo, scopeEntry.gradeLabel, scopeEntry.subjectLabel],
+        });
+        if (existingScopeSessions.rows.length > 0) {
+          throw new AppError(
+            `Teaching sessions already exist for ${scopeEntry.gradeLabel} / ${scopeEntry.subjectLabel} in template version ${templateVersionNo}.`,
+            400
+          );
+        }
+      }
+
       for (const item of sessionItems) {
         const templateId = parseRequiredInt(item?.template_id, 'template_id');
         const templateIdentityKey = buildTemplateIdentityKeyFromRequestItem(item);
@@ -1481,25 +1599,29 @@ export const generateTeachingSessions = async (req, res) => {
           );
         }
 
-        const created = await repo.insertTeachingSession(client, {
-          clientId,
-          schoolId,
-          batchId: parseOptionalInt(item?.batch_id, 'batch_id') ?? defaultBatchId,
-          programId,
-          programSessionTemplateId: template.id,
-          gradeLabel: template.grade_label,
-          subjectLabel: template.subject_label,
-          chapterLabel: template.chapter_label,
-          sessionNo: template.session_no,
-          sessionLabel: template.session_label,
-          partType: template.part_type,
-          plannedDate: parseDateString(item?.planned_date, 'planned_date', { required: true }),
-          periodSlot: parseOptionalString(item?.period_slot),
-          durationMinutes: parseOptionalInt(item?.duration_minutes, 'duration_minutes') ?? template.duration_minutes,
-          teacherUserId: parseOptionalInt(item?.teacher_user_id, 'teacher_user_id'),
-          learningGoal: template.learning_goal,
-          topicLabel: template.topic_label,
-          plannerTitle: template.planner_title,
+          const created = await repo.insertTeachingSession(client, {
+            clientId,
+            schoolId,
+            batchId: defaultBatchId,
+            programId,
+            programSessionTemplateId: template.id,
+            gradeLabel: template.grade_label,
+            subjectLabel: template.subject_label,
+            chapterLabel: template.chapter_label,
+            sessionNo: template.session_no,
+            sessionLabel: template.session_label,
+            partType: template.part_type,
+            plannedDate: parseDateString(
+              normalizeStoredDateValue(template.planned_date),
+              'planned_date',
+              { required: true }
+            ),
+            periodSlot: null,
+            durationMinutes: parseOptionalInt(item?.duration_minutes, 'duration_minutes') ?? template.duration_minutes,
+            teacherUserId: defaultTeacherUserId,
+            learningGoal: template.learning_goal,
+            topicLabel: template.topic_label,
+            plannerTitle: template.planner_title,
           learningObjectives: template.learning_objectives ?? [],
           materialsNeeded: template.materials_needed,
           worksheetQuestionsCovered: template.worksheet_questions_covered,
@@ -1526,18 +1648,27 @@ export const generateTeachingSessions = async (req, res) => {
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
-    } finally {
-      client.release();
-    }
+      } finally {
+        client.release();
+      }
 
-    res.status(201).json({
-      created_count: createdSessions.length,
-      sessions: createdSessions,
-    });
-  } catch (err) {
-    handleServiceError(res, err, 'Failed to generate teaching sessions');
-  }
-};
+      const createdSessionIds = createdSessions.map((session) => Number(session.id)).filter(Boolean);
+      const enrichedSessionsResult =
+        createdSessionIds.length > 0
+          ? await repo.listTeachingSessions({
+              whereSql: `ts.id = ANY($1::int[])`,
+              params: [createdSessionIds],
+            })
+          : { rows: [] };
+
+      res.status(201).json({
+        created_count: createdSessions.length,
+        sessions: enrichedSessionsResult.rows,
+      });
+    } catch (err) {
+      handleServiceError(res, err, 'Failed to generate teaching sessions');
+    }
+  };
 
 export const listTeachingSessions = async (req, res) => {
   try {
@@ -1585,6 +1716,30 @@ export const listTeachingSessions = async (req, res) => {
     if (teacherUserId) {
       where.push(`ts.teacher_user_id = $${params.length + 1}`);
       params.push(teacherUserId);
+    }
+
+    const batchId = parseOptionalInt(req.query?.batch_id, 'batch_id');
+    if (batchId) {
+      where.push(`ts.batch_id = $${params.length + 1}`);
+      params.push(batchId);
+    }
+
+    const templateVersionNo = parseOptionalInt(req.query?.template_version_no, 'template_version_no');
+    if (templateVersionNo) {
+      where.push(`pst.template_version_no = $${params.length + 1}`);
+      params.push(templateVersionNo);
+    }
+
+    const gradeLabel = parseOptionalString(req.query?.grade_label);
+    if (gradeLabel) {
+      where.push(`ts.grade_label = $${params.length + 1}`);
+      params.push(gradeLabel);
+    }
+
+    const subjectLabel = parseOptionalString(req.query?.subject_label);
+    if (subjectLabel) {
+      where.push(`ts.subject_label = $${params.length + 1}`);
+      params.push(subjectLabel);
     }
 
     const status = parseOptionalString(req.query?.status);
