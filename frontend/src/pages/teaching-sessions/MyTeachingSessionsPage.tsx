@@ -18,6 +18,22 @@ type UpdateFormState = {
   remarks: string;
 };
 
+const formatIndianDate = (value?: string | null) => {
+  if (!value) return '-';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  }).format(date).replace(/\//g, '-');
+};
+
 const createDefaultForm = (session: TeachingSession): UpdateFormState => ({
   status_submitted: session.status === 'partially_completed' ? 'partially_completed' : session.status === 'not_completed' ? 'not_completed' : 'completed',
   completion_percentage: String(session.completion_percentage ?? 100),
@@ -164,7 +180,81 @@ export default function MyTeachingSessionsPage() {
             </label>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="space-y-3 md:hidden">
+            {filteredSessions.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                No sessions assigned right now.
+              </div>
+            )}
+            {filteredSessions.map((session) => {
+              const form = forms[session.id] ?? createDefaultForm(session);
+              const isExpanded = expandedSessionId === session.id;
+              return (
+                <div key={session.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{session.session_label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{formatIndianDate(session.planned_date)}</div>
+                    </div>
+                    <StatusBadge status={getDisplayStatus(session)} />
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-slate-600">
+                    <div><span className="font-medium text-slate-900">Chapter:</span> {session.chapter_label || '-'}</div>
+                    <div><span className="font-medium text-slate-900">Topic:</span> {session.topic_label || '-'}</div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {session.lesson_plan_file_storage_path ? (
+                      <a
+                        href={resolveAssetUrl(session.lesson_plan_file_storage_path) ?? undefined}
+                        download
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-center text-xs font-semibold text-[#073b8a]"
+                      >
+                        {session.lesson_plan_file_name ? 'Download' : 'View'}
+                      </a>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2 text-center text-xs text-slate-400">
+                        No lesson plan
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
+                      className="rounded-xl bg-[#073b8a] px-3 py-2 text-xs font-semibold text-white"
+                    >
+                      {isExpanded ? 'Close' : 'Update'}
+                    </button>
+                  </div>
+                  {isExpanded ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      {session.is_expired ? (
+                        <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50 p-4 text-sm text-orange-700">
+                          This session is expired and no longer accepts daily updates.
+                        </div>
+                      ) : null}
+                      <div className="mt-3 space-y-3">
+                        <select value={form.status_submitted} onChange={(e) => updateForm(session.id, 'status_submitted', e.target.value)} disabled={session.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                          <option value="completed">Completed</option>
+                          <option value="partially_completed">Partially Completed</option>
+                          <option value="not_completed">Not Completed</option>
+                        </select>
+                        <input value={form.completion_percentage} onChange={(e) => updateForm(session.id, 'completion_percentage', e.target.value)} disabled={session.is_expired} placeholder="Completion %" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <input type="date" value={form.actual_date} onChange={(e) => updateForm(session.id, 'actual_date', e.target.value)} disabled={session.is_expired} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <textarea value={form.topics_covered} onChange={(e) => updateForm(session.id, 'topics_covered', e.target.value)} disabled={session.is_expired} rows={2} placeholder="Topics Covered" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <textarea value={form.pending_topics} onChange={(e) => updateForm(session.id, 'pending_topics', e.target.value)} disabled={session.is_expired} rows={2} placeholder="Pending Topics" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <input value={form.reason_code} onChange={(e) => updateForm(session.id, 'reason_code', e.target.value)} disabled={session.is_expired} placeholder="Reason Code" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <textarea value={form.remarks} onChange={(e) => updateForm(session.id, 'remarks', e.target.value)} disabled={session.is_expired} rows={2} placeholder="Remarks" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <button type="button" onClick={() => handleSubmitUpdate(session)} disabled={session.is_expired || savingSessionId === session.id} className="w-full rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                          {savingSessionId === session.id ? 'Saving...' : 'Submit Daily Update'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
@@ -192,7 +282,7 @@ export default function MyTeachingSessionsPage() {
                     return (
                       <Fragment key={session.id}>
                         <tr key={session.id}>
-                          <td className="px-3 py-2">{session.planned_date}</td>
+                          <td className="px-3 py-2">{formatIndianDate(session.planned_date)}</td>
                           <td className="px-3 py-2 font-medium text-slate-900">{session.session_label}</td>
                           <td className="px-3 py-2">{session.chapter_label || '-'}</td>
                           <td className="px-3 py-2">{session.topic_label || '-'}</td>

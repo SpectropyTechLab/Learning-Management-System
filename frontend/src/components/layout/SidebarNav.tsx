@@ -55,7 +55,7 @@ export default function SidebarNav({
         fixed md:static
         inset-y-0 left-0
         z-50
-        w-64 lg:w-72
+        w-[82vw] max-w-[18rem] lg:w-72 lg:max-w-none
         ${theme.sidebarThemeClass}
         border-r
         flex flex-col

@@ -296,7 +296,35 @@ export default function ProgramMicroScheduleUploadPage() {
               ))}
             </div>
             <div className="overflow-hidden rounded-2xl border border-slate-200">
-              <div className="overflow-x-auto">
+              <div className="space-y-3 p-3 md:hidden">
+                {rowsLoading && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                    Loading parsed rows...
+                  </div>
+                )}
+                {!rowsLoading && rows.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                    Select an upload to preview rows.
+                  </div>
+                )}
+                {!rowsLoading &&
+                  rows.map((row) => (
+                    <div key={`mobile-${row.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">{row.session_label}</div>
+                          <div className="mt-1 text-xs text-slate-500">{formatIndianDate(row.planned_date)}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-slate-600">
+                        <div><span className="font-medium text-slate-900">Chapter:</span> {row.chapter_label || '-'}</div>
+                        <div><span className="font-medium text-slate-900">Learning Goal:</span> {row.learning_goal || '-'}</div>
+                        <div><span className="font-medium text-slate-900">Topic:</span> {row.topic_label || '-'}</div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50">
                     <tr>

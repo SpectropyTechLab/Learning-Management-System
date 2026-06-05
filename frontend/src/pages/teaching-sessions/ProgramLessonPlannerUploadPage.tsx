@@ -316,7 +316,34 @@ export default function ProgramLessonPlannerUploadPage() {
                   <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.is_publish_ready ? 'Yes' : 'No'}</div>
                 </div>
               </div>
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="space-y-3 md:hidden">
+                {checklist.sessions.map((session) => (
+                  <div key={`mobile-${session.micro_schedule_row_id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{session.session_label}</div>
+                        <div className="mt-1 text-xs text-slate-500">{session.chapter_label || 'No chapter'}</div>
+                      </div>
+                      <StatusBadge status={session.planner_status} />
+                    </div>
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      <div><span className="font-medium text-slate-900">Topic:</span> {session.topic_label || '-'}</div>
+                      <div>
+                        <span className="font-medium text-slate-900">Planner:</span>{' '}
+                        {session.lesson_plan_file_storage_path ? (
+                          <a href={resolveAssetUrl(session.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                            {session.lesson_plan_file_name || 'Download'}
+                          </a>
+                        ) : (
+                          '-'
+                        )}
+                      </div>
+                      <div><span className="font-medium text-slate-900">Issue:</span> {session.issue || '-'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
                     <thead className="bg-slate-50">

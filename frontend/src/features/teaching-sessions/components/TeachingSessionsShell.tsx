@@ -210,12 +210,12 @@ export default function TeachingSessionsShell({
                 {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
               </div>
             </div>
-            {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+            {actions ? <div className="flex flex-wrap items-center gap-2 md:justify-end">{actions}</div> : null}
           </div>
         </div>
       }
     >
-      <div className="p-6">{children}</div>
+      <div className="px-4 py-4 sm:px-6 sm:py-6">{children}</div>
     </DashboardLayout>
   );
 }

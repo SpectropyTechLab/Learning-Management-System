@@ -755,7 +755,38 @@ export default function TeachingSessionSetupPage() {
           title="Existing Assigned Sessions"
           subtitle="Already assigned sessions for the selected scope are shown here. Batch and teacher selectors filter this list."
         >
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="space-y-3 md:hidden">
+            {existingSessionsLoading && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                Loading existing assigned sessions...
+              </div>
+            )}
+            {!existingSessionsLoading && filteredExistingSessions.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                {existingSessions.length > 0
+                  ? 'No existing sessions match the selected batch and teacher filters.'
+                  : 'No assigned sessions found yet for the selected scope.'}
+              </div>
+            )}
+            {!existingSessionsLoading &&
+              filteredExistingSessions.map((session) => (
+                <div key={`existing-mobile-${session.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{session.session_label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{formatIndianDate(session.planned_date)}</div>
+                    </div>
+                    <div className="text-xs font-medium text-slate-500">{session.status}</div>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-slate-600">
+                    <div><span className="font-medium text-slate-900">Batch:</span> {session.batch_name || session.batch_id || '-'}</div>
+                    <div><span className="font-medium text-slate-900">Teacher:</span> {session.teacher_name || session.teacher_user_id || '-'}</div>
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
@@ -801,7 +832,29 @@ export default function TeachingSessionSetupPage() {
         </SectionCard>
 
         <SectionCard title="Recently Created Sessions">
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="space-y-3 md:hidden">
+            {createdSessions.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                No sessions generated yet in this page session.
+              </div>
+            )}
+            {createdSessions.map((session) => (
+              <div key={`created-mobile-${session.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{session.session_label}</div>
+                    <div className="mt-1 text-xs text-slate-500">{formatIndianDate(session.planned_date)}</div>
+                  </div>
+                  <div className="text-xs font-medium text-slate-500">{session.status}</div>
+                </div>
+                <div className="mt-3 text-sm text-slate-600">
+                  <span className="font-medium text-slate-900">Teacher:</span> {session.teacher_name || session.teacher_user_id || '-'}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">

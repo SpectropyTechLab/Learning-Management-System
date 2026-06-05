@@ -318,7 +318,39 @@ export default function ProgramTemplateMappingPage() {
             </button>
           }
         >
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="space-y-3 md:hidden">
+            {templates.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                Run mapping or refresh templates to see results.
+              </div>
+            )}
+            {templates.map((template) => (
+              <div key={`mobile-${template.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{template.session_label}</div>
+                    <div className="mt-1 text-xs text-slate-500">{template.chapter_label || 'No chapter'}</div>
+                  </div>
+                  <StatusBadge status={template.mapping_status} />
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <div><span className="font-medium text-slate-900">Planner Title:</span> {template.planner_title || '-'}</div>
+                  <div>
+                    <span className="font-medium text-slate-900">Lesson Plan:</span>{' '}
+                    {template.lesson_plan_file_storage_path ? (
+                      <a href={resolveAssetUrl(template.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                        {template.lesson_plan_file_name || 'Download'}
+                      </a>
+                    ) : (
+                      '-'
+                    )}
+                  </div>
+                  <div><span className="font-medium text-slate-900">Published:</span> {template.is_published ? 'Yes' : 'No'}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">

@@ -134,14 +134,14 @@ export default function TeachingSessionAnalyticsPage() {
         <SectionCard title="Analytics Filters">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             {user?.role === 'super_admin' ? (
-              <input placeholder="Client ID" value={filters.client_id} onChange={(e) => setFilters((current) => ({ ...current, client_id: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              <input placeholder="Client ID" value={filters.client_id} onChange={(e) => setFilters((current) => ({ ...current, client_id: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
             ) : null}
             {user?.role !== 'teacher' ? (
               <select
                 value={filters.school_id}
                 onChange={(e) => setFilters((current) => ({ ...current, school_id: e.target.value }))}
                 disabled={schoolsLoading}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
               >
                 <option value="">{schoolsLoading ? 'Loading schools...' : 'All Schools'}</option>
                 {schools.map((school) => (
@@ -155,7 +155,7 @@ export default function TeachingSessionAnalyticsPage() {
               value={filters.program_id}
               onChange={(e) => setFilters((current) => ({ ...current, program_id: e.target.value }))}
               disabled={programsLoading}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
             >
               <option value="">{programsLoading ? 'Loading programs...' : 'All Programs'}</option>
               {programs.map((program) => (
@@ -179,7 +179,31 @@ export default function TeachingSessionAnalyticsPage() {
         <StatsGrid summary={summary} />
 
         <SectionCard title="Session Status Table">
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="space-y-3 md:hidden">
+            {sessions.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                No sessions found for analytics filters.
+              </div>
+            )}
+            {sessions.map((session) => (
+              <div key={`mobile-${session.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{session.session_label}</div>
+                    <div className="mt-1 text-xs text-slate-500">{formatIndianDate(session.planned_date)}</div>
+                  </div>
+                  <StatusBadge status={session.status} />
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <div><span className="font-medium text-slate-900">School:</span> {session.school_name || '-'}</div>
+                  <div><span className="font-medium text-slate-900">Teacher:</span> {session.teacher_name || '-'}</div>
+                  <div><span className="font-medium text-slate-900">Completion:</span> {session.completion_percentage}%</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
