@@ -73,12 +73,12 @@ export default function LoginForm() {
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_#e6f0ff,_#f7faff_45%,_#ffffff_100%)] text-slate-900"
-      style={{ fontFamily: '"Plus Jakarta Sans", "Segoe UI", sans-serif' }}
+      className="relative flex min-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_#e6f0ff,_#f7faff_45%,_#ffffff_100%)] text-slate-900"
+      style={{ fontFamily: '"Inter", "Segoe UI", sans-serif' }}
     >
       <style>
         {`
-          @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
 
           @keyframes spectropy-fade {
             from { opacity: 0; transform: translateY(10px); }
@@ -92,78 +92,46 @@ export default function LoginForm() {
         `}
       </style>
 
-      <div className="pointer-events-none absolute inset-0">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-24 right-0 h-80 w-80 rounded-full bg-blue-200/50 blur-3xl" />
         <div className="absolute top-40 -left-16 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="absolute bottom-0 right-10 h-72 w-72 rounded-full bg-indigo-100/70 blur-3xl" />
         <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-white/90 to-transparent" />
       </div>
 
-      <header className="sticky top-0 z-20 border-b border-blue-100/80 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link to="/" className="flex items-center gap-3">
-            <img src={spectropyLogo} alt="Spectropy" className="h-12 w-auto" />
+      <header className="z-20 border-b border-blue-100/80 bg-white/85 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <Link to="/" className="flex min-w-0 items-center gap-3">
+            <img src={spectropyLogo} alt="Spectropy" className="h-10 w-auto sm:h-12" />
             <div className="leading-tight">
-              <div className="text-xs uppercase tracking-[0.45em] text-blue-600">
+              <div className="text-[10px] uppercase tracking-[0.35em] text-blue-600 sm:text-xs sm:tracking-[0.45em]">
                 Spectropy
               </div>
               <div
-                className="text-lg font-extrabold"
-                style={{ fontFamily: '"Space Grotesk", "Segoe UI", sans-serif' }}
+                className="text-sm font-bold tracking-tight sm:text-lg"
+                style={{ fontFamily: '"Manrope", "Segoe UI", sans-serif' }}
               >
                 Learning-Management-System
               </div>
             </div>
           </Link>
-          <div className="hidden items-center gap-3 rounded-full border border-blue-100 bg-white px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm sm:flex">
+          <div className="hidden items-center gap-3 rounded-full border border-blue-100 bg-white px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm md:flex">
             Secure client access
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 py-12">
-        <div className="grid w-full gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div className="rounded-3xl border border-blue-100 bg-white/85 p-8 shadow-xl animate-[spectropy-rise_0.8s_ease-out]">
-            <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />
-              Spectropy Platform Login
-            </div>
-            <h1
-              className="mt-4 text-3xl font-extrabold leading-tight text-slate-900"
-              style={{ fontFamily: '"Space Grotesk", "Segoe UI", sans-serif' }}
-            >
-              Client-first learning, centralized control
-            </h1>
-            <p className="mt-3 text-slate-600">
-              Sign in to manage your organization, schools, and learning content
-              in one secure workspace.
-            </p>
-            <div className="mt-6 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-              <div className="rounded-2xl bg-blue-50 p-4">
-                Role-based access across clients and schools.
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                Audit-ready activity tracking and reporting.
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                Centralized content packs and entitlements.
-              </div>
-              <div className="rounded-2xl bg-blue-50 p-4">
-                Built for bulk onboarding and provisioning.
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-blue-100 bg-white p-8 shadow-lg animate-[spectropy-fade_0.6s_ease-out]">
+      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
+        <div className="w-full max-w-[560px] rounded-3xl border border-blue-100 bg-white p-5 shadow-lg animate-[spectropy-fade_0.6s_ease-out] sm:p-8">
             <div className="text-center">
-              <div className="text-sm font-semibold text-blue-700">{isLogin ? 'Login' : 'Register'}</div>
+              <div className="text-sm font-semibold tracking-tight text-blue-700">{isLogin ? 'Login' : 'Register'}</div>
               <h2
-                className="mt-2 text-2xl font-bold"
-                style={{ fontFamily: '"Space Grotesk", "Segoe UI", sans-serif' }}
+                className="mt-2 text-2xl font-extrabold leading-tight tracking-tight sm:text-[2rem]"
+                style={{ fontFamily: '"Manrope", "Segoe UI", sans-serif' }}
               >
                 {isLogin ? 'Access your Spectropy account' : 'Create your Spectropy account'}
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm font-medium text-slate-500">
                 {isLogin ? 'Use your organization credentials to continue.' : 'Fill in the details to get started.'}
               </p>
             </div>
@@ -187,33 +155,26 @@ export default function LoginForm() {
               )}
 
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">
-                  {isLogin ? 'Email or User ID' : 'Email'}
+                <label className="ml-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  {isLogin ? 'Email' : 'Email'}
                 </label>
                 <input
-                  type={isLogin ? 'text' : 'email'}
-                  placeholder={
-                    isLogin ? 'Email or User ID' : 'name@institution.com'
-                  }
+                  type="email"
+                  placeholder="name@institution.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all"
-                />
-                {isLogin && (
-                  <p className="text-[11px] text-slate-400">
-                    We will detect whether you entered an email or user ID.
-                  </p>
-                )}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                  />
               </div>
 
               {!isLogin && (
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Your Role</label>
+                  <label className="ml-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Your Role</label>
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as Role)}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all bg-white"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all"
                   >
                     <option value="student">Student</option>
                     <option value="teacher">Instructor</option>
@@ -223,8 +184,8 @@ export default function LoginForm() {
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Password</label>
-                  {isLogin && <a href="#" className="text-xs font-bold text-blue-600 hover:text-blue-500">Forgot?</a>}
+                  <label className="ml-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Password</label>
+                  {isLogin && <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-500">Forgot?</a>}
                 </div>
                 <div className="relative">
                   <input
@@ -233,7 +194,7 @@ export default function LoginForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-10 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-10 text-sm font-medium focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all"
                   />
                   <button
                     type="button"
@@ -262,7 +223,7 @@ export default function LoginForm() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-10 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-10 text-sm font-medium focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all"
                   />
                   <button
                     type="button"
@@ -286,13 +247,13 @@ export default function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-70"
+                className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold tracking-tight text-white transition hover:bg-blue-700 disabled:opacity-70"
               >
                 {loading ? (isLogin ? 'Signing in...' : 'Creating account...') : (isLogin ? 'Sign in' : 'Create Account')}
               </button>
             </form>
 
-            <div className="mt-4 text-center text-sm">
+            <div className="mt-4 text-center text-sm font-medium">
               <button
                 onClick={() => setIsLogin(!isLogin)}
                 className="font-semibold text-blue-600 hover:text-blue-500"
@@ -301,16 +262,15 @@ export default function LoginForm() {
               </button>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs text-blue-700">
+            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-medium text-blue-700">
               {isLogin ? 'Need access? Contact your client administrator to onboard users.' : 'By registering, you agree to our Terms of Service.'}
             </div>
-          </div>
         </div>
       </main>
 
-      <footer className="border-t border-blue-100/70 py-6 text-center text-sm text-slate-500">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 sm:flex-row sm:justify-between">
-          <div className="flex items-center gap-2">
+      <footer className="relative z-10 border-t border-blue-100/70 py-4 text-center text-sm text-slate-500 sm:py-5">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 sm:flex-row sm:justify-between sm:px-6">
+          <div className="flex items-center gap-2 text-center sm:text-left">
             <img src={spectropyLogo} alt="Spectropy" className="h-8 w-auto" />
             <span>Spectropy Learning Cloud</span>
           </div>
