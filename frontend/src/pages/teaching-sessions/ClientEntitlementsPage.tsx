@@ -90,7 +90,7 @@ export default function ClientEntitlementsPage() {
 
     try {
       setLoadingPrograms(true);
-      const res = await api.get<ProgramOption[]>('/programs', {
+      const res = await api.get<ProgramOption[]>('/platform/programs', {
         params: { client_id: Number(selectedClientId) },
       });
       setPrograms(res.data);
