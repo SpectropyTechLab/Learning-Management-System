@@ -1,4 +1,3 @@
-import Pagination from '@/components/ui/Pagination';
 import { Badge, GhostButton } from '@/pages/dashboard/superadmin/components/ui';
 import type { PackCompositionSummary, PackItemPreview, PackSummary, PaginatedResponse } from '../types';
 import { formatCourseMeta, prettyPackItemType } from '../packUi';
@@ -10,7 +9,6 @@ interface PackReviewTabProps {
   packItemsError: string | null;
   pendingRemoveIds: number[];
   onRemoveItem: (item: PackItemPreview) => void;
-  onPackItemsPageChange: (page: number) => void;
   packSummary: PackCompositionSummary | null;
   packSummaryLoading: boolean;
   packSummaryError: string | null;
@@ -22,6 +20,132 @@ const EmptyState = ({ message }: { message: string }) => (
   <div className="border-b border-dashed border-slate-200 py-5 text-sm text-slate-500">{message}</div>
 );
 
+type SummaryTreeNode = PackCompositionSummary['groups'][number]['items'][number] & {
+  children: SummaryTreeNode[];
+};
+
+const buildSummaryTree = (items: PackCompositionSummary['groups'][number]['items']) => {
+  const nodeMap = new Map<number, SummaryTreeNode>();
+  const roots: SummaryTreeNode[] = [];
+
+  items.forEach((item) => {
+    nodeMap.set(item.id, { ...item, children: [] });
+  });
+
+  items.forEach((item) => {
+    const node = nodeMap.get(item.id);
+    if (!node) return;
+
+    if (item.parent_id && nodeMap.has(item.parent_id)) {
+      nodeMap.get(item.parent_id)?.children.push(node);
+      return;
+    }
+
+    roots.push(node);
+  });
+
+  const sortNodes = (nodes: SummaryTreeNode[]) => {
+    nodes.sort((left, right) => {
+      if (left.order_index !== right.order_index) return left.order_index - right.order_index;
+      return left.title.localeCompare(right.title);
+    });
+    nodes.forEach((node) => sortNodes(node.children));
+  };
+
+  sortNodes(roots);
+  return roots;
+};
+
+function SummaryTreeItem({ node, depth }: { node: SummaryTreeNode; depth: number }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 text-sm" style={{ marginLeft: `${depth * 18}px` }}>
+        <span className="text-slate-700">{node.title}</span>
+        <Badge tone="border-slate-200 bg-slate-50 text-slate-700">
+          {prettyPackItemType(node.item_type)}
+        </Badge>
+      </div>
+
+      {node.children.map((child) => (
+        <SummaryTreeItem key={child.id} node={child} depth={depth + 1} />
+      ))}
+    </div>
+  );
+}
+
+function AttachedTreeItem({
+  node,
+  depth,
+  courseName,
+  grade,
+  subject,
+  pendingRemoveIds,
+  onRemoveItem,
+}: {
+  node: SummaryTreeNode;
+  depth: number;
+  courseName: string;
+  grade: string | null;
+  subject: string | null;
+  pendingRemoveIds: number[];
+  onRemoveItem: (item: PackItemPreview) => void;
+}) {
+  const isPending = pendingRemoveIds.includes(node.id);
+
+  return (
+    <div className="space-y-2">
+      <div
+        className="flex items-start justify-between gap-4 border-b border-slate-200 py-4"
+        style={{ marginLeft: `${depth * 18}px` }}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="border-slate-200 bg-slate-50 text-slate-700">
+              {prettyPackItemType(node.item_type)}
+            </Badge>
+            <span className="truncate text-sm font-semibold text-slate-900">{node.title}</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-500">
+            {courseName} | {formatCourseMeta(grade, subject)}
+          </div>
+        </div>
+        <GhostButton
+          onClick={() =>
+            onRemoveItem({
+              id: node.id,
+              course_id: 0,
+              course_name: courseName,
+              item_type: node.item_type,
+              title: node.title,
+              created_at: '',
+              attached_at: null,
+              grade,
+              subject,
+            })
+          }
+          disabled={isPending}
+          className="!rounded-full !px-3 !py-2"
+        >
+          {isPending ? 'Undo window...' : 'Remove'}
+        </GhostButton>
+      </div>
+
+      {node.children.map((child) => (
+        <AttachedTreeItem
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          courseName={courseName}
+          grade={grade}
+          subject={subject}
+          pendingRemoveIds={pendingRemoveIds}
+          onRemoveItem={onRemoveItem}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function PackReviewTab({
   selectedPack,
   packItems,
@@ -29,7 +153,6 @@ export default function PackReviewTab({
   packItemsError,
   pendingRemoveIds,
   onRemoveItem,
-  onPackItemsPageChange,
   packSummary,
   packSummaryLoading,
   packSummaryError,
@@ -63,43 +186,41 @@ export default function PackReviewTab({
           {packItemsError && (
             <div className="border-l-2 border-rose-300 pl-4 text-sm text-rose-600">{packItemsError}</div>
           )}
-          {!packItemsLoading && !packItemsError && packItems?.data.length === 0 && (
+          {!packItemsLoading && !packItemsError && packSummary?.groups.length === 0 && (
             <EmptyState message="This pack does not contain any items yet." />
           )}
           {!packItemsLoading &&
             !packItemsError &&
-            packItems?.data.map((item) => (
-              <div key={item.id} className="flex items-start justify-between gap-4 border-b border-slate-200 py-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="border-slate-200 bg-slate-50 text-slate-700">
-                      {prettyPackItemType(item.item_type)}
-                    </Badge>
-                    <span className="truncate text-sm font-semibold text-slate-900">{item.title}</span>
+            packSummary?.groups.map((group) => {
+              const hierarchy = buildSummaryTree(group.items);
+
+              return (
+                <div key={`${group.course_id}:${group.subject ?? ''}`} className="border-b border-slate-200 py-4">
+                  <div className="pb-3">
+                    <div className="text-sm font-semibold text-slate-900">{group.course_name}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {formatCourseMeta(group.grade, group.subject)}
+                    </div>
                   </div>
-                  <div className="mt-2 text-xs text-slate-500">
-                    {item.course_name} | {formatCourseMeta(item.grade, item.subject)}
+
+                  <div className="space-y-2">
+                    {hierarchy.map((item) => (
+                      <AttachedTreeItem
+                        key={item.id}
+                        node={item}
+                        depth={0}
+                        courseName={group.course_name}
+                        grade={group.grade}
+                        subject={group.subject}
+                        pendingRemoveIds={pendingRemoveIds}
+                        onRemoveItem={onRemoveItem}
+                      />
+                    ))}
                   </div>
                 </div>
-                <GhostButton
-                  onClick={() => onRemoveItem(item)}
-                  disabled={pendingRemoveIds.includes(item.id)}
-                  className="!rounded-full !px-3 !py-2"
-                >
-                  {pendingRemoveIds.includes(item.id) ? 'Undo window...' : 'Remove'}
-                </GhostButton>
-              </div>
-            ))}
+              );
+            })}
         </div>
-
-        {packItems && (
-          <Pagination
-            page={packItems.page}
-            pageSize={packItems.page_size}
-            total={packItems.total}
-            onPageChange={onPackItemsPageChange}
-          />
-        )}
       </section>
 
       <section className="space-y-5 xl:pl-8">
@@ -126,6 +247,7 @@ export default function PackReviewTab({
             packSummary?.groups.map((group) => {
               const groupKey = `${group.course_id}:${group.subject ?? ''}`;
               const collapsed = collapsedGroups.includes(groupKey);
+              const hierarchy = buildSummaryTree(group.items);
 
               return (
                 <div key={groupKey} className="border-b border-slate-200 py-4">
@@ -147,13 +269,8 @@ export default function PackReviewTab({
 
                   {!collapsed && (
                     <div className="mt-4 space-y-3">
-                      {group.items.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                          <span className="text-slate-700">{item.title}</span>
-                          <Badge tone="border-slate-200 bg-slate-50 text-slate-700">
-                            {prettyPackItemType(item.item_type)}
-                          </Badge>
-                        </div>
+                      {hierarchy.map((item) => (
+                        <SummaryTreeItem key={item.id} node={item} depth={0} />
                       ))}
                     </div>
                   )}

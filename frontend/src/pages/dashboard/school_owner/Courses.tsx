@@ -10,6 +10,7 @@ import AdminCourseManager from "@/features/courses/components/list/AdminCourseMa
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function SchoolOwnerCourses() {
   const navigate = useNavigate();
@@ -17,8 +18,10 @@ export default function SchoolOwnerCourses() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const theme = getDashboardTheme(false);
-  const userFullName = user?.full_name || "School Owner";
+  const userFullName = user?.full_name || "School Admin";
   const userEmail = user?.email || "owner@spectropy.com";
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions(user);
   const examPermissions = getExamPermissions(user);
@@ -84,10 +87,11 @@ export default function SchoolOwnerCourses() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="School Owner"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
           navItems={navItems}
-          userInfo={{ name: userFullName, email: userEmail }}
+          userInfo={{ name: userFullName, email: userEmail, meta: organizationLabel }}
           onProfileClick={() => navigate("/school-owner/profile")}
           onLogout={handleLogout}
           sidebarOpen={sidebarOpen}
@@ -123,7 +127,7 @@ export default function SchoolOwnerCourses() {
           apiPrefix="/school-owner"
           theme={theme}
           brandLogo="/logo.png"
-          brandName="Spectropy"
+          brandName={organizationLabel}
           courseBannerClass="bg-blue-50"
           listTitle="Assigned Courses"
           emptyMessage="No courses found."

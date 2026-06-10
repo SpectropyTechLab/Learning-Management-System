@@ -20,10 +20,32 @@ const createMockQuery = (rows) => {
   const calls = [];
 
   const query = async (text, params = []) => {
+    const normalized = String(text).replace(/\s+/g, ' ').trim().toLowerCase();
     calls.push({
       text: String(text).replace(/\s+/g, ' ').trim(),
       params,
     });
+
+    if (
+      normalized.includes('create table if not exists course_school_assignments')
+      || normalized.includes('create index if not exists idx_course_school_assignments_course')
+      || normalized.includes('create index if not exists idx_course_school_assignments_school')
+    ) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes("table_name = 'content_pack_items'") && normalized.includes("column_name in ('item_id', 'content_id')")) {
+      return { rows: [{ column_name: 'item_id' }] };
+    }
+
+    if (normalized.includes('from content_entitlements ce') && normalized.includes('where c.client_id is null or c.client_id = 17')) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes('select distinct school_id from school_memberships')) {
+      return { rows: [{ school_id: 14 }] };
+    }
+
     return { rows };
   };
 
@@ -44,6 +66,7 @@ test('getAllCourses does not force published-only filter for teacher tenant user
 
   const req = {
     user: {
+      id: 7,
       role: 'teacher',
       client_id: 201,
     },
@@ -54,10 +77,11 @@ test('getAllCourses does not force published-only filter for teacher tenant user
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.length, 2);
-  assert.equal(mock.calls.length, 1);
-  assert.match(mock.calls[0].text, /where client_id = \$1/i);
-  assert.doesNotMatch(mock.calls[0].text, /published = true/i);
-  assert.deepEqual(mock.calls[0].params, [201]);
+  const listCall = mock.calls.find((call) => /from courses c/i.test(call.text) && /group by c\.id/i.test(call.text));
+  assert.ok(listCall);
+  assert.match(listCall.text, /c\.client_id = \$1/i);
+  assert.doesNotMatch(listCall.text, /published = true/i);
+  assert.deepEqual(listCall.params, [201, [14]]);
 });
 
 test('getAllCourses still forces published-only filter for student users', async (t) => {
@@ -83,7 +107,8 @@ test('getAllCourses still forces published-only filter for student users', async
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.length, 1);
-  assert.equal(mock.calls.length, 1);
-  assert.match(mock.calls[0].text, /published = true/i);
-  assert.deepEqual(mock.calls[0].params, [201]);
+  const listCall = mock.calls.find((call) => /from courses c/i.test(call.text) && /group by c\.id/i.test(call.text));
+  assert.ok(listCall);
+  assert.match(listCall.text, /published = true/i);
+  assert.deepEqual(listCall.params, [201]);
 });

@@ -13,6 +13,7 @@ import { HiOutlineBuildingOffice2 } from 'react-icons/hi2';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav, { type SidebarNavItem } from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
+import { getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 type TabKey = 'schools' | 'schoolMembers' | 'courseAssignments' | 'batches' | 'batchMembers' | 'roles' | 'users' | 'bulkSetup';
 
@@ -595,7 +596,7 @@ export default function OrgDashboard() {
   const theme = getDashboardTheme(false);
   const brandLogo = clientUser?.logo || spectropyLogo;
   const brandName = clientUser?.client_name || 'Spectropy';
-  const dashboardTitle = clientUser?.client_name ? `${clientUser.client_name} Dashboard` : 'Organization Dashboard';
+  const dashboardTitle = getRoleDisplayTitle(user?.role);
   const clientMeta = clientUser?.client_name ? `${clientUser.client_name} Client` : null;
   const visibleTabs = tabs.filter((tab) => !tab.roles || tab.roles.includes(user?.role || ''));
   const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label || 'Organization Setup';

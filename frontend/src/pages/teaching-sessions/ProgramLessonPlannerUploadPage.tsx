@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import TeachingSessionsShell from '@/features/teaching-sessions/components/TeachingSessionsShell';
@@ -32,6 +33,18 @@ export default function ProgramLessonPlannerUploadPage() {
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [uploadsLoading, setUploadsLoading] = useState(false);
   const [checklistLoading, setChecklistLoading] = useState(false);
+
+  const getUploadErrorMessage = (error: unknown) => {
+    if (!axios.isAxiosError(error)) {
+      return 'Failed to upload lesson planner';
+    }
+
+    return (
+      error.response?.data?.error ||
+      error.message ||
+      'Failed to upload lesson planner'
+    );
+  };
 
   const selectedChecklistSession = useMemo(
     () => checklist?.sessions.find((session) => Number(session.session_no) === Number(targetSessionNo)) ?? null,
@@ -191,7 +204,7 @@ export default function ProgramLessonPlannerUploadPage() {
       await loadChecklist(selectedMicroUploadId);
     } catch (error) {
       console.error(error);
-      toast.error('Failed to upload lesson planner');
+      toast.error(getUploadErrorMessage(error));
     }
   };
 
@@ -270,6 +283,9 @@ export default function ProgramLessonPlannerUploadPage() {
             <label className="text-sm text-slate-600">
               Planner File
               <input type="file" accept=".docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
+              <div className="mt-2 text-xs text-slate-500">
+                Use a single-session `.docx` whose content clearly includes the selected session number, for example `SESSION-{targetSessionNo || 'X'}`, plus a title/topic section.
+              </div>
             </label>
             <label className="text-sm text-slate-600 md:col-span-3">
               Notes

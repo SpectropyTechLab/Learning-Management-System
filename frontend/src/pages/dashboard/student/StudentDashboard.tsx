@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import spectropyLogo from "/logo.png";
 import AdminCourseManager from '@/features/courses/components/list/AdminCourseManager';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
+import { getOrganizationLabel, getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
@@ -13,11 +14,11 @@ export default function StudentDashboard() {
 
   const isClientTenant = false;
   const brandLogo = spectropyLogo;
-  const brandName = 'Spectropy';
+  const brandName = getOrganizationLabel(user);
 
   const userFullName = user?.full_name || 'Student';
   const userEmail = user?.email || 'student@lms.com';
-  const dashboardTitle = 'Student Dashboard';
+  const dashboardTitle = getRoleDisplayTitle(user?.role);
   const theme = getDashboardTheme(false);
 
   const handleBackToLogin = async () => {
@@ -51,7 +52,7 @@ export default function StudentDashboard() {
               />
               <div>
                 <p
-                  className={`text-xs uppercase tracking-[0.3em] ${isClientTenant ? 'text-amber-700' : 'text-blue-600'
+                  className={`text-sm text-slate-900 ${isClientTenant ? 'text-amber-900' : 'text-slate-900'
                     }`}
                 >
                   {brandName}

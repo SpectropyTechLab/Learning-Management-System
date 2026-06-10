@@ -10,6 +10,7 @@ import { BiBookOpen } from "react-icons/bi";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function SchoolOwnerProfile() {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ export default function SchoolOwnerProfile() {
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions(user);
   const examPermissions = getExamPermissions(user);
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
 
   const navItems = [
     {
@@ -80,11 +83,11 @@ export default function SchoolOwnerProfile() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="School Owner"
+          brandName={organizationLabel}
+          title={roleTitle}
           navItems={navItems}
           userInfo={{
-            name: user?.full_name || "School Owner",
+            name: user?.full_name || "School Admin",
             email: user?.email || "owner@spectropy.com",
           }}
           onLogout={handleLogout}

@@ -53,8 +53,10 @@ export interface CourseContentPreviewItem {
 
 export interface PackSummaryGroupItem {
   id: number;
+  parent_id: number | null;
   title: string;
   item_type: string;
+  order_index: number;
 }
 
 export interface PackSummaryGroup {

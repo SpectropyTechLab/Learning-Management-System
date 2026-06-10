@@ -38,6 +38,18 @@ export default function ProgramTemplateMappingPage() {
     [programs, programId]
   );
 
+  const buildMappingSummary = (data: ProgramSessionTemplate[]) => {
+    if (data.length === 0) return null;
+    const matched = data.filter((template) => template.mapping_status === 'matched').length;
+    return {
+      program_id: Number(programId),
+      template_version_no: Number(templateVersionNo || '1'),
+      total_records: data.length,
+      matched_records: matched,
+      non_matched_records: data.length - matched,
+    };
+  };
+
   const loadPrograms = async () => {
     try {
       setProgramsLoading(true);
@@ -118,13 +130,19 @@ export default function ProgramTemplateMappingPage() {
   };
 
   const loadTemplates = async () => {
-    if (!programId) return;
+    if (!programId) {
+      setTemplates([]);
+      setMappingSummary(null);
+      return;
+    }
     try {
       const data = await teachingSessionsApi.listProgramTemplates(programId, {
         template_version_no: templateVersionNo || undefined,
+        micro_schedule_upload_id: microUploadId || undefined,
         include_unpublished: true,
       });
       setTemplates(data);
+      setMappingSummary(buildMappingSummary(data));
     } catch (error) {
       console.error(error);
       toast.error('Failed to load template records');
@@ -140,6 +158,8 @@ export default function ProgramTemplateMappingPage() {
     setSubjectId('');
     setMicroUploadId('');
     setChecklist(null);
+    setTemplates([]);
+    setMappingSummary(null);
     loadGrades(programId);
   }, [programId]);
 
@@ -147,18 +167,33 @@ export default function ProgramTemplateMappingPage() {
     setSubjectId('');
     setMicroUploadId('');
     setChecklist(null);
+    setTemplates([]);
+    setMappingSummary(null);
     loadSubjects(programId, gradeId);
   }, [programId, gradeId]);
 
   useEffect(() => {
     setMicroUploadId('');
     setChecklist(null);
+    setTemplates([]);
+    setMappingSummary(null);
     loadMicroUploads();
   }, [programId, gradeId, subjectId]);
 
   useEffect(() => {
     loadChecklist(microUploadId);
   }, [microUploadId]);
+
+  useEffect(() => {
+    if (!programId || !gradeId || !subjectId || !microUploadId || !templateVersionNo) {
+      return;
+    }
+    loadTemplates();
+  }, [programId, gradeId, subjectId, microUploadId, templateVersionNo]);
+
+  const matchedTemplates = templates.filter((template) => template.mapping_status === 'matched');
+  const isTemplateVersionPublished = matchedTemplates.length > 0 && matchedTemplates.every((template) => template.is_published);
+  const publishButtonLabel = isTemplateVersionPublished ? 'Already Published' : 'Publish Matched Rows';
 
   const handleMap = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -186,10 +221,15 @@ export default function ProgramTemplateMappingPage() {
 
   const handlePublish = async () => {
     if (!programId) return;
+    if (isTemplateVersionPublished) {
+      toast.error('This template version is already published and cannot be published again.');
+      return;
+    }
     try {
       setLoading(true);
       await teachingSessionsApi.publishProgramTemplates(programId, {
         template_version_no: Number(templateVersionNo || '1'),
+        micro_schedule_upload_id: Number(microUploadId),
       });
       await loadTemplates();
       toast.success('Templates published');
@@ -273,34 +313,47 @@ export default function ProgramTemplateMappingPage() {
           </form>
         </SectionCard>
 
-        {checklist ? (
-          <SectionCard title="Planner Readiness" subtitle="Publish and generation are blocked until every required session planner is complete.">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Required Sessions</div>
-                <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.total_required_sessions}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Completed Planners</div>
-                <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.completed_sessions}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Ready</div>
-                <div className="mt-2 text-2xl font-semibold text-slate-900">{checklist.is_publish_ready ? 'Yes' : 'No'}</div>
-              </div>
+        {checklist || mappingSummary ? (
+          <SectionCard title="Template Status" subtitle="Stored template rows are reused for publish and teacher session generation.">
+            <div className="grid gap-3 md:grid-cols-6">
+              {checklist ? (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Required</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{checklist.total_required_sessions}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Completed</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{checklist.completed_sessions}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Ready</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{checklist.is_publish_ready ? 'Yes' : 'No'}</div>
+                  </div>
+                </>
+              ) : null}
+              {mappingSummary ? (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Records</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{String(mappingSummary.total_records ?? 0)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Matched</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{String(mappingSummary.matched_records ?? 0)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Published</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{isTemplateVersionPublished ? 'Yes' : 'No'}</div>
+                  </div>
+                </>
+              ) : null}
             </div>
-          </SectionCard>
-        ) : null}
-
-        {mappingSummary ? (
-          <SectionCard title="Mapping Summary">
-            <div className="grid gap-4 md:grid-cols-3">
-              {Object.entries(mappingSummary).map(([key, value]) => (
-                <div key={key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{key.replace(/_/g, ' ')}</div>
-                  <div className="mt-2 text-xl font-semibold text-slate-900">{String(value)}</div>
-                </div>
-              ))}
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <span className="font-medium text-slate-900">Publish Status:</span>{' '}
+              {isTemplateVersionPublished
+                ? 'Published templates are stored and can be used by the client to generate teacher sessions.'
+                : 'Not published yet. Client admins can assign sessions only after these template rows are published.'}
             </div>
           </SectionCard>
         ) : null}
@@ -313,15 +366,15 @@ export default function ProgramTemplateMappingPage() {
               : 'Matched rows are publishable only when every required session planner exists.'
           }
           actions={
-            <button type="button" onClick={handlePublish} disabled={loading || !checklist?.is_publish_ready || !programId} className="rounded-full bg-[#073b8a] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
-              Publish Matched Rows
+            <button type="button" onClick={handlePublish} disabled={loading || !checklist?.is_publish_ready || !programId || isTemplateVersionPublished} className="rounded-full bg-[#073b8a] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+              {publishButtonLabel}
             </button>
           }
         >
           <div className="space-y-3 md:hidden">
             {templates.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-                Run mapping or refresh templates to see results.
+                No stored template rows were found for this micro schedule and version yet. Run mapping once to create them.
               </div>
             )}
             {templates.map((template) => (
@@ -367,7 +420,7 @@ export default function ProgramTemplateMappingPage() {
                   {templates.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-3 py-4 text-slate-500">
-                        Run mapping or refresh templates to see results.
+                        No stored template rows were found for this micro schedule and version yet. Run mapping once to create them.
                       </td>
                     </tr>
                   )}

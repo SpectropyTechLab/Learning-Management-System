@@ -15,6 +15,7 @@ import AdminCourseManager from '@/features/courses/components/list/AdminCourseMa
 import { getCoursePermissions } from '@/features/courses/utils/coursePermissions';
 import { getQuestionPermissions } from '@/features/question-bank/utils/questionPermissions';
 import { getExamPermissions } from '@/features/exams/utils/examPermissions';
+import { getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 type ClientUser = {
   logo?: string;
@@ -34,11 +35,10 @@ export default function CourseStudents() {
 
   const brandLogo = clientUser?.logo || spectropyLogo;
   const brandName = clientUser?.client_name || 'Spectropy';
-  const dashboardTitle = clientUser?.client_name ? `${clientUser.client_name} Dashboard` : 'Admin Dashboard';
+  const dashboardTitle = getRoleDisplayTitle(user?.role);
   const homeTitle = clientUser?.client_name
     ? `Welcome to the ${clientUser.client_name} Dashboard`
     : 'Welcome to the Admin Dashboard';
-  const clientMeta = clientUser?.client_name ? `${clientUser.client_name} Client` : null;
   const theme = getDashboardTheme(false);
   const courseBannerClass = isContentAuthorizer ? 'bg-sky-100' : 'bg-blue-50';
   const coursePermissions = getCoursePermissions(user);
@@ -83,15 +83,6 @@ export default function CourseStudents() {
           icon: <BiBookOpen />,
           active: activeTab === 'courses',
           onClick: () => setActiveTab('courses'),
-        }]
-      : []),
-    ...(user?.role === 'client_admin'
-      ? [{
-          key: 'licensed-content',
-          label: 'Licensed Content',
-          icon: <RiFileList3Line />,
-          active: false,
-          onClick: () => navigate('/admin/licensed-content'),
         }]
       : []),
     ...(user?.role === 'client_admin'
@@ -144,7 +135,7 @@ export default function CourseStudents() {
           title={dashboardTitle}
           brandTag={clientUser?.client_name}
           navItems={navItems}
-          userInfo={{ name: userFullName, email: userEmail, meta: clientMeta }}
+          userInfo={{ name: userFullName, email: userEmail }}
           onProfileClick={() => navigate("/admin/profile")}
           onLogout={handleBackToLogin}
           sidebarOpen={sidebarOpen}

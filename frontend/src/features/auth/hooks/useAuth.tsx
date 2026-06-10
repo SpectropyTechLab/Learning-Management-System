@@ -12,6 +12,8 @@ export interface User {
   is_active?: boolean;
   client_id?: number | null;
   user_id?: string | null;
+  client_name?: string | null;
+  school_name?: string | null;
   permissions?: string[];
 }
 
@@ -133,7 +135,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await refreshUser();
       } catch (error) {
         console.error('Failed to load user:', error);
-        setUser((prev) => prev);
+        localStorage.removeItem('auth_user');
+        setUser(null);
       } finally {
         setLoading(false);
       }

@@ -6,10 +6,13 @@ import type { DashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
 import { getCoursePermissions, type CoursePermissions } from "@/features/courses/utils/coursePermissions";
 
+const PLATFORM_OWNER_CLIENT_ID = 17;
+
 type Course = {
   id: number;
   title: string;
   description: string | null;
+  client_id?: number | null;
   published?: boolean;
   created_at?: string;
   updated_at?: string | null;
@@ -141,6 +144,9 @@ export default function AdminCourseManager({
     resolveCourseCapability(course, course.can_enroll, mergedPermissions.canEnroll);
 
   const getCourseScopeLabel = (course: Course) => {
+    if (course.client_id == null || Number(course.client_id) === PLATFORM_OWNER_CLIENT_ID) {
+      return "Platform course";
+    }
     if (course.is_assigned_to_my_school && !course.is_created_by_me) {
       return "Assigned";
     }
@@ -664,6 +670,15 @@ export default function AdminCourseManager({
                           </button>
                         )}
 
+                        {showViewAction && onViewCourse && (
+                          <button
+                            onClick={() => onViewCourse(course.id)}
+                            className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50"
+                          >
+                            View Course
+                          </button>
+                        )}
+
                         {courseCanEnroll && onEnroll && (
                           <button
                             onClick={() => onEnroll(course.id)}
@@ -671,15 +686,6 @@ export default function AdminCourseManager({
                           >
                             <PiUsersBold className="text-xs" />
                             Enroll
-                          </button>
-                        )}
-
-                        {showViewAction && onViewCourse && (
-                          <button
-                            onClick={() => onViewCourse(course.id)}
-                            className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50"
-                          >
-                            View Course
                           </button>
                         )}
 
@@ -903,6 +909,15 @@ export default function AdminCourseManager({
                                 </button>
                               )}
 
+                              {showViewAction && onViewCourse && (
+                                <button
+                                  onClick={() => onViewCourse(course.id)}
+                                  className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"
+                                >
+                                  View
+                                </button>
+                              )}
+
                               {courseCanEnroll && onEnroll && (
                                 <button
                                   onClick={() => onEnroll(course.id)}
@@ -910,15 +925,6 @@ export default function AdminCourseManager({
                                 >
                                   <PiUsersBold className="text-xs" />
                                   Enroll
-                                </button>
-                              )}
-
-                              {showViewAction && onViewCourse && (
-                                <button
-                                  onClick={() => onViewCourse(course.id)}
-                                  className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"
-                                >
-                                  View
                                 </button>
                               )}
                             </div>

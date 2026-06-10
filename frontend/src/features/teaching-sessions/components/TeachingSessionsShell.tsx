@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import spectropyLogo from '/logo.png';
 import { RiCalendarScheduleLine, RiFileList3Line, RiHome2Line, RiLineChartLine, RiShieldUserLine } from 'react-icons/ri';
 import { HiOutlineBuildingOffice2 } from 'react-icons/hi2';
+import { getOrganizationLabel, getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 interface TeachingSessionsShellProps {
   title: string;
@@ -28,6 +29,7 @@ export default function TeachingSessionsShell({
   const navigate = useNavigate();
   const theme = getDashboardTheme(false);
   const role = user?.role;
+  const organizationLabel = getOrganizationLabel(user);
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
@@ -159,15 +161,7 @@ export default function TeachingSessionsShell({
     navigate('/login', { replace: true });
   };
 
-  const roleTitle = role === 'content_authorizer'
-    ? 'Content Authorizer'
-    : role === 'super_admin'
-      ? 'Super Admin'
-      : role === 'client_admin'
-        ? 'Client Admin'
-        : role === 'school_owner'
-          ? 'School Owner'
-          : 'Teacher';
+  const roleTitle = getRoleDisplayTitle(role);
 
   return (
     <DashboardLayout
@@ -179,14 +173,14 @@ export default function TeachingSessionsShell({
       sidebar={
         <SidebarNav
           brandLogo={spectropyLogo}
-          brandName="Spectropy"
+          brandName={organizationLabel}
           title={roleTitle}
-          brandTag="Teacher Session Tracker"
+          brandTag={organizationLabel}
           navItems={navItems}
           userInfo={{
             name: user?.full_name || roleTitle,
             email: user?.email || '',
-            meta: roleTitle,
+            meta: organizationLabel,
           }}
           onLogout={handleLogout}
           sidebarOpen={sidebarOpen}

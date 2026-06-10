@@ -1351,7 +1351,7 @@ export const mapProgramSessionTemplates = async (req, res) => {
       repo.fetchMicroScheduleRowsByUploadId(microScheduleUploadId),
       repo.fetchLessonPlannerUploadsForMicroSchedule(microScheduleUploadId),
       repo.fetchLessonPlannerSessionScopeByMicroSchedule(microScheduleUploadId),
-      repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true }),
+      repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true, microScheduleUploadId }),
     ]);
 
     const microUpload = microUploadResult.rows[0];
@@ -1385,7 +1385,7 @@ export const mapProgramSessionTemplates = async (req, res) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      await repo.deleteProgramSessionTemplatesByVersion(client, { programId, templateVersionNo });
+      await repo.deleteProgramSessionTemplatesByVersion(client, { programId, templateVersionNo, microScheduleUploadId });
       for (const template of templates) {
         await repo.insertProgramSessionTemplate(client, template);
       }
@@ -1416,10 +1416,11 @@ export const listProgramSessionTemplates = async (req, res) => {
   try {
     const programId = parseRequiredInt(req.params?.programId, 'programId');
     const templateVersionNo = parseOptionalInt(req.query?.template_version_no, 'template_version_no');
+    const microScheduleUploadId = parseOptionalInt(req.query?.micro_schedule_upload_id, 'micro_schedule_upload_id');
     const includeUnpublished = req.user?.role === 'client_admin'
       ? false
       : (parseOptionalBoolean(req.query?.include_unpublished) ?? true);
-    const result = await repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished });
+    const result = await repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished, microScheduleUploadId });
     res.json(result.rows);
   } catch (err) {
     handleServiceError(res, err, 'Failed to load program session templates');
@@ -1430,14 +1431,22 @@ export const publishProgramSessionTemplates = async (req, res) => {
   try {
     const programId = parseRequiredInt(req.params?.programId, 'programId');
     const templateVersionNo = parseRequiredInt(req.body?.template_version_no, 'template_version_no');
-    const templatesResult = await repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true });
+    const microScheduleUploadId = parseRequiredInt(req.body?.micro_schedule_upload_id, 'micro_schedule_upload_id');
+    const templatesResult = await repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true, microScheduleUploadId });
     const templates = templatesResult.rows;
     if (templates.length === 0) {
       throw new AppError('No template records found for the selected version', 404);
     }
+    const matchedTemplates = templates.filter((template) => template.mapping_status === 'matched');
     const invalidTemplates = templates.filter((template) => template.mapping_status !== 'matched');
     if (invalidTemplates.length > 0) {
       throw new AppError('All micro schedule sessions must have valid lesson planners before publish.', 400);
+    }
+    if (matchedTemplates.length === 0) {
+      throw new AppError('No matched template records found for the selected version', 400);
+    }
+    if (matchedTemplates.some((template) => template.is_published)) {
+      throw new AppError('This template version is already published and cannot be published again.', 409);
     }
     const client = await getClient();
     try {
@@ -1446,7 +1455,11 @@ export const publishProgramSessionTemplates = async (req, res) => {
         programId,
         templateVersionNo,
         publishedByUserId: req.user.id,
+        microScheduleUploadId,
       });
+      if (result.rows.length === 0) {
+        throw new AppError('This template version is already published and cannot be published again.', 409);
+      }
       await client.query('COMMIT');
       res.json({
         published_count: result.rows.length,

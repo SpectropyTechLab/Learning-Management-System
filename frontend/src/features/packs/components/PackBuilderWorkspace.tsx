@@ -92,7 +92,6 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
   const [courseContent, setCourseContent] = useState<PaginatedResponse<CourseContentPreviewItem> | null>(null);
   const [courseContentLoading, setCourseContentLoading] = useState(false);
   const [courseContentError, setCourseContentError] = useState<string | null>(null);
-  const [courseContentPage, setCourseContentPage] = useState(1);
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
 
   const [addSubmitting, setAddSubmitting] = useState(false);
@@ -186,7 +185,6 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     setActiveTab('review');
     setSelectedPack(null);
     setPackItemsPage(1);
-    setCourseContentPage(1);
     setCollapsedGroups([]);
     setSelectedItemIds([]);
     setSelectedCourse(null);
@@ -233,7 +231,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
 
   useEffect(() => {
     setSelectedItemIds([]);
-  }, [selectedCourse?.id, courseContentPage]);
+  }, [selectedCourse?.id]);
 
   useEffect(() => {
     if (!selectedCourse) {
@@ -249,7 +247,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
         setCourseContentError(null);
         const response = await api.get<PaginatedResponse<CourseContentPreviewItem>>(
           `/courses/${selectedCourse.id}/content`,
-          { params: { page: courseContentPage, page_size: COURSE_PAGE_SIZE } },
+          { params: { view: 'tree' } },
         );
         if (!cancelled) setCourseContent(response.data);
       } catch (error) {
@@ -263,7 +261,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     return () => {
       cancelled = true;
     };
-  }, [selectedCourse, courseContentPage]);
+  }, [selectedCourse]);
 
   const addSelectedItems = async () => {
     if (!selectedPack || selectedCourseItems.length === 0) return;
@@ -473,7 +471,6 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
 
       if (createdCourse) {
         setSelectedCourse(createdCourse);
-        setCourseContentPage(1);
       }
 
       closeCreateCourseDialog();
@@ -559,18 +556,13 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
           coursesLoading={coursesLoading}
           coursesError={coursesError}
           selectedCourse={selectedCourse}
-          onSelectCourse={(course) => {
-            setSelectedCourse(course);
-            setCourseContentPage(1);
-          }}
+          onSelectCourse={setSelectedCourse}
           onLoadMoreCourses={() => {
             void loadMoreCourses();
           }}
           courseContent={courseContent}
           courseContentLoading={courseContentLoading}
           courseContentError={courseContentError}
-          courseContentPage={courseContentPage}
-          onCourseContentPageChange={setCourseContentPage}
           selectedItemIds={selectedItemIds}
           selectedCourseItems={selectedCourseItems}
           onToggleItemSelection={handleToggleItemSelection}
@@ -594,7 +586,6 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
           packItemsError={packItemsError}
           pendingRemoveIds={pendingRemoveIds}
           onRemoveItem={removeItem}
-          onPackItemsPageChange={setPackItemsPage}
           packSummary={packSummary}
           packSummaryLoading={packSummaryLoading}
           packSummaryError={packSummaryError}

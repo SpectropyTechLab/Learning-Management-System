@@ -147,14 +147,10 @@ export const getCourseContent = async (req, res) => {
       userId,
     });
 
-    if (scope === 'school_owner') {
-      return res.json({
-        items: rows,
-        course: access.course,
-      });
-    }
-
-    res.json(rows);
+    res.json({
+      items: rows,
+      course: access.course,
+    });
   } catch (err) {
     console.error('Failed to fetch content:', err);
     res.status(500).json({ error: 'Failed to fetch course content' });

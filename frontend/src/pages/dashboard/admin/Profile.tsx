@@ -9,6 +9,7 @@ import spectropyLogo from "/logo.png";
 import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
 import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
+import { getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 type ClientUser = {
   logo?: string;
@@ -25,7 +26,7 @@ export default function AdminProfile() {
   const theme = getDashboardTheme(false);
   const brandLogo = clientUser?.logo || spectropyLogo;
   const brandName = clientUser?.client_name || "Spectropy";
-  const dashboardTitle = clientUser?.client_name ? `${clientUser.client_name} Dashboard` : "Admin Dashboard";
+  const dashboardTitle = getRoleDisplayTitle(user?.role);
 
   const navItems = [
     {

@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { login, refreshToken, logout } from '../controllers/auth.controller.js';
 import { authenticateToken, attachClientContext, loadPermissions } from '../middleware/auth.js';
+import { enrichAuthUser } from '../services/authUser.service.js';
 
 const router = Router();
 
@@ -27,7 +28,8 @@ router.get('/me', authenticateToken, attachClientContext, loadPermissions, async
             granted.push(...permissions);
         }
 
-        res.json({ user: { id, email, full_name, role, is_active, client_id, user_id }, permissions: granted });
+        const user = await enrichAuthUser({ id, email, full_name, role, is_active, client_id, user_id });
+        res.json({ user, permissions: granted });
         //console.log('Refreshed user data for:', { user: { id, email, full_name, role, is_active, client_id, user_id } });
     } catch (error) {
         console.error('Error in /me:', error);

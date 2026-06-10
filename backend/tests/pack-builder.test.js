@@ -67,8 +67,10 @@ const createMockDb = (overrides = {}) => {
       id: item.id,
       course_id: item.course_id,
       course_name: course?.title ?? 'Unknown',
+      parent_id: item.parent_id ?? null,
       item_type: item.item_type,
       title: item.title,
+      order_index: item.order_index ?? 0,
       created_at: item.created_at,
       attached_at: null,
       grade: course?.metadata?.grade ?? null,
@@ -345,6 +347,37 @@ test('GET /packs/:id/summary returns grouped course and subject counts', async (
   assert.equal(res.body.total_items, 2);
   assert.equal(res.body.groups.length, 2);
   assert.equal(res.body.groups[0].items[0].title.length > 0, true);
+});
+
+test('GET /packs/:id/summary preserves parent-child hierarchy metadata for grouped items', async (t) => {
+  useMockDb(t, {
+    contentItems: [
+      { id: 100, course_id: 10, parent_id: null, item_type: 'folder', title: 'Chapter 1', content_url: null, order_index: 0, created_at: '2026-03-20T11:00:00.000Z' },
+      { id: 101, course_id: 10, parent_id: 100, item_type: 'folder', title: 'Topic 1.1', content_url: null, order_index: 0, created_at: '2026-03-20T12:00:00.000Z' },
+      { id: 102, course_id: 10, parent_id: 101, item_type: 'pdf', title: 'Concept', content_url: null, order_index: 0, created_at: '2026-03-20T13:00:00.000Z' },
+    ],
+    packItems: [
+      { pack_id: 1, item_id: 100 },
+      { pack_id: 1, item_id: 101 },
+      { pack_id: 1, item_id: 102 },
+    ],
+  });
+  const res = makeRes();
+  await getPackSummary({ user: { role: 'content_authorizer' }, params: { id: '1' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.groups.length, 1);
+  assert.deepEqual(
+    res.body.groups[0].items.map((item) => ({
+      id: item.id,
+      parent_id: item.parent_id,
+      order_index: item.order_index,
+    })),
+    [
+      { id: 100, parent_id: null, order_index: 0 },
+      { id: 101, parent_id: 100, order_index: 0 },
+      { id: 102, parent_id: 101, order_index: 0 },
+    ],
+  );
 });
 
 test('GET /courses defaults to global courses and supports search for content_authorizer without client_id', async (t) => {

@@ -11,12 +11,15 @@ import AdminCourseManager from '@/features/courses/components/list/AdminCourseMa
 import { getCoursePermissions } from '@/features/courses/utils/coursePermissions';
 import { getQuestionPermissions } from '@/features/question-bank/utils/questionPermissions';
 import { getExamPermissions } from '@/features/exams/utils/examPermissions';
+import { getOrganizationLabel, getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 export default function TeacherDashboard() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const theme = getDashboardTheme(false);
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
@@ -84,12 +87,14 @@ export default function TeacherDashboard() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="Teacher"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
           navItems={navItems}
           userInfo={{
             name: user?.full_name || 'Teacher',
             email: user?.email || 'teacher@spectropy.com',
+            meta: organizationLabel,
           }}
           onProfileClick={() => navigate('/teacher/profile')}
           onLogout={handleBackToLogin}
@@ -125,7 +130,7 @@ export default function TeacherDashboard() {
           permissionKeys={user?.permissions}
           theme={theme}
           brandLogo="/logo.png"
-          brandName="Spectropy"
+          brandName={organizationLabel}
           courseBannerClass="bg-blue-50"
           listTitle="My Courses"
           emptyMessage="No courses found."

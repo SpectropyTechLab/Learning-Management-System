@@ -1,5 +1,7 @@
 import { query as dbQuery } from '../repositories/db.repository.js';
 
+const PLATFORM_OWNER_CLIENT_ID = 17;
+
 const CLIENT_LIBRARY_ROLES = new Set(['client_admin']);
 const PLATFORM_CONTENT_ROLES = new Set(['super_admin', 'content_authorizer']);
 
@@ -615,6 +617,10 @@ export const userCanAccessContentItem = async ({ user, contentItemId }) => {
       clientIdExpression: 'linked_course.client_id',
       contentIdExpression: 'ci.id',
     });
+    const directEntitlementSql = await buildActiveEntitlementExistsSql({
+      clientIdExpression: String(Number(clientId)),
+      contentIdExpression: 'ci.id',
+    });
 
     const result = await dbQuery(
       `
@@ -628,6 +634,10 @@ export const userCanAccessContentItem = async ({ user, contentItemId }) => {
       WHERE ci.id = $1
         AND (
           direct_course.client_id = $2
+          OR (
+            (direct_course.client_id IS NULL OR direct_course.client_id = ${PLATFORM_OWNER_CLIENT_ID})
+            AND ${directEntitlementSql}
+          )
           OR (
             linked_course.client_id = $2
             AND ${activeEntitlementSql}

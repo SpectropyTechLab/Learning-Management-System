@@ -34,6 +34,14 @@ test('listCoursesForRequest returns school-owner assigned courses with read-only
       return { rows: [{ school_id: 11 }, { school_id: 12 }] };
     }
 
+    if (normalized.includes("table_name = 'content_pack_items'") && normalized.includes("column_name in ('item_id', 'content_id')")) {
+      return { rows: [{ column_name: 'item_id' }] };
+    }
+
+    if (normalized.includes('from content_entitlements ce') && normalized.includes('from courses c')) {
+      return { rows: [] };
+    }
+
     if (normalized.includes('from courses c')) {
       return {
         rows: [
@@ -91,6 +99,14 @@ test('ensureCourseActionAccess blocks school owners from updating assigned cours
       return { rows: [{ school_id: 11 }] };
     }
 
+    if (normalized.includes("table_name = 'content_pack_items'") && normalized.includes("column_name in ('item_id', 'content_id')")) {
+      return { rows: [{ column_name: 'item_id' }] };
+    }
+
+    if (normalized.includes('from content_entitlements ce') && normalized.includes('from courses c')) {
+      return { rows: [] };
+    }
+
     if (normalized.includes('from courses c') && normalized.includes('where c.id = $1')) {
       return {
         rows: [
@@ -127,4 +143,71 @@ test('ensureCourseActionAccess blocks school owners from updating assigned cours
   assert.equal(result.ok, false);
   assert.equal(result.status, 403);
   assert.equal(result.error, 'Assigned courses are read-only for school owners.');
+});
+
+test('listCoursesForRequest includes entitled platform courses for client admins as read-only courses', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+
+    if (
+      normalized.includes('create table if not exists course_school_assignments')
+      || normalized.includes('create index if not exists idx_course_school_assignments_course')
+      || normalized.includes('create index if not exists idx_course_school_assignments_school')
+    ) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes("table_name = 'content_pack_items'") && normalized.includes("column_name in ('item_id', 'content_id')")) {
+      return { rows: [{ column_name: 'item_id' }] };
+    }
+
+    if (normalized.includes('from content_entitlements ce') && normalized.includes('where c.client_id is null or c.client_id = 17')) {
+      return { rows: [{ course_id: 77 }] };
+    }
+
+    if (normalized.includes('from courses c')) {
+      return {
+        rows: [
+          {
+            id: 77,
+            title: 'Platform Physics',
+            description: 'Platform owned course',
+            published: true,
+            created_at: '2026-04-01T10:00:00.000Z',
+            updated_at: null,
+            created_by: 9,
+            client_id: null,
+            assigned_school_ids: [],
+            assigned_school_names: [],
+            assigned_school_count: 0,
+          },
+        ],
+      };
+    }
+
+    throw new Error(`Unexpected query: ${normalized}`);
+  };
+
+  t.after(() => {
+    pool.query = originalQuery;
+  });
+
+  const courses = await listCoursesForRequest({
+    baseUrl: '/api/admin',
+    user: {
+      id: 15,
+      role: 'client_admin',
+      client_id: 301,
+    },
+  });
+
+  assert.equal(courses.length, 1);
+  assert.equal(courses[0].id, 77);
+  assert.equal(courses[0].is_entitled_platform_course, true);
+  assert.equal(courses[0].can_manage_content, false);
+  assert.equal(courses[0].can_edit_course, false);
+  assert.equal(courses[0].can_delete_course, false);
+  assert.equal(courses[0].can_enroll, true);
 });

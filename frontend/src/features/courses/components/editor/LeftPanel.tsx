@@ -660,7 +660,7 @@ const LeftPanel: React.FC<Props> = ({
                                                                         }
                                                                     }}
                                                                 >
-                                                                    âœ Rename
+                                                                    Rename
                                                                 </button>
 
                                                                 {/* Delete */}
@@ -672,7 +672,7 @@ const LeftPanel: React.FC<Props> = ({
                                                                         deleteChapter(chapter.id);
                                                                     }}
                                                                 >
-                                                                    ðŸ—‘ Delete
+                                                                    Delete
                                                                 </button>
                                                             </div>
                                                         )}

@@ -6,6 +6,7 @@ import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
 import { RiArrowLeftLine, RiDraftLine, RiFileList3Line } from "react-icons/ri";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 interface ExamShellProps {
   title: string;
@@ -38,6 +39,8 @@ export default function ExamShell({
   const theme = getDashboardTheme(false);
   const userFullName = user?.full_name || "Exam Manager";
   const userEmail = user?.email || "";
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const isActive = (path: string) => location.pathname === path;
   const resolvedBackPath =
     backTo || DASHBOARD_BY_ROLE[String(user?.role ?? "")] || "/admin/dashboard";
@@ -72,10 +75,11 @@ export default function ExamShell({
       sidebar={
         <SidebarNav
           brandLogo={spectropyLogo}
-          brandName="Spectropy"
-          title="Exam Management"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
           navItems={navItems}
-          userInfo={{ name: userFullName, email: userEmail }}
+          userInfo={{ name: userFullName, email: userEmail, meta: organizationLabel }}
           showUserInfo={false}
           showLogout={true}
           onLogout={handleBack}

@@ -10,25 +10,7 @@ import { BiBookOpen } from "react-icons/bi";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
-
-const featureCards = [
-  {
-    title: "Question Approvals",
-    desc: "Approve or reject teacher-submitted questions.",
-  },
-  {
-    title: "Exams",
-    desc: "Schedule school-wide assessments.",
-  },
-  {
-    title: "Teachers",
-    desc: "Manage teacher access and assignments.",
-  },
-  {
-    title: "Batches",
-    desc: "Oversee batches and student rosters.",
-  },
-];
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function SchoolOwnerDashboard() {
   const navigate = useNavigate();
@@ -36,11 +18,39 @@ export default function SchoolOwnerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const theme = getDashboardTheme(false);
-  const userFullName = user?.full_name || "School Owner";
+  const userFullName = user?.full_name || "School Admin";
   const userEmail = user?.email || "owner@spectropy.com";
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions(user);
   const examPermissions = getExamPermissions(user);
+  const featureCards = [
+    {
+      title: "Courses",
+      desc: "Review assigned courses, manage enrollments, and oversee course access.",
+      enabled: coursePermissions.canView,
+      badge: "Live",
+    },
+    {
+      title: "Question Bank",
+      desc: "Review question workflows and access approved academic content.",
+      enabled: questionPermissions.canView,
+      badge: "Live",
+    },
+    {
+      title: "Exams",
+      desc: "Manage school assessments, schedules, and exam readiness.",
+      enabled: examPermissions.canRead,
+      badge: "Live",
+    },
+    {
+      title: "Teacher Session Tracker",
+      desc: "Monitor teaching-session analytics and classroom execution trends.",
+      enabled: true,
+      badge: "Live",
+    },
+  ];
 
   const navItems = [
     {
@@ -101,8 +111,9 @@ export default function SchoolOwnerDashboard() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="School Owner"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
           navItems={navItems}
           userInfo={{ name: userFullName, email: userEmail }}
           onProfileClick={() => navigate("/school-owner/profile")}
@@ -124,10 +135,10 @@ export default function SchoolOwnerDashboard() {
           <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
             <div>
               <h1 className="text-xl md:text-2xl font-bold">
-                School Operations Dashboard
+                School Admin Dashboard
               </h1>
               <p className="mt-1 text-sm md:text-base text-gray-600">
-                Oversee approvals, exams, and staff operations.
+                Stay on top of courses, assessments, question workflows, and teaching analytics.
               </p>
             </div>
           </div>
@@ -137,35 +148,29 @@ export default function SchoolOwnerDashboard() {
       <div className="p-6 space-y-6">
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {featureCards
-            .filter((card) => {
-              if (card.title === "Question Approvals") {
-                return questionPermissions.canApprove || questionPermissions.canReject;
-              }
-              if (card.title === "Exams") {
-                return examPermissions.canRead;
-              }
-              return true;
-            })
+            .filter((card) => card.enabled)
             .map((card) => (
-            <div
-              key={card.title}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <h2 className="text-lg font-semibold">{card.title}</h2>
-              <p className="mt-2 text-sm text-slate-600">{card.desc}</p>
-              <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Coming soon
+              <div
+                key={card.title}
+                className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                    {card.badge}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-slate-600">{card.desc}</p>
               </div>
-            </div>
-          ))}
+            ))}
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Focus for MVP</h2>
+          <h2 className="text-lg font-semibold">Daily Priorities</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
-            <li>Approve only vetted questions for school exams.</li>
-            <li>Ensure exams follow schedule and visibility rules.</li>
-            <li>Monitor teacher activity and student participation.</li>
+            <li>Keep assigned courses organized and enrollment-ready for every batch.</li>
+            <li>Review question and exam quality before school-wide assessments go live.</li>
+            <li>Track teaching-session analytics to spot delivery gaps quickly.</li>
           </ul>
         </section>
       </div>

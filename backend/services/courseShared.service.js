@@ -3,11 +3,13 @@ import { query as dbQuery } from '../repositories/db.repository.js';
 export const COURSE_SCOPE_ADMIN = 'admin';
 export const COURSE_SCOPE_SCHOOL_OWNER = 'school_owner';
 export const COURSE_SCOPE_TEACHER = 'teacher';
+const PLATFORM_OWNER_CLIENT_ID = 17;
 
 const SCHOOL_OWNER_ROLE_SCOPES = ['school_owner', 'admin'];
 const TEACHER_ROLE_SCOPES = ['teacher'];
 
 let courseSchoolAssignmentsEnsured = false;
+let packItemColumnPromise;
 
 const normalizeNumberArray = (value) => {
   if (!Array.isArray(value)) return [];
@@ -100,7 +102,98 @@ export const getTeacherSchoolIdsForUser = async (userId) => {
     .filter((schoolId) => Number.isInteger(schoolId) && schoolId > 0);
 };
 
-const mapCourseRow = ({ row, req, scope, managedSchoolIds = [] }) => {
+const getPackItemColumn = async () => {
+  if (!packItemColumnPromise) {
+    packItemColumnPromise = dbQuery(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'content_pack_items'
+          AND column_name IN ('item_id', 'content_id')
+        ORDER BY CASE WHEN column_name = 'item_id' THEN 0 ELSE 1 END
+        LIMIT 1
+      `
+    ).then((result) => {
+      const columnName = result.rows[0]?.column_name;
+      if (!columnName) {
+        throw new Error('content_pack_items is missing an item membership column');
+      }
+      return columnName;
+    });
+  }
+
+  return packItemColumnPromise;
+};
+
+const shouldIncludeEntitledPlatformCourses = ({ role, scope }) =>
+  Boolean(role) && role !== 'super_admin' && role !== 'content_authorizer' && (
+    role === 'client_admin'
+    || scope === COURSE_SCOPE_SCHOOL_OWNER
+    || scope === COURSE_SCOPE_TEACHER
+  );
+
+const isPlatformOwnedCourseClientId = (clientId) =>
+  clientId == null || Number(clientId) === PLATFORM_OWNER_CLIENT_ID;
+
+export const listEntitledPlatformCourseIds = async (clientId) => {
+  const normalizedClientId = Number(clientId);
+  if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0) {
+    return [];
+  }
+
+  const packItemColumn = await getPackItemColumn();
+  const result = await dbQuery(
+    `
+      SELECT DISTINCT c.id AS course_id
+      FROM courses c
+      JOIN (
+        SELECT ci.course_id
+        FROM content_entitlements ce
+        JOIN content_items ci ON ci.id = ce.content_id
+        WHERE ce.client_id = $1
+          AND ce.status = 'active'
+          AND NOW() BETWEEN ce.start_at AND ce.end_at
+
+        UNION
+
+        SELECT ci.course_id
+        FROM content_entitlements ce
+        JOIN content_pack_items cpi ON cpi.pack_id = ce.pack_id
+        JOIN content_items ci ON ci.id = cpi.${packItemColumn}
+        WHERE ce.client_id = $1
+          AND ce.status = 'active'
+          AND NOW() BETWEEN ce.start_at AND ce.end_at
+      ) entitled_courses ON entitled_courses.course_id = c.id
+      WHERE c.client_id IS NULL OR c.client_id = ${PLATFORM_OWNER_CLIENT_ID}
+      ORDER BY c.id ASC
+    `,
+    [normalizedClientId]
+  );
+
+  return result.rows
+    .map((row) => Number(row.course_id))
+    .filter((courseId) => Number.isInteger(courseId) && courseId > 0);
+};
+
+export const isEntitledPlatformCourseForClient = async ({ clientId, courseId }) => {
+  const normalizedClientId = Number(clientId);
+  const normalizedCourseId = Number(courseId);
+
+  if (
+    !Number.isInteger(normalizedClientId)
+    || normalizedClientId <= 0
+    || !Number.isInteger(normalizedCourseId)
+    || normalizedCourseId <= 0
+  ) {
+    return false;
+  }
+
+  const entitledCourseIds = await listEntitledPlatformCourseIds(normalizedClientId);
+  return entitledCourseIds.includes(normalizedCourseId);
+};
+
+const mapCourseRow = ({ row, req, scope, managedSchoolIds = [], isEntitledPlatformCourse = false }) => {
   const assignedSchoolIds = normalizeNumberArray(row.assigned_school_ids);
   const assignedSchoolNames = Array.isArray(row.assigned_school_names)
     ? row.assigned_school_names.filter(Boolean)
@@ -109,7 +202,9 @@ const mapCourseRow = ({ row, req, scope, managedSchoolIds = [] }) => {
   const isAssignedToMySchool = managedSchoolIds.some((schoolId) => assignedSchoolIds.includes(schoolId));
   const isSchoolOwnerScope = scope === COURSE_SCOPE_SCHOOL_OWNER;
   const isTeacherScope = scope === COURSE_SCOPE_TEACHER;
-  const canMutateAsSchoolOwner = isCreatedByMe;
+  const isPlatformCourse = isPlatformOwnedCourseClientId(row.client_id);
+  const isReadOnlySharedCourse = isEntitledPlatformCourse && req.user?.role !== 'super_admin';
+  const canMutateAsSchoolOwner = isCreatedByMe && !isPlatformCourse;
 
   return {
     id: Number(row.id),
@@ -125,10 +220,11 @@ const mapCourseRow = ({ row, req, scope, managedSchoolIds = [] }) => {
     assigned_school_count: Number(row.assigned_school_count ?? assignedSchoolIds.length ?? 0),
     is_created_by_me: isCreatedByMe,
     is_assigned_to_my_school: isAssignedToMySchool,
-    can_edit_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
-    can_publish_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
-    can_delete_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
-    can_manage_content: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : true),
+    is_entitled_platform_course: isEntitledPlatformCourse,
+    can_edit_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
+    can_publish_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
+    can_delete_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
+    can_manage_content: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
     can_enroll: isTeacherScope ? false : (isSchoolOwnerScope ? isAssignedToMySchool : true),
   };
 };
@@ -170,13 +266,21 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
     : scope === COURSE_SCOPE_TEACHER
       ? await getTeacherSchoolIdsForUser(req.user?.id)
       : [];
+  const entitledPlatformCourseIds = shouldIncludeEntitledPlatformCourses({ role, scope })
+    ? await listEntitledPlatformCourseIds(clientId)
+    : [];
 
   const conditions = [];
   const params = [];
 
   if (shouldScopeToClient) {
-    conditions.push(`c.client_id = $${params.length + 1}`);
     params.push(clientId);
+    if (entitledPlatformCourseIds.length > 0) {
+      params.push(entitledPlatformCourseIds);
+      conditions.push(`(c.client_id = $1 OR c.id = ANY($2::int[]))`);
+    } else {
+      conditions.push(`c.client_id = $1`);
+    }
   }
 
   if (scope === COURSE_SCOPE_SCHOOL_OWNER || scope === COURSE_SCOPE_TEACHER) {
@@ -206,7 +310,14 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
   `;
 
   const result = await dbQuery(query, params);
-  return result.rows.map((row) => mapCourseRow({ row, req, scope, managedSchoolIds }));
+  const entitledPlatformCourseSet = new Set(entitledPlatformCourseIds);
+  return result.rows.map((row) => mapCourseRow({
+    row,
+    req,
+    scope,
+    managedSchoolIds,
+    isEntitledPlatformCourse: entitledPlatformCourseSet.has(Number(row.id)),
+  }));
 };
 
 const getCourseRowById = async (courseId) => {
@@ -237,17 +348,35 @@ export const getCourseAccessContext = async ({ courseId, req, scope = getRequest
 
   const role = req.user?.role;
   const userClientId = req.user?.client_id ?? null;
+  const isEntitledPlatformCourse =
+    role !== 'super_admin'
+    && userClientId
+    && isPlatformOwnedCourseClientId(courseRow.client_id)
+    && shouldIncludeEntitledPlatformCourses({ role, scope })
+      ? await isEntitledPlatformCourseForClient({ clientId: userClientId, courseId: numericCourseId })
+      : false;
   const managedSchoolIds = scope === COURSE_SCOPE_SCHOOL_OWNER
     ? await getManagedSchoolIdsForUser(req.user?.id)
     : scope === COURSE_SCOPE_TEACHER
       ? await getTeacherSchoolIdsForUser(req.user?.id)
       : [];
 
-  if (role !== 'super_admin' && userClientId && Number(courseRow.client_id) !== Number(userClientId)) {
+  if (
+    role !== 'super_admin'
+    && userClientId
+    && Number(courseRow.client_id) !== Number(userClientId)
+    && !isEntitledPlatformCourse
+  ) {
     return { ok: false, status: 403, error: 'Access denied' };
   }
 
-  const course = mapCourseRow({ row: courseRow, req, scope, managedSchoolIds });
+  const course = mapCourseRow({
+    row: courseRow,
+    req,
+    scope,
+    managedSchoolIds,
+    isEntitledPlatformCourse,
+  });
 
   if ((scope === COURSE_SCOPE_SCHOOL_OWNER || scope === COURSE_SCOPE_TEACHER) && !course.is_assigned_to_my_school) {
     return { ok: false, status: 403, error: 'Access denied' };
@@ -276,6 +405,14 @@ export const ensureCourseActionAccess = async ({
       return { ok: false, status: 403, error: 'Access denied' };
     }
     return context;
+  }
+
+  if (
+    context.course.is_entitled_platform_course
+    && req.user?.role !== 'super_admin'
+    && new Set(['update', 'delete', 'publish', 'manage_content']).has(action)
+  ) {
+    return { ok: false, status: 403, error: 'Platform-assigned courses are read-only.' };
   }
 
   if (scope !== COURSE_SCOPE_SCHOOL_OWNER) {

@@ -122,7 +122,7 @@ export const teachingSessionsApi = {
     return res.data;
   },
 
-  publishProgramTemplates: async (programId: string | number, payload: { template_version_no: number }) => {
+  publishProgramTemplates: async (programId: string | number, payload: { template_version_no: number; micro_schedule_upload_id: number }) => {
     const res = await api.post(`/teaching-sessions/programs/${programId}/templates/publish`, payload);
     return res.data;
   },

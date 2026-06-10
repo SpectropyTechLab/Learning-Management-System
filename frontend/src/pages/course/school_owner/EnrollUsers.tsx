@@ -5,7 +5,7 @@ export default function SchoolOwnerEnrollUsers() {
     <SharedEnrollUsers
       apiPrefix="/school-owner"
       backRoute="/school-owner/courses"
-      backLabel="Back To School Owner Courses"
+      backLabel="Back To School Admin Courses"
     />
   );
 }

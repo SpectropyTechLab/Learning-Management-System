@@ -396,11 +396,30 @@ export const fetchLessonPlannerSessionScopeByMicroSchedule = (microScheduleUploa
     [microScheduleUploadId]
   );
 
-export const deleteProgramSessionTemplatesByVersion = (executor, { programId, templateVersionNo }) =>
+export const deleteProgramSessionTemplatesByVersion = (executor, { programId, templateVersionNo, microScheduleUploadId = null }) =>
   execute(
     executor,
-    `DELETE FROM program_session_templates WHERE program_id = $1 AND template_version_no = $2`,
-    [programId, templateVersionNo]
+    `
+    DELETE FROM program_session_templates
+    WHERE program_id = $1
+      AND template_version_no = $2
+      AND (
+        $3::int IS NULL
+        OR micro_schedule_row_id IN (
+          SELECT id
+          FROM program_micro_schedule_rows
+          WHERE micro_schedule_upload_id = $3
+        )
+        OR lesson_planner_session_id IN (
+          SELECT planner_session.id
+          FROM program_lesson_planner_sessions planner_session
+          JOIN program_lesson_planner_uploads planner_upload
+            ON planner_upload.id = planner_session.lesson_planner_upload_id
+          WHERE planner_upload.micro_schedule_upload_id = $3
+        )
+      )
+    `,
+    [programId, templateVersionNo, microScheduleUploadId]
   );
 
 export const insertProgramSessionTemplate = (executor, payload) =>
@@ -445,15 +464,17 @@ export const insertProgramSessionTemplate = (executor, payload) =>
     ]
   );
 
-export const listProgramSessionTemplates = ({ programId, templateVersionNo = null, includeUnpublished = true }) =>
+export const listProgramSessionTemplates = ({ programId, templateVersionNo = null, includeUnpublished = true, microScheduleUploadId = null }) =>
   dbQuery(
     `
     SELECT pst.*,
            micro_row.planned_date,
+           micro_row.micro_schedule_upload_id,
            planner_upload.id AS lesson_planner_upload_id,
            planner_upload.file_name AS lesson_plan_file_name,
            planner_upload.file_storage_path AS lesson_plan_file_storage_path,
-           planner_upload.target_session_no AS lesson_plan_target_session_no
+           planner_upload.target_session_no AS lesson_plan_target_session_no,
+           planner_upload.micro_schedule_upload_id AS lesson_plan_micro_schedule_upload_id
     FROM program_session_templates pst
     LEFT JOIN program_micro_schedule_rows micro_row
       ON micro_row.id = pst.micro_schedule_row_id
@@ -464,16 +485,21 @@ export const listProgramSessionTemplates = ({ programId, templateVersionNo = nul
     WHERE pst.program_id = $1
       AND ($2::int IS NULL OR pst.template_version_no = $2)
       AND ($3::boolean = TRUE OR pst.is_published = TRUE)
+      AND (
+        $4::int IS NULL
+        OR micro_row.micro_schedule_upload_id = $4
+        OR planner_upload.micro_schedule_upload_id = $4
+      )
     ORDER BY pst.template_version_no DESC, pst.session_no ASC, pst.id ASC
     `,
-    [programId, templateVersionNo, includeUnpublished]
+    [programId, templateVersionNo, includeUnpublished, microScheduleUploadId]
   );
 
-export const publishProgramSessionTemplates = (executor, { programId, templateVersionNo, publishedByUserId }) =>
+export const publishProgramSessionTemplates = (executor, { programId, templateVersionNo, publishedByUserId, microScheduleUploadId = null }) =>
   execute(
     executor,
     `
-    UPDATE program_session_templates
+    UPDATE program_session_templates pst
     SET is_published = TRUE,
         published_by_user_id = $3,
         published_at = NOW(),
@@ -481,9 +507,25 @@ export const publishProgramSessionTemplates = (executor, { programId, templateVe
     WHERE program_id = $1
       AND template_version_no = $2
       AND mapping_status = 'matched'
+      AND is_published = FALSE
+      AND (
+        $4::int IS NULL
+        OR pst.micro_schedule_row_id IN (
+          SELECT id
+          FROM program_micro_schedule_rows
+          WHERE micro_schedule_upload_id = $4
+        )
+        OR pst.lesson_planner_session_id IN (
+          SELECT planner_session.id
+          FROM program_lesson_planner_sessions planner_session
+          JOIN program_lesson_planner_uploads planner_upload
+            ON planner_upload.id = planner_session.lesson_planner_upload_id
+          WHERE planner_upload.micro_schedule_upload_id = $4
+        )
+      )
     RETURNING *
     `,
-    [programId, templateVersionNo, publishedByUserId]
+    [programId, templateVersionNo, publishedByUserId, microScheduleUploadId]
   );
 
 export const upsertClientEntitlement = (payload) =>

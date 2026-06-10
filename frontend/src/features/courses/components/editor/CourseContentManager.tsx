@@ -5,7 +5,6 @@ import LeftPanel from "./LeftPanel";
 import ContentViewer from "@/features/courses/components/player/ContentViewer";
 import toast from "react-hot-toast";
 import { SlControlPlay, SlControlRewind } from "react-icons/sl";
-import { useAuth } from "@/features/auth/hooks/useAuth";
 
 interface ContentItem {
   id: number;
@@ -89,7 +88,6 @@ export default function CourseContentManager({
   panelTitle = "Course Content",
 }: CourseContentManagerProps) {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedParentId, setSelectedParentId] = useState<number | null>(null);
   const [selectedParentLabel, setSelectedParentLabel] = useState("");
@@ -134,7 +132,7 @@ export default function CourseContentManager({
   const resolvedCourseId = courseId ? String(courseId) : "";
   const serverReadOnly = courseMeta?.can_manage_content === false;
   const canEdit = !readOnly && !serverReadOnly && !disableFetch;
-  const canLinkLicensedContent = canEdit && user?.role === "client_admin";
+  const canLinkLicensedContent = false;
 
   const items = useMemo(() => allItems, [allItems]);
   const filteredExamOptions = useMemo(() => {

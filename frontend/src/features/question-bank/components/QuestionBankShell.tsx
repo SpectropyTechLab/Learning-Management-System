@@ -6,6 +6,7 @@ import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
 import { RiFileList3Line } from "react-icons/ri";
+import { getOrganizationLabel } from "@/features/auth/utils/roleBranding";
 
 interface QuestionBankShellProps {
   title: string;
@@ -28,7 +29,7 @@ const roleConfig = {
     profilePath: "/content-authorizer/profile",
   },
   school_owner: {
-    label: "School Owner",
+    label: "School Admin",
     profilePath: "/school-owner/profile",
   },
   teacher: {
@@ -65,7 +66,7 @@ export default function QuestionBankShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const brandLogo = spectropyLogo;
-  const brandName = "Spectropy";
+  const brandName = getOrganizationLabel(user);
   const theme = getDashboardTheme(false);
 
   const roleKey = (user?.role ?? "student") as keyof typeof roleConfig;
@@ -97,8 +98,8 @@ export default function QuestionBankShell({
         <SidebarNav
           brandLogo={brandLogo}
           brandName={brandName}
-          title="Question Bank"
-          brandTag={config.label}
+          title={config.label}
+          brandTag={brandName}
           navItems={navItems}
           userInfo={{ name: userFullName, email: userEmail }}
           showUserInfo={false}

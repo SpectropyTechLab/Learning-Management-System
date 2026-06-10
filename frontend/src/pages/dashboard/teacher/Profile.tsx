@@ -10,6 +10,7 @@ import { BiBookOpen } from "react-icons/bi";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function TeacherProfile() {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ export default function TeacherProfile() {
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
 
   const navItems = [
     {
@@ -80,8 +83,8 @@ export default function TeacherProfile() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="Teacher"
+          brandName={organizationLabel}
+          title={roleTitle}
           navItems={navItems}
           userInfo={{
             name: user?.full_name || "Teacher",

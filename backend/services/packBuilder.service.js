@@ -1,6 +1,7 @@
 import { query as dbQuery } from '../repositories/db.repository.js';
 
 const PACK_BUILDER_ROLES = new Set(['super_admin', 'content_authorizer']);
+const PLATFORM_OWNER_CLIENT_ID = 17;
 
 let packItemColumnConfigPromise;
 let courseMetadataColumnPromise;
@@ -203,8 +204,10 @@ const loadPackCompositionRows = async (packId, itemColumn) => {
         ci.id,
         ci.course_id,
         c.title AS course_name,
+        ci.parent_id,
         ci.item_type,
         ci.title,
+        ci.order_index,
         ci.created_at,
         NULL::timestamptz AS attached_at,
         ${metadata.grade} AS grade,
@@ -243,8 +246,10 @@ const buildSummaryGroups = (rows) => {
     group.item_count += 1;
     group.items.push({
       id: row.id,
+      parent_id: row.parent_id ?? null,
       title: row.title,
       item_type: row.item_type,
+      order_index: Number(row.order_index ?? 0),
     });
   });
 
@@ -283,6 +288,10 @@ const validateAttachableItems = async (itemIds) => {
 
   if (result.rows.length !== itemIds.length) {
     throw new HttpError(400, 'One or more content items were not found');
+  }
+
+  if (result.rows.some((row) => row.client_id !== null && Number(row.client_id) !== PLATFORM_OWNER_CLIENT_ID)) {
+    throw new HttpError(403, 'Only platform-global course items can be attached to a global pack');
   }
 
   return result.rows;
@@ -494,7 +503,7 @@ export const listCourses = async (req, res) => {
     const conditions = [];
 
     if (clientId === null) {
-      conditions.push('c.client_id IS NULL');
+      conditions.push(`(c.client_id IS NULL OR c.client_id = ${PLATFORM_OWNER_CLIENT_ID})`);
     } else if (clientId !== undefined) {
       params.push(clientId);
       conditions.push(`c.client_id = $${params.length}`);
@@ -556,7 +565,10 @@ export const getCourseContent = async (req, res) => {
   try {
     ensurePackBuilderRole(req.user?.role);
     const courseId = parseRequiredInt(req.params?.id, 'course_id');
-    const { page, pageSize, offset } = parsePagination(req.query);
+    const hierarchyMode = String(req.query?.view ?? '').trim().toLowerCase() === 'tree';
+    const { page, pageSize, offset } = hierarchyMode
+      ? { page: 1, pageSize: 1000, offset: 0 }
+      : parsePagination(req.query);
     const metadata = await getCourseMetadataExpressions('c');
 
     const courseResult = await dbQuery(
@@ -585,24 +597,42 @@ export const getCourseContent = async (req, res) => {
     const total = Number(countResult.rows[0]?.total ?? 0);
 
     const course = courseResult.rows[0];
-    const result = await dbQuery(
-      `
-        SELECT
-          id,
-          course_id,
-          parent_id,
-          item_type,
-          title,
-          content_url,
-          order_index,
-          created_at
-        FROM content_items
-        WHERE course_id = $1
-        ORDER BY parent_id NULLS FIRST, order_index ASC, created_at ASC
-        LIMIT $2 OFFSET $3
-      `,
-      [courseId, pageSize, offset]
-    );
+    const result = hierarchyMode
+      ? await dbQuery(
+          `
+            SELECT
+              id,
+              course_id,
+              parent_id,
+              item_type,
+              title,
+              content_url,
+              order_index,
+              created_at
+            FROM content_items
+            WHERE course_id = $1
+            ORDER BY parent_id NULLS FIRST, order_index ASC, created_at ASC
+          `,
+          [courseId]
+        )
+      : await dbQuery(
+          `
+            SELECT
+              id,
+              course_id,
+              parent_id,
+              item_type,
+              title,
+              content_url,
+              order_index,
+              created_at
+            FROM content_items
+            WHERE course_id = $1
+            ORDER BY parent_id NULLS FIRST, order_index ASC, created_at ASC
+            LIMIT $2 OFFSET $3
+          `,
+          [courseId, pageSize, offset]
+        );
 
     return res.json({
       data: result.rows.map((row) => ({
@@ -612,7 +642,7 @@ export const getCourseContent = async (req, res) => {
         subject: course.subject ?? null,
       })),
       page,
-      page_size: pageSize,
+      page_size: hierarchyMode ? total : pageSize,
       total,
     });
   } catch (err) {
