@@ -32,18 +32,14 @@ interface ExamOption {
   status?: string | null;
 }
 
-interface TopicFolder {
+interface FolderNode {
   id: number;
   title: string;
   items: ContentItem[];
+  folders: FolderNode[];
 }
 
-interface Chapter {
-  id: number;
-  title: string;
-  items: ContentItem[];
-  topics: TopicFolder[];
-}
+type Chapter = FolderNode;
 
 interface LicensedPack {
   id: number;
@@ -125,7 +121,7 @@ export default function CourseContentManager({
   const [addingChapter, setAddingChapter] = useState(false);
   const [topicTitle, setTopicTitle] = useState("");
   const [addingTopic, setAddingTopic] = useState(false);
-  const [topicParentChapterId, setTopicParentChapterId] = useState<number | null>(null);
+  const [topicParentFolderId, setTopicParentFolderId] = useState<number | null>(null);
   const [courseMeta, setCourseMeta] = useState<{ can_manage_content?: boolean } | null>(null);
 
   const normalizedPrefix = apiPrefix.startsWith("/") ? apiPrefix : `/${apiPrefix}`;
@@ -160,21 +156,17 @@ export default function CourseContentManager({
   };
 
   const syncContentState = (itemsToSync: ContentItem[]) => {
-    const topChapters = itemsToSync.filter((i) => i.parent_id === null && i.item_type === "folder");
-    const chapterMap: Chapter[] = topChapters.map((chapter: ContentItem) => ({
-      id: chapter.id,
-      title: chapter.title,
-      items: itemsToSync.filter((i: ContentItem) => i.parent_id === chapter.id && i.item_type !== "folder"),
-      topics: itemsToSync
-        .filter((i: ContentItem) => i.parent_id === chapter.id && i.item_type === "folder")
-        .map((topic: ContentItem) => ({
-          id: topic.id,
-          title: topic.title,
-          items: itemsToSync.filter(
-            (i: ContentItem) => i.parent_id === topic.id && i.item_type !== "folder",
-          ),
-        })),
-    }));
+    const buildFolderTree = (parentId: number | null): FolderNode[] =>
+      itemsToSync
+        .filter((item) => item.parent_id === parentId && item.item_type === "folder")
+        .map((folder) => ({
+          id: folder.id,
+          title: folder.title,
+          items: itemsToSync.filter((item) => item.parent_id === folder.id && item.item_type !== "folder"),
+          folders: buildFolderTree(folder.id),
+        }));
+
+    const chapterMap: Chapter[] = buildFolderTree(null);
 
     setChapters(chapterMap);
     setAllItems(itemsToSync.filter((i: ContentItem) => i.item_type !== "folder"));
@@ -494,7 +486,7 @@ export default function CourseContentManager({
   };
 
   const handleAddTopic = async () => {
-    if (!canEdit || !resolvedCourseId || topicParentChapterId === null) return;
+    if (!canEdit || !resolvedCourseId || topicParentFolderId === null) return;
     if (!topicTitle.trim()) {
       alert("Enter a topic title");
       return;
@@ -503,11 +495,11 @@ export default function CourseContentManager({
     await api.post(`${normalizedPrefix}/courses/${resolvedCourseId}/content`, {
       item_type: "folder",
       title: topicTitle.trim(),
-      parent_id: topicParentChapterId,
+      parent_id: topicParentFolderId,
     });
 
     setTopicTitle("");
-    setTopicParentChapterId(null);
+    setTopicParentFolderId(null);
     setAddingTopic(false);
     fetchContent();
   };
@@ -628,22 +620,30 @@ export default function CourseContentManager({
     void persistReorder(chapterId, newItems.map((item) => item.id), "items");
   };
 
-  const handleReorderTopics = (chapterId: number, newTopics: TopicFolder[]) => {
-    setChapters((prev) =>
-      prev.map((ch) => (ch.id === chapterId ? { ...ch, topics: newTopics } : ch))
+  const replaceFolderChildren = (folders: FolderNode[], targetId: number, newFolders: FolderNode[]): FolderNode[] =>
+    folders.map((folder) =>
+      folder.id === targetId
+        ? { ...folder, folders: newFolders }
+        : { ...folder, folders: replaceFolderChildren(folder.folders, targetId, newFolders) }
     );
+
+  const replaceFolderItems = (folders: FolderNode[], targetId: number, newItems: ContentItem[]): FolderNode[] =>
+    folders.map((folder) =>
+      folder.id === targetId
+        ? { ...folder, items: newItems }
+        : {
+            ...folder,
+            folders: replaceFolderItems(folder.folders, targetId, newItems),
+          }
+    );
+
+  const handleReorderTopics = (chapterId: number, newTopics: FolderNode[]) => {
+    setChapters((prev) => replaceFolderChildren(prev, chapterId, newTopics));
     void persistReorder(chapterId, newTopics.map((topic) => topic.id), "topics");
   };
 
   const handleReorderTopicItems = (topicId: number, newItems: ContentItem[]) => {
-    setChapters((prev) =>
-      prev.map((chapter) => ({
-        ...chapter,
-        topics: chapter.topics.map((topic) =>
-          topic.id === topicId ? { ...topic, items: newItems } : topic
-        ),
-      }))
-    );
+    setChapters((prev) => replaceFolderItems(prev, topicId, newItems));
     void persistReorder(topicId, newItems.map((item) => item.id), "items");
   };
 
@@ -703,7 +703,7 @@ export default function CourseContentManager({
           }}
           onAddChapter={() => setAddingChapter(true)}
           onAddTopic={(chapterId, chapterTitleValue) => {
-            setTopicParentChapterId(chapterId);
+            setTopicParentFolderId(chapterId);
             setTopicTitle("");
             setSelectedParentLabel(chapterTitleValue);
             setAddingTopic(true);
@@ -1006,7 +1006,7 @@ export default function CourseContentManager({
               <button
                 onClick={() => {
                   setAddingTopic(false);
-                  setTopicParentChapterId(null);
+                  setTopicParentFolderId(null);
                   setTopicTitle("");
                 }}
                 className={`px-4 py-2 border rounded border-gray-300 hover:bg-gray-50

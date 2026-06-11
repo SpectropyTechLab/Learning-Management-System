@@ -5760,9 +5760,8 @@ const downloadExamPreviewDocxByMode = async (req, res, { mode, filenameSuffix })
   }
 
   const fileBuffer = await buildExamDocxBuffer(payload, mode);
-  const datePart = new Date().toISOString().slice(0, 10);
   const safeTitle = sanitizeFilenamePart(payload?.exam?.title);
-  const filename = `${safeTitle}_${filenameSuffix}_${datePart}.docx`;
+  const filename = `${safeTitle}${filenameSuffix}.docx`;
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -5787,7 +5786,7 @@ export const downloadExamPreviewQuestionsDocx = async (req, res) => {
 
 export const downloadExamPreviewAnswersDocx = async (req, res) => {
   try {
-    await downloadExamPreviewDocxByMode(req, res, { mode: 'answers', filenameSuffix: 'answers' });
+    await downloadExamPreviewDocxByMode(req, res, { mode: 'answers', filenameSuffix: 'answer' });
   } catch (err) {
     handleServiceError(res, err, 'Failed to download exam answers docx');
   }
@@ -5795,7 +5794,7 @@ export const downloadExamPreviewAnswersDocx = async (req, res) => {
 
 export const downloadExamPreviewSolutionsDocx = async (req, res) => {
   try {
-    await downloadExamPreviewDocxByMode(req, res, { mode: 'solutions', filenameSuffix: 'solutions' });
+    await downloadExamPreviewDocxByMode(req, res, { mode: 'solutions', filenameSuffix: 'solution' });
   } catch (err) {
     handleServiceError(res, err, 'Failed to download exam solutions docx');
   }

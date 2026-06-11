@@ -1,5 +1,5 @@
 ﻿
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ComprehensionPassage,
   CorrectAnswer,
@@ -17,6 +17,8 @@ import type {
 import { formatSubjectDisplay } from "@/types/questionBank";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import api from "@/lib/api";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 interface QuestionFormProps {
   open?: boolean;
@@ -98,6 +100,233 @@ const isNumericLike = (value: string) => {
   if (!normalized) return false;
   return Number.isFinite(Number(normalized.replace(/,/g, "")));
 };
+
+const normalizeLatexPreviewSource = (input: string) => {
+  if (!input) return "";
+  let next = String(input);
+  for (let i = 0; i < 3; i += 1) {
+    const updated = next
+      .replace(/\\\\\(/g, "\\(")
+      .replace(/\\\\\)/g, "\\)")
+      .replace(/\\\\\[/g, "\\[")
+      .replace(/\\\\\]/g, "\\]")
+      .replace(/\\\\\{/g, "\\{")
+      .replace(/\\\\\}/g, "\\}");
+    if (updated === next) break;
+    next = updated;
+  }
+  return next;
+};
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const renderEquationPreviewHtml = (value: string) => {
+  const content = normalizeLatexPreviewSource(value);
+  if (!content.trim()) {
+    return "<span class='text-slate-400'>Type an answer or insert LaTeX to preview</span>";
+  }
+
+  const latexPattern =
+    /\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$\$([\s\S]+?)\$\$|\$([^\n$]+?)\$/g;
+
+  let html = "";
+  let lastIndex = 0;
+  for (const match of content.matchAll(latexPattern)) {
+    const index = match.index ?? 0;
+    if (index > lastIndex) {
+      html += escapeHtml(content.slice(lastIndex, index)).replace(/\n/g, "<br />");
+    }
+    const expression = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";
+    const displayMode = Boolean(match[1] || match[3]);
+    try {
+      html += katex.renderToString(expression.trim(), {
+        throwOnError: false,
+        displayMode,
+        output: "htmlAndMathml",
+      });
+    } catch {
+      html += escapeHtml(match[0]);
+    }
+    lastIndex = index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    html += escapeHtml(content.slice(lastIndex)).replace(/\n/g, "<br />");
+  }
+
+  return html || escapeHtml(content).replace(/\n/g, "<br />");
+};
+
+const splitAnswerEntries = (value: string) =>
+  value
+    .split(/\r?\n|,/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+type EquationAnswerInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  helpText?: string;
+  multiline?: boolean;
+  rows?: number;
+};
+
+function EquationAnswerInput({
+  value,
+  onChange,
+  placeholder,
+  helpText,
+  multiline = false,
+  rows = 3,
+}: EquationAnswerInputProps) {
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const [mathModalOpen, setMathModalOpen] = useState(false);
+  const [latexValue, setLatexValue] = useState("");
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  const captureSelection = () => {
+    const element = inputRef.current;
+    if (!element) return;
+    setSelection({
+      start: element.selectionStart ?? value.length,
+      end: element.selectionEnd ?? value.length,
+    });
+  };
+
+  const handleInsertEquation = () => {
+    captureSelection();
+    setLatexValue("");
+    setMathModalOpen(true);
+  };
+
+  const applyEquation = () => {
+    const trimmed = latexValue.trim();
+    if (!trimmed) {
+      setMathModalOpen(false);
+      return;
+    }
+    const wrapped = `\\(${trimmed}\\)`;
+    const before = value.slice(0, selection.start);
+    const after = value.slice(selection.end);
+    onChange(`${before}${wrapped}${after}`);
+    setMathModalOpen(false);
+    setLatexValue("");
+  };
+
+  const inputClassName =
+    "mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">
+          Paste normal text directly, or insert LaTeX for mathematical/chemical equations.
+        </p>
+        <button
+          type="button"
+          onClick={handleInsertEquation}
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+        >
+          Insert Equation
+        </button>
+      </div>
+
+      {multiline ? (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onSelect={captureSelection}
+          onClick={captureSelection}
+          onKeyUp={captureSelection}
+          rows={rows}
+          className={inputClassName}
+          placeholder={placeholder}
+          style={{ resize: "vertical" }}
+        />
+      ) : (
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onSelect={captureSelection}
+          onClick={captureSelection}
+          onKeyUp={captureSelection}
+          className={inputClassName}
+          placeholder={placeholder}
+        />
+      )}
+
+      {helpText ? <p className="text-xs text-slate-500">{helpText}</p> : null}
+
+      <div>
+        <div className="text-xs font-semibold text-slate-500">Preview</div>
+        <div
+          className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+          dangerouslySetInnerHTML={{ __html: renderEquationPreviewHtml(value) }}
+        />
+      </div>
+
+      {mathModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-xl rounded-xl bg-white p-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">Insert Equation</h3>
+            </div>
+            <div className="mt-3">
+              <label className="text-xs font-semibold text-slate-500">LaTeX</label>
+              <textarea
+                value={latexValue}
+                onChange={(event) => setLatexValue(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                style={{ minHeight: "120px", resize: "vertical" }}
+                placeholder="e.g. \\frac{a}{b}, H_2SO_4, \\sin \\alpha"
+              />
+            </div>
+            <div className="mt-3">
+              <div className="text-xs font-semibold text-slate-500">Preview</div>
+              <div
+                className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800"
+                dangerouslySetInnerHTML={{
+                  __html: latexValue.trim()
+                    ? katex.renderToString(latexValue, { throwOnError: false, output: "htmlAndMathml" })
+                    : "<span class='text-slate-400'>Type LaTeX to preview</span>",
+                }}
+              />
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMathModalOpen(false);
+                  setLatexValue("");
+                }}
+                className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyEquation}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+              >
+                Insert
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const makeDefaultOptions = () =>
   Array.from({ length: 4 }).map(() => ({ id: makeId(), text: emptyRichText() }));
@@ -586,7 +815,7 @@ export default function QuestionForm({
       if (editableQuestionType === "short_answer") {
         if (typeof correct === "object" && correct && "answers" in correct) {
           const answers = (correct as { answers?: string[] }).answers ?? [];
-          setShortAnswers(answers.join(", "));
+          setShortAnswers(answers.join("\n"));
           setShortCaseSensitive(Boolean((correct as { case_sensitive?: boolean }).case_sensitive));
         }
       }
@@ -747,10 +976,7 @@ export default function QuestionForm({
   };
 
   const updateBlankAnswers = (index: number, value: string) => {
-    const answers = value
-      .split(",")
-      .map((ans) => ans.trim())
-      .filter(Boolean);
+    const answers = splitAnswerEntries(value);
     setFillBlanks((prev) => prev.map((blank, idx) => (idx === index ? { ...blank, answers } : blank)));
   };
 
@@ -797,10 +1023,7 @@ export default function QuestionForm({
       return;
     }
     if (questionType === "short_answer") {
-      const answers = shortAnswers
-        .split(",")
-        .map((ans) => ans.trim())
-        .filter(Boolean);
+      const answers = splitAnswerEntries(shortAnswers);
       if (answers.length === 0) {
         alert("Add at least one short answer.");
         return;
@@ -906,10 +1129,7 @@ export default function QuestionForm({
     }
 
     if (questionType === "short_answer") {
-      const answers = shortAnswers
-        .split(",")
-        .map((ans) => ans.trim())
-        .filter(Boolean);
+      const answers = splitAnswerEntries(shortAnswers);
       finalCorrectAnswer = { answers, case_sensitive: shortCaseSensitive };
     }
 
@@ -1313,14 +1533,17 @@ export default function QuestionForm({
 
       {questionType === "short_answer" && (
         <div>
-          <label className="text-xs font-semibold text-slate-500">Accepted Answers (comma separated)</label>
-          <input
-            type="text"
-            value={shortAnswers}
-            onChange={(event) => setShortAnswers(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-            placeholder="e.g. Newton, Isaac Newton"
-          />
+          <label className="text-xs font-semibold text-slate-500">Accepted Answers</label>
+          <div className="mt-1">
+            <EquationAnswerInput
+              value={shortAnswers}
+              onChange={setShortAnswers}
+              multiline
+              rows={4}
+              placeholder={"Enter one accepted answer per line\nExample: Newton\n\\(\\frac{a}{b}\\)\nH₂SO₄"}
+              helpText="Use one answer per line. Plain text, chemical notation, and LaTeX-wrapped equations are supported."
+            />
+          </div>
           <label className="mt-2 flex items-center gap-2 text-xs text-slate-500">
             <input
               type="checkbox"
@@ -1336,16 +1559,14 @@ export default function QuestionForm({
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="text-xs font-semibold text-slate-500">Correct Answer</label>
-            <input
-              type="text"
-              value={numericalValue}
-              onChange={(event) => setNumericalValue(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-              placeholder="Enter number, text, symbolic answer, or equation"
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Accepts numbers, alphabets, strings, and symbolic expressions.
-            </p>
+            <div className="mt-1">
+              <EquationAnswerInput
+                value={numericalValue}
+                onChange={setNumericalValue}
+                placeholder="Enter number, chemical expression, symbolic answer, or equation"
+                helpText="Pure numbers use tolerance. Text, chemical formulas, and inserted LaTeX are saved as symbolic answers."
+              />
+            </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500">Tolerance</label>
@@ -1382,17 +1603,20 @@ export default function QuestionForm({
           <p className="text-xs text-slate-400">
             Use placeholders like {"{{blank1}}"} in the question text.
           </p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 space-y-3">
             {fillBlanks.map((blank, index) => (
-              <div key={blank.id} className="flex items-center gap-2">
+              <div key={blank.id} className="rounded-lg border border-slate-200 p-3">
                 <span className="text-xs font-semibold text-slate-500">{blank.id}</span>
-                <input
-                  type="text"
-                  value={blank.answers.join(", ")}
-                  onChange={(event) => updateBlankAnswers(index, event.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  placeholder="Accepted answers, comma separated"
-                />
+                <div className="mt-2">
+                  <EquationAnswerInput
+                    value={blank.answers.join("\n")}
+                    onChange={(next) => updateBlankAnswers(index, next)}
+                    multiline
+                    rows={3}
+                    placeholder={"Enter one accepted answer per line\nExample: density\n\\(\\rho = \\frac{m}{V}\\)"}
+                    helpText="Use one accepted answer per line for this blank."
+                  />
+                </div>
               </div>
             ))}
           </div>

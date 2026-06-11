@@ -134,13 +134,13 @@ export default function ExamPaperPreviewPage() {
     setDownloadingType(type);
     try {
       if (type === "questions") {
-        await downloadExamQuestionsDocx(examId);
+        await downloadExamQuestionsDocx(examId, preview.exam.title);
         toast.success("Questions document downloaded.");
       } else if (type === "answers") {
-        await downloadExamAnswersDocx(examId);
+        await downloadExamAnswersDocx(examId, preview.exam.title);
         toast.success("Answers document downloaded.");
       } else {
-        await downloadExamSolutionsDocx(examId);
+        await downloadExamSolutionsDocx(examId, preview.exam.title);
         toast.success("Solutions document downloaded.");
       }
     } catch (err) {

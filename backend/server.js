@@ -118,6 +118,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Refresh-Token'],
+    exposedHeaders: ['Content-Disposition'],
   })
 );
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
