@@ -582,3 +582,92 @@ test('listCoursesForRequest keeps client-17 platform courses read-only even when
   assert.equal(courses[0].can_enroll, false);
   assert.equal(courses[0].can_rename_assigned_course, true);
 });
+
+test('listCoursesForRequest keeps canonical platform titles for content authorizer while still showing renamed derived copies', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+
+    if (
+      normalized.includes('create table if not exists course_school_assignments')
+      || normalized.includes('create index if not exists idx_course_school_assignments_course')
+      || normalized.includes('create index if not exists idx_course_school_assignments_school')
+      || normalized.includes('create table if not exists client_course_title_overrides')
+      || normalized.includes('create index if not exists idx_client_course_title_overrides_client')
+      || normalized.includes('create index if not exists idx_client_course_title_overrides_course')
+    ) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes('from client_course_title_overrides')) {
+      assert.deepEqual(params, [[17], [77, 501]]);
+      return {
+        rows: [
+          { client_id: 17, course_id: 77, title: 'VSM_G8_PHY' },
+          { client_id: 17, course_id: 501, title: 'VSM_G7_PHY' },
+        ],
+      };
+    }
+
+    if (normalized.includes('from courses c')) {
+      assert.deepEqual(params, [17]);
+      return {
+        rows: [
+          {
+            id: 77,
+            title: 'TECHNO_PHY',
+            description: 'Platform owned course',
+            published: true,
+            created_at: '2026-06-12T00:00:00.000Z',
+            updated_at: null,
+            created_by: 9,
+            client_id: 17,
+            assigned_school_ids: [],
+            assigned_school_names: [],
+            assigned_school_count: 0,
+          },
+          {
+            id: 501,
+            title: 'TECHNO_PHY',
+            description: 'Derived from pack: techno',
+            published: true,
+            created_at: '2026-06-12T00:00:00.000Z',
+            updated_at: null,
+            created_by: 9,
+            client_id: 17,
+            assigned_school_ids: [],
+            assigned_school_names: [],
+            assigned_school_count: 0,
+          },
+        ],
+      };
+    }
+
+    throw new Error(`Unexpected query: ${normalized}`);
+  };
+
+  t.after(() => {
+    pool.query = originalQuery;
+  });
+
+  const courses = await listCoursesForRequest({
+    baseUrl: '/api/admin',
+    user: {
+      id: 20,
+      role: 'content_authorizer',
+      client_id: 17,
+    },
+  });
+
+  assert.equal(courses.length, 2);
+  const platformCourse = courses.find((course) => course.id === 77);
+  const derivedCourse = courses.find((course) => course.id === 501);
+  assert.ok(platformCourse);
+  assert.ok(derivedCourse);
+  assert.equal(platformCourse?.title, 'TECHNO_PHY');
+  assert.equal(platformCourse?.original_title, 'TECHNO_PHY');
+  assert.equal(derivedCourse?.title, 'VSM_G7_PHY');
+  assert.equal(derivedCourse?.original_title, 'TECHNO_PHY');
+  assert.equal(derivedCourse?.course_access_type, 'pack_derived');
+});

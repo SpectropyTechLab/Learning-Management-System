@@ -62,6 +62,13 @@ export default function ContentAuthorizerShell({
         onClick: () => navigate('/question-bank'),
       },
       {
+        key: 'exams',
+        label: 'Exams',
+        icon: <RiFileList3Line />,
+        active: isActive('/exams'),
+        onClick: () => navigate('/exams'),
+      },
+      {
         key: 'teaching-sessions',
         label: 'Teacher Session Tracker',
         icon: <RiCalendarCheckLine />,

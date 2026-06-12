@@ -172,6 +172,11 @@ export default function AdminCourseManager({
     return "Client course";
   };
 
+  const shouldShowOriginalTitle = (course: Course) =>
+    (course.course_access_type === "pack_derived" || course.is_pack_derived)
+    && Boolean(course.original_title)
+    && course.original_title?.trim().toLowerCase() !== course.title.trim().toLowerCase();
+
   const fetchAdminCourses = async () => {
     setFetching(true);
     try {
@@ -596,6 +601,7 @@ export default function AdminCourseManager({
               const showCourseMenu = courseCanEdit || courseCanRename || courseCanDelete;
               const showViewAction = !courseCanManageContent && Boolean(onViewCourse);
               const scopeLabel = getCourseScopeLabel(course);
+              const showOriginalTitle = shouldShowOriginalTitle(course);
               const assignedSchoolsLabel = Array.isArray(course.assigned_school_names) && course.assigned_school_names.length > 0
                 ? course.assigned_school_names.join(", ")
                 : null;
@@ -961,6 +967,12 @@ export default function AdminCourseManager({
                                 </span>
                               )}
                             </div>
+
+                            {showOriginalTitle && (
+                              <div className="mb-1 text-[10px] text-slate-500">
+                                Original: {course.original_title}
+                              </div>
+                            )}
 
                             {course.description && (
                               <div className="relative group overflow-visible">

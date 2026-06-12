@@ -20,6 +20,9 @@ const normalizeNumberArray = (value) => {
     .filter((item) => Number.isInteger(item) && item > 0);
 };
 
+const buildClientCourseOverrideKey = (clientId, courseId) =>
+  `${Number(clientId)}:${Number(courseId)}`;
+
 export const getRequestCourseScope = (req) => {
   const baseUrl = String(req?.baseUrl ?? '').toLowerCase();
   const role = String(req?.user?.role ?? '').toLowerCase();
@@ -117,6 +120,48 @@ const listClientCourseTitleOverrides = async ({ clientId, courseIds }) => {
       Number(row.course_id),
       String(row.title ?? '').trim(),
     ]).filter((entry) => entry[1])
+  );
+};
+
+const listClientCourseTitleOverridesForRows = async (rows) => {
+  const clientIds = Array.from(
+    new Set(
+      rows
+        .map((row) => Number(row.client_id))
+        .filter((clientId) => Number.isInteger(clientId) && clientId > 0)
+    )
+  );
+  const courseIds = Array.from(
+    new Set(
+      rows
+        .map((row) => Number(row.id))
+        .filter((courseId) => Number.isInteger(courseId) && courseId > 0)
+    )
+  );
+
+  if (clientIds.length === 0 || courseIds.length === 0) {
+    return new Map();
+  }
+
+  await ensureClientCourseTitleOverridesTable();
+
+  const result = await dbQuery(
+    `
+      SELECT client_id, course_id, title
+      FROM client_course_title_overrides
+      WHERE client_id = ANY($1::int[])
+        AND course_id = ANY($2::int[])
+    `,
+    [clientIds, courseIds]
+  );
+
+  return new Map(
+    result.rows
+      .map((row) => [
+        buildClientCourseOverrideKey(row.client_id, row.course_id),
+        String(row.title ?? '').trim(),
+      ])
+      .filter((entry) => entry[1])
   );
 };
 
@@ -326,12 +371,26 @@ const mapCourseRow = ({
     && (isEntitledPlatformCourse || isPackDerivedCourse || isClientPlatformTenantPlatformCourse);
   const canRenameAssignedCourse = isClientReadOnlySpecialCourse;
   const originalTitle = row.title;
-  const effectiveTitle = titleOverride?.trim() || originalTitle;
   const courseAccessType = isPackDerivedCourse
     ? 'pack_derived'
     : (isEntitledPlatformCourse || isClientPlatformTenantPlatformCourse)
       ? 'platform_assigned'
       : 'client_owned';
+  const effectiveTitle = (() => {
+    const normalizedOverride = titleOverride?.trim();
+
+    if (req.user?.role === 'content_authorizer') {
+      if (courseAccessType === 'pack_derived') {
+        return normalizedOverride || originalTitle;
+      }
+
+      if (isPlatformCourse && !isPackDerivedCourse) {
+        return originalTitle;
+      }
+    }
+
+    return normalizedOverride || originalTitle;
+  })();
 
   return {
     id: Number(row.id),
@@ -448,19 +507,23 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
 
   const result = await dbQuery(query, params);
   const entitledPlatformCourseSet = new Set(entitledPlatformCourseIds);
-  const titleOverrides = shouldScopeToClient
-    ? await listClientCourseTitleOverrides({
-        clientId,
-        courseIds: result.rows.map((row) => Number(row.id)),
-      })
-    : new Map();
+  const titleOverrides = role === 'content_authorizer'
+    ? await listClientCourseTitleOverridesForRows(result.rows)
+    : shouldScopeToClient
+      ? await listClientCourseTitleOverrides({
+          clientId,
+          courseIds: result.rows.map((row) => Number(row.id)),
+        })
+      : new Map();
   return result.rows.map((row) => mapCourseRow({
     row,
     req,
     scope,
     managedSchoolIds,
     isEntitledPlatformCourse: entitledPlatformCourseSet.has(Number(row.id)),
-    titleOverride: titleOverrides.get(Number(row.id)) ?? null,
+    titleOverride: role === 'content_authorizer'
+      ? titleOverrides.get(buildClientCourseOverrideKey(row.client_id, row.id)) ?? null
+      : titleOverrides.get(Number(row.id)) ?? null,
   }));
 };
 
@@ -520,9 +583,11 @@ export const getCourseAccessContext = async ({ courseId, req, scope = getRequest
     scope,
     managedSchoolIds,
     isEntitledPlatformCourse,
-    titleOverride: userClientId
-      ? (await listClientCourseTitleOverrides({ clientId: userClientId, courseIds: [numericCourseId] })).get(numericCourseId) ?? null
-      : null,
+    titleOverride: role === 'content_authorizer'
+      ? (await listClientCourseTitleOverridesForRows([courseRow])).get(buildClientCourseOverrideKey(courseRow.client_id, numericCourseId)) ?? null
+      : userClientId
+        ? (await listClientCourseTitleOverrides({ clientId: userClientId, courseIds: [numericCourseId] })).get(numericCourseId) ?? null
+        : null,
   });
 
   if ((scope === COURSE_SCOPE_SCHOOL_OWNER || scope === COURSE_SCOPE_TEACHER) && !course.is_assigned_to_my_school) {

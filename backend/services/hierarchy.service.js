@@ -11,7 +11,11 @@ import {
 import { hashPassword } from '../utils/hash.js';
 import * as rolePermissionsService from '../services/rolePermissions.service.js';
 import * as userPermissionsService from '../services/userPermissions.service.js';
-import { ensureCourseSchoolAssignmentsTable, listEntitledPlatformCourseIds } from './courseShared.service.js';
+import {
+  ensureClientCourseTitleOverridesTable,
+  ensureCourseSchoolAssignmentsTable,
+  listEntitledPlatformCourseIds,
+} from './courseShared.service.js';
 import { handleServiceError } from '../utils/errors.js';
 
 const PLATFORM_OWNER_CLIENT_ID = 17;
@@ -242,7 +246,11 @@ export const listSchoolCourseAssignments = async (req, res) => {
   if (!canAccess) return res.status(403).json({ error: 'Access denied' });
 
   try {
+    const school = await getSchoolContext(schoolId);
+    if (!school) return res.status(404).json({ error: 'School not found' });
+
     await ensureCourseSchoolAssignmentsTable();
+    await ensureClientCourseTitleOverridesTable();
 
     const result = await dbQuery(
       `
@@ -252,7 +260,8 @@ export const listSchoolCourseAssignments = async (req, res) => {
           csa.course_id,
           csa.assigned_at,
           csa.assigned_by,
-          c.title,
+          COALESCE(ccto.title, c.title) AS title,
+          c.title AS original_title,
           c.description,
           c.published,
           c.created_at,
@@ -261,12 +270,15 @@ export const listSchoolCourseAssignments = async (req, res) => {
         FROM course_school_assignments csa
         JOIN courses c
           ON c.id = csa.course_id
+        LEFT JOIN client_course_title_overrides ccto
+          ON ccto.course_id = c.id
+         AND ccto.client_id = $2
         LEFT JOIN users u
           ON u.id = csa.assigned_by
         WHERE csa.school_id = $1
-        ORDER BY c.title ASC, csa.assigned_at DESC
+        ORDER BY COALESCE(ccto.title, c.title) ASC, csa.assigned_at DESC
       `,
-      [schoolId]
+      [schoolId, school.client_id]
     );
 
     res.json(result.rows);
@@ -303,6 +315,7 @@ export const assignCoursesToSchool = async (req, res) => {
 
   try {
     await ensureCourseSchoolAssignmentsTable();
+    await ensureClientCourseTitleOverridesTable();
     const entitledPlatformCourseIds = school.client_id
       ? await listEntitledPlatformCourseIds(school.client_id)
       : [];
@@ -351,17 +364,21 @@ export const assignCoursesToSchool = async (req, res) => {
           csa.school_id,
           csa.course_id,
           csa.assigned_at,
-          c.title,
+          COALESCE(ccto.title, c.title) AS title,
+          c.title AS original_title,
           c.description,
           c.published
         FROM course_school_assignments csa
         JOIN courses c
           ON c.id = csa.course_id
+        LEFT JOIN client_course_title_overrides ccto
+          ON ccto.course_id = c.id
+         AND ccto.client_id = $3
         WHERE csa.school_id = $1
           AND csa.course_id = ANY($2::int[])
-        ORDER BY c.title ASC
+        ORDER BY COALESCE(ccto.title, c.title) ASC
       `,
-      [schoolId, validCourseIds]
+      [schoolId, validCourseIds, school.client_id]
     );
 
     res.status(201).json({
