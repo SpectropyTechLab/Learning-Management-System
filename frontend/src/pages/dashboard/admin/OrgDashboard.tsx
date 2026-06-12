@@ -71,6 +71,7 @@ interface AssignableCourse {
   description?: string | null;
   published?: boolean;
   client_id?: number | null;
+  is_entitled_platform_course?: boolean;
 }
 
 interface SchoolCourseAssignment {
@@ -330,9 +331,11 @@ export default function OrgDashboard() {
   const availableCoursesForAssignment = useMemo(() => {
     const assignedIds = new Set(schoolCourseAssignments.map((assignment) => assignment.course_id));
     return clientCourses.filter((course) => {
+      const isPlatformCourse = course.client_id == null || Number(course.client_id) === 17;
       const courseClientMatches = !selectedAssignmentSchool?.client_id
-        || !course.client_id
-        || Number(course.client_id) === Number(selectedAssignmentSchool.client_id);
+        || Number(course.client_id) === Number(selectedAssignmentSchool.client_id)
+        || isPlatformCourse
+        || course.is_entitled_platform_course === true;
       return courseClientMatches && !assignedIds.has(course.id);
     });
   }, [clientCourses, schoolCourseAssignments, selectedAssignmentSchool]);

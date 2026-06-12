@@ -11,6 +11,7 @@ const PLATFORM_OWNER_CLIENT_ID = 17;
 type Course = {
   id: number;
   title: string;
+  original_title?: string;
   description: string | null;
   client_id?: number | null;
   published?: boolean;
@@ -21,7 +22,10 @@ type Course = {
   assigned_school_names?: string[];
   is_created_by_me?: boolean;
   is_assigned_to_my_school?: boolean;
+  is_pack_derived?: boolean;
+  course_access_type?: "platform_assigned" | "pack_derived" | "client_owned";
   can_edit_course?: boolean;
+  can_rename_assigned_course?: boolean;
   can_publish_course?: boolean;
   can_delete_course?: boolean;
   can_manage_content?: boolean;
@@ -95,6 +99,8 @@ export default function AdminCourseManager({
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPublished, setEditPublished] = useState(false);
+  const [renamingCourseId, setRenamingCourseId] = useState<number | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
   const normalizedApiPrefix = apiPrefix.startsWith("/") ? apiPrefix : `/${apiPrefix}`;
 
   const displayCourses = mode === "custom" ? courseOverrides ?? [] : courses;
@@ -131,6 +137,9 @@ export default function AdminCourseManager({
   const canEditCourse = (course: Course) =>
     resolveCourseCapability(course, course.can_edit_course, mergedPermissions.canEdit);
 
+  const canRenameAssignedCourse = (course: Course) =>
+    Boolean(course.can_rename_assigned_course);
+
   const canPublishCourse = (course: Course) =>
     resolveCourseCapability(course, course.can_publish_course, mergedPermissions.canPublish);
 
@@ -144,7 +153,10 @@ export default function AdminCourseManager({
     resolveCourseCapability(course, course.can_enroll, mergedPermissions.canEnroll);
 
   const getCourseScopeLabel = (course: Course) => {
-    if (course.client_id == null || Number(course.client_id) === PLATFORM_OWNER_CLIENT_ID) {
+    if (course.course_access_type === "pack_derived" || course.is_pack_derived) {
+      return "Assigned course";
+    }
+    if (course.course_access_type === "platform_assigned" || course.client_id == null || Number(course.client_id) === PLATFORM_OWNER_CLIENT_ID) {
       return "Platform course";
     }
     if (course.is_assigned_to_my_school && !course.is_created_by_me) {
@@ -296,6 +308,47 @@ export default function AdminCourseManager({
 
   const handleCancelEdit = () => {
     setEditingCourseId(null);
+  };
+
+  const handleOpenRename = (course: Course) => {
+    setRenamingCourseId(course.id);
+    setRenameTitle(course.title);
+  };
+
+  const handleCloseRename = () => {
+    setRenamingCourseId(null);
+    setRenameTitle("");
+  };
+
+  const handleSaveRename = async () => {
+    if (renamingCourseId === null) return;
+    if (!renameTitle.trim()) {
+      alert("Title is required");
+      return;
+    }
+
+    try {
+      await api.patch(`${normalizedApiPrefix}/courses/${renamingCourseId}`, {
+        title: renameTitle.trim(),
+      });
+
+      setCourses((prev) =>
+        prev.map((course) =>
+          course.id === renamingCourseId
+            ? {
+                ...course,
+                title: renameTitle.trim(),
+              }
+            : course
+        )
+      );
+
+      handleCloseRename();
+      alert("Course name updated successfully!");
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Failed to rename course";
+      alert(errorMsg);
+    }
   };
 
   const filteredCourses = displayCourses.filter((course) => {
@@ -535,11 +588,12 @@ export default function AdminCourseManager({
                 ? `Created: ${new Date(course.created_at).toLocaleDateString()}`
                 : null;
               const courseCanEdit = canEditCourse(course);
+              const courseCanRename = canRenameAssignedCourse(course);
               const courseCanDelete = canDeleteCourse(course);
               const courseCanPublish = canPublishCourse(course);
               const courseCanManageContent = canManageCourseContent(course);
               const courseCanEnroll = canEnrollInCourse(course);
-              const showCourseMenu = courseCanEdit || courseCanDelete;
+              const showCourseMenu = courseCanEdit || courseCanRename || courseCanDelete;
               const showViewAction = !courseCanManageContent && Boolean(onViewCourse);
               const scopeLabel = getCourseScopeLabel(course);
               const assignedSchoolsLabel = Array.isArray(course.assigned_school_names) && course.assigned_school_names.length > 0
@@ -718,6 +772,17 @@ export default function AdminCourseManager({
                                     Update
                                   </button>
                                 )}
+                                {!courseCanEdit && courseCanRename && (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      handleOpenRename(course);
+                                    }}
+                                    className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                                  >
+                                    Rename
+                                  </button>
+                                )}
                                 {courseCanDelete && (
                                   <button
                                     onClick={() => {
@@ -854,6 +919,17 @@ export default function AdminCourseManager({
                                           Update
                                         </button>
                                       )}
+                                      {!courseCanEdit && courseCanRename && (
+                                        <button
+                                          onClick={() => {
+                                            setOpenMenuId(null);
+                                            handleOpenRename(course);
+                                          }}
+                                          className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                                        >
+                                          Rename
+                                        </button>
+                                      )}
                                       {courseCanDelete && (
                                         <button
                                           onClick={() => {
@@ -959,6 +1035,42 @@ export default function AdminCourseManager({
               >
                 Yes, Publish
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {renamingCourseId !== null && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-[90%]">
+            <h3 className="text-lg font-semibold mb-3">Rename Assigned Course</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Course Title</label>
+                <input
+                  value={renameTitle}
+                  onChange={(e) => setRenameTitle(e.target.value)}
+                  className="w-full p-2 border rounded focus:outline-none focus:ring-2 border-gray-300 focus:ring-blue-900 focus:border-transparent"
+                  placeholder="Enter course title"
+                  autoFocus
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                This only changes the course name for your client view. It will not rename the platform course globally.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleCloseRename}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleSaveRename()}
+                  className="px-4 py-2 bg-blue-900 text-white rounded hover:bg-blue-700"
+                >
+                  Save Name
+                </button>
+              </div>
             </div>
           </div>
         </div>

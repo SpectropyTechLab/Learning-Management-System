@@ -1,10 +1,11 @@
 import { query as dbQuery, getClient } from '../repositories/db.repository.js';
-import { getMergedCourseContentRows } from './clientContent.service.js';
+import { getEntitledCourseContentRows, getMergedCourseContentRows } from './clientContent.service.js';
 import {
   createCourseForRequest,
   ensureCourseActionAccess,
   getRequestCourseScope,
   listCoursesForRequest,
+  saveClientCourseTitleOverride,
 } from './courseShared.service.js';
 // In your backend (e.g., routes/admin/courses.js or .ts)
 
@@ -141,11 +142,22 @@ export const getCourseContent = async (req, res) => {
       return res.status(access.status).json({ error: access.error });
     }
 
-    const rows = await getMergedCourseContentRows({
-      courseId: Number(courseId),
-      includeAttemptStatus: shouldIncludeAttemptStatus,
-      userId,
-    });
+    const shouldLimitToEntitledBranch =
+      access.course?.is_entitled_platform_course === true
+      && req.user?.role !== 'super_admin'
+      && Boolean(req.user?.client_id);
+    const rows = shouldLimitToEntitledBranch
+      ? await getEntitledCourseContentRows({
+          courseId: Number(courseId),
+          clientId: Number(req.user?.client_id),
+          includeAttemptStatus: shouldIncludeAttemptStatus,
+          userId,
+        })
+      : await getMergedCourseContentRows({
+          courseId: Number(courseId),
+          includeAttemptStatus: shouldIncludeAttemptStatus,
+          userId,
+        });
 
     res.json({
       items: rows,
@@ -406,6 +418,32 @@ export const updateCourse = async (req, res) => {
     const access = await ensureCourseActionAccess({ courseId: id, req, action: 'update', scope });
     if (!access.ok) {
       return res.status(access.status).json({ error: access.error });
+    }
+
+    if (access.course?.can_rename_assigned_course && req.user?.role === 'client_admin') {
+      if (title === undefined) {
+        return res.status(400).json({ error: 'Title is required for assigned course rename.' });
+      }
+
+      if (description !== undefined || published !== undefined) {
+        return res.status(400).json({ error: 'Only the course title can be changed for assigned courses.' });
+      }
+
+      await saveClientCourseTitleOverride({
+        clientId: req.user?.client_id,
+        courseId: Number(id),
+        title,
+        userId: req.user?.id ?? null,
+        originalTitle: access.course.original_title ?? access.course.title,
+      });
+
+      const courses = await listCoursesForRequest({
+        ...req,
+        params: req.params,
+      }, scope);
+      const updatedCourse = courses.find((course) => course.id === Number(id));
+
+      return res.json(updatedCourse ?? { id: Number(id), title: String(title).trim() });
     }
 
     const query = `

@@ -11,8 +11,10 @@ import {
 import { hashPassword } from '../utils/hash.js';
 import * as rolePermissionsService from '../services/rolePermissions.service.js';
 import * as userPermissionsService from '../services/userPermissions.service.js';
-import { ensureCourseSchoolAssignmentsTable } from './courseShared.service.js';
+import { ensureCourseSchoolAssignmentsTable, listEntitledPlatformCourseIds } from './courseShared.service.js';
 import { handleServiceError } from '../utils/errors.js';
+
+const PLATFORM_OWNER_CLIENT_ID = 17;
 
 const VALID_ROLE_SCOPES = ['school_owner', 'teacher', 'student', 'admin'];
 const VALID_USER_ROLES = [
@@ -301,15 +303,24 @@ export const assignCoursesToSchool = async (req, res) => {
 
   try {
     await ensureCourseSchoolAssignmentsTable();
+    const entitledPlatformCourseIds = school.client_id
+      ? await listEntitledPlatformCourseIds(school.client_id)
+      : [];
 
     const courseResult = await dbQuery(
       `
         SELECT id
         FROM courses
         WHERE id = ANY($1::int[])
-          AND client_id = $2
+          AND (
+            client_id = $2
+            OR (
+              (client_id IS NULL OR client_id = ${PLATFORM_OWNER_CLIENT_ID})
+              AND id = ANY($3::int[])
+            )
+          )
       `,
-      [courseIds, school.client_id]
+      [courseIds, school.client_id, entitledPlatformCourseIds]
     );
 
     const validCourseIds = courseResult.rows.map((row) => Number(row.id));

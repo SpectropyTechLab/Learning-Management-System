@@ -21,6 +21,7 @@ import type {
   CourseSearchResult,
   CreateCourseResponse,
   EditableCourseFormValues,
+  ImportCourseContentResponse,
   PackCompositionSummary,
   PackItemPreview,
   PackSummary,
@@ -88,6 +89,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [coursesError, setCoursesError] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<CourseSearchResult | null>(null);
+  const [targetCourse, setTargetCourse] = useState<CourseSearchResult | null>(null);
 
   const [courseContent, setCourseContent] = useState<PaginatedResponse<CourseContentPreviewItem> | null>(null);
   const [courseContentLoading, setCourseContentLoading] = useState(false);
@@ -96,6 +98,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
 
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [attachSubmitting, setAttachSubmitting] = useState(false);
+  const [importSubmitting, setImportSubmitting] = useState(false);
   const [pendingRemoveIds, setPendingRemoveIds] = useState<number[]>([]);
   const [createCourseOpen, setCreateCourseOpen] = useState(false);
   const [createCourseSubmitting, setCreateCourseSubmitting] = useState(false);
@@ -188,6 +191,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     setCollapsedGroups([]);
     setSelectedItemIds([]);
     setSelectedCourse(null);
+    setTargetCourse(null);
   }, [packId]);
 
   useEffect(() => {
@@ -331,6 +335,28 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     }
   };
 
+  const importSelectedItemsToCourse = async () => {
+    if (!targetCourse || !selectedCourse || selectedCourseItems.length === 0) return;
+
+    try {
+      setImportSubmitting(true);
+      const response = await api.post<ImportCourseContentResponse>(`/courses/${targetCourse.id}/import-content`, {
+        source_course_id: selectedCourse.id,
+        item_ids: selectedCourseItems.map((item) => item.id),
+      });
+      setSelectedItemIds([]);
+      toast.success(
+        response.data.imported_count > 0
+          ? `Added ${response.data.imported_count} item${response.data.imported_count === 1 ? '' : 's'} to ${targetCourse.name}.`
+          : `${targetCourse.name} already has those items.`,
+      );
+    } catch (error) {
+      toast.error(readError(error, 'Failed to add selected content to the course.'));
+    } finally {
+      setImportSubmitting(false);
+    }
+  };
+
   const undoRemove = async (itemId: number) => {
     const pending = pendingRemovalRef.current.get(itemId);
     if (!pending) return;
@@ -462,15 +488,32 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
       const response = await api.post<CreateCourseResponse>('/courses', payload);
       toast.success('Course created.');
 
-      startTransition(() => setCourseQuery(payload.name));
-      const refreshedCourses = await loadCourses({ page: 1, query: payload.name });
+      startTransition(() => setCourseQuery(''));
+      const refreshedCourses = await loadCourses({ page: 1, query: '' });
       const createdCourse =
         refreshedCourses.find((course) => course.id === response.data.course_id) ??
         refreshedCourses.find((course) => course.name.trim().toLowerCase() === payload.name.toLowerCase()) ??
-        null;
+        {
+          id: response.data.course_id,
+          name: payload.name,
+          grade: payload.grade,
+          subject: payload.subject ?? null,
+          client_id: null,
+          content_item_count: 0,
+          created_at: new Date().toISOString(),
+        };
 
       if (createdCourse) {
-        setSelectedCourse(createdCourse);
+        setTargetCourse(createdCourse);
+        setCourseResults((current) =>
+          current.some((course) => course.id === createdCourse.id) ? current : [createdCourse, ...current],
+        );
+        setSelectedCourse((current) => {
+          if (current && current.id !== createdCourse.id) {
+            return current;
+          }
+          return refreshedCourses.find((course) => course.id !== createdCourse.id) ?? null;
+        });
       }
 
       closeCreateCourseDialog();
@@ -548,6 +591,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
       {activeTab === 'builder' && (
         <PackBuilderTab
           selectedPack={selectedPack}
+          targetCourse={targetCourse}
           courseQuery={courseQuery}
           onCourseQueryChange={(value) => startTransition(() => setCourseQuery(value))}
           onOpenCreateCourse={openCreateCourseDialog}
@@ -564,16 +608,19 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
           courseContentLoading={courseContentLoading}
           courseContentError={courseContentError}
           selectedItemIds={selectedItemIds}
-          selectedCourseItems={selectedCourseItems}
           onToggleItemSelection={handleToggleItemSelection}
           onClearSelection={() => setSelectedItemIds([])}
           addSubmitting={addSubmitting}
           attachSubmitting={attachSubmitting}
+          importSubmitting={importSubmitting}
           onAddSelectedItems={() => {
             void addSelectedItems();
           }}
           onAttachCourse={() => {
             void attachCourse();
+          }}
+          onImportSelectedItemsToCourse={() => {
+            void importSelectedItemsToCourse();
           }}
         />
       )}

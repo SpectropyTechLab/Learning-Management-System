@@ -215,16 +215,28 @@ const buildActiveEntitlementExistsSql = async ({ clientIdExpression, contentIdEx
   const packItemColumn = await getPackItemColumn();
   return `
     EXISTS (
+      WITH RECURSIVE entitlement_ancestors AS (
+        SELECT ci.id, ci.parent_id
+        FROM content_items ci
+        WHERE ci.id = ${contentIdExpression}
+
+        UNION
+
+        SELECT parent.id, parent.parent_id
+        FROM content_items parent
+        JOIN entitlement_ancestors ancestors
+          ON ancestors.parent_id = parent.id
+      )
       SELECT 1
-      FROM content_entitlements ce
+      FROM entitlement_ancestors ea
+      JOIN content_entitlements ce
+        ON ce.client_id = ${clientIdExpression}
+       AND ce.status = 'active'
+       AND NOW() BETWEEN ce.start_at AND ce.end_at
       LEFT JOIN content_pack_items cpi ON ce.pack_id = cpi.pack_id
-      WHERE ce.client_id = ${clientIdExpression}
-        AND ce.status = 'active'
-        AND NOW() BETWEEN ce.start_at AND ce.end_at
-        AND (
-          ce.content_id = ${contentIdExpression}
-          OR cpi.${packItemColumn} = ${contentIdExpression}
-        )
+      WHERE ce.content_id = ea.id
+         OR cpi.${packItemColumn} = ea.id
+      LIMIT 1
     )
   `;
 };
@@ -322,16 +334,27 @@ const hasClientContentAccess = async ({ clientId, contentItemId }) => {
   const packItemColumn = await getPackItemColumn();
   const result = await dbQuery(
     `
+      WITH RECURSIVE entitlement_ancestors AS (
+        SELECT ci.id, ci.parent_id
+        FROM content_items ci
+        WHERE ci.id = $2
+
+        UNION
+
+        SELECT parent.id, parent.parent_id
+        FROM content_items parent
+        JOIN entitlement_ancestors ancestors
+          ON ancestors.parent_id = parent.id
+      )
       SELECT 1
-      FROM content_entitlements ce
+      FROM entitlement_ancestors ea
+      JOIN content_entitlements ce
+        ON ce.client_id = $1
+       AND ce.status = 'active'
+       AND NOW() BETWEEN ce.start_at AND ce.end_at
       LEFT JOIN content_pack_items cpi ON ce.pack_id = cpi.pack_id
-      WHERE ce.client_id = $1
-        AND ce.status = 'active'
-        AND NOW() BETWEEN ce.start_at AND ce.end_at
-        AND (
-          ce.content_id = $2
-          OR cpi.${packItemColumn} = $2
-        )
+      WHERE ce.content_id = ea.id
+         OR cpi.${packItemColumn} = ea.id
       LIMIT 1
     `,
     [clientId, contentItemId]
@@ -559,6 +582,130 @@ export const getMergedCourseContentRows = async ({ courseId, includeAttemptStatu
   const sql = await buildCourseContentUnionSql({ includeAttemptStatus });
   const params = includeAttemptStatus ? [courseId, userId] : [courseId];
   const result = await dbQuery(sql, params);
+  return result.rows;
+};
+
+export const getEntitledCourseContentRows = async ({
+  courseId,
+  clientId,
+  includeAttemptStatus = false,
+  userId = null,
+}) => {
+  await ensureCourseLinkedContentTable();
+  const normalizedClientId = Number(clientId);
+  if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0) {
+    return [];
+  }
+
+  const packItemColumn = await getPackItemColumn();
+  const metadataSelect = await getMetadataSelect('ci');
+  const completionSelect = includeAttemptStatus
+    ? `COALESCE(latest_sa.completion_status, 'not attempted') AS completion_status,`
+    : `NULL::text AS completion_status,`;
+  const attemptJoin = includeAttemptStatus
+    ? `
+      LEFT JOIN LATERAL (
+        SELECT sa.completion_status
+        FROM student_attempts sa
+        WHERE sa.user_id = $3
+          AND sa.content_item_id = ci.id
+        ORDER BY sa.id DESC
+        LIMIT 1
+      ) latest_sa ON true
+    `
+    : '';
+
+  const result = await dbQuery(
+    `
+      WITH RECURSIVE entitled_seed AS (
+        SELECT DISTINCT licensed.id
+        FROM (
+          SELECT ce.content_id AS id
+          FROM content_entitlements ce
+          JOIN content_items ci
+            ON ci.id = ce.content_id
+          WHERE ce.client_id = $1
+            AND ce.status = 'active'
+            AND NOW() BETWEEN ce.start_at AND ce.end_at
+            AND ci.course_id = $2
+
+          UNION
+
+          SELECT cpi.${packItemColumn} AS id
+          FROM content_entitlements ce
+          JOIN content_pack_items cpi
+            ON cpi.pack_id = ce.pack_id
+          JOIN content_items ci
+            ON ci.id = cpi.${packItemColumn}
+          WHERE ce.client_id = $1
+            AND ce.status = 'active'
+            AND NOW() BETWEEN ce.start_at AND ce.end_at
+            AND ci.course_id = $2
+        ) licensed
+        WHERE licensed.id IS NOT NULL
+      ),
+      entitled_descendants AS (
+        SELECT ci.id, ci.parent_id
+        FROM content_items ci
+        JOIN entitled_seed seed
+          ON seed.id = ci.id
+
+        UNION
+
+        SELECT child.id, child.parent_id
+        FROM content_items child
+        JOIN entitled_descendants branch
+          ON branch.id = child.parent_id
+        WHERE child.course_id = $2
+      ),
+      entitled_ancestors AS (
+        SELECT ci.id, ci.parent_id
+        FROM content_items ci
+        JOIN entitled_seed seed
+          ON seed.id = ci.id
+
+        UNION
+
+        SELECT parent.id, parent.parent_id
+        FROM content_items parent
+        JOIN entitled_ancestors branch
+          ON branch.parent_id = parent.id
+        WHERE parent.course_id = $2
+      ),
+      entitled_items AS (
+        SELECT id FROM entitled_descendants
+        UNION
+        SELECT id FROM entitled_ancestors
+      )
+      SELECT
+        ci.id,
+        ci.course_id,
+        ci.parent_id,
+        ci.item_type,
+        ci.title,
+        ci.content_url,
+        ${metadataSelect} AS metadata,
+        ci.order_index,
+        ci.created_at,
+        ${completionSelect}
+        false AS is_linked_content,
+        NULL::int AS linked_content_id,
+        NULL::int AS source_pack_id,
+        true AS download_allowed,
+        'course'::text AS link_origin,
+        false AS is_editable,
+        NULL::timestamptz AS linked_at
+      FROM content_items ci
+      ${attemptJoin}
+      WHERE ci.course_id = $2
+        AND ci.id IN (SELECT id FROM entitled_items)
+      ORDER BY ci.parent_id NULLS FIRST, ci.order_index ASC, ci.created_at ASC
+    `,
+    includeAttemptStatus
+      ? [normalizedClientId, Number(courseId), userId]
+      : [normalizedClientId, Number(courseId)]
+  );
+
   return result.rows;
 };
 

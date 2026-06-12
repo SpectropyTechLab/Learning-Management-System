@@ -10,6 +10,7 @@ import { formatCourseMeta, formatCourseScope, prettyPackItemType } from '../pack
 
 interface PackBuilderTabProps {
   selectedPack: PackSummary | null;
+  targetCourse: CourseSearchResult | null;
   courseQuery: string;
   onCourseQueryChange: (value: string) => void;
   onOpenCreateCourse: () => void;
@@ -24,13 +25,14 @@ interface PackBuilderTabProps {
   courseContentLoading: boolean;
   courseContentError: string | null;
   selectedItemIds: number[];
-  selectedCourseItems: CourseContentPreviewItem[];
   onToggleItemSelection: (itemId: number) => void;
   onClearSelection: () => void;
   addSubmitting: boolean;
   attachSubmitting: boolean;
+  importSubmitting: boolean;
   onAddSelectedItems: () => void;
   onAttachCourse: () => void;
+  onImportSelectedItemsToCourse: () => void;
 }
 
 type CourseTreeNode = CourseContentPreviewItem & {
@@ -42,6 +44,12 @@ type SelectionStats = {
   partiallySelected: boolean;
   selectedCount: number;
   selectableCount: number;
+};
+
+type SelectedTreeNode = CourseTreeNode & {
+  children: SelectedTreeNode[];
+  selectedChildrenCount: number;
+  totalChildrenCount: number;
 };
 
 const FOLDER_ITEM_TYPES = new Set(['folder', 'chapter', 'topic']);
@@ -60,6 +68,11 @@ const countLeafDescendants = (node: CourseTreeNode): number => {
   if (node.children.length === 0) return 1;
   return node.children.reduce((total, child) => total + countLeafDescendants(child), 0);
 };
+
+const sortTreeNodes = <T extends { order_index: number; children: T[] }>(nodes: T[]): T[] =>
+  [...nodes]
+    .sort((left, right) => left.order_index - right.order_index)
+    .map((node) => ({ ...node, children: sortTreeNodes(node.children) }));
 
 const getSelectionStats = (node: CourseTreeNode, selectedIds: Set<number>): SelectionStats => {
   const nodeIds = collectNodeIds(node);
@@ -190,8 +203,71 @@ const buildCourseTree = (items: CourseContentPreviewItem[]) => {
     roots.push(node);
   });
 
-  return roots;
+  return sortTreeNodes(roots);
 };
+
+const buildSelectedTree = (
+  nodes: CourseTreeNode[],
+  selectedIds: Set<number>,
+): SelectedTreeNode[] =>
+  nodes.flatMap((node) => {
+    const selectedChildren = buildSelectedTree(node.children, selectedIds);
+    const isSelected = selectedIds.has(node.id);
+
+    if (!isSelected && selectedChildren.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        ...node,
+        children: selectedChildren,
+        selectedChildrenCount: selectedChildren.length,
+        totalChildrenCount: node.children.length,
+      },
+    ];
+  });
+
+function SelectedSummaryNode({
+  node,
+  depth,
+}: {
+  node: SelectedTreeNode;
+  depth: number;
+}) {
+  const hasChildren = node.children.length > 0;
+  const descendantCount = countDescendants(node);
+  const isFullySelectedBranch = hasChildren && node.selectedChildrenCount === node.totalChildrenCount;
+
+  return (
+    <div className="space-y-2">
+      <div className="border-b border-slate-200 py-4" style={{ marginLeft: `${depth * 18}px` }}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="border-slate-200 bg-slate-50 text-slate-700">
+            {prettyPackItemType(node.item_type)}
+          </Badge>
+          <div className="text-sm font-semibold text-slate-900">{node.title}</div>
+          {hasChildren && (
+            <span className="text-xs text-slate-400">
+              {isFullySelectedBranch
+                ? `Full branch selected (${descendantCount} nested item${descendantCount === 1 ? '' : 's'})`
+                : `${node.selectedChildrenCount} of ${node.totalChildrenCount} child branch${node.totalChildrenCount === 1 ? '' : 'es'} selected`}
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+          <span>Order {node.order_index + 1}</span>
+          <span>{node.course_name}</span>
+        </div>
+      </div>
+
+      {hasChildren &&
+        node.children.map((child) => (
+          <SelectedSummaryNode key={child.id} node={child} depth={depth + 1} />
+        ))}
+    </div>
+  );
+}
 
 const EmptyState = ({ message }: { message: string }) => (
   <div className="border-b border-dashed border-slate-200 py-5 text-sm text-slate-500">{message}</div>
@@ -199,6 +275,7 @@ const EmptyState = ({ message }: { message: string }) => (
 
 export default function PackBuilderTab({
   selectedPack,
+  targetCourse,
   courseQuery,
   onCourseQueryChange,
   onOpenCreateCourse,
@@ -213,13 +290,14 @@ export default function PackBuilderTab({
   courseContentLoading,
   courseContentError,
   selectedItemIds,
-  selectedCourseItems,
   onToggleItemSelection,
   onClearSelection,
   addSubmitting,
   attachSubmitting,
+  importSubmitting,
   onAddSelectedItems,
   onAttachCourse,
+  onImportSelectedItemsToCourse,
 }: PackBuilderTabProps) {
   const courseTree = useMemo(() => buildCourseTree(courseContent?.data ?? []), [courseContent?.data]);
   const [expandedNodeIds, setExpandedNodeIds] = useState<number[]>([]);
@@ -229,6 +307,10 @@ export default function PackBuilderTab({
   const isLoadingMoreCourses = coursesLoading && courseResults.length > 0;
   const selectedIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
   const expandedNodeIdSet = useMemo(() => new Set(expandedNodeIds), [expandedNodeIds]);
+  const visibleCourseResults = useMemo(
+    () => courseResults.filter((course) => course.id !== targetCourse?.id),
+    [courseResults, targetCourse?.id],
+  );
 
   const allNodesById = useMemo(() => {
     const nodeMap = new Map<number, CourseTreeNode>();
@@ -264,6 +346,7 @@ export default function PackBuilderTab({
       contentCount: selectedLeafIds.length,
     };
   }, [courseTree, selectedIdSet]);
+  const selectedTree = useMemo(() => buildSelectedTree(courseTree, selectedIdSet), [courseTree, selectedIdSet]);
 
   useEffect(() => {
     const node = loadMoreRef.current;
@@ -288,8 +371,15 @@ export default function PackBuilderTab({
       return;
     }
 
-    const nextExpandedIds = courseTree
-      .flatMap((node) => (node.children.length > 0 ? [node.id] : []));
+    const nextExpandedIds: number[] = [];
+    const collectExpandedIds = (node: CourseTreeNode) => {
+      if (node.children.length > 0) {
+        nextExpandedIds.push(node.id);
+        node.children.forEach(collectExpandedIds);
+      }
+    };
+
+    courseTree.forEach(collectExpandedIds);
     setExpandedNodeIds(nextExpandedIds);
   }, [courseTree]);
 
@@ -329,7 +419,9 @@ export default function PackBuilderTab({
           <div>
             <h3 className="text-lg font-semibold text-slate-950">Course Browser</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Search global and client-owned courses by name, grade, or subject.
+              {targetCourse
+                ? 'Browse existing courses and pick the content you want to add into the new course.'
+                : 'Search global and client-owned courses by name, grade, or subject.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -352,12 +444,12 @@ export default function PackBuilderTab({
           {!isInitialCourseLoad && coursesError && (
             <div className="border-l-2 border-rose-300 pl-4 text-sm text-rose-600">{coursesError}</div>
           )}
-          {!isInitialCourseLoad && !coursesError && courseResults.length === 0 && (
+          {!isInitialCourseLoad && !coursesError && visibleCourseResults.length === 0 && (
             <EmptyState message="No courses matched your search." />
           )}
           {!isInitialCourseLoad &&
             !coursesError &&
-            courseResults.map((course) => {
+            visibleCourseResults.map((course) => {
               const isSelected = selectedCourse?.id === course.id;
               return (
                 <button
@@ -383,12 +475,12 @@ export default function PackBuilderTab({
                 </button>
               );
             })}
-          {!isInitialCourseLoad && !coursesError && courseResults.length > 0 && (
+          {!isInitialCourseLoad && !coursesError && visibleCourseResults.length > 0 && (
             <div ref={loadMoreRef} className="border-b border-dashed border-slate-200 py-4 text-center text-xs text-slate-400">
               {isLoadingMoreCourses
                 ? 'Loading more courses...'
                 : hasMoreCourses
-                  ? `Showing ${courseResults.length} of ${courseResultsTotal} courses`
+                  ? `Showing ${visibleCourseResults.length} of ${Math.max(courseResultsTotal - (targetCourse ? 1 : 0), 0)} courses`
                   : `All ${courseResultsTotal} courses loaded`}
             </div>
           )}
@@ -400,7 +492,9 @@ export default function PackBuilderTab({
           <div>
             <h3 className="text-lg font-semibold text-slate-950">Content Picker</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Select a course and choose the exact items you want to attach to the pack.
+              {targetCourse
+                ? 'Pick content from an existing source course and add it into the new course.'
+                : 'Select a course and choose the exact items you want to attach to the pack.'}
             </p>
           </div>
           {selectedItemIds.length > 0 && (
@@ -411,13 +505,32 @@ export default function PackBuilderTab({
         </div>
 
         <div className="border-b border-slate-200 pb-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Selected Course</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            {targetCourse ? 'New Course Destination' : 'Selected Course'}
+          </div>
           <div className="mt-2 text-base font-semibold text-slate-950">
-            {selectedCourse?.name ?? 'Select a course first'}
+            {targetCourse?.name ?? selectedCourse?.name ?? 'Select a course first'}
           </div>
           <div className="mt-1 text-xs text-slate-500">
-            {selectedCourse ? formatCourseMeta(selectedCourse.grade, selectedCourse.subject) : 'No course chosen yet'}
+            {targetCourse
+              ? formatCourseMeta(targetCourse.grade, targetCourse.subject)
+              : selectedCourse
+                ? formatCourseMeta(selectedCourse.grade, selectedCourse.subject)
+                : 'No course chosen yet'}
           </div>
+          {targetCourse && (
+            <>
+              <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Browsing From</div>
+              <div className="mt-2 text-sm font-semibold text-slate-950">
+                {selectedCourse?.name ?? 'Select an existing course from the left'}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {selectedCourse
+                  ? formatCourseMeta(selectedCourse.grade, selectedCourse.subject)
+                  : 'No source course chosen yet'}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-0">
@@ -450,12 +563,26 @@ export default function PackBuilderTab({
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
           <div>
             <h3 className="text-lg font-semibold text-slate-950">Selection Summary</h3>
-            <p className="mt-1 text-sm text-slate-500">Attach a full course or only the selected items.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {targetCourse
+                ? 'Add the selected source content into the new course, or keep using the pack actions below.'
+                : 'Attach a full course or only the selected items.'}
+            </p>
           </div>
           {selectedPack && (
             <Badge tone="border-slate-200 bg-slate-50 text-slate-700">{selectedPack.item_count} in pack</Badge>
           )}
         </div>
+
+        {targetCourse && (
+          <div className="border-b border-slate-200 pb-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">New Course</div>
+            <div className="mt-2 text-base font-semibold text-slate-950">{targetCourse.name}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              Selected content will be copied into this course.
+            </div>
+          </div>
+        )}
 
         <div className="border-b border-slate-200 pb-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Working Pack</div>
@@ -470,6 +597,14 @@ export default function PackBuilderTab({
         </div>
 
         <div className="space-y-3 border-b border-slate-200 pb-5">
+          {targetCourse && (
+            <PrimaryButton
+              onClick={onImportSelectedItemsToCourse}
+              disabled={!targetCourse || !selectedCourse || selectedItemIds.length === 0 || importSubmitting}
+            >
+              {importSubmitting ? 'Adding to Course...' : 'Add Selected to New Course'}
+            </PrimaryButton>
+          )}
           <GhostButton
             onClick={onAttachCourse}
             disabled={!selectedCourse || !selectedPack || attachSubmitting}
@@ -481,7 +616,7 @@ export default function PackBuilderTab({
             onClick={onAddSelectedItems}
             disabled={!selectedPack || selectedItemIds.length === 0 || addSubmitting}
           >
-            {addSubmitting ? 'Adding...' : 'Add Selected Items'}
+            {addSubmitting ? 'Adding...' : 'Add Selected to Pack'}
           </PrimaryButton>
           <GhostButton
             onClick={onClearSelection}
@@ -500,17 +635,9 @@ export default function PackBuilderTab({
             <span>{selectionBreakdown.contentCount} content items</span>
           </div>
           <div className="mt-4 space-y-0">
-            {selectedCourseItems.length === 0 && <EmptyState message="No items selected yet." />}
-            {selectedCourseItems.map((item) => (
-              <div key={item.id} className="border-b border-slate-200 py-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="border-slate-200 bg-slate-50 text-slate-700">
-                    {prettyPackItemType(item.item_type)}
-                  </Badge>
-                  <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                </div>
-                <div className="mt-2 text-xs text-slate-500">{selectedCourse?.name ?? item.course_name}</div>
-              </div>
+            {selectedTree.length === 0 && <EmptyState message="No items selected yet." />}
+            {selectedTree.map((node) => (
+              <SelectedSummaryNode key={node.id} node={node} depth={0} />
             ))}
           </div>
         </div>

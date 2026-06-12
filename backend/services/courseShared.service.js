@@ -1,4 +1,5 @@
 import { query as dbQuery } from '../repositories/db.repository.js';
+import { syncActivePackEntitlementsForClient } from './platform.service.js';
 
 export const COURSE_SCOPE_ADMIN = 'admin';
 export const COURSE_SCOPE_SCHOOL_OWNER = 'school_owner';
@@ -9,6 +10,7 @@ const SCHOOL_OWNER_ROLE_SCOPES = ['school_owner', 'admin'];
 const TEACHER_ROLE_SCOPES = ['teacher'];
 
 let courseSchoolAssignmentsEnsured = false;
+let clientCourseTitleOverridesEnsured = false;
 let packItemColumnPromise;
 
 const normalizeNumberArray = (value) => {
@@ -62,6 +64,106 @@ export const ensureCourseSchoolAssignmentsTable = async () => {
   `);
 
   courseSchoolAssignmentsEnsured = true;
+};
+
+export const ensureClientCourseTitleOverridesTable = async () => {
+  if (clientCourseTitleOverridesEnsured) return;
+
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS client_course_title_overrides (
+      id SERIAL PRIMARY KEY,
+      client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (client_id, course_id)
+    )
+  `);
+
+  await dbQuery(`
+    CREATE INDEX IF NOT EXISTS idx_client_course_title_overrides_client
+    ON client_course_title_overrides(client_id)
+  `);
+
+  await dbQuery(`
+    CREATE INDEX IF NOT EXISTS idx_client_course_title_overrides_course
+    ON client_course_title_overrides(course_id)
+  `);
+
+  clientCourseTitleOverridesEnsured = true;
+};
+
+const listClientCourseTitleOverrides = async ({ clientId, courseIds }) => {
+  const normalizedClientId = Number(clientId);
+  if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0 || courseIds.length === 0) {
+    return new Map();
+  }
+
+  await ensureClientCourseTitleOverridesTable();
+
+  const result = await dbQuery(
+    `
+      SELECT course_id, title
+      FROM client_course_title_overrides
+      WHERE client_id = $1
+        AND course_id = ANY($2::int[])
+    `,
+    [normalizedClientId, courseIds]
+  );
+
+  return new Map(
+    result.rows.map((row) => [
+      Number(row.course_id),
+      String(row.title ?? '').trim(),
+    ]).filter((entry) => entry[1])
+  );
+};
+
+export const saveClientCourseTitleOverride = async ({ clientId, courseId, title, userId, originalTitle }) => {
+  const normalizedClientId = Number(clientId);
+  const normalizedCourseId = Number(courseId);
+  const trimmedTitle = String(title ?? '').trim();
+  const normalizedOriginalTitle = String(originalTitle ?? '').trim();
+
+  if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0) {
+    throw new Error('client_id must be a positive integer');
+  }
+
+  if (!Number.isInteger(normalizedCourseId) || normalizedCourseId <= 0) {
+    throw new Error('course_id must be a positive integer');
+  }
+
+  if (!trimmedTitle) {
+    throw new Error('title is required');
+  }
+
+  await ensureClientCourseTitleOverridesTable();
+
+  if (trimmedTitle.toLowerCase() === normalizedOriginalTitle.toLowerCase()) {
+    await dbQuery(
+      `
+        DELETE FROM client_course_title_overrides
+        WHERE client_id = $1
+          AND course_id = $2
+      `,
+      [normalizedClientId, normalizedCourseId]
+    );
+    return;
+  }
+
+  await dbQuery(
+    `
+      INSERT INTO client_course_title_overrides (client_id, course_id, title, updated_by, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (client_id, course_id)
+      DO UPDATE SET
+        title = EXCLUDED.title,
+        updated_by = EXCLUDED.updated_by,
+        updated_at = NOW()
+    `,
+    [normalizedClientId, normalizedCourseId, trimmedTitle, userId ?? null]
+  );
 };
 
 export const getManagedSchoolIdsForUser = async (userId) => {
@@ -136,6 +238,10 @@ const shouldIncludeEntitledPlatformCourses = ({ role, scope }) =>
 const isPlatformOwnedCourseClientId = (clientId) =>
   clientId == null || Number(clientId) === PLATFORM_OWNER_CLIENT_ID;
 
+const isPlatformTenantClientAdmin = (req) =>
+  req.user?.role === 'client_admin'
+  && Number(req.user?.client_id) === PLATFORM_OWNER_CLIENT_ID;
+
 export const listEntitledPlatformCourseIds = async (clientId) => {
   const normalizedClientId = Number(clientId);
   if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0) {
@@ -193,7 +299,14 @@ export const isEntitledPlatformCourseForClient = async ({ clientId, courseId }) 
   return entitledCourseIds.includes(normalizedCourseId);
 };
 
-const mapCourseRow = ({ row, req, scope, managedSchoolIds = [], isEntitledPlatformCourse = false }) => {
+const mapCourseRow = ({
+  row,
+  req,
+  scope,
+  managedSchoolIds = [],
+  isEntitledPlatformCourse = false,
+  titleOverride = null,
+}) => {
   const assignedSchoolIds = normalizeNumberArray(row.assigned_school_ids);
   const assignedSchoolNames = Array.isArray(row.assigned_school_names)
     ? row.assigned_school_names.filter(Boolean)
@@ -202,13 +315,28 @@ const mapCourseRow = ({ row, req, scope, managedSchoolIds = [], isEntitledPlatfo
   const isAssignedToMySchool = managedSchoolIds.some((schoolId) => assignedSchoolIds.includes(schoolId));
   const isSchoolOwnerScope = scope === COURSE_SCOPE_SCHOOL_OWNER;
   const isTeacherScope = scope === COURSE_SCOPE_TEACHER;
+  const isPackDerivedCourse = String(row.description ?? '').toLowerCase().startsWith('derived from pack:');
   const isPlatformCourse = isPlatformOwnedCourseClientId(row.client_id);
+  const isClientPlatformTenantPlatformCourse =
+    isPlatformTenantClientAdmin(req) && isPlatformCourse && !isPackDerivedCourse;
   const isReadOnlySharedCourse = isEntitledPlatformCourse && req.user?.role !== 'super_admin';
   const canMutateAsSchoolOwner = isCreatedByMe && !isPlatformCourse;
+  const isClientReadOnlySpecialCourse =
+    req.user?.role === 'client_admin'
+    && (isEntitledPlatformCourse || isPackDerivedCourse || isClientPlatformTenantPlatformCourse);
+  const canRenameAssignedCourse = isClientReadOnlySpecialCourse;
+  const originalTitle = row.title;
+  const effectiveTitle = titleOverride?.trim() || originalTitle;
+  const courseAccessType = isPackDerivedCourse
+    ? 'pack_derived'
+    : (isEntitledPlatformCourse || isClientPlatformTenantPlatformCourse)
+      ? 'platform_assigned'
+      : 'client_owned';
 
   return {
     id: Number(row.id),
-    title: row.title,
+    title: effectiveTitle,
+    original_title: originalTitle,
     description: row.description ?? null,
     published: row.published === true,
     created_at: row.created_at,
@@ -221,11 +349,14 @@ const mapCourseRow = ({ row, req, scope, managedSchoolIds = [], isEntitledPlatfo
     is_created_by_me: isCreatedByMe,
     is_assigned_to_my_school: isAssignedToMySchool,
     is_entitled_platform_course: isEntitledPlatformCourse,
-    can_edit_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
-    can_publish_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
-    can_delete_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
-    can_manage_content: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : !isReadOnlySharedCourse),
-    can_enroll: isTeacherScope ? false : (isSchoolOwnerScope ? isAssignedToMySchool : true),
+    is_pack_derived: isPackDerivedCourse,
+    course_access_type: courseAccessType,
+    can_rename_assigned_course: canRenameAssignedCourse,
+    can_edit_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : !isReadOnlySharedCourse)),
+    can_publish_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : !isReadOnlySharedCourse)),
+    can_delete_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : !isReadOnlySharedCourse)),
+    can_manage_content: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : !isReadOnlySharedCourse)),
+    can_enroll: isTeacherScope ? false : (isSchoolOwnerScope ? isAssignedToMySchool : (isClientReadOnlySpecialCourse ? false : true)),
   };
 };
 
@@ -260,6 +391,12 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
 
   const role = req.user?.role;
   const clientId = req.user?.client_id;
+  if (role === 'client_admin' && clientId) {
+    await syncActivePackEntitlementsForClient({
+      clientId,
+      userId: req.user?.id ?? null,
+    });
+  }
   const shouldScopeToClient = Boolean(clientId) && role !== 'super_admin';
   const managedSchoolIds = scope === COURSE_SCOPE_SCHOOL_OWNER
     ? await getManagedSchoolIdsForUser(req.user?.id)
@@ -311,12 +448,19 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
 
   const result = await dbQuery(query, params);
   const entitledPlatformCourseSet = new Set(entitledPlatformCourseIds);
+  const titleOverrides = shouldScopeToClient
+    ? await listClientCourseTitleOverrides({
+        clientId,
+        courseIds: result.rows.map((row) => Number(row.id)),
+      })
+    : new Map();
   return result.rows.map((row) => mapCourseRow({
     row,
     req,
     scope,
     managedSchoolIds,
     isEntitledPlatformCourse: entitledPlatformCourseSet.has(Number(row.id)),
+    titleOverride: titleOverrides.get(Number(row.id)) ?? null,
   }));
 };
 
@@ -376,6 +520,9 @@ export const getCourseAccessContext = async ({ courseId, req, scope = getRequest
     scope,
     managedSchoolIds,
     isEntitledPlatformCourse,
+    titleOverride: userClientId
+      ? (await listClientCourseTitleOverrides({ clientId: userClientId, courseIds: [numericCourseId] })).get(numericCourseId) ?? null
+      : null,
   });
 
   if ((scope === COURSE_SCOPE_SCHOOL_OWNER || scope === COURSE_SCOPE_TEACHER) && !course.is_assigned_to_my_school) {
@@ -408,11 +555,20 @@ export const ensureCourseActionAccess = async ({
   }
 
   if (
-    context.course.is_entitled_platform_course
+    req.user?.role === 'client_admin'
+    && (context.course.can_rename_assigned_course || context.course.course_access_type === 'platform_assigned')
     && req.user?.role !== 'super_admin'
     && new Set(['update', 'delete', 'publish', 'manage_content']).has(action)
   ) {
-    return { ok: false, status: 403, error: 'Platform-assigned courses are read-only.' };
+    if (action !== 'update') {
+      return {
+        ok: false,
+        status: 403,
+        error: context.course.is_pack_derived
+          ? 'Assigned courses are read-only.'
+          : 'Platform-assigned courses are read-only.',
+      };
+    }
   }
 
   if (scope !== COURSE_SCOPE_SCHOOL_OWNER) {

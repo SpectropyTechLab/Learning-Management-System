@@ -1,5 +1,5 @@
 // backend/controllers/platform.controller.js
-import { query as dbQuery, getClient } from '../repositories/db.repository.js';
+import { query as dbQuery } from '../repositories/db.repository.js';
 
 const parseNullableInt = (value, fieldName) => {
   if (value === undefined || value === null || value === '') return null;
@@ -11,6 +11,418 @@ const parseNullableInt = (value, fieldName) => {
 };
 
 const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
+let courseMetadataColumnPromise;
+let contentMetadataColumnPromise;
+let packItemColumnPromise;
+
+const hasCourseMetadataColumn = async () => {
+  if (!courseMetadataColumnPromise) {
+    courseMetadataColumnPromise = dbQuery(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'courses'
+            AND column_name = 'metadata'
+        ) AS exists
+      `
+    ).then((result) => Boolean(result.rows[0]?.exists));
+  }
+
+  return courseMetadataColumnPromise;
+};
+
+const ensureCourseMetadataColumn = async (executor = dbQuery) => {
+  if (await hasCourseMetadataColumn()) return;
+
+  await executor(`
+    ALTER TABLE courses
+    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::JSONB
+  `);
+
+  courseMetadataColumnPromise = Promise.resolve(true);
+};
+
+const hasContentMetadataColumn = async () => {
+  if (!contentMetadataColumnPromise) {
+    contentMetadataColumnPromise = dbQuery(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'content_items'
+            AND column_name = 'metadata'
+        ) AS exists
+      `
+    ).then((result) => Boolean(result.rows[0]?.exists));
+  }
+
+  return contentMetadataColumnPromise;
+};
+
+const getPackItemColumn = async () => {
+  if (!packItemColumnPromise) {
+    packItemColumnPromise = dbQuery(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'content_pack_items'
+          AND column_name IN ('item_id', 'content_id')
+        ORDER BY CASE WHEN column_name = 'item_id' THEN 0 ELSE 1 END
+        LIMIT 1
+      `
+    ).then((result) => {
+      const columnName = result.rows[0]?.column_name;
+      if (!columnName) {
+        throw new Error('content_pack_items is missing an item membership column');
+      }
+      return columnName;
+    });
+  }
+
+  return packItemColumnPromise;
+};
+
+const ensureCourseExamsTable = async (executor = dbQuery) => {
+  await executor(`
+    CREATE TABLE IF NOT EXISTS course_exams (
+      id SERIAL PRIMARY KEY,
+      course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      assigned_at TIMESTAMPTZ DEFAULT NOW(),
+      assigned_by INT REFERENCES users(id) ON DELETE SET NULL,
+      UNIQUE(course_id, exam_id)
+    )
+  `);
+
+  await executor(`CREATE INDEX IF NOT EXISTS idx_course_exams_exam_id ON course_exams(exam_id)`);
+  await executor(`CREATE INDEX IF NOT EXISTS idx_course_exams_course_id ON course_exams(course_id)`);
+};
+
+const loadPackDerivedGroups = async ({ packId, clientId }) => {
+  await ensureCourseMetadataColumn();
+  const packItemColumn = await getPackItemColumn();
+  const hasCourseMetadata = await hasCourseMetadataColumn();
+  const gradeSql = hasCourseMetadata
+    ? `NULLIF(BTRIM(COALESCE(c.metadata->>'grade', '')), '')`
+    : `NULL::text`;
+  const subjectSql = hasCourseMetadata
+    ? `NULLIF(BTRIM(COALESCE(c.metadata->>'subject', '')), '')`
+    : `NULL::text`;
+
+  const packResult = await dbQuery(
+    `SELECT id, name FROM content_packs WHERE id = $1 LIMIT 1`,
+    [packId]
+  );
+  if (packResult.rows.length === 0) {
+    throw new Error('Pack not found');
+  }
+
+  const itemsResult = await dbQuery(
+    `
+      SELECT
+        c.id AS source_course_id,
+        c.title AS source_course_title,
+        ${gradeSql} AS grade,
+        ${subjectSql} AS subject,
+        ci.id AS item_id
+      FROM content_pack_items cpi
+      JOIN content_items ci ON ci.id = cpi.${packItemColumn}
+      JOIN courses c ON c.id = ci.course_id
+      WHERE cpi.pack_id = $1
+      ORDER BY c.id ASC, ci.order_index ASC, ci.created_at ASC
+    `,
+    [packId]
+  );
+
+  const groups = new Map();
+  itemsResult.rows.forEach((row) => {
+    const sourceCourseId = Number(row.source_course_id);
+    if (!groups.has(sourceCourseId)) {
+      groups.set(sourceCourseId, {
+        sourceCourseId,
+        sourceCourseTitle: String(row.source_course_title ?? 'Untitled Course'),
+        grade: row.grade ?? null,
+        subject: row.subject ?? null,
+        itemIds: [],
+      });
+    }
+
+    groups.get(sourceCourseId).itemIds.push(Number(row.item_id));
+  });
+
+  const existingResult = await dbQuery(
+    `
+      SELECT id, title, metadata
+      FROM courses
+      WHERE client_id = $1
+        AND COALESCE(metadata->>'derived_pack_id', '') = $2
+        AND COALESCE(metadata->>'derived_for_client_id', '') = $3
+    `,
+    [clientId, String(packId), String(clientId)]
+  );
+  const existingBySourceCourseId = new Map(
+    existingResult.rows
+      .map((row) => ({
+        id: Number(row.id),
+        title: String(row.title ?? ''),
+        sourceCourseId: Number(row.metadata?.derived_source_course_id ?? 0),
+      }))
+      .filter((row) => Number.isInteger(row.sourceCourseId) && row.sourceCourseId > 0)
+      .map((row) => [row.sourceCourseId, row])
+  );
+
+  return {
+    packName: String(packResult.rows[0]?.name ?? `Pack ${packId}`),
+    groups: Array.from(groups.values()).map((group) => ({
+      ...group,
+      existingCourse: existingBySourceCourseId.get(group.sourceCourseId) ?? null,
+    })),
+  };
+};
+
+const replaceDerivedCourseContent = async ({
+  targetCourseId,
+  sourceCourseId,
+  itemIds,
+  userId,
+  executor,
+}) => {
+  const metadataColumnExists = await hasContentMetadataColumn();
+  const selectedRowsResult = await executor.query(
+    metadataColumnExists
+      ? `
+          SELECT id, parent_id, item_type, title, content_url, order_index, created_at, metadata
+          FROM content_items
+          WHERE course_id = $1
+            AND id = ANY($2::int[])
+        `
+      : `
+          SELECT id, parent_id, item_type, title, content_url, order_index, created_at, '{}'::jsonb AS metadata
+          FROM content_items
+          WHERE course_id = $1
+            AND id = ANY($2::int[])
+        `,
+    [sourceCourseId, itemIds]
+  );
+
+  const selectedRows = selectedRowsResult.rows.map((row) => ({
+    ...row,
+    id: Number(row.id),
+    parent_id: row.parent_id === null ? null : Number(row.parent_id),
+    order_index: Number(row.order_index ?? 0),
+    metadata: row.metadata ?? {},
+  }));
+  const selectedSet = new Set(selectedRows.map((row) => row.id));
+  const childrenByParent = new Map();
+  const compareRows = (left, right) => {
+    const orderCompare = Number(left.order_index ?? 0) - Number(right.order_index ?? 0);
+    if (orderCompare !== 0) return orderCompare;
+    return String(left.created_at ?? '').localeCompare(String(right.created_at ?? ''));
+  };
+
+  selectedRows.forEach((row) => {
+    const normalizedParentId = selectedSet.has(row.parent_id) ? row.parent_id : null;
+    const siblings = childrenByParent.get(normalizedParentId) ?? [];
+    siblings.push(row);
+    childrenByParent.set(normalizedParentId, siblings);
+  });
+  childrenByParent.forEach((rows, parentId) => {
+    childrenByParent.set(parentId, rows.sort(compareRows));
+  });
+
+  await executor.query(`DELETE FROM course_exams WHERE course_id = $1`, [targetCourseId]);
+  await executor.query(`DELETE FROM content_items WHERE course_id = $1`, [targetCourseId]);
+
+  const nextOrderIndexCache = new Map();
+  const getNextOrderIndex = async (parentId) => {
+    const key = parentId === null ? 'root' : String(parentId);
+    const cached = nextOrderIndexCache.get(key);
+    if (cached !== undefined) {
+      nextOrderIndexCache.set(key, cached + 1);
+      return cached;
+    }
+
+    const maxOrderResult = await executor.query(
+      `
+        SELECT COALESCE(MAX(order_index), -1) AS max_order
+        FROM content_items
+        WHERE course_id = $1
+          AND parent_id IS NOT DISTINCT FROM $2
+      `,
+      [targetCourseId, parentId]
+    );
+
+    const nextValue = Number(maxOrderResult.rows[0]?.max_order ?? -1) + 1;
+    nextOrderIndexCache.set(key, nextValue + 1);
+    return nextValue;
+  };
+
+  const copyBranch = async (sourceParentId, targetParentId) => {
+    const sourceChildren = childrenByParent.get(sourceParentId) ?? [];
+    for (const sourceRow of sourceChildren) {
+      const nextOrderIndex = await getNextOrderIndex(targetParentId);
+      const insertQuery = metadataColumnExists
+        ? `
+            INSERT INTO content_items (course_id, parent_id, item_type, title, content_url, order_index, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+            RETURNING id
+          `
+        : `
+            INSERT INTO content_items (course_id, parent_id, item_type, title, content_url, order_index)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+          `;
+      const insertParams = metadataColumnExists
+        ? [
+            targetCourseId,
+            targetParentId,
+            sourceRow.item_type,
+            sourceRow.title,
+            sourceRow.content_url,
+            nextOrderIndex,
+            JSON.stringify(sourceRow.metadata ?? {}),
+          ]
+        : [
+            targetCourseId,
+            targetParentId,
+            sourceRow.item_type,
+            sourceRow.title,
+            sourceRow.content_url,
+            nextOrderIndex,
+          ];
+
+      const insertResult = await executor.query(insertQuery, insertParams);
+      const newItemId = Number(insertResult.rows[0]?.id);
+
+      if (sourceRow.item_type === 'exam') {
+        const examId = Number(sourceRow.metadata?.exam_id);
+        if (Number.isInteger(examId) && examId > 0) {
+          await executor.query(
+            `
+              INSERT INTO course_exams (course_id, exam_id, assigned_by)
+              VALUES ($1, $2, $3)
+              ON CONFLICT (course_id, exam_id)
+              DO UPDATE SET assigned_by = EXCLUDED.assigned_by, assigned_at = NOW()
+            `,
+            [targetCourseId, examId, userId ?? null]
+          );
+        }
+      }
+
+      if (sourceRow.item_type === 'folder') {
+        await copyBranch(sourceRow.id, newItemId);
+      }
+    }
+  };
+
+  await copyBranch(null, null);
+};
+
+const syncDerivedCoursesForPackEntitlement = async ({ clientId, packId, userId }) => {
+  const normalizedClientId = Number(clientId);
+  const normalizedPackId = Number(packId);
+  if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0) return;
+  if (!Number.isInteger(normalizedPackId) || normalizedPackId <= 0) return;
+
+  const { packName, groups } = await loadPackDerivedGroups({
+    packId: normalizedPackId,
+    clientId: normalizedClientId,
+  });
+  if (groups.length === 0) return;
+
+  const executor = { query: dbQuery };
+  await ensureCourseMetadataColumn();
+  await ensureCourseExamsTable();
+
+  for (const group of groups) {
+    const derivedMetadata = {
+      grade: group.grade,
+      subject: group.subject,
+      derived_pack_id: normalizedPackId,
+      derived_pack_name: packName,
+      derived_source_course_id: group.sourceCourseId,
+      derived_for_client_id: normalizedClientId,
+      is_pack_derived: true,
+    };
+
+    let targetCourseId = Number(group.existingCourse?.id ?? 0);
+    if (!Number.isInteger(targetCourseId) || targetCourseId <= 0) {
+      const insertResult = await executor.query(
+        `
+          INSERT INTO courses (title, description, published, created_by, client_id, metadata)
+          VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+          RETURNING id
+        `,
+        [
+          group.sourceCourseTitle,
+          `Derived from pack: ${packName}`,
+          true,
+          userId ?? null,
+          normalizedClientId,
+          JSON.stringify(derivedMetadata),
+        ]
+      );
+      targetCourseId = Number(insertResult.rows[0]?.id);
+    } else {
+      await executor.query(
+        `
+          UPDATE courses
+          SET description = $1,
+              metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+              updated_at = NOW()
+          WHERE id = $3
+        `,
+        [
+          `Derived from pack: ${packName}`,
+          JSON.stringify(derivedMetadata),
+          targetCourseId,
+        ]
+      );
+    }
+
+    await replaceDerivedCourseContent({
+      targetCourseId,
+      sourceCourseId: group.sourceCourseId,
+      itemIds: group.itemIds,
+      userId,
+      executor,
+    });
+  }
+};
+
+export const syncActivePackEntitlementsForClient = async ({ clientId, userId = null }) => {
+  const normalizedClientId = Number(clientId);
+  if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0) {
+    return;
+  }
+
+  const result = await dbQuery(
+    `
+      SELECT DISTINCT pack_id
+      FROM content_entitlements
+      WHERE client_id = $1
+        AND pack_id IS NOT NULL
+        AND status = 'active'
+        AND NOW() BETWEEN start_at AND end_at
+      ORDER BY pack_id ASC
+    `,
+    [normalizedClientId]
+  );
+
+  for (const row of result.rows) {
+    const packId = Number(row.pack_id);
+    if (!Number.isInteger(packId) || packId <= 0) continue;
+    await syncDerivedCoursesForPackEntitlement({
+      clientId: normalizedClientId,
+      packId,
+      userId,
+    });
+  }
+};
 
 // ----- Clients (Super Admin only) -----
 export const listClients = async (req, res) => {
@@ -319,6 +731,15 @@ export const createEntitlement = async (req, res) => {
         notes || null,
       ]
     );
+
+    if (pack_id) {
+      await syncDerivedCoursesForPackEntitlement({
+        clientId: client_id,
+        packId: pack_id,
+        userId: grantedBy ?? null,
+      });
+    }
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Failed to create entitlement:', err);

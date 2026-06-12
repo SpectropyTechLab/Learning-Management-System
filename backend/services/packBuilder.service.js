@@ -1,10 +1,11 @@
-import { query as dbQuery } from '../repositories/db.repository.js';
+import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 
 const PACK_BUILDER_ROLES = new Set(['super_admin', 'content_authorizer']);
 const PLATFORM_OWNER_CLIENT_ID = 17;
 
 let packItemColumnConfigPromise;
 let courseMetadataColumnPromise;
+let contentMetadataColumnPromise;
 
 class HttpError extends Error {
   constructor(statusCode, message) {
@@ -297,6 +298,40 @@ const validateAttachableItems = async (itemIds) => {
   return result.rows;
 };
 
+const hasContentMetadataColumn = async () => {
+  if (!contentMetadataColumnPromise) {
+    contentMetadataColumnPromise = dbQuery(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'content_items'
+            AND column_name = 'metadata'
+        ) AS exists
+      `
+    ).then((result) => Boolean(result.rows[0]?.exists));
+  }
+
+  return contentMetadataColumnPromise;
+};
+
+const ensureCourseExamsTable = async () => {
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS course_exams (
+      id SERIAL PRIMARY KEY,
+      course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      assigned_at TIMESTAMPTZ DEFAULT NOW(),
+      assigned_by INT REFERENCES users(id) ON DELETE SET NULL,
+      UNIQUE(course_id, exam_id)
+    )
+  `);
+
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_course_exams_exam_id ON course_exams(exam_id)`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_course_exams_course_id ON course_exams(course_id)`);
+};
+
 const attachItemsToPack = async (packId, itemIds, itemColumn) => {
   await getPackOrThrow(packId);
   await validateAttachableItems(itemIds);
@@ -333,6 +368,7 @@ const handleHttpError = (res, err, fallbackMessage) => {
 export const __resetPackBuilderCachesForTests = () => {
   packItemColumnConfigPromise = undefined;
   courseMetadataColumnPromise = undefined;
+  contentMetadataColumnPromise = undefined;
 };
 
 export const listPacks = async (req, res) => {
@@ -660,21 +696,6 @@ export const createCourse = async (req, res) => {
 
     await ensureCourseMetadataColumn();
 
-    const duplicateResult = await dbQuery(
-      `
-        SELECT id
-        FROM courses
-        WHERE LOWER(BTRIM(title)) = LOWER(BTRIM($1))
-          AND client_id IS NOT DISTINCT FROM $2::int
-        LIMIT 1
-      `,
-      [name, clientId]
-    );
-
-    if (duplicateResult.rows.length > 0) {
-      throw new HttpError(409, 'A course with this name already exists for that scope');
-    }
-
     const createdBy = req.user?.id ?? null;
     const result = await dbQuery(
       `
@@ -688,6 +709,195 @@ export const createCourse = async (req, res) => {
     return res.status(201).json({ course_id: Number(result.rows[0]?.id) });
   } catch (err) {
     return handleHttpError(res, err, 'Failed to create course');
+  }
+};
+
+export const importCourseContent = async (req, res) => {
+  try {
+    ensurePackBuilderRole(req.user?.role);
+    const targetCourseId = parseRequiredInt(req.params?.id, 'target_course_id');
+    const sourceCourseId = parseRequiredInt(req.body?.source_course_id, 'source_course_id');
+    const itemIds = parseItemIds(req.body?.item_ids ?? req.body?.content_ids);
+
+    if (targetCourseId === sourceCourseId) {
+      throw new HttpError(400, 'Source and target courses must be different');
+    }
+
+    const courseResult = await dbQuery(
+      `
+        SELECT id, title
+        FROM courses
+        WHERE id = ANY($1::int[])
+      `,
+      [[targetCourseId, sourceCourseId]]
+    );
+
+    if (courseResult.rows.length !== 2) {
+      throw new HttpError(404, 'Source or target course not found');
+    }
+
+    const sourceCourse = courseResult.rows.find((row) => Number(row.id) === sourceCourseId);
+    const targetCourse = courseResult.rows.find((row) => Number(row.id) === targetCourseId);
+    if (!sourceCourse || !targetCourse) {
+      throw new HttpError(404, 'Source or target course not found');
+    }
+
+    const metadataColumnExists = await hasContentMetadataColumn();
+    const selectedRowsResult = await dbQuery(
+      metadataColumnExists
+        ? `
+            SELECT id, parent_id, item_type, title, content_url, order_index, created_at, metadata
+            FROM content_items
+            WHERE course_id = $1
+              AND id = ANY($2::int[])
+          `
+        : `
+            SELECT id, parent_id, item_type, title, content_url, order_index, created_at, '{}'::jsonb AS metadata
+            FROM content_items
+            WHERE course_id = $1
+              AND id = ANY($2::int[])
+          `,
+      [sourceCourseId, itemIds]
+    );
+
+    if (selectedRowsResult.rows.length !== itemIds.length) {
+      throw new HttpError(400, 'One or more selected items were not found in the source course');
+    }
+
+    const selectedRows = selectedRowsResult.rows.map((row) => ({
+      ...row,
+      id: Number(row.id),
+      parent_id: row.parent_id === null ? null : Number(row.parent_id),
+      order_index: Number(row.order_index ?? 0),
+      metadata: row.metadata ?? {},
+    }));
+    const selectedSet = new Set(selectedRows.map((row) => row.id));
+    const childrenByParent = new Map();
+
+    const compareRows = (left, right) => {
+      const orderCompare = Number(left.order_index ?? 0) - Number(right.order_index ?? 0);
+      if (orderCompare !== 0) return orderCompare;
+      return String(left.created_at ?? '').localeCompare(String(right.created_at ?? ''));
+    };
+
+    selectedRows.forEach((row) => {
+      const normalizedParentId = selectedSet.has(row.parent_id) ? row.parent_id : null;
+      const siblings = childrenByParent.get(normalizedParentId) ?? [];
+      siblings.push(row);
+      childrenByParent.set(normalizedParentId, siblings);
+    });
+    childrenByParent.forEach((rows, parentId) => {
+      childrenByParent.set(parentId, rows.sort(compareRows));
+    });
+
+    const client = await getClient();
+
+    try {
+      await client.query('BEGIN');
+      await ensureCourseExamsTable();
+
+      const nextOrderIndexCache = new Map();
+      const insertedItemIds = [];
+
+      const getNextOrderIndex = async (parentId) => {
+        const key = parentId === null ? 'root' : String(parentId);
+        const cached = nextOrderIndexCache.get(key);
+        if (cached !== undefined) {
+          nextOrderIndexCache.set(key, cached + 1);
+          return cached;
+        }
+
+        const maxOrderResult = await client.query(
+          `
+            SELECT COALESCE(MAX(order_index), -1) AS max_order
+            FROM content_items
+            WHERE course_id = $1
+              AND parent_id IS NOT DISTINCT FROM $2
+          `,
+          [targetCourseId, parentId]
+        );
+
+        const nextValue = Number(maxOrderResult.rows[0]?.max_order ?? -1) + 1;
+        nextOrderIndexCache.set(key, nextValue + 1);
+        return nextValue;
+      };
+
+      const copyBranch = async (sourceParentId, targetParentId) => {
+        const sourceChildren = childrenByParent.get(sourceParentId) ?? [];
+        for (const sourceRow of sourceChildren) {
+          const nextOrderIndex = await getNextOrderIndex(targetParentId);
+          const insertQuery = metadataColumnExists
+            ? `
+                INSERT INTO content_items (course_id, parent_id, item_type, title, content_url, order_index, metadata)
+                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+                RETURNING id
+              `
+            : `
+                INSERT INTO content_items (course_id, parent_id, item_type, title, content_url, order_index)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id
+              `;
+          const insertParams = metadataColumnExists
+            ? [
+                targetCourseId,
+                targetParentId,
+                sourceRow.item_type,
+                sourceRow.title,
+                sourceRow.content_url,
+                nextOrderIndex,
+                JSON.stringify(sourceRow.metadata ?? {}),
+              ]
+            : [
+                targetCourseId,
+                targetParentId,
+                sourceRow.item_type,
+                sourceRow.title,
+                sourceRow.content_url,
+                nextOrderIndex,
+              ];
+
+          const insertResult = await client.query(insertQuery, insertParams);
+          const newItemId = Number(insertResult.rows[0]?.id);
+          insertedItemIds.push(newItemId);
+
+          if (sourceRow.item_type === 'exam') {
+            const examId = Number(sourceRow.metadata?.exam_id);
+            if (Number.isInteger(examId) && examId > 0) {
+              await client.query(
+                `
+                  INSERT INTO course_exams (course_id, exam_id, assigned_by)
+                  VALUES ($1, $2, $3)
+                  ON CONFLICT (course_id, exam_id)
+                  DO UPDATE SET assigned_by = EXCLUDED.assigned_by, assigned_at = NOW()
+                `,
+                [targetCourseId, examId, req.user?.id ?? null]
+              );
+            }
+          }
+
+          if (sourceRow.item_type === 'folder') {
+            await copyBranch(sourceRow.id, newItemId);
+          }
+        }
+      };
+
+      await copyBranch(null, null);
+      await client.query('COMMIT');
+
+      return res.json({
+        target_course_id: targetCourseId,
+        source_course_id: sourceCourseId,
+        added_item_ids: insertedItemIds,
+        imported_count: insertedItemIds.length,
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    return handleHttpError(res, err, 'Failed to import course content');
   }
 };
 

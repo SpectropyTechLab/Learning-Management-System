@@ -399,7 +399,7 @@ test('GET /courses allows explicit client filter for super_admin', async (t) => 
   assert.equal(res.body.data[0].name, 'Tenant Biology');
 });
 
-test('POST /courses validates required fields and duplicate names', async (t) => {
+test('POST /courses validates required fields and allows duplicate names within the same scope', async (t) => {
   useMockDb(t);
 
   const missingRes = makeRes();
@@ -408,8 +408,9 @@ test('POST /courses validates required fields and duplicate names', async (t) =>
   assert.equal(missingRes.body.error, 'grade is required');
 
   const duplicateRes = makeRes();
-  await createCourse({ user: { role: 'super_admin' }, body: { name: 'Physics 101', grade: '10' } }, duplicateRes);
-  assert.equal(duplicateRes.statusCode, 409);
+  await createCourse({ user: { role: 'super_admin', id: 7 }, body: { name: 'Physics 101', grade: '10' } }, duplicateRes);
+  assert.equal(duplicateRes.statusCode, 201);
+  assert.equal(duplicateRes.body.course_id, 50);
 });
 
 test('POST /courses creates a new global course and returns course_id', async (t) => {

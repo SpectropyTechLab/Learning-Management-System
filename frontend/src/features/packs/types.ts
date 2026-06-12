@@ -84,6 +84,13 @@ export interface CreateCourseResponse {
   course_id: number;
 }
 
+export interface ImportCourseContentResponse {
+  target_course_id: number;
+  source_course_id: number;
+  added_item_ids: number[];
+  imported_count: number;
+}
+
 export interface CreatePackResponse {
   id: number;
   name: string;
