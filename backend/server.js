@@ -41,7 +41,7 @@ const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '50mb';
 
 app.use(helmet());
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5100,http://localhost:5173,http://192.168.0.102:5100')
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5100,http://localhost:5173,http://192.168.0.151:5100')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);

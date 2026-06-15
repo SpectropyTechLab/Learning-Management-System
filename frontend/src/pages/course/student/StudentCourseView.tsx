@@ -50,6 +50,7 @@ export default function StudentCourseView() {
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
 
   useEffect(() => {
     const savedState = window.localStorage.getItem("student-course-left-panel-collapsed");
@@ -61,6 +62,13 @@ export default function StudentCourseView() {
   useEffect(() => {
     window.localStorage.setItem("student-course-left-panel-collapsed", leftPanelCollapsed ? "true" : "false");
   }, [leftPanelCollapsed]);
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+    updateViewportWidth();
+    window.addEventListener("resize", updateViewportWidth);
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
 
   useEffect(() => {
     if (!courseId) {
@@ -247,12 +255,14 @@ export default function StudentCourseView() {
   let currentChapterTitle = '';
   let currentTopicTitle = '';
   let currentContentTitle = '';
+  let currentContentType = '';
   if (currentContentId) {
     for (const chapter of course.chapters) {
       const directItem = chapter.content_items.find((item) => item.id === currentContentId);
       if (directItem) {
         currentChapterTitle = chapter.title;
         currentContentTitle = directItem.title;
+        currentContentType = directItem.item_type;
         break;
       }
 
@@ -262,6 +272,7 @@ export default function StudentCourseView() {
           currentChapterTitle = chapter.title;
           currentTopicTitle = topic.title;
           currentContentTitle = topicItem.title;
+          currentContentType = topicItem.item_type;
           break;
         }
       }
@@ -275,6 +286,9 @@ export default function StudentCourseView() {
   const currentIndex = currentContentId
     ? allContentItems.findIndex(item => item.id === currentContentId)
     : -1;
+  const isScormContent = currentContentType === 'scorm';
+  const isCompactScormLayout = isScormContent && viewportWidth < 1280;
+  const isDesktopScormLayout = isScormContent && viewportWidth >= 1280;
 
   const goToPrevious = () => {
     if (currentIndex > 0) {
@@ -321,8 +335,8 @@ export default function StudentCourseView() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-slate-900">
-      <div className="flex min-h-screen flex-col lg:flex-row">
-        {mobileMenuOpen ? (
+      <div className={`flex min-h-screen flex-col lg:flex-row ${isScormContent ? 'overflow-hidden' : ''}`}>
+        {!isCompactScormLayout && mobileMenuOpen ? (
           <button
             type="button"
             aria-label="Close course menu overlay"
@@ -331,7 +345,11 @@ export default function StudentCourseView() {
           />
         ) : null}
 
-        <div className={`fixed inset-y-0 left-0 z-40 flex w-[88vw] max-w-xs flex-col border-r border-blue-100 bg-white transition-transform lg:static lg:z-auto lg:max-w-none lg:translate-x-0 ${leftPanelCollapsed ? 'lg:w-16' : 'lg:w-72'} ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div
+          className={`fixed inset-y-0 left-0 z-40 flex w-[88vw] max-w-xs flex-col border-r border-blue-100 bg-white transition-transform lg:static lg:z-auto lg:max-w-none lg:translate-x-0 ${
+            isCompactScormLayout ? 'hidden' : ''
+          } ${leftPanelCollapsed ? 'lg:w-16' : 'lg:w-72'} ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        >
           {leftPanelCollapsed ? (
             <div className="hidden h-full flex-col items-center py-3 lg:flex">
               <button
@@ -476,9 +494,9 @@ export default function StudentCourseView() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="border-b border-blue-100 bg-white px-4 py-4 sm:px-6 sm:py-6">
-            <div className="mb-3 flex items-center justify-between gap-3 lg:hidden">
+        <div className={`flex-1 ${isScormContent ? 'min-h-0 overflow-hidden' : 'overflow-y-auto'}`}>
+          <div className={`border-b border-blue-100 bg-white px-4 py-4 sm:px-6 sm:py-6 ${isCompactScormLayout ? 'hidden' : ''}`}>
+            <div className={`mb-3 items-center justify-between gap-3 lg:hidden ${isScormContent ? 'flex' : 'flex'}`}>
               <button
                 type="button"
                 aria-label="Open course menu"
@@ -502,7 +520,7 @@ export default function StudentCourseView() {
                 Menu
               </button>
             </div>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className={`flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between ${isScormContent ? 'flex' : 'flex'}`}>
               <div>
                 {currentChapterTitle && currentContentTitle ? (
                   <h1 className="text-xl font-bold whitespace-normal break-words leading-snug">
@@ -545,7 +563,15 @@ export default function StudentCourseView() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto bg-white h-full">
+          <div
+            className={`bg-white ${
+              isDesktopScormLayout
+                ? 'flex min-h-0 flex-1 overflow-hidden p-0'
+                : isCompactScormLayout
+                  ? 'flex min-h-0 flex-1 overflow-hidden p-0'
+                  : 'h-full flex-1 overflow-auto'
+            }`}
+          >
             <Outlet />
           </div>
         </div>

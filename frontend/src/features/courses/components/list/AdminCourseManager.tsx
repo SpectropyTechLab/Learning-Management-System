@@ -426,7 +426,7 @@ export default function AdminCourseManager({
 
               {showFilters && (
                 <div
-                  className="absolute right-0 mt-2 w-56 bg-white border shadow-lg rounded-lg p-3 z-50 border-gray-200"
+                  className="absolute left-0 right-0 top-full mt-2 min-w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg z-50 sm:left-auto sm:right-0 sm:w-56"
                 >
                   <label
                     className="text-xs font-semibold text-gray-600"
@@ -531,9 +531,9 @@ export default function AdminCourseManager({
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center">
-                  <span className="text-sm font-medium mr-3 text-gray-700">
+              <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <span className="text-sm font-medium text-gray-700">
                     Publish Course
                   </span>
                   <button
@@ -549,7 +549,7 @@ export default function AdminCourseManager({
                         }`}
                     />
                   </button>
-                  <span className="ml-2 text-sm text-gray-600">
+                  <span className="text-sm text-gray-600">
                     {published ? "Published" : "Draft"}
                   </span>
                 </div>
@@ -557,7 +557,7 @@ export default function AdminCourseManager({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded disabled:opacity-50 font-medium bg-blue-900 text-white hover:bg-blue-700"
+                  className="w-full rounded px-4 py-2 text-sm font-medium bg-blue-900 text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
                 >
                   {loading ? "Creating..." : "Create Course"}
                 </button>

@@ -74,6 +74,7 @@ interface Props {
     hideProgress?: boolean;
     collapsed?: boolean;
     onToggleCollapsed?: () => void;
+    onCloseMobile?: () => void;
 }
 
 const LeftPanel: React.FC<Props> = ({
@@ -101,12 +102,15 @@ const LeftPanel: React.FC<Props> = ({
     hideProgress = false,
     collapsed = false,
     onToggleCollapsed,
+    onCloseMobile,
 }) => {
     const [expanded, setExpanded] = useState<number | null>(null);
     const [expandedTopics, setExpandedTopics] = useState<number[]>([]);
     const [openMenu, setOpenMenu] = useState<number | null>(null);
     const [openTopicMenu, setOpenTopicMenu] = useState<number | null>(null);
     const [openItemMenu, setOpenItemMenu] = useState<number | null>(null);
+    const hasAutoExpandedInitialChapter = React.useRef(false);
+    const lastSyncedSelectedItemId = React.useRef<number | null>(null);
     const totalItems = allItems.length;
     const completedItems = allItems.filter(i => i.completion_status === "completed").length;
     const canEdit = !readOnly;
@@ -137,17 +141,42 @@ const LeftPanel: React.FC<Props> = ({
         return () => window.removeEventListener("click", handleClickOutside);
     }, []);
 
-    // Automatically expand the chapter containing the selected item
+    // Keep the active chapter open when selection changes, and default to the first chapter only once.
     useEffect(() => {
+        if (chapters.length === 0) {
+            hasAutoExpandedInitialChapter.current = false;
+            lastSyncedSelectedItemId.current = null;
+            if (expanded !== null) {
+                setExpanded(null);
+            }
+            return;
+        }
+
         if (selectedItemId) {
-            const activeChapter = chapters.find((ch) =>
-                ch.items.some((item) => item.id === selectedItemId)
-            );
-            if (activeChapter) {
+            if (lastSyncedSelectedItemId.current === selectedItemId) {
+                return;
+            }
+
+            const chapterContainsSelectedItem = (chapter: FolderNode): boolean =>
+                chapter.items.some((item) => item.id === selectedItemId)
+                || chapter.folders.some(chapterContainsSelectedItem);
+
+            const activeChapter = chapters.find(chapterContainsSelectedItem);
+            if (activeChapter && activeChapter.id !== expanded) {
                 setExpanded(activeChapter.id);
             }
+            lastSyncedSelectedItemId.current = selectedItemId;
+            return;
         }
-    }, [selectedItemId, chapters]);
+
+        lastSyncedSelectedItemId.current = null;
+
+        const expandedChapterStillExists = expanded !== null && chapters.some((chapter) => chapter.id === expanded);
+        if (!expandedChapterStillExists && !hasAutoExpandedInitialChapter.current) {
+            hasAutoExpandedInitialChapter.current = true;
+            setExpanded(chapters[0].id);
+        }
+    }, [selectedItemId, chapters, expanded]);
 
 
     const deleteChapter = async (chapterId: number) => {
@@ -502,20 +531,37 @@ const LeftPanel: React.FC<Props> = ({
                         <h1 className="whitespace-normal break-words leading-snug text-lg font-semibold">{panelTitle}</h1>
                     </div>
 
-                    {onToggleCollapsed ? (
-                        <button
-                            type="button"
-                            onClick={onToggleCollapsed}
-                            className={`hidden shrink-0 md:flex items-center justify-center rounded-md border p-1.5 ${isGvjbClient
-                                ? "border-amber-200 text-amber-700 hover:bg-amber-50"
-                                : "border-gray-300 text-slate-700 hover:bg-gray-50"
-                                }`}
-                            aria-label="Collapse left panel"
-                            title="Collapse left panel"
-                        >
-                            <FiChevronLeft className="text-base" />
-                        </button>
-                    ) : null}
+                    <div className="flex shrink-0 items-center gap-2">
+                        {onCloseMobile ? (
+                            <button
+                                type="button"
+                                onClick={onCloseMobile}
+                                className={`flex items-center justify-center rounded-md border p-1.5 md:hidden ${isGvjbClient
+                                    ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                                    : "border-gray-300 text-slate-700 hover:bg-gray-50"
+                                    }`}
+                                aria-label="Close course content panel"
+                                title="Close course content panel"
+                            >
+                                <FiChevronLeft className="text-base" />
+                            </button>
+                        ) : null}
+
+                        {onToggleCollapsed ? (
+                            <button
+                                type="button"
+                                onClick={onToggleCollapsed}
+                                className={`hidden shrink-0 md:flex items-center justify-center rounded-md border p-1.5 ${isGvjbClient
+                                    ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                                    : "border-gray-300 text-slate-700 hover:bg-gray-50"
+                                    }`}
+                                aria-label="Collapse left panel"
+                                title="Collapse left panel"
+                            >
+                                <FiChevronLeft className="text-base" />
+                            </button>
+                        ) : null}
+                    </div>
                 </div>
                 {/* Progress Bar*/}
                 {!hideProgress && (

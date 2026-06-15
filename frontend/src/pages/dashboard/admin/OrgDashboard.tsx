@@ -10,6 +10,7 @@ import { RiFileList3Line } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
 import { PiUsersBold, PiChatsCircleBold } from 'react-icons/pi';
 import { HiOutlineBuildingOffice2 } from 'react-icons/hi2';
+import { RiHome2Line } from 'react-icons/ri';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav, { type SidebarNavItem } from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
@@ -602,6 +603,12 @@ export default function OrgDashboard() {
   const dashboardTitle = getRoleDisplayTitle(user?.role);
   const clientMeta = clientUser?.client_name ? `${clientUser.client_name} Client` : null;
   const visibleTabs = tabs.filter((tab) => !tab.roles || tab.roles.includes(user?.role || ''));
+  const dashboardPath =
+    user?.role === 'super_admin'
+      ? '/superadmin/dashboard'
+      : user?.role === 'school_owner'
+        ? '/school-owner/dashboard'
+        : '/admin/dashboard';
   const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label || 'Organization Setup';
   const activeTabSubtitle: Record<TabKey, string> = {
     schools: 'Create and manage schools under your organization.',
@@ -624,12 +631,12 @@ export default function OrgDashboard() {
     bulkSetup: <PiChatsCircleBold />,
   };
   const navItems: SidebarNavItem[] = visibleTabs.map((tab) => ({
-    key: tab.key,
-    label: tab.label,
-    icon: tabIcons[tab.key],
-    active: activeTab === tab.key,
-    onClick: () => setActiveTab(tab.key),
-  }));
+      key: tab.key,
+      label: tab.label,
+      icon: tabIcons[tab.key],
+      active: activeTab === tab.key,
+      onClick: () => setActiveTab(tab.key),
+    }));
 
   return (
     <DashboardLayout
@@ -637,13 +644,26 @@ export default function OrgDashboard() {
       layoutClass={theme.layoutClass}
       sidebarOpen={sidebarOpen}
       onSidebarClose={() => setSidebarOpen(false)}
-      contentClassName="p-6"
+      contentClassName="min-w-0 px-4 py-4 sm:px-6 sm:py-6"
       sidebar={
         <SidebarNav
           brandLogo={brandLogo}
           brandName={brandName}
           title={dashboardTitle}
           brandTag={clientUser?.client_name}
+          topAction={
+            <button
+              type="button"
+              onClick={() => {
+                navigate(dashboardPath);
+                setSidebarOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-slate-900"
+            >
+              <RiHome2Line className="text-base" />
+              <span>Back to Dashboard</span>
+            </button>
+          }
           navItems={navItems}
           userInfo={{
             name: user?.full_name || 'Organization Admin',
@@ -658,25 +678,19 @@ export default function OrgDashboard() {
         />
       }
       header={
-        <div className={theme.headerClass}>
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className={`md:hidden mr-3 p-2 rounded-lg border ${theme.secondaryBorderClass}`}
-            aria-label="Open menu"
-          >
-            Menu
-          </button>
+        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white px-4 py-4 sm:px-6 sm:py-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className={`mb-3 inline-flex md:hidden rounded-lg border px-3 py-2 text-sm font-medium ${theme.secondaryBorderClass}`}
+                aria-label="Open menu"
+              >
+                Menu
+              </button>
               <h1 className="text-xl md:text-2xl font-bold">{activeTabLabel}</h1>
               <p className="mt-1 text-sm md:text-base text-gray-600">{activeTabSubtitle[activeTab]}</p>
             </div>
-            <button
-              onClick={() => navigate('/admin/dashboard')}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              Back to Admin Dashboard
-            </button>
           </div>
         </div>
       }
@@ -1011,7 +1025,7 @@ export default function OrgDashboard() {
 
       {activeTab === 'roles' && (
         <section className="mt-6 space-y-6">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold">Role Permissions</h3>
@@ -1092,7 +1106,7 @@ export default function OrgDashboard() {
               </div>
             </div>
 
-            <div className="mt-6 space-y-6">
+            <div className="mt-6 min-w-0 space-y-6">
                 {filteredGroupedPermissions.length === 0 && (
                   <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6 text-sm text-slate-600">
                     No permissions match your filters.
@@ -1101,7 +1115,7 @@ export default function OrgDashboard() {
                 {filteredGroupedPermissions.map((group) => {
                   const isGroupSaving = saving === `group:${group.name}`;
                   return (
-                    <div key={group.name} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                    <div key={group.name} className="min-w-0 w-full rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">{group.name}</div>
@@ -1130,7 +1144,7 @@ export default function OrgDashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {group.permissions
                         .filter((permission) => !['exams.update', 'exams.publish'].includes(permission))
                         .map((permission) => {
@@ -1141,10 +1155,10 @@ export default function OrgDashboard() {
                           return (
                             <div
                               key={permission}
-                              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3"
+                              className="flex min-w-0 w-full items-start justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3"
                             >
-                              <div>
-                                <div className="text-sm font-semibold text-slate-900">{permission}</div>
+                              <div className="min-w-0 flex-1">
+                                <div className="break-words text-sm font-semibold text-slate-900">{permission}</div>
                                 <div className="text-xs text-slate-500">
                                   {enabled ? 'Granted' : 'Not granted'}
                                 </div>
@@ -1154,7 +1168,7 @@ export default function OrgDashboard() {
                                 onClick={() => handleTogglePermission(permission, !enabled)}
                                 disabled={isSaving}
                                 aria-pressed={enabled}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                className={`relative ml-2 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
                                   enabled ? 'bg-emerald-500' : 'bg-slate-200'
                                 } ${isSaving ? 'cursor-not-allowed opacity-60' : ''}`}
                               >
@@ -1180,7 +1194,7 @@ export default function OrgDashboard() {
                 <h3 className="text-lg font-semibold">User Overrides</h3>
                 <p className="text-sm text-slate-500">Grant or deny permissions for a specific client user.</p>
               </div>
-              <div className="min-w-[220px]">
+              <div className="w-full min-w-0 md:w-auto md:min-w-[220px]">
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">School</label>
                 <select
                   value={selectedOverrideSchoolId}
@@ -1195,7 +1209,7 @@ export default function OrgDashboard() {
                   ))}
                 </select>
               </div>
-              <div className="min-w-[280px]">
+              <div className="w-full min-w-0 md:w-auto md:min-w-[280px]">
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">User</label>
                 <select
                   value={selectedUserId}
@@ -1223,11 +1237,11 @@ export default function OrgDashboard() {
             )}
 
             {selectedUserId && (
-              <div className="mt-6 space-y-6">
+              <div className="mt-6 min-w-0 space-y-6">
                 {groupedPermissions.map((group) => (
-                  <div key={`override:${group.name}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                  <div key={`override:${group.name}`} className="min-w-0 w-full rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                     <div className="text-sm font-semibold text-slate-900">{group.name}</div>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {group.permissions
                         .filter((permission) => !['exams.update', 'exams.publish'].includes(permission))
                         .map((permission) => {
@@ -1239,11 +1253,11 @@ export default function OrgDashboard() {
                           return (
                             <div
                               key={`override:${permission}`}
-                              className="rounded-2xl border border-slate-100 bg-white p-4"
+                              className="min-w-0 w-full rounded-2xl border border-slate-100 bg-white p-4"
                             >
-                              <div className="text-sm font-semibold text-slate-900">{permission}</div>
+                              <div className="break-words text-sm font-semibold text-slate-900">{permission}</div>
                               <div className="text-xs text-slate-500">{state}</div>
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-3 flex min-w-0 flex-wrap gap-2">
                                 <button
                                   type="button"
                                   onClick={() => handleUserOverride(permission, true)}

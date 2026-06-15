@@ -116,6 +116,8 @@ export default function CourseContentManager({
   const [loadingLicensedPacks, setLoadingLicensedPacks] = useState(false);
   const [loadingLicensedItems, setLoadingLicensedItems] = useState(false);
   const [linkingLicensedContent, setLinkingLicensedContent] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  const [isLandscape, setIsLandscape] = useState(() => window.matchMedia("(orientation: landscape)").matches);
 
   const [chapterTitle, setChapterTitle] = useState("");
   const [addingChapter, setAddingChapter] = useState(false);
@@ -138,6 +140,23 @@ export default function CourseContentManager({
   }, [availableExams, examSearch]);
   const currentIndex = items.findIndex((i) => i.id === selectedItem?.id);
   const isFirstItem = currentIndex <= 0;
+  const isPdfSelected = selectedItem?.item_type === "pdf";
+  const isScormSelected = selectedItem?.item_type === "scorm";
+  const isMobileLandscapeScorm = isScormSelected && viewportWidth < 1024 && isLandscape;
+
+  useEffect(() => {
+    const updateViewport = () => setViewportWidth(window.innerWidth);
+    const mediaQuery = window.matchMedia("(orientation: landscape)");
+    const updateOrientation = () => setIsLandscape(mediaQuery.matches);
+    updateViewport();
+    updateOrientation();
+    window.addEventListener("resize", updateViewport);
+    mediaQuery.addEventListener("change", updateOrientation);
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      mediaQuery.removeEventListener("change", updateOrientation);
+    };
+  }, []);
 
   const goToNext = () => {
     if (!selectedItem) return;
@@ -153,6 +172,10 @@ export default function CourseContentManager({
     if (index > 0) {
       setSelectedItem(items[index - 1]);
     }
+  };
+
+  const closeMobileLeftPanel = () => {
+    setLeftPanelOpen(false);
   };
 
   const syncContentState = (itemsToSync: ContentItem[]) => {
@@ -656,8 +679,8 @@ export default function CourseContentManager({
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-50">
-      {leftPanelOpen && (
+    <div className={`flex h-screen w-full overflow-hidden bg-slate-50 ${isMobileLandscapeScorm ? "flex-col" : ""}`}>
+      {!isMobileLandscapeScorm && leftPanelOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-40 md:hidden"
           onClick={() => setLeftPanelOpen(false)}
@@ -676,6 +699,7 @@ export default function CourseContentManager({
           ${leftPanelOpen ? "translate-x-0" : "-translate-x-full"}
           ${leftPanelCollapsed ? "md:w-16" : "md:w-[320px]"}
           md:translate-x-0
+          ${isMobileLandscapeScorm ? "hidden" : ""}
         `}
       >
         <LeftPanel
@@ -697,18 +721,24 @@ export default function CourseContentManager({
           panelTitle={panelTitle}
           collapsed={leftPanelCollapsed}
           onToggleCollapsed={() => setLeftPanelCollapsed((prev) => !prev)}
+          onCloseMobile={closeMobileLeftPanel}
           onSelectItem={(item: ContentItem) => {
             setSelectedItem(item);
             setLeftPanelOpen(false);
           }}
-          onAddChapter={() => setAddingChapter(true)}
+          onAddChapter={() => {
+            closeMobileLeftPanel();
+            setAddingChapter(true);
+          }}
           onAddTopic={(chapterId, chapterTitleValue) => {
+            closeMobileLeftPanel();
             setTopicParentFolderId(chapterId);
             setTopicTitle("");
             setSelectedParentLabel(chapterTitleValue);
             setAddingTopic(true);
           }}
           onAddItem={(id, parentLabel) => {
+            closeMobileLeftPanel();
             setSelectedParentId(id);
             setSelectedParentLabel(parentLabel);
             setItemType("video");
@@ -737,14 +767,9 @@ export default function CourseContentManager({
         />
       </div>
 
-      <div
-        className="flex-1 shrink-0 overflow-hidden flex flex-col bg-white"
-      >
-        <div
-          className={`w-full border-b px-4 pt-4 pb-2.5 border-gray-200 bg-white"
-            }`}
-        >
-          <div className="flex items-center gap-3 mb-3 md:mb-0 md:flex-row md:justify-between md:items-center">
+      <div className={`flex-1 shrink-0 overflow-hidden flex flex-col bg-white ${isMobileLandscapeScorm ? "w-full" : ""}`}>
+        <div className={`w-full border-b border-gray-200 bg-white ${isMobileLandscapeScorm ? "hidden" : (isPdfSelected ? "px-3 pt-2 pb-1.5 md:px-4 md:pt-2.5 md:pb-1.5" : "px-4 pt-4 pb-2.5")}`}>
+          <div className={`flex items-center gap-3 md:flex-row md:justify-between md:items-center ${isPdfSelected ? "mb-1" : "mb-3 md:mb-0"}`}>
             <div className="flex items-center gap-3 min-w-0">
               <button
                 onClick={() => setLeftPanelOpen(true)}
@@ -755,7 +780,7 @@ export default function CourseContentManager({
                 Menu
               </button>
 
-              <h1 className="text-lg md:text-xl font-semibold truncate">
+              <h1 className={`${isPdfSelected ? "text-base md:text-lg" : "text-lg md:text-xl"} font-semibold truncate`}>
                 {selectedItem ? selectedItem.title.toUpperCase() : ""}
               </h1>
             </div>
@@ -789,7 +814,7 @@ export default function CourseContentManager({
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 md:hidden mt-2">
+          <div className={`flex justify-end gap-3 md:hidden ${isPdfSelected ? "mt-1" : "mt-2"}`}>
             <button
               onClick={goToPrevious}
               disabled={!selectedItem || isFirstItem}

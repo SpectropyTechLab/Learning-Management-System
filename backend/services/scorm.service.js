@@ -560,7 +560,6 @@ export const viewScormFile = async (req, res) => {
     const filePath = String(req.params[0] || "").replace(/^\/+/, "");
     if (!filePath) return res.status(400).send("Missing file");
     if (!req.user?.id) return res.status(401).send("Unauthorized");
-
     const hasAccess = await ensureContentAccessByPath(filePath, req);
     if (!hasAccess) return res.status(403).send("Access denied");
 
