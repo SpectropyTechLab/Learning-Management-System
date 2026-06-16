@@ -16,6 +16,7 @@ type SchoolOption = {
 
 export default function TeachingSessionsListPage() {
   const { user } = useAuth();
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [filters, setFilters] = useState({
     school_id: '',
     program_id: '',
@@ -187,42 +188,60 @@ export default function TeachingSessionsListPage() {
       actions={<button type="button" onClick={loadSessions} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Refresh</button>}
     >
       <div className="space-y-6">
-        <SectionCard title="Filters">
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <select value={filters.school_id} onChange={(e) => setFilters((current) => ({ ...current, school_id: e.target.value }))} disabled={schoolsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-              <option value="">{schoolsLoading ? 'Loading schools...' : 'All Schools'}</option>
-              {schools.map((school) => (
-                <option key={school.id} value={school.id}>
-                  {school.school_code ? `${school.name} (${school.school_code})` : school.name}
-                </option>
-              ))}
-            </select>
-            <select value={filters.program_id} onChange={(e) => setFilters((current) => ({ ...current, program_id: e.target.value }))} disabled={programsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-              <option value="">{programsLoading ? 'Loading programs...' : 'All Programs'}</option>
-              {programs.map((program) => (
-                <option key={program.id} value={program.id}>
-                  {program.code ? `${program.name} (${program.code})` : program.name}
-                </option>
-              ))}
-            </select>
-            <select value={filters.teacher_user_id} onChange={(e) => setFilters((current) => ({ ...current, teacher_user_id: e.target.value }))} disabled={!filters.school_id || filterTeachersLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-              <option value="">{!filters.school_id ? 'Select a school first' : filterTeachersLoading ? 'Loading teachers...' : teacherOptions.length === 0 ? 'No teachers found' : 'All Teachers'}</option>
-              {teacherOptions.map((teacher) => (
-                <option key={teacher.id} value={teacher.user_id}>
-                  {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
-                </option>
-              ))}
-            </select>
-            <select value={filters.status} onChange={(e) => setFilters((current) => ({ ...current, status: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-              <option value="">All Statuses</option>
-              <option value="completed">Completed</option>
-              <option value="partially_completed">Partially Completed</option>
-              <option value="not_completed">Not Completed</option>
-            </select>
-            <input type="date" value={filters.date_from} onChange={(e) => setFilters((current) => ({ ...current, date_from: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input type="date" value={filters.date_to} onChange={(e) => setFilters((current) => ({ ...current, date_to: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          </div>
-          <button type="button" onClick={loadSessions} className="mt-4 rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white">Apply Filters</button>
+        <SectionCard
+          title="Filters"
+          actions={
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((current) => !current)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-700"
+              aria-expanded={filtersOpen}
+              aria-label={filtersOpen ? 'Hide filters' : 'Show filters'}
+            >
+              {filtersOpen ? 'Hide' : 'Show'}
+              <span className={`inline-block transition-transform ${filtersOpen ? 'rotate-180' : ''}`}>⌃</span>
+            </button>
+          }
+        >
+          {filtersOpen && (
+            <>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+                <select value={filters.school_id} onChange={(e) => setFilters((current) => ({ ...current, school_id: e.target.value }))} disabled={schoolsLoading} className="min-w-0 rounded-xl border border-slate-200 px-3 py-3 text-sm">
+                  <option value="">{schoolsLoading ? 'Loading schools...' : 'All Schools'}</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.school_code ? `${school.name} (${school.school_code})` : school.name}
+                    </option>
+                  ))}
+                </select>
+                <select value={filters.program_id} onChange={(e) => setFilters((current) => ({ ...current, program_id: e.target.value }))} disabled={programsLoading} className="min-w-0 rounded-xl border border-slate-200 px-3 py-3 text-sm">
+                  <option value="">{programsLoading ? 'Loading programs...' : 'All Programs'}</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.code ? `${program.name} (${program.code})` : program.name}
+                    </option>
+                  ))}
+                </select>
+                <select value={filters.teacher_user_id} onChange={(e) => setFilters((current) => ({ ...current, teacher_user_id: e.target.value }))} disabled={!filters.school_id || filterTeachersLoading} className="min-w-0 rounded-xl border border-slate-200 px-3 py-3 text-sm">
+                  <option value="">{!filters.school_id ? 'Select a school first' : filterTeachersLoading ? 'Loading teachers...' : teacherOptions.length === 0 ? 'No teachers found' : 'All Teachers'}</option>
+                  {teacherOptions.map((teacher) => (
+                    <option key={teacher.id} value={teacher.user_id}>
+                      {teacher.full_name || teacher.email || `Teacher ${teacher.user_id}`}
+                    </option>
+                  ))}
+                </select>
+                <select value={filters.status} onChange={(e) => setFilters((current) => ({ ...current, status: e.target.value }))} className="min-w-0 rounded-xl border border-slate-200 px-3 py-3 text-sm">
+                  <option value="">All Statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="partially_completed">Partially Completed</option>
+                  <option value="not_completed">Not Completed</option>
+                </select>
+                <input type="date" value={filters.date_from} onChange={(e) => setFilters((current) => ({ ...current, date_from: e.target.value }))} className="min-w-0 rounded-xl border border-slate-200 px-3 py-3 text-sm" />
+                <input type="date" value={filters.date_to} onChange={(e) => setFilters((current) => ({ ...current, date_to: e.target.value }))} className="min-w-0 rounded-xl border border-slate-200 px-3 py-3 text-sm" />
+              </div>
+              <button type="button" onClick={loadSessions} className="mt-4 w-full rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white md:w-auto">Apply Filters</button>
+            </>
+          )}
         </SectionCard>
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">

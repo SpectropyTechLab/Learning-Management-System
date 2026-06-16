@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
-import { RiArrowLeftLine, RiDraftLine, RiFileList3Line } from "react-icons/ri";
+import { RiArrowLeftLine, RiDraftLine, RiFileList3Line, RiHome2Line } from "react-icons/ri";
 import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 interface ExamShellProps {
@@ -14,6 +14,7 @@ interface ExamShellProps {
   children: React.ReactNode;
   headerAction?: React.ReactNode;
   backTo?: string;
+  headerClassName?: string;
 }
 
 const DASHBOARD_BY_ROLE: Record<string, string> = {
@@ -30,6 +31,7 @@ export default function ExamShell({
   children,
   headerAction,
   backTo,
+  headerClassName,
 }: ExamShellProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -78,20 +80,30 @@ export default function ExamShell({
           brandName={organizationLabel}
           title={roleTitle}
           brandTag={organizationLabel}
+          topAction={
+            <button
+              type="button"
+              onClick={() => {
+                navigate(resolvedBackPath);
+                setSidebarOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-slate-900"
+            >
+              <RiHome2Line className="text-base" />
+              <span>Back to Dashboard</span>
+            </button>
+          }
           navItems={navItems}
           userInfo={{ name: userFullName, email: userEmail, meta: organizationLabel }}
           showUserInfo={false}
-          showLogout={true}
-          onLogout={handleBack}
-          logoutLabel="Back"
-          logoutIcon={<RiArrowLeftLine className="h-4 w-4" />}
+          showLogout={false}
           sidebarOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           theme={theme}
         />
       }
       header={
-        <div className={theme.headerClass}>
+        <div className={`${theme.headerClass} ${headerClassName ?? ""}`.trim()}>
           <button
             onClick={() => setSidebarOpen(true)}
             className={`md:hidden mr-3 p-2 rounded-lg border ${theme.secondaryBorderClass}`}

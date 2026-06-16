@@ -10,6 +10,7 @@ export default function QuestionBankPage() {
   const { user } = useAuth();
   const permissions = getQuestionPermissions(user);
   const returnTo = `${location.pathname}${location.search}`;
+  const isClientAdmin = user?.role === "client_admin";
 
   return (
     <QuestionBankLayout
@@ -18,18 +19,22 @@ export default function QuestionBankPage() {
       actions={
         permissions.canCreate ? (
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => navigate("/question-bank/converter")}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Converter
-            </button>
-            <button
-              onClick={() => navigate("/question-bank/bulk-upload")}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Bulk Upload
-            </button>
+            {!isClientAdmin ? (
+              <>
+                <button
+                  onClick={() => navigate("/question-bank/converter")}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Converter
+                </button>
+                <button
+                  onClick={() => navigate("/question-bank/bulk-upload")}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Bulk Upload
+                </button>
+              </>
+            ) : null}
             <button
               onClick={() =>
                 navigate(`/question-bank/passages?returnTo=${encodeURIComponent(returnTo)}`)

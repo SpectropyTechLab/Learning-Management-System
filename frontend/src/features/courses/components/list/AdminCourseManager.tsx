@@ -598,8 +598,19 @@ export default function AdminCourseManager({
               const courseCanPublish = canPublishCourse(course);
               const courseCanManageContent = canManageCourseContent(course);
               const courseCanEnroll = canEnrollInCourse(course);
+              const isSchoolOwnerCourse = role === "school_owner";
+              const isCreatedCourse = Boolean(course.is_created_by_me);
+              const isAssignedCourse = Boolean(course.is_assigned_to_my_school && !course.is_created_by_me);
               const showCourseMenu = courseCanEdit || courseCanRename || courseCanDelete;
-              const showViewAction = !courseCanManageContent && Boolean(onViewCourse);
+              const showViewAction = isSchoolOwnerCourse
+                ? isAssignedCourse && Boolean(onViewCourse)
+                : !courseCanManageContent && Boolean(onViewCourse);
+              const showEnrollAction = isSchoolOwnerCourse
+                ? isCreatedCourse && Boolean(onEnroll)
+                : Boolean(onEnroll);
+              const showContentAction = isSchoolOwnerCourse
+                ? isCreatedCourse && Boolean(onManageContent)
+                : Boolean(onManageContent);
               const scopeLabel = getCourseScopeLabel(course);
               const showOriginalTitle = shouldShowOriginalTitle(course);
               const assignedSchoolsLabel = Array.isArray(course.assigned_school_names) && course.assigned_school_names.length > 0
@@ -720,7 +731,7 @@ export default function AdminCourseManager({
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {courseCanManageContent && onManageContent && (
+                        {showContentAction && courseCanManageContent && onManageContent && (
                           <button
                             onClick={() => onManageContent(course.id)}
                             className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50 flex items-center gap-1"
@@ -739,7 +750,7 @@ export default function AdminCourseManager({
                           </button>
                         )}
 
-                        {courseCanEnroll && onEnroll && (
+                        {showEnrollAction && courseCanEnroll && onEnroll && (
                           <button
                             onClick={() => onEnroll(course.id)}
                             className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50 flex items-center gap-1"
@@ -987,7 +998,7 @@ export default function AdminCourseManager({
                             )}
 
                             <div className="mt-auto grid grid-cols-3 gap-2">
-                              {courseCanManageContent && onManageContent && (
+                              {showContentAction && courseCanManageContent && onManageContent && (
                                 <button
                                   onClick={() => onManageContent(course.id)}
                                   className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"
@@ -1006,7 +1017,7 @@ export default function AdminCourseManager({
                                 </button>
                               )}
 
-                              {courseCanEnroll && onEnroll && (
+                              {showEnrollAction && courseCanEnroll && onEnroll && (
                                 <button
                                   onClick={() => onEnroll(course.id)}
                                   className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"

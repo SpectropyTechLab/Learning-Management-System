@@ -160,6 +160,7 @@ export default function ExamListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const examPermissions = useMemo(() => getExamPermissions(user), [user]);
+  const isClientAdmin = user?.role === "client_admin";
   const [exams, setExams] = useState<ExamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -582,6 +583,18 @@ export default function ExamListPage() {
       <ExamShell
         title="Exam List"
         description="Manage exams, monitor status, and maintain exam records."
+        headerAction={
+          examPermissions.canCreate ? (
+            <button
+              type="button"
+              onClick={() => navigate("/exams/new")}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Create Exam
+            </button>
+          ) : null
+        }
+        headerClassName="px-4 py-4 sm:px-6 sm:py-5"
       >
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -590,7 +603,7 @@ export default function ExamListPage() {
               <p className="text-sm text-slate-500">{total} exams found</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {examPermissions.canCreate && (
+              {examPermissions.canCreate && !isClientAdmin && (
                 <button
                   type="button"
                   onClick={() => navigate("/exams/blueprints")}
@@ -599,7 +612,7 @@ export default function ExamListPage() {
                   Manage Blueprints
                 </button>
               )}
-              {examPermissions.canCreate && (
+              {examPermissions.canCreate && !isClientAdmin && (
                 <button
                   type="button"
                   onClick={() => navigate("/exams/new")}

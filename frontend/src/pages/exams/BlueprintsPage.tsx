@@ -250,8 +250,8 @@ export default function BlueprintsPage() {
 
   return (
     <ExamShell title="Blueprints" description="Create reusable paper structures for exam generation.">
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_1.6fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="grid gap-4 xl:gap-6 xl:grid-cols-[1.1fr_1.6fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
@@ -297,7 +297,7 @@ export default function BlueprintsPage() {
               </select>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-800">Sections</h3>
@@ -481,7 +481,7 @@ export default function BlueprintsPage() {
           ) : (
             <div className="mt-6 space-y-4">
               {blueprints.map((blueprint) => (
-                <div key={blueprint.id} className="rounded-2xl border border-slate-200 p-4">
+                <div key={blueprint.id} className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">

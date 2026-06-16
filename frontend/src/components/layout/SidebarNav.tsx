@@ -60,13 +60,13 @@ export default function SidebarNav({
         w-[78vw] max-w-[16rem] lg:w-64 xl:w-72 lg:max-w-none
         ${theme.sidebarThemeClass}
         border-r
-        flex flex-col
+        flex h-full min-h-0 flex-col overflow-hidden
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0
       `}
     >
-      <div className={`px-4 py-4 lg:px-5 lg:py-5 border-b ${theme.sidebarHeaderBorder}`}>
+      <div className={`shrink-0 px-4 py-4 lg:px-5 lg:py-5 border-b ${theme.sidebarHeaderBorder}`}>
         <div className="flex items-center space-x-2 cursor-pointer">
           <img
             src={brandLogo}
@@ -79,12 +79,12 @@ export default function SidebarNav({
       </div>
 
       {topAction ? (
-        <div className="px-3 py-2.5 lg:px-4 lg:py-3">
+        <div className="shrink-0 px-3 py-2.5 lg:px-4 lg:py-3">
           {topAction}
         </div>
       ) : null}
 
-      <nav className="flex-1 px-3 py-3 space-y-1.5 lg:p-4 lg:space-y-2">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-1.5 lg:p-4 lg:space-y-2">
         {navItems.map((item) => (
           <button
             key={item.key}
@@ -107,7 +107,7 @@ export default function SidebarNav({
           <button
             type="button"
             onClick={onProfileClick}
-            className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 focus-visible:ring-offset-2 transition"
+            className="shrink-0 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 focus-visible:ring-offset-2 transition"
             aria-label="Open profile"
           >
             <UserInfoCard
@@ -134,7 +134,7 @@ export default function SidebarNav({
 
       {showLogout && onLogout && (
         <div
-          className={`border-t ${
+          className={`shrink-0 border-t ${
             theme.brandTagClass ? "mt-auto border-amber-100 px-4 py-2" : "border-gray-200 p-4"
           }`}
         >

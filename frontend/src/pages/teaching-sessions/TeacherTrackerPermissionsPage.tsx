@@ -183,11 +183,11 @@ export default function TeacherTrackerPermissionsPage() {
     >
       <div className="space-y-6">
         <SectionCard title="Grant Access">
-          <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-3">
-            <select value={clientId} onChange={(e) => setClientId(e.target.value)} disabled className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+          <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <select value={clientId} onChange={(e) => setClientId(e.target.value)} disabled className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
               <option value="">{user?.client_id ? `Client ${user.client_id}` : 'Client unavailable'}</option>
             </select>
-            <select value={programId} onChange={(e) => setProgramId(e.target.value)} disabled={programsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+            <select value={programId} onChange={(e) => setProgramId(e.target.value)} disabled={programsLoading} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
               <option value="">{programsLoading ? 'Loading programs...' : 'Select a program'}</option>
               {programs.map((program) => (
                 <option key={program.id} value={program.id}>
@@ -195,7 +195,7 @@ export default function TeacherTrackerPermissionsPage() {
                 </option>
               ))}
             </select>
-            <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} disabled={schoolsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+            <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} disabled={schoolsLoading} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
               <option value="">{schoolsLoading ? 'Loading schools...' : 'Select a school'}</option>
               {schools.map((school) => (
                 <option key={school.id} value={school.id}>
@@ -203,7 +203,7 @@ export default function TeacherTrackerPermissionsPage() {
                 </option>
               ))}
             </select>
-            <select value={teacherUserId} onChange={(e) => setTeacherUserId(e.target.value)} disabled={!schoolId || teachersLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+            <select value={teacherUserId} onChange={(e) => setTeacherUserId(e.target.value)} disabled={!schoolId || teachersLoading} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
               <option value="">{!schoolId ? 'Select a school first' : teachersLoading ? 'Loading teachers...' : teacherOptions.length === 0 ? 'No teachers found' : 'Select a teacher'}</option>
               {teacherOptions.map((teacher) => (
                 <option key={teacher.id} value={teacher.user_id}>
@@ -211,7 +211,7 @@ export default function TeacherTrackerPermissionsPage() {
                 </option>
               ))}
             </select>
-            <select value={batchId} onChange={(e) => setBatchId(e.target.value)} disabled={!schoolId || batchesLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+            <select value={batchId} onChange={(e) => setBatchId(e.target.value)} disabled={!schoolId || batchesLoading} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
               <option value="">{!schoolId ? 'Select a school first' : batchesLoading ? 'Loading batches...' : activeBatches.length === 0 ? 'No batches found' : 'Select a batch'}</option>
               {activeBatches.map((batch) => (
                 <option key={batch.id} value={batch.id}>
@@ -219,25 +219,63 @@ export default function TeacherTrackerPermissionsPage() {
                 </option>
               ))}
             </select>
-            <div className="flex items-center gap-4 rounded-xl border border-slate-200 px-3 py-2 text-sm">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={canView} onChange={(e) => setCanView(e.target.checked)} /> View</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={canUpdate} onChange={(e) => setCanUpdate(e.target.checked)} /> Update</label>
+            <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
+              <label className="flex items-center gap-2 whitespace-nowrap"><input type="checkbox" checked={canView} onChange={(e) => setCanView(e.target.checked)} /> View</label>
+              <label className="flex items-center gap-2 whitespace-nowrap"><input type="checkbox" checked={canUpdate} onChange={(e) => setCanUpdate(e.target.checked)} /> Update</label>
             </div>
-            <button className="rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white md:col-span-3">Grant Tracker Access</button>
+            <button className="rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white md:col-span-2 xl:col-span-3">Grant Tracker Access</button>
           </form>
         </SectionCard>
 
         <SectionCard title="Existing Permissions" actions={<button type="button" onClick={loadPermissions} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Refresh</button>}>
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="space-y-3 md:hidden">
+            {permissions.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                No tracker permissions found.
+              </div>
+            )}
+            {permissions.map((permission) => (
+              <div key={`permission-mobile-${permission.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {permission.teacher_name || permission.teacher_user_id}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {permission.client_name || permission.client_id}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(permission.id)}
+                    className="shrink-0 rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700"
+                  >
+                    Revoke
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <div>
+                    <span className="font-medium text-slate-900">Scope:</span> {formatScope(permission)}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-900">Flags:</span>{' '}
+                    {permission.can_view_tracker ? 'View' : 'No View'} / {permission.can_update_tracker ? 'Update' : 'Read Only'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <table className="min-w-[640px] divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-3 py-2 text-left">Teacher</th>
-                    <th className="px-3 py-2 text-left">Client</th>
-                    <th className="px-3 py-2 text-left">Scope</th>
-                    <th className="px-3 py-2 text-left">Flags</th>
-                    <th className="px-3 py-2 text-left">Action</th>
+                    <th className="px-3 py-3 text-left whitespace-nowrap">Teacher</th>
+                    <th className="px-3 py-3 text-left whitespace-nowrap">Client</th>
+                    <th className="px-3 py-3 text-left whitespace-nowrap">Scope</th>
+                    <th className="px-3 py-3 text-left whitespace-nowrap">Flags</th>
+                    <th className="px-3 py-3 text-left whitespace-nowrap">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -246,13 +284,13 @@ export default function TeacherTrackerPermissionsPage() {
                   )}
                   {permissions.map((permission) => (
                     <tr key={permission.id}>
-                      <td className="px-3 py-2">{permission.teacher_name || permission.teacher_user_id}</td>
-                      <td className="px-3 py-2">{permission.client_name || permission.client_id}</td>
-                      <td className="px-3 py-2">{formatScope(permission)}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3 align-top">{permission.teacher_name || permission.teacher_user_id}</td>
+                      <td className="px-3 py-3 align-top">{permission.client_name || permission.client_id}</td>
+                      <td className="px-3 py-3 align-top break-words">{formatScope(permission)}</td>
+                      <td className="px-3 py-3 align-top whitespace-nowrap">
                         {permission.can_view_tracker ? 'View' : 'No View'} / {permission.can_update_tracker ? 'Update' : 'Read Only'}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3 align-top">
                         <button type="button" onClick={() => handleDelete(permission.id)} className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700">
                           Revoke
                         </button>

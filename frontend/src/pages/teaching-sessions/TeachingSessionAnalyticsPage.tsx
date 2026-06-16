@@ -44,6 +44,7 @@ const formatIndianDate = (value: string) => {
 
 export default function TeachingSessionAnalyticsPage() {
   const { user } = useAuth();
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [filters, setFilters] = useState({
     client_id: '',
     school_id: '',
@@ -131,49 +132,66 @@ export default function TeachingSessionAnalyticsPage() {
       actions={<button type="button" onClick={loadAnalytics} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Refresh</button>}
     >
       <div className="space-y-6">
-        <SectionCard title="Analytics Filters">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {user?.role === 'super_admin' ? (
-              <input placeholder="Client ID" value={filters.client_id} onChange={(e) => setFilters((current) => ({ ...current, client_id: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            ) : null}
-            {user?.role !== 'teacher' ? (
-              <select
-                value={filters.school_id}
-                onChange={(e) => setFilters((current) => ({ ...current, school_id: e.target.value }))}
-                disabled={schoolsLoading}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="">{schoolsLoading ? 'Loading schools...' : 'All Schools'}</option>
-                {schools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.school_code ? `${school.name} (${school.school_code})` : school.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-            <select
-              value={filters.program_id}
-              onChange={(e) => setFilters((current) => ({ ...current, program_id: e.target.value }))}
-              disabled={programsLoading}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+        <SectionCard
+          title="Analytics Filters"
+          actions={(
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((current) => !current)}
+              aria-expanded={filtersOpen}
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
-              <option value="">{programsLoading ? 'Loading programs...' : 'All Programs'}</option>
-              {programs.map((program) => (
-                <option key={program.id} value={program.id}>
-                  {program.code ? `${program.name} (${program.code})` : program.name}
-                </option>
-              ))}
-            </select>
-            <label className="text-sm text-slate-600">
-              Date From
-              <input type="date" value={filters.date_from} onChange={(e) => setFilters((current) => ({ ...current, date_from: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            </label>
-            <label className="text-sm text-slate-600">
-              Date To
-              <input type="date" value={filters.date_to} onChange={(e) => setFilters((current) => ({ ...current, date_to: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            </label>
-          </div>
-          <button type="button" onClick={loadAnalytics} className="mt-4 rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white">Apply Filters</button>
+              {filtersOpen ? 'Hide' : 'Show'}
+              <span className={`inline-block text-xs transition-transform ${filtersOpen ? 'rotate-180' : ''}`}>⌃</span>
+            </button>
+          )}
+        >
+          {filtersOpen && (
+            <>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,190px)_minmax(0,190px)_minmax(0,175px)_minmax(0,175px)] xl:items-end">
+                {user?.role === 'super_admin' ? (
+                  <input placeholder="Client ID" value={filters.client_id} onChange={(e) => setFilters((current) => ({ ...current, client_id: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                ) : null}
+                {user?.role !== 'teacher' ? (
+                  <select
+                    value={filters.school_id}
+                    onChange={(e) => setFilters((current) => ({ ...current, school_id: e.target.value }))}
+                    disabled={schoolsLoading}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    <option value="">{schoolsLoading ? 'Loading schools...' : 'All Schools'}</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.school_code ? `${school.name} (${school.school_code})` : school.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <select
+                  value={filters.program_id}
+                  onChange={(e) => setFilters((current) => ({ ...current, program_id: e.target.value }))}
+                  disabled={programsLoading}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="">{programsLoading ? 'Loading programs...' : 'All Programs'}</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.code ? `${program.name} (${program.code})` : program.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="text-sm text-slate-600">
+                  Date From
+                  <input type="date" value={filters.date_from} onChange={(e) => setFilters((current) => ({ ...current, date_from: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+                <label className="text-sm text-slate-600">
+                  Date To
+                  <input type="date" value={filters.date_to} onChange={(e) => setFilters((current) => ({ ...current, date_to: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+              </div>
+              <button type="button" onClick={loadAnalytics} className="mt-4 rounded-xl bg-[#073b8a] px-4 py-3 text-sm font-semibold text-white">Apply Filters</button>
+            </>
+          )}
         </SectionCard>
 
         <StatsGrid summary={summary} />

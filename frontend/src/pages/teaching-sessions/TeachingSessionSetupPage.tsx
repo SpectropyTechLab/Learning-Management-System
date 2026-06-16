@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 import api from '@/lib/api';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import TeachingSessionsShell from '@/features/teaching-sessions/components/TeachingSessionsShell';
@@ -95,6 +96,9 @@ export default function TeachingSessionSetupPage() {
     () => subjects.find((item) => Number(item.id) === Number(subjectId)) ?? null,
     [subjects, subjectId]
   );
+  const hasCompleteExistingSessionSelection = Boolean(
+    clientId && programId && gradeId && subjectId && schoolId && sharedBatchId && sharedTeacherUserId
+  );
 
   const normalizeLabel = (value: string | null | undefined) =>
     String(value || '')
@@ -137,16 +141,7 @@ export default function TeachingSessionSetupPage() {
     [batches]
   );
 
-  const filteredExistingSessions = useMemo(
-    () =>
-      existingSessions.filter((session) => {
-        const batchMatches = !sharedBatchId || String(session.batch_id || '') === sharedBatchId;
-        const teacherMatches =
-          !sharedTeacherUserId || String(session.teacher_user_id || '') === sharedTeacherUserId;
-        return batchMatches && teacherMatches;
-      }),
-    [existingSessions, sharedBatchId, sharedTeacherUserId]
-  );
+  const visibleExistingSessions = useMemo(() => existingSessions, [existingSessions]);
 
   const buildDraftItems = (
     nextTemplates: ProgramSessionTemplate[],
@@ -370,7 +365,7 @@ export default function TeachingSessionSetupPage() {
 
   useEffect(() => {
     const loadExistingSessions = async () => {
-      if (!clientId || !programId || !gradeId || !subjectId || !schoolId) {
+      if (!hasCompleteExistingSessionSelection) {
         setExistingSessions([]);
         setScopeBlockedMessage('');
         return;
@@ -391,6 +386,8 @@ export default function TeachingSessionSetupPage() {
           client_id: Number(clientId),
           school_id: Number(schoolId),
           program_id: Number(programId),
+          batch_id: Number(sharedBatchId),
+          teacher_user_id: Number(sharedTeacherUserId),
           template_version_no: Number(templateVersionNo || '1'),
           grade_label: `GRADE-${grade.grade_number}`,
           subject_label: subject.name,
@@ -415,7 +412,19 @@ export default function TeachingSessionSetupPage() {
     };
 
     loadExistingSessions();
-  }, [clientId, programId, gradeId, subjectId, schoolId, templateVersionNo, grades, subjects]);
+  }, [
+    clientId,
+    programId,
+    gradeId,
+    subjectId,
+    schoolId,
+    sharedBatchId,
+    sharedTeacherUserId,
+    templateVersionNo,
+    grades,
+    subjects,
+    hasCompleteExistingSessionSelection,
+  ]);
 
   useEffect(() => {
     setSchoolId('');
@@ -499,7 +508,10 @@ export default function TeachingSessionSetupPage() {
       toast.success('Teaching sessions generated');
     } catch (error) {
       console.error(error);
-      toast.error('Failed to generate teaching sessions');
+      const errorMessage = axios.isAxiosError(error)
+        ? error.response?.data?.error || error.message || 'Failed to generate teaching sessions'
+        : 'Failed to generate teaching sessions';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -755,21 +767,25 @@ export default function TeachingSessionSetupPage() {
           title="Existing Assigned Sessions"
           subtitle="Already assigned sessions for the selected scope are shown here. Batch and teacher selectors filter this list."
         >
-          <div className="space-y-3 md:hidden">
+          {!hasCompleteExistingSessionSelection && (
+            <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+              Select program, grade, subject, school, batch, and teacher to view existing assigned sessions.
+            </div>
+          )}
+
+          {hasCompleteExistingSessionSelection && <div className="space-y-3 md:hidden">
             {existingSessionsLoading && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
                 Loading existing assigned sessions...
               </div>
             )}
-            {!existingSessionsLoading && filteredExistingSessions.length === 0 && (
+            {!existingSessionsLoading && visibleExistingSessions.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-                {existingSessions.length > 0
-                  ? 'No existing sessions match the selected batch and teacher filters.'
-                  : 'No assigned sessions found yet for the selected scope.'}
+                No assigned sessions found yet for the selected scope.
               </div>
             )}
             {!existingSessionsLoading &&
-              filteredExistingSessions.map((session) => (
+              visibleExistingSessions.map((session) => (
                 <div key={`existing-mobile-${session.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -784,9 +800,9 @@ export default function TeachingSessionSetupPage() {
                   </div>
                 </div>
               ))}
-          </div>
+          </div>}
 
-          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
+          {hasCompleteExistingSessionSelection && <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
@@ -806,17 +822,15 @@ export default function TeachingSessionSetupPage() {
                       </td>
                     </tr>
                   )}
-                  {!existingSessionsLoading && filteredExistingSessions.length === 0 && (
+                  {!existingSessionsLoading && visibleExistingSessions.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-3 py-4 text-slate-500">
-                        {existingSessions.length > 0
-                          ? 'No existing sessions match the selected batch and teacher filters.'
-                          : 'No assigned sessions found yet for the selected scope.'}
+                        No assigned sessions found yet for the selected scope.
                       </td>
                     </tr>
                   )}
                   {!existingSessionsLoading &&
-                    filteredExistingSessions.map((session) => (
+                    visibleExistingSessions.map((session) => (
                       <tr key={`existing-${session.id}`}>
                         <td className="px-3 py-2">{session.session_label}</td>
                         <td className="px-3 py-2">{formatIndianDate(session.planned_date)}</td>
@@ -828,7 +842,7 @@ export default function TeachingSessionSetupPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </div>}
         </SectionCard>
 
         <SectionCard title="Recently Created Sessions">

@@ -131,22 +131,24 @@ export default function QuestionGradeEditPage() {
             className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
           />
 
-          <label className="mt-4 inline-flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(event) => setIsActive(event.target.checked)}
-            />
-            Active
-          </label>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(event) => setIsActive(event.target.checked)}
+              />
+              Active
+            </label>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70"
-          >
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
         </form>
       )}
     </QuestionBankLayout>

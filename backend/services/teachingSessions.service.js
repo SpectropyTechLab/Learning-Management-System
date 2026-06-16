@@ -1745,13 +1745,13 @@ export const listTeachingSessions = async (req, res) => {
 
     const gradeLabel = parseOptionalString(req.query?.grade_label);
     if (gradeLabel) {
-      where.push(`ts.grade_label = $${params.length + 1}`);
+      where.push(`LOWER(TRIM(ts.grade_label)) = LOWER(TRIM($${params.length + 1}))`);
       params.push(gradeLabel);
     }
 
     const subjectLabel = parseOptionalString(req.query?.subject_label);
     if (subjectLabel) {
-      where.push(`ts.subject_label = $${params.length + 1}`);
+      where.push(`LOWER(TRIM(ts.subject_label)) = LOWER(TRIM($${params.length + 1}))`);
       params.push(subjectLabel);
     }
 

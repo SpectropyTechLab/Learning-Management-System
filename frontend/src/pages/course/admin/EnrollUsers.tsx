@@ -22,8 +22,8 @@ export default function EnrollUsers({
   const normalizedApiPrefix = apiPrefix.startsWith('/') ? apiPrefix : `/${apiPrefix}`;
   const activeTab = (location.state as { activeTab?: 'courses' | 'home' | 'users' } | null)?.activeTab;
   const brandLogo = spectropyLogo;
-  const shellClass = 'min-h-screen bg-gray-50';
-  const layoutClass = 'flex min-h-screen flex-col lg:flex-row';
+  const shellClass = 'min-h-screen bg-slate-50';
+  const layoutClass = 'mx-auto flex min-h-screen w-full max-w-[1920px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:flex-row';
   const sidebarThemeClass = 'bg-white border-gray-200';
   const sidebarHeaderBorder = 'border-gray-200';
   const navActiveClass = 'bg-blue-50 text-blue-900 border-l-4 border-blue-900';
@@ -41,6 +41,7 @@ export default function EnrollUsers({
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // For three-dot menu
   const [openMenuUserId, setOpenMenuUserId] = useState<number | null>(null);
   // For loading states (optional but nice)
@@ -57,6 +58,14 @@ export default function EnrollUsers({
   }> | null>(null);
 
   const [loadingEnrollments, setLoadingEnrollments] = useState(true);
+  const panelTitle =
+    role === 'student' ? 'Enroll Student' : role === 'teacher' ? 'Enroll Teacher' : 'Manage Enrollments';
+  const panelDescription =
+    role === 'student'
+      ? 'Add students to this course by entering their email.'
+      : role === 'teacher'
+        ? 'Add teachers to this course by entering their email.'
+        : 'Choose a role to enroll new users or review existing enrollments.';
 
   // Fetch all enrollments for the course
   useEffect(() => {
@@ -130,7 +139,7 @@ export default function EnrollUsers({
     }
   };
   
-  // ðŸ—‘ï¸ Remove user from course
+  // Remove user from course
 const handleRemoveUser = async (userId: number) => {
   if (!confirm('Are you sure you want to remove this user from the course?')) return;
 
@@ -152,7 +161,7 @@ const handleRemoveUser = async (userId: number) => {
   }
 };
 
-// ðŸ”„ Update user role (student â†” teacher)
+// Update user role (student <-> teacher)
 const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teacher') => {
   const newRole = currentRole === 'student' ? 'teacher' : 'student';
   
@@ -200,59 +209,36 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
   return (
     <div className={shellClass}>
     <div className={layoutClass}>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Left Sidebar */}
-      <div className={`w-64 lg:w-72 border-r flex flex-col ${sidebarThemeClass}`}>
+      <div className={`fixed inset-y-0 left-0 z-50 w-[78vw] max-w-[16rem] shrink-0 border-r bg-white lg:static lg:w-72 lg:max-w-none lg:border-b-0 lg:translate-x-0 ${sidebarThemeClass} flex h-full min-h-0 flex-col overflow-hidden transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:border-r`}>
         {/* Logo/Brand */}
-        <div className={`p-6 border-b ${sidebarHeaderBorder}`}>
+        <div className={`px-5 py-4 lg:px-6 lg:py-5 border-b ${sidebarHeaderBorder}`}>
           <div className="flex items-center space-x-2 cursor-pointer">
                 <img
                     src={brandLogo}
                     alt="Brand Logo"
-                    className="h-10 w-auto md:h-10 lg:h-12 rounded-md"
+                    className="h-9 w-auto md:h-9 lg:h-10 rounded-md"
                 />
             </div>
-          <h1 className="text-lg font-semibold">Enroll Users</h1>
+          <h1 className="mt-3 text-xl font-bold tracking-tight text-slate-950 lg:text-lg">Enroll Users</h1>
         </div>
 
         {/* Role Selection */}
-        <nav className="flex-1 p-4 space-y-1">
-          <button
-            onClick={() => setRole('student')}
-            className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-              role === 'student'
-                ? navActiveClass
-                : navInactiveClass
-            }`}
-          >
-          <div className="flex items-center space-x-2">
-                              <PiUsersBold  className={navIconClass}/>
-                              <span>Enroll student</span>
-                              </div>
-          </button>
-          <button
-            onClick={() => setRole('teacher')}
-            className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-              role === 'teacher'
-                ? navActiveClass
-                : navInactiveClass
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-                              <PiUsersBold  className={navIconClass}/>
-                              <span>Enroll Teacher</span>
-                              </div>
-          </button>
-        </nav>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 p-4 mt-auto">
+        <nav className="flex-1 px-3 py-4 lg:px-4 lg:py-5">
           <button
             onClick={handleBack}
-            className="w-full flex items-center justify-center px-4 py-2 text-sm text-blue-900 hover:text-blue-600"
+            className="mb-2 flex w-full items-center rounded-lg px-3 py-3 text-left text-sm font-medium text-slate-800 transition-colors hover:bg-gray-100 lg:px-4"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-2"
+              className="mr-3 h-4 w-4 shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -264,35 +250,67 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            {resolvedBackLabel}
+            Back to Course
           </button>
-        </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <button
+              onClick={() => {
+                setRole('student');
+                setSidebarOpen(false);
+              }}
+              className={`w-full rounded-lg px-3 py-3 text-sm font-medium transition-colors lg:px-4 ${
+                role === 'student'
+                  ? `${navActiveClass} border-l-4`
+                  : navInactiveClass
+              }`}
+            >
+            <div className="flex items-center space-x-2.5">
+                                <PiUsersBold  className={navIconClass}/>
+                                <span>Enroll student</span>
+                                </div>
+            </button>
+            <button
+              onClick={() => {
+                setRole('teacher');
+                setSidebarOpen(false);
+              }}
+              className={`w-full rounded-lg px-3 py-3 text-sm font-medium transition-colors lg:px-4 ${
+                role === 'teacher'
+                  ? `${navActiveClass} border-l-4`
+                  : navInactiveClass
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                                <PiUsersBold  className={navIconClass}/>
+                                <span>Enroll Teacher</span>
+                                </div>
+            </button>
+          </div>
+        </nav>
+
       </div>
 
       {/* Right Panel - Content Area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto bg-slate-50">
         {/* Header */}
-        <div className={`p-6 border-b ${headerBorderClass} bg-white`}>
-          <div className="flex justify-between items-center">
+        <div className={`border-b ${headerBorderClass} bg-white px-5 py-4 lg:px-6 lg:py-5`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold">
-                {role === 'student' && 'Enroll Student'}
-                {role === 'teacher' && 'Enroll Teacher'}
-                {!role && 'Manage Enrollments'}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {role === 'student' &&
-                  'Add students to this course by entering their email.'}
-                {role === 'teacher' &&
-                  'Add teachers to this course by entering their email.'}
-                {!role &&
-                  'Select a role on the left to enroll new users or view existing ones.'}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="mb-3 inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-gray-50 lg:hidden"
+              >
+                Menu
+              </button>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 lg:text-xl">{panelTitle}</h1>
+              <p className="mt-1.5 max-w-2xl text-sm leading-7 text-slate-600 lg:text-base">
+                {panelDescription}
               </p>
             </div>
             {role && (
               <button
                 onClick={() => setShowModal(true)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${primaryButtonClass}`}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm sm:w-auto ${primaryButtonClass}`}
               >
                 Add User
               </button>
@@ -301,31 +319,31 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
         </div>
 
         {/* Enrollment List */}
-        <div className="p-6">
+        <div className="p-5 lg:p-6">
           {loadingEnrollments ? (
-            <p className="text-gray-500">Loading enrollments...</p>
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center text-slate-500 shadow-sm">Loading enrollments...</div>
           ) : displayedEnrollments.length === 0 ? (
-            <p className="text-gray-500">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center text-base text-slate-500 shadow-sm">
               {role
                 ? `No ${role}s enrolled in this course yet.`
                 : 'No enrollments yet.'}
-            </p>
+            </div>
           ) : (
             <div className="space-y-3">
                {displayedEnrollments.map((enrollment) => (
   <div
     key={enrollment.user_id}
-    className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200 relative"
+    className="relative flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
   >
     {/* User Info */}
     <div className="flex-1 min-w-0">
-      <p className="font-medium truncate">{enrollment.name}</p>
-      <p className="text-sm text-gray-600 truncate">{enrollment.email}</p>
+      <p className="truncate text-base font-semibold text-slate-900">{enrollment.name}</p>
+      <p className="truncate text-sm text-slate-600">{enrollment.email}</p>
     </div>
 
     {/* Role Badge + Menu */}
-    <div className="flex items-center gap-2 ml-4">
-      <span className="px-2 py-1 text-xs font-semibold rounded-full capitalize bg-blue-100 text-blue-800">
+    <div className="flex items-center gap-2 sm:ml-4">
+      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold capitalize text-blue-800">
         {enrollment.role}
       </span>
 
@@ -336,31 +354,31 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
             e.stopPropagation();
             setOpenMenuUserId((prev) => (prev === enrollment.user_id ? null : enrollment.user_id));
           }}
-        className="w-6 h-6 flex items-center justify-center text-gray-500 rounded hover:bg-gray-100"
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100"
         aria-label="User actions"
       >
-          â‹®
+          ...
         </button>
 
         {/* Dropdown */}
         {openMenuUserId === enrollment.user_id && (
           <div
-            className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg py-1 z-10"
+            className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => handleUpdateRole(enrollment.user_id, enrollment.role)}
               disabled={updatingUserId === enrollment.user_id}
-              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 disabled:opacity-50 hover:bg-gray-100"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 disabled:opacity-50"
             >
-              ðŸ”„ Change Role
+              Change Role
             </button>
             <button
               onClick={() => handleRemoveUser(enrollment.user_id)}
               disabled={removingUserId === enrollment.user_id}
-              className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
             >
-              ðŸ—‘ï¸ Remove
+              Remove
             </button>
           </div>
         )}
@@ -375,11 +393,11 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
 
       {/* Email Input Modal */}
       {showModal && role && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-md border border-gray-200">
-            <div className="p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl">
+            <div className="p-5 sm:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-medium">
+                <h2 className="text-lg font-semibold text-slate-900">
                   Enroll {role === 'student' ? 'Student' : 'Teacher'}
                 </h2>
                 <button
@@ -387,9 +405,9 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
                     setShowModal(false);
                     setMessage(null);
                   }}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
                 >
-                  âœ•
+                  ×
                 </button>
               </div>
 
@@ -412,7 +430,7 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded"
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5"
                     placeholder={`e.g. ${role}@example.com`}
                     required
                     autoFocus
@@ -426,14 +444,14 @@ const handleUpdateRole = async (userId: number, currentRole: 'student' | 'teache
                       setShowModal(false);
                       setMessage(null);
                     }}
-                    className="px-4 py-2 rounded text-gray-700 hover:bg-gray-100"
+                    className="rounded-xl px-4 py-2.5 text-gray-700 transition-colors hover:bg-gray-100"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className={`px-5 py-2 rounded-lg disabled:opacity-50 font-medium ${primaryButtonClass}`}
+                    className={`rounded-xl px-5 py-2.5 font-medium disabled:opacity-50 ${primaryButtonClass}`}
                   >
                     {submitting ? 'Enrolling...' : 'Enroll'}
                   </button>

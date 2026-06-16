@@ -122,7 +122,7 @@ export default function SchoolOwnerCourses() {
       <div className="p-6">
         <AdminCourseManager
           mode="admin"
-          role={user?.role}
+          role="school_owner"
           permissionKeys={user?.permissions}
           apiPrefix="/school-owner"
           theme={theme}

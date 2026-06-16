@@ -1306,8 +1306,8 @@ export default function QuestionForm({
       </div>
 
       <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <label className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
               Comprehensive Passage
             </label>
@@ -1315,7 +1315,7 @@ export default function QuestionForm({
               Turn this on to place a passage before the question and keep both editable here.
             </p>
           </div>
-          <label className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700">
+          <label className="inline-flex w-full items-center justify-center gap-2 self-start rounded-full border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700 sm:w-auto">
             <input
               type="checkbox"
               checked={hasComprehension}

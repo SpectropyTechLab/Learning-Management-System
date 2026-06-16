@@ -114,16 +114,16 @@ export default function TeacherDashboard() {
           </button>
           <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">My Courses</h1>
+              <h1 className="text-xl md:text-2xl font-bold">Courses</h1>
               <p className="mt-1 text-sm md:text-base text-gray-600">
-                Review your active classes and content packages.
+                Set up your courses and share your knowledge.
               </p>
             </div>
           </div>
         </div>
       }
     >
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6">
         <AdminCourseManager
           mode="admin"
           role={user?.role}
@@ -132,7 +132,7 @@ export default function TeacherDashboard() {
           brandLogo="/logo.png"
           brandName={organizationLabel}
           courseBannerClass="bg-blue-50"
-          listTitle="My Courses"
+          listTitle="Courses"
           emptyMessage="No courses found."
           onManageContent={(courseId) =>
             navigate(`/teacher/courses/${courseId}/content`)

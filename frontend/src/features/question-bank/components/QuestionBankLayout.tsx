@@ -30,6 +30,7 @@ export default function QuestionBankLayout({
   const { user } = useAuth();
   const backPath = roleDashboardMap[user?.role ?? "teacher"] || "/login";
   const pageDescription = description ?? "Manage question bank resources.";
+  const showHeaderBack = showBack && user?.role !== "client_admin";
 
   return (
     <QuestionBankShell
@@ -37,7 +38,7 @@ export default function QuestionBankLayout({
       description={pageDescription}
       headerAction={
         <div className="flex flex-wrap items-center gap-2">
-          {showBack && (
+          {showHeaderBack && (
             <button
               onClick={() => navigate(backPath)}
               className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"

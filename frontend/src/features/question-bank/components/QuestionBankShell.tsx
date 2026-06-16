@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
-import { RiFileList3Line } from "react-icons/ri";
+import { RiFileList3Line, RiHome2Line } from "react-icons/ri";
 import { getOrganizationLabel } from "@/features/auth/utils/roleBranding";
 
 interface QuestionBankShellProps {
@@ -54,6 +54,14 @@ const questionBankTabs = [
   { key: "bulk-upload", label: "Bulk Upload", to: "/question-bank/bulk-upload" },
 ] as const;
 
+const dashboardPathByRole: Record<string, string> = {
+  super_admin: "/superadmin/dashboard",
+  client_admin: "/admin/dashboard",
+  content_authorizer: "/content-authorizer/dashboard",
+  school_owner: "/school-owner/dashboard",
+  teacher: "/teacher/dashboard",
+};
+
 export default function QuestionBankShell({
   title,
   description,
@@ -68,6 +76,7 @@ export default function QuestionBankShell({
   const brandLogo = spectropyLogo;
   const brandName = getOrganizationLabel(user);
   const theme = getDashboardTheme(false);
+  const dashboardPath = dashboardPathByRole[user?.role ?? "teacher"] || "/admin/dashboard";
 
   const roleKey = (user?.role ?? "student") as keyof typeof roleConfig;
   const config = roleConfig[roleKey];
@@ -100,6 +109,19 @@ export default function QuestionBankShell({
           brandName={brandName}
           title={config.label}
           brandTag={brandName}
+          topAction={
+            <button
+              type="button"
+              onClick={() => {
+                navigate(dashboardPath);
+                setSidebarOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-slate-900"
+            >
+              <RiHome2Line className="text-base" />
+              <span>Back to Dashboard</span>
+            </button>
+          }
           navItems={navItems}
           userInfo={{ name: userFullName, email: userEmail }}
           showUserInfo={false}
