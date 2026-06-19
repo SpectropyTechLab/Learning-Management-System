@@ -6,7 +6,6 @@ import StatusBadge from '@/features/teaching-sessions/components/StatusBadge';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
 import type { TeachingSession } from '@/features/teaching-sessions/types';
-import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 
 type UpdateFormState = {
   status_submitted: 'completed' | 'partially_completed' | 'not_completed';
@@ -136,6 +135,18 @@ export default function MyTeachingSessionsPage() {
     }
   };
 
+  const handleDownloadLessonPlan = async (session: TeachingSession) => {
+    try {
+      await teachingSessionsApi.downloadMyTeachingSessionLessonPlan(
+        session.id,
+        session.lesson_plan_file_name || undefined
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to download lesson plan');
+    }
+  };
+
   return (
     <TeachingSessionsShell
       title="My Teaching Sessions"
@@ -204,13 +215,13 @@ export default function MyTeachingSessionsPage() {
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {session.lesson_plan_file_storage_path ? (
-                      <a
-                        href={resolveAssetUrl(session.lesson_plan_file_storage_path) ?? undefined}
-                        download
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadLessonPlan(session)}
                         className="rounded-xl border border-slate-200 px-3 py-2 text-center text-xs font-semibold text-[#073b8a]"
                       >
                         {session.lesson_plan_file_name ? 'Download' : 'View'}
-                      </a>
+                      </button>
                     ) : (
                       <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2 text-center text-xs text-slate-400">
                         No lesson plan
@@ -291,9 +302,9 @@ export default function MyTeachingSessionsPage() {
                           </td>
                           <td className="px-3 py-2">
                             {session.lesson_plan_file_storage_path ? (
-                              <a href={resolveAssetUrl(session.lesson_plan_file_storage_path) ?? undefined} download className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-[#073b8a]">
+                              <button type="button" onClick={() => handleDownloadLessonPlan(session)} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-[#073b8a]">
                                 {session.lesson_plan_file_name ? 'Download' : 'View'}
-                              </a>
+                              </button>
                             ) : (
                               <span className="text-slate-400">No lesson plan</span>
                             )}

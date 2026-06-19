@@ -544,16 +544,9 @@ function SelectionDropdown({
           {selectedOptions.length === 0 ? (
             <span className="text-slate-500">{placeholder}</span>
           ) : multiple ? (
-            <div className="flex flex-wrap gap-2">
-              {selectedOptions.map((option) => (
-                <span
-                  key={option.value}
-                  className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                >
-                  <span className="truncate">{option.label}</span>
-                </span>
-              ))}
-            </div>
+            <span className="text-slate-700">
+              {values.length} {label.toLowerCase()}{values.length === 1 ? "" : "s"} selected
+            </span>
           ) : (
             <span className="font-medium text-slate-900">{selectedOptions[0]?.label}</span>
           )}
@@ -589,15 +582,20 @@ function SelectionDropdown({
                     className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition ${checked ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"
                       }`}
                   >
-                    <div className="min-w-0">
-                      <div className="font-medium">{option.label}</div>
-                      {option.meta ? (
-                        <div className={`mt-0.5 text-xs ${checked ? "text-slate-200" : "text-slate-400"}`}>
-                          {option.meta}
-                        </div>
-                      ) : null}
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-white bg-white text-slate-900" : "border-slate-300 bg-white text-transparent"}`}>
+                        <RiCheckLine className="h-3 w-3" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-medium">{option.label}</div>
+                        {option.meta ? (
+                          <div className={`mt-0.5 text-xs ${checked ? "text-slate-200" : "text-slate-400"}`}>
+                            {option.meta}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                    {checked ? <RiCheckLine className="mt-0.5 h-4 w-4 shrink-0" /> : null}
+                    {multiple ? null : checked ? <RiCheckLine className="mt-0.5 h-4 w-4 shrink-0" /> : null}
                   </button>
                 );
               })
@@ -659,7 +657,7 @@ function TopicAllocationTable({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-1 py-4">
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-slate-950">Topic Allocation</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-slate-500">
             Enter how many questions should be picked from each topic and category.
           </p>
         </div>
@@ -860,7 +858,7 @@ function QuestionGroupPreview({
               key={`${groupType}-${question.question_id}`}
               className="rounded-3xl border border-slate-200 bg-slate-50/70 px-4 py-5"
             >
-              <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
@@ -881,7 +879,7 @@ function QuestionGroupPreview({
                     ) : null}
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-4 w-full">
                     <QuestionRenderer
                       question={normalizeGeneratedQuestion(question)}
                       showMeta={false}
@@ -889,12 +887,12 @@ function QuestionGroupPreview({
                       showAnswer
                       showSolution
                       showComprehension
-                      contentClassName="text-sm font-semibold text-slate-900"
+                      contentClassName="w-full max-w-none text-sm font-semibold leading-6 text-slate-900"
                     />
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:shrink-0">
                   <button
                     type="button"
                     onClick={() => onReplaceQuestion(question, groupType)}
@@ -968,24 +966,17 @@ function QuestionPickerModal({
 }) {
   if (!open || !groupType) return null;
   const isReplaceMode = mode === "replace";
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-3 sm:px-4 sm:py-8">
       <div className="flex max-h-[96vh] w-full max-w-6xl min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-4xl">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
-          <div>
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{sectionTitle}</div>
-            <h2 className="mt-2 text-lg font-semibold text-slate-900 sm:text-xl">
+            <h2 className="mt-1.5 text-lg font-semibold text-slate-900 sm:text-xl">
               {isReplaceMode ? "Replace with" : "Select"} {QUESTION_GROUP_LABELS[groupType]}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {isReplaceMode
-                ? "Choose one approved question to replace the current question in this part."
-                : "Choose additional approved questions for this part using the filters below."}
-            </p>
-            <p className="mt-2 text-xs text-slate-400">
-              Legacy comprehension parent records are excluded here. Add the linked child questions instead.
-            </p>
           </div>
           <button
             type="button"
@@ -996,7 +987,67 @@ function QuestionPickerModal({
           </button>
         </div>
 
-        <div className="grid gap-4 border-b border-slate-200 bg-slate-50/70 px-4 py-4 sm:px-6 md:grid-cols-[1.1fr_0.7fr_0.7fr]">
+        <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-2.5 sm:px-6 md:hidden">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((current) => !current)}
+            aria-expanded={filtersOpen}
+            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            {filtersOpen ? "Hide Filters" : "Show Filters"}
+            <RiArrowDownSLine className={`h-4 w-4 transition ${filtersOpen ? "rotate-180" : ""}`} />
+          </button>
+          {filtersOpen ? (
+            <div className="mt-2 grid gap-2.5">
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Search</span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  placeholder="Search approved questions"
+                  className="mt-1 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Topic</span>
+                <select
+                  value={selectedTopicId}
+                  onChange={(event) => onTopicChange(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                >
+                  <option value="">All topics</option>
+                  {topics.map((topic) => (
+                    <option key={topic.topicId} value={topic.topicId}>
+                      {topic.topicName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Type</span>
+                <select
+                  value={selectedQuestionType}
+                  onChange={(event) => onQuestionTypeChange(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                >
+                  <option value="">All types</option>
+                  <option value="mcq_single">MCQ Single</option>
+                  <option value="assertion_reasoning">Assertion Reasoning</option>
+                  <option value="mcq_multiple">MCQ Multiple</option>
+                  <option value="true_false">True/False</option>
+                  <option value="numerical">Numerical</option>
+                  <option value="short_answer">Short Answer</option>
+                  <option value="match_following">Match the Following</option>
+                  <option value="fill_in_blank">Fill in the Blank</option>
+                  <option value="comprehensive">Comprehensive</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="hidden gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-3 sm:px-6 md:grid md:grid-cols-[1.1fr_0.7fr_0.7fr]">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Search</span>
             <input
@@ -1004,7 +1055,7 @@ function QuestionPickerModal({
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Search approved questions"
-              className="mt-2 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              className="mt-1.5 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
             />
           </label>
           <label className="block">
@@ -1012,7 +1063,7 @@ function QuestionPickerModal({
             <select
               value={selectedTopicId}
               onChange={(event) => onTopicChange(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              className="mt-1.5 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
             >
               <option value="">All topics</option>
               {topics.map((topic) => (
@@ -1027,7 +1078,7 @@ function QuestionPickerModal({
             <select
               value={selectedQuestionType}
               onChange={(event) => onQuestionTypeChange(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              className="mt-1.5 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
             >
               <option value="">All types</option>
               <option value="mcq_single">MCQ Single</option>
@@ -1158,6 +1209,7 @@ export default function ExamBuilderPage() {
   const [editors, setEditors] = useState<Record<number, SectionEditorState>>({});
   const [activeSectionId, setActiveSectionId] = useState<number | null>(null);
   const [picker, setPicker] = useState<PickerState>(createDefaultPickerState);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const deferredPickerSearch = useDeferredValue(picker.search);
 
@@ -1841,6 +1893,8 @@ export default function ExamBuilderPage() {
       <ExamShell
         title="Exam Builder"
         description="Build each section, generate questions, review every part, and save the final exam."
+        headerClassName="sticky top-0 z-30 px-6 py-4"
+        bodyClassName="px-6 pt-2 pb-6"
         headerAction={
           <>
             <button
@@ -1849,16 +1903,18 @@ export default function ExamBuilderPage() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               <RiArrowLeftLine className="h-4 w-4" />
-              Back to Exam List
+              <span className="sm:hidden">Back</span>
+              <span className="hidden sm:inline">Back to Exam List</span>
             </button>
             <button
               type="button"
               onClick={handleOpenSavePreview}
               disabled={!preview?.validation?.can_finalize}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RiArrowRightUpLine className="h-4 w-4" />
-              Save and Preview Exam
+              <span className="sm:hidden">Save</span>
+              <span className="hidden sm:inline">Save and Preview Exam</span>
             </button>
           </>
         }
@@ -1876,33 +1932,52 @@ export default function ExamBuilderPage() {
             Exam not found.
           </div>
         ) : (
-          <div className="space-y-6">
-            <section className="sticky top-4 z-20 rounded-[18px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.09),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] px-4 py-3 shadow-sm backdrop-blur">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-5">
+            <section className="sticky top-0 z-20 -mt-1 rounded-2xl border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.09),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] px-3 py-2 shadow-sm backdrop-blur sm:px-4">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold tracking-tight text-slate-950">{preview.exam.title}</h2>
+                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-950">{preview.exam.title}</h2>
                     <ExamStatusBadge status={normalizeExamStatus(preview.exam.status)} />
+                    <button
+                      type="button"
+                      onClick={() => setSummaryOpen((current) => !current)}
+                      aria-expanded={summaryOpen}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 sm:hidden"
+                    >
+                      {summaryOpen ? "Hide" : "Show"}
+                    </button>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {activeSection ? (
+                      <span className="rounded-full bg-amber-50 px-3 py-1.5 text-sm font-bold text-amber-700">
+                        Active: {activeSection.title}
+                      </span>
+                    ) : null}
+                    <div className="text-xs text-slate-500">
+                      {completedSections}/{preview.totals.section_count} sections • {preview.totals.question_count}/{preview.totals.required_question_count} ready
+                    </div>
+                  </div>
+                  {summaryOpen ? (
+                  <div className="mt-1.5 hidden flex-wrap items-center gap-1 text-xs text-slate-500 md:flex">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiBookMarkedLine className="h-4 w-4 text-slate-400" />
                       Blueprint: {preview.blueprint?.name ?? "--"}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiDraftLine className="h-4 w-4 text-slate-400" />
                       Sections: {preview.sections.length}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiFolderChartLine className="h-4 w-4 text-slate-400" />
                       Program: {preview.exam.program_name ?? preview.exam.program_id ?? "--"}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiSparklingLine className="h-4 w-4 text-slate-400" />
                       Window: {formatDateTime(preview.exam.start_datetime)} to {formatDateTime(preview.exam.end_datetime)}
                     </span>
                     {preview.template_resolution?.template_key ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                         <RiDraftLine className="h-4 w-4 text-slate-400" />
                         Template: {preview.template_resolution.template_key}
                         {preview.template_resolution.template_version
@@ -1914,30 +1989,41 @@ export default function ExamBuilderPage() {
                       </span>
                     ) : null}
                   </div>
+                  ) : null}
                 </div>
 
-                <div className="rounded-[14px] border border-slate-200 bg-white/90 px-3 py-2 shadow-sm">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Progress
+                <div className="hidden w-full items-center justify-between gap-2 sm:flex sm:w-auto sm:justify-end sm:self-start">
+                  <div className="rounded-xl border border-slate-200 bg-white/90 px-2.5 py-1.5 shadow-sm">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Progress
+                    </div>
+                    <div className="mt-0.5 flex items-baseline gap-2">
+                      <span className="text-base font-semibold tracking-tight text-slate-950">
+                        {completedSections}/{preview.totals.section_count}
+                      </span>
+                      <span className="text-xs text-slate-500">ready</span>
+                    </div>
                   </div>
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="text-lg font-semibold tracking-tight text-slate-950">
-                      {completedSections}/{preview.totals.section_count}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {preview.totals.question_count}/{preview.totals.required_question_count} ready
-                    </span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryOpen((current) => !current)}
+                    aria-expanded={summaryOpen}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    {summaryOpen ? "Hide" : "Show"}
+                    <RiArrowDownSLine className={`h-4 w-4 transition ${summaryOpen ? "rotate-180" : ""}`} />
+                  </button>
                 </div>
               </div>
 
-              <div className="mt-3 border-t border-slate-200/80 pt-2.5">
-                <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+              {summaryOpen ? (
+              <div className="mt-2 border-t border-slate-200/80 pt-1.5">
+                <div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                   <RiDraftLine className="h-4 w-4" />
                   Sections
                 </div>
                 <div className="overflow-x-auto">
-                  <div className="flex min-w-max gap-2">
+                  <div className="flex min-w-max gap-1.5">
                     {preview.sections.map((section) => {
                       const isActive = activeSection?.id === section.id;
 
@@ -1946,7 +2032,7 @@ export default function ExamBuilderPage() {
                           key={`sticky-section-${section.id}`}
                           type="button"
                           onClick={() => startTransition(() => setActiveSectionId(section.id))}
-                          className={`min-w-37.5 rounded-[14px] border px-3 py-2 text-left transition ${isActive
+                          className={`min-w-37.5 rounded-[14px] border px-3 py-1.5 text-left transition ${isActive
                               ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10"
                               : "border-slate-200 bg-slate-50 text-slate-900 hover:border-slate-300 hover:bg-white"
                             }`}
@@ -1958,9 +2044,10 @@ export default function ExamBuilderPage() {
                   </div>
                 </div>
               </div>
+              ) : null}
 
-              {preview.validation?.blocking_reasons?.length ? (
-                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {summaryOpen && preview.validation?.blocking_reasons?.length ? (
+                <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs text-rose-700">
                   {preview.validation.blocking_reasons[0]}
                 </div>
               ) : null}
@@ -1968,7 +2055,7 @@ export default function ExamBuilderPage() {
 
             <section className="hidden rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
               <div className="overflow-x-auto">
-                <div className="flex min-w-max gap-2.5 px-3 py-1">
+                <div className="flex min-w-max gap-1.5.5 px-3 py-1">
                   {preview.sections.map((section, index) => {
                     const isActive = activeSection?.id === section.id;
                     const ready = Number(section.question_count ?? 0) === Number(section.required_question_count ?? 0);
@@ -2004,8 +2091,8 @@ export default function ExamBuilderPage() {
 
             {activeSection && activeEditor ? (
               <div className="space-y-6">
-                <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h3 className="text-xl font-semibold tracking-tight text-slate-950">{activeSection.title}</h3>
@@ -2016,21 +2103,21 @@ export default function ExamBuilderPage() {
                           {activeSection.completion_status ?? "pending"}
                         </span>
                       </div>
-                      <p className="mt-2 max-w-3xl text-sm text-slate-500">
+                      <p className="mt-1 max-w-3xl text-sm text-slate-500">
                         Select the subject and chapters, define the topic-wise question mix, generate the section, then review each part below.
                       </p>
                     </div>
-                    <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Generated
                       </div>
-                      <div className="mt-2 text-lg font-semibold text-slate-950">
+                      <div className="mt-1 text-base font-semibold text-slate-950">
                         {activeSection.question_count ?? 0}/{activeSection.required_question_count ?? 0}
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <SelectionDropdown
                       label="Grade"
                       placeholder="Select grade"
@@ -2076,7 +2163,7 @@ export default function ExamBuilderPage() {
                         label: chapter.name,
                         meta:
                           chapter.chapter_number !== undefined && chapter.chapter_number !== null
-                            ? `Chapter #${chapter.chapter_number}`
+                            ? `Chapter-${chapter.chapter_number}`
                             : undefined,
                       }))}
                       onChange={(nextValues) => void handleChapterChange(activeSection, nextValues)}
@@ -2093,7 +2180,7 @@ export default function ExamBuilderPage() {
                         label: topic.name,
                         meta:
                           topic.topic_number !== undefined && topic.topic_number !== null
-                            ? `Topic #${topic.topic_number}`
+                            ? `Topic-${topic.topic_number}`
                             : undefined,
                       }))}
                       onChange={(nextValues) => handleTopicChange(activeSection, nextValues)}
@@ -2101,7 +2188,7 @@ export default function ExamBuilderPage() {
                   </div>
 
                   {activeEditor.loadingOptions ? (
-                    <div className="mt-5 border-l-2 border-slate-300 bg-slate-50/70 px-4 py-4 text-sm text-slate-500">
+                    <div className="mt-4 border-l-2 border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-500">
                       Loading section syllabus...
                     </div>
                   ) : null}
@@ -2117,10 +2204,10 @@ export default function ExamBuilderPage() {
                     />
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">Generate Section</div>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-0.5 text-sm text-slate-500">
                         The generator will use the allocation table above and replace the existing generated questions for this section.
                       </p>
                     </div>
@@ -2133,7 +2220,7 @@ export default function ExamBuilderPage() {
                         activeEditor.allocationRows.length === 0 ||
                         !activeAllocationValidation?.isReady
                       }
-                      className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {activeEditor.generating ? (
                         <RiLoader4Line className="h-4 w-4 animate-spin" />
@@ -2149,7 +2236,7 @@ export default function ExamBuilderPage() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-xl font-semibold text-slate-950">Question Preview</h3>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-0.5 text-sm text-slate-500">
                         Review every part, remove questions, clear a full part, or add approved questions manually.
                       </p>
                     </div>

@@ -4,7 +4,6 @@ import TeachingSessionsShell from '@/features/teaching-sessions/components/Teach
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import StatusBadge from '@/features/teaching-sessions/components/StatusBadge';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
-import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 import type {
   GradeOption,
   PlannerChecklist,
@@ -241,6 +240,17 @@ export default function ProgramTemplateMappingPage() {
     }
   };
 
+  const handleDownloadLessonPlanner = async (uploadId?: number | null, fileName?: string | null) => {
+    if (!uploadId) return;
+
+    try {
+      await teachingSessionsApi.downloadLessonPlannerUpload(uploadId, fileName || undefined);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to download lesson planner');
+    }
+  };
+
   return (
     <TeachingSessionsShell
       title="Program Template Mapping"
@@ -391,9 +401,9 @@ export default function ProgramTemplateMappingPage() {
                   <div>
                     <span className="font-medium text-slate-900">Lesson Plan:</span>{' '}
                     {template.lesson_plan_file_storage_path ? (
-                      <a href={resolveAssetUrl(template.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                      <button type="button" onClick={() => handleDownloadLessonPlanner(template.lesson_planner_upload_id, template.lesson_plan_file_name)} className="text-[#073b8a] underline underline-offset-2">
                         {template.lesson_plan_file_name || 'Download'}
-                      </a>
+                      </button>
                     ) : (
                       '-'
                     )}
@@ -431,9 +441,9 @@ export default function ProgramTemplateMappingPage() {
                       <td className="px-3 py-2">{template.planner_title || '-'}</td>
                       <td className="px-3 py-2">
                         {template.lesson_plan_file_storage_path ? (
-                          <a href={resolveAssetUrl(template.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                          <button type="button" onClick={() => handleDownloadLessonPlanner(template.lesson_planner_upload_id, template.lesson_plan_file_name)} className="text-[#073b8a] underline underline-offset-2">
                             {template.lesson_plan_file_name || 'Download'}
-                          </a>
+                          </button>
                         ) : (
                           '-'
                         )}

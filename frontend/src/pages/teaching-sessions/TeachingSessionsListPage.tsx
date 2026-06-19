@@ -67,7 +67,7 @@ export default function TeachingSessionsListPage() {
       setProgramsLoading(true);
       const [schoolsResponse, programsResponse] = await Promise.all([
         api.get<SchoolOption[]>('/org/schools'),
-        teachingSessionsApi.listPrograms(user?.client_id),
+        teachingSessionsApi.listPrograms(user?.client_id ?? undefined),
       ]);
       setSchools(schoolsResponse.data);
       setPrograms(programsResponse);

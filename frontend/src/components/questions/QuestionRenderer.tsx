@@ -150,6 +150,12 @@ const renderLatexWithKatex = (html: string) => {
     const latexPattern =
       /\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$\$([\s\S]+?)\$\$|\$([^\n$]+?)\$/g;
 
+    const normalizeKatexExpression = (expression: string) =>
+      expression
+        .replace(/√\s*\(/g, "\\sqrt(")
+        .replace(/√\s*\{/g, "\\sqrt{")
+        .replace(/√\s*([A-Za-z0-9]+)/g, "\\sqrt{$1}");
+
     const renderTextNode = (textNode: Text) => {
       const content = textNode.nodeValue ?? "";
       if (!content || !latexPattern.test(content)) return;
@@ -168,7 +174,7 @@ const renderLatexWithKatex = (html: string) => {
         const span = doc.createElement("span");
         span.className = displayMode ? "katex-display-wrap" : "katex-inline-wrap";
         try {
-          span.innerHTML = katex.renderToString(expression.trim(), {
+          span.innerHTML = katex.renderToString(normalizeKatexExpression(expression.trim()), {
             throwOnError: false,
             displayMode,
             output: "htmlAndMathml",

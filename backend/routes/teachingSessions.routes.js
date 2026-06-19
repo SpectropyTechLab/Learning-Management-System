@@ -11,6 +11,7 @@ import {
   uploadLessonPlanner,
   listLessonPlannerUploads,
   getLessonPlannerSessions,
+  downloadLessonPlannerUpload,
   mapProgramSessionTemplates,
   listProgramSessionTemplates,
   publishProgramSessionTemplates,
@@ -25,6 +26,7 @@ import {
   deleteTeacherTrackerPermission,
   listMyTeachingSessions,
   getMyTeachingSessionById,
+  downloadMyTeachingSessionLessonPlan,
   createTeachingSessionUpdate,
   getTeachingSessionAnalytics,
 } from '../controllers/teachingSessions.controller.js';
@@ -59,8 +61,7 @@ router.get(
 
 router.get(
   '/teaching-sessions/programs/micro-schedules',
-  requireRole(['super_admin', 'content_authorizer']),
-  checkPermission('teaching_sessions.program_upload'),
+  requireRole(['super_admin', 'content_authorizer', 'client_admin']),
   listMicroScheduleUploads
 );
 router.post(
@@ -101,6 +102,12 @@ router.get(
   requireRole(['super_admin', 'content_authorizer']),
   checkPermission('teaching_sessions.program_upload'),
   getLessonPlannerSessions
+);
+router.get(
+  '/teaching-sessions/programs/lesson-planners/:uploadId/download',
+  requireRole(['super_admin', 'content_authorizer']),
+  checkPermission('teaching_sessions.program_upload'),
+  downloadLessonPlannerUpload
 );
 
 router.post(
@@ -187,6 +194,12 @@ router.get(
   requireRole(['teacher']),
   checkPermission('teaching_sessions.read_own'),
   getMyTeachingSessionById
+);
+router.get(
+  '/teaching-sessions/my-sessions/:id/lesson-plan/download',
+  requireRole(['teacher']),
+  checkPermission('teaching_sessions.read_own'),
+  downloadMyTeachingSessionLessonPlan
 );
 router.post(
   '/teaching-sessions/my-sessions/:id/updates',

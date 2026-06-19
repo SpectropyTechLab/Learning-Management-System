@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { parseStringPromise } from 'xml2js';
+import supabase from '../config/supabaseClient.js';
 import { getClient } from '../repositories/db.repository.js';
 import { AppError, handleServiceError } from '../utils/errors.js';
 import * as repo from '../repositories/teachingSessions.repository.js';
@@ -19,7 +20,13 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadRoot = path.join(__dirname, '../../uploads/teacher-session-tracker');
+const trackerStorageBucket =
+  process.env.TEACHING_SESSION_TRACKER_BUCKET ||
+  process.env.SUPABASE_BUCKET ||
+  'teacher-session-tracker';
+const trackerStoragePublicBaseUrl = parseOptionalString(
+  process.env.TEACHING_SESSION_TRACKER_PUBLIC_BASE_URL
+);
 
 const safeFilename = (name) => String(name || 'upload').replace(/[^a-zA-Z0-9._-]+/g, '_');
 
@@ -31,13 +38,37 @@ const normalizeKey = ({ programId, gradeLabel, subjectLabel, chapterLabel, sessi
     .filter((part) => part !== null && part !== undefined && part !== '')
     .join('|');
 
+const buildTrackerStorageObjectKey = (filename) => `teacher-session-tracker/${filename}`;
+
+const buildTrackerStoragePublicUrl = (objectKey) => {
+  if (trackerStoragePublicBaseUrl) {
+    return `${trackerStoragePublicBaseUrl.replace(/\/$/, '')}/${objectKey.replace(/^\/+/, '')}`;
+  }
+
+  const { data } = supabase.storage.from(trackerStorageBucket).getPublicUrl(objectKey);
+  return data?.publicUrl ?? null;
+};
+
 const saveUploadedFile = async (file, prefix) => {
-  await fs.mkdir(uploadRoot, { recursive: true });
   const stamped = `${Date.now()}_${safeFilename(file.originalname)}`;
   const filename = `${prefix}_${stamped}`;
-  const fullPath = path.join(uploadRoot, filename);
-  await fs.writeFile(fullPath, file.buffer);
-  return `/uploads/teacher-session-tracker/${filename}`;
+  const objectKey = buildTrackerStorageObjectKey(filename);
+
+  const { error } = await supabase.storage.from(trackerStorageBucket).upload(objectKey, file.buffer, {
+    contentType: file.mimetype || 'application/octet-stream',
+    upsert: false,
+  });
+
+  if (error) {
+    throw new AppError(`Failed to upload file to storage: ${error.message}`, 500);
+  }
+
+  const publicUrl = buildTrackerStoragePublicUrl(objectKey);
+  if (!publicUrl) {
+    throw new AppError('Failed to resolve storage URL for uploaded file', 500);
+  }
+
+  return publicUrl;
 };
 
 const columnIndexToName = (index) => {
@@ -1028,6 +1059,82 @@ const decorateSessionExpiry = (session) => {
   };
 };
 
+const resolveStoredUploadAbsolutePath = (storedPath) => {
+  const normalized = parseOptionalString(storedPath);
+  if (!normalized) return null;
+  const relativePath = normalized.replace(/^\/+/, '').replace(/\//g, path.sep);
+  return path.join(__dirname, '../../', relativePath);
+};
+
+const lessonPlanDownloadContentType =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+const buildDownloadFilename = (filename, fallback = 'lesson-plan.docx') =>
+  safeFilename(filename || fallback).replace(/^_+/, '') || fallback;
+
+const streamStoredLessonPlanDownload = async (res, storedPath, fileName) => {
+  const normalized = parseOptionalString(storedPath);
+  if (!normalized) {
+    throw new AppError('Lesson plan file not found', 404);
+  }
+
+  const downloadName = buildDownloadFilename(fileName);
+  res.setHeader('Content-Type', lessonPlanDownloadContentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+
+  if (/^https?:\/\//i.test(normalized)) {
+    const upstreamResponse = await fetch(normalized);
+    if (!upstreamResponse.ok) {
+      throw new AppError('Lesson plan file not found', upstreamResponse.status === 404 ? 404 : 502);
+    }
+
+    const arrayBuffer = await upstreamResponse.arrayBuffer();
+    return res.send(Buffer.from(arrayBuffer));
+  }
+
+  const absolutePath = resolveStoredUploadAbsolutePath(normalized);
+  if (!absolutePath) {
+    throw new AppError('Lesson plan file not found', 404);
+  }
+
+  try {
+    const fileBuffer = await fs.readFile(absolutePath);
+    return res.send(fileBuffer);
+  } catch {
+    throw new AppError('Lesson plan file not found', 404);
+  }
+};
+
+const sanitizeLessonPlanLink = async (session) => {
+  if (!session?.lesson_plan_file_storage_path) {
+    return session;
+  }
+
+  if (/^https?:\/\//i.test(String(session.lesson_plan_file_storage_path))) {
+    return session;
+  }
+
+  const absolutePath = resolveStoredUploadAbsolutePath(session.lesson_plan_file_storage_path);
+  if (!absolutePath) {
+    return {
+      ...session,
+      lesson_plan_file_name: null,
+      lesson_plan_file_storage_path: null,
+    };
+  }
+
+  try {
+    await fs.access(absolutePath);
+    return session;
+  } catch {
+    return {
+      ...session,
+      lesson_plan_file_name: null,
+      lesson_plan_file_storage_path: null,
+    };
+  }
+};
+
 const parseCompletionPercentage = (value) => {
   if (value === undefined || value === null || value === '') {
     throw new AppError('completion_percentage is required', 400);
@@ -1312,6 +1419,21 @@ export const getLessonPlannerSessions = async (req, res) => {
   }
 };
 
+export const downloadLessonPlannerUpload = async (req, res) => {
+  try {
+    const uploadId = parseRequiredInt(req.params?.uploadId, 'uploadId');
+    const result = await repo.fetchLessonPlannerUploadById(uploadId);
+    const upload = result.rows[0];
+    if (!upload) {
+      throw new AppError('Lesson planner upload not found', 404);
+    }
+
+    await streamStoredLessonPlanDownload(res, upload.file_storage_path, upload.file_name);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to download lesson planner');
+  }
+};
+
 export const getPlannerChecklistByMicroScheduleUploadId = async (req, res) => {
   try {
     const uploadId = parseRequiredInt(req.params?.uploadId, 'uploadId');
@@ -1535,6 +1657,7 @@ export const generateTeachingSessions = async (req, res) => {
     const clientId = resolveClientIdForAdmin(req, requestedClientId);
     const programId = parseRequiredInt(req.body?.program_id, 'program_id');
     const templateVersionNo = parseRequiredInt(req.body?.template_version_no, 'template_version_no');
+    const microScheduleUploadId = parseOptionalInt(req.body?.micro_schedule_upload_id, 'micro_schedule_upload_id');
     const schoolId = parseRequiredInt(req.body?.school_id, 'school_id');
     const defaultBatchId = parseRequiredInt(req.body?.batch_id, 'batch_id');
     const defaultTeacherUserId = parseRequiredInt(req.body?.teacher_user_id, 'teacher_user_id');
@@ -1543,8 +1666,28 @@ export const generateTeachingSessions = async (req, res) => {
     await ensureTrackerFeatureEnabled(clientId);
     await ensureProgramEntitled(clientId, programId);
 
-    const templatesResult = await repo.fetchProgramTemplatesForVersion({ programId, templateVersionNo });
-    const fullTemplatesResult = await repo.listProgramSessionTemplates({ programId, templateVersionNo, includeUnpublished: true });
+    if (microScheduleUploadId) {
+      const microUploadResult = await repo.fetchMicroScheduleUploadById(microScheduleUploadId);
+      const microUpload = microUploadResult.rows[0];
+      if (!microUpload) {
+        throw new AppError('Selected micro schedule upload not found', 404);
+      }
+      if (Number(microUpload.program_id) !== Number(programId)) {
+        throw new AppError('Selected micro schedule upload does not belong to this program', 400);
+      }
+    }
+
+    const templatesResult = await repo.fetchProgramTemplatesForVersion({
+      programId,
+      templateVersionNo,
+      microScheduleUploadId,
+    });
+    const fullTemplatesResult = await repo.listProgramSessionTemplates({
+      programId,
+      templateVersionNo,
+      includeUnpublished: true,
+      microScheduleUploadId,
+    });
     const nonMatchedTemplates = fullTemplatesResult.rows.filter((row) => row.mapping_status !== 'matched');
     if (nonMatchedTemplates.length > 0) {
       throw new AppError('Teaching sessions cannot be generated until every required lesson planner is uploaded and published.', 400);
@@ -1885,7 +2028,10 @@ export const listMyTeachingSessions = async (req, res) => {
       whereSql: where.join(' AND '),
       params,
     });
-    res.json(result.rows.map(decorateSessionExpiry));
+    const sanitizedSessions = await Promise.all(
+      result.rows.map(async (session) => sanitizeLessonPlanLink(decorateSessionExpiry(session)))
+    );
+    res.json(sanitizedSessions);
   } catch (err) {
     handleServiceError(res, err, 'Failed to load assigned teaching sessions');
   }
@@ -1913,11 +2059,41 @@ export const getMyTeachingSessionById = async (req, res) => {
 
     const updates = await repo.listTeachingSessionUpdatesBySessionId(session.id);
     res.json({
-      session: decorateSessionExpiry(session),
+      session: await sanitizeLessonPlanLink(decorateSessionExpiry(session)),
       updates: updates.rows,
     });
   } catch (err) {
     handleServiceError(res, err, 'Failed to load teaching session');
+  }
+};
+
+export const downloadMyTeachingSessionLessonPlan = async (req, res) => {
+  try {
+    const sessionId = parseRequiredInt(req.params?.id, 'id');
+    const sessionResult = await repo.fetchTeacherOwnedSession({ sessionId, teacherUserId: req.user.id });
+    const session = sessionResult.rows[0];
+    if (!session) {
+      throw new AppError('Teaching session not found', 404);
+    }
+
+    const permission = await repo.fetchTeacherTrackerPermissionForSession({
+      clientId: session.client_id,
+      teacherUserId: req.user.id,
+      schoolId: session.school_id,
+      batchId: session.batch_id,
+      programId: session.program_id,
+    });
+    if (!permission.rows[0]) {
+      throw new AppError('Tracker access is not granted for this session', 403);
+    }
+
+    await streamStoredLessonPlanDownload(
+      res,
+      session.lesson_plan_file_storage_path,
+      session.lesson_plan_file_name
+    );
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to download lesson plan');
   }
 };
 

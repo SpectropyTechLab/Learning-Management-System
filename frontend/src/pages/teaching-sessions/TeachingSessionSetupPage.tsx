@@ -11,6 +11,7 @@ import type {
   GradeOption,
   ProgramOption,
   ProgramSessionTemplate,
+  ProgramUpload,
   SchoolMembership,
   SubjectOption,
   TeachingSession,
@@ -69,6 +70,7 @@ export default function TeachingSessionSetupPage() {
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [grades, setGrades] = useState<GradeOption[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [microUploads, setMicroUploads] = useState<ProgramUpload[]>([]);
   const [batches, setBatches] = useState<BatchOption[]>([]);
   const [schoolMemberships, setSchoolMemberships] = useState<SchoolMembership[]>([]);
   const [templates, setTemplates] = useState<ProgramSessionTemplate[]>([]);
@@ -85,8 +87,10 @@ export default function TeachingSessionSetupPage() {
   const [programsLoading, setProgramsLoading] = useState(false);
   const [gradesLoading, setGradesLoading] = useState(false);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [microUploadsLoading, setMicroUploadsLoading] = useState(false);
   const [batchesLoading, setBatchesLoading] = useState(false);
   const [teachersLoading, setTeachersLoading] = useState(false);
+  const [microScheduleUploadId, setMicroScheduleUploadId] = useState('');
 
   const selectedGrade = useMemo(
     () => grades.find((item) => Number(item.id) === Number(gradeId)) ?? null,
@@ -237,7 +241,8 @@ export default function TeachingSessionSetupPage() {
   };
 
   const loadPrograms = async () => {
-    const scopedClientId = user?.role === 'super_admin' ? clientId || undefined : user?.client_id;
+    const scopedClientId =
+      user?.role === 'super_admin' ? clientId || undefined : user?.client_id ?? undefined;
     try {
       setProgramsLoading(true);
       setPrograms(await teachingSessionsApi.listPrograms(scopedClientId));
@@ -255,7 +260,8 @@ export default function TeachingSessionSetupPage() {
       return;
     }
 
-    const scopedClientId = user?.role === 'super_admin' ? clientId || undefined : user?.client_id;
+    const scopedClientId =
+      user?.role === 'super_admin' ? clientId || undefined : user?.client_id ?? undefined;
     try {
       setGradesLoading(true);
       setGrades(await teachingSessionsApi.listGrades(nextProgramId, scopedClientId));
@@ -273,7 +279,8 @@ export default function TeachingSessionSetupPage() {
       return;
     }
 
-    const scopedClientId = user?.role === 'super_admin' ? clientId || undefined : user?.client_id;
+    const scopedClientId =
+      user?.role === 'super_admin' ? clientId || undefined : user?.client_id ?? undefined;
     try {
       setSubjectsLoading(true);
       setSubjects(await teachingSessionsApi.listSubjects(nextProgramId, nextGradeId, scopedClientId));
@@ -286,8 +293,8 @@ export default function TeachingSessionSetupPage() {
   };
 
   const loadTemplates = async () => {
-    if (!programId || !gradeId || !subjectId) {
-      toast.error('Program, grade, and subject are required');
+    if (!programId || !gradeId || !subjectId || !microScheduleUploadId) {
+      toast.error('Program, grade, subject, and micro schedule are required');
       return;
     }
 
@@ -306,6 +313,7 @@ export default function TeachingSessionSetupPage() {
       setScopeBlockedMessage('');
       const data = await teachingSessionsApi.listProgramTemplates(programId, {
         template_version_no: Number(templateVersionNo || '1'),
+        micro_schedule_upload_id: Number(microScheduleUploadId),
       });
       const matched = data.filter(
         (entry) => entry.mapping_status === 'matched' && entry.is_published && matchesSelectedScope(entry)
@@ -317,6 +325,34 @@ export default function TeachingSessionSetupPage() {
       toast.error('Failed to load published templates');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMicroUploads = async (nextProgramId: string, nextGradeId: string, nextSubjectId: string) => {
+    if (!nextProgramId || !nextGradeId || !nextSubjectId) {
+      setMicroUploads([]);
+      setMicroScheduleUploadId('');
+      return;
+    }
+
+    try {
+      setMicroUploadsLoading(true);
+      const data = await teachingSessionsApi.listMicroScheduleUploads({
+        programId: nextProgramId,
+        gradeId: nextGradeId,
+        subjectId: nextSubjectId,
+      });
+      setMicroUploads(data);
+      setMicroScheduleUploadId((current) =>
+        current && data.some((upload) => Number(upload.id) === Number(current))
+          ? current
+          : String(data[0]?.id ?? '')
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load micro schedules');
+    } finally {
+      setMicroUploadsLoading(false);
     }
   };
 
@@ -345,6 +381,8 @@ export default function TeachingSessionSetupPage() {
   useEffect(() => {
     setGradeId('');
     setSubjectId('');
+    setMicroUploads([]);
+    setMicroScheduleUploadId('');
     setSubjects([]);
     setTemplates([]);
     setDraftItems({});
@@ -353,15 +391,30 @@ export default function TeachingSessionSetupPage() {
 
   useEffect(() => {
     setSubjectId('');
+    setMicroUploads([]);
+    setMicroScheduleUploadId('');
     setTemplates([]);
     setDraftItems({});
     loadSubjects(programId, gradeId);
   }, [programId, gradeId]);
 
   useEffect(() => {
+    setMicroUploads([]);
+    setMicroScheduleUploadId('');
     setTemplates([]);
     setDraftItems({});
-  }, [subjectId, templateVersionNo]);
+    loadMicroUploads(programId, gradeId, subjectId);
+  }, [subjectId]);
+
+  useEffect(() => {
+    setTemplates([]);
+    setDraftItems({});
+  }, [templateVersionNo]);
+
+  useEffect(() => {
+    setTemplates([]);
+    setDraftItems({});
+  }, [microScheduleUploadId]);
 
   useEffect(() => {
     const loadExistingSessions = async () => {
@@ -442,8 +495,8 @@ export default function TeachingSessionSetupPage() {
   }, [schoolId]);
 
   const handleGenerate = async () => {
-    if (!programId || !gradeId || !subjectId || !schoolId) {
-      toast.error('Program, grade, subject, and school are required');
+    if (!programId || !gradeId || !subjectId || !microScheduleUploadId || !schoolId) {
+      toast.error('Program, grade, subject, micro schedule, and school are required');
       return;
     }
 
@@ -477,6 +530,7 @@ export default function TeachingSessionSetupPage() {
       setLoading(true);
       const latestTemplates = await teachingSessionsApi.listProgramTemplates(programId, {
         template_version_no: Number(templateVersionNo || '1'),
+        micro_schedule_upload_id: Number(microScheduleUploadId),
       });
       const latestMatchedTemplates = latestTemplates.filter(
         (entry) => entry.mapping_status === 'matched' && entry.is_published && matchesSelectedScope(entry)
@@ -499,6 +553,7 @@ export default function TeachingSessionSetupPage() {
         client_id: clientId ? Number(clientId) : undefined,
         program_id: Number(programId),
         template_version_no: Number(templateVersionNo || '1'),
+        micro_schedule_upload_id: Number(microScheduleUploadId),
         school_id: Number(schoolId),
         batch_id: Number(sharedBatchId),
         teacher_user_id: Number(sharedTeacherUserId),
@@ -543,7 +598,7 @@ export default function TeachingSessionSetupPage() {
     >
       <div className="space-y-6">
         <SectionCard title="Generation Context">
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-6">
             <label className="text-sm text-slate-600">
               Client
               <select
@@ -627,6 +682,30 @@ export default function TeachingSessionSetupPage() {
                 onChange={(e) => setTemplateVersionNo(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
               />
+            </label>
+            <label className="text-sm text-slate-600 md:col-span-2">
+              Micro Schedule
+              <select
+                value={microScheduleUploadId}
+                onChange={(e) => setMicroScheduleUploadId(e.target.value)}
+                disabled={!subjectId || microUploadsLoading}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+              >
+                <option value="">
+                  {!subjectId
+                    ? 'Select a subject first'
+                    : microUploadsLoading
+                      ? 'Loading micro schedules...'
+                      : microUploads.length === 0
+                        ? 'No micro schedules found'
+                        : 'Select a micro schedule'}
+                </option>
+                {microUploads.map((upload) => (
+                  <option key={upload.id} value={upload.id}>
+                    {upload.file_name} | v{upload.version_no}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="text-sm text-slate-600 md:col-span-2">
               School

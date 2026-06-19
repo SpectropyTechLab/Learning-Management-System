@@ -66,7 +66,7 @@ export default function TeacherTrackerPermissionsPage() {
       setProgramsLoading(true);
       const [schoolsResponse, programsResponse] = await Promise.all([
         api.get<SchoolOption[]>('/org/schools'),
-        teachingSessionsApi.listPrograms(user?.client_id),
+        teachingSessionsApi.listPrograms(user?.client_id ?? undefined),
       ]);
       setSchools(schoolsResponse.data);
       setPrograms(programsResponse);
@@ -268,7 +268,7 @@ export default function TeacherTrackerPermissionsPage() {
 
           <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
             <div className="overflow-x-auto">
-              <table className="min-w-[640px] divide-y divide-slate-200 text-sm">
+              <table className="min-w-160 divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-3 py-3 text-left whitespace-nowrap">Teacher</th>
@@ -286,7 +286,7 @@ export default function TeacherTrackerPermissionsPage() {
                     <tr key={permission.id}>
                       <td className="px-3 py-3 align-top">{permission.teacher_name || permission.teacher_user_id}</td>
                       <td className="px-3 py-3 align-top">{permission.client_name || permission.client_id}</td>
-                      <td className="px-3 py-3 align-top break-words">{formatScope(permission)}</td>
+                      <td className="px-3 py-3 align-top wrap-break-word">{formatScope(permission)}</td>
                       <td className="px-3 py-3 align-top whitespace-nowrap">
                         {permission.can_view_tracker ? 'View' : 'No View'} / {permission.can_update_tracker ? 'Update' : 'Read Only'}
                       </td>

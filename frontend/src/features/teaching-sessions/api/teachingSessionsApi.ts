@@ -17,6 +17,17 @@ import type {
   TeachingSessionUpdate,
 } from '@/features/teaching-sessions/types';
 
+const triggerBrowserDownload = (blob: Blob, fileName: string) => {
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.URL.revokeObjectURL(objectUrl);
+};
+
 export const teachingSessionsApi = {
   listPrograms: async (clientId?: string | number) => {
     const res = await api.get<ProgramOption[]>('/teaching-sessions/program-options', {
@@ -105,6 +116,13 @@ export const teachingSessionsApi = {
     return res.data;
   },
 
+  downloadLessonPlannerUpload: async (uploadId: string | number, fileName?: string | null) => {
+    const res = await api.get<Blob>(`/teaching-sessions/programs/lesson-planners/${uploadId}/download`, {
+      responseType: 'blob',
+    });
+    triggerBrowserDownload(res.data, fileName || `lesson-planner-${uploadId}.docx`);
+  },
+
   getPlannerChecklist: async (microScheduleUploadId: string | number) => {
     const res = await api.get<PlannerChecklist>(`/teaching-sessions/programs/micro-schedules/${microScheduleUploadId}/planner-checklist`);
     return res.data;
@@ -182,6 +200,13 @@ export const teachingSessionsApi = {
   getMyTeachingSession: async (id: string | number) => {
     const res = await api.get<{ session: TeachingSession; updates: TeachingSessionUpdate[] }>(`/teaching-sessions/my-sessions/${id}`);
     return res.data;
+  },
+
+  downloadMyTeachingSessionLessonPlan: async (id: string | number, fileName?: string | null) => {
+    const res = await api.get<Blob>(`/teaching-sessions/my-sessions/${id}/lesson-plan/download`, {
+      responseType: 'blob',
+    });
+    triggerBrowserDownload(res.data, fileName || `lesson-plan-${id}.docx`);
   },
 
   createTeachingSessionUpdate: async (id: string | number, payload: Record<string, unknown>) => {

@@ -5,7 +5,6 @@ import TeachingSessionsShell from '@/features/teaching-sessions/components/Teach
 import SectionCard from '@/features/teaching-sessions/components/SectionCard';
 import StatusBadge from '@/features/teaching-sessions/components/StatusBadge';
 import { teachingSessionsApi } from '@/features/teaching-sessions/api/teachingSessionsApi';
-import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 import type {
   GradeOption,
   PlannerChecklist,
@@ -208,6 +207,17 @@ export default function ProgramLessonPlannerUploadPage() {
     }
   };
 
+  const handleDownloadLessonPlanner = async (uploadId?: number | null, fileName?: string | null) => {
+    if (!uploadId) return;
+
+    try {
+      await teachingSessionsApi.downloadLessonPlannerUpload(uploadId, fileName || undefined);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to download lesson planner');
+    }
+  };
+
   return (
     <TeachingSessionsShell
       title="Lesson Planner Uploads"
@@ -347,9 +357,9 @@ export default function ProgramLessonPlannerUploadPage() {
                       <div>
                         <span className="font-medium text-slate-900">Planner:</span>{' '}
                         {session.lesson_plan_file_storage_path ? (
-                          <a href={resolveAssetUrl(session.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                          <button type="button" onClick={() => handleDownloadLessonPlanner(session.lesson_planner_upload_id, session.lesson_plan_file_name)} className="text-[#073b8a] underline underline-offset-2">
                             {session.lesson_plan_file_name || 'Download'}
-                          </a>
+                          </button>
                         ) : (
                           '-'
                         )}
@@ -380,9 +390,9 @@ export default function ProgramLessonPlannerUploadPage() {
                           <td className="px-3 py-2">{session.topic_label || '-'}</td>
                           <td className="px-3 py-2">
                             {session.lesson_plan_file_storage_path ? (
-                              <a href={resolveAssetUrl(session.lesson_plan_file_storage_path) ?? undefined} download className="text-[#073b8a] underline underline-offset-2">
+                              <button type="button" onClick={() => handleDownloadLessonPlanner(session.lesson_planner_upload_id, session.lesson_plan_file_name)} className="text-[#073b8a] underline underline-offset-2">
                                 {session.lesson_plan_file_name || 'Download'}
-                              </a>
+                              </button>
                             ) : (
                               '-'
                             )}

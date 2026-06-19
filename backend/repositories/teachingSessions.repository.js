@@ -601,7 +601,7 @@ export const fetchClientProgramEntitlement = ({ clientId, programId }) =>
     [clientId, programId]
   );
 
-export const fetchProgramTemplatesForVersion = ({ programId, templateVersionNo }) =>
+export const fetchProgramTemplatesForVersion = ({ programId, templateVersionNo, microScheduleUploadId = null }) =>
   dbQuery(
     `
     SELECT pst.*,
@@ -621,9 +621,14 @@ export const fetchProgramTemplatesForVersion = ({ programId, templateVersionNo }
       AND pst.template_version_no = $2
       AND pst.is_published = TRUE
       AND pst.mapping_status = 'matched'
+      AND (
+        $3::int IS NULL
+        OR micro_row.micro_schedule_upload_id = $3
+        OR planner_upload.micro_schedule_upload_id = $3
+      )
     ORDER BY pst.session_no ASC, pst.id ASC
     `,
-    [programId, templateVersionNo]
+    [programId, templateVersionNo, microScheduleUploadId]
   );
 
 export const insertTeachingSession = (executor, payload) =>

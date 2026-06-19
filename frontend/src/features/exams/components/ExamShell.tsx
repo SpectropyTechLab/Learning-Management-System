@@ -15,6 +15,7 @@ interface ExamShellProps {
   headerAction?: React.ReactNode;
   backTo?: string;
   headerClassName?: string;
+  bodyClassName?: string;
 }
 
 const DASHBOARD_BY_ROLE: Record<string, string> = {
@@ -32,6 +33,7 @@ export default function ExamShell({
   headerAction,
   backTo,
   headerClassName,
+  bodyClassName,
 }: ExamShellProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -111,19 +113,23 @@ export default function ExamShell({
           >
             Menu
           </button>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-bold">{title}</h1>
               <p className="mt-1 text-sm md:text-base text-slate-600">
                 {description}
               </p>
             </div>
-            {headerAction && <div className="flex items-center gap-2">{headerAction}</div>}
+            {headerAction && (
+              <div className="flex w-full flex-wrap items-stretch gap-2 md:w-auto md:justify-end">
+                {headerAction}
+              </div>
+            )}
           </div>
         </div>
       }
     >
-      <div className="p-6">{children}</div>
+      <div className={bodyClassName ?? "p-6"}>{children}</div>
     </DashboardLayout>
   );
 }
