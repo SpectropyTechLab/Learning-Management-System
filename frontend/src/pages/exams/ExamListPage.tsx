@@ -587,7 +587,7 @@ export default function ExamListPage() {
         title="Exam List"
         description="Manage exams, monitor status, and maintain exam records."
         headerAction={
-          examPermissions.canCreate && !shouldHideExamUtilityActions ? (
+          examPermissions.canCreate ? (
             <button
               type="button"
               onClick={() => navigate("/exams/new")}
