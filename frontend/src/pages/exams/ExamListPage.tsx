@@ -160,7 +160,10 @@ export default function ExamListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const examPermissions = useMemo(() => getExamPermissions(user), [user]);
-  const isClientAdmin = user?.role === "client_admin";
+  const shouldHideExamUtilityActions =
+    user?.role === "client_admin" ||
+    user?.role === "teacher" ||
+    user?.role === "school_owner";
   const [exams, setExams] = useState<ExamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -584,7 +587,7 @@ export default function ExamListPage() {
         title="Exam List"
         description="Manage exams, monitor status, and maintain exam records."
         headerAction={
-          examPermissions.canCreate ? (
+          examPermissions.canCreate && !shouldHideExamUtilityActions ? (
             <button
               type="button"
               onClick={() => navigate("/exams/new")}
@@ -603,7 +606,7 @@ export default function ExamListPage() {
               <p className="text-sm text-slate-500">{total} exams found</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {examPermissions.canCreate && !isClientAdmin && (
+              {examPermissions.canCreate && !shouldHideExamUtilityActions && (
                 <button
                   type="button"
                   onClick={() => navigate("/exams/blueprints")}
@@ -612,7 +615,7 @@ export default function ExamListPage() {
                   Manage Blueprints
                 </button>
               )}
-              {examPermissions.canCreate && !isClientAdmin && (
+              {examPermissions.canCreate && !shouldHideExamUtilityActions && (
                 <button
                   type="button"
                   onClick={() => navigate("/exams/new")}

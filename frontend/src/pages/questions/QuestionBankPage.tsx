@@ -16,25 +16,10 @@ export default function QuestionBankPage() {
     <QuestionBankLayout
       title="Question Bank"
       description="Create, review, and organize assessment questions."
+      showQuestionBankNavActions
       actions={
         permissions.canCreate ? (
           <div className="flex flex-wrap gap-2">
-            {!isClientAdmin ? (
-              <>
-                <button
-                  onClick={() => navigate("/question-bank/converter")}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Converter
-                </button>
-                <button
-                  onClick={() => navigate("/question-bank/bulk-upload")}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Bulk Upload
-                </button>
-              </>
-            ) : null}
             <button
               onClick={() =>
                 navigate(`/question-bank/passages?returnTo=${encodeURIComponent(returnTo)}`)

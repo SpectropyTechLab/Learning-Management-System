@@ -54,6 +54,8 @@ const questionBankTabs = [
   { key: "bulk-upload", label: "Bulk Upload", to: "/question-bank/bulk-upload" },
 ] as const;
 
+const hideQuestionBankUtilityTabsForRoles = new Set(["school_owner", "teacher"]);
+
 const dashboardPathByRole: Record<string, string> = {
   super_admin: "/superadmin/dashboard",
   client_admin: "/admin/dashboard",
@@ -82,19 +84,28 @@ export default function QuestionBankShell({
   const config = roleConfig[roleKey];
   const userFullName = user?.full_name || config.label;
   const userEmail = user?.email || "";
+  const shouldHideUtilityTabs = hideQuestionBankUtilityTabsForRoles.has(user?.role ?? "");
 
   const isTabActive = (to: string) =>
     to === "/question-bank"
       ? location.pathname === to
       : location.pathname === to || location.pathname.startsWith(`${to}/`);
 
-  const navItems = questionBankTabs.map((tab) => ({
+  const navItems = questionBankTabs
+    .filter((tab) => {
+      if (!shouldHideUtilityTabs) {
+        return true;
+      }
+
+      return tab.key !== "converter" && tab.key !== "bulk-upload";
+    })
+    .map((tab) => ({
     key: tab.key,
     label: tab.label,
     icon: <RiFileList3Line />,
     active: isTabActive(tab.to),
     onClick: () => navigate(tab.to),
-  }));
+    }));
 
   return (
     <DashboardLayout
