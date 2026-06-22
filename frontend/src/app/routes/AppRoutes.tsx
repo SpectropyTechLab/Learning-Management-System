@@ -24,7 +24,7 @@ import PermissionsPage from '@/pages/dashboard/superadmin/PermissionsPage';
 import AdminDashboard from '@/pages/dashboard/admin/admindashboard';
 import OrgDashboard from '@/pages/dashboard/admin/OrgDashboard';
 import CourseContent from '@/pages/course/admin/CourseContent';
-import EnrollUsers from '@/pages/course/admin/EnrollUsers';
+import EnrollUsers from '@/pages/course/admin/EnrollUsersBulk';
 
 // Teacher
 import TeacherDashboard from '@/pages/dashboard/teacher/Dashboard';

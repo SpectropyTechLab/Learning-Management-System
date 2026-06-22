@@ -20,10 +20,8 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const trackerStorageBucket =
-  process.env.TEACHING_SESSION_TRACKER_BUCKET ||
-  process.env.SUPABASE_BUCKET ||
-  'teacher-session-tracker';
+const trackerStorageBucket = process.env.TEACHING_SESSION_TRACKER_BUCKET || 'teacher-session-tracker';
+const fallbackStorageBucket = process.env.SUPABASE_BUCKET || null;
 const trackerStoragePublicBaseUrl = parseOptionalString(
   process.env.TEACHING_SESSION_TRACKER_PUBLIC_BASE_URL
 );
@@ -40,12 +38,17 @@ const normalizeKey = ({ programId, gradeLabel, subjectLabel, chapterLabel, sessi
 
 const buildTrackerStorageObjectKey = (filename) => `teacher-session-tracker/${filename}`;
 
-const buildTrackerStoragePublicUrl = (objectKey) => {
+const resolveTrackerStorageBuckets = () =>
+  [trackerStorageBucket, fallbackStorageBucket].filter(
+    (bucket, index, buckets) => bucket && buckets.indexOf(bucket) === index
+  );
+
+const buildTrackerStoragePublicUrl = (bucket, objectKey) => {
   if (trackerStoragePublicBaseUrl) {
     return `${trackerStoragePublicBaseUrl.replace(/\/$/, '')}/${objectKey.replace(/^\/+/, '')}`;
   }
 
-  const { data } = supabase.storage.from(trackerStorageBucket).getPublicUrl(objectKey);
+  const { data } = supabase.storage.from(bucket).getPublicUrl(objectKey);
   return data?.publicUrl ?? null;
 };
 
@@ -54,21 +57,34 @@ const saveUploadedFile = async (file, prefix) => {
   const filename = `${prefix}_${stamped}`;
   const objectKey = buildTrackerStorageObjectKey(filename);
 
-  const { error } = await supabase.storage.from(trackerStorageBucket).upload(objectKey, file.buffer, {
-    contentType: file.mimetype || 'application/octet-stream',
-    upsert: false,
-  });
+  let lastError = null;
+  for (const bucket of resolveTrackerStorageBuckets()) {
+    const { error } = await supabase.storage.from(bucket).upload(objectKey, file.buffer, {
+      contentType: file.mimetype || 'application/octet-stream',
+      upsert: false,
+    });
 
-  if (error) {
-    throw new AppError(`Failed to upload file to storage: ${error.message}`, 500);
+    if (error) {
+      lastError = error;
+      if (!String(error.message || '').toLowerCase().includes('bucket not found')) {
+        throw new AppError(`Failed to upload file to storage: ${error.message}`, 500);
+      }
+      continue;
+    }
+
+    const publicUrl = buildTrackerStoragePublicUrl(bucket, objectKey);
+    if (!publicUrl) {
+      throw new AppError('Failed to resolve storage URL for uploaded file', 500);
+    }
+
+    return publicUrl;
   }
 
-  const publicUrl = buildTrackerStoragePublicUrl(objectKey);
-  if (!publicUrl) {
-    throw new AppError('Failed to resolve storage URL for uploaded file', 500);
+  if (lastError) {
+    throw new AppError(`Failed to upload file to storage: ${lastError.message}`, 500);
   }
 
-  return publicUrl;
+  throw new AppError('Failed to upload file to storage: No storage bucket configured', 500);
 };
 
 const columnIndexToName = (index) => {

@@ -7,6 +7,8 @@ import {
   listCoursesForRequest,
   saveClientCourseTitleOverride,
 } from './courseShared.service.js';
+import { AppError } from '../utils/errors.js';
+import { validateCoursesForExamAccess } from './examCourseAccess.service.js';
 // In your backend (e.g., routes/admin/courses.js or .ts)
 
 let contentItemExamSchemaEnsured = false;
@@ -257,7 +259,7 @@ export const createContentItem = async (req, res) => {
       }
 
       const examResult = await dbQuery(
-        `SELECT id, title, client_id FROM exams WHERE id = $1`,
+        `SELECT id, title, client_id, school_id FROM exams WHERE id = $1`,
         [examId]
       );
       if (examResult.rows.length === 0) {
@@ -265,10 +267,11 @@ export const createContentItem = async (req, res) => {
       }
 
       const exam = examResult.rows[0];
-      const course = courseScopeResult.rows[0];
-      if (exam.client_id && course.client_id && Number(exam.client_id) !== Number(course.client_id)) {
-        return res.status(403).json({ error: 'Exam does not belong to this course client scope' });
-      }
+      await validateCoursesForExamAccess({
+        courseIds: [courseId],
+        exam,
+        user: req.user,
+      });
 
       finalTitle = normalizedTitle || String(exam.title || 'Exam');
       finalContentUrl = null;
@@ -319,6 +322,9 @@ export const createContentItem = async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    if (err instanceof AppError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     console.error('Content creation error:', {
       message: err.message,
       code: err.code,

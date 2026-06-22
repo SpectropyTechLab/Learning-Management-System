@@ -1,4 +1,4 @@
-import SharedEnrollUsers from "@/pages/course/admin/EnrollUsers";
+import SharedEnrollUsers from "@/pages/course/admin/EnrollUsersBulk";
 
 export default function SchoolOwnerEnrollUsers() {
   return (

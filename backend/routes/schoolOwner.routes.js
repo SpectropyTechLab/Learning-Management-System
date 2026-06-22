@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   createCourse,
   getAllCourses,
@@ -11,6 +12,7 @@ import {
 import {
   deleteEnrollment,
   enrollUserByEmail,
+  enrollUsersBulk,
   getCourseEnrollments,
   updateEnrollmentRole,
 } from '../controllers/enrollment.controller.js';
@@ -19,6 +21,7 @@ import { upload, uploadContentFile, updateContentFile, viewScormFile } from '../
 import { deleteContentItem, renameContentItem, reorderContentItems } from '../controllers/content.controller.js';
 
 const router = Router();
+const uploadEnrollmentFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.get('/view/*', authenticateToken, viewScormFile);
 
@@ -45,6 +48,7 @@ router.put('/courses/:courseId/content/reorder', checkPermission('courses.update
 
 router.get('/courses/:courseId/enrollments', checkPermission('courses.update'), getCourseEnrollments);
 router.post('/courses/:courseId/enroll-by-email', checkPermission('courses.update'), enrollUserByEmail);
+router.post('/courses/:courseId/enroll-bulk', checkPermission('courses.update'), uploadEnrollmentFile.single('file'), enrollUsersBulk);
 router.delete('/courses/:id/enrollments/:userId', checkPermission('courses.update'), deleteEnrollment);
 router.patch('/courses/:id/enrollments/:userId', checkPermission('courses.update'), updateEnrollmentRole);
 

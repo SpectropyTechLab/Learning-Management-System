@@ -40,6 +40,7 @@ import {
   ensureProgramEntitledForModule,
   getEnabledProgramIdsForModule,
 } from './moduleEntitlements.service.js';
+import { validateCoursesForExamAccess } from './examCourseAccess.service.js';
 
 const VALID_EXAM_STATUSES = ['draft', 'published', 'active', 'completed'];
 const VALID_BLUEPRINT_STATUSES = ['active', 'inactive', 'archived'];
@@ -3885,45 +3886,8 @@ const listAssignedCoursesForExam = async (examId) => {
   return assignedResult.rows;
 };
 
-const validateCoursesForExamAssignment = async ({ courseIds, exam, user }) => {
-  if (courseIds.length === 0) return;
-
-  const courseResult = await dbQuery(
-    `SELECT id, client_id, school_id FROM courses WHERE id = ANY($1::int[])`,
-    [courseIds]
-  );
-
-  if (courseResult.rows.length !== courseIds.length) {
-    throw new AppError('One or more course_ids are invalid', 404);
-  }
-
-  let scopedSchoolIds = null;
-  if (isSchoolOwner(user?.role) || isTeacher(user?.role)) {
-    scopedSchoolIds = await fetchUserSchoolIds(user.id);
-  }
-
-  for (const course of courseResult.rows) {
-    const courseClientId = Number(course.client_id);
-    const examClientId = Number(exam.client_id);
-    if (!isPlatformOwnedExamClientId(examClientId) && courseClientId !== examClientId) {
-      throw new AppError('Course does not belong to the same client as the exam', 403);
-    }
-    if (isPlatformOwnedExamClientId(examClientId) && !isPlatformAdmin(user?.role)) {
-      const requesterClientId = Number(user?.client_id);
-      if (!requesterClientId || courseClientId !== requesterClientId) {
-        throw new AppError('Course does not belong to the requester client scope', 403);
-      }
-    }
-
-    if (exam.school_id && Number(course.school_id) !== Number(exam.school_id)) {
-      throw new AppError('Course does not belong to the same school as the exam', 403);
-    }
-
-    if (scopedSchoolIds && course.school_id && !scopedSchoolIds.includes(Number(course.school_id))) {
-      throw new AppError('Access denied for one or more courses', 403);
-    }
-  }
-};
+const validateCoursesForExamAssignment = async ({ courseIds, exam, user }) =>
+  validateCoursesForExamAccess({ courseIds, exam, user });
 
 export const addQuestionToSection = async (req, res) => {
   try {
