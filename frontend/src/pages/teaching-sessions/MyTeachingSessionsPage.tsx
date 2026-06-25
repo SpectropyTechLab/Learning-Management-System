@@ -33,6 +33,27 @@ const formatIndianDate = (value?: string | null) => {
   }).format(date).replace(/\//g, '-');
 };
 
+const getDaysUntilExpiry = (session: TeachingSession) => {
+  if (!session.expiry_date) return null;
+
+  const expiry = new Date(`${session.expiry_date}T00:00:00`);
+  if (Number.isNaN(expiry.getTime())) return null;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const expiryDay = new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate());
+  return Math.round((expiryDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+};
+
+const getExpiryLabel = (session: TeachingSession) => {
+  const daysUntilExpiry = getDaysUntilExpiry(session);
+  if (daysUntilExpiry === null) return null;
+  if (session.is_expired) return `Expired on ${formatIndianDate(session.expiry_date)}`;
+  if (daysUntilExpiry === 0) return 'Expires today';
+  if (daysUntilExpiry === 1) return 'Expires in 1 day';
+  return `Expires in ${daysUntilExpiry} days`;
+};
+
 const createDefaultForm = (session: TeachingSession): UpdateFormState => ({
   status_submitted: session.status === 'partially_completed' ? 'partially_completed' : session.status === 'not_completed' ? 'not_completed' : 'completed',
   completion_percentage: String(session.completion_percentage ?? 100),
@@ -150,7 +171,7 @@ export default function MyTeachingSessionsPage() {
   return (
     <TeachingSessionsShell
       title="My Teaching Sessions"
-      subtitle={<span className="text-yellow-600">Track your assigned sessions, download the correct lesson plan, and submit daily updates inline.</span>}
+      subtitle={<span className="text-yellow-600">Track your assigned sessions, download the correct lesson plan, review how many days remain before each session expires, and submit daily updates inline.</span>}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status filter" className="rounded-full border border-slate-200 px-3 py-2 text-xs" />
@@ -206,6 +227,9 @@ export default function MyTeachingSessionsPage() {
                     <div>
                       <div className="text-sm font-semibold text-slate-900">{session.session_label}</div>
                       <div className="mt-1 text-xs text-slate-500">{formatIndianDate(session.planned_date)}</div>
+                      {getExpiryLabel(session) ? (
+                        <div className="mt-1 text-xs text-orange-600">{getExpiryLabel(session)}</div>
+                      ) : null}
                     </div>
                     <StatusBadge status={getDisplayStatus(session)} />
                   </div>
@@ -293,7 +317,12 @@ export default function MyTeachingSessionsPage() {
                     return (
                       <Fragment key={session.id}>
                         <tr key={session.id}>
-                          <td className="px-3 py-2">{formatIndianDate(session.planned_date)}</td>
+                          <td className="px-3 py-2">
+                            <div>{formatIndianDate(session.planned_date)}</div>
+                            {getExpiryLabel(session) ? (
+                              <div className="mt-1 text-xs text-orange-600">{getExpiryLabel(session)}</div>
+                            ) : null}
+                          </td>
                           <td className="px-3 py-2 font-medium text-slate-900">{session.session_label}</td>
                           <td className="px-3 py-2">{session.chapter_label || '-'}</td>
                           <td className="px-3 py-2">{session.topic_label || '-'}</td>

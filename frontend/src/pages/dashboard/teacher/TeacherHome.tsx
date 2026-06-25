@@ -134,7 +134,7 @@ export default function TeacherHome() {
           </button>
           <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">Teaching Dashboard</h1>
+              <h1 className="text-xl md:text-2xl font-bold">Teacher Dashboard</h1>
               <p className="mt-1 text-sm md:text-base text-gray-600">
                 Manage your classes, assessments, and learning materials.
               </p>

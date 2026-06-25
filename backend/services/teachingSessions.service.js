@@ -1018,7 +1018,10 @@ const normalizeStoredDateValue = (value) => {
   if (value === undefined || value === null || value === '') return value;
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return value;
-    return value.toISOString().slice(0, 10);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   const next = String(value).trim();
@@ -1063,8 +1066,8 @@ const addDaysToDateString = (dateString, days) => {
 
 const decorateSessionExpiry = (session) => {
   if (!session) return session;
-  const plannedDate = session.planned_date ? String(session.planned_date).slice(0, 10) : null;
-  const expiryDate = addDaysToDateString(plannedDate, 2);
+  const plannedDate = normalizeStoredDateValue(session.planned_date);
+  const expiryDate = addDaysToDateString(plannedDate, 7);
   const currentDate = getCurrentDateInIndia();
   const isExpired = Boolean(expiryDate && currentDate > expiryDate);
   return {
@@ -2164,7 +2167,7 @@ export const createTeachingSessionUpdate = async (req, res) => {
       completionPercentage,
     });
 
-    const updatedSession = await repo.updateTeachingSessionProgress({
+    await repo.updateTeachingSessionProgress({
       id: session.id,
       fields: {
         status: nextStatus,
@@ -2178,9 +2181,14 @@ export const createTeachingSessionUpdate = async (req, res) => {
       },
     });
 
+    const refreshedSessionResult = await repo.fetchTeacherOwnedSession({
+      sessionId: session.id,
+      teacherUserId: req.user.id,
+    });
+
     res.status(201).json({
       update: updateResult.rows[0],
-      session: decorateSessionExpiry(updatedSession.rows[0]),
+      session: decorateSessionExpiry(refreshedSessionResult.rows[0]),
     });
   } catch (err) {
     handleServiceError(res, err, 'Failed to submit teaching session update');

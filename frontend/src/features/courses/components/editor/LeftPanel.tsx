@@ -4,6 +4,7 @@ import {
     Droppable,
     Draggable,
     type DropResult,
+    type DraggableProvidedDragHandleProps,
 } from "@hello-pangea/dnd";
 
 import { BsThreeDotsVertical } from "react-icons/bs";
@@ -125,6 +126,13 @@ const LeftPanel: React.FC<Props> = ({
         setExpandedTopics((prev) =>
             prev.includes(topicId) ? prev.filter((id) => id !== topicId) : [...prev, topicId],
         );
+    };
+
+    const reorderList = <T,>(items: T[], startIndex: number, endIndex: number) => {
+        const reordered = Array.from(items);
+        const [moved] = reordered.splice(startIndex, 1);
+        reordered.splice(endIndex, 0, moved);
+        return reordered;
     };
 
 
@@ -266,15 +274,63 @@ const LeftPanel: React.FC<Props> = ({
         if (!canEdit) return;
         const { source, destination, type } = result;
         if (!destination) return;
+        if (source.droppableId !== destination.droppableId) return;
 
         if (type === "CHAPTER") {
-            const reordered = Array.from(chapters);
-            const [moved] = reordered.splice(source.index, 1);
-            reordered.splice(destination.index, 0, moved);
-            onReorderChapters(reordered);
+            onReorderChapters(reorderList(chapters, source.index, destination.index));
             return;
         }
 
+        if (type === "TOPIC") {
+            const [scope, parentIdValue] = source.droppableId.split(":");
+            if (scope !== "topics") return;
+
+            const parentId = Number(parentIdValue);
+            if (!Number.isInteger(parentId)) return;
+
+            const findFolderById = (folders: FolderNode[], targetId: number): FolderNode | null => {
+                for (const folder of folders) {
+                    if (folder.id === targetId) return folder;
+                    const nested = findFolderById(folder.folders, targetId);
+                    if (nested) return nested;
+                }
+                return null;
+            };
+
+            const parentFolder = chapters.find((chapter) => chapter.id === parentId) ?? findFolderById(chapters, parentId);
+            if (!parentFolder) return;
+
+            onReorderTopics(parentId, reorderList(parentFolder.folders, source.index, destination.index));
+            return;
+        }
+
+        if (type === "ITEM") {
+            const [scope, parentIdValue] = source.droppableId.split(":");
+            if (scope !== "items") return;
+
+            const parentId = Number(parentIdValue);
+            if (!Number.isInteger(parentId)) return;
+
+            const findFolderById = (folders: FolderNode[], targetId: number): FolderNode | null => {
+                for (const folder of folders) {
+                    if (folder.id === targetId) return folder;
+                    const nested = findFolderById(folder.folders, targetId);
+                    if (nested) return nested;
+                }
+                return null;
+            };
+
+            const parentFolder = chapters.find((chapter) => chapter.id === parentId) ?? findFolderById(chapters, parentId);
+            if (!parentFolder) return;
+
+            const reorderedItems = reorderList(parentFolder.items, source.index, destination.index);
+            const isChapter = chapters.some((chapter) => chapter.id === parentId);
+            if (isChapter) {
+                onReorderItems(parentId, reorderedItems);
+                return;
+            }
+            onReorderTopicItems(parentId, reorderedItems);
+        }
     };
 
     if (collapsed) {
@@ -304,7 +360,7 @@ const LeftPanel: React.FC<Props> = ({
         );
     }
 
-    const renderContentItem = (item: CourseItem, parentTitle: string) => (
+    const renderContentItem = (item: CourseItem, parentTitle: string, dragHandleProps?: DraggableProvidedDragHandleProps | null) => (
         <div
             key={item.id}
             onClick={() => onSelectItem(item)}
@@ -318,6 +374,7 @@ const LeftPanel: React.FC<Props> = ({
                         : "hover:bg-blue-50 hover:rounded"
                 }
 `}
+            {...dragHandleProps}
         >
             <div className="flex min-w-0 flex-1 items-start gap-2">
                 <div className="shrink-0 pt-0.5">{getIconForType(item.item_type)}</div>
@@ -394,7 +451,14 @@ const LeftPanel: React.FC<Props> = ({
         </div>
     );
 
-    const renderFolder = (folder: FolderNode, lineage: string[], depth: number, isRoot = false) => {
+    const renderFolder = (
+        folder: FolderNode,
+        lineage: string[],
+        depth: number,
+        isRoot = false,
+        dragHandleProps?: DraggableProvidedDragHandleProps | null,
+        draggableProps?: Record<string, unknown>,
+    ) => {
         const isExpanded = isRoot ? expanded === folder.id : expandedTopics.includes(folder.id);
         const parentLabel = [...lineage, folder.title].join(" / ");
         const menuKey = isRoot ? openMenu : openTopicMenu;
@@ -403,12 +467,14 @@ const LeftPanel: React.FC<Props> = ({
         return (
             <div key={folder.id} className={isRoot ? "" : "mt-1"}>
                 <div
+                    {...draggableProps}
                     className={`group flex items-start justify-between gap-2 rounded-md px-1.5 py-1 ${depth > 0 ? "ml-3" : ""} ${isGvjbClient ? "hover:bg-amber-50" : "hover:bg-gray-50"}`}
                 >
                     <button
                         type="button"
                         onClick={() => (isRoot ? toggleExpand(folder.id) : toggleTopicExpand(folder.id))}
                         className="flex min-w-0 flex-1 items-start gap-1 text-left text-sm"
+                        {...dragHandleProps}
                     >
                         <span className="shrink-0 pt-0.5">
                             {isExpanded ? <FiChevronDown className="text-sm" /> : <FiChevronRight className="text-sm" />}
@@ -466,13 +532,60 @@ const LeftPanel: React.FC<Props> = ({
 
                 {isExpanded && (
                     <div className={depth > 0 ? "ml-6 border-l border-gray-100 pl-2" : "px-0.5 py-0.5"}>
-                        {folder.folders.map((childFolder) => renderFolder(childFolder, [...lineage, folder.title], depth + 1))}
+                        <Droppable droppableId={`topics:${folder.id}`} type="TOPIC">
+                            {(topicsProvided) => (
+                                <div ref={topicsProvided.innerRef} {...topicsProvided.droppableProps}>
+                                    {folder.folders.map((childFolder, childFolderIndex) => (
+                                        <Draggable
+                                            key={childFolder.id}
+                                            draggableId={`topic-${childFolder.id}`}
+                                            index={childFolderIndex}
+                                        >
+                                            {(topicProvided) => (
+                                                <div
+                                                    ref={topicProvided.innerRef}
+                                                    {...topicProvided.draggableProps}
+                                                >
+                                                    {renderFolder(
+                                                        childFolder,
+                                                        [...lineage, folder.title],
+                                                        depth + 1,
+                                                        false,
+                                                        topicProvided.dragHandleProps,
+                                                    )}
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {topicsProvided.placeholder}
+                                </div>
+                            )}
+                        </Droppable>
 
-                        {folder.items.map((item) => (
-                            <div key={item.id} className={depth > 0 ? "ml-0" : "ml-3"}>
-                                {renderContentItem(item, parentLabel)}
-                            </div>
-                        ))}
+                        <Droppable droppableId={`items:${folder.id}`} type="ITEM">
+                            {(itemsProvided) => (
+                                <div ref={itemsProvided.innerRef} {...itemsProvided.droppableProps}>
+                                    {folder.items.map((item, itemIndex) => (
+                                        <Draggable
+                                            key={item.id}
+                                            draggableId={`item-${item.id}`}
+                                            index={itemIndex}
+                                        >
+                                            {(itemProvided) => (
+                                                <div
+                                                    ref={itemProvided.innerRef}
+                                                    {...itemProvided.draggableProps}
+                                                    className={depth > 0 ? "ml-0" : "ml-3"}
+                                                >
+                                                    {renderContentItem(item, parentLabel, itemProvided.dragHandleProps)}
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {itemsProvided.placeholder}
+                                </div>
+                            )}
+                        </Droppable>
 
                         {canEdit && (
                             <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 ${depth > 0 ? "px-1 pb-0.5" : "ml-3"}`}>
@@ -662,13 +775,60 @@ const LeftPanel: React.FC<Props> = ({
                                             {/* Items List */}
                                             {expanded === chapter.id && (
                                                 <div className="px-0.5 py-1">
-                                                    {chapter.folders.map((folder) => renderFolder(folder, [chapter.title], 1))}
+                                                    <Droppable droppableId={`topics:${chapter.id}`} type="TOPIC">
+                                                        {(topicsProvided) => (
+                                                            <div ref={topicsProvided.innerRef} {...topicsProvided.droppableProps}>
+                                                                {chapter.folders.map((folder, folderIndex) => (
+                                                                    <Draggable
+                                                                        key={folder.id}
+                                                                        draggableId={`topic-${folder.id}`}
+                                                                        index={folderIndex}
+                                                                    >
+                                                                        {(topicProvided) => (
+                                                                            <div
+                                                                                ref={topicProvided.innerRef}
+                                                                                {...topicProvided.draggableProps}
+                                                                            >
+                                                                                {renderFolder(
+                                                                                    folder,
+                                                                                    [chapter.title],
+                                                                                    1,
+                                                                                    false,
+                                                                                    topicProvided.dragHandleProps,
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                    </Draggable>
+                                                                ))}
+                                                                {topicsProvided.placeholder}
+                                                            </div>
+                                                        )}
+                                                    </Droppable>
 
-                                                    {chapter.items.map((item) => (
-                                                        <div key={item.id} className="ml-3">
-                                                            {renderContentItem(item, chapter.title)}
-                                                        </div>
-                                                    ))}
+                                                    <Droppable droppableId={`items:${chapter.id}`} type="ITEM">
+                                                        {(itemsProvided) => (
+                                                            <div ref={itemsProvided.innerRef} {...itemsProvided.droppableProps}>
+                                                                {chapter.items.map((item, itemIndex) => (
+                                                                    <Draggable
+                                                                        key={item.id}
+                                                                        draggableId={`item-${item.id}`}
+                                                                        index={itemIndex}
+                                                                    >
+                                                                        {(itemProvided) => (
+                                                                            <div
+                                                                                ref={itemProvided.innerRef}
+                                                                                {...itemProvided.draggableProps}
+                                                                                className="ml-3"
+                                                                            >
+                                                                                {renderContentItem(item, chapter.title, itemProvided.dragHandleProps)}
+                                                                            </div>
+                                                                        )}
+                                                                    </Draggable>
+                                                                ))}
+                                                                {itemsProvided.placeholder}
+                                                            </div>
+                                                        )}
+                                                    </Droppable>
 
                                                     {canEdit && (
                                                         <div className="mt-1 ml-3 flex flex-wrap items-center gap-x-3 gap-y-0.5">

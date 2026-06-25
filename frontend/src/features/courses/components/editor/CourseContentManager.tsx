@@ -661,7 +661,13 @@ export default function CourseContentManager({
     );
 
   const handleReorderTopics = (chapterId: number, newTopics: FolderNode[]) => {
-    setChapters((prev) => replaceFolderChildren(prev, chapterId, newTopics));
+    setChapters((prev) =>
+      prev.map((chapter) =>
+        chapter.id === chapterId
+          ? { ...chapter, folders: newTopics }
+          : { ...chapter, folders: replaceFolderChildren(chapter.folders, chapterId, newTopics) }
+      )
+    );
     void persistReorder(chapterId, newTopics.map((topic) => topic.id), "topics");
   };
 
