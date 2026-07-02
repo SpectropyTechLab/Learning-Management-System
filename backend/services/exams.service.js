@@ -1958,6 +1958,13 @@ const normalizeLatexForDocx = (value) => {
 
   // Common TeX operator aliases to readable ASCII fallback for DOCX text mode.
   text = text
+    .replace(/\\(?:left|right)\s*/g, '')
+    .replace(/\\(?:dfrac|tfrac)/g, '\\frac')
+    .replace(/\\(?:cdots|ldots|dots)/g, '...')
+    .replace(/(^|[;,\s])quad(?=\s*[({A-Za-z0-9\\])/g, '$1 ')
+    .replace(/\\overline\s*\{([^{}]+)\}/g, (_match, body) =>
+      Array.from(String(body || '')).map((char) => `${char}\u0305`).join('')
+    )
     .replace(/\\times/g, ' x ')
     .replace(/\\cdot/g, ' * ')
     .replace(/\\div/g, ' / ')
@@ -2059,9 +2066,17 @@ const parseDataUrlImage = (src) => {
 const htmlMathToLinearText = (mathHtml) => {
   const source = normalizeDocxHtml(mathHtml);
   if (!source) return '';
-  const text = decodeHtmlEntitiesForDocx(source)
-    .replace(/\s+/g, ' ')
-    .trim();
+  const $ = loadHtml(`<root>${source}</root>`);
+  $('span.math-fraction').each((_, el) => {
+    const numerator = decodeHtmlEntitiesForDocx(
+      $(el).find('.math-fraction__numerator').first().html() || $(el).attr('data-num') || ''
+    ).trim();
+    const denominator = decodeHtmlEntitiesForDocx(
+      $(el).find('.math-fraction__denominator').first().html() || $(el).attr('data-den') || ''
+    ).trim();
+    $(el).replaceWith(denominator ? `(${numerator})/(${denominator})` : numerator);
+  });
+  const text = $('root').text().replace(/\s+/g, ' ').trim();
   return normalizeLatexForDocx(text);
 };
 
@@ -2168,6 +2183,38 @@ const latexToMathComponents = (latexInput) => {
       ];
     }
 
+    if (input.startsWith('\\dfrac', index) || input.startsWith('\\tfrac', index)) {
+      index += 6;
+      const numeratorRaw = readGroupRaw();
+      const denominatorRaw = readGroupRaw();
+      return [
+        new MathFraction({
+          numerator: latexToMathComponents(numeratorRaw),
+          denominator: latexToMathComponents(denominatorRaw),
+        }),
+      ];
+    }
+
+    if (input.startsWith('\\left', index) || input.startsWith('\\right', index)) {
+      index += input.startsWith('\\left', index) ? 5 : 6;
+      skipSpaces();
+      if (index < len && /[()[\]{}|.]/.test(input[index])) {
+        const delimiter = input[index];
+        index += 1;
+        return delimiter === '.' ? [] : [new MathRun(delimiter)];
+      }
+      return [];
+    }
+
+    if (input.startsWith('\\overline', index)) {
+      index += 9;
+      const bodyRaw = readGroupRaw();
+      const overlined = Array.from(normalizeLatexForDocx(bodyRaw))
+        .map((char) => `${char}\u0305`)
+        .join('');
+      return overlined ? [new MathRun(overlined)] : [];
+    }
+
     if (input.startsWith('\\sqrt', index)) {
       index += 5;
       skipSpaces();
@@ -2195,6 +2242,16 @@ const latexToMathComponents = (latexInput) => {
         cmd += input[index];
         index += 1;
       }
+      if (['left', 'right'].includes(cmd)) {
+        skipSpaces();
+        if (index < len && /[()[\]{}|.]/.test(input[index])) {
+          const delimiter = input[index];
+          index += 1;
+          return delimiter === '.' ? [] : [new MathRun(delimiter)];
+        }
+        return [];
+      }
+      if (['cdots', 'ldots', 'dots'].includes(cmd)) return [new MathRun('...')];
       return [new MathRun(LATEX_SYMBOL_MAP[cmd] || cmd || '\\')];
     }
 
@@ -2253,6 +2310,46 @@ const latexToMathComponents = (latexInput) => {
   return out;
 };
 
+const isLikelyProseMathText = (value) => {
+  const text = decodeHtmlEntitiesForDocx(value).replace(/\s+/g, ' ').trim();
+  if (!text) return false;
+  const words = text.match(/[A-Za-z]{3,}/g) || [];
+  const mathWords = new Set([
+    'sqrt',
+    'sin',
+    'cos',
+    'tan',
+    'log',
+    'ln',
+    'frac',
+    'overline',
+    'left',
+    'right',
+  ]);
+  const proseWords = words.filter((word) => !mathWords.has(word.toLowerCase()));
+  return proseWords.length >= 2 && !/[=<>^_]|\\|[+\-*/÷×√∈≤≥≠]/.test(text);
+};
+
+const createMathFractionFromText = (value) => {
+  const source = String(value || '').trim();
+  const match = source.match(/^\(\s*(\d+(?:\.\d+)?)\s*\)\s*\/\s*\(\s*(\d+(?:\.\d+)?)\s*\)$/);
+  if (!match) return null;
+  return new DocxMath({
+    children: [
+      new MathFraction({
+        numerator: [new MathRun(match[1])],
+        denominator: [new MathRun(match[2])],
+      }),
+    ],
+  });
+};
+
+const isSingleWordProseMathText = (value) => {
+  const text = decodeHtmlEntitiesForDocx(value).replace(/\s+/g, ' ').trim();
+  if (!/^[A-Za-z]{3,}$/.test(text)) return false;
+  return !['sqrt', 'sin', 'cos', 'tan', 'log', 'ln', 'frac'].includes(text.toLowerCase());
+};
+
 const htmlToDocxRuns = (html, styles = {}) => {
   const source = normalizeDocxHtml(html);
   if (!source) return [];
@@ -2262,19 +2359,45 @@ const htmlToDocxRuns = (html, styles = {}) => {
   const pushPlainTextRun = (text, inherited = {}) => {
     const normalized = normalizeLatexForDocx(text);
     if (!normalized) return;
-    runs.push(
-      new TextRun({
-        ...buildDocxTextRunOptions({
-          text: normalized,
-          size: inherited.size,
-        }),
-        bold: Boolean(inherited.bold),
-        italics: Boolean(inherited.italics),
-        underline: inherited.underline ? {} : undefined,
-        superScript: Boolean(inherited.superScript),
-        subScript: Boolean(inherited.subScript),
-      })
-    );
+    const fractionRegex = /\(\s*\d+(?:\.\d+)?\s*\)\s*\/\s*\(\s*\d+(?:\.\d+)?\s*\)/g;
+    let lastIndex = 0;
+    let foundFraction = false;
+    for (const match of normalized.matchAll(fractionRegex)) {
+      const idx = match.index ?? 0;
+      const token = String(match[0] || '');
+      const fraction = createMathFractionFromText(token);
+      if (!fraction) continue;
+      foundFraction = true;
+      if (idx > lastIndex) {
+        runs.push(
+          new TextRun({
+            ...buildDocxTextRunOptions({ text: normalized.slice(lastIndex, idx), size: inherited.size }),
+            bold: Boolean(inherited.bold),
+            italics: Boolean(inherited.italics),
+            underline: inherited.underline ? {} : undefined,
+            superScript: Boolean(inherited.superScript),
+            subScript: Boolean(inherited.subScript),
+          })
+        );
+      }
+      runs.push(fraction);
+      lastIndex = idx + token.length;
+    }
+    if (!foundFraction || lastIndex < normalized.length) {
+      runs.push(
+        new TextRun({
+          ...buildDocxTextRunOptions({
+            text: foundFraction ? normalized.slice(lastIndex) : normalized,
+            size: inherited.size,
+          }),
+          bold: Boolean(inherited.bold),
+          italics: Boolean(inherited.italics),
+          underline: inherited.underline ? {} : undefined,
+          superScript: Boolean(inherited.superScript),
+          subScript: Boolean(inherited.subScript),
+        })
+      );
+    }
   };
 
   const splitLatexSegments = (text) => {
@@ -2315,6 +2438,28 @@ const htmlToDocxRuns = (html, styles = {}) => {
     }
   };
 
+  const getAdjacentText = (node, direction) => {
+    let cursor = direction === 'prev' ? node.prev : node.next;
+    while (cursor) {
+      if (cursor.type === 'text') return $(cursor).text() || '';
+      if (cursor.type === 'tag') return $(cursor).text() || '';
+      cursor = direction === 'prev' ? cursor.prev : cursor.next;
+    }
+    return '';
+  };
+
+  const pushMathWithSpacing = (node, mathRun) => {
+    const before = getAdjacentText(node, 'prev');
+    const after = getAdjacentText(node, 'next');
+    if (before && !/\s$/.test(before)) {
+      runs.push(new TextRun(buildDocxTextRunOptions({ text: ' ' })));
+    }
+    runs.push(mathRun);
+    if (after && !/^\s|^[,.;:!?)]/.test(after)) {
+      runs.push(new TextRun(buildDocxTextRunOptions({ text: ' ' })));
+    }
+  };
+
   const walk = (node, inherited = {}) => {
     if (!node) return;
     if (node.type === 'text') {
@@ -2350,9 +2495,36 @@ const htmlToDocxRuns = (html, styles = {}) => {
     if (tag === 'span') {
       const className = String($(node).attr('class') || '').toLowerCase();
       if (className.includes('math-equation') || className.includes('math-matrix')) {
-        const linearMath = htmlMathToLinearText($(node).html() || $(node).text() || '');
+        const mathHtml = $(node).html() || $(node).text() || '';
+        if (isLikelyProseMathText(mathHtml) || isSingleWordProseMathText(mathHtml)) {
+          (node.children || []).forEach((child) => walk(child, inherited));
+          return;
+        }
+        const fractionEl = $(node).find('.math-fraction').first();
+        if (fractionEl.length) {
+          const numerator = decodeHtmlEntitiesForDocx(
+            fractionEl.find('.math-fraction__numerator').first().html() || fractionEl.attr('data-num') || ''
+          ).trim();
+          const denominator = decodeHtmlEntitiesForDocx(
+            fractionEl.find('.math-fraction__denominator').first().html() || fractionEl.attr('data-den') || ''
+          ).trim();
+          pushMathWithSpacing(
+            node,
+            new DocxMath({
+              children: [
+                new MathFraction({
+                  numerator: latexToMathComponents(numerator),
+                  denominator: latexToMathComponents(denominator),
+                }),
+              ],
+            })
+          );
+          return;
+        }
+        const linearMath = htmlMathToLinearText(mathHtml);
         if (linearMath) {
-          runs.push(new DocxMath({ children: [new MathRun(linearMath)] }));
+          const fraction = createMathFractionFromText(linearMath);
+          pushMathWithSpacing(node, fraction || new DocxMath({ children: latexToMathComponents(linearMath) }));
         }
         return;
       }
@@ -3202,9 +3374,9 @@ const buildSectionOverviewTable = (preview) => {
 };
 
 const buildComprehensionPassageParagraphs = (question) => {
+  const rawPassageTitle = question?.comprehension?.title || question?.comprehension_passage?.title || '';
   const passageTitle =
-    normalizePassageTitle(question?.comprehension?.title) ||
-    normalizePassageTitle(question?.comprehension_passage?.title) ||
+    normalizePassageTitle(stripHtmlToText(rawPassageTitle) || rawPassageTitle) ||
     'Passage';
   const passageSource =
     question?.comprehension?.passage_content ||
@@ -3239,7 +3411,55 @@ const buildComprehensionPassageParagraphs = (question) => {
   ];
 };
 
-const buildMatchFollowingTable = (question) => {
+const buildRichDocxCell = ({ html = '', bold = false, size = 18, alignment = AlignmentType.LEFT } = {}) => {
+  const runs = htmlToDocxRuns(html, { size, bold });
+  const fallback = stripHtmlToText(html);
+  return buildDocxCell({
+    alignment,
+    children: [
+      new Paragraph({
+        alignment,
+        spacing: { after: 0, before: 0 },
+        children:
+          runs.length > 0
+            ? runs
+            : [new TextRun(buildDocxTextRunOptions({ text: fallback || '', bold, size }))],
+      }),
+    ],
+  });
+};
+
+const buildMatchFollowingTable = (question, tableMeta = {}) => {
+  if (Array.isArray(tableMeta.rows) && tableMeta.rows.length > 0) {
+    const headers = Array.isArray(tableMeta.headers) && tableMeta.headers.length >= 2
+      ? tableMeta.headers
+      : ['Column A', 'Column B'];
+    const rows = [
+      new TableRow({
+        children: [
+          buildRichDocxCell({ html: headers[0], bold: true, size: 20, alignment: AlignmentType.CENTER }),
+          buildRichDocxCell({ html: headers[1], bold: true, size: 20, alignment: AlignmentType.CENTER }),
+        ],
+      }),
+      ...tableMeta.rows.map((row) =>
+        new TableRow({
+          children: [
+            buildRichDocxCell({ html: row?.[0] || '--', size: 18 }),
+            buildRichDocxCell({ html: row?.[1] || '--', size: 18 }),
+          ],
+        })
+      ),
+    ];
+
+    return new Table({
+      width: { size: 96, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
+      borders: DOCX_TABLE_BORDER,
+      columnWidths: [5000, 5000],
+      rows,
+    });
+  }
+
   const left = Array.isArray(question?.options?.left) ? question.options.left : [];
   const right = Array.isArray(question?.options?.right) ? question.options.right : [];
   const rowCount = Math.max(left.length, right.length);
@@ -3249,15 +3469,17 @@ const buildMatchFollowingTable = (question) => {
   const rows = [
     new TableRow({
       children: [
-        buildDocxCell({
-          text: 'Column A',
+        buildRichDocxCell({
+          html: tableMeta.headers?.[0] || 'Column A',
           bold: true,
           size: 20,
+          alignment: AlignmentType.CENTER,
         }),
-        buildDocxCell({
-          text: 'Column B',
+        buildRichDocxCell({
+          html: tableMeta.headers?.[1] || 'Column B',
           bold: true,
           size: 20,
+          alignment: AlignmentType.CENTER,
         }),
       ],
     }),
@@ -3266,22 +3488,20 @@ const buildMatchFollowingTable = (question) => {
   for (let index = 0; index < rowCount; index += 1) {
     const leftOption = left[index];
     const rightOption = right[index];
-    const leftLabel = leftOption ? `${String.fromCharCode(65 + index)}. ${extractOptionText(leftOption)}`.trim() : '';
-    const rightLabel = rightOption ? `${index + 1}. ${extractOptionText(rightOption)}`.trim() : '';
+    const leftText = typeof leftOption === 'string' ? leftOption : extractOptionText(leftOption);
+    const rightText = typeof rightOption === 'string' ? rightOption : extractOptionText(rightOption);
+    const leftLabel = leftText
+      ? (/^[A-Z]\.\s/.test(leftText) ? leftText : `${String.fromCharCode(65 + index)}. ${leftText}`).trim()
+      : '';
+    const rightLabel = rightText
+      ? (/^\d+\.\s/.test(rightText) ? rightText : `${index + 1}. ${rightText}`).trim()
+      : '';
 
     rows.push(
       new TableRow({
         children: [
-          buildDocxCell({
-            text: leftLabel || '--',
-            size: 18,
-            alignment: AlignmentType.LEFT,
-          }),
-          buildDocxCell({
-            text: rightLabel || '--',
-            size: 18,
-            alignment: AlignmentType.LEFT,
-          }),
+          buildRichDocxCell({ html: leftLabel || '--', size: 18 }),
+          buildRichDocxCell({ html: rightLabel || '--', size: 18 }),
         ],
       })
     );
@@ -3364,7 +3584,22 @@ const buildDocxTableFromHtml = (html) => {
 };
 
 const buildMatchFollowingBlocks = (question) => {
-  const questionHtml = extractRichHtmlString(question?.question_text);
+  const structuredTable = buildMatchFollowingTable(question);
+  const sourceQuestionHtml = extractRichHtmlString(question?.question_text);
+  const htmlTable = structuredTable ? null : buildDocxTableFromHtml(sourceQuestionHtml);
+  const plainMatch = structuredTable || htmlTable ? null : normalizePlainMatchFollowing(question);
+  const fallbackMatch = structuredTable || htmlTable || plainMatch ? null : buildFallbackMatchFollowing(question);
+  let promptHtml = sourceQuestionHtml;
+  if (structuredTable) {
+    promptHtml = extractPlainMatchPromptHtml(question) || sourceQuestionHtml;
+  } else if (plainMatch) {
+    promptHtml = plainMatch.promptHtml || 'Match the following:';
+  } else if (fallbackMatch) {
+    promptHtml = fallbackMatch.promptHtml || 'Match the following:';
+  }
+  const questionHtml = normalizeQuestionPromptHtmlForDocx(
+    promptHtml
+  );
   const normalized = normalizeDocxHtml(questionHtml);
   const $ = loadHtml(`<root>${normalized}</root>`);
   const stemParagraphs = [];
@@ -3383,7 +3618,33 @@ const buildMatchFollowingBlocks = (question) => {
     }
   });
 
-  const htmlTable = buildDocxTableFromHtml(questionHtml);
+  if (stemParagraphs.length === 0 && normalized && !/<table\b/i.test(normalized)) {
+    const stemRuns = htmlToDocxRuns(normalized, {
+      size: DOCX_BODY_FONT_SIZE,
+      bold: true,
+    });
+    if (stemRuns.length > 0) {
+      stemParagraphs.push({
+        runs: stemRuns,
+        spacing: { after: DOCX_QUESTION_AFTER },
+      });
+    }
+  }
+
+  if (plainMatch) {
+    return {
+      questionParagraphs: stemParagraphs,
+      optionTable: buildMatchFollowingTable(question, plainMatch.tableMeta),
+    };
+  }
+
+  if (structuredTable) {
+    return {
+      questionParagraphs: stemParagraphs,
+      optionTable: structuredTable,
+    };
+  }
+
   if (htmlTable) {
     return {
       questionParagraphs: stemParagraphs,
@@ -3391,10 +3652,241 @@ const buildMatchFollowingBlocks = (question) => {
     };
   }
 
+  if (fallbackMatch) {
+    return {
+      questionParagraphs: stemParagraphs,
+      optionTable: fallbackMatch.table,
+    };
+  }
+
   return {
     questionParagraphs: [],
-    optionTable: buildMatchFollowingTable(question),
+    optionTable: buildPlainMatchFollowingTable(question),
   };
+};
+
+const isLikelyMatchFollowingQuestion = (question) => {
+  if (question?.question_type === 'match_following') return true;
+  const tagText = [
+    question?.display_type,
+    question?.category,
+    question?.question_group_type,
+    Array.isArray(question?.exam_tags) ? question.exam_tags.join(' ') : question?.exam_tags,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  if (/match(?:ing)?\s*(?:the\s*)?following/i.test(tagText)) return true;
+  const text = stripHtmlToText(question?.question_text);
+  return /match\s+(?:each|the following)|column\s+(?:a|i).+column\s+(?:b|ii)/i.test(text);
+};
+
+const normalizeQuestionPromptHtmlForDocx = (html) => {
+  const source = normalizeDocxHtml(html);
+  if (!source) return source;
+  return source
+    .replace(/\s+(?=(?:Assertion|Reason)\s*\([AR]\)\s*:)/gi, '<br/>')
+    .replace(/\s+(?=Reference\s*:)/gi, '<br/>')
+    .replace(/\s+(?=(?:PYQ|Previous\s+Year\s+Question)\s*:)/gi, '<br/>')
+    .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br/>');
+};
+
+const escapeDocxHtmlText = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const getPlainMatchSections = (question) => {
+  const text = stripHtmlToText(question?.question_text);
+  const headerMatch = text.match(/column\s*(a|i)(\s*\((?![A-Z0-9]\))[^)]{2,}\))?\s*column\s*(b|ii)(\s*\((?![A-Z0-9]\))[^)]{2,}\))?/i);
+  if (!headerMatch || headerMatch.index < 0) return null;
+  const prompt = text.slice(0, headerMatch.index).replace(/\s+/g, ' ').trim();
+  const content = text.slice(headerMatch.index).replace(/\s+/g, ' ').trim();
+  const source = text.slice(headerMatch.index + headerMatch[0].length).replace(/\s+/g, ' ').trim();
+  const headers = [
+    `${/^i$/i.test(headerMatch[1]) ? 'Column I' : 'Column A'}${headerMatch[2] || ''}`.trim(),
+    `${/^ii$/i.test(headerMatch[3]) ? 'Column II' : 'Column B'}${headerMatch[4] || ''}`.trim(),
+  ];
+  return {
+    prompt,
+    content,
+    source,
+    headers,
+  };
+};
+
+const extractPlainMatchPromptHtml = (question) => {
+  const sections = getPlainMatchSections(question);
+  return sections?.prompt ? escapeDocxHtmlText(sections.prompt) : '';
+};
+
+const buildFallbackMatchFollowing = (question) => {
+  const sections = getPlainMatchSections(question);
+  const text = sections?.content || stripHtmlToText(question?.question_text);
+  if (!text) return null;
+  const table = new Table({
+    width: { size: 96, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    borders: DOCX_TABLE_BORDER,
+    rows: [
+      new TableRow({
+        children: [
+          buildRichDocxCell({
+            html: 'Matching Content',
+            bold: true,
+            size: 20,
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          buildRichDocxCell({
+            html: escapeDocxHtmlText(text),
+            size: 18,
+          }),
+        ],
+      }),
+    ],
+  });
+  return {
+    promptHtml: sections?.prompt ? escapeDocxHtmlText(sections.prompt) : '',
+    table,
+  };
+};
+
+const splitPlainMatchEntries = (value, labelPattern) => {
+  const source = String(value || '').replace(/\s+/g, ' ').trim();
+  const entries = [];
+  const matches = Array.from(source.matchAll(labelPattern));
+  matches.forEach((match, index) => {
+    const start = match.index ?? 0;
+    const nextStart = matches[index + 1]?.index ?? source.length;
+    const label = match[1] || match[2] || '';
+    const body = source.slice(start + match[0].length, nextStart).trim();
+    if (label && body) entries.push(`${label}. ${body}`);
+  });
+  return entries;
+};
+
+const formatMatchLabel = (raw) => {
+  const label = String(raw || '').trim();
+  if (!label) return '';
+  return /^[A-Z][.)]$/.test(label) || /^\d+[.)]$/.test(label) || /^\([A-Z0-9]+\)$/.test(label)
+    ? label
+    : label.replace(/[().]/g, '.');
+};
+
+const getMatchLabelKind = (raw) => {
+  const value = String(raw || '').trim();
+  if (/^\d+[.)]$/.test(value) || /^\(\d+\)$/.test(value)) return 'number';
+  if (/^\(?[P-Z]\)?[.)]?$/.test(value)) return 'letter-p';
+  if (/^\([A-Z]\)$/.test(value) || /^[A-Z][.)]$/.test(value)) return 'letter';
+  return 'unknown';
+};
+
+const parseParenthesizedLetterMatchColumns = (value) => {
+  const source = String(value || '').replace(/\s+/g, ' ').trim();
+  const leftLabels = ['A', 'B', 'C', 'D'];
+  const rightLabels = ['P', 'Q', 'R', 'S'];
+  const rows = [];
+
+  for (let index = 0; index < leftLabels.length; index += 1) {
+    const leftToken = `(${leftLabels[index]})`;
+    const rightToken = `(${rightLabels[index]})`;
+    const nextLeftToken = leftLabels[index + 1] ? `(${leftLabels[index + 1]})` : null;
+    const leftStart = source.indexOf(leftToken);
+    const rightStart = source.indexOf(rightToken, leftStart + leftToken.length);
+    const nextLeftStart = nextLeftToken ? source.indexOf(nextLeftToken, rightStart + rightToken.length) : source.length;
+
+    if (leftStart < 0 || rightStart < 0 || nextLeftStart < 0 || rightStart < leftStart) {
+      return null;
+    }
+
+    const leftBody = source.slice(leftStart + leftToken.length, rightStart).trim();
+    const rightBody = source.slice(rightStart + rightToken.length, nextLeftStart).trim();
+    if (!leftBody || !rightBody) return null;
+    rows.push([`${leftToken} ${leftBody}`.trim(), `${rightToken} ${rightBody}`.trim()]);
+  }
+
+  return rows.length === leftLabels.length ? rows : null;
+};
+
+const parseInlineMatchColumns = (value) => {
+  const source = String(value || '').replace(/\s+/g, ' ').trim();
+  const parenthesizedLetterRows = parseParenthesizedLetterMatchColumns(source);
+  if (parenthesizedLetterRows) return parenthesizedLetterRows;
+
+  const tokens = Array.from(source.matchAll(/(\([A-Z]\)|\([1-9]\)(?=\s+)|[A-Z][.)]|(?<!\()[1-9][.)](?!\d))\s*/g))
+    .map((match) => ({
+      index: match.index ?? 0,
+      raw: match[0],
+      token: match[1],
+    }))
+    .filter((token) => token.index >= 0);
+
+  if (tokens.length < 4 || tokens.length % 2 !== 0) return null;
+
+  const firstKind = getMatchLabelKind(tokens[0].token);
+  const secondKind = getMatchLabelKind(tokens[1].token);
+  if (firstKind === 'unknown' || secondKind === 'unknown') return null;
+  const rows = [];
+
+  for (let index = 0; index + 1 < tokens.length; index += 2) {
+    const leftToken = tokens[index];
+    const rightToken = tokens[index + 1];
+    const nextLeftIndex = tokens[index + 2]?.index ?? source.length;
+    if (
+      getMatchLabelKind(leftToken.token) !== firstKind ||
+      getMatchLabelKind(rightToken.token) !== secondKind
+    ) {
+      return null;
+    }
+
+    const leftBody = source.slice(leftToken.index + leftToken.raw.length, rightToken.index).trim();
+    const rightBody = source.slice(rightToken.index + rightToken.raw.length, nextLeftIndex).trim();
+    if (!leftBody || !rightBody) return null;
+    rows.push([
+      `${formatMatchLabel(leftToken.token)} ${leftBody}`.trim(),
+      `${formatMatchLabel(rightToken.token)} ${rightBody}`.trim(),
+    ]);
+  }
+
+  return rows.length > 0 ? rows : null;
+};
+
+const normalizePlainMatchFollowing = (question) => {
+  const sections = getPlainMatchSections(question);
+  if (!sections) return null;
+  const { prompt, source, headers } = sections;
+
+  const inlineRows = parseInlineMatchColumns(source);
+  if (inlineRows) {
+    return {
+      promptHtml: escapeDocxHtmlText(prompt),
+      tableMeta: { headers, rows: inlineRows.map((row) => row.map(escapeDocxHtmlText)) },
+    };
+  }
+
+  const columnBMatch = source.match(/column\s+(?:b|ii)[^A-Z0-9]*(.*)$/i);
+  if (!columnBMatch) return null;
+  const leftSource = source.slice(0, columnBMatch.index).replace(/column\s+(?:a|i)[^A-Z0-9]*/i, '');
+  const rightSource = columnBMatch[1];
+  const left = splitPlainMatchEntries(leftSource, /\b([A-D])[\).]\s*/g);
+  const right = splitPlainMatchEntries(rightSource, /\b([1-4])[\).]\s*/g);
+  if (left.length > 0 && right.length > 0) {
+    return {
+      promptHtml: escapeDocxHtmlText(prompt),
+      tableMeta: { headers, rows: left.map((entry, index) => [entry, right[index] || '']) },
+    };
+  }
+
+  return null;
+};
+
+const buildPlainMatchFollowingTable = (question) => {
+  const normalized = normalizePlainMatchFollowing(question);
+  return normalized ? buildMatchFollowingTable(question, normalized.tableMeta) : null;
 };
 
 const buildInstructionsTable = (preview) => {
@@ -3450,10 +3942,7 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
         children.push(...passageParagraphs);
       }
 
-      const isMatchFollowing =
-        question?.question_type === 'match_following' &&
-        question?.options &&
-        typeof question.options === 'object';
+      const isMatchFollowing = isLikelyMatchFollowingQuestion(question);
 
       if (isMatchFollowing) {
         const { questionParagraphs, optionTable } = buildMatchFollowingBlocks(question);
@@ -3480,7 +3969,7 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
             );
           }
         } else {
-          const questionHtml = extractRichHtmlString(question?.question_text);
+          const questionHtml = normalizeQuestionPromptHtmlForDocx(extractRichHtmlString(question?.question_text));
           const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
           const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
           children.push(
@@ -3499,7 +3988,7 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
           children.push(optionTable);
         }
       } else {
-        const questionHtml = extractRichHtmlString(question?.question_text);
+        const questionHtml = normalizeQuestionPromptHtmlForDocx(extractRichHtmlString(question?.question_text));
         const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
         const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
         children.push(
@@ -3588,10 +4077,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
         children.push(...passageParagraphs);
       }
 
-      const isMatchFollowing =
-        question?.question_type === 'match_following' &&
-        question?.options &&
-        typeof question.options === 'object';
+      const isMatchFollowing = isLikelyMatchFollowingQuestion(question);
 
       if (isMatchFollowing) {
         const { questionParagraphs, optionTable } = buildMatchFollowingBlocks(question);
@@ -3618,7 +4104,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
             );
           }
         } else {
-          const questionHtml = extractRichHtmlString(question?.question_text);
+          const questionHtml = normalizeQuestionPromptHtmlForDocx(extractRichHtmlString(question?.question_text));
           const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
           const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
           children.push(
@@ -3637,7 +4123,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           children.push(optionTable);
         }
       } else {
-        const questionHtml = extractRichHtmlString(question?.question_text);
+        const questionHtml = normalizeQuestionPromptHtmlForDocx(extractRichHtmlString(question?.question_text));
         const questionRuns = htmlToDocxRuns(questionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
         const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
         children.push(
@@ -3672,15 +4158,11 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           );
         });
       }
-      const answerText = resolveAnswerText(question) || '--';
       children.push(
         new Paragraph({
           spacing: { after: DOCX_ANSWER_AFTER },
           indent: { left: 220 },
-          children: [
-            new TextRun(buildDocxTextRunOptions({ text: 'Correct Answer: ', bold: true })),
-            new TextRun(buildDocxTextRunOptions({ text: answerText })),
-          ],
+          children: resolveAnswerRuns(question),
         })
       );
 

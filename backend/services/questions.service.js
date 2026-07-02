@@ -5670,7 +5670,7 @@ const createOfficeMathRun = (text) =>
         'w:hAnsi': 'Cambria Math',
       }),
     ]),
-    createImportedXmlElement('m:t', null, [text]),
+    createImportedXmlElement('m:t', null, [normalizeOfficeMathText(text)]),
   ]);
 
 const createOfficeMathBarFraction = (numerator, denominator) =>
@@ -5691,11 +5691,48 @@ const createOfficeMathBarFraction = (numerator, denominator) =>
     createImportedXmlElement('m:den', null, [createOfficeMathRun(denominator || '')]),
   ]);
 
+const normalizeOfficeMathText = (value) =>
+  String(value || '')
+    .replace(/\\(?:left|right)\s*/g, '')
+    .replace(/\\(?:dfrac|tfrac)/g, '\\frac')
+    .replace(/\\(?:cdots|ldots|dots)/g, '...')
+    .replace(/(^|[;,\s])quad(?=\s*[({A-Za-z0-9\\])/g, '$1 ')
+    .replace(/\\overline\s*\{([^{}]+)\}/g, (_match, body) =>
+      Array.from(String(body || '')).map((char) => `${char}\u0305`).join('')
+    )
+    .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const createOfficeMathFractionFromText = (value) => {
+  const match = String(value || '')
+    .trim()
+    .match(/^\(\s*(\d+(?:\.\d+)?)\s*\)\s*\/\s*\(\s*(\d+(?:\.\d+)?)\s*\)$/);
+  if (!match) return null;
+  return createOfficeMathBarFraction(match[1], match[2]);
+};
+
+const isLikelyProseMathText = (value) => {
+  const text = decodeHtmlEntitiesForDocx(value).replace(/\s+/g, ' ').trim();
+  if (!text) return false;
+  const words = text.match(/[A-Za-z]{3,}/g) || [];
+  const mathWords = new Set(['sqrt', 'sin', 'cos', 'tan', 'log', 'frac', 'overline', 'left', 'right']);
+  const proseWords = words.filter((word) => !mathWords.has(word.toLowerCase()));
+  return proseWords.length >= 2 && !/[=<>^_]|\\|[+\-*/÷×√∈≤≥≠]/.test(text);
+};
+
+const isSingleWordProseMathText = (value) => {
+  const text = decodeHtmlEntitiesForDocx(value).replace(/\s+/g, ' ').trim();
+  if (!/^[A-Za-z]{3,}$/.test(text)) return false;
+  return !['sqrt', 'sin', 'cos', 'tan', 'log', 'frac'].includes(text.toLowerCase());
+};
+
 const htmlMathNodeToDocxComponents = ($, node) => {
   if (!node) return [];
   if (node.type === 'text') {
     const text = decodeHtmlEntitiesForDocx($(node).text());
-    return text ? [new MathRun(text)] : [];
+    const fraction = createOfficeMathFractionFromText(text);
+    return fraction ? [fraction] : text ? [new MathRun(normalizeOfficeMathText(text))] : [];
   }
   if (node.type !== 'tag') return [];
 
@@ -5765,7 +5802,7 @@ const htmlToDocxRuns = (html, styles = {}) => {
   const root = $('root');
   const runs = [];
   const inlineMathTokenRegex =
-    /((?:\b\d+\s*\/\s*\d+\b)|(?:\b[a-zA-Z]+\s*\/\s*[a-zA-Z0-9]+\b)|(?:[πθΔΩαβγλμ]\s*\/\s*\d+)|(?:[A-Za-z]\s*[\^]\s*[-]?\d+)|(?:sin|cos|tan)\s*[A-Za-zθπ])/gi;
+    /((?:\(\s*\d+(?:\.\d+)?\s*\)\s*\/\s*\(\s*\d+(?:\.\d+)?\s*\))|(?:[A-Za-z]\s*[\^]\s*[-]?\d+)|(?:sin|cos|tan)\s*[A-Za-zθπ])/gi;
 
   const pushInlineTextWithMath = (text, inheritedStyles = {}) => {
     const input = decodeHtmlEntitiesForDocx(text);
@@ -5803,9 +5840,10 @@ const htmlToDocxRuns = (html, styles = {}) => {
         );
       }
       if (tokenText) {
+        const fraction = createOfficeMathFractionFromText(tokenText);
         runs.push(
           new DocxMath({
-            children: [new MathRun(tokenText.replace(/\s+/g, ' ').trim())],
+            children: [fraction || new MathRun(normalizeOfficeMathText(tokenText.replace(/\s+/g, ' ').trim()))],
           })
         );
       }
@@ -5867,6 +5905,10 @@ const htmlToDocxRuns = (html, styles = {}) => {
       const className = String($(node).attr('class') || '').toLowerCase();
       if (className.includes('math-equation') || className.includes('math-matrix')) {
         const mathHtml = $(node).html() || $(node).text() || '';
+        if (isLikelyProseMathText(mathHtml) || isSingleWordProseMathText(mathHtml)) {
+          (node.children || []).forEach((child) => walkNode(child, inheritedStyles));
+          return;
+        }
         const mathComponents = htmlMathToDocxComponents(mathHtml);
         if (mathComponents.length > 0) {
           runs.push(
@@ -5913,7 +5955,7 @@ const htmlToDocxRunsSafe = (html, styles = {}) => {
   const root = $('root');
   const runs = [];
   const inlineMathTokenRegex =
-    /((?:\b\d+\s*\/\s*\d+\b)|(?:\b(?:sin|cos|tan)\s*(?:\([^)]+\)|[A-Za-zθπ]+)\b)|(?:(?<![A-Za-z])(?:[A-Za-zθπ])\s*\/\s*\d+(?![A-Za-z]))|(?:(?<![A-Za-z])(?:[A-Za-zθπ])\s*\^\s*-?\d+(?![A-Za-z])))/gi;
+    /((?:\(\s*\d+(?:\.\d+)?\s*\)\s*\/\s*\(\s*\d+(?:\.\d+)?\s*\))|(?:\b(?:sin|cos|tan)\s*(?:\([^)]+\)|[A-Za-zθπ]+)\b)|(?:(?<![A-Za-z])(?:[A-Za-zθπ])\s*\^\s*-?\d+(?![A-Za-z])))/gi;
 
   const pushTextRun = (text, inheritedStyles = {}) => {
     runs.push(
@@ -5947,9 +5989,10 @@ const htmlToDocxRunsSafe = (html, styles = {}) => {
         pushTextRun(input.slice(lastIndex, tokenStart), inheritedStyles);
       }
       if (tokenText) {
+        const fraction = createOfficeMathFractionFromText(tokenText);
         runs.push(
           new DocxMath({
-            children: [new MathRun(tokenText.replace(/\s+/g, ' ').trim())],
+            children: [fraction || new MathRun(normalizeOfficeMathText(tokenText.replace(/\s+/g, ' ').trim()))],
           })
         );
       }
@@ -6002,6 +6045,10 @@ const htmlToDocxRunsSafe = (html, styles = {}) => {
       const className = String($(node).attr('class') || '').toLowerCase();
       if (className.includes('math-equation') || className.includes('math-matrix')) {
         const mathHtml = $(node).html() || $(node).text() || '';
+        if (isLikelyProseMathText(mathHtml) || isSingleWordProseMathText(mathHtml)) {
+          (node.children || []).forEach((child) => walkNode(child, inheritedStyles));
+          return;
+        }
         if (/<(?:sup|sub)\b/i.test(mathHtml) && !/math-fraction/i.test(mathHtml)) {
           (node.children || []).forEach((child) => walkNode(child, inheritedStyles));
           return;
