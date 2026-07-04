@@ -235,6 +235,32 @@ export default function QuestionSubjectsPage() {
 
   const isLoading = loadingPrograms || loadingGrades || loadingSubjects || loadingDetails;
 
+  const handleDeleteSubject = async (subject: CurriculumItem) => {
+    if (!window.confirm(`Delete subject "${subject.name}"?`)) return;
+    try {
+      await api.delete(`/subjects/${subject.id}`);
+      setSubjects((prev) => prev.filter((item) => String(item.id) !== String(subject.id)));
+      if (String(subject.id) === selectedSubjectId) {
+        setSelectedSubjectId("");
+        setChapters([]);
+        setTopics([]);
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete subject");
+    }
+  };
+
+  const handleDeleteChapter = async (chapter: CurriculumItem) => {
+    if (!window.confirm(`Delete chapter "${chapter.name}"?`)) return;
+    try {
+      await api.delete(`/chapters/${chapter.id}`);
+      setChapters((prev) => prev.filter((item) => String(item.id) !== String(chapter.id)));
+      setTopics((prev) => prev.filter((item) => String(item.chapter_id ?? "") !== String(chapter.id)));
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete chapter");
+    }
+  };
+
   return (
     <QuestionBankLayout
       title="Subjects"
@@ -348,6 +374,15 @@ export default function QuestionSubjectsPage() {
                         >
                           Edit Subject
                         </button>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDeleteSubject(subject);
+                          }}
+                          className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                        >
+                          Delete Subject
+                        </button>
                       </div>
                     </div>
 
@@ -384,6 +419,12 @@ export default function QuestionSubjectsPage() {
                                         className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                                       >
                                         Edit Chapter
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteChapter(chapter)}
+                                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                      >
+                                        Delete Chapter
                                       </button>
                                     </div>
                                   </div>

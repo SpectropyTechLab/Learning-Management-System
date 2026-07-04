@@ -213,6 +213,16 @@ export default function QuestionChaptersPage() {
     [selectedSubjectId, subjects]
   );
 
+  const handleDeleteChapter = async (chapter: CurriculumItem) => {
+    if (!window.confirm(`Delete chapter "${chapter.name}"?`)) return;
+    try {
+      await api.delete(`/chapters/${chapter.id}`);
+      setChapters((prev) => prev.filter((item) => String(item.id) !== String(chapter.id)));
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete chapter");
+    }
+  };
+
   return (
     <QuestionBankLayout
       title="Chapters"
@@ -324,20 +334,28 @@ export default function QuestionChaptersPage() {
                         ID: {chapter.id} | {selectedProgramName} | {selectedGradeName} | {selectedSubjectName}
                       </div>
                     </div>
-                    <button
-                      onClick={() =>
-                        navigate(
-                          `/question-bank/chapters/${chapter.id}/edit${buildHierarchyQuery(
-                            selectedProgramId,
-                            selectedGradeId,
-                            selectedSubjectId
-                          )}`
-                        )
-                      }
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                      Edit
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/question-bank/chapters/${chapter.id}/edit${buildHierarchyQuery(
+                              selectedProgramId,
+                              selectedGradeId,
+                              selectedSubjectId
+                            )}`
+                          )
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteChapter(chapter)}
+                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {chapters.length === 0 && (

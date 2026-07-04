@@ -19,6 +19,16 @@ export default function QuestionProgramsPage() {
   const [programs, setPrograms] = useState<CurriculumItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const handleDeleteProgram = async (program: CurriculumItem) => {
+    if (!window.confirm(`Delete program "${program.name}"?`)) return;
+    try {
+      await api.delete(`/programs/${program.id}`);
+      setPrograms((prev) => prev.filter((item) => String(item.id) !== String(program.id)));
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to delete program.");
+    }
+  };
+
   useEffect(() => {
     const state = location.state as
       | { createdProgram?: CurriculumItem; updatedProgram?: CurriculumItem }
@@ -89,12 +99,20 @@ export default function QuestionProgramsPage() {
                     ID: {program.id} {program.code ? `| Code: ${program.code}` : ""}
                   </div>
                 </div>
-                <button
-                  onClick={() => navigate(`/question-bank/programs/${program.id}/edit`)}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Edit
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => navigate(`/question-bank/programs/${program.id}/edit`)}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProgram(program)}
+                    className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
             {programs.length === 0 && (

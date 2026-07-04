@@ -280,6 +280,16 @@ export default function QuestionTopicsPage() {
     [chapters, selectedChapterId]
   );
 
+  const handleDeleteTopic = async (topic: CurriculumItem) => {
+    if (!window.confirm(`Delete topic "${topic.name}"?`)) return;
+    try {
+      await api.delete(`/topics/${topic.id}`);
+      setTopics((prev) => prev.filter((item) => String(item.id) !== String(topic.id)));
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete topic");
+    }
+  };
+
   return (
     <QuestionBankLayout
       title="Topics"
@@ -415,21 +425,29 @@ export default function QuestionTopicsPage() {
                         ID: {topic.id} | {selectedProgramName} | {selectedGradeName} | {selectedSubjectName} | {selectedChapterName}
                       </div>
                     </div>
-                    <button
-                      onClick={() =>
-                        navigate(
-                          `/question-bank/topics/${topic.id}/edit${buildHierarchyQuery(
-                            selectedProgramId,
-                            selectedGradeId,
-                            selectedSubjectId,
-                            selectedChapterId
-                          )}`
-                        )
-                      }
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                      Edit
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/question-bank/topics/${topic.id}/edit${buildHierarchyQuery(
+                              selectedProgramId,
+                              selectedGradeId,
+                              selectedSubjectId,
+                              selectedChapterId
+                            )}`
+                          )
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTopic(topic)}
+                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {topics.length === 0 && (

@@ -31,6 +31,16 @@ export default function QuestionGradesPage() {
   const [selectedProgramId, setSelectedProgramId] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const handleDeleteGrade = async (grade: CurriculumItem) => {
+    if (!window.confirm(`Delete grade "${grade.name ?? `Grade ${grade.grade_number}`}"?`)) return;
+    try {
+      await api.delete(`/grades/${grade.id}`);
+      setGrades((prev) => prev.filter((item) => String(item.id) !== String(grade.id)));
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to delete grade.");
+    }
+  };
+
   const programFromQuery = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get("program_id") ?? "";
@@ -136,16 +146,24 @@ export default function QuestionGradesPage() {
                       ID: {grade.id} {grade.grade_number ? `| Number: ${grade.grade_number}` : ""}
                     </div>
                   </div>
-                  <button
-                    onClick={() =>
-                      navigate(
-                        `/question-bank/grades/${grade.id}/edit${selectedProgramId ? `?program_id=${selectedProgramId}` : ""}`
-                      )
-                    }
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        navigate(
+                          `/question-bank/grades/${grade.id}/edit${selectedProgramId ? `?program_id=${selectedProgramId}` : ""}`
+                        )
+                      }
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteGrade(grade)}
+                      className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
               {grades.length === 0 && (
