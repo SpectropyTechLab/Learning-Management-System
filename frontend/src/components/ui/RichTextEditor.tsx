@@ -58,6 +58,13 @@ const createInlineMathExtension = (
     return {
       latex: {
         default: "",
+        parseHTML: (element) =>
+          element.getAttribute("data-latex") ??
+          element.getAttribute("latex") ??
+          "",
+        renderHTML: (attributes) => ({
+          "data-latex": attributes.latex,
+        }),
       },
     };
   },
