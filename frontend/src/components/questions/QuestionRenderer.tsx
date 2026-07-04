@@ -5,7 +5,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 
 export type RichTextLike =
-  | { html?: string | null; text?: string | null }
+  | { html?: string | null; text?: string | null; json?: unknown }
   | string
   | null
   | undefined;
@@ -110,11 +110,84 @@ const normalizeLatexDelimitersForRender = (input: string) => {
   return next;
 };
 
+const escapeAttribute = (value: unknown) =>
+  escapeHtml(value).replace(/`/g, "&#96;");
+
+const renderProseMirrorMarks = (html: string, marks: unknown) => {
+  if (!Array.isArray(marks)) return html;
+  return marks.reduce((acc, mark) => {
+    if (!mark || typeof mark !== "object") return acc;
+    const typed = mark as { type?: string; attrs?: Record<string, unknown> };
+    if (typed.type === "bold") return `<strong>${acc}</strong>`;
+    if (typed.type === "italic") return `<em>${acc}</em>`;
+    if (typed.type === "underline") return `<u>${acc}</u>`;
+    if (typed.type === "strike") return `<s>${acc}</s>`;
+    if (typed.type === "code") return `<code>${acc}</code>`;
+    if (typed.type === "superscript") return `<sup>${acc}</sup>`;
+    if (typed.type === "subscript") return `<sub>${acc}</sub>`;
+    if (typed.type === "link") {
+      const href = escapeAttribute(typed.attrs?.href ?? "");
+      return href ? `<a href="${href}">${acc}</a>` : acc;
+    }
+    return acc;
+  }, html);
+};
+
+const renderProseMirrorContent = (content: unknown) =>
+  Array.isArray(content) ? content.map(renderProseMirrorNode).join("") : "";
+
+const renderProseMirrorNode = (node: unknown): string => {
+  if (!node || typeof node !== "object") return "";
+  const typed = node as {
+    type?: string;
+    text?: string;
+    attrs?: Record<string, unknown>;
+    marks?: unknown;
+    content?: unknown;
+  };
+  const children = renderProseMirrorContent(typed.content);
+
+  if (typed.type === "doc") return children;
+  if (typed.type === "text") return renderProseMirrorMarks(escapeHtml(typed.text ?? ""), typed.marks);
+  if (typed.type === "hardBreak") return "<br />";
+  if (typed.type === "paragraph") return `<p>${children}</p>`;
+  if (typed.type === "heading") {
+    const level = Math.min(Math.max(Number(typed.attrs?.level ?? 2), 1), 6);
+    return `<h${level}>${children}</h${level}>`;
+  }
+  if (typed.type === "bulletList") return `<ul>${children}</ul>`;
+  if (typed.type === "orderedList") return `<ol>${children}</ol>`;
+  if (typed.type === "listItem") return `<li>${children}</li>`;
+  if (typed.type === "blockquote") return `<blockquote>${children}</blockquote>`;
+  if (typed.type === "codeBlock") return `<pre><code>${children}</code></pre>`;
+  if (typed.type === "inlineMath") {
+    const latex = String(typed.attrs?.latex ?? "").trim();
+    const escapedLatex = escapeAttribute(latex);
+    return `<span data-inline-math="true" data-latex="${escapedLatex}">\\(${escapedLatex}\\)</span>`;
+  }
+  if (typed.type === "image") {
+    const src = escapeAttribute(typed.attrs?.src ?? "");
+    const alt = escapeAttribute(typed.attrs?.alt ?? "");
+    const title = escapeAttribute(typed.attrs?.title ?? "");
+    const width = escapeAttribute(typed.attrs?.width ?? "");
+    const height = escapeAttribute(typed.attrs?.height ?? "");
+    if (!src) return "";
+    return `<img src="${src}" alt="${alt}"${title ? ` title="${title}"` : ""}${width ? ` width="${width}"` : ""}${height ? ` height="${height}"` : ""} />`;
+  }
+  if (typed.type === "table") return `<table>${children}</table>`;
+  if (typed.type === "tableRow") return `<tr>${children}</tr>`;
+  if (typed.type === "tableCell") return `<td>${children}</td>`;
+  if (typed.type === "tableHeader") return `<th>${children}</th>`;
+
+  return children;
+};
+
 const getHtml = (value: RichTextLike) => {
   if (!value) return "";
   if (typeof value === "string") return normalizeLatexDelimitersForRender(value);
   if (typeof value === "object" && "html" in value) {
-    return normalizeLatexDelimitersForRender(String(value.html ?? value.text ?? ""));
+    const jsonHtml = renderProseMirrorNode(value.json);
+    return normalizeLatexDelimitersForRender(jsonHtml || String(value.html ?? value.text ?? ""));
   }
   if (typeof value === "object" && "text" in value) {
     return normalizeLatexDelimitersForRender(String(value.text ?? ""));
@@ -155,6 +228,19 @@ const renderLatexWithKatex = (html: string) => {
         .replace(/√\s*\(/g, "\\sqrt(")
         .replace(/√\s*\{/g, "\\sqrt{")
         .replace(/√\s*([A-Za-z0-9]+)/g, "\\sqrt{$1}");
+
+    doc.querySelectorAll('span[data-inline-math="true"][data-latex]').forEach((element) => {
+      const latex = element.getAttribute("data-latex")?.trim() ?? "";
+      if (!latex) return;
+      try {
+        element.innerHTML = katex.renderToString(normalizeKatexExpression(latex), {
+          throwOnError: false,
+          output: "htmlAndMathml",
+        });
+      } catch {
+        element.textContent = latex;
+      }
+    });
 
     const renderTextNode = (textNode: Text) => {
       const content = textNode.nodeValue ?? "";
