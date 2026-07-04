@@ -1341,7 +1341,206 @@ const extractMathTextFromBlock = (blockXml) =>
       .join('')
   );
 
+const extractOuterXmlBody = (xml, prefix, tagName) => {
+  const source = String(xml || '');
+  const startMatch = source.match(new RegExp(`^<${prefix}:${tagName}\\b[^>]*>`));
+  if (!startMatch) return source;
+  const endTag = `</${prefix}:${tagName}>`;
+  const endIndex = source.lastIndexOf(endTag);
+  if (endIndex < 0) return '';
+  return source.slice(startMatch[0].length, endIndex);
+};
+
+const extractTopLevelPrefixedBlocks = (xml, prefix, tagName) => {
+  const source = String(xml || '');
+  const blocks = [];
+  const tokenRegex = new RegExp(
+    `<${prefix}:${tagName}\\b[^>]*\\/>|<${prefix}:${tagName}\\b[^>]*>|<\\/${prefix}:${tagName}>`,
+    'g'
+  );
+  let depth = 0;
+  let startIndex = -1;
+  let match;
+
+  while ((match = tokenRegex.exec(source)) !== null) {
+    const token = match[0];
+    if (token.endsWith('/>')) {
+      if (depth === 0) blocks.push(token);
+      continue;
+    }
+    if (token.startsWith('</')) {
+      if (depth > 0) {
+        depth -= 1;
+        if (depth === 0 && startIndex >= 0) {
+          blocks.push(source.slice(startIndex, tokenRegex.lastIndex));
+          startIndex = -1;
+        }
+      }
+      continue;
+    }
+    if (depth === 0) startIndex = match.index;
+    depth += 1;
+  }
+
+  return blocks;
+};
+
+const extractFirstTopLevelMathBlock = (xml, tagName) =>
+  extractTopLevelPrefixedBlocks(xml, 'm', tagName)[0] || '';
+
+const extractMathChildren = (xml) => {
+  const source = String(xml || '');
+  const blocks = [];
+  const tokenRegex = /<m:([A-Za-z0-9]+)\b[^>]*\/>|<m:([A-Za-z0-9]+)\b[^>]*>|<\/m:([A-Za-z0-9]+)>/g;
+  let depth = 0;
+  let startIndex = -1;
+  let match;
+
+  while ((match = tokenRegex.exec(source)) !== null) {
+    const token = match[0];
+    if (token.endsWith('/>')) {
+      if (depth === 0) blocks.push(token);
+      continue;
+    }
+    if (token.startsWith('</')) {
+      if (depth > 0) {
+        depth -= 1;
+        if (depth === 0 && startIndex >= 0) {
+          blocks.push(source.slice(startIndex, tokenRegex.lastIndex));
+          startIndex = -1;
+        }
+      }
+      continue;
+    }
+    if (depth === 0) startIndex = match.index;
+    depth += 1;
+  }
+
+  return blocks;
+};
+
+const normalizeLatexForStorage = (value) =>
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([=+×÷*<>])\s*/g, ' $1 ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const wrapLatexGroup = (value) => {
+  const text = normalizeLatexForStorage(value);
+  if (!text) return '';
+  if (/^[A-Za-z0-9]+$/.test(text)) return text;
+  if (/^\\[A-Za-z]+(?:\[[^\]]+\])?\{[\s\S]*\}$/.test(text)) return text;
+  return `{${text}}`;
+};
+
+const makeInlineLatexHtml = (latex) => {
+  const normalized = normalizeLatexForStorage(latex);
+  if (!normalized) return '';
+  const escaped = escapeHtml(normalized);
+  return `<span data-inline-math="true" data-latex="${escaped}">\\(${escaped}\\)</span>`;
+};
+
+const appendLatexSupSubToPreviousToken = (tokens, operator, value) => {
+  const suffix = normalizeLatexForStorage(value);
+  if (!suffix || tokens.length === 0) return false;
+  const last = tokens[tokens.length - 1];
+  const match = String(last || '').match(
+    /^<span data-inline-math="true" data-latex="([^"]*)">\\\(([\s\S]*)\\\)<\/span>$/
+  );
+  if (!match) return false;
+
+  const currentLatex = decodeXmlEntities(match[1]);
+  const nextLatex = `${currentLatex}${operator}{${suffix}}`;
+  tokens[tokens.length - 1] = makeInlineLatexHtml(nextLatex);
+  return true;
+};
+
+const parseOMathToLatex = (mathXml) => {
+  const source = String(mathXml || '').trim();
+  if (!source) return '';
+
+  const rootMatch = source.match(/^<m:([A-Za-z0-9]+)\b/);
+  if (!rootMatch) return normalizeLatexForStorage(extractMathTextFromBlock(source));
+
+  const tagName = rootMatch[1];
+  const body = extractOuterXmlBody(source, 'm', tagName);
+
+  if (tagName === 't') {
+    return normalizeLatexForStorage(decodeXmlEntities(body));
+  }
+
+  if (tagName === 'r') {
+    return normalizeLatexForStorage(extractMathTextFromBlock(source));
+  }
+
+  if (tagName === 'oMathPara') {
+    return normalizeLatexForStorage(
+      extractTopLevelPrefixedBlocks(body, 'm', 'oMath').map(parseOMathToLatex).filter(Boolean).join(' ')
+    );
+  }
+
+  if (tagName === 'sSup') {
+    const base = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'e'));
+    const sup = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'sup'));
+    return normalizeLatexForStorage(`${wrapLatexGroup(base)}^{${sup}}`);
+  }
+
+  if (tagName === 'sSub') {
+    const base = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'e'));
+    const sub = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'sub'));
+    return normalizeLatexForStorage(`${wrapLatexGroup(base)}_{${sub}}`);
+  }
+
+  if (tagName === 'sSubSup') {
+    const base = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'e'));
+    const sub = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'sub'));
+    const sup = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'sup'));
+    return normalizeLatexForStorage(`${wrapLatexGroup(base)}_{${sub}}^{${sup}}`);
+  }
+
+  if (tagName === 'rad') {
+    const degree = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'deg'));
+    const expr = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'e'));
+    return degree
+      ? normalizeLatexForStorage(`\\sqrt[${degree}]{${expr}}`)
+      : normalizeLatexForStorage(`\\sqrt{${expr}}`);
+  }
+
+  if (tagName === 'f') {
+    const numerator = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'num'));
+    const denominator = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'den'));
+    return normalizeLatexForStorage(`\\frac{${numerator}}{${denominator}}`);
+  }
+
+  if (tagName === 'd') {
+    const expr = parseOMathToLatex(extractFirstTopLevelMathBlock(body, 'e'));
+    const beginChar = source.match(/<m:begChr\b[^>]*m:val="([^"]*)"/i)?.[1] || '(';
+    const endChar = source.match(/<m:endChr\b[^>]*m:val="([^"]*)"/i)?.[1] || ')';
+    return normalizeLatexForStorage(`${decodeXmlEntities(beginChar)}${expr}${decodeXmlEntities(endChar)}`);
+  }
+
+  if (tagName === 'm') {
+    const rows = extractTopLevelPrefixedBlocks(body, 'm', 'mr')
+      .map((rowXml) =>
+        extractTopLevelPrefixedBlocks(extractOuterXmlBody(rowXml, 'm', 'mr'), 'm', 'e')
+          .map(parseOMathToLatex)
+          .filter(Boolean)
+          .join(' & ')
+      )
+      .filter(Boolean);
+    return rows.length > 0
+      ? `\\begin{matrix}${rows.join(' \\\\ ')}\\end{matrix}`
+      : normalizeLatexForStorage(extractMathTextFromBlock(source));
+  }
+
+  return normalizeLatexForStorage(extractMathChildren(body).map(parseOMathToLatex).filter(Boolean).join(' '));
+};
+
 const parseOMathToHtml = (mathXml) => {
+  const latex = parseOMathToLatex(mathXml);
+  if (latex) return makeInlineLatexHtml(latex);
+
   let transformed = String(mathXml || '');
   if (!transformed) return '';
 
@@ -1456,7 +1655,7 @@ const extractParagraphContent = (paragraphXml, relationshipMap, zip) => {
       });
       const mathHtml = parseOMathToHtml(tokenXml);
       if (mathHtml) {
-        inlineTokens.push(`<span class="math-equation">${mathHtml}</span>`);
+        inlineTokens.push(mathHtml);
       }
       return;
     }
@@ -1488,15 +1687,19 @@ const extractParagraphContent = (paragraphXml, relationshipMap, zip) => {
         kinds: detectOMathKinds(mathMatch[0]),
       });
       const mathHtml = parseOMathToHtml(mathMatch[0]);
-      if (mathHtml) runParts.push(`<span class="math-equation">${mathHtml}</span>`);
+      if (mathHtml) runParts.push(mathHtml);
     });
 
     if (runParts.length === 0) return;
     const runHtml = runParts.join('');
     if (isSuperscript) {
-      inlineTokens.push(`<sup>${runHtml}</sup>`);
+      if (!appendLatexSupSubToPreviousToken(inlineTokens, '^', runHtml)) {
+        inlineTokens.push(`<sup>${runHtml}</sup>`);
+      }
     } else if (isSubscript) {
-      inlineTokens.push(`<sub>${runHtml}</sub>`);
+      if (!appendLatexSupSubToPreviousToken(inlineTokens, '_', runHtml)) {
+        inlineTokens.push(`<sub>${runHtml}</sub>`);
+      }
     } else {
       inlineTokens.push(runHtml);
     }
@@ -5691,6 +5894,195 @@ const createOfficeMathBarFraction = (numerator, denominator) =>
     createImportedXmlElement('m:den', null, [createOfficeMathRun(denominator || '')]),
   ]);
 
+const createOfficeMathSuperscript = (base, exponent) =>
+  createImportedXmlElement('m:sSup', null, [
+    createImportedXmlElement('m:e', null, latexToOfficeMathComponents(base || '')),
+    createImportedXmlElement('m:sup', null, latexToOfficeMathComponents(exponent || '')),
+  ]);
+
+const createOfficeMathSubscript = (base, subscript) =>
+  createImportedXmlElement('m:sSub', null, [
+    createImportedXmlElement('m:e', null, latexToOfficeMathComponents(base || '')),
+    createImportedXmlElement('m:sub', null, latexToOfficeMathComponents(subscript || '')),
+  ]);
+
+const createOfficeMathRadical = (body) =>
+  createImportedXmlElement('m:rad', null, [
+    createImportedXmlElement('m:radPr', null, [
+      createImportedXmlElement('m:degHide', { 'm:val': '1' }),
+      createImportedXmlElement('m:ctrlPr', null, [
+        createImportedXmlElement('w:rPr', null, [
+          createImportedXmlElement('w:rFonts', {
+            'w:ascii': 'Cambria Math',
+            'w:hAnsi': 'Cambria Math',
+          }),
+        ]),
+      ]),
+    ]),
+    createImportedXmlElement('m:deg', null, []),
+    createImportedXmlElement('m:e', null, latexToOfficeMathComponents(body || '')),
+  ]);
+
+const createOfficeMathDelimited = (body, beginChar = '(', endChar = ')') =>
+  createImportedXmlElement('m:d', null, [
+    createImportedXmlElement('m:dPr', null, [
+      createImportedXmlElement('m:begChr', { 'm:val': beginChar }),
+      createImportedXmlElement('m:endChr', { 'm:val': endChar }),
+      createImportedXmlElement('m:ctrlPr', null, [
+        createImportedXmlElement('w:rPr', null, [
+          createImportedXmlElement('w:rFonts', {
+            'w:ascii': 'Cambria Math',
+            'w:hAnsi': 'Cambria Math',
+          }),
+        ]),
+      ]),
+    ]),
+    createImportedXmlElement('m:e', null, latexToOfficeMathComponents(body || '')),
+  ]);
+
+const readLatexGroup = (source, startIndex, openChar = '{', closeChar = '}') => {
+  const input = String(source || '');
+  if (input[startIndex] !== openChar) return { value: '', endIndex: startIndex };
+  let depth = 0;
+  for (let index = startIndex; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === openChar) depth += 1;
+    if (char === closeChar) {
+      depth -= 1;
+      if (depth === 0) {
+        return { value: input.slice(startIndex + 1, index), endIndex: index + 1 };
+      }
+    }
+  }
+  return { value: input.slice(startIndex + 1), endIndex: input.length };
+};
+
+const readLatexAtom = (source, startIndex) => {
+  const input = String(source || '');
+  const first = input[startIndex];
+  if (!first) return { value: '', endIndex: startIndex };
+  if (first === '{') return readLatexGroup(input, startIndex);
+  if (first === '(') {
+    const group = readLatexGroup(input, startIndex, '(', ')');
+    return { value: `(${group.value})`, endIndex: group.endIndex };
+  }
+  if (first === '\\') {
+    const command = input.slice(startIndex).match(/^\\[A-Za-z]+/);
+    if (command) {
+      return { value: command[0], endIndex: startIndex + command[0].length };
+    }
+  }
+  const atom = input.slice(startIndex).match(/^[A-Za-z0-9]+/);
+  if (atom) return { value: atom[0], endIndex: startIndex + atom[0].length };
+  return { value: first, endIndex: startIndex + 1 };
+};
+
+const cleanLatexForMathRun = (value) =>
+  normalizeOfficeMathText(
+    String(value || '')
+      .replace(/\\(?:left|right)\s*/g, '')
+      .replace(/\\times/g, '×')
+      .replace(/\\cdot/g, '·')
+      .replace(/\\div/g, '÷')
+      .replace(/\\pm/g, '±')
+      .replace(/\\neq/g, '≠')
+      .replace(/\\leq/g, '≤')
+      .replace(/\\geq/g, '≥')
+      .replace(/\\theta/g, 'θ')
+      .replace(/\\pi/g, 'π')
+  );
+
+const latexToOfficeMathComponents = (latex) => {
+  const input = String(latex || '')
+    .replace(/^\\\(|\\\)$/g, '')
+    .replace(/^\$|\$$/g, '')
+    .trim();
+  if (!input) return [];
+
+  const components = [];
+  let buffer = '';
+  let index = 0;
+
+  const flushBuffer = () => {
+    if (!buffer) return;
+    components.push(createOfficeMathRun(cleanLatexForMathRun(buffer)));
+    buffer = '';
+  };
+
+  while (index < input.length) {
+    if (input.startsWith('\\frac', index)) {
+      flushBuffer();
+      index += '\\frac'.length;
+      while (input[index] === ' ') index += 1;
+      const numerator = readLatexGroup(input, index);
+      index = numerator.endIndex;
+      while (input[index] === ' ') index += 1;
+      const denominator = readLatexGroup(input, index);
+      index = denominator.endIndex;
+      components.push(createOfficeMathBarFraction(numerator.value, denominator.value));
+      continue;
+    }
+
+    if (input.startsWith('\\sqrt', index)) {
+      flushBuffer();
+      index += '\\sqrt'.length;
+      while (input[index] === ' ') index += 1;
+      if (input[index] === '[') {
+        const degree = readLatexGroup(input, index, '[', ']');
+        index = degree.endIndex;
+        if (degree.value) {
+          components.push(createOfficeMathRun(cleanLatexForMathRun(`${degree.value}√`)));
+        }
+      }
+      while (input[index] === ' ') index += 1;
+      const body = input[index] === '{' ? readLatexGroup(input, index) : readLatexAtom(input, index);
+      index = body.endIndex;
+      components.push(createOfficeMathRadical(body.value));
+      continue;
+    }
+
+    if (input[index] === '^' || input[index] === '_') {
+      const operator = input[index];
+      index += 1;
+      const exponent = input[index] === '{' ? readLatexGroup(input, index) : readLatexAtom(input, index);
+      index = exponent.endIndex;
+      const baseText = buffer.trimEnd();
+      if (baseText) {
+        const trailing = baseText.match(/(\([^()]+\)|[A-Za-z0-9]+|.)$/)?.[1] || baseText;
+        buffer = baseText.slice(0, baseText.length - trailing.length);
+        flushBuffer();
+        components.push(
+          operator === '^'
+            ? createOfficeMathSuperscript(trailing, exponent.value)
+            : createOfficeMathSubscript(trailing, exponent.value)
+        );
+      } else {
+        components.push(createOfficeMathRun(`${operator}${exponent.value}`));
+      }
+      continue;
+    }
+
+    if (input[index] === '(') {
+      const group = readLatexGroup(input, index, '(', ')');
+      if (input[group.endIndex] === '^' || input[group.endIndex] === '_') {
+        buffer += `(${group.value})`;
+        index = group.endIndex;
+        continue;
+      }
+      flushBuffer();
+      components.push(createOfficeMathDelimited(group.value));
+      index = group.endIndex;
+      continue;
+    }
+
+    buffer += input[index];
+    index += 1;
+  }
+
+  flushBuffer();
+  return components.length > 0 ? components : [createOfficeMathRun(cleanLatexForMathRun(input))];
+};
+
 const normalizeOfficeMathText = (value) =>
   String(value || '')
     .replace(/\\(?:left|right)\s*/g, '')
@@ -5903,6 +6295,22 @@ const htmlToDocxRuns = (html, styles = {}) => {
 
     if (tag === 'span') {
       const className = String($(node).attr('class') || '').toLowerCase();
+      const inlineLatex = $(node).attr('data-latex');
+      const isInlineMath = String($(node).attr('data-inline-math') || '').toLowerCase() === 'true';
+      if (isInlineMath || inlineLatex) {
+        const latex = decodeHtmlEntitiesForDocx(inlineLatex || $(node).text() || '')
+          .replace(/^\\\(|\\\)$/g, '')
+          .trim();
+        const mathComponents = latexToOfficeMathComponents(latex);
+        if (mathComponents.length > 0) {
+          runs.push(
+            new DocxMath({
+              children: mathComponents,
+            })
+          );
+        }
+        return;
+      }
       if (className.includes('math-equation') || className.includes('math-matrix')) {
         const mathHtml = $(node).html() || $(node).text() || '';
         if (isLikelyProseMathText(mathHtml) || isSingleWordProseMathText(mathHtml)) {
@@ -6043,6 +6451,22 @@ const htmlToDocxRunsSafe = (html, styles = {}) => {
 
     if (tag === 'span') {
       const className = String($(node).attr('class') || '').toLowerCase();
+      const inlineLatex = $(node).attr('data-latex');
+      const isInlineMath = String($(node).attr('data-inline-math') || '').toLowerCase() === 'true';
+      if (isInlineMath || inlineLatex) {
+        const latex = decodeHtmlEntitiesForDocx(inlineLatex || $(node).text() || '')
+          .replace(/^\\\(|\\\)$/g, '')
+          .trim();
+        const mathComponents = latexToOfficeMathComponents(latex);
+        if (mathComponents.length > 0) {
+          runs.push(
+            new DocxMath({
+              children: mathComponents,
+            })
+          );
+        }
+        return;
+      }
       if (className.includes('math-equation') || className.includes('math-matrix')) {
         const mathHtml = $(node).html() || $(node).text() || '';
         if (isLikelyProseMathText(mathHtml) || isSingleWordProseMathText(mathHtml)) {
