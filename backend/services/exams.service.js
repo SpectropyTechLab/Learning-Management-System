@@ -2590,6 +2590,22 @@ const richTextToMultilineText = (value) => {
     .join('\n');
 };
 
+const splitInstructionTextIntoLines = (value) => {
+  const explicitLines = String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (explicitLines.length !== 1) return explicitLines;
+
+  const sentenceLines = explicitLines[0]
+    .split(/(?<=[.!?])\s+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return sentenceLines.length > 1 ? sentenceLines : explicitLines;
+};
+
 const extractOptionText = (option) => stripHtmlToText(option?.text);
 
 const optionLabelFromIndex = (index) => String.fromCharCode(65 + index);
@@ -3890,10 +3906,9 @@ const buildPlainMatchFollowingTable = (question) => {
 };
 
 const buildInstructionsTable = (preview) => {
-  const customInstructions = richTextToMultilineText(preview?.exam?.instructions || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const customInstructions = splitInstructionTextIntoLines(
+    richTextToMultilineText(preview?.exam?.instructions || '')
+  );
   const lines = customInstructions.length > 0 ? customInstructions : ['--'];
 
   return new Table({
