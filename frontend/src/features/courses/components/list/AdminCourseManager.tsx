@@ -101,10 +101,15 @@ export default function AdminCourseManager({
   const [editPublished, setEditPublished] = useState(false);
   const [renamingCourseId, setRenamingCourseId] = useState<number | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
+  const [assignedSchoolsModal, setAssignedSchoolsModal] = useState<{
+    courseTitle: string;
+    schools: string[];
+  } | null>(null);
   const normalizedApiPrefix = apiPrefix.startsWith("/") ? apiPrefix : `/${apiPrefix}`;
 
   const displayCourses = mode === "custom" ? courseOverrides ?? [] : courses;
   const isLoading = mode === "custom" ? Boolean(loadingOverride) : fetching;
+  const canViewAssignedSchools = role === "content_authorizer";
   const hasPublishState = displayCourses.some(
     (course) => typeof course.published === "boolean"
   );
@@ -153,6 +158,13 @@ export default function AdminCourseManager({
     resolveCourseCapability(course, course.can_enroll, mergedPermissions.canEnroll);
 
   const getCourseScopeLabel = (course: Course) => {
+    if (role === "school_owner" || role === "teacher") {
+      const isPlatformCourse =
+        course.course_access_type === "platform_assigned" ||
+        course.client_id == null ||
+        Number(course.client_id) === PLATFORM_OWNER_CLIENT_ID;
+      return isPlatformCourse ? "Platform course" : "Assigned course";
+    }
     if (course.course_access_type === "pack_derived" || course.is_pack_derived) {
       return "Assigned course";
     }
@@ -613,9 +625,10 @@ export default function AdminCourseManager({
                 : Boolean(onManageContent);
               const scopeLabel = getCourseScopeLabel(course);
               const showOriginalTitle = shouldShowOriginalTitle(course);
-              const assignedSchoolsLabel = Array.isArray(course.assigned_school_names) && course.assigned_school_names.length > 0
-                ? course.assigned_school_names.join(", ")
-                : null;
+              const assignedSchoolNames = Array.isArray(course.assigned_school_names)
+                ? course.assigned_school_names.filter(Boolean)
+                : [];
+              const canOpenAssignedSchools = canViewAssignedSchools && assignedSchoolNames.length > 0;
 
               return (
                 <div
@@ -721,10 +734,19 @@ export default function AdminCourseManager({
                               </div>
                             )}
 
-                            {assignedSchoolsLabel && (
-                              <div className="mt-2 text-[11px] text-slate-500">
-                                Assigned schools: {assignedSchoolsLabel}
-                              </div>
+                            {canOpenAssignedSchools && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAssignedSchoolsModal({
+                                    courseTitle: course.title,
+                                    schools: assignedSchoolNames,
+                                  })
+                                }
+                                className="mt-2 text-[11px] font-medium text-blue-900 hover:text-blue-700"
+                              >
+                                View Assigned Schools
+                              </button>
                             )}
                           </>
                         )}
@@ -972,10 +994,19 @@ export default function AdminCourseManager({
                               <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700">
                                 {scopeLabel}
                               </span>
-                              {assignedSchoolsLabel && (
-                                <span className="text-[10px] text-slate-500">
-                                  {assignedSchoolsLabel}
-                                </span>
+                              {canOpenAssignedSchools && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAssignedSchoolsModal({
+                                      courseTitle: course.title,
+                                      schools: assignedSchoolNames,
+                                    })
+                                  }
+                                  className="text-[10px] font-medium text-blue-900 hover:text-blue-700"
+                                >
+                                  View Assigned Schools
+                                </button>
                               )}
                             </div>
 
@@ -1038,6 +1069,49 @@ export default function AdminCourseManager({
           </div>
         )}
       </div>
+      {assignedSchoolsModal && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">Assigned Schools</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {assignedSchoolsModal.courseTitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssignedSchoolsModal(null)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close assigned schools"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200">
+              {assignedSchoolsModal.schools.map((school) => (
+                <div
+                  key={school}
+                  className="border-b border-slate-100 px-3 py-2 text-sm text-slate-700 last:border-b-0"
+                >
+                  {school}
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAssignedSchoolsModal(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {publishModalOpen && mergedPermissions.canPublish && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
           <div className="bg-white rounded-lg p-6 w-96 max-w-[90%]">
