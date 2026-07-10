@@ -21,6 +21,7 @@ export interface ExamFilters {
   status?: string;
   start_from?: string;
   start_to?: string;
+  assignment_only?: string;
   page?: number;
   page_size?: number;
 }

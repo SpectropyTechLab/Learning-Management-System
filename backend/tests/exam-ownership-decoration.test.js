@@ -138,3 +138,79 @@ test('content authorizer exam list filter is not restricted by client-admin scho
   assert.equal(conditions.length, 0);
   assert.deepEqual(params, []);
 });
+
+test('school assignment-only exam list filter excludes school-owned exams and school-owned programs', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+
+    if (
+      normalized.startsWith('create table if not exists exam_school_assignments') ||
+      normalized.startsWith('create index if not exists idx_exam_school_assignments')
+    ) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes('select distinct school_id') && normalized.includes('from school_memberships')) {
+      assert.deepEqual(params, [44, ['school_owner', 'admin']]);
+      return { rows: [{ school_id: 24 }] };
+    }
+
+    throw new Error(`Unexpected query: ${normalized}`);
+  };
+
+  t.after(() => {
+    pool.query = originalQuery;
+  });
+
+  const { conditions, params } = await buildExamWhere({
+    user: { id: 44, role: 'school_owner', client_id: 17 },
+    query: { assignment_only: '1' },
+  });
+  const whereSql = normalizeSql(conditions.join(' and '));
+
+  assert.match(whereSql, /from exam_school_assignments esa/);
+  assert.doesNotMatch(whereSql, /or e\.school_id = any/);
+  assert.doesNotMatch(whereSql, /school_programs\.school_id = any/);
+  assert.doesNotMatch(whereSql, /e\.created_by =/);
+  assert.deepEqual(params, [[17], [24], ['published', 'active']]);
+});
+
+test('school default exam list filter keeps school-owned exams and school-owned programs', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+
+    if (
+      normalized.startsWith('create table if not exists exam_school_assignments') ||
+      normalized.startsWith('create index if not exists idx_exam_school_assignments')
+    ) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes('select distinct school_id') && normalized.includes('from school_memberships')) {
+      assert.deepEqual(params, [44, ['school_owner', 'admin']]);
+      return { rows: [{ school_id: 24 }] };
+    }
+
+    throw new Error(`Unexpected query: ${normalized}`);
+  };
+
+  t.after(() => {
+    pool.query = originalQuery;
+  });
+
+  const { conditions, params } = await buildExamWhere({
+    user: { id: 44, role: 'school_owner', client_id: 17 },
+    query: {},
+  });
+  const whereSql = normalizeSql(conditions.join(' and '));
+
+  assert.match(whereSql, /from exam_school_assignments esa/);
+  assert.match(whereSql, /or e\.school_id = any/);
+  assert.match(whereSql, /school_programs\.school_id = any/);
+  assert.match(whereSql, /e\.created_by = \$4/);
+  assert.deepEqual(params, [[17], [24], ['published', 'active'], 44]);
+});

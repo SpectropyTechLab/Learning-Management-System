@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { login, refreshToken, logout } from '../controllers/auth.controller.js';
 import { authenticateToken, attachClientContext, loadPermissions } from '../middleware/auth.js';
 import { enrichAuthUser } from '../services/authUser.service.js';
+import { resolveModuleVisibility } from '../services/moduleVisibility.service.js';
 
 const router = Router();
 
@@ -29,10 +30,24 @@ router.get('/me', authenticateToken, attachClientContext, loadPermissions, async
         }
 
         const user = await enrichAuthUser({ id, email, full_name, role, is_active, client_id, user_id });
-        res.json({ user, permissions: granted });
+        const moduleVisibility = await resolveModuleVisibility({ user: req.user, permissions });
+        res.json({ user, permissions: granted, module_visibility: moduleVisibility });
         //console.log('Refreshed user data for:', { user: { id, email, full_name, role, is_active, client_id, user_id } });
     } catch (error) {
         console.error('Error in /me:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.get('/module-visibility', authenticateToken, attachClientContext, loadPermissions, async (req, res) => {
+    try {
+        const moduleVisibility = await resolveModuleVisibility({
+            user: req.user,
+            permissions: req.permissions,
+        });
+        res.json(moduleVisibility);
+    } catch (error) {
+        console.error('Error in /module-visibility:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });

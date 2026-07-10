@@ -17,10 +17,18 @@ export interface User {
   permissions?: string[];
 }
 
+export interface ModuleVisibility {
+  courses: boolean;
+  question_bank: boolean;
+  exams: boolean;
+  teaching_sessions: boolean;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
+  moduleVisibility: ModuleVisibility | null;
   login: (
     identifier: string,
     password: string,
@@ -52,8 +60,20 @@ const getStoredUser = (): User | null => {
   }
 };
 
+const getStoredModuleVisibility = (): ModuleVisibility | null => {
+  try {
+    const raw = localStorage.getItem('module_visibility');
+    if (!raw) return null;
+    return JSON.parse(raw) as ModuleVisibility;
+  } catch {
+    localStorage.removeItem('module_visibility');
+    return null;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => getStoredUser());
+  const [moduleVisibility, setModuleVisibility] = useState<ModuleVisibility | null>(() => getStoredModuleVisibility());
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [loading, setLoading] = useState<boolean>(() => {
     const initialToken = localStorage.getItem('token');
@@ -93,6 +113,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
+  useEffect(() => {
+    if (moduleVisibility) {
+      localStorage.setItem('module_visibility', JSON.stringify(moduleVisibility));
+    } else {
+      localStorage.removeItem('module_visibility');
+    }
+  }, [moduleVisibility]);
+
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout', null, { _skipAuthRefresh: true } as { _skipAuthRefresh: boolean });
@@ -102,8 +130,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('auth_user');
+      localStorage.removeItem('module_visibility');
       setToken(null);
       setUser(null);
+      setModuleVisibility(null);
       syncAuthCookie(null);
     }
   }, [syncAuthCookie]);
@@ -111,20 +141,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUser = useCallback(async () => {
     if (!token) {
       setUser(null);
+      setModuleVisibility(null);
       localStorage.removeItem('auth_user');
+      localStorage.removeItem('module_visibility');
       return;
     }
 
     const res = await api.get('/auth/me');
     const permissions = Array.isArray(res.data?.permissions) ? res.data.permissions : [];
     setUser({ ...res.data.user, permissions });
+    setModuleVisibility(res.data?.module_visibility ?? null);
   }, [token]);
 
   useEffect(() => {
     const fetchUser = async () => {
       if (!token) {
         setUser(null);
+        setModuleVisibility(null);
         localStorage.removeItem('auth_user');
+        localStorage.removeItem('module_visibility');
         setLoading(false);
         return;
       }
@@ -136,7 +171,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Failed to load user:', error);
         localStorage.removeItem('auth_user');
+        localStorage.removeItem('module_visibility');
         setUser(null);
+        setModuleVisibility(null);
       } finally {
         setLoading(false);
       }
@@ -155,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         : { email: identifier, password };
     const res = await api.post('/auth/login', payload);
 
-    const { token, user, permissions } = res.data;
+    const { token, user, permissions, module_visibility } = res.data;
     const nextUser =
       Array.isArray(permissions)
         ? { ...user, permissions }
@@ -163,8 +200,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     localStorage.setItem('token', token);
     localStorage.setItem('auth_user', JSON.stringify(nextUser));
+    if (module_visibility) {
+      localStorage.setItem('module_visibility', JSON.stringify(module_visibility));
+    }
     setToken(token);
     setUser(nextUser);
+    setModuleVisibility(module_visibility ?? null);
   }, []);
 
   const updateUser = (updates: Partial<User>) => {
@@ -192,19 +233,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       client_id,
       user_id,
     });
-    const { token, user, permissions } = res.data;
+    const { token, user, permissions, module_visibility } = res.data;
     const nextUser =
       Array.isArray(permissions)
         ? { ...user, permissions }
         : user;
     localStorage.setItem('token', token);
     localStorage.setItem('auth_user', JSON.stringify(nextUser));
+    if (module_visibility) {
+      localStorage.setItem('module_visibility', JSON.stringify(module_visibility));
+    }
     setToken(token);
     setUser(nextUser);
+    setModuleVisibility(module_visibility ?? null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, updateUser, register, refreshUser, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, updateUser, register, refreshUser, logout, loading, moduleVisibility }}>
       {children}
     </AuthContext.Provider>
   );

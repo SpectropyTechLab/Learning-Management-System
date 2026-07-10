@@ -3,7 +3,15 @@ import { query as dbQuery } from './db.repository.js';
 
 const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
-export const fetchPrograms = async ({ clientId, sharedProgramIds = [], assignedProgramIds = [], schoolIds = [], writableOnly = false, assignedOnly = false } = {}) => {
+export const fetchPrograms = async ({
+  clientId,
+  sharedProgramIds = [],
+  assignedProgramIds = [],
+  schoolIds = [],
+  writableOnly = false,
+  assignedOnly = false,
+  assignmentOnly = false,
+} = {}) => {
   const params = [];
   let query = `SELECT * FROM programs`;
   if (assignedOnly) {
@@ -12,7 +20,7 @@ export const fetchPrograms = async ({ clientId, sharedProgramIds = [], assignedP
       params.push(assignedProgramIds);
       conditions.push(`id = ANY($${params.length}::int[])`);
     }
-    if (schoolIds.length > 0) {
+    if (!assignmentOnly && schoolIds.length > 0) {
       params.push(schoolIds);
       conditions.push(`school_id = ANY($${params.length}::int[])`);
     }

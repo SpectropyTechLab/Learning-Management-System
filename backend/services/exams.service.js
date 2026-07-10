@@ -893,6 +893,7 @@ export const buildExamWhere = async ({ user, query }) => {
     return `$${params.length}`;
   };
   const isSchoolScopedUser = isSchoolOwner(user?.role) || isTeacher(user?.role);
+  const assignmentOnly = query?.assignment_only === '1' || query?.assignment_only === 'true';
 
   const explicitClientId = parseNullableInt(query?.client_id, 'client_id');
   if (isNormalClientAdmin(user)) {
@@ -932,30 +933,37 @@ export const buildExamWhere = async ({ user, query }) => {
     if (schoolIds.length > 0) {
       const schoolIdsParam = addParam(schoolIds);
       const visibleStatusesParam = addParam(['published', 'active']);
-      const userIdParam = addParam(user.id);
-      conditions.push(`
+      const assignedExamCondition = `
         (
-          (
-            e.status = ANY(${visibleStatusesParam})
-            AND EXISTS (
-              SELECT 1
-              FROM exam_school_assignments esa
-              WHERE esa.exam_id = e.id
-                AND esa.school_id = ANY(${schoolIdsParam})
-            )
-          )
-          OR e.school_id = ANY(${schoolIdsParam})
-          OR EXISTS (
+          e.status = ANY(${visibleStatusesParam})
+          AND EXISTS (
             SELECT 1
-            FROM programs school_programs
-            WHERE school_programs.id = e.program_id
-              AND school_programs.school_id = ANY(${schoolIdsParam})
+            FROM exam_school_assignments esa
+            WHERE esa.exam_id = e.id
+              AND esa.school_id = ANY(${schoolIdsParam})
           )
-          OR (
-            e.created_by = ${userIdParam}
-            AND e.school_id IS NULL
-          )
-        )`);
+        )`;
+
+      if (assignmentOnly) {
+        conditions.push(assignedExamCondition);
+      } else {
+        const userIdParam = addParam(user.id);
+        conditions.push(`
+          (
+            ${assignedExamCondition}
+            OR e.school_id = ANY(${schoolIdsParam})
+            OR EXISTS (
+              SELECT 1
+              FROM programs school_programs
+              WHERE school_programs.id = e.program_id
+                AND school_programs.school_id = ANY(${schoolIdsParam})
+            )
+            OR (
+              e.created_by = ${userIdParam}
+              AND e.school_id IS NULL
+            )
+          )`);
+      }
     } else {
       conditions.push(`1 = 0`);
     }
@@ -968,22 +976,32 @@ export const buildExamWhere = async ({ user, query }) => {
     }
     if (isSchoolScopedUser) {
       const schoolIdFilterParam = addParam(schoolIdFilter);
-      conditions.push(`
-        (
-          e.school_id = ${schoolIdFilterParam}
-          OR EXISTS (
+      if (assignmentOnly) {
+        conditions.push(`
+          EXISTS (
             SELECT 1
             FROM exam_school_assignments esa_filter
             WHERE esa_filter.exam_id = e.id
               AND esa_filter.school_id = ${schoolIdFilterParam}
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM programs school_programs_filter
-            WHERE school_programs_filter.id = e.program_id
-              AND school_programs_filter.school_id = ${schoolIdFilterParam}
-          )
-        )`);
+          )`);
+      } else {
+        conditions.push(`
+          (
+            e.school_id = ${schoolIdFilterParam}
+            OR EXISTS (
+              SELECT 1
+              FROM exam_school_assignments esa_filter
+              WHERE esa_filter.exam_id = e.id
+                AND esa_filter.school_id = ${schoolIdFilterParam}
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM programs school_programs_filter
+              WHERE school_programs_filter.id = e.program_id
+                AND school_programs_filter.school_id = ${schoolIdFilterParam}
+            )
+          )`);
+      }
     } else {
       conditions.push(`e.school_id = ${addParam(schoolIdFilter)}`);
     }

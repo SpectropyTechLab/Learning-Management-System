@@ -192,9 +192,10 @@ export const listPrograms = async ({ user, query }) => {
   const clientId = resolveClientId(user, query?.client_id);
   const writableOnly = query?.writable === '1' || query?.writable === 'true';
   const assignedOnly = query?.assigned_only === '1' || query?.assigned_only === 'true';
+  const assignmentOnly = query?.assignment_only === '1' || query?.assignment_only === 'true';
   const schoolIds = isSchoolUser(user) ? await fetchUserSchoolIdsByRoleScope(user) : [];
   const schoolAssignedOnly = isSchoolUser(user) && !writableOnly;
-  const sharedProgramIds = isPlatformCurriculumAdmin(user) || writableOnly ? [] : await getReadableSharedProgramIds(clientId);
+  const sharedProgramIds = isPlatformCurriculumAdmin(user) || writableOnly || assignmentOnly ? [] : await getReadableSharedProgramIds(clientId);
   const assignedProgramIds = isSchoolUser(user) && !writableOnly ? await getAssignedQuestionBankProgramIds(schoolIds) : [];
   const result = await curriculumRepo.fetchPrograms({
     clientId: isPlatformCurriculumAdmin(user) && !writableOnly ? null : clientId,
@@ -202,7 +203,8 @@ export const listPrograms = async ({ user, query }) => {
     assignedProgramIds,
     schoolIds,
     writableOnly,
-    assignedOnly: (assignedOnly && isSchoolUser(user)) || schoolAssignedOnly,
+    assignedOnly: ((assignedOnly || assignmentOnly) && isSchoolUser(user)) || schoolAssignedOnly,
+    assignmentOnly: assignmentOnly && isSchoolUser(user),
   });
   return decorateCurriculumItems(result.rows, user);
 };
