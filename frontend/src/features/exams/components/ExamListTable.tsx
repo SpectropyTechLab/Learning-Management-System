@@ -8,12 +8,13 @@ interface ExamListTableProps {
   onAction: (action: string, exam: ExamSummary) => void;
   permissions: ExamPermissions;
   onStatusClick?: (exam: ExamSummary) => void;
+  previewOnlyForReadOnly?: boolean;
 }
 
 const normalizeStatus = (value?: string | null): ExamStatus | null => {
   if (!value) return null;
   const normalized = value.toLowerCase();
-  if (normalized === "draft" || normalized === "active" || normalized === "completed") {
+  if (normalized === "draft" || normalized === "published" || normalized === "active" || normalized === "completed") {
     return normalized;
   }
   return null;
@@ -33,16 +34,20 @@ const formatWindow = (start?: string | null, end?: string | null) => {
   return `-- -> ${formatDateTime(end)}`;
 };
 
-const getActionState = (status: ExamStatus | null, permissions: ExamPermissions) => {
+const getActionState = (status: ExamStatus | null, permissions: ExamPermissions, exam: ExamSummary) => {
   const isDraft = status === "draft";
   const isCompleted = status === "completed";
+  const canManage = exam.can_edit !== false || exam.can_build !== false || exam.can_delete !== false;
 
   return {
-    canEdit: permissions.canUpdate && isDraft,
-    canBuilder: permissions.canUpdate && isDraft,
-    canPublish: permissions.canPublish && isDraft,
+    canManage,
+    canPreview: permissions.canRead && exam.can_preview !== false,
+    canDownload: permissions.canRead && exam.can_download !== false,
+    canEdit: permissions.canUpdate && exam.can_edit !== false && isDraft,
+    canBuilder: permissions.canUpdate && exam.can_build !== false && isDraft,
+    canPublish: permissions.canPublish && exam.can_publish !== false && isDraft,
     canResults: isCompleted,
-    canDelete: permissions.canDelete,
+    canDelete: permissions.canDelete && exam.can_delete !== false,
   };
 };
 
@@ -69,11 +74,109 @@ const ActionButton = ({
   </button>
 );
 
+const OwnerBadge = ({ exam }: { exam: ExamSummary }) => {
+  const isPlatform = exam.exam_access_type === "platform_owned";
+  const isSchoolOwned = exam.exam_access_type === "school_owned";
+  const label = isSchoolOwned
+    ? "School Exam"
+    : isPlatform
+      ? "Platform Exam"
+      : exam.owner_client_name
+        ? `Client Exam: ${exam.owner_client_name}`
+        : "Client Exam";
+
+  return (
+    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+      isSchoolOwned
+        ? "bg-emerald-50 text-emerald-700"
+        : isPlatform
+          ? "bg-indigo-50 text-indigo-700"
+          : "bg-amber-50 text-amber-700"
+    }`}>
+      {label}
+    </span>
+  );
+};
+
+const RowActions = ({
+  exam,
+  actionState,
+  onAction,
+  previewOnlyForReadOnly = false,
+}: {
+  exam: ExamSummary;
+  actionState: ReturnType<typeof getActionState>;
+  onAction: (action: string, exam: ExamSummary) => void;
+  previewOnlyForReadOnly?: boolean;
+}) => {
+  if (!actionState.canManage) {
+    return (
+      <>
+        <ActionButton
+          label="Preview Question Paper"
+          disabled={!actionState.canPreview}
+          onClick={() => onAction("preview", exam)}
+        />
+        {!previewOnlyForReadOnly && (
+          <>
+            <ActionButton
+              label="Download Questions"
+              disabled={!actionState.canDownload}
+              onClick={() => onAction("download-questions", exam)}
+            />
+            <ActionButton
+              label="Download Answers"
+              disabled={!actionState.canDownload}
+              onClick={() => onAction("download-answers", exam)}
+            />
+            <ActionButton
+              label="Download Solutions"
+              disabled={!actionState.canDownload}
+              onClick={() => onAction("download-solutions", exam)}
+            />
+          </>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <ActionButton
+        label="Preview Exam"
+        disabled={!actionState.canPreview}
+        onClick={() => onAction("preview", exam)}
+      />
+      <ActionButton
+        label="Edit"
+        disabled={!actionState.canEdit}
+        onClick={() => onAction("edit", exam)}
+      />
+      <ActionButton
+        label="Builder"
+        disabled={!actionState.canBuilder}
+        onClick={() => onAction("builder", exam)}
+      />
+      <ActionButton
+        label="Results"
+        disabled={!actionState.canResults}
+        onClick={() => onAction("results", exam)}
+      />
+      <ActionButton
+        label="Delete"
+        disabled={!actionState.canDelete}
+        onClick={() => onAction("delete", exam)}
+      />
+    </>
+  );
+};
+
 export default function ExamListTable({
   exams,
   onAction,
   permissions,
   onStatusClick,
+  previewOnlyForReadOnly = false,
 }: ExamListTableProps) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -82,7 +185,7 @@ export default function ExamListTable({
           const status =
             normalizeStatus(exam.status) ??
             computeExamStatus(exam);
-          const actionState = getActionState(status, permissions);
+          const actionState = getActionState(status, permissions, exam);
           const description = exam.description?.trim() || "";
           const snippet =
             description.length > 120 ? `${description.slice(0, 117)}...` : description;
@@ -114,6 +217,7 @@ export default function ExamListTable({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-base font-semibold text-slate-900 break-words">{exam.title}</div>
+                  <OwnerBadge exam={exam} />
                   {snippet && (
                     <div className="mt-1 text-xs text-slate-500">{snippet}</div>
                   )}
@@ -159,25 +263,11 @@ export default function ExamListTable({
               )}
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <ActionButton
-                  label="Edit"
-                  disabled={!actionState.canEdit}
-                  onClick={() => onAction("edit", exam)}
-                />
-                <ActionButton
-                  label="Builder"
-                  disabled={!actionState.canBuilder}
-                  onClick={() => onAction("builder", exam)}
-                />
-                <ActionButton
-                  label="Results"
-                  disabled={!actionState.canResults}
-                  onClick={() => onAction("results", exam)}
-                />
-                <ActionButton
-                  label="Delete"
-                  disabled={!actionState.canDelete}
-                  onClick={() => onAction("delete", exam)}
+                <RowActions
+                  exam={exam}
+                  actionState={actionState}
+                  onAction={onAction}
+                  previewOnlyForReadOnly={previewOnlyForReadOnly}
                 />
               </div>
             </div>
@@ -205,7 +295,7 @@ export default function ExamListTable({
               const status =
                 normalizeStatus(exam.status) ??
                 computeExamStatus(exam);
-              const actionState = getActionState(status, permissions);
+              const actionState = getActionState(status, permissions, exam);
               const description = exam.description?.trim() || "";
               const snippet =
                 description.length > 120 ? `${description.slice(0, 117)}...` : description;
@@ -232,6 +322,7 @@ export default function ExamListTable({
                 <tr key={exam.id} className="hover:bg-slate-50/50">
                   <td className="px-4 py-3">
                     <div className="font-semibold text-slate-900">{exam.title}</div>
+                    <OwnerBadge exam={exam} />
                     {snippet && (
                       <div className="mt-1 text-xs text-slate-500">{snippet}</div>
                     )}
@@ -282,25 +373,11 @@ export default function ExamListTable({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
-                      <ActionButton
-                        label="Edit"
-                        disabled={!actionState.canEdit}
-                        onClick={() => onAction("edit", exam)}
-                      />
-                      <ActionButton
-                        label="Builder"
-                        disabled={!actionState.canBuilder}
-                        onClick={() => onAction("builder", exam)}
-                      />
-                      <ActionButton
-                        label="Results"
-                        disabled={!actionState.canResults}
-                        onClick={() => onAction("results", exam)}
-                      />
-                      <ActionButton
-                        label="Delete"
-                        disabled={!actionState.canDelete}
-                        onClick={() => onAction("delete", exam)}
+                      <RowActions
+                        exam={exam}
+                        actionState={actionState}
+                        onAction={onAction}
+                        previewOnlyForReadOnly={previewOnlyForReadOnly}
                       />
                     </div>
                   </td>

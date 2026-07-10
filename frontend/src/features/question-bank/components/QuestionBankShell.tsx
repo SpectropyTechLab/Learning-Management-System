@@ -7,6 +7,7 @@ import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
 import { RiFileList3Line, RiHome2Line } from "react-icons/ri";
 import { getOrganizationLabel } from "@/features/auth/utils/roleBranding";
+import { isQuestionBankPlatformUser } from "@/features/question-bank/utils/questionPermissions";
 
 interface QuestionBankShellProps {
   title: string;
@@ -49,12 +50,9 @@ const questionBankTabs = [
   { key: "subjects", label: "Subjects", to: "/question-bank/subjects" },
   { key: "chapters", label: "Chapters", to: "/question-bank/chapters" },
   { key: "topics", label: "Topics", to: "/question-bank/topics" },
-  { key: "folders", label: "Folders", to: "/question-bank/folders" },
   { key: "converter", label: "Converter", to: "/question-bank/converter" },
   { key: "bulk-upload", label: "Bulk Upload", to: "/question-bank/bulk-upload" },
 ] as const;
-
-const hideQuestionBankUtilityTabsForRoles = new Set(["school_owner", "teacher"]);
 
 const dashboardPathByRole: Record<string, string> = {
   super_admin: "/superadmin/dashboard",
@@ -84,7 +82,7 @@ export default function QuestionBankShell({
   const config = roleConfig[roleKey];
   const userFullName = user?.full_name || config.label;
   const userEmail = user?.email || "";
-  const shouldHideUtilityTabs = hideQuestionBankUtilityTabsForRoles.has(user?.role ?? "");
+  const isPlatformUser = isQuestionBankPlatformUser(user);
 
   const isTabActive = (to: string) =>
     to === "/question-bank"
@@ -93,11 +91,13 @@ export default function QuestionBankShell({
 
   const navItems = questionBankTabs
     .filter((tab) => {
-      if (!shouldHideUtilityTabs) {
+      if (tab.key === "converter") {
+        return isPlatformUser;
+      }
+      if (tab.key === "bulk-upload") {
         return true;
       }
-
-      return tab.key !== "converter" && tab.key !== "bulk-upload";
+      return true;
     })
     .map((tab) => ({
     key: tab.key,

@@ -5,7 +5,7 @@ import type {
   RichTextLike,
 } from "@/components/questions/QuestionRenderer";
 
-export type ExamStatus = "draft" | "active" | "completed";
+export type ExamStatus = "draft" | "published" | "active" | "completed";
 
 export type BlueprintStatus = "active" | "inactive" | "archived";
 export type QuestionGroupType = "direction" | "similar" | "previous_year" | "reference";
@@ -257,6 +257,19 @@ export interface ExamSummary {
   tags?: string[] | null;
   program_id?: number | null;
   blueprint_id?: number | null;
+  client_id?: number | null;
+  owner_client_id?: number | null;
+  owner_client_name?: string | null;
+  exam_access_type?: "platform_owned" | "client_owned" | "school_owned" | string | null;
+  can_preview?: boolean;
+  can_download?: boolean;
+  can_edit?: boolean;
+  can_build?: boolean;
+  can_delete?: boolean;
+  can_publish?: boolean;
+  section_count?: number | null;
+  question_count?: number | null;
+  all_sections_completed?: boolean | null;
 }
 
 export interface ExamFiltersState {

@@ -69,10 +69,6 @@ import QuestionGradeEditPage from '@/pages/questions/QuestionGradeEditPage';
 import QuestionSubjectsPage from '@/pages/questions/QuestionSubjectsPage';
 import QuestionSubjectCreatePage from '@/pages/questions/QuestionSubjectCreatePage';
 import QuestionSubjectEditPage from '@/pages/questions/QuestionSubjectEditPage';
-import QuestionFoldersPage from '@/pages/questions/QuestionFoldersPage';
-import QuestionFolderDetailPage from '@/pages/questions/QuestionFolderDetailPage';
-import QuestionFolderCreatePage from '@/pages/questions/QuestionFolderCreatePage';
-import QuestionFolderEditPage from '@/pages/questions/QuestionFolderEditPage';
 import QuestionChaptersPage from '@/pages/questions/QuestionChaptersPage';
 import QuestionChapterCreatePage from '@/pages/questions/QuestionChapterCreatePage';
 import QuestionChapterEditPage from '@/pages/questions/QuestionChapterEditPage';
@@ -296,8 +292,8 @@ export default function AppRoutes() {
         <Route path="/question-bank/subjects" element={<QuestionSubjectsPage />} />
         <Route path="/question-bank/chapters" element={<QuestionChaptersPage />} />
         <Route path="/question-bank/topics" element={<QuestionTopicsPage />} />
-        <Route path="/question-bank/folders" element={<QuestionFoldersPage />} />
-        <Route path="/question-bank/folders/:id" element={<QuestionFolderDetailPage />} />
+        <Route path="/question-bank/folders" element={<Navigate to="/question-bank" replace />} />
+        <Route path="/question-bank/folders/:id" element={<Navigate to="/question-bank" replace />} />
         <Route path="/question-bank/passages" element={<QuestionPassagesPage />} />
       </Route>
 
@@ -329,8 +325,8 @@ export default function AppRoutes() {
         <Route path="/question-bank/chapters/:id/edit" element={<QuestionChapterEditPage />} />
         <Route path="/question-bank/topics/new" element={<QuestionTopicCreatePage />} />
         <Route path="/question-bank/topics/:id/edit" element={<QuestionTopicEditPage />} />
-        <Route path="/question-bank/folders/new" element={<QuestionFolderCreatePage />} />
-        <Route path="/question-bank/folders/:id/edit" element={<QuestionFolderEditPage />} />
+        <Route path="/question-bank/folders/new" element={<Navigate to="/question-bank" replace />} />
+        <Route path="/question-bank/folders/:id/edit" element={<Navigate to="/question-bank" replace />} />
         <Route path="/question-bank/passages/new" element={<QuestionPassageCreatePage />} />
         <Route path="/question-bank/passages/:id/edit" element={<QuestionPassageEditPage />} />
       </Route>
@@ -369,6 +365,7 @@ export default function AppRoutes() {
       >
         <Route path="/exams" element={<ExamListPage />} />
         <Route path="/exams/blueprints" element={<BlueprintsPage />} />
+        <Route path="/exams/:id/paper-preview" element={<ExamPaperPreviewPage />} />
       </Route>
 
       <Route
@@ -403,7 +400,6 @@ export default function AppRoutes() {
         }
       >
         <Route path="/exams/:id/builder" element={<ExamBuilderPage />} />
-        <Route path="/exams/:id/paper-preview" element={<ExamPaperPreviewPage />} />
         <Route path="/exams/:id/sections/:sectionId/questions" element={<ExamSectionQuestionsPage />} />
       </Route>
 

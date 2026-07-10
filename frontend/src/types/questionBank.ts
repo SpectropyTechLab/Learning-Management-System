@@ -126,6 +126,11 @@ export interface Question {
   created_by?: string;
   created_at?: string;
   review_note?: string | null;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canApprove?: boolean;
+  canReject?: boolean;
+  canAddQuestion?: boolean;
 }
 
 export interface CurriculumItem {
@@ -137,6 +142,10 @@ export interface CurriculumItem {
   grade_number?: string | number | null;
   subject_id?: string | number | null;
   chapter_id?: string | number | null;
+  school_id?: string | number | null;
+  ownership_scope?: "platform" | "client" | "school";
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export const formatSubjectDisplay = (

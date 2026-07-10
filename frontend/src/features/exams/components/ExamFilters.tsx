@@ -30,6 +30,7 @@ export default function ExamFilters({ filters, onChange, onClear }: ExamFiltersP
         >
           <option value="">All</option>
           <option value="draft">Draft</option>
+          <option value="published">Published</option>
           <option value="active">Active</option>
           <option value="completed">Completed</option>
         </select>

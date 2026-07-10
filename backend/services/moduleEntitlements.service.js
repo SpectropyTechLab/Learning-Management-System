@@ -3,6 +3,7 @@ import * as repo from '../repositories/moduleEntitlements.repository.js';
 
 export const QUESTION_BANK_FEATURE_KEY = 'question_bank';
 export const EXAMS_FEATURE_KEY = 'exams';
+const PLATFORM_OWNER_CLIENT_ID = 17;
 
 const parseRequiredInt = (value, fieldName) => {
   const parsed = Number(value);
@@ -44,9 +45,12 @@ const getFeatureKey = (moduleKey) => {
 };
 
 const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
+const isPlatformTenantClientAdmin = (user) =>
+  user?.role === 'client_admin' && Number(user?.client_id) === PLATFORM_OWNER_CLIENT_ID;
+const isPlatformOperator = (user) => isPlatformAdmin(user?.role) || isPlatformTenantClientAdmin(user);
 
 const resolveClientIdForRequest = (req, sourceClientId) => {
-  if (isPlatformAdmin(req.user?.role)) {
+  if (isPlatformOperator(req.user)) {
     return sourceClientId ? parseRequiredInt(sourceClientId, 'client_id') : null;
   }
   const clientId = req.clientId || req.user?.client_id;
@@ -155,7 +159,7 @@ export const getEnabledProgramIdsIfFeatureEnabled = async (moduleKey, clientId) 
 
 export const buildFeatureEntitlementMiddleware = (moduleKey) => async (req, res, next) => {
   try {
-    if (isPlatformAdmin(req.user?.role)) {
+    if (isPlatformOperator(req.user)) {
       return next();
     }
     const clientId = resolveClientIdForRequest(req);

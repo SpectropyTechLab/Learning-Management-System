@@ -10,6 +10,11 @@ import ExamFilters from "@/features/exams/components/ExamFilters";
 import ExamListTable from "@/features/exams/components/ExamListTable";
 import type { ExamFiltersState, ExamSummary } from "@/features/exams/types";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import {
+  downloadExamAnswersDocx,
+  downloadExamQuestionsDocx,
+  downloadExamSolutionsDocx,
+} from "@/features/exams/api";
 
 interface CourseOption {
   id: number;
@@ -140,6 +145,24 @@ const normalizeExam = (item: unknown): ExamSummary => {
         : typeof source.createdByName === "string"
           ? source.createdByName
           : null,
+    client_id: normalizeNumber(source.client_id),
+    owner_client_id: normalizeNumber(source.owner_client_id ?? source.client_id),
+    owner_client_name:
+      typeof source.owner_client_name === "string" ? source.owner_client_name : null,
+    exam_access_type:
+      typeof source.exam_access_type === "string" ? source.exam_access_type : null,
+    can_preview: source.can_preview === true,
+    can_download: source.can_download === true,
+    can_edit: source.can_edit === true,
+    can_build: source.can_build === true,
+    can_delete: source.can_delete === true,
+    can_publish: source.can_publish === true,
+    section_count: normalizeNumber(source.section_count),
+    question_count: normalizeNumber(source.question_count),
+    all_sections_completed:
+      typeof source.all_sections_completed === "boolean"
+        ? source.all_sections_completed
+        : null,
     tags,
   };
 };
@@ -160,6 +183,10 @@ export default function ExamListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const examPermissions = useMemo(() => getExamPermissions(user), [user]);
+  const isNormalClientAdmin =
+    user?.role === "client_admin" && Number(user?.client_id) !== 17;
+  const isSchoolExamUser = user?.role === "school_owner" || user?.role === "teacher";
+  const usesPreviewOnlyReadOnlyRows = isNormalClientAdmin || isSchoolExamUser || user?.role === "content_authorizer";
   const shouldHideExamUtilityActions =
     user?.role === "client_admin" ||
     user?.role === "teacher" ||
@@ -477,7 +504,7 @@ export default function ExamListPage() {
   };
 
   const deleteExamById = async (exam: ExamSummary) => {
-    if (!examPermissions.canDelete) {
+    if (exam.can_delete === false || !examPermissions.canDelete) {
       toast.error("You don't have permission to delete exams.");
       return;
     }
@@ -531,8 +558,51 @@ export default function ExamListPage() {
   };
 
   const handleAction = (action: string, exam: ExamSummary) => {
+    if (action === "preview") {
+      if (exam.can_preview === false || !examPermissions.canRead) {
+        toast.error("You don't have permission to preview exams.");
+        return;
+      }
+      navigate(`/exams/${exam.id}/paper-preview`);
+      return;
+    }
+
+    if (action === "download-questions" || action === "download-answers" || action === "download-solutions") {
+      if (exam.can_download === false || !examPermissions.canRead) {
+        toast.error("You don't have permission to download this exam.");
+        return;
+      }
+
+      const examId = resolveExamId(exam.id);
+      if (!examId) {
+        toast.error("Invalid exam id.");
+        return;
+      }
+
+      const run = async () => {
+        try {
+          if (action === "download-questions") {
+            await downloadExamQuestionsDocx(examId, exam.title);
+            toast.success("Questions document downloaded.");
+          } else if (action === "download-answers") {
+            await downloadExamAnswersDocx(examId, exam.title);
+            toast.success("Answers document downloaded.");
+          } else {
+            await downloadExamSolutionsDocx(examId, exam.title);
+            toast.success("Solutions document downloaded.");
+          }
+        } catch (err: unknown) {
+          const label = action.replace("download-", "");
+          toast.error(readApiErrorMessage(err, `Failed to download ${label} document.`));
+        }
+      };
+
+      void run();
+      return;
+    }
+
     if (action === "builder") {
-      if (!examPermissions.canUpdate) {
+      if (exam.can_build === false || !examPermissions.canUpdate) {
         toast.error("You don't have permission to update exams.");
         return;
       }
@@ -550,7 +620,7 @@ export default function ExamListPage() {
     }
 
     if (action === "edit") {
-      if (!examPermissions.canUpdate) {
+      if (exam.can_edit === false || !examPermissions.canUpdate) {
         toast.error("You don't have permission to update exams.");
         return;
       }
@@ -564,6 +634,10 @@ export default function ExamListPage() {
     }
 
     if (action === "publish") {
+      if (exam.can_publish === false || !examPermissions.canPublish) {
+        toast.error("You don't have permission to publish exams.");
+        return;
+      }
       setPublishExamTarget(exam);
       return;
     }
@@ -662,6 +736,7 @@ export default function ExamListPage() {
                 onAction={handleAction}
                 permissions={examPermissions}
                 onStatusClick={openPublishModal}
+                previewOnlyForReadOnly={usesPreviewOnlyReadOnlyRows}
               />
               <Pagination
                 page={page}

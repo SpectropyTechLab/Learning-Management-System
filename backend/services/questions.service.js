@@ -45,10 +45,35 @@ const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
 const isSuperAdmin = (role) => role === 'super_admin';
 const isContentAuthorizer = (role) => role === 'content_authorizer';
-const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
 const isClientAdmin = (role) => role === 'client_admin';
 const isSchoolOwner = (role) => role === 'school_owner';
 const isTeacher = (role) => role === 'teacher';
+const isPlatformTenantClientAdmin = (role, clientId) =>
+  isClientAdmin(role) && Number(clientId) === PLATFORM_PROGRAM_OWNER_CLIENT_ID;
+const isPlatformAdmin = (role, clientId = null) =>
+  role === 'super_admin' || role === 'content_authorizer' || isPlatformTenantClientAdmin(role, clientId);
+const isPlatformOperator = (user) => isPlatformAdmin(user?.role, user?.client_id);
+
+let questionBankSchoolAssignmentsTableEnsured = false;
+
+const ensureQuestionBankSchoolAssignmentsTable = async () => {
+  if (questionBankSchoolAssignmentsTableEnsured) return;
+
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS question_bank_school_assignments (
+      id SERIAL PRIMARY KEY,
+      program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(program_id, school_id)
+    )
+  `);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_question_bank_school_assignments_program ON question_bank_school_assignments(program_id)`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_question_bank_school_assignments_school ON question_bank_school_assignments(school_id)`);
+
+  questionBankSchoolAssignmentsTableEnsured = true;
+};
 
 const hasLinkedComprehensionPassage = (question) =>
   question?.comprehension_passage_id !== undefined &&
@@ -60,34 +85,82 @@ const isLegacyComprehensiveParentQuestion = (question) =>
   !hasLinkedComprehensionPassage(question);
 
 const resolveOwnedQuestionBankClientId = (clientId, role) =>
-  isContentAuthorizer(role) ? PLATFORM_PROGRAM_OWNER_CLIENT_ID : clientId;
+  (isSuperAdmin(role) || isContentAuthorizer(role) || isPlatformTenantClientAdmin(role, clientId))
+    ? PLATFORM_PROGRAM_OWNER_CLIENT_ID
+    : clientId;
 
 const getReadableQuestionClientIds = (clientId, role) => {
-  if (isPlatformAdmin(role) || !clientId) return [];
+  if (isPlatformAdmin(role, clientId) || !clientId) return [];
   return Array.from(new Set([Number(clientId), PLATFORM_PROGRAM_OWNER_CLIENT_ID]));
 };
 
 const appendQuestionBankProgramConditions = async ({ conditions, params, user }) => {
-  if (isPlatformAdmin(user?.role)) return;
+  if (isPlatformOperator(user)) return;
   const clientId = user?.client_id ?? null;
   if (!clientId) return;
 
-  const entitledProgramIds = await getEnabledProgramIdsForModule('question_bank', clientId);
-  if (entitledProgramIds.length === 0) {
-    conditions.push('1 = 0');
-    return;
+  const accessClauses = [];
+  const isSchoolScopedUser = isSchoolOwner(user?.role) || isTeacher(user?.role);
+  const entitledProgramIds = isSchoolScopedUser
+    ? []
+    : await getEnabledProgramIdsForModule('question_bank', clientId);
+  if (entitledProgramIds.length > 0) {
+    params.push(entitledProgramIds);
+    accessClauses.push(
+      `EXISTS (
+        SELECT 1
+        FROM subjects entitled_subjects
+        JOIN grades entitled_grades ON entitled_grades.id = entitled_subjects.grade_id
+        WHERE entitled_subjects.id = q.subject_id
+          AND entitled_grades.program_id = ANY($${params.length})
+      )`
+    );
   }
 
-  params.push(entitledProgramIds);
-  conditions.push(
-    `EXISTS (
+  if (isClientAdmin(user?.role)) {
+    params.push(Number(clientId));
+    accessClauses.push(
+      `EXISTS (
       SELECT 1
-      FROM subjects entitled_subjects
-      JOIN grades entitled_grades ON entitled_grades.id = entitled_subjects.grade_id
-      WHERE entitled_subjects.id = q.subject_id
-        AND entitled_grades.program_id = ANY($${params.length})
+      FROM subjects owned_subjects
+      JOIN grades owned_grades ON owned_grades.id = owned_subjects.grade_id
+      JOIN programs owned_programs ON owned_programs.id = owned_grades.program_id
+      WHERE owned_subjects.id = q.subject_id
+        AND owned_programs.client_id = $${params.length}
+        AND owned_programs.school_id IS NULL
     )`
-  );
+    );
+  }
+
+  if (isSchoolScopedUser) {
+    const schoolIds = await fetchUserSchoolIds(user.id);
+    if (schoolIds.length > 0) {
+      await ensureQuestionBankSchoolAssignmentsTable();
+      params.push(schoolIds);
+      accessClauses.push(
+        `EXISTS (
+        SELECT 1
+        FROM subjects owned_subjects
+        JOIN grades owned_grades ON owned_grades.id = owned_subjects.grade_id
+        JOIN programs owned_programs ON owned_programs.id = owned_grades.program_id
+        WHERE owned_subjects.id = q.subject_id
+          AND owned_programs.school_id = ANY($${params.length})
+      )`,
+        `EXISTS (
+        SELECT 1
+        FROM subjects assigned_subjects
+        JOIN grades assigned_grades ON assigned_grades.id = assigned_subjects.grade_id
+        JOIN question_bank_school_assignments qbsa
+          ON qbsa.program_id = assigned_grades.program_id
+        WHERE assigned_subjects.id = q.subject_id
+          AND qbsa.school_id = ANY($${params.length})
+          AND q.status = 'approved'
+      )`
+      );
+    }
+  }
+
+  conditions.push(accessClauses.length > 0 ? `(${accessClauses.join(' OR ')})` : '1 = 0');
 };
 
 const getQueryRunner = (queryRunner = dbQuery) =>
@@ -103,7 +176,7 @@ const fetchUserSchoolIds = async (userId, queryRunner = dbQuery) => {
 };
 
 const ensureClientScope = (clientId, role) => {
-  if (isPlatformAdmin(role)) return null;
+  if (isPlatformAdmin(role, clientId)) return null;
   if (!clientId) {
     throw new AppError('client_id is required for this role', 400);
   }
@@ -120,7 +193,7 @@ const ensureSchoolAccess = async ({ schoolId, role, userId, clientId, queryRunne
   if (clientId && school.rows[0].client_id !== clientId) {
     throw new AppError('School does not belong to this client', 403);
   }
-  if (isPlatformAdmin(role) || isClientAdmin(role)) return schoolId;
+  if (isPlatformAdmin(role, clientId) || isClientAdmin(role)) return schoolId;
 
   const memberships = await fetchUserSchoolIds(userId, queryRunner);
   if (!memberships.includes(schoolId)) {
@@ -225,11 +298,6 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
   let schoolIds = [];
   if (isScopedBySchool) {
     schoolIds = await fetchUserSchoolIds(user.id);
-    if (schoolIds.length > 0) {
-      conditions.push(`(q.school_id IS NULL OR q.school_id = ANY(${addParam(schoolIds)}))`);
-    } else {
-      conditions.push(`q.school_id IS NULL`);
-    }
   }
 
   const schoolIdFilter = parseNullableInt(query.school_id, 'school_id');
@@ -302,7 +370,19 @@ const buildQuestionWhere = async ({ user, query, includeArchived = false }) => {
 
   await appendQuestionBankProgramConditions({ conditions, params, user });
   if (clientId) {
-    conditions.push(`(q.client_id <> ${PLATFORM_PROGRAM_OWNER_CLIENT_ID} OR q.status = 'approved')`);
+    conditions.push(
+      `(q.client_id <> ${PLATFORM_PROGRAM_OWNER_CLIENT_ID}
+        OR q.status = 'approved'
+        OR q.school_id IS NOT NULL
+        OR EXISTS (
+          SELECT 1
+          FROM subjects owned_subjects
+          JOIN grades owned_grades ON owned_grades.id = owned_subjects.grade_id
+          JOIN programs owned_programs ON owned_programs.id = owned_grades.program_id
+          WHERE owned_subjects.id = q.subject_id
+            AND owned_programs.school_id IS NOT NULL
+        ))`
+    );
   }
 
   if (query.question_type) {
@@ -1349,6 +1429,127 @@ const extractOuterXmlBody = (xml, prefix, tagName) => {
   const endIndex = source.lastIndexOf(endTag);
   if (endIndex < 0) return '';
   return source.slice(startMatch[0].length, endIndex);
+};
+
+const resolveOwnedQuestionBankSchoolId = async ({ inputSchoolId = null, user, role, clientId, queryRunner = dbQuery }) => {
+  const parsedSchoolId = parseNullableInt(inputSchoolId, 'school_id');
+  if (!isTeacher(role) && !isSchoolOwner(role)) {
+    await ensureSchoolAccess({ schoolId: parsedSchoolId, role, userId: user.id, clientId, queryRunner });
+    return parsedSchoolId;
+  }
+
+  const schoolIds = await fetchUserSchoolIds(user.id, queryRunner);
+  if (schoolIds.length === 0) {
+    throw new AppError('No active school membership found for this user', 403);
+  }
+  if (parsedSchoolId) {
+    if (!schoolIds.includes(parsedSchoolId)) {
+      throw new AppError('Access denied for this school', 403);
+    }
+    return parsedSchoolId;
+  }
+  return schoolIds[0];
+};
+
+const fetchProgramOwnership = async (programId, queryRunner = dbQuery) => {
+  if (!programId) return null;
+  const runQuery = getQueryRunner(queryRunner);
+  const result = await runQuery(
+    `SELECT id, client_id, school_id FROM programs WHERE id = $1 LIMIT 1`,
+    [programId]
+  );
+  return result.rows[0] ?? null;
+};
+
+const isProgramPlatformOwned = (program) =>
+  Number(program?.client_id) === PLATFORM_PROGRAM_OWNER_CLIENT_ID && !program?.school_id;
+const isQuestionPlatformOwned = (question) =>
+  Number(question?.client_id) === PLATFORM_PROGRAM_OWNER_CLIENT_ID && !question?.school_id;
+
+const canWriteProgram = async ({ user, role, program }) => {
+  if (!program) return false;
+  if (isPlatformOperator(user)) {
+    return isProgramPlatformOwned(program);
+  }
+  if (isClientAdmin(role)) {
+    return Number(user?.client_id) === Number(program.client_id) && !program.school_id;
+  }
+  if (isSchoolOwner(role) || isTeacher(role)) {
+    if (!program.school_id) return false;
+    const schoolIds = await fetchUserSchoolIds(user.id);
+    return schoolIds.includes(Number(program.school_id));
+  }
+  return false;
+};
+
+const fetchQuestionAccessContext = async (questionId, queryRunner = dbQuery) => {
+  const runQuery = getQueryRunner(queryRunner);
+  const result = await runQuery(
+    `
+    SELECT q.*, s.grade_id, g.program_id, p.client_id AS program_client_id, p.school_id AS program_school_id
+    FROM questions q
+    LEFT JOIN subjects s ON s.id = q.subject_id
+    LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
+    WHERE q.id = $1
+    LIMIT 1
+    `,
+    [questionId]
+  );
+  return result.rows[0] ?? null;
+};
+
+const buildQuestionRowPermissions = async (question, user) => {
+  const role = user?.role;
+  const program = {
+    id: question?.program_id,
+    client_id: question?.program_client_id ?? question?.client_id,
+    school_id: question?.program_school_id ?? null,
+  };
+  const writableProgram = await canWriteProgram({ user, role, program });
+  const createdByUser = Number(question?.created_by) === Number(user?.id);
+  const isDraftLike = ['draft', 'rejected'].includes(String(question?.status));
+
+  const canEdit =
+    writableProgram &&
+    (!isTeacher(role) || (createdByUser && isDraftLike)) &&
+    String(question?.status) !== 'archived';
+  const canDelete =
+    writableProgram &&
+    (!isTeacher(role) || (createdByUser && isDraftLike)) &&
+    String(question?.status) !== 'archived';
+  const canApprove =
+    String(question?.status) === 'draft' &&
+    (
+      (isPlatformOperator(user) && isQuestionPlatformOwned(question)) ||
+      (isClientAdmin(role) && writableProgram) ||
+      (isSchoolOwner(role) && writableProgram)
+    );
+
+  return {
+    canEdit,
+    canDelete,
+    canApprove,
+    canReject: canApprove,
+    canAddQuestion: writableProgram,
+  };
+};
+
+const decorateQuestionRow = async (question, user) => ({
+  ...question,
+  ...(await buildQuestionRowPermissions(question, user)),
+});
+
+const decorateQuestionRows = async (questions, user) =>
+  Promise.all((questions ?? []).map((question) => decorateQuestionRow(question, user)));
+
+const ensureWritableConverterProgram = async ({ defaults, user, role }) => {
+  const programId = parseNullableInt(defaults?.program_id, 'program_id');
+  if (!programId) return;
+  const programOwnership = await fetchProgramOwnership(programId);
+  if (!(await canWriteProgram({ user, role, program: programOwnership }))) {
+    throw new AppError('Converter can only be used with writable platform programs.', 403);
+  }
 };
 
 const extractTopLevelPrefixedBlocks = (xml, prefix, tagName) => {
@@ -4037,8 +4238,18 @@ const buildQuestionInsertPayload = async ({ input, user, role, clientId, queryRu
     queryRunner,
   });
 
-  const schoolId = parseNullableInt(input.school_id, 'school_id');
-  await ensureSchoolAccess({ schoolId, role, userId: user.id, clientId, queryRunner });
+  const programOwnership = await fetchProgramOwnership(programId, queryRunner);
+  if (!(await canWriteProgram({ user, role, program: programOwnership }))) {
+    throw new AppError('Questions can only be created in writable programs', 403);
+  }
+
+  const schoolId = await resolveOwnedQuestionBankSchoolId({
+    inputSchoolId: input.school_id,
+    user,
+    role,
+    clientId,
+    queryRunner,
+  });
 
   const difficulty = input.difficulty_level ? String(input.difficulty_level) : 'medium';
   if (!VALID_DIFFICULTY_LEVELS.includes(difficulty)) {
@@ -4451,10 +4662,11 @@ const insertQuestion = async (payload, queryRunner = dbQuery) => {
   const insertedId = insertResult.rows[0].id;
   const fullResult = await runQuery(
     `
-    SELECT q.*, s.grade_id, g.program_id
+    SELECT q.*, s.grade_id, g.program_id, p.client_id AS program_client_id, p.school_id AS program_school_id
     FROM questions q
     LEFT JOIN subjects s ON s.id = q.subject_id
     LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE q.id = $1
     `,
     [insertedId]
@@ -4488,10 +4700,11 @@ export const listQuestions = async (req, res) => {
     const listParams = [...params, pageSize, offset];
     const listResult = await dbQuery(
       `
-      SELECT q.*, s.grade_id, g.program_id
+      SELECT q.*, s.grade_id, g.program_id, p.client_id AS program_client_id, p.school_id AS program_school_id
       FROM questions q
       LEFT JOIN subjects s ON s.id = q.subject_id
       LEFT JOIN grades g ON g.id = s.grade_id
+      LEFT JOIN programs p ON p.id = g.program_id
       ${whereClause}
       ORDER BY q.created_at DESC
       LIMIT $${listParams.length - 1} OFFSET $${listParams.length}
@@ -4499,7 +4712,7 @@ export const listQuestions = async (req, res) => {
       listParams
     );
 
-    const hydratedRows = await attachComprehensionSummaries(listResult.rows);
+    const hydratedRows = await decorateQuestionRows(await attachComprehensionSummaries(listResult.rows), req.user);
 
     res.json({
       data: hydratedRows,
@@ -4530,28 +4743,20 @@ export const getQuestionById = async (req, res) => {
       params.push(getReadableQuestionClientIds(clientId, role));
     }
 
-    if (isTeacher(role) || isSchoolOwner(role)) {
-      const schoolIds = await fetchUserSchoolIds(req.user.id);
-      if (schoolIds.length > 0) {
-        conditions.push(`(q.school_id IS NULL OR q.school_id = ANY($${params.length + 1}))`);
-        params.push(schoolIds);
-      } else {
-        conditions.push(`q.school_id IS NULL`);
-      }
-    }
-
     if (isTeacher(role)) {
       conditions.push(`(q.status = 'approved' OR q.created_by = $${params.length + 1})`);
       params.push(req.user.id);
     }
 
     conditions.push(`q.status <> 'archived'`);
+    await appendQuestionBankProgramConditions({ conditions, params, user: req.user });
 
     const query = `
-      SELECT q.*, s.grade_id, g.program_id
+      SELECT q.*, s.grade_id, g.program_id, p.client_id AS program_client_id, p.school_id AS program_school_id
       FROM questions q
       LEFT JOIN subjects s ON s.id = q.subject_id
       LEFT JOIN grades g ON g.id = s.grade_id
+      LEFT JOIN programs p ON p.id = g.program_id
       WHERE ${conditions.join(' AND ')}
       LIMIT 1
     `;
@@ -4561,10 +4766,21 @@ export const getQuestionById = async (req, res) => {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    if (!isPlatformAdmin(role)) {
-      const entitledProgramIds = await getEnabledProgramIdsForModule('question_bank', req.user.client_id);
+    if (!isPlatformOperator(req.user) && !isSchoolOwner(role) && !isTeacher(role)) {
       const questionProgramId = result.rows[0]?.program_id ? Number(result.rows[0].program_id) : null;
-      if (!questionProgramId || !entitledProgramIds.includes(questionProgramId)) {
+      const canReadOwnedProgram = await canWriteProgram({
+        user: req.user,
+        role,
+        program: {
+          id: questionProgramId,
+          client_id: result.rows[0]?.program_client_id ?? result.rows[0]?.client_id,
+          school_id: result.rows[0]?.program_school_id ?? null,
+        },
+      });
+      const entitledProgramIds = canReadOwnedProgram
+        ? []
+        : await getEnabledProgramIdsForModule('question_bank', req.user.client_id);
+      if (!questionProgramId || (!canReadOwnedProgram && !entitledProgramIds.includes(questionProgramId))) {
         return res.status(403).json({ error: 'Client is not entitled to this program' });
       }
       if (
@@ -4575,7 +4791,7 @@ export const getQuestionById = async (req, res) => {
       }
     }
 
-    const [hydrated] = await attachComprehensionSummaries(result.rows);
+    const [hydrated] = await decorateQuestionRows(await attachComprehensionSummaries(result.rows), req.user);
     res.json(hydrated);
   } catch (err) {
     handleServiceError(res, err, 'Failed to load question');
@@ -4597,7 +4813,7 @@ export const createQuestion = async (req, res) => {
       clientId,
     });
     const inserted = await insertQuestion(payload);
-    res.status(201).json(inserted);
+    res.status(201).json(await decorateQuestionRow(inserted, req.user));
   } catch (err) {
     handleServiceError(res, err, 'Failed to create question');
   }
@@ -4613,23 +4829,18 @@ export const updateQuestion = async (req, res) => {
     const role = req.user.role;
     const clientId = ensureClientScope(req.user.client_id ?? null, role);
 
-    const existing = await dbQuery(`SELECT * FROM questions WHERE id = $1`, [id]);
-    if (existing.rows.length === 0 || existing.rows[0].status === 'archived') {
+    const question = await fetchQuestionAccessContext(id);
+    if (!question || question.status === 'archived') {
       return res.status(404).json({ error: 'Question not found' });
     }
-    const question = existing.rows[0];
 
     if (clientId && question.client_id !== clientId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    if (isTeacher(role)) {
-      if (question.created_by !== req.user.id) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-      if (!['draft', 'rejected'].includes(question.status)) {
-        return res.status(403).json({ error: 'Only draft or rejected questions can be edited' });
-      }
+    const rowPermissions = await buildQuestionRowPermissions(question, req.user);
+    if (!rowPermissions.canEdit) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     if (isLegacyComprehensiveParentQuestion(question)) {
@@ -4708,6 +4919,11 @@ export const updateQuestion = async (req, res) => {
       const chapterId = req.body.chapter_id ? parseRequiredInt(req.body.chapter_id, 'chapter_id') : question.chapter_id;
       const topicId = req.body.topic_id !== undefined ? parseNullableInt(req.body.topic_id, 'topic_id') : question.topic_id;
       await ensureCurriculumScope({ programId, gradeId, subjectId, chapterId, topicId, clientId });
+      const nextProgramId = programId ?? question.program_id ?? null;
+      const programOwnership = await fetchProgramOwnership(nextProgramId);
+      if (!(await canWriteProgram({ user: req.user, role, program: programOwnership }))) {
+        return res.status(403).json({ error: 'Questions can only be moved to writable programs' });
+      }
       updates.subject_id = subjectId;
       updates.chapter_id = chapterId;
       updates.topic_id = topicId;
@@ -4772,15 +4988,16 @@ export const updateQuestion = async (req, res) => {
 
     const fullResult = await dbQuery(
       `
-      SELECT q.*, s.grade_id, g.program_id
+      SELECT q.*, s.grade_id, g.program_id, p.client_id AS program_client_id, p.school_id AS program_school_id
       FROM questions q
       LEFT JOIN subjects s ON s.id = q.subject_id
       LEFT JOIN grades g ON g.id = s.grade_id
+      LEFT JOIN programs p ON p.id = g.program_id
       WHERE q.id = $1
       `,
       [updateResult.rows[0].id]
     );
-    const [hydrated] = await attachComprehensionSummaries(fullResult.rows);
+    const [hydrated] = await decorateQuestionRows(await attachComprehensionSummaries(fullResult.rows), req.user);
     res.json(hydrated);
   } catch (err) {
     handleServiceError(res, err, 'Failed to update question');
@@ -4866,8 +5083,13 @@ const createComprehensionPassageRecord = async ({
 
   const title = ensureRichTextValue(input?.title, 'title');
   const passageContent = ensureRichTextValue(input?.passage_content, 'passage_content');
-  const schoolId = parseNullableInt(input?.school_id, 'school_id');
-  await ensureSchoolAccess({ schoolId, role, userId: user.id, clientId, queryRunner });
+  const schoolId = await resolveOwnedQuestionBankSchoolId({
+    inputSchoolId: input?.school_id,
+    user,
+    role,
+    clientId,
+    queryRunner,
+  });
 
   const programId = await resolveProgramReference({
     value: input?.program_id ?? input?.program,
@@ -4915,6 +5137,13 @@ const createComprehensionPassageRecord = async ({
     clientId,
     queryRunner,
   });
+
+  if (resolvedProgramId) {
+    const programOwnership = await fetchProgramOwnership(resolvedProgramId, queryRunner);
+    if (!(await canWriteProgram({ user, role, program: programOwnership }))) {
+      throw new AppError('Passages can only be created in writable programs', 403);
+    }
+  }
 
   const result = await runQuery(
     `
@@ -5162,21 +5391,19 @@ export const softDeleteQuestion = async (req, res) => {
     }
 
     const role = req.user.role;
-    if (isTeacher(role)) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
     const id = parseRequiredInt(req.params.id, 'id');
     const clientId = ensureClientScope(req.user.client_id ?? null, role);
 
-    const { question, error } = await getQuestionByIdScoped({
-      id,
-      user: req.user,
-      role,
-      clientId,
-    });
-    if (error) {
-      return res.status(error.status).json(error.body);
+    const question = await fetchQuestionAccessContext(id);
+    if (!question || question.status === 'archived') {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+    if (clientId && question.client_id !== clientId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const rowPermissions = await buildQuestionRowPermissions(question, req.user);
+    if (!rowPermissions.canDelete) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     const result = await dbQuery(
@@ -5210,14 +5437,16 @@ export const approveQuestion = async (req, res) => {
     const id = parseRequiredInt(req.params.id, 'id');
     const clientId = ensureClientScope(req.user.client_id ?? null, role);
 
-    const { question, error } = await getQuestionByIdScoped({
-      id,
-      user: req.user,
-      role,
-      clientId,
-    });
-    if (error) {
-      return res.status(error.status).json(error.body);
+    const question = await fetchQuestionAccessContext(id);
+    if (!question || question.status === 'archived') {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+    if (clientId && question.client_id !== clientId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const rowPermissions = await buildQuestionRowPermissions(question, req.user);
+    if (!rowPermissions.canApprove) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     if (question.status !== 'draft') {
@@ -5242,7 +5471,7 @@ export const approveQuestion = async (req, res) => {
       return res.status(409).json({ error: 'Question status changed. Please refresh and try again.' });
     }
 
-    res.json(result.rows[0]);
+    res.json(await decorateQuestionRow(result.rows[0], req.user));
   } catch (err) {
     handleServiceError(res, err, 'Failed to approve question');
   }
@@ -5263,14 +5492,16 @@ export const rejectQuestion = async (req, res) => {
     const clientId = ensureClientScope(req.user.client_id ?? null, role);
     const reason = requireString(req.body?.reason, 'reason');
 
-    const { question, error } = await getQuestionByIdScoped({
-      id,
-      user: req.user,
-      role,
-      clientId,
-    });
-    if (error) {
-      return res.status(error.status).json(error.body);
+    const question = await fetchQuestionAccessContext(id);
+    if (!question || question.status === 'archived') {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+    if (clientId && question.client_id !== clientId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const rowPermissions = await buildQuestionRowPermissions(question, req.user);
+    if (!rowPermissions.canReject) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     if (question.status !== 'draft') {
@@ -5295,7 +5526,7 @@ export const rejectQuestion = async (req, res) => {
       return res.status(409).json({ error: 'Question status changed. Please refresh and try again.' });
     }
 
-    res.json(result.rows[0]);
+    res.json(await decorateQuestionRow(result.rows[0], req.user));
   } catch (err) {
     handleServiceError(res, err, 'Failed to reject question');
   }
@@ -7270,7 +7501,9 @@ export const downloadConvertedQuestions = async (req, res) => {
       return res.status(400).json({ error: 'File is required for conversion.' });
     }
 
+    const role = req.user.role;
     const defaults = normalizeBulkDefaults(req.body || {});
+    await ensureWritableConverterProgram({ defaults, user: req.user, role });
     const rows = await convertManualDocxRows({
       file: req.file,
       defaults,
@@ -7301,6 +7534,7 @@ export const insertConvertedQuestions = async (req, res) => {
     const role = req.user.role;
     const clientId = ensureClientScope(req.user.client_id ?? null, role);
     const defaults = normalizeBulkDefaults(req.body || {});
+    await ensureWritableConverterProgram({ defaults, user: req.user, role });
     const folderId = parseNullableInt(req.body?.folder_id, 'folder_id');
 
     let selectedFolderId = null;

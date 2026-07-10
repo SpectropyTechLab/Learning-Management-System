@@ -3,44 +3,82 @@ import { query as dbQuery } from './db.repository.js';
 
 const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
-export const fetchPrograms = async (clientId, sharedProgramIds = []) => {
+export const fetchPrograms = async ({ clientId, sharedProgramIds = [], assignedProgramIds = [], schoolIds = [], writableOnly = false, assignedOnly = false } = {}) => {
   const params = [];
   let query = `SELECT * FROM programs`;
-  if (clientId) {
+  if (assignedOnly) {
+    const conditions = [];
+    if (assignedProgramIds.length > 0) {
+      params.push(assignedProgramIds);
+      conditions.push(`id = ANY($${params.length}::int[])`);
+    }
+    if (schoolIds.length > 0) {
+      params.push(schoolIds);
+      conditions.push(`school_id = ANY($${params.length}::int[])`);
+    }
+    if (conditions.length === 0) conditions.push(`1 = 0`);
+    query += ` WHERE ${conditions.join(' OR ')}`;
+  } else if (clientId) {
     params.push(clientId);
-    query += ` WHERE client_id = $1`;
+    const conditions = [];
+    if (writableOnly && schoolIds.length > 0) {
+      params.push(schoolIds);
+      conditions.push(`(client_id = $1 AND school_id = ANY($2))`);
+    } else if (writableOnly) {
+      conditions.push(`(client_id = $1 AND school_id IS NULL)`);
+    } else if (schoolIds.length > 0) {
+      params.push(schoolIds);
+      conditions.push(`(client_id = $1 AND school_id = ANY($2))`);
+    } else {
+      conditions.push(`client_id = $1`);
+    }
     if (sharedProgramIds.length > 0) {
       params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
-      query += ` OR (client_id = $2 AND id = ANY($3))`;
+      conditions.push(`(client_id = $${params.length - 1} AND id = ANY($${params.length}))`);
     }
+    if (assignedProgramIds.length > 0) {
+      params.push(assignedProgramIds);
+      conditions.push(`id = ANY($${params.length})`);
+    }
+    query += ` WHERE ${conditions.join(' OR ')}`;
   }
   query += ` ORDER BY name`;
   return dbQuery(query, params);
 };
 
-export const fetchProgramById = async (id, clientId, sharedProgramIds = []) => {
+export const fetchProgramById = async ({ id, clientId, sharedProgramIds = [], assignedProgramIds = [], schoolIds = [] }) => {
   const params = [id];
   let query = `SELECT * FROM programs WHERE id = $1`;
   if (clientId) {
     params.push(clientId);
-    query += ` AND (client_id = $2`;
+    const conditions = [];
+    if (schoolIds.length > 0) {
+      params.push(schoolIds);
+      conditions.push(`(client_id = $2 AND school_id = ANY($3))`);
+    } else {
+      conditions.push(`client_id = $2`);
+    }
     if (sharedProgramIds.length > 0) {
       params.push(PLATFORM_PROGRAM_OWNER_CLIENT_ID, sharedProgramIds);
-      query += ` OR (client_id = $3 AND id = ANY($4))`;
+      conditions.push(`(client_id = $${params.length - 1} AND id = ANY($${params.length}))`);
     }
-    query += `)`;
+    if (assignedProgramIds.length > 0) {
+      params.push(assignedProgramIds);
+      conditions.push(`id = ANY($${params.length})`);
+    }
+    query += ` AND (${conditions.join(' OR ')})`;
   }
   return dbQuery(query, params);
 };
 
-export const insertProgram = async ({ clientId, name, code, is_active }) => {
+export const insertProgram = async ({ clientId, schoolId = null, name, code, is_active }) => {
   return dbQuery(
     `
-    INSERT INTO programs (client_id, name, code, is_active)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO programs (client_id, school_id, name, code, is_active)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING *
     `,
-    [clientId, name, code, is_active]
+    [clientId, schoolId, name, code, is_active]
   );
 };
 
@@ -76,13 +114,26 @@ export const deleteProgram = async ({ id, clientId }) => {
 };
 
 export const fetchProgramContext = async (programId) => {
-  return dbQuery(`SELECT id, client_id FROM programs WHERE id = $1`, [programId]);
+  return dbQuery(`SELECT id, client_id, school_id FROM programs WHERE id = $1`, [programId]);
+};
+
+export const countQuestionsByProgram = async (programId) => {
+  return dbQuery(
+    `
+    SELECT COUNT(*)::int AS total
+    FROM questions q
+    JOIN subjects s ON s.id = q.subject_id
+    JOIN grades g ON g.id = s.grade_id
+    WHERE g.program_id = $1
+    `,
+    [programId]
+  );
 };
 
 export const fetchGradesByProgram = async ({ programId, clientId, sharedProgramIds = [] }) => {
   const params = [programId];
   let query = `
-    SELECT g.*
+    SELECT g.*, p.client_id, p.school_id
     FROM grades g
     JOIN programs p ON p.id = g.program_id
     WHERE g.program_id = $1
@@ -103,7 +154,7 @@ export const fetchGradesByProgram = async ({ programId, clientId, sharedProgramI
 export const fetchGradeById = async ({ id, clientId, sharedProgramIds = [] }) => {
   const params = [id];
   let query = `
-    SELECT g.*
+    SELECT g.*, p.client_id, p.school_id
     FROM grades g
     JOIN programs p ON p.id = g.program_id
     WHERE g.id = $1
@@ -153,7 +204,7 @@ export const deleteGrade = async (id) => {
 export const fetchGradeContext = async (gradeId) => {
   return dbQuery(
     `
-    SELECT g.id, g.program_id, p.client_id
+    SELECT g.id, g.program_id, p.client_id, p.school_id
     FROM grades g
     JOIN programs p ON p.id = g.program_id
     WHERE g.id = $1
@@ -165,7 +216,7 @@ export const fetchGradeContext = async (gradeId) => {
 export const fetchSubjectsByGrade = async ({ gradeId, clientId, sharedProgramIds = [] }) => {
   const params = [gradeId];
   let query = `
-    SELECT s.*, g.grade_number, g.program_id
+    SELECT s.*, g.grade_number, g.program_id, p.school_id
     FROM subjects s
     JOIN grades g ON g.id = s.grade_id
     JOIN programs p ON p.id = g.program_id
@@ -188,9 +239,10 @@ export const fetchSubjects = async (clientId, gradeId = null, sharedProgramIds =
   const params = [];
   const conditions = [];
   let query = `
-    SELECT s.*, g.grade_number, g.program_id
+    SELECT s.*, g.grade_number, g.program_id, p.school_id
     FROM subjects s
     LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
   `;
   if (clientId) {
     params.push(clientId);
@@ -215,9 +267,10 @@ export const fetchSubjects = async (clientId, gradeId = null, sharedProgramIds =
 export const fetchSubjectById = async (id, clientId, sharedProgramIds = []) => {
   const params = [id];
   let query = `
-    SELECT s.*, g.grade_number, g.program_id
+    SELECT s.*, g.grade_number, g.program_id, p.school_id
     FROM subjects s
     LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE s.id = $1
   `;
   if (clientId) {
@@ -283,16 +336,26 @@ export const deleteSubject = async ({ id, clientId }) => {
 };
 
 export const fetchSubjectContext = async (subjectId) => {
-  return dbQuery(`SELECT id, client_id FROM subjects WHERE id = $1`, [subjectId]);
+  return dbQuery(
+    `
+    SELECT s.id, s.client_id, p.school_id
+    FROM subjects s
+    LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
+    WHERE s.id = $1
+    `,
+    [subjectId]
+  );
 };
 
 export const fetchChaptersBySubject = async ({ subjectId, clientId, sharedProgramIds = [] }) => {
   const params = [subjectId];
   let query = `
-    SELECT c.*
+    SELECT c.*, s.client_id, p.school_id
     FROM chapters c
     JOIN subjects s ON s.id = c.subject_id
     LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE s.id = $1
   `;
   if (clientId) {
@@ -311,10 +374,11 @@ export const fetchChaptersBySubject = async ({ subjectId, clientId, sharedProgra
 export const fetchChapterById = async ({ id, clientId, sharedProgramIds = [] }) => {
   const params = [id];
   let query = `
-    SELECT c.*
+    SELECT c.*, s.client_id, p.school_id
     FROM chapters c
     JOIN subjects s ON s.id = c.subject_id
     LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE c.id = $1
   `;
   if (clientId) {
@@ -362,9 +426,11 @@ export const deleteChapter = async (id) => {
 export const fetchChapterContext = async (chapterId) => {
   return dbQuery(
     `
-    SELECT c.id, s.client_id
+    SELECT c.id, s.client_id, p.school_id
     FROM chapters c
     JOIN subjects s ON s.id = c.subject_id
+    LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE c.id = $1
     `,
     [chapterId]
@@ -374,11 +440,12 @@ export const fetchChapterContext = async (chapterId) => {
 export const fetchTopicsByChapter = async ({ chapterId, clientId, sharedProgramIds = [] }) => {
   const params = [chapterId];
   let query = `
-    SELECT t.*
+    SELECT t.*, s.client_id, p.school_id
     FROM topics t
     JOIN chapters c ON c.id = t.chapter_id
     JOIN subjects s ON s.id = c.subject_id
     LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE c.id = $1
   `;
   if (clientId) {
@@ -397,11 +464,12 @@ export const fetchTopicsByChapter = async ({ chapterId, clientId, sharedProgramI
 export const fetchTopicById = async ({ id, clientId, sharedProgramIds = [] }) => {
   const params = [id];
   let query = `
-    SELECT t.*
+    SELECT t.*, s.client_id, p.school_id
     FROM topics t
     JOIN chapters c ON c.id = t.chapter_id
     JOIN subjects s ON s.id = c.subject_id
     LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE t.id = $1
   `;
   if (clientId) {
@@ -449,10 +517,12 @@ export const deleteTopic = async (id) => {
 export const fetchTopicContext = async (topicId) => {
   return dbQuery(
     `
-    SELECT t.id, s.client_id
+    SELECT t.id, s.client_id, p.school_id
     FROM topics t
     JOIN chapters c ON c.id = t.chapter_id
     JOIN subjects s ON s.id = c.subject_id
+    LEFT JOIN grades g ON g.id = s.grade_id
+    LEFT JOIN programs p ON p.id = g.program_id
     WHERE t.id = $1
     `,
     [topicId]

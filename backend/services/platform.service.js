@@ -1,5 +1,5 @@
 // backend/controllers/platform.controller.js
-import { query as dbQuery } from '../repositories/db.repository.js';
+import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 
 const parseNullableInt = (value, fieldName) => {
   if (value === undefined || value === null || value === '') return null;
@@ -334,11 +334,11 @@ const syncDerivedCoursesForPackEntitlement = async ({ clientId, packId, userId }
   });
   if (groups.length === 0) return;
 
-  const executor = { query: dbQuery };
   await ensureCourseMetadataColumn();
   await ensureCourseExamsTable();
 
   for (const group of groups) {
+    const client = await getClient();
     const derivedMetadata = {
       grade: group.grade,
       subject: group.subject,
@@ -349,48 +349,82 @@ const syncDerivedCoursesForPackEntitlement = async ({ clientId, packId, userId }
       is_pack_derived: true,
     };
 
-    let targetCourseId = Number(group.existingCourse?.id ?? 0);
-    if (!Number.isInteger(targetCourseId) || targetCourseId <= 0) {
-      const insertResult = await executor.query(
-        `
-          INSERT INTO courses (title, description, published, created_by, client_id, metadata)
-          VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-          RETURNING id
-        `,
-        [
-          group.sourceCourseTitle,
-          `Derived from pack: ${packName}`,
-          true,
-          userId ?? null,
-          normalizedClientId,
-          JSON.stringify(derivedMetadata),
-        ]
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `SELECT pg_advisory_xact_lock($1, $2)`,
+        [normalizedClientId, normalizedPackId]
       );
-      targetCourseId = Number(insertResult.rows[0]?.id);
-    } else {
-      await executor.query(
-        `
-          UPDATE courses
-          SET description = $1,
-              metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
-              updated_at = NOW()
-          WHERE id = $3
-        `,
-        [
-          `Derived from pack: ${packName}`,
-          JSON.stringify(derivedMetadata),
-          targetCourseId,
-        ]
-      );
-    }
 
-    await replaceDerivedCourseContent({
-      targetCourseId,
-      sourceCourseId: group.sourceCourseId,
-      itemIds: group.itemIds,
-      userId,
-      executor,
-    });
+      const existingResult = await client.query(
+        `
+          SELECT id
+          FROM courses
+          WHERE client_id = $1
+            AND COALESCE(metadata->>'derived_pack_id', '') = $2
+            AND COALESCE(metadata->>'derived_source_course_id', '') = $3
+            AND COALESCE(metadata->>'derived_for_client_id', '') = $4
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [
+          normalizedClientId,
+          String(normalizedPackId),
+          String(group.sourceCourseId),
+          String(normalizedClientId),
+        ]
+      );
+
+      let targetCourseId = Number(existingResult.rows[0]?.id ?? 0);
+      if (!Number.isInteger(targetCourseId) || targetCourseId <= 0) {
+        const insertResult = await client.query(
+          `
+            INSERT INTO courses (title, description, published, created_by, client_id, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+            RETURNING id
+          `,
+          [
+            group.sourceCourseTitle,
+            `Derived from pack: ${packName}`,
+            true,
+            userId ?? null,
+            normalizedClientId,
+            JSON.stringify(derivedMetadata),
+          ]
+        );
+        targetCourseId = Number(insertResult.rows[0]?.id);
+      } else {
+        await client.query(
+          `
+            UPDATE courses
+            SET description = $1,
+                metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+                updated_at = NOW()
+            WHERE id = $3
+          `,
+          [
+            `Derived from pack: ${packName}`,
+            JSON.stringify(derivedMetadata),
+            targetCourseId,
+          ]
+        );
+      }
+
+      await replaceDerivedCourseContent({
+        targetCourseId,
+        sourceCourseId: group.sourceCourseId,
+        itemIds: group.itemIds,
+        userId,
+        executor: client,
+      });
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 };
 

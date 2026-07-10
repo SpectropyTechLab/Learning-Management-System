@@ -23,6 +23,8 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
       grade_number: item.grade_number ?? item.gradeNumber ?? null,
       subject_id: item.subject_id ?? item.subjectId ?? null,
       chapter_id: item.chapter_id ?? item.chapterId ?? null,
+      canEdit: item.canEdit ?? item.can_edit,
+      canDelete: item.canDelete ?? item.can_delete,
     }))
     .filter((item) => item.id !== undefined && item.id !== null);
 
@@ -234,6 +236,10 @@ export default function QuestionSubjectsPage() {
   }, [topics]);
 
   const isLoading = loadingPrograms || loadingGrades || loadingSubjects || loadingDetails;
+  const selectedGradeCanEdit = useMemo(
+    () => grades.find((grade) => String(grade.id) === selectedGradeId)?.canEdit !== false,
+    [grades, selectedGradeId]
+  );
 
   const handleDeleteSubject = async (subject: CurriculumItem) => {
     if (!window.confirm(`Delete subject "${subject.name}"?`)) return;
@@ -266,12 +272,14 @@ export default function QuestionSubjectsPage() {
       title="Subjects"
       description="Choose a program and grade to explore subjects, chapters, and topics."
       actions={
-        <button
-          onClick={() => navigate("/question-bank/subjects/new")}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-        >
-          Add Subject
-        </button>
+        selectedGradeCanEdit ? (
+          <button
+            onClick={() => navigate("/question-bank/subjects/new")}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            Add Subject
+          </button>
+        ) : null
       }
     >
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -365,24 +373,28 @@ export default function QuestionSubjectsPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            navigate(`/question-bank/subjects/${subject.id}/edit`);
-                          }}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                        >
-                          Edit Subject
-                        </button>
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDeleteSubject(subject);
-                          }}
-                          className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                        >
-                          Delete Subject
-                        </button>
+                        {subject.canEdit !== false ? (
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/question-bank/subjects/${subject.id}/edit`);
+                            }}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                          >
+                            Edit Subject
+                          </button>
+                        ) : null}
+                        {subject.canDelete !== false ? (
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteSubject(subject);
+                            }}
+                            className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                          >
+                            Delete Subject
+                          </button>
+                        ) : null}
                       </div>
                     </div>
 
@@ -414,18 +426,22 @@ export default function QuestionSubjectsPage() {
                                       >
                                         View Chapters
                                       </button>
-                                      <button
-                                        onClick={() => navigate(`/question-bank/chapters/${chapter.id}/edit`)}
-                                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                                      >
-                                        Edit Chapter
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteChapter(chapter)}
-                                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                      >
-                                        Delete Chapter
-                                      </button>
+                                      {chapter.canEdit !== false ? (
+                                        <button
+                                          onClick={() => navigate(`/question-bank/chapters/${chapter.id}/edit`)}
+                                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                        >
+                                          Edit Chapter
+                                        </button>
+                                      ) : null}
+                                      {chapter.canDelete !== false ? (
+                                        <button
+                                          onClick={() => handleDeleteChapter(chapter)}
+                                          className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                        >
+                                          Delete Chapter
+                                        </button>
+                                      ) : null}
                                     </div>
                                   </div>
 

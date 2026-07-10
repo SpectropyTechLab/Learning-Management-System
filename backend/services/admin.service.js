@@ -259,7 +259,7 @@ export const createContentItem = async (req, res) => {
       }
 
       const examResult = await dbQuery(
-        `SELECT id, title, client_id, school_id FROM exams WHERE id = $1`,
+        `SELECT id, title, client_id, school_id, status FROM exams WHERE id = $1`,
         [examId]
       );
       if (examResult.rows.length === 0) {
@@ -267,6 +267,10 @@ export const createContentItem = async (req, res) => {
       }
 
       const exam = examResult.rows[0];
+      if (String(exam.status) !== 'published') {
+        return res.status(400).json({ error: 'Only published exams can be assigned to courses' });
+      }
+
       await validateCoursesForExamAccess({
         courseIds: [courseId],
         exam,

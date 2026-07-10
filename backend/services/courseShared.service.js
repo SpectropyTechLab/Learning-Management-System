@@ -361,7 +361,8 @@ const mapCourseRow = ({
   const isSchoolOwnerScope = scope === COURSE_SCOPE_SCHOOL_OWNER;
   const isTeacherScope = scope === COURSE_SCOPE_TEACHER;
   const isPackDerivedCourse = String(row.description ?? '').toLowerCase().startsWith('derived from pack:');
-  const isPlatformCourse = isPlatformOwnedCourseClientId(row.client_id);
+  const isSchoolCreatedCourse = isSchoolOwnerScope && isCreatedByMe && isAssignedToMySchool;
+  const isPlatformCourse = isPlatformOwnedCourseClientId(row.client_id) && !isSchoolCreatedCourse;
   const isClientPlatformTenantPlatformCourse =
     isPlatformTenantClientAdmin(req) && isPlatformCourse && !isPackDerivedCourse;
   const isReadOnlySharedCourse = isEntitledPlatformCourse && req.user?.role !== 'super_admin';
@@ -371,7 +372,9 @@ const mapCourseRow = ({
     && (isEntitledPlatformCourse || isPackDerivedCourse || isClientPlatformTenantPlatformCourse);
   const canRenameAssignedCourse = isClientReadOnlySpecialCourse;
   const originalTitle = row.title;
-  const courseAccessType = isPackDerivedCourse
+  const courseAccessType = isSchoolCreatedCourse
+    ? 'school_owned'
+    : isPackDerivedCourse
     ? 'pack_derived'
     : (isEntitledPlatformCourse || isClientPlatformTenantPlatformCourse)
       ? 'platform_assigned'
@@ -415,7 +418,7 @@ const mapCourseRow = ({
     can_publish_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : !isReadOnlySharedCourse)),
     can_delete_course: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : !isReadOnlySharedCourse)),
     can_manage_content: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : !isReadOnlySharedCourse)),
-    can_enroll: isTeacherScope ? false : (isSchoolOwnerScope ? isAssignedToMySchool : (isClientReadOnlySpecialCourse ? false : true)),
+    can_enroll: isTeacherScope ? false : (isSchoolOwnerScope ? canMutateAsSchoolOwner : (isClientReadOnlySpecialCourse ? false : true)),
   };
 };
 
@@ -640,8 +643,8 @@ export const ensureCourseActionAccess = async ({
     return context;
   }
 
-  const mutateActions = new Set(['update', 'delete', 'publish', 'manage_content']);
-  const assignedActions = new Set(['read', 'enroll']);
+  const mutateActions = new Set(['update', 'delete', 'publish', 'manage_content', 'enroll']);
+  const assignedActions = new Set(['read']);
 
   if (mutateActions.has(action) && !context.course.is_created_by_me) {
     return { ok: false, status: 403, error: 'Assigned courses are read-only for school owners.' };

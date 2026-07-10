@@ -22,6 +22,8 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
       grade_number: item.grade_number ?? null,
       subject_id: item.subject_id ?? null,
       chapter_id: item.chapter_id ?? null,
+      canEdit: item.canEdit ?? item.can_edit,
+      canDelete: item.canDelete ?? item.can_delete,
     }))
     .filter((item) => item.id !== undefined && item.id !== null);
 
@@ -279,6 +281,10 @@ export default function QuestionTopicsPage() {
     () => chapters.find((item) => String(item.id) === selectedChapterId)?.name ?? "Selected Chapter",
     [chapters, selectedChapterId]
   );
+  const selectedChapterCanEdit = useMemo(
+    () => chapters.find((item) => String(item.id) === selectedChapterId)?.canEdit !== false,
+    [chapters, selectedChapterId]
+  );
 
   const handleDeleteTopic = async (topic: CurriculumItem) => {
     if (!window.confirm(`Delete topic "${topic.name}"?`)) return;
@@ -295,22 +301,24 @@ export default function QuestionTopicsPage() {
       title="Topics"
       description="Manage topics under each chapter."
       actions={
-        <button
-          onClick={() =>
-            navigate(
-              `/question-bank/topics/new${buildHierarchyQuery(
-                selectedProgramId,
-                selectedGradeId,
-                selectedSubjectId,
-                selectedChapterId
-              )}`
-            )
-          }
-          disabled={!selectedChapterId}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Add Topic
-        </button>
+        selectedChapterCanEdit ? (
+          <button
+            onClick={() =>
+              navigate(
+                `/question-bank/topics/new${buildHierarchyQuery(
+                  selectedProgramId,
+                  selectedGradeId,
+                  selectedSubjectId,
+                  selectedChapterId
+                )}`
+              )
+            }
+            disabled={!selectedChapterId}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Add Topic
+          </button>
+        ) : null
       }
     >
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -426,27 +434,31 @@ export default function QuestionTopicsPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/question-bank/topics/${topic.id}/edit${buildHierarchyQuery(
-                              selectedProgramId,
-                              selectedGradeId,
-                              selectedSubjectId,
-                              selectedChapterId
-                            )}`
-                          )
-                        }
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTopic(topic)}
-                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                      >
-                        Delete
-                      </button>
+                      {topic.canEdit !== false ? (
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/question-bank/topics/${topic.id}/edit${buildHierarchyQuery(
+                                selectedProgramId,
+                                selectedGradeId,
+                                selectedSubjectId,
+                                selectedChapterId
+                              )}`
+                            )
+                          }
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      {topic.canDelete !== false ? (
+                        <button
+                          onClick={() => handleDeleteTopic(topic)}
+                          className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}

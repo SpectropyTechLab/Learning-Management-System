@@ -15,6 +15,8 @@ import {
 import ExamShell from "@/features/exams/components/ExamShell";
 import ExamStatusBadge from "@/components/ui/ExamStatusBadge";
 import QuestionRenderer from "@/components/questions/QuestionRenderer";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { getExamPermissions } from "@/features/exams/utils/examPermissions";
 import {
   downloadExamAnswersDocx,
   downloadExamQuestionsDocx,
@@ -49,6 +51,7 @@ const QUESTION_GROUP_LABELS: Record<QuestionGroupType, string> = {
 };
 
 const normalizeExamStatus = (value?: string | null): ExamStatus => {
+  if (value === "published") return value;
   if (value === "active" || value === "completed") return value;
   return "draft";
 };
@@ -69,6 +72,7 @@ const formatDateTime = (value?: string | null) => {
 export default function ExamPaperPreviewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const examId = Number(id);
 
   const [preview, setPreview] = useState<ExamPreviewPayload | null>(null);
@@ -77,6 +81,13 @@ export default function ExamPaperPreviewPage() {
   const [downloadingType, setDownloadingType] = useState<"questions" | "answers" | "solutions" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [infoOpen, setInfoOpen] = useState(true);
+  const examPermissions = useMemo(() => getExamPermissions(user), [user]);
+  const canManagePreview = Boolean(
+    examPermissions.canUpdate &&
+    preview?.exam?.status === "draft" &&
+    preview.exam.can_build !== false
+  );
+  const canDownloadPreview = Boolean(examPermissions.canRead && preview?.exam?.can_download !== false);
 
   const loadPreview = useCallback(async () => {
     if (!Number.isInteger(examId) || examId <= 0) {
@@ -133,6 +144,10 @@ export default function ExamPaperPreviewPage() {
       toast.error("Preview is not ready yet.");
       return;
     }
+    if (!canDownloadPreview) {
+      toast.error("You don't have permission to download this exam.");
+      return;
+    }
     setDownloadingType(type);
     try {
       if (type === "questions") {
@@ -160,16 +175,16 @@ export default function ExamPaperPreviewPage() {
         <>
           <button
             type="button"
-            onClick={() => navigate(`/exams/${examId}/builder`)}
+            onClick={() => navigate(canManagePreview ? `/exams/${examId}/builder` : "/exams")}
             className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:flex-none"
           >
             <RiArrowLeftLine className="h-3.5 w-3.5" />
-            Back to Builder
+            {canManagePreview ? "Back to Builder" : "Back to Exams"}
           </button>
           <button
             type="button"
             onClick={() => void handleDownloadDocx("questions")}
-            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize}
+            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize || !canDownloadPreview}
             className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
           >
             {downloadingType === "questions" ? <RiLoader4Line className="h-3.5 w-3.5 animate-spin" /> : <RiDownloadLine className="h-3.5 w-3.5" />}
@@ -178,7 +193,7 @@ export default function ExamPaperPreviewPage() {
           <button
             type="button"
             onClick={() => void handleDownloadDocx("answers")}
-            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize}
+            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize || !canDownloadPreview}
             className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
           >
             {downloadingType === "answers" ? <RiLoader4Line className="h-3.5 w-3.5 animate-spin" /> : <RiDownloadLine className="h-3.5 w-3.5" />}
@@ -187,21 +202,23 @@ export default function ExamPaperPreviewPage() {
           <button
             type="button"
             onClick={() => void handleDownloadDocx("solutions")}
-            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize}
+            disabled={Boolean(downloadingType) || loading || !preview || !preview.validation?.can_finalize || !canDownloadPreview}
             className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
           >
             {downloadingType === "solutions" ? <RiLoader4Line className="h-3.5 w-3.5 animate-spin" /> : <RiDownloadLine className="h-3.5 w-3.5" />}
             {downloadingType === "solutions" ? "Downloading..." : "Download Solutions"}
           </button>
-          <button
-            type="button"
-            onClick={() => void handleSaveExam()}
-            disabled={saving || !preview?.validation?.can_finalize}
-            className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
-          >
-            {saving ? <RiLoader4Line className="h-3.5 w-3.5 animate-spin" /> : <RiArrowRightUpLine className="h-3.5 w-3.5" />}
-            {saving ? "Saving..." : "Save Exam"}
-          </button>
+          {canManagePreview ? (
+            <button
+              type="button"
+              onClick={() => void handleSaveExam()}
+              disabled={saving || !preview?.validation?.can_finalize}
+              className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
+            >
+              {saving ? <RiLoader4Line className="h-3.5 w-3.5 animate-spin" /> : <RiArrowRightUpLine className="h-3.5 w-3.5" />}
+              {saving ? "Saving..." : "Save Exam"}
+            </button>
+          ) : null}
         </>
       }
     >

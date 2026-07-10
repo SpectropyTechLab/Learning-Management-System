@@ -17,6 +17,7 @@ import {
   listEntitledPlatformCourseIds,
 } from './courseShared.service.js';
 import { handleServiceError } from '../utils/errors.js';
+import { getEnabledProgramIdsIfFeatureEnabled } from './moduleEntitlements.service.js';
 
 const PLATFORM_OWNER_CLIENT_ID = 17;
 
@@ -29,6 +30,65 @@ const VALID_USER_ROLES = [
   'teacher',
   'student',
 ];
+
+let examSchoolAssignmentsTableEnsured = false;
+let questionBankSchoolAssignmentsTableEnsured = false;
+
+const ensureExamSchoolAssignmentsTable = async () => {
+  if (examSchoolAssignmentsTableEnsured) return;
+
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS exam_school_assignments (
+      id SERIAL PRIMARY KEY,
+      exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(exam_id, school_id)
+    )
+  `);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_exam_school_assignments_exam ON exam_school_assignments(exam_id)`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_exam_school_assignments_school ON exam_school_assignments(school_id)`);
+
+  examSchoolAssignmentsTableEnsured = true;
+};
+
+const ensureQuestionBankSchoolAssignmentsTable = async () => {
+  if (questionBankSchoolAssignmentsTableEnsured) return;
+
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS question_bank_school_assignments (
+      id SERIAL PRIMARY KEY,
+      program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(program_id, school_id)
+    )
+  `);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_question_bank_school_assignments_program ON question_bank_school_assignments(program_id)`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_question_bank_school_assignments_school ON question_bank_school_assignments(school_id)`);
+
+  questionBankSchoolAssignmentsTableEnsured = true;
+};
+
+const listEntitledPlatformExamProgramIds = async (clientId) => {
+  if (!clientId) return [];
+  try {
+    return await getEnabledProgramIdsIfFeatureEnabled('exams', clientId);
+  } catch {
+    return [];
+  }
+};
+
+const listEntitledPlatformQuestionBankProgramIds = async (clientId) => {
+  if (!clientId) return [];
+  try {
+    return await getEnabledProgramIdsIfFeatureEnabled('question_bank', clientId);
+  } catch {
+    return [];
+  }
+};
 
 const parseNullableInt = (value, fieldName) => {
   if (value === undefined || value === null || value === '') return null;
@@ -417,6 +477,352 @@ export const removeCourseAssignmentFromSchool = async (req, res) => {
   } catch (err) {
     console.error('Failed to remove school course assignment:', err);
     res.status(500).json({ error: 'Failed to remove school course assignment' });
+  }
+};
+
+export const listSchoolExamAssignments = async (req, res) => {
+  const { schoolId } = req.params;
+  const canAccess = await canAccessSchool(schoolId, req);
+  if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+  try {
+    const school = await getSchoolContext(schoolId);
+    if (!school) return res.status(404).json({ error: 'School not found' });
+
+    await ensureExamSchoolAssignmentsTable();
+
+    const result = await dbQuery(
+      `
+        SELECT
+          esa.id,
+          esa.school_id,
+          esa.exam_id,
+          esa.assigned_at,
+          esa.assigned_by,
+          e.title,
+          e.description,
+          e.status,
+          e.client_id,
+          e.program_id,
+          e.start_datetime,
+          e.end_datetime,
+          u.full_name AS assigned_by_name
+        FROM exam_school_assignments esa
+        JOIN exams e
+          ON e.id = esa.exam_id
+        LEFT JOIN users u
+          ON u.id = esa.assigned_by
+        WHERE esa.school_id = $1
+        ORDER BY e.title ASC, esa.assigned_at DESC
+      `,
+      [schoolId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Failed to load school exam assignments:', err);
+    res.status(500).json({ error: 'Failed to load school exam assignments' });
+  }
+};
+
+export const assignExamsToSchool = async (req, res) => {
+  const { schoolId } = req.params;
+  const canAccess = await canAccessSchool(schoolId, req);
+  if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+  const inputIds = Array.isArray(req.body?.exam_ids)
+    ? req.body.exam_ids
+    : req.body?.exam_id !== undefined
+      ? [req.body.exam_id]
+      : [];
+  const examIds = Array.from(
+    new Set(
+      inputIds
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
+
+  if (examIds.length === 0) {
+    return res.status(400).json({ error: 'At least one valid exam_id is required' });
+  }
+
+  const school = await getSchoolContext(schoolId);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  try {
+    await ensureExamSchoolAssignmentsTable();
+    const entitledPlatformProgramIds = await listEntitledPlatformExamProgramIds(school.client_id);
+
+    const examResult = await dbQuery(
+      `
+        SELECT id
+        FROM exams
+        WHERE id = ANY($1::int[])
+          AND status = 'published'
+          AND (school_id IS NULL OR school_id = $2)
+          AND (
+            client_id = $3
+            OR (
+              client_id = ${PLATFORM_OWNER_CLIENT_ID}
+              AND program_id IS NOT NULL
+              AND program_id = ANY($4::int[])
+            )
+          )
+      `,
+      [examIds, schoolId, school.client_id, entitledPlatformProgramIds]
+    );
+
+    const validExamIds = examResult.rows.map((row) => Number(row.id));
+    const missingExamIds = examIds.filter((examId) => !validExamIds.includes(examId));
+
+    if (missingExamIds.length > 0) {
+      return res.status(400).json({
+        error: 'Some exams are not published or cannot be assigned to this school',
+        exam_ids: missingExamIds,
+      });
+    }
+
+    await dbQuery(
+      `
+        INSERT INTO exam_school_assignments (exam_id, school_id, assigned_by)
+        SELECT exam_id, $1, $2
+        FROM unnest($3::int[]) AS exam_id
+        ON CONFLICT (exam_id, school_id)
+        DO UPDATE SET assigned_by = EXCLUDED.assigned_by, assigned_at = NOW()
+      `,
+      [schoolId, req.user?.id ?? null, validExamIds]
+    );
+
+    const assignments = await dbQuery(
+      `
+        SELECT
+          esa.id,
+          esa.school_id,
+          esa.exam_id,
+          esa.assigned_at,
+          e.title,
+          e.description,
+          e.status,
+          e.client_id,
+          e.program_id,
+          e.start_datetime,
+          e.end_datetime
+        FROM exam_school_assignments esa
+        JOIN exams e
+          ON e.id = esa.exam_id
+        WHERE esa.school_id = $1
+          AND esa.exam_id = ANY($2::int[])
+        ORDER BY e.title ASC
+      `,
+      [schoolId, validExamIds]
+    );
+
+    res.status(201).json({
+      success: true,
+      assignments: assignments.rows,
+    });
+  } catch (err) {
+    console.error('Failed to assign exams to school:', err);
+    res.status(500).json({ error: 'Failed to assign exams to school' });
+  }
+};
+
+export const removeExamAssignmentFromSchool = async (req, res) => {
+  const { schoolId, examId } = req.params;
+  const canAccess = await canAccessSchool(schoolId, req);
+  if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+  try {
+    await ensureExamSchoolAssignmentsTable();
+
+    const result = await dbQuery(
+      `
+        DELETE FROM exam_school_assignments
+        WHERE school_id = $1
+          AND exam_id = $2
+        RETURNING id
+      `,
+      [schoolId, examId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to remove school exam assignment:', err);
+    res.status(500).json({ error: 'Failed to remove school exam assignment' });
+  }
+};
+
+export const listSchoolQuestionBankAssignments = async (req, res) => {
+  const { schoolId } = req.params;
+  const canAccess = await canAccessSchool(schoolId, req);
+  if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+  try {
+    await ensureQuestionBankSchoolAssignmentsTable();
+
+    const result = await dbQuery(
+      `
+        SELECT
+          qbsa.id,
+          qbsa.school_id,
+          qbsa.program_id,
+          qbsa.assigned_at,
+          qbsa.assigned_by,
+          p.name,
+          p.code,
+          p.client_id,
+          p.school_id AS program_school_id,
+          p.is_active,
+          u.full_name AS assigned_by_name
+        FROM question_bank_school_assignments qbsa
+        JOIN programs p
+          ON p.id = qbsa.program_id
+        LEFT JOIN users u
+          ON u.id = qbsa.assigned_by
+        WHERE qbsa.school_id = $1
+        ORDER BY p.name ASC, qbsa.assigned_at DESC
+      `,
+      [schoolId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Failed to load school question bank assignments:', err);
+    res.status(500).json({ error: 'Failed to load school question bank assignments' });
+  }
+};
+
+export const assignQuestionBankProgramsToSchool = async (req, res) => {
+  const { schoolId } = req.params;
+  const canAccess = await canAccessSchool(schoolId, req);
+  if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+  const inputIds = Array.isArray(req.body?.program_ids)
+    ? req.body.program_ids
+    : req.body?.program_id !== undefined
+      ? [req.body.program_id]
+      : [];
+  const programIds = Array.from(
+    new Set(
+      inputIds
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
+
+  if (programIds.length === 0) {
+    return res.status(400).json({ error: 'At least one valid program_id is required' });
+  }
+
+  const school = await getSchoolContext(schoolId);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  try {
+    await ensureQuestionBankSchoolAssignmentsTable();
+    const entitledPlatformProgramIds = await listEntitledPlatformQuestionBankProgramIds(school.client_id);
+
+    const programResult = await dbQuery(
+      `
+        SELECT id
+        FROM programs
+        WHERE id = ANY($1::int[])
+          AND is_active = true
+          AND (
+            (client_id = $2 AND (school_id IS NULL OR school_id = $3))
+            OR (
+              client_id = ${PLATFORM_OWNER_CLIENT_ID}
+              AND school_id IS NULL
+              AND id = ANY($4::int[])
+            )
+          )
+      `,
+      [programIds, school.client_id, schoolId, entitledPlatformProgramIds]
+    );
+
+    const validProgramIds = programResult.rows.map((row) => Number(row.id));
+    const missingProgramIds = programIds.filter((programId) => !validProgramIds.includes(programId));
+
+    if (missingProgramIds.length > 0) {
+      return res.status(400).json({
+        error: 'Some question bank programs cannot be assigned to this school',
+        program_ids: missingProgramIds,
+      });
+    }
+
+    await dbQuery(
+      `
+        INSERT INTO question_bank_school_assignments (program_id, school_id, assigned_by)
+        SELECT program_id, $1, $2
+        FROM unnest($3::int[]) AS program_id
+        ON CONFLICT (program_id, school_id)
+        DO UPDATE SET assigned_by = EXCLUDED.assigned_by, assigned_at = NOW()
+      `,
+      [schoolId, req.user?.id ?? null, validProgramIds]
+    );
+
+    const assignments = await dbQuery(
+      `
+        SELECT
+          qbsa.id,
+          qbsa.school_id,
+          qbsa.program_id,
+          qbsa.assigned_at,
+          p.name,
+          p.code,
+          p.client_id,
+          p.school_id AS program_school_id,
+          p.is_active
+        FROM question_bank_school_assignments qbsa
+        JOIN programs p
+          ON p.id = qbsa.program_id
+        WHERE qbsa.school_id = $1
+          AND qbsa.program_id = ANY($2::int[])
+        ORDER BY p.name ASC
+      `,
+      [schoolId, validProgramIds]
+    );
+
+    res.status(201).json({
+      success: true,
+      assignments: assignments.rows,
+    });
+  } catch (err) {
+    console.error('Failed to assign question bank programs to school:', err);
+    res.status(500).json({ error: 'Failed to assign question bank programs to school' });
+  }
+};
+
+export const removeQuestionBankAssignmentFromSchool = async (req, res) => {
+  const { schoolId, programId } = req.params;
+  const canAccess = await canAccessSchool(schoolId, req);
+  if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+  try {
+    await ensureQuestionBankSchoolAssignmentsTable();
+
+    const result = await dbQuery(
+      `
+        DELETE FROM question_bank_school_assignments
+        WHERE school_id = $1
+          AND program_id = $2
+        RETURNING id
+      `,
+      [schoolId, programId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to remove school question bank assignment:', err);
+    res.status(500).json({ error: 'Failed to remove school question bank assignment' });
   }
 };
 

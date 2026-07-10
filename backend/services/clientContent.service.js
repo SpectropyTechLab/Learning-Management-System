@@ -498,6 +498,7 @@ const removeLinkedExamMappingIfUnused = async ({ courseId, contentItemId }) => {
 
 const buildCourseContentUnionSql = async ({ includeAttemptStatus }) => {
   const metadataSelect = await getMetadataSelect('ci');
+  const examIdExpression = await getMetadataExamIdSql('ci');
   const activeEntitlementSql = await buildActiveEntitlementExistsSql({
     clientIdExpression: 'course_scope.client_id',
     contentIdExpression: 'ci.id',
@@ -542,8 +543,10 @@ const buildCourseContentUnionSql = async ({ includeAttemptStatus }) => {
         true AS is_editable,
         NULL::timestamptz AS linked_at
       FROM content_items ci
+      LEFT JOIN exams content_exam ON content_exam.id = ${examIdExpression}
       ${attemptJoin}
       WHERE ci.course_id = $1
+        AND (ci.item_type <> 'exam' OR content_exam.status = 'published')
 
       UNION ALL
 
@@ -568,10 +571,12 @@ const buildCourseContentUnionSql = async ({ includeAttemptStatus }) => {
       FROM course_linked_content clc
       JOIN content_items ci ON ci.id = clc.content_item_id
       JOIN courses course_scope ON course_scope.id = clc.course_id
+      LEFT JOIN exams content_exam ON content_exam.id = ${examIdExpression}
       ${attemptJoin}
       WHERE clc.course_id = $1
         AND clc.is_active = true
         AND ${activeEntitlementSql}
+        AND (ci.item_type <> 'exam' OR content_exam.status = 'published')
     ) merged_items
     ORDER BY parent_id NULLS FIRST, order_index ASC, linked_at NULLS LAST, created_at ASC
   `;
@@ -599,6 +604,7 @@ export const getEntitledCourseContentRows = async ({
 
   const packItemColumn = await getPackItemColumn();
   const metadataSelect = await getMetadataSelect('ci');
+  const examIdExpression = await getMetadataExamIdSql('ci');
   const completionSelect = includeAttemptStatus
     ? `COALESCE(latest_sa.completion_status, 'not attempted') AS completion_status,`
     : `NULL::text AS completion_status,`;
@@ -696,9 +702,11 @@ export const getEntitledCourseContentRows = async ({
         false AS is_editable,
         NULL::timestamptz AS linked_at
       FROM content_items ci
+      LEFT JOIN exams content_exam ON content_exam.id = ${examIdExpression}
       ${attemptJoin}
       WHERE ci.course_id = $2
         AND ci.id IN (SELECT id FROM entitled_items)
+        AND (ci.item_type <> 'exam' OR content_exam.status = 'published')
       ORDER BY ci.parent_id NULLS FIRST, ci.order_index ASC, ci.created_at ASC
     `,
     includeAttemptStatus

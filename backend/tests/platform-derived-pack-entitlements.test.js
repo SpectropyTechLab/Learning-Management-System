@@ -20,8 +20,11 @@ const createResponse = () => ({
 
 test('createEntitlement builds a derived client course from pack items', async (t) => {
   const originalQuery = pool.query;
+  const originalConnect = pool.connect;
   const createdCourseIds = [];
   const createdContentTitles = [];
+  const transactionQueries = [];
+  let released = false;
 
   pool.query = async (text, params = []) => {
     const normalized = normalizeSql(text);
@@ -84,10 +87,6 @@ test('createEntitlement builds a derived client course from pack items', async (
       return { rows: [] };
     }
 
-    if (normalized === 'begin' || normalized === 'commit' || normalized === 'rollback') {
-      return { rows: [] };
-    }
-
     if (
       normalized.includes('create table if not exists course_exams')
       || normalized.includes('create index if not exists idx_course_exams_exam_id')
@@ -146,8 +145,83 @@ test('createEntitlement builds a derived client course from pack items', async (
     throw new Error(`Unexpected query: ${normalized}`);
   };
 
+  const client = {
+    query: async (text, params = []) => {
+      const normalized = normalizeSql(text);
+      transactionQueries.push(normalized);
+
+      if (normalized === 'begin' || normalized === 'commit' || normalized === 'rollback') {
+        return { rows: [] };
+      }
+
+      if (normalized.startsWith('select pg_advisory_xact_lock')) {
+        assert.deepEqual(params, [301, 8]);
+        return { rows: [] };
+      }
+
+      if (normalized.startsWith('select id from courses where client_id = $1')) {
+        return { rows: [] };
+      }
+
+      if (normalized.startsWith('insert into courses (title, description, published, created_by, client_id, metadata)')) {
+        createdCourseIds.push(501);
+        return { rows: [{ id: 501 }] };
+      }
+
+      if (normalized.startsWith('select id, parent_id, item_type, title, content_url, order_index, created_at, metadata from content_items where course_id = $1')) {
+        assert.equal(Number(params[0]), 10);
+        assert.deepEqual(params[1], [100, 101]);
+        return {
+          rows: [
+            {
+              id: 100,
+              parent_id: null,
+              item_type: 'folder',
+              title: 'Mathematical Tools',
+              content_url: null,
+              order_index: 0,
+              created_at: '2026-06-12T00:00:00.000Z',
+              metadata: {},
+            },
+            {
+              id: 101,
+              parent_id: 100,
+              item_type: 'folder',
+              title: 'Squares and Square roots',
+              content_url: null,
+              order_index: 0,
+              created_at: '2026-06-12T00:01:00.000Z',
+              metadata: {},
+            },
+          ],
+        };
+      }
+
+      if (normalized.startsWith('delete from course_exams where course_id = $1') || normalized.startsWith('delete from content_items where course_id = $1')) {
+        return { rows: [] };
+      }
+
+      if (normalized.startsWith('select coalesce(max(order_index), -1) as max_order from content_items where course_id = $1')) {
+        return { rows: [{ max_order: -1 }] };
+      }
+
+      if (normalized.startsWith('insert into content_items (course_id, parent_id, item_type, title, content_url, order_index, metadata)')) {
+        createdContentTitles.push(String(params[3]));
+        return { rows: [{ id: 900 + createdContentTitles.length }] };
+      }
+
+      throw new Error(`Unexpected transaction query: ${normalized}`);
+    },
+    release: () => {
+      released = true;
+    },
+  };
+
+  pool.connect = async () => client;
+
   t.after(() => {
     pool.query = originalQuery;
+    pool.connect = originalConnect;
   });
 
   const req = {
@@ -171,4 +245,9 @@ test('createEntitlement builds a derived client course from pack items', async (
   assert.equal(res.body?.pack_id, 8);
   assert.deepEqual(createdCourseIds, [501]);
   assert.deepEqual(createdContentTitles, ['Mathematical Tools', 'Squares and Square roots']);
+  assert.equal(released, true);
+  assert.notEqual(transactionQueries.indexOf('begin'), -1);
+  assert.notEqual(transactionQueries.indexOf('select pg_advisory_xact_lock($1, $2)'), -1);
+  assert.ok(transactionQueries.indexOf('begin') < transactionQueries.indexOf('select pg_advisory_xact_lock($1, $2)'));
+  assert.ok(transactionQueries.includes('commit'));
 });

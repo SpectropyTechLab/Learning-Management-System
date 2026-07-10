@@ -10,6 +10,8 @@ import AdminCourseManager from "@/features/courses/components/list/AdminCourseMa
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import { useHasVisibleExams } from "@/features/exams/hooks/useHasVisibleExams";
+import { useHasVisibleQuestionBankPrograms } from "@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms";
 import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function SchoolOwnerCourses() {
@@ -25,6 +27,8 @@ export default function SchoolOwnerCourses() {
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions(user);
   const examPermissions = getExamPermissions(user);
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
 
   if (!coursePermissions.canView) {
     return <Navigate to="/unauthorized" replace />;
@@ -45,7 +49,7 @@ export default function SchoolOwnerCourses() {
       active: true,
       onClick: () => navigate("/school-owner/courses"),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: "question-bank",
           label: "Question Bank",
@@ -54,7 +58,7 @@ export default function SchoolOwnerCourses() {
           onClick: () => navigate("/question-bank"),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: "exams",
           label: "Exams",

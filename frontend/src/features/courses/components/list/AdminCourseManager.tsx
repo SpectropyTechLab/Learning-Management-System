@@ -23,7 +23,7 @@ type Course = {
   is_created_by_me?: boolean;
   is_assigned_to_my_school?: boolean;
   is_pack_derived?: boolean;
-  course_access_type?: "platform_assigned" | "pack_derived" | "client_owned";
+  course_access_type?: "platform_assigned" | "pack_derived" | "client_owned" | "school_owned";
   can_edit_course?: boolean;
   can_rename_assigned_course?: boolean;
   can_publish_course?: boolean;
@@ -159,6 +159,9 @@ export default function AdminCourseManager({
 
   const getCourseScopeLabel = (course: Course) => {
     if (role === "school_owner" || role === "teacher") {
+      if (course.course_access_type === "school_owned" || course.is_created_by_me) {
+        return "Created by you";
+      }
       const isPlatformCourse =
         course.course_access_type === "platform_assigned" ||
         course.client_id == null ||
@@ -608,20 +611,25 @@ export default function AdminCourseManager({
               const courseCanRename = canRenameAssignedCourse(course);
               const courseCanDelete = canDeleteCourse(course);
               const courseCanPublish = canPublishCourse(course);
-              const courseCanManageContent = canManageCourseContent(course);
-              const courseCanEnroll = canEnrollInCourse(course);
               const isSchoolOwnerCourse = role === "school_owner";
               const isCreatedCourse = Boolean(course.is_created_by_me);
+              const isSchoolOwnedCourse = course.course_access_type === "school_owned" || isCreatedCourse;
+              const courseCanManageContent = isSchoolOwnerCourse && isSchoolOwnedCourse
+                ? true
+                : canManageCourseContent(course);
+              const courseCanEnroll = isSchoolOwnerCourse && isSchoolOwnedCourse
+                ? true
+                : canEnrollInCourse(course);
               const isAssignedCourse = Boolean(course.is_assigned_to_my_school && !course.is_created_by_me);
               const showCourseMenu = courseCanEdit || courseCanRename || courseCanDelete;
               const showViewAction = isSchoolOwnerCourse
                 ? isAssignedCourse && Boolean(onViewCourse)
                 : !courseCanManageContent && Boolean(onViewCourse);
               const showEnrollAction = isSchoolOwnerCourse
-                ? isCreatedCourse && Boolean(onEnroll)
+                ? isSchoolOwnedCourse && Boolean(onEnroll)
                 : Boolean(onEnroll);
               const showContentAction = isSchoolOwnerCourse
-                ? isCreatedCourse && Boolean(onManageContent)
+                ? isSchoolOwnedCourse && Boolean(onManageContent)
                 : Boolean(onManageContent);
               const scopeLabel = getCourseScopeLabel(course);
               const showOriginalTitle = shouldShowOriginalTitle(course);

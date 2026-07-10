@@ -357,7 +357,7 @@ const buildAllocationRows = (
 };
 
 const filterTopicsBySelectedIds = (topics: CurriculumOption[], selectedTopicIds: string[]) => {
-  if (selectedTopicIds.length === 0) return topics;
+  if (selectedTopicIds.length === 0) return [];
   const selectedIds = new Set(selectedTopicIds);
   return topics.filter((topic) => selectedIds.has(String(topic.id)));
 };
@@ -1283,7 +1283,7 @@ export default function ExamBuilderPage() {
         const selectedTopicIds =
           current.selectedTopicIds.length > 0
             ? current.selectedTopicIds
-            : (section.topic_ids ?? initialTopics.map((topic) => topic.id)).map(String);
+            : (section.topic_ids ?? []).map(String);
         const filteredTopics = filterTopicsBySelectedIds(initialTopics, selectedTopicIds);
 
         next[section.id] = {
@@ -1344,10 +1344,8 @@ export default function ExamBuilderPage() {
               ? current.selectedTopicIds.filter((topicId) =>
                 nextTopics.some((topic) => String(topic.id) === topicId)
               )
-              : nextTopics.map((topic) => String(topic.id));
-        const effectiveSelectedTopicIds =
-          selectedTopicIds.length > 0 ? selectedTopicIds : nextTopics.map((topic) => String(topic.id));
-        const filteredTopics = filterTopicsBySelectedIds(nextTopics, effectiveSelectedTopicIds);
+              : [];
+        const filteredTopics = filterTopicsBySelectedIds(nextTopics, selectedTopicIds);
         return {
           ...previous,
           [section.id]: {
@@ -1355,7 +1353,7 @@ export default function ExamBuilderPage() {
             gradeId: resolvedGradeId,
             subjectId: nextSubjectId,
             selectedChapterIds: nextChapterIds,
-            selectedTopicIds: effectiveSelectedTopicIds,
+            selectedTopicIds,
             grades: nextGrades,
             subjects: payload.subjects ?? [],
             chapters: payload.chapters ?? [],
@@ -1475,15 +1473,13 @@ export default function ExamBuilderPage() {
   const handleTopicChange = (section: ExamBuilderSection, topicIds: string[]) => {
     setEditors((previous) => {
       const current = previous[section.id] ?? createDefaultEditorState();
-      const nextSelectedTopicIds =
-        topicIds.length > 0 ? topicIds : current.topics.map((topic) => String(topic.id));
-      const filteredTopics = filterTopicsBySelectedIds(current.topics, nextSelectedTopicIds);
+      const filteredTopics = filterTopicsBySelectedIds(current.topics, topicIds);
 
       return {
         ...previous,
         [section.id]: {
           ...current,
-          selectedTopicIds: nextSelectedTopicIds,
+          selectedTopicIds: topicIds,
           allocationRows: buildAllocationRows(filteredTopics, section, current.allocationRows),
         },
       };

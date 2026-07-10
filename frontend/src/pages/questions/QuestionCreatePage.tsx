@@ -66,11 +66,10 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
 export default function QuestionCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const folderId = searchParams.get("folderId") ?? "";
   const returnTo = searchParams.get("returnTo") ?? "";
   const returnPath = useMemo(
-    () => (returnTo || (folderId ? `/question-bank/folders/${folderId}` : "/question-bank")),
-    [folderId, returnTo]
+    () => (returnTo && !returnTo.startsWith("/question-bank/folders") ? returnTo : "/question-bank"),
+    [returnTo]
   );
 
   const [programs, setPrograms] = useState<CurriculumItem[]>([]);
@@ -82,7 +81,7 @@ export default function QuestionCreatePage() {
   useEffect(() => {
     const loadPrograms = async () => {
       try {
-        const res = await api.get("/programs");
+        const res = await api.get("/programs", { params: { writable: "1" } });
         const payload = Array.isArray(res.data)
           ? res.data
           : Array.isArray(res.data?.data)
@@ -100,11 +99,10 @@ export default function QuestionCreatePage() {
 
   const handleSave = async (payload: Omit<Question, "id">) => {
     try {
-      const requestPayload = folderId ? { ...payload, folder_id: folderId } : payload;
-      const res = await api.post("/questions", requestPayload);
+      const res = await api.post("/questions", payload);
       if (res.data) {
         navigate(returnPath, {
-          state: !folderId ? { refreshQuestionList: true } : null,
+          state: { refreshQuestionList: true },
         });
         return;
       }
@@ -121,11 +119,7 @@ export default function QuestionCreatePage() {
   return (
     <QuestionBankLayout
       title="Create Question"
-      description={
-        folderId
-          ? "Compose a new question and save it directly into this folder."
-          : "Compose a new question for your assessment library."
-      }
+      description="Compose a new question for your assessment library."
       showBack={false}
       actions={
         <button

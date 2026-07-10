@@ -10,6 +10,10 @@ const normalizePrograms = (items: any[]): CurriculumItem[] =>
       id: item.id ?? item.program_id,
       name: item.name ?? item.title ?? "Untitled",
       code: item.code ?? null,
+      school_id: item.school_id ?? null,
+      ownership_scope: item.ownership_scope,
+      canEdit: item.canEdit ?? item.can_edit,
+      canDelete: item.canDelete ?? item.can_delete,
     }))
     .filter((item) => item.id !== undefined && item.id !== null);
 
@@ -100,18 +104,22 @@ export default function QuestionProgramsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate(`/question-bank/programs/${program.id}/edit`)}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteProgram(program)}
-                    className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                  >
-                    Delete
-                  </button>
+                  {program.canEdit !== false ? (
+                    <button
+                      onClick={() => navigate(`/question-bank/programs/${program.id}/edit`)}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                  {program.canDelete !== false ? (
+                    <button
+                      onClick={() => handleDeleteProgram(program)}
+                      className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                    >
+                      Delete
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}

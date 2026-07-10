@@ -13,12 +13,14 @@
     "courses.update",
     "enrollments.enroll",
     "enrollments.remove",
+    "exams.assign",
     "exams.create",
     "exams.delete",
     "exams.publish",
     "exams.read",
     "exams.update",
     "questions.approve",
+    "questions.assign",
     "questions.create",
     "questions.delete",
     "questions.read",
@@ -151,12 +153,22 @@
     },
     {
       "role": "client_admin",
+      "permission": "questions.assign",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
       "permission": "questions.delete",
       "granted": true
     },
     {
       "role": "client_admin",
       "permission": "exams.read",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "exams.assign",
       "granted": true
     },
     {

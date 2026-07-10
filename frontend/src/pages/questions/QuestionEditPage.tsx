@@ -74,11 +74,10 @@ export default function QuestionEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const folderId = searchParams.get("folderId") ?? "";
   const returnTo = searchParams.get("returnTo") ?? "";
   const returnPath = useMemo(
-    () => (returnTo || (folderId ? `/question-bank/folders/${folderId}` : "/question-bank")),
-    [folderId, returnTo]
+    () => (returnTo && !returnTo.startsWith("/question-bank/folders") ? returnTo : "/question-bank"),
+    [returnTo]
   );
   const passageLibraryPath = useMemo(
     () =>
@@ -137,7 +136,7 @@ export default function QuestionEditPage() {
     try {
       await api.put(`/questions/${id}`, payload);
       navigate(returnPath, {
-        state: !folderId ? { refreshQuestionList: true } : null,
+        state: { refreshQuestionList: true },
       });
       return;
     } catch (error) {
@@ -153,11 +152,7 @@ export default function QuestionEditPage() {
   return (
     <QuestionBankLayout
       title="Edit Question"
-      description={
-        folderId
-          ? "Update the question details while staying inside this folder."
-          : "Update the question details and answers."
-      }
+      description="Update the question details and answers."
       showBack={false}
       actions={
         <button

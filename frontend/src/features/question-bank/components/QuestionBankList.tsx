@@ -136,6 +136,11 @@ const normalizeQuestions = (items: any[]): Question[] =>
       (item.created_by !== undefined && item.created_by !== null ? String(item.created_by) : "Unknown"),
     created_at: item.created_at ?? null,
     review_note: item.review_note ?? item.rejection_reason ?? null,
+    canEdit: item.canEdit ?? item.can_edit,
+    canDelete: item.canDelete ?? item.can_delete,
+    canApprove: item.canApprove ?? item.can_approve,
+    canReject: item.canReject ?? item.can_reject,
+    canAddQuestion: item.canAddQuestion ?? item.can_add_question,
   }));
 
 const sortByIdAsc = (items: Question[]) => {

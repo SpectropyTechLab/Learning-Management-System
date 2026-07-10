@@ -87,9 +87,81 @@ test('listCoursesForRequest returns school-owner assigned courses with read-only
   assert.equal(courses[0].is_created_by_me, false);
   assert.equal(courses[0].can_manage_content, false);
   assert.equal(courses[0].can_edit_course, false);
-  assert.equal(courses[0].can_enroll, true);
+  assert.equal(courses[0].can_enroll, false);
   assert.equal(courses[0].assigned_school_count, 1);
   assert.ok(calls.some((call) => call.text.includes('exists ( select 1 from course_school_assignments scoped_csa')));
+});
+
+test('listCoursesForRequest returns platform-client school-owner created courses as school-owned', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+
+    if (
+      normalized.includes('create table if not exists course_school_assignments')
+      || normalized.includes('create index if not exists idx_course_school_assignments_course')
+      || normalized.includes('create index if not exists idx_course_school_assignments_school')
+      || normalized.includes('create table if not exists client_course_title_overrides')
+      || normalized.includes('create index if not exists idx_client_course_title_overrides_client')
+      || normalized.includes('create index if not exists idx_client_course_title_overrides_course')
+    ) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes('select distinct school_id from school_memberships')) {
+      return { rows: [{ school_id: 11 }] };
+    }
+
+    if (normalized.includes("table_name = 'content_pack_items'") && normalized.includes("column_name in ('item_id', 'content_id')")) {
+      return { rows: [{ column_name: 'item_id' }] };
+    }
+
+    if (normalized.includes('from content_entitlements ce') && normalized.includes('from courses c')) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes('from client_course_title_overrides')) {
+      return { rows: [] };
+    }
+
+    if (normalized.includes('from courses c')) {
+      return {
+        rows: [
+          {
+            id: 8,
+            title: 'Slate Biology',
+            description: 'School course',
+            published: true,
+            created_at: '2026-04-02T10:00:00.000Z',
+            updated_at: null,
+            created_by: 44,
+            client_id: 17,
+            assigned_school_ids: [11],
+            assigned_school_names: ['North School'],
+            assigned_school_count: 1,
+          },
+        ],
+      };
+    }
+
+    throw new Error(`Unexpected query: ${normalized}`);
+  };
+
+  t.after(() => {
+    pool.query = originalQuery;
+  });
+
+  const courses = await listCoursesForRequest(makeReq());
+
+  assert.equal(courses.length, 1);
+  assert.equal(courses[0].is_created_by_me, true);
+  assert.equal(courses[0].course_access_type, 'school_owned');
+  assert.equal(courses[0].can_edit_course, true);
+  assert.equal(courses[0].can_publish_course, true);
+  assert.equal(courses[0].can_delete_course, true);
+  assert.equal(courses[0].can_manage_content, true);
+  assert.equal(courses[0].can_enroll, true);
 });
 
 test('ensureCourseActionAccess blocks school owners from updating assigned courses they did not create', async (t) => {

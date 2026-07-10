@@ -9,6 +9,8 @@ import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/r
 import { BiBookOpen } from "react-icons/bi";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import { useHasVisibleExams } from "@/features/exams/hooks/useHasVisibleExams";
+import { useHasVisibleQuestionBankPrograms } from "@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
@@ -20,6 +22,8 @@ export default function TeacherProfile() {
   const theme = getDashboardTheme(false);
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const organizationLabel = getOrganizationLabel(user);
   const roleTitle = getRoleDisplayTitle(user?.role);
@@ -32,7 +36,7 @@ export default function TeacherProfile() {
       active: false,
       onClick: () => navigate("/teacher/dashboard"),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: "question-bank",
           label: "Question Bank",
@@ -41,7 +45,7 @@ export default function TeacherProfile() {
           onClick: () => navigate("/question-bank"),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: "exams",
           label: "Exams",

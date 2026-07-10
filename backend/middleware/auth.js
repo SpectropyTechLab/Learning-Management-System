@@ -341,3 +341,30 @@ export const checkPermission = (permission) => {
     next();
   };
 };
+
+export const checkAnyPermission = (permissionsToCheck) => {
+  const permissionList = Array.isArray(permissionsToCheck) ? permissionsToCheck : [permissionsToCheck];
+
+  return (req, res, next) => {
+    if (permissionList.length === 0 || permissionList.some((permission) => !permission)) {
+      return res.status(500).json({ error: 'Permission not configured' });
+    }
+    if (req.user?.role === 'super_admin') return next();
+
+    const permissions = req.permissions;
+    if (!permissions) return res.status(500).json({ error: 'Permissions not loaded' });
+
+    const granted = permissionList.some((permission) => {
+      if (permissions instanceof Map) return permissions.get(permission) === true;
+      if (permissions instanceof Set) return permissions.has(permission);
+      if (Array.isArray(permissions)) return permissions.includes(permission);
+      return false;
+    });
+
+    if (!granted) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    next();
+  };
+};

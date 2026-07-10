@@ -30,6 +30,9 @@ const createMockQuery = () => {
       normalized.includes('create table if not exists course_school_assignments')
       || normalized.includes('create index if not exists idx_course_school_assignments_course')
       || normalized.includes('create index if not exists idx_course_school_assignments_school')
+      || normalized.includes('create table if not exists client_course_title_overrides')
+      || normalized.includes('create index if not exists idx_client_course_title_overrides_client')
+      || normalized.includes('create index if not exists idx_client_course_title_overrides_course')
       || normalized.includes('create table if not exists course_exams')
       || normalized.includes('create index if not exists idx_course_exams_exam_id')
       || normalized.includes('create index if not exists idx_course_exams_course_id')
@@ -73,19 +76,19 @@ const createMockQuery = () => {
       return { rows: [{ id: 187, client_id: 301 }] };
     }
 
-    if (normalized.startsWith('select id, title, client_id, school_id from exams where id = $1')) {
+    if (normalized.startsWith('select id, title, client_id, school_id, status from exams where id = $1')) {
       const examId = Number(params[0]);
       if (examId === 77) {
-        return { rows: [{ id: 77, title: 'Platform Exam', client_id: 17, school_id: null }] };
+        return { rows: [{ id: 77, title: 'Platform Exam', client_id: 17, school_id: null, status: 'published' }] };
       }
       if (examId === 88) {
-        return { rows: [{ id: 88, title: 'Foreign Exam', client_id: 999, school_id: null }] };
+        return { rows: [{ id: 88, title: 'Foreign Exam', client_id: 999, school_id: null, status: 'published' }] };
       }
       return { rows: [] };
     }
 
-    if (normalized.startsWith('select id, client_id, school_id from courses where id = any($1::int[])')) {
-      return { rows: [{ id: 187, client_id: 301, school_id: 14 }] };
+    if (normalized.includes('select c.id, c.client_id, c.school_id') && normalized.includes('left join course_school_assignments csa')) {
+      return { rows: [{ id: 187, client_id: 301, school_id: 14, assigned_school_ids: [14] }] };
     }
 
     if (normalized.startsWith('insert into course_exams (course_id, exam_id, assigned_by)')) {

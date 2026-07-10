@@ -58,7 +58,10 @@ function QuestionCard({
   onApprove,
   onReject,
 }: QuestionCardProps) {
-  const isEditable = permissions.canEdit;
+  const isEditable = permissions.canEdit && question.canEdit !== false;
+  const canDelete = permissions.canDelete && question.canDelete !== false;
+  const canApprove = permissions.canApprove && question.canApprove !== false;
+  const canReject = permissions.canReject && question.canReject !== false;
   const isLegacyComprehensiveParent =
     question.question_type === "comprehensive" && !question.comprehension_passage_id;
   const categoryLabel = formatQuestionCategory(question.category ?? null);
@@ -139,7 +142,7 @@ function QuestionCard({
             {isLegacyComprehensiveParent ? "Open Passage Library" : "Edit"}
           </button>
         )}
-        {permissions.canDelete && onDelete && (
+        {canDelete && onDelete && (
           <button
             type="button"
             onClick={() => onDelete(question)}
@@ -148,7 +151,7 @@ function QuestionCard({
             Delete
           </button>
         )}
-        {permissions.canApprove && question.status === "draft" && (
+        {canApprove && question.status === "draft" && (
           <button
             type="button"
             onClick={() => onApprove(question)}
@@ -157,7 +160,7 @@ function QuestionCard({
             Approve
           </button>
         )}
-        {permissions.canReject && question.status === "draft" && (
+        {canReject && question.status === "draft" && (
           <button
             type="button"
             onClick={() => onReject(question)}

@@ -5,7 +5,12 @@ import {
   ensureProgramEntitledForModule,
 } from '../services/moduleEntitlements.service.js';
 
+const PLATFORM_OWNER_CLIENT_ID = 17;
 const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_authorizer';
+const isPlatformTenantClientAdmin = (user) =>
+  user?.role === 'client_admin' && Number(user?.client_id) === PLATFORM_OWNER_CLIENT_ID;
+const isPlatformOperator = (user) => isPlatformAdmin(user?.role) || isPlatformTenantClientAdmin(user);
+const isSchoolUser = (user) => user?.role === 'school_owner' || user?.role === 'teacher';
 
 const resolveClientId = (req) => {
   const clientId = req.clientId || req.user?.client_id;
@@ -88,6 +93,53 @@ const resolveProgramIdFromExam = async (examId) => {
   return result.rows[0]?.program_id ? Number(result.rows[0].program_id) : null;
 };
 
+const fetchUserSchoolIds = async (userId) => {
+  const result = await dbQuery(
+    `SELECT school_id FROM school_memberships WHERE user_id = $1 AND status = 'active'`,
+    [userId]
+  );
+  return result.rows.map((row) => Number(row.school_id)).filter(Number.isInteger);
+};
+
+const isOwnQuestionBankProgram = async ({ user, clientId, programId }) => {
+  if (!programId) return false;
+  const result = await dbQuery(
+    `SELECT id, client_id, school_id FROM programs WHERE id = $1 LIMIT 1`,
+    [programId]
+  );
+  const program = result.rows[0];
+  if (!program) return false;
+
+  if (
+    user?.role === 'client_admin' &&
+    Number(clientId) === Number(program.client_id) &&
+    Number(program.client_id) !== PLATFORM_OWNER_CLIENT_ID &&
+    !program.school_id
+  ) {
+    return true;
+  }
+
+  if (isSchoolUser(user) && program.school_id) {
+    const schoolIds = await fetchUserSchoolIds(user.id);
+    return schoolIds.includes(Number(program.school_id));
+  }
+
+  return false;
+};
+
+const isOwnSchoolProgram = async ({ user, programId }) => {
+  if (!isSchoolUser(user) || !programId) return false;
+  const result = await dbQuery(
+    `SELECT school_id FROM programs WHERE id = $1 LIMIT 1`,
+    [programId]
+  );
+  const schoolId = result.rows[0]?.school_id ? Number(result.rows[0].school_id) : null;
+  if (!schoolId) return false;
+
+  const schoolIds = await fetchUserSchoolIds(user.id);
+  return schoolIds.includes(schoolId);
+};
+
 const resolveQuestionBankProgramId = async (req) => {
   const directProgramId = parseIntSafe(req.body?.program_id) ?? parseIntSafe(req.query?.program_id) ?? parseIntSafe(req.params?.programId);
   if (directProgramId) return directProgramId;
@@ -124,7 +176,7 @@ const resolveExamProgramId = async (req) => {
 
 const buildProgramEntitlementMiddleware = (moduleKey, resolver) => async (req, res, next) => {
   try {
-    if (isPlatformAdmin(req.user?.role)) {
+    if (isPlatformOperator(req.user)) {
       return next();
     }
     const clientId = resolveClientId(req);
@@ -134,6 +186,14 @@ const buildProgramEntitlementMiddleware = (moduleKey, resolver) => async (req, r
 
     const programId = await resolver(req);
     if (!programId) {
+      return next();
+    }
+
+    if (moduleKey === 'question_bank' && await isOwnQuestionBankProgram({ user: req.user, clientId, programId })) {
+      return next();
+    }
+
+    if (moduleKey === 'exams' && await isOwnSchoolProgram({ user: req.user, programId })) {
       return next();
     }
 

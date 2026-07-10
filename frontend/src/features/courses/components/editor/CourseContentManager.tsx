@@ -224,6 +224,7 @@ export default function CourseContentManager({
         params: {
           page: 1,
           page_size: 200,
+          status: "published",
         },
       });
 

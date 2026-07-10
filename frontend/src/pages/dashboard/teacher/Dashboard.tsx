@@ -11,6 +11,8 @@ import AdminCourseManager from '@/features/courses/components/list/AdminCourseMa
 import { getCoursePermissions } from '@/features/courses/utils/coursePermissions';
 import { getQuestionPermissions } from '@/features/question-bank/utils/questionPermissions';
 import { getExamPermissions } from '@/features/exams/utils/examPermissions';
+import { useHasVisibleExams } from '@/features/exams/hooks/useHasVisibleExams';
+import { useHasVisibleQuestionBankPrograms } from '@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms';
 import { getOrganizationLabel, getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 export default function TeacherDashboard() {
@@ -23,6 +25,8 @@ export default function TeacherDashboard() {
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
 
   const navItems = [
     {
@@ -32,7 +36,7 @@ export default function TeacherDashboard() {
       active: false,
       onClick: () => navigate('/teacher/dashboard'),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: 'question-bank',
           label: 'Question Bank',
@@ -41,7 +45,7 @@ export default function TeacherDashboard() {
           onClick: () => navigate('/question-bank'),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: 'exams',
           label: 'Exams',

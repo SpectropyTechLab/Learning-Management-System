@@ -1,15 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import QuestionBankLayout from "@/features/question-bank/components/QuestionBankLayout";
-import type { QuestionFolder } from "@/types/questionFolder";
+import type { CurriculumItem } from "@/types/questionBank";
 
-const normalizeFolder = (item: Record<string, unknown>): QuestionFolder => ({
-  id: (item.id as string | number) ?? "",
-  name: typeof item.name === "string" ? item.name : "Untitled Folder",
-  description: typeof item.description === "string" ? item.description : "",
-  questionCount: Number(item.questionCount ?? item.question_count ?? 0),
-});
+const normalizePrograms = (items: any[]): CurriculumItem[] =>
+  items
+    .map((item) => ({
+      id: item.id ?? item.program_id,
+      name: item.name ?? item.title ?? "Untitled",
+      code: item.code ?? null,
+      ownership_scope: item.ownership_scope,
+      canEdit: item.canEdit ?? item.can_edit,
+      canDelete: item.canDelete ?? item.can_delete,
+    }))
+    .filter((item) => item.id !== undefined && item.id !== null);
 
 const splitAnswerTokens = (answer: string) =>
   new Set(
@@ -56,10 +61,10 @@ const renderMappedOptions = (rawOptions: string, rawAnswer: string) => {
 
 export default function QuestionBulkUploadPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [bulkFile, setBulkFile] = useState<File | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState("");
-  const [folderOptions, setFolderOptions] = useState<QuestionFolder[]>([]);
+  const [programs, setPrograms] = useState<CurriculumItem[]>([]);
+  const [programId, setProgramId] = useState("");
+  const [programsLoading, setProgramsLoading] = useState(true);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const [uploadSummary, setUploadSummary] = useState<{
     type: "error";
@@ -67,33 +72,36 @@ export default function QuestionBulkUploadPage() {
   } | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const folderFromQuery = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get("folderId") ?? "";
-  }, [location.search]);
-
   useEffect(() => {
-    const loadFolders = async () => {
+    const loadWritablePrograms = async () => {
+      setProgramsLoading(true);
       try {
-        const res = await api.get("/question-folders");
+        const res = await api.get("/programs", { params: { writable: "1" } });
         const payload = Array.isArray(res.data)
           ? res.data
           : Array.isArray(res.data?.data)
             ? res.data.data
             : [];
-        setFolderOptions(payload.map(normalizeFolder));
+        const normalized = normalizePrograms(payload);
+        setPrograms(normalized);
+        setProgramId((current) => current || (normalized[0]?.id ? String(normalized[0].id) : ""));
       } catch {
-        setFolderOptions([]);
+        setPrograms([]);
+      } finally {
+        setProgramsLoading(false);
       }
     };
-    loadFolders();
-  }, []);
 
-  const activeFolder = selectedFolder || folderFromQuery;
+    loadWritablePrograms();
+  }, []);
 
   const handleUpload = async () => {
     if (!bulkFile) {
       alert("Please select a file to upload.");
+      return;
+    }
+    if (!programId) {
+      alert("Please select a writable program.");
       return;
     }
 
@@ -105,7 +113,7 @@ export default function QuestionBulkUploadPage() {
       if (extension === "docx") {
         const formData = new FormData();
         formData.append("file", bulkFile);
-        if (activeFolder) formData.append("folder_id", activeFolder);
+        formData.append("program_id", programId);
 
         const res = await api.post("/questions/bulk-upload", formData, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -385,28 +393,27 @@ export default function QuestionBulkUploadPage() {
 
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h3 className="text-sm font-semibold text-slate-900">Upload Settings</h3>
-            <label className="mt-4 block text-xs font-semibold text-slate-500">Folder</label>
+            <label className="mt-4 block text-xs font-semibold text-slate-500">Program</label>
             <select
-              value={activeFolder}
-              onChange={(event) => setSelectedFolder(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              value={programId}
+              onChange={(event) => setProgramId(event.target.value)}
+              disabled={programsLoading || programs.length === 0}
+              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none disabled:bg-slate-50"
             >
-              <option value="">Select a folder</option>
-              {folderOptions.map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.name}
+              <option value="">{programsLoading ? "Loading programs..." : "Select a writable program"}</option>
+              {programs.map((program) => (
+                <option key={program.id} value={String(program.id)}>
+                  {program.name}
                 </option>
               ))}
             </select>
-            <p className="mt-2 text-xs text-slate-500">Files will be linked to the selected folder.</p>
-
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               One invalid row will fail the full file upload. No questions will be inserted until all rows pass validation.
             </div>
 
             <button
               onClick={handleUpload}
-              disabled={uploading}
+              disabled={uploading || !programId}
               className="mt-6 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70"
             >
               {uploading ? "Uploading..." : "Upload File"}

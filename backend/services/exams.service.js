@@ -240,18 +240,87 @@ const isPlatformAdmin = (role) => role === 'super_admin' || role === 'content_au
 const isClientAdmin = (role) => role === 'client_admin';
 const isSchoolOwner = (role) => role === 'school_owner';
 const isTeacher = (role) => role === 'teacher';
+const SCHOOL_OWNER_ROLE_SCOPES = ['school_owner', 'admin'];
+const TEACHER_ROLE_SCOPES = ['teacher'];
 const isPlatformOwnedExamClientId = (clientId) => Number(clientId) === PLATFORM_EXAM_OWNER_CLIENT_ID;
+const isPlatformTenantClientAdmin = (user) =>
+  isClientAdmin(user?.role) && isPlatformOwnedExamClientId(user?.client_id);
+const isPlatformOperator = (user) => isPlatformAdmin(user?.role) || isPlatformTenantClientAdmin(user);
 const resolveExamOwnerClientId = (clientId, role) =>
-  isContentAuthorizer(role) ? PLATFORM_EXAM_OWNER_CLIENT_ID : clientId;
+  (isContentAuthorizer(role) || (isClientAdmin(role) && isPlatformOwnedExamClientId(clientId)))
+    ? PLATFORM_EXAM_OWNER_CLIENT_ID
+    : clientId;
 const getReadableExamClientIds = (clientId, role) => {
   if (isSuperAdmin(role)) return [];
-  if (isContentAuthorizer(role)) return [PLATFORM_EXAM_OWNER_CLIENT_ID];
+  if (isContentAuthorizer(role)) return [];
+  if (isClientAdmin(role) && isPlatformOwnedExamClientId(clientId)) return [];
   if (!clientId) return [];
   return Array.from(new Set([Number(clientId), PLATFORM_EXAM_OWNER_CLIENT_ID]));
 };
 
+const isNormalClientAdmin = (user) =>
+  isClientAdmin(user?.role) && !isPlatformTenantClientAdmin(user);
+
+const getReadableBlueprintClientIds = (clientId, role) => {
+  if (isSuperAdmin(role)) return [];
+  if (isContentAuthorizer(role)) return [PLATFORM_EXAM_OWNER_CLIENT_ID];
+  if (isClientAdmin(role) && isPlatformOwnedExamClientId(clientId)) return [PLATFORM_EXAM_OWNER_CLIENT_ID];
+  if (!clientId) return [];
+  return [Number(clientId)];
+};
+
+const canAccessBlueprint = (user, blueprint) => {
+  if (!user || !blueprint) return false;
+  if (isSuperAdmin(user.role)) return true;
+  if (isContentAuthorizer(user.role) || isPlatformTenantClientAdmin(user)) {
+    return isPlatformOwnedExamClientId(blueprint.client_id);
+  }
+  return Number(blueprint.client_id) === Number(user.client_id);
+};
+
+const isSchoolScopedExam = (exam) =>
+  Boolean(exam?.school_id || exam?.program_school_id);
+
+const getExamAccessType = (exam) => {
+  if (isSchoolScopedExam(exam)) return 'school_owned';
+  return isPlatformOwnedExamClientId(exam?.client_id) ? 'platform_owned' : 'client_owned';
+};
+
+const canManageExam = (user, exam) => {
+  if (!user || !exam) return false;
+  if (isSuperAdmin(user.role)) return true;
+  if (isContentAuthorizer(user.role) || isPlatformTenantClientAdmin(user)) {
+    return isPlatformOwnedExamClientId(exam.client_id) && !isSchoolScopedExam(exam);
+  }
+  if (isSchoolOwner(user.role) || isTeacher(user.role)) {
+    return Number(exam.created_by) === Number(user.id);
+  }
+  return Number(exam.client_id) === Number(user.client_id);
+};
+
+const canDeleteExamForUser = (user, exam) => canManageExam(user, exam);
+
+export const decorateExamForUser = (exam, user) => {
+  const accessType = getExamAccessType(exam);
+  const canManage = canManageExam(user, exam);
+  const canDelete = canDeleteExamForUser(user, exam);
+
+  return {
+    ...exam,
+    exam_access_type: accessType,
+    owner_client_id: exam?.client_id ? Number(exam.client_id) : null,
+    owner_client_name: exam?.owner_client_name ?? null,
+    can_preview: true,
+    can_download: true,
+    can_edit: canManage,
+    can_build: canManage,
+    can_delete: canDelete,
+    can_publish: canManage,
+  };
+};
+
 const appendExamProgramConditions = async ({ conditions, params, user }) => {
-  if (isPlatformAdmin(user?.role)) return;
+  if (isPlatformOperator(user)) return;
   const clientId = user?.client_id ?? null;
   if (!clientId) return;
 
@@ -684,7 +753,7 @@ const getQuestionComprehensionSupport = async () => {
 };
 
 const ensureClientScope = (clientId, role) => {
-  if (isPlatformAdmin(role)) return null;
+  if (isPlatformAdmin(role) || (isClientAdmin(role) && isPlatformOwnedExamClientId(clientId))) return null;
   if (!clientId) {
     throw new AppError('client_id is required for this role', 400);
   }
@@ -697,6 +766,68 @@ const fetchUserSchoolIds = async (userId) => {
     [userId]
   );
   return result.rows.map((row) => Number(row.school_id));
+};
+
+const fetchUserSchoolIdsByRoleScope = async (user) => {
+  if (!isSchoolOwner(user?.role) && !isTeacher(user?.role)) return [];
+  const roleScopes = isTeacher(user?.role) ? TEACHER_ROLE_SCOPES : SCHOOL_OWNER_ROLE_SCOPES;
+  const result = await dbQuery(
+    `
+    SELECT DISTINCT school_id
+    FROM school_memberships
+    WHERE user_id = $1
+      AND status = 'active'
+      AND role_scope = ANY($2::text[])
+    `,
+    [user.id, roleScopes]
+  );
+  return result.rows.map((row) => Number(row.school_id)).filter(Number.isInteger);
+};
+
+const isProgramOwnedByUserSchool = async ({ programId, user }) => {
+  if (!programId || (!isSchoolOwner(user?.role) && !isTeacher(user?.role))) return false;
+  const result = await dbQuery(
+    `SELECT school_id FROM programs WHERE id = $1 LIMIT 1`,
+    [programId]
+  );
+  const programSchoolId = result.rows[0]?.school_id ? Number(result.rows[0].school_id) : null;
+  if (!programSchoolId) return false;
+
+  const schoolIds = await fetchUserSchoolIdsByRoleScope(user);
+  return schoolIds.includes(programSchoolId);
+};
+
+const resolveOwnedBlueprintSchoolId = async (user, requestedSchoolId) => {
+  if (!isSchoolOwner(user?.role) && !isTeacher(user?.role)) {
+    return requestedSchoolId ?? null;
+  }
+
+  const result = await dbQuery(
+    `
+    SELECT school_id
+    FROM school_memberships
+    WHERE user_id = $1
+      AND status = 'active'
+      AND role_scope = ANY($2::text[])
+    ORDER BY is_primary DESC, joined_at ASC, id ASC
+    LIMIT 1
+    `,
+    [user.id, isTeacher(user?.role) ? TEACHER_ROLE_SCOPES : SCHOOL_OWNER_ROLE_SCOPES]
+  );
+  const defaultSchoolId = result.rows[0]?.school_id ? Number(result.rows[0].school_id) : null;
+  if (!defaultSchoolId) {
+    throw new AppError('No active school membership found for this user', 403);
+  }
+
+  if (requestedSchoolId && Number(requestedSchoolId) !== defaultSchoolId) {
+    const schoolIds = await fetchUserSchoolIdsByRoleScope(user);
+    if (!schoolIds.includes(Number(requestedSchoolId))) {
+      throw new AppError('Access denied for this school', 403);
+    }
+    return Number(requestedSchoolId);
+  }
+
+  return defaultSchoolId;
 };
 
 const resolveSchoolScope = async ({ schoolId, user, clientId }) => {
@@ -718,7 +849,7 @@ const resolveSchoolScope = async ({ schoolId, user, clientId }) => {
   }
 
   if (isSchoolOwner(user?.role) || isTeacher(user?.role)) {
-    const schoolIds = await fetchUserSchoolIds(user.id);
+    const schoolIds = await fetchUserSchoolIdsByRoleScope(user);
     if (!schoolIds.includes(Number(schoolId))) {
       throw new AppError('Access denied for this school', 403);
     }
@@ -733,39 +864,129 @@ const ensureValidStatus = (status) => {
   }
 };
 
-const buildExamWhere = async ({ user, query }) => {
+let examSchoolAssignmentsTableEnsured = false;
+
+const ensureExamSchoolAssignmentsTable = async () => {
+  if (examSchoolAssignmentsTableEnsured) return;
+
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS exam_school_assignments (
+      id SERIAL PRIMARY KEY,
+      exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(exam_id, school_id)
+    )
+  `);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_exam_school_assignments_exam ON exam_school_assignments(exam_id)`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_exam_school_assignments_school ON exam_school_assignments(school_id)`);
+
+  examSchoolAssignmentsTableEnsured = true;
+};
+
+export const buildExamWhere = async ({ user, query }) => {
   const params = [];
   const conditions = [];
   const addParam = (value) => {
     params.push(value);
     return `$${params.length}`;
   };
+  const isSchoolScopedUser = isSchoolOwner(user?.role) || isTeacher(user?.role);
 
   const explicitClientId = parseNullableInt(query?.client_id, 'client_id');
-  const readableClientIds = isSuperAdmin(user?.role)
-    ? (explicitClientId ? [explicitClientId] : [])
-    : getReadableExamClientIds(resolveExamOwnerClientId(user?.client_id ?? null, user?.role), user?.role);
+  if (isNormalClientAdmin(user)) {
+    const clientId = resolveExamOwnerClientId(user?.client_id ?? null, user?.role);
+    if (clientId) {
+      const clientIdsParam = addParam(Array.from(new Set([Number(clientId), PLATFORM_EXAM_OWNER_CLIENT_ID])));
+      conditions.push(`
+        (
+          e.client_id = ANY(${clientIdsParam})
+          AND e.school_id IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM programs platform_program_scope
+            WHERE platform_program_scope.id = e.program_id
+              AND platform_program_scope.school_id IS NOT NULL
+          )
+        )`);
+    }
+  } else {
+    const readableClientIds = isSuperAdmin(user?.role)
+      ? (explicitClientId ? [explicitClientId] : [])
+      : getReadableExamClientIds(resolveExamOwnerClientId(user?.client_id ?? null, user?.role), user?.role);
 
-  if (readableClientIds.length > 0) {
-    conditions.push(`e.client_id = ANY(${addParam(readableClientIds)})`);
+    if (readableClientIds.length > 0) {
+      conditions.push(`e.client_id = ANY(${addParam(readableClientIds)})`);
+    }
+  }
+
+  if (!isPlatformOperator(user) && !isSchoolScopedUser) {
+    conditions.push(`e.status = ANY(${addParam(['published', 'active'])})`);
   }
 
   let schoolIds = [];
-  if (isSchoolOwner(user?.role) || isTeacher(user?.role)) {
-    schoolIds = await fetchUserSchoolIds(user.id);
+  if (isSchoolScopedUser) {
+    await ensureExamSchoolAssignmentsTable();
+    schoolIds = await fetchUserSchoolIdsByRoleScope(user);
     if (schoolIds.length > 0) {
-      conditions.push(`(e.school_id IS NULL OR e.school_id = ANY(${addParam(schoolIds)}))`);
+      const schoolIdsParam = addParam(schoolIds);
+      const visibleStatusesParam = addParam(['published', 'active']);
+      const userIdParam = addParam(user.id);
+      conditions.push(`
+        (
+          (
+            e.status = ANY(${visibleStatusesParam})
+            AND EXISTS (
+              SELECT 1
+              FROM exam_school_assignments esa
+              WHERE esa.exam_id = e.id
+                AND esa.school_id = ANY(${schoolIdsParam})
+            )
+          )
+          OR e.school_id = ANY(${schoolIdsParam})
+          OR EXISTS (
+            SELECT 1
+            FROM programs school_programs
+            WHERE school_programs.id = e.program_id
+              AND school_programs.school_id = ANY(${schoolIdsParam})
+          )
+          OR (
+            e.created_by = ${userIdParam}
+            AND e.school_id IS NULL
+          )
+        )`);
     } else {
-      conditions.push(`e.school_id IS NULL`);
+      conditions.push(`1 = 0`);
     }
   }
 
   const schoolIdFilter = parseNullableInt(query?.school_id, 'school_id');
   if (schoolIdFilter) {
-    if ((isSchoolOwner(user?.role) || isTeacher(user?.role)) && !schoolIds.includes(schoolIdFilter)) {
+    if (isSchoolScopedUser && !schoolIds.includes(schoolIdFilter)) {
       throw new AppError('Access denied for this school', 403);
     }
-    conditions.push(`e.school_id = ${addParam(schoolIdFilter)}`);
+    if (isSchoolScopedUser) {
+      const schoolIdFilterParam = addParam(schoolIdFilter);
+      conditions.push(`
+        (
+          e.school_id = ${schoolIdFilterParam}
+          OR EXISTS (
+            SELECT 1
+            FROM exam_school_assignments esa_filter
+            WHERE esa_filter.exam_id = e.id
+              AND esa_filter.school_id = ${schoolIdFilterParam}
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM programs school_programs_filter
+            WHERE school_programs_filter.id = e.program_id
+              AND school_programs_filter.school_id = ${schoolIdFilterParam}
+          )
+        )`);
+    } else {
+      conditions.push(`e.school_id = ${addParam(schoolIdFilter)}`);
+    }
   }
 
   if (query?.status) {
@@ -794,7 +1015,9 @@ const buildExamWhere = async ({ user, query }) => {
     }
   }
 
-  await appendExamProgramConditions({ conditions, params, user });
+  if (!isSchoolScopedUser) {
+    await appendExamProgramConditions({ conditions, params, user });
+  }
 
   return { conditions, params };
 };
@@ -803,7 +1026,7 @@ const getExamByIdForAccess = async ({ examId, user, requireOwner = false }) => {
   const id = parseRequiredInt(examId, 'id');
   const result = await dbQuery(
     `
-    SELECT e.*, p.name AS program_name
+    SELECT e.*, p.name AS program_name, p.school_id AS program_school_id, p.client_id AS program_client_id
     FROM exams e
     LEFT JOIN programs p ON p.id = e.program_id
     WHERE e.id = $1
@@ -814,26 +1037,69 @@ const getExamByIdForAccess = async ({ examId, user, requireOwner = false }) => {
     throw new AppError('Exam not found', 404);
   }
   const exam = result.rows[0];
+  const isSchoolScopedUser = isSchoolOwner(user?.role) || isTeacher(user?.role);
+  let schoolExamAccess = null;
 
-  if (!isPlatformAdmin(user?.role)) {
+  if (isSchoolScopedUser) {
+    await ensureExamSchoolAssignmentsTable();
+    const schoolIds = await fetchUserSchoolIdsByRoleScope(user);
+    let isAssignedToSchool = false;
+
+    if (schoolIds.length > 0) {
+      const assignmentResult = await dbQuery(
+        `
+        SELECT 1
+        FROM exam_school_assignments
+        WHERE exam_id = $1
+          AND school_id = ANY($2::int[])
+        LIMIT 1
+        `,
+        [id, schoolIds]
+      );
+      isAssignedToSchool = assignmentResult.rows.length > 0;
+    }
+
+    const schoolOwnsExam = exam.school_id ? schoolIds.includes(Number(exam.school_id)) : false;
+    const schoolOwnsProgram = exam.program_school_id ? schoolIds.includes(Number(exam.program_school_id)) : false;
+    const isOwnUnscopedDraft = Number(exam.created_by) === Number(user.id) && !exam.school_id;
+    const hasAssignedPublishedAccess =
+      isAssignedToSchool && ['published', 'active'].includes(String(exam.status));
+    const hasOwnSchoolAccess = schoolOwnsExam || schoolOwnsProgram || isOwnUnscopedDraft;
+
+    schoolExamAccess = {
+      canAccess: hasAssignedPublishedAccess || hasOwnSchoolAccess,
+      hasOwnSchoolAccess,
+    };
+  }
+
+  if (!isPlatformOperator(user)) {
     const readableClientIds = getReadableExamClientIds(user?.client_id ?? null, user?.role);
     if (!readableClientIds.includes(Number(exam.client_id))) {
       throw new AppError('Exam not found', 404);
     }
+    if (!isSchoolScopedUser && isNormalClientAdmin(user) && isSchoolScopedExam(exam)) {
+      throw new AppError('Exam not found', 404);
+    }
+    if (
+      isPlatformOwnedExamClientId(exam.client_id) &&
+      !['published', 'active'].includes(String(exam.status)) &&
+      !schoolExamAccess?.hasOwnSchoolAccess
+    ) {
+      throw new AppError('Exam not found', 404);
+    }
     const clientId = user?.client_id;
-    if (exam.program_id) {
+    if (exam.program_id && !isSchoolScopedUser) {
       await ensureProgramEntitledForModule('exams', clientId, Number(exam.program_id));
     }
   }
 
-  if (isSchoolOwner(user?.role) || isTeacher(user?.role)) {
-    const schoolIds = await fetchUserSchoolIds(user.id);
-    if (exam.school_id && !schoolIds.includes(Number(exam.school_id))) {
+  if (isSchoolScopedUser) {
+    if (!schoolExamAccess?.canAccess) {
       throw new AppError('Access denied', 403);
     }
   }
 
-  if (requireOwner && Number(exam.created_by) !== Number(user.id) && !isPlatformAdmin(user?.role) && !isClientAdmin(user?.role) && !isSchoolOwner(user?.role)) {
+  if (requireOwner && Number(exam.created_by) !== Number(user.id) && !isPlatformOperator(user) && !isClientAdmin(user?.role) && !isSchoolOwner(user?.role)) {
     throw new AppError('Access denied', 403);
   }
 
@@ -861,18 +1127,24 @@ const getSectionByIdForAccess = async ({ examId, sectionId, user, requireOwner =
   return row;
 };
 
-const ensureExamEditable = (exam) => {
+const ensureExamEditable = (exam, user) => {
   if (!exam) {
     throw new AppError('Exam not found', 404);
+  }
+  if (!canManageExam(user, exam)) {
+    throw new AppError('You can only modify exams owned by your scope', 403);
   }
   if (exam.status !== 'draft') {
     throw new AppError('Exam is locked and cannot be modified', 403);
   }
 };
 
-const ensureExamDeletable = (exam) => {
+const ensureExamDeletable = (exam, user) => {
   if (!exam) {
     throw new AppError('Exam not found', 404);
+  }
+  if (!canDeleteExamForUser(user, exam)) {
+    throw new AppError('You can only delete exams owned by your scope', 403);
   }
 
   if (!VALID_EXAM_STATUSES.includes(String(exam.status))) {
@@ -1041,17 +1313,23 @@ const ensureBlueprintStatus = (status) => {
 };
 
 const ensureProgramAccess = async ({ programId, user, clientId }) => {
-  const result = await dbQuery(`SELECT id, client_id FROM programs WHERE id = $1`, [programId]);
+  const result = await dbQuery(`SELECT id, client_id, school_id FROM programs WHERE id = $1`, [programId]);
   if (result.rows.length === 0) {
     throw new AppError('Program not found', 404);
   }
   const program = result.rows[0];
 
-  if (!isPlatformAdmin(user?.role) && Number(program.client_id) !== Number(clientId)) {
+  if (!isPlatformOperator(user) && Number(program.client_id) !== Number(clientId)) {
     throw new AppError('Program does not belong to this client', 403);
   }
 
   return program;
+};
+
+const ensureExamProgramEntitlementForUser = async ({ programId, user, clientId }) => {
+  if (!programId || isPlatformOperator(user)) return;
+  if (await isProgramOwnedByUserSchool({ programId, user })) return;
+  await ensureProgramEntitledForModule('exams', Number(clientId), programId);
 };
 
 const ensureBlueprintAccessible = async ({ blueprintId, user, clientId }) => {
@@ -1099,16 +1377,20 @@ const ensureBlueprintAccessible = async ({ blueprintId, user, clientId }) => {
   }
 
   const blueprint = result.rows[0];
-  if (!isPlatformAdmin(user?.role)) {
-    const readableClientIds = getReadableExamClientIds(clientId, user?.role);
-    if (!readableClientIds.includes(Number(blueprint.client_id))) {
-      throw new AppError('Blueprint not found', 404);
-    }
+  if (!canAccessBlueprint(user, blueprint)) {
+    throw new AppError('Blueprint not found', 404);
   }
 
-  if ((isSchoolOwner(user?.role) || isTeacher(user?.role)) && blueprint.school_id) {
-    const schoolIds = await fetchUserSchoolIds(user.id);
-    if (!schoolIds.includes(Number(blueprint.school_id))) {
+  if (clientId && Number(blueprint.client_id) !== Number(clientId)) {
+    throw new AppError('Blueprint does not belong to this client scope', 403);
+  }
+
+  if (isSchoolOwner(user?.role) || isTeacher(user?.role)) {
+    const schoolIds = await fetchUserSchoolIdsByRoleScope(user);
+    if (
+      !blueprint.school_id ||
+      !schoolIds.includes(Number(blueprint.school_id))
+    ) {
       throw new AppError('Access denied for this blueprint', 403);
     }
   }
@@ -4397,7 +4679,7 @@ export const addQuestionToSection = async (req, res) => {
 
     const section = await getSectionByIdForAccess({ examId, sectionId, user: req.user });
     const exam = await getExamByIdForAccess({ examId, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const questionResult = await dbQuery('SELECT * FROM questions WHERE id = $1', [questionId]);
     if (questionResult.rows.length === 0) {
@@ -4544,7 +4826,7 @@ export const removeQuestionFromSection = async (req, res) => {
 
     const section = await getSectionByIdForAccess({ examId, sectionId, user: req.user });
     const exam = await getExamByIdForAccess({ examId, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const supportsDistributionColumns = await hasBlueprintDistributionColumns();
     const tx = await getClient();
@@ -4597,7 +4879,7 @@ export const clearQuestionGroupFromSection = async (req, res) => {
 
     const section = await getSectionByIdForAccess({ examId, sectionId, user: req.user });
     const exam = await getExamByIdForAccess({ examId, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const normalizedGroupType = requireString(groupType, 'groupType').trim().toLowerCase();
     if (!QUESTION_GROUP_TYPES.includes(normalizedGroupType)) {
@@ -4654,7 +4936,7 @@ export const replaceQuestionInSection = async (req, res) => {
 
     const section = await getSectionByIdForAccess({ examId, sectionId, user: req.user });
     const exam = await getExamByIdForAccess({ examId, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const existingResult = await dbQuery(
       `SELECT * FROM exam_questions WHERE section_id = $1 AND question_id = $2 LIMIT 1`,
@@ -4728,6 +5010,9 @@ export const publishExam = async (req, res) => {
     }
 
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
+    if (!canManageExam(req.user, exam)) {
+      throw new AppError('You can only publish exams owned by your scope', 403);
+    }
 
     if (exam.status === 'published' || exam.status === 'active' || exam.status === 'completed') {
       throw new AppError('Exam is already published or locked', 409);
@@ -4815,6 +5100,9 @@ export const assignExamCourses = async (req, res) => {
       examId: req.params.id,
       user: req.user,
     });
+    if (!canManageExam(req.user, exam)) {
+      throw new AppError('You can only assign exams owned by your scope', 403);
+    }
 
     const courseIds = parseCourseIds(req.body?.course_ids);
     await validateCoursesForExamAssignment({ courseIds, exam, user: req.user });
@@ -4865,12 +5153,12 @@ export const listBlueprints = async (req, res) => {
     const explicitClientId = parseNullableInt(req.query?.client_id, 'client_id');
     const readableClientIds = isSuperAdmin(req.user.role)
       ? (explicitClientId ? [explicitClientId] : [])
-      : getReadableExamClientIds(resolveExamOwnerClientId(req.clientId || req.user.client_id, req.user.role), req.user.role);
+      : getReadableBlueprintClientIds(resolveExamOwnerClientId(req.clientId || req.user.client_id, req.user.role), req.user.role);
     const schoolId = parseNullableInt(req.query?.school_id, 'school_id');
     const status = req.query?.status ? requireString(req.query.status, 'status') : null;
     if (status) ensureBlueprintStatus(status);
 
-    if (readableClientIds.length === 0 && !isPlatformAdmin(req.user.role)) {
+    if (readableClientIds.length === 0 && !isPlatformOperator(req.user)) {
       throw new AppError('client_id is required', 400);
     }
 
@@ -4884,15 +5172,20 @@ export const listBlueprints = async (req, res) => {
     if (readableClientIds.length > 0) {
       conditions.push(`b.client_id = ANY(${addParam(readableClientIds)})`);
     }
-    if (schoolId) {
-      conditions.push(`b.school_id = ${addParam(schoolId)}`);
-    } else if (isSchoolOwner(req.user.role) || isTeacher(req.user.role)) {
-      const schoolIds = await fetchUserSchoolIds(req.user.id);
-      if (schoolIds.length > 0) {
-        conditions.push(`(b.school_id IS NULL OR b.school_id = ANY(${addParam(schoolIds)}))`);
+    if (isSchoolOwner(req.user.role) || isTeacher(req.user.role)) {
+      const schoolIds = await fetchUserSchoolIdsByRoleScope(req.user);
+      if (schoolId) {
+        if (!schoolIds.includes(schoolId)) {
+          throw new AppError('Access denied for this school', 403);
+        }
+        conditions.push(`b.school_id = ${addParam(schoolId)}`);
+      } else if (schoolIds.length > 0) {
+        conditions.push(`b.school_id = ANY(${addParam(schoolIds)})`);
       } else {
-        conditions.push(`b.school_id IS NULL`);
+        conditions.push(`1 = 0`);
       }
+    } else if (schoolId) {
+      conditions.push(`b.school_id = ${addParam(schoolId)}`);
     }
     if (status) {
       conditions.push(`b.status = ${addParam(status)}`);
@@ -4959,7 +5252,7 @@ export const getBlueprintById = async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const clientId = isPlatformAdmin(req.user.role) ? null : (req.clientId || req.user.client_id);
+    const clientId = isPlatformOperator(req.user) ? null : (req.clientId || req.user.client_id);
     const blueprint = await ensureBlueprintAccessible({
       blueprintId: parseRequiredInt(req.params.id, 'id'),
       user: req.user,
@@ -4986,8 +5279,9 @@ export const createBlueprint = async (req, res) => {
     if (!clientId) throw new AppError('client_id is required', 400);
 
     const schoolIdInput = parseNullableInt(req.body?.school_id, 'school_id');
+    const resolvedSchoolIdInput = await resolveOwnedBlueprintSchoolId(req.user, schoolIdInput);
     const schoolScope = await resolveSchoolScope({
-      schoolId: schoolIdInput,
+      schoolId: resolvedSchoolIdInput,
       user: req.user,
       clientId,
     });
@@ -5072,7 +5366,7 @@ export const updateBlueprint = async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const clientId = isPlatformAdmin(req.user.role) ? null : (req.clientId || req.user.client_id);
+    const clientId = isPlatformOperator(req.user) ? null : (req.clientId || req.user.client_id);
     const blueprintId = parseRequiredInt(req.params.id, 'id');
     const existing = await ensureBlueprintAccessible({
       blueprintId,
@@ -5086,7 +5380,10 @@ export const updateBlueprint = async (req, res) => {
 
     const schoolId = req.body?.school_id !== undefined
       ? (await resolveSchoolScope({
-        schoolId: parseNullableInt(req.body.school_id, 'school_id'),
+        schoolId: await resolveOwnedBlueprintSchoolId(
+          req.user,
+          parseNullableInt(req.body.school_id, 'school_id')
+        ),
         user: req.user,
         clientId: Number(existing.client_id),
       })).schoolId
@@ -5175,7 +5472,7 @@ export const deleteBlueprint = async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const clientId = isPlatformAdmin(req.user.role) ? null : (req.clientId || req.user.client_id);
+    const clientId = isPlatformOperator(req.user) ? null : (req.clientId || req.user.client_id);
     const blueprintId = parseRequiredInt(req.params.id, 'id');
     await ensureBlueprintAccessible({
       blueprintId,
@@ -5221,9 +5518,13 @@ export const listExams = async (req, res) => {
         COALESCE(section_stats.section_count, 0)::int AS section_count,
         COALESCE(section_stats.question_count, 0)::int AS question_count,
         COALESCE(attempt_stats.attempts_count, 0)::int AS attempts_count,
-        COALESCE(NULLIF(TRIM(u.full_name), ''), u.email, NULL) AS created_by_name
+        COALESCE(NULLIF(TRIM(u.full_name), ''), u.email, NULL) AS created_by_name,
+        cl.name AS owner_client_name,
+        p.school_id AS program_school_id
       FROM exams e
       LEFT JOIN users u ON u.id = e.created_by
+      LEFT JOIN clients cl ON cl.id = e.client_id
+      LEFT JOIN programs p ON p.id = e.program_id
       LEFT JOIN LATERAL (
         SELECT
           COUNT(DISTINCT ce.course_id) AS course_count,
@@ -5253,7 +5554,7 @@ export const listExams = async (req, res) => {
     );
 
     res.json({
-      data: result.rows,
+      data: result.rows.map((row) => decorateExamForUser(row, req.user)),
       page,
       page_size: pageSize,
       total,
@@ -5282,9 +5583,13 @@ export const getExamById = async (req, res) => {
         COALESCE(section_stats.section_count, 0)::int AS section_count,
         COALESCE(section_stats.question_count, 0)::int AS question_count,
         COALESCE(attempt_stats.attempts_count, 0)::int AS attempts_count,
-        COALESCE(NULLIF(TRIM(u.full_name), ''), u.email, NULL) AS created_by_name
+        COALESCE(NULLIF(TRIM(u.full_name), ''), u.email, NULL) AS created_by_name,
+        cl.name AS owner_client_name,
+        p.school_id AS program_school_id
       FROM exams e
       LEFT JOIN users u ON u.id = e.created_by
+      LEFT JOIN clients cl ON cl.id = e.client_id
+      LEFT JOIN programs p ON p.id = e.program_id
       LEFT JOIN LATERAL (
         SELECT
           COUNT(DISTINCT ce.course_id) AS course_count,
@@ -5314,9 +5619,14 @@ export const getExamById = async (req, res) => {
     const assignedCourses = await listAssignedCoursesForExam(exam.id);
     const preview = await buildExamPreviewPayload(examResult.rows[0]);
 
-    res.json({
+    const decoratedExam = decorateExamForUser({
       ...preview.exam,
-      blueprint: preview.blueprint,
+      owner_client_name: examResult.rows[0].owner_client_name,
+    }, req.user);
+
+    res.json({
+      ...decoratedExam,
+      blueprint: canAccessBlueprint(req.user, preview.blueprint) ? preview.blueprint : null,
       sections: preview.sections,
       totals: preview.totals,
       all_sections_completed: preview.all_sections_completed,
@@ -5451,8 +5761,9 @@ export const createExam = async (req, res) => {
     if (!clientId) throw new AppError('client_id is required', 400);
 
     const schoolIdInput = parseNullableInt(req.body?.school_id, 'school_id');
-    if (schoolIdInput) {
-      const schoolResult = await dbQuery(`SELECT id, client_id FROM schools WHERE id = $1`, [schoolIdInput]);
+    const schoolId = await resolveOwnedBlueprintSchoolId(req.user, schoolIdInput);
+    if (schoolId) {
+      const schoolResult = await dbQuery(`SELECT id, client_id FROM schools WHERE id = $1`, [schoolId]);
       if (schoolResult.rows.length === 0) {
         throw new AppError('School not found', 404);
       }
@@ -5461,7 +5772,6 @@ export const createExam = async (req, res) => {
         throw new AppError('School does not belong to this client', 403);
       }
     }
-    const schoolId = schoolIdInput;
     const programId = parseNullableInt(req.body?.program_id, 'program_id');
     const blueprintId = parseNullableInt(req.body?.blueprint_id, 'blueprint_id');
 
@@ -5471,9 +5781,7 @@ export const createExam = async (req, res) => {
 
     if (programId) {
       await ensureProgramAccess({ programId, user: req.user, clientId: Number(clientId) });
-      if (!isPlatformAdmin(req.user.role)) {
-        await ensureProgramEntitledForModule('exams', Number(clientId), programId);
-      }
+      await ensureExamProgramEntitlementForUser({ programId, user: req.user, clientId: Number(clientId) });
     }
 
     let blueprint = null;
@@ -5665,7 +5973,7 @@ export const updateExam = async (req, res) => {
     });
     const supportsExamInstructions = await hasExamInstructionsColumn();
 
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const nextStartDateTime = req.body?.start_datetime !== undefined
       ? parseDateTime(req.body.start_datetime, 'start_datetime')
@@ -5742,9 +6050,7 @@ export const updateExam = async (req, res) => {
       const programId = parseNullableInt(req.body.program_id, 'program_id');
       if (programId) {
         await ensureProgramAccess({ programId, user: req.user, clientId: Number(exam.client_id) });
-        if (!isPlatformAdmin(req.user.role)) {
-          await ensureProgramEntitledForModule('exams', Number(exam.client_id), programId);
-        }
+        await ensureExamProgramEntitlementForUser({ programId, user: req.user, clientId: Number(exam.client_id) });
       }
       addUpdate('program_id', programId);
     }
@@ -5805,7 +6111,7 @@ export const deleteExam = async (req, res) => {
       user: req.user,
     });
 
-    ensureExamDeletable(exam);
+    ensureExamDeletable(exam, req.user);
 
     const tx = await getClient();
     let result;
@@ -5844,7 +6150,7 @@ export const createExamSection = async (req, res) => {
       examId: req.params.id,
       user: req.user,
     });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const title = requireString(req.body?.title, 'title');
     const instructions = req.body?.instructions ? String(req.body.instructions).trim() : null;
@@ -5890,7 +6196,7 @@ export const updateExamSection = async (req, res) => {
       user: req.user,
     });
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const updates = [];
     const values = [];
@@ -5948,7 +6254,7 @@ export const deleteExamSection = async (req, res) => {
       user: req.user,
     });
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     await dbQuery(`DELETE FROM exam_sections WHERE id = $1`, [section.id]);
     res.json({ success: true, id: Number(section.id) });
@@ -6026,7 +6332,7 @@ export const configureExamSectionSyllabus = async (req, res) => {
     }
 
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const section = await getSectionByIdForAccess({
       examId: req.params.id,
@@ -6106,7 +6412,7 @@ export const previewExamSectionGeneration = async (req, res) => {
     }
 
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const section = await getSectionByIdForAccess({
       examId: req.params.id,
@@ -6128,7 +6434,7 @@ export const generateExamSectionQuestions = async (req, res) => {
     }
 
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const section = await getSectionByIdForAccess({
       examId: req.params.id,
@@ -6200,7 +6506,11 @@ export const getExamPreview = async (req, res) => {
 
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
     const payload = await buildExamPreviewPayload(exam);
-    res.json(payload);
+    res.json({
+      ...payload,
+      exam: decorateExamForUser(payload.exam, req.user),
+      blueprint: canAccessBlueprint(req.user, payload.blueprint) ? payload.blueprint : null,
+    });
   } catch (err) {
     handleServiceError(res, err, 'Failed to load exam preview');
   }
@@ -6268,7 +6578,7 @@ export const finalizeExamBlueprint = async (req, res) => {
     }
 
     const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
-    ensureExamEditable(exam);
+    ensureExamEditable(exam, req.user);
 
     const preview = await buildExamPreviewPayload(exam);
     if (!preview.validation?.can_finalize) {

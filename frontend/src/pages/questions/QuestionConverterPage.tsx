@@ -92,7 +92,7 @@ export default function QuestionConverterPage() {
   useEffect(() => {
     const loadInitial = async () => {
       try {
-        const programRes = await api.get("/programs");
+        const programRes = await api.get("/programs?writable=1");
 
         const programPayload = Array.isArray(programRes.data)
           ? programRes.data

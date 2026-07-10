@@ -10,6 +10,8 @@ import { BiBookOpen } from "react-icons/bi";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import { useHasVisibleExams } from "@/features/exams/hooks/useHasVisibleExams";
+import { useHasVisibleQuestionBankPrograms } from "@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms";
 import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function TeacherHome() {
@@ -25,6 +27,8 @@ export default function TeacherHome() {
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
   const featureCards = [
     {
       title: "Courses",
@@ -35,13 +39,13 @@ export default function TeacherHome() {
     {
       title: "Question Bank",
       desc: "Create and review question content available for teaching workflows.",
-      enabled: questionPermissions.canView,
+      enabled: canShowQuestionBank,
       badge: "Live",
     },
     {
       title: "Exams",
       desc: "Prepare assessments, monitor readiness, and review exam-related work.",
-      enabled: examPermissions.canRead,
+      enabled: canShowExams,
       badge: "Live",
     },
     {
@@ -60,7 +64,7 @@ export default function TeacherHome() {
       active: true,
       onClick: () => navigate("/teacher/dashboard"),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: "question-bank",
           label: "Question Bank",
@@ -69,7 +73,7 @@ export default function TeacherHome() {
           onClick: () => navigate("/question-bank"),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: "exams",
           label: "Exams",

@@ -57,11 +57,10 @@ export default function QuestionDeletePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const folderId = searchParams.get("folderId") ?? "";
   const returnTo = searchParams.get("returnTo") ?? "";
   const returnPath = useMemo(
-    () => (returnTo || (folderId ? `/question-bank/folders/${folderId}` : "/question-bank")),
-    [folderId, returnTo]
+    () => (returnTo && !returnTo.startsWith("/question-bank/folders") ? returnTo : "/question-bank"),
+    [returnTo]
   );
   const [question, setQuestion] = useState<Question | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,7 +89,7 @@ export default function QuestionDeletePage() {
     try {
       await api.delete(`/questions/${id}`);
       navigate(returnPath, {
-        state: !folderId ? { refreshQuestionList: true } : null,
+        state: { refreshQuestionList: true },
       });
     } catch {
       alert("Failed to delete question.");

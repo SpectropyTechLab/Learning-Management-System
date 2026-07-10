@@ -45,11 +45,14 @@ export default function QuestionProgramEditPage() {
 
     setSaving(true);
     try {
-      const res = await api.patch(`/programs/${program.id}`, {
+      const payload: { name: string; code?: string; is_active: boolean } = {
         name: name.trim(),
-        code: code.trim(),
         is_active: isActive,
-      });
+      };
+      const trimmedCode = code.trim();
+      if (trimmedCode) payload.code = trimmedCode;
+
+      const res = await api.patch(`/programs/${program.id}`, payload);
       const updated: CurriculumItem = {
         id: program.id,
         name: res.data?.name ?? name.trim(),
