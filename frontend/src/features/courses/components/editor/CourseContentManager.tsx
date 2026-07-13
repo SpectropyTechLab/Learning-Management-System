@@ -179,20 +179,50 @@ export default function CourseContentManager({
   };
 
   const syncContentState = (itemsToSync: ContentItem[]) => {
+    const foldersByParent = new Map<number | null, ContentItem[]>();
+    const itemsByParent = new Map<number | null, ContentItem[]>();
+    const nonFolderItems: ContentItem[] = [];
+
+    itemsToSync.forEach((item) => {
+      const parentId = item.parent_id ?? null;
+
+      if (item.item_type === "folder") {
+        const siblings = foldersByParent.get(parentId) ?? [];
+        siblings.push(item);
+        foldersByParent.set(parentId, siblings);
+        return;
+      }
+
+      const siblings = itemsByParent.get(parentId) ?? [];
+      siblings.push(item);
+      itemsByParent.set(parentId, siblings);
+      nonFolderItems.push(item);
+    });
+
+    const sortItems = (entries: ContentItem[]) =>
+      entries.sort((left, right) => {
+        const orderCompare = Number(left.order_index ?? 0) - Number(right.order_index ?? 0);
+        if (orderCompare !== 0) return orderCompare;
+        return String(left.created_at ?? "").localeCompare(String(right.created_at ?? ""));
+      });
+
+    foldersByParent.forEach((entries, parentId) => {
+      foldersByParent.set(parentId, sortItems(entries));
+    });
+    itemsByParent.forEach((entries, parentId) => {
+      itemsByParent.set(parentId, sortItems(entries));
+    });
+
     const buildFolderTree = (parentId: number | null): FolderNode[] =>
-      itemsToSync
-        .filter((item) => item.parent_id === parentId && item.item_type === "folder")
-        .map((folder) => ({
-          id: folder.id,
-          title: folder.title,
-          items: itemsToSync.filter((item) => item.parent_id === folder.id && item.item_type !== "folder"),
-          folders: buildFolderTree(folder.id),
-        }));
+      (foldersByParent.get(parentId) ?? []).map((folder) => ({
+        id: folder.id,
+        title: folder.title,
+        items: itemsByParent.get(folder.id) ?? [],
+        folders: buildFolderTree(folder.id),
+      }));
 
-    const chapterMap: Chapter[] = buildFolderTree(null);
-
-    setChapters(chapterMap);
-    setAllItems(itemsToSync.filter((i: ContentItem) => i.item_type !== "folder"));
+    setChapters(buildFolderTree(null));
+    setAllItems(nonFolderItems);
   };
 
   const fetchContent = async () => {

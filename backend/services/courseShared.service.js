@@ -1,5 +1,4 @@
 import { query as dbQuery } from '../repositories/db.repository.js';
-import { syncActivePackEntitlementsForClient } from './platform.service.js';
 
 export const COURSE_SCOPE_ADMIN = 'admin';
 export const COURSE_SCOPE_SCHOOL_OWNER = 'school_owner';
@@ -453,12 +452,6 @@ export const listCoursesForRequest = async (req, scope = getRequestCourseScope(r
 
   const role = req.user?.role;
   const clientId = req.user?.client_id;
-  if (role === 'client_admin' && clientId) {
-    await syncActivePackEntitlementsForClient({
-      clientId,
-      userId: req.user?.id ?? null,
-    });
-  }
   const shouldScopeToClient = Boolean(clientId) && role !== 'super_admin';
   const managedSchoolIds = scope === COURSE_SCOPE_SCHOOL_OWNER
     ? await getManagedSchoolIdsForUser(req.user?.id)

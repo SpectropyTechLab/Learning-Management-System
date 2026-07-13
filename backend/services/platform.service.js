@@ -123,16 +123,39 @@ const loadPackDerivedGroups = async ({ packId, clientId }) => {
 
   const itemsResult = await dbQuery(
     `
-      SELECT
+      WITH RECURSIVE pack_roots AS (
+        SELECT
+          ci.id,
+          ci.course_id,
+          ci.parent_id,
+          ci.item_type
+        FROM content_pack_items cpi
+        JOIN content_items ci ON ci.id = cpi.${packItemColumn}
+        WHERE cpi.pack_id = $1
+      ),
+      expanded_pack_items AS (
+        SELECT id, course_id, parent_id, item_type
+        FROM pack_roots
+
+        UNION
+
+        SELECT child.id, child.course_id, child.parent_id, child.item_type
+        FROM content_items child
+        JOIN expanded_pack_items parent
+          ON parent.id = child.parent_id
+        WHERE parent.item_type = 'folder'
+      )
+      SELECT DISTINCT
         c.id AS source_course_id,
         c.title AS source_course_title,
         ${gradeSql} AS grade,
         ${subjectSql} AS subject,
-        ci.id AS item_id
-      FROM content_pack_items cpi
-      JOIN content_items ci ON ci.id = cpi.${packItemColumn}
+        ci.id AS item_id,
+        ci.order_index,
+        ci.created_at
+      FROM expanded_pack_items epi
+      JOIN content_items ci ON ci.id = epi.id
       JOIN courses c ON c.id = ci.course_id
-      WHERE cpi.pack_id = $1
       ORDER BY c.id ASC, ci.order_index ASC, ci.created_at ASC
     `,
     [packId]

@@ -62,7 +62,7 @@ test('createEntitlement builds a derived client course from pack items', async (
       return { rows: [{ id: 8, name: 'techno' }] };
     }
 
-    if (normalized.includes('from content_pack_items cpi') && normalized.includes('join content_items ci on ci.id = cpi.item_id') && normalized.includes('join courses c on c.id = ci.course_id')) {
+    if (normalized.startsWith('with recursive pack_roots as')) {
       return {
         rows: [
           {
@@ -78,6 +78,13 @@ test('createEntitlement builds a derived client course from pack items', async (
             grade: '6',
             subject: 'Physics',
             item_id: 101,
+          },
+          {
+            source_course_id: 10,
+            source_course_title: 'Techno_PHY',
+            grade: '6',
+            subject: 'Physics',
+            item_id: 102,
           },
         ],
       };
@@ -102,7 +109,7 @@ test('createEntitlement builds a derived client course from pack items', async (
 
     if (normalized.startsWith('select id, parent_id, item_type, title, content_url, order_index, created_at, metadata from content_items where course_id = $1')) {
       assert.equal(Number(params[0]), 10);
-      assert.deepEqual(params[1], [100, 101]);
+      assert.deepEqual(params[1], [100, 101, 102]);
       return {
         rows: [
           {
@@ -123,6 +130,16 @@ test('createEntitlement builds a derived client course from pack items', async (
             content_url: null,
             order_index: 0,
             created_at: '2026-06-12T00:01:00.000Z',
+            metadata: {},
+          },
+          {
+            id: 102,
+            parent_id: 101,
+            item_type: 'pdf',
+            title: 'Future Added Worksheet',
+            content_url: 'future.pdf',
+            order_index: 0,
+            created_at: '2026-06-13T00:01:00.000Z',
             metadata: {},
           },
         ],
@@ -170,7 +187,7 @@ test('createEntitlement builds a derived client course from pack items', async (
 
       if (normalized.startsWith('select id, parent_id, item_type, title, content_url, order_index, created_at, metadata from content_items where course_id = $1')) {
         assert.equal(Number(params[0]), 10);
-        assert.deepEqual(params[1], [100, 101]);
+        assert.deepEqual(params[1], [100, 101, 102]);
         return {
           rows: [
             {
@@ -191,6 +208,16 @@ test('createEntitlement builds a derived client course from pack items', async (
               content_url: null,
               order_index: 0,
               created_at: '2026-06-12T00:01:00.000Z',
+              metadata: {},
+            },
+            {
+              id: 102,
+              parent_id: 101,
+              item_type: 'pdf',
+              title: 'Future Added Worksheet',
+              content_url: 'future.pdf',
+              order_index: 0,
+              created_at: '2026-06-13T00:01:00.000Z',
               metadata: {},
             },
           ],
@@ -244,7 +271,7 @@ test('createEntitlement builds a derived client course from pack items', async (
   assert.equal(res.statusCode, 201);
   assert.equal(res.body?.pack_id, 8);
   assert.deepEqual(createdCourseIds, [501]);
-  assert.deepEqual(createdContentTitles, ['Mathematical Tools', 'Squares and Square roots']);
+  assert.deepEqual(createdContentTitles, ['Mathematical Tools', 'Squares and Square roots', 'Future Added Worksheet']);
   assert.equal(released, true);
   assert.notEqual(transactionQueries.indexOf('begin'), -1);
   assert.notEqual(transactionQueries.indexOf('select pg_advisory_xact_lock($1, $2)'), -1);

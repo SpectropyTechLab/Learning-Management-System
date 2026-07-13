@@ -241,9 +241,11 @@ test('ensureCourseActionAccess blocks school owners from updating assigned cours
 
 test('listCoursesForRequest includes entitled platform courses for client admins as read-only courses', async (t) => {
   const originalQuery = pool.query;
+  const calls = [];
 
   pool.query = async (text, params = []) => {
     const normalized = normalizeSql(text);
+    calls.push(normalized);
 
     if (
       normalized.includes('create table if not exists course_school_assignments')
@@ -322,6 +324,7 @@ test('listCoursesForRequest includes entitled platform courses for client admins
   assert.equal(courses[0].can_rename_assigned_course, true);
   assert.equal(courses[0].can_delete_course, false);
   assert.equal(courses[0].can_enroll, false);
+  assert.ok(!calls.some((call) => call.startsWith('select distinct pack_id from content_entitlements')));
 });
 
 test('listCoursesForRequest returns derived client-owned courses for client admins without marking them as entitled platform courses', async (t) => {
