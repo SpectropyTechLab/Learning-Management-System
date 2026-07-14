@@ -21,6 +21,7 @@ import {
   TextRun,
   HeadingLevel,
   ImageRun,
+  PageOrientation,
   SectionType,
   TabStopType,
   Table,
@@ -2288,6 +2289,21 @@ const normalizeLatexForDocx = (value) => {
   return text.replace(/\s+/g, ' ').trim();
 };
 
+const normalizeLatexForMathInput = (value) => {
+  let text = String(value || '').trim();
+  if (!text) return '';
+
+  text = text
+    .replace(/âˆš/g, '√')
+    .replace(/√\s*\(([^()]+)\)/g, '\\sqrt{$1}')
+    .replace(/√\s*\{([^{}]+)\}/g, '\\sqrt{$1}')
+    .replace(/√\s*([A-Za-z0-9]+)/g, '\\sqrt{$1}')
+    .replace(/\bsqrt\s*\(([^()]+)\)/gi, '\\sqrt{$1}')
+    .replace(/\bsqrt\s*\{([^{}]+)\}/gi, '\\sqrt{$1}');
+
+  return text;
+};
+
 const normalizeLatexDelimitersForPreview = (value) => {
   if (value === null || value === undefined) return value;
   let text = String(value);
@@ -2321,10 +2337,79 @@ const normalizeRichValueForPreview = (value) => {
   return value;
 };
 
+const escapeRichHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const escapeRichHtmlAttribute = (value) =>
+  escapeRichHtml(value)
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/`/g, '&#96;');
+
+const renderProseMirrorMarksForDocx = (html, marks) => {
+  if (!Array.isArray(marks)) return html;
+  return marks.reduce((acc, mark) => {
+    if (!mark || typeof mark !== 'object') return acc;
+    const type = String(mark.type || '').toLowerCase();
+    if (type === 'bold') return `<strong>${acc}</strong>`;
+    if (type === 'italic') return `<em>${acc}</em>`;
+    if (type === 'underline') return `<u>${acc}</u>`;
+    if (type === 'strike') return `<s>${acc}</s>`;
+    if (type === 'superscript') return `<sup>${acc}</sup>`;
+    if (type === 'subscript') return `<sub>${acc}</sub>`;
+    return acc;
+  }, html);
+};
+
+const renderProseMirrorContentForDocx = (content) =>
+  Array.isArray(content) ? content.map(renderProseMirrorNodeForDocx).join('') : '';
+
+const renderProseMirrorNodeForDocx = (node) => {
+  if (!node || typeof node !== 'object') return '';
+  const type = String(node.type || '');
+  const children = renderProseMirrorContentForDocx(node.content);
+
+  if (type === 'doc') return children;
+  if (type === 'text') return renderProseMirrorMarksForDocx(escapeRichHtml(node.text ?? ''), node.marks);
+  if (type === 'hardBreak') return '<br/>';
+  if (type === 'paragraph') return `<p>${children}</p>`;
+  if (type === 'heading') return `<p><strong>${children}</strong></p>`;
+  if (type === 'bulletList') return `<ul>${children}</ul>`;
+  if (type === 'orderedList') return `<ol>${children}</ol>`;
+  if (type === 'listItem') return `<li>${children}</li>`;
+  if (type === 'blockquote') return `<blockquote>${children}</blockquote>`;
+  if (type === 'inlineMath') {
+    const latex = String(node.attrs?.latex ?? '').trim();
+    if (!latex) return '';
+    const escapedLatex = escapeRichHtmlAttribute(latex);
+    return `<span data-inline-math="true" data-latex="${escapedLatex}">\\(${escapedLatex}\\)</span>`;
+  }
+  if (type === 'image') {
+    const src = escapeRichHtmlAttribute(node.attrs?.src ?? '');
+    if (!src) return '';
+    const alt = escapeRichHtmlAttribute(node.attrs?.alt ?? '');
+    return `<img src="${src}" alt="${alt}" />`;
+  }
+  if (type === 'table') return `<table>${children}</table>`;
+  if (type === 'tableRow') return `<tr>${children}</tr>`;
+  if (type === 'tableCell') return `<td>${children}</td>`;
+  if (type === 'tableHeader') return `<th>${children}</th>`;
+
+  return children;
+};
+
 const extractRichHtmlString = (value) => {
   if (!value) return '';
   if (typeof value === 'string') return String(value);
-  if (typeof value === 'object') return String(value.html ?? value.text ?? '');
+  if (typeof value === 'object') {
+    const jsonHtml = renderProseMirrorNodeForDocx(value.json);
+    if (jsonHtml) return jsonHtml;
+    if ('html' in value) return String(value.html ?? '');
+    if ('text' in value) return extractRichHtmlString(value.text);
+  }
   return '';
 };
 
@@ -2406,7 +2491,7 @@ const LATEX_SYMBOL_MAP = {
 };
 
 const latexToMathComponents = (latexInput) => {
-  const input = String(latexInput || '').trim();
+  const input = normalizeLatexForMathInput(latexInput);
   if (!input) return [];
 
   let index = 0;
@@ -2660,6 +2745,50 @@ const htmlToDocxRuns = (html, styles = {}) => {
     const normalized = normalizeLatexForDocx(text);
     if (!normalized) return;
     const fractionRegex = /\(\s*\d+(?:\.\d+)?\s*\)\s*\/\s*\(\s*\d+(?:\.\d+)?\s*\)/g;
+    const plainMathTokenRegex = /(?:\\sqrt\s*\{[^{}]+\}|\\sqrt\s*\([^()]+\)|√\s*(?:\{[^{}]+\}|\([^()]+\)|[A-Za-z0-9]+)|[A-Za-z0-9]+(?:\s*(?:\^|_)\s*(?:\{[^{}]+\}|[A-Za-z0-9]+))+)/g;
+    const pushTextOrMathTokens = (value) => {
+      const sourceText = String(value || '');
+      if (!sourceText) return;
+      let tokenLastIndex = 0;
+      let foundToken = false;
+      for (const tokenMatch of sourceText.matchAll(plainMathTokenRegex)) {
+        const tokenIndex = tokenMatch.index ?? 0;
+        const token = String(tokenMatch[0] || '');
+        if (!token.trim()) continue;
+        const components = latexToMathComponents(token);
+        if (components.length === 0) continue;
+        foundToken = true;
+        if (tokenIndex > tokenLastIndex) {
+          runs.push(
+            new TextRun({
+              ...buildDocxTextRunOptions({ text: sourceText.slice(tokenLastIndex, tokenIndex), size: inherited.size }),
+              bold: Boolean(inherited.bold),
+              italics: Boolean(inherited.italics),
+              underline: inherited.underline ? {} : undefined,
+              superScript: Boolean(inherited.superScript),
+              subScript: Boolean(inherited.subScript),
+            })
+          );
+        }
+        runs.push(new DocxMath({ children: components }));
+        tokenLastIndex = tokenIndex + token.length;
+      }
+      if (!foundToken || tokenLastIndex < sourceText.length) {
+        runs.push(
+          new TextRun({
+            ...buildDocxTextRunOptions({
+              text: foundToken ? sourceText.slice(tokenLastIndex) : sourceText,
+              size: inherited.size,
+            }),
+            bold: Boolean(inherited.bold),
+            italics: Boolean(inherited.italics),
+            underline: inherited.underline ? {} : undefined,
+            superScript: Boolean(inherited.superScript),
+            subScript: Boolean(inherited.subScript),
+          })
+        );
+      }
+    };
     let lastIndex = 0;
     let foundFraction = false;
     for (const match of normalized.matchAll(fractionRegex)) {
@@ -2669,34 +2798,13 @@ const htmlToDocxRuns = (html, styles = {}) => {
       if (!fraction) continue;
       foundFraction = true;
       if (idx > lastIndex) {
-        runs.push(
-          new TextRun({
-            ...buildDocxTextRunOptions({ text: normalized.slice(lastIndex, idx), size: inherited.size }),
-            bold: Boolean(inherited.bold),
-            italics: Boolean(inherited.italics),
-            underline: inherited.underline ? {} : undefined,
-            superScript: Boolean(inherited.superScript),
-            subScript: Boolean(inherited.subScript),
-          })
-        );
+        pushTextOrMathTokens(normalized.slice(lastIndex, idx));
       }
       runs.push(fraction);
       lastIndex = idx + token.length;
     }
     if (!foundFraction || lastIndex < normalized.length) {
-      runs.push(
-        new TextRun({
-          ...buildDocxTextRunOptions({
-            text: foundFraction ? normalized.slice(lastIndex) : normalized,
-            size: inherited.size,
-          }),
-          bold: Boolean(inherited.bold),
-          italics: Boolean(inherited.italics),
-          underline: inherited.underline ? {} : undefined,
-          superScript: Boolean(inherited.superScript),
-          subScript: Boolean(inherited.subScript),
-        })
-      );
+      pushTextOrMathTokens(foundFraction ? normalized.slice(lastIndex) : normalized);
     }
   };
 
@@ -2776,6 +2884,14 @@ const htmlToDocxRuns = (html, styles = {}) => {
 
     if (tag === 'img') {
       const src = $(node).attr('src') || '';
+      const inlineLatex = $(node).attr('data-latex') || $(node).attr('latex');
+      if (inlineLatex) {
+        const components = latexToMathComponents(decodeHtmlEntitiesForDocx(inlineLatex));
+        if (components.length > 0) {
+          pushMathWithSpacing(node, new DocxMath({ children: components }));
+        }
+        return;
+      }
       const parsed = parseDataUrlImage(src);
       if (parsed) {
         runs.push(
@@ -2785,15 +2901,24 @@ const htmlToDocxRuns = (html, styles = {}) => {
             transformation: { width: 220, height: 140 },
           })
         );
-      } else {
-        const alt = decodeHtmlEntitiesForDocx($(node).attr('alt') || 'image');
-        runs.push(new TextRun(buildDocxTextRunOptions({ text: `[${alt}]` })));
       }
       return;
     }
 
     if (tag === 'span') {
       const className = String($(node).attr('class') || '').toLowerCase();
+      const inlineLatex = $(node).attr('data-latex');
+      const isInlineMath = String($(node).attr('data-inline-math') || '').toLowerCase() === 'true';
+      if (isInlineMath || inlineLatex) {
+        const latex = decodeHtmlEntitiesForDocx(inlineLatex || $(node).text() || '')
+          .replace(/^\\\(|\\\)$/g, '')
+          .trim();
+        const components = latexToMathComponents(latex);
+        if (components.length > 0) {
+          pushMathWithSpacing(node, new DocxMath({ children: components }));
+        }
+        return;
+      }
       if (className.includes('math-equation') || className.includes('math-matrix')) {
         const mathHtml = $(node).html() || $(node).text() || '';
         if (isLikelyProseMathText(mathHtml) || isSingleWordProseMathText(mathHtml)) {
@@ -3013,6 +3138,65 @@ const resolveAnswerShortText = (question) => {
   return fallback || '--';
 };
 
+const resolveMatchingAnswerText = (question) => {
+  const answer = question?.correct_answer;
+  const options = Array.isArray(question?.options) ? question.options : [];
+
+  const toLabeledMapping = (raw) => {
+    const idx = resolveOptionIndex(options, raw);
+    if (idx === undefined || !options[idx]) {
+      return String(raw ?? '').trim();
+    }
+    const mapping = extractOptionText(options[idx]);
+    const label = `(${String.fromCharCode(97 + idx)})`;
+    return mapping ? `${label} ${mapping}` : label;
+  };
+
+  if (options.length > 0) {
+    if (typeof answer === 'string' || typeof answer === 'number' || typeof answer === 'boolean') {
+      const resolved = toLabeledMapping(answer);
+      if (resolved) return resolved;
+    }
+
+    if (Array.isArray(answer) && answer.length > 0) {
+      const resolved = answer.map(toLabeledMapping).filter(Boolean).join(', ');
+      if (resolved) return resolved;
+    }
+
+    if (answer && typeof answer === 'object') {
+      const answerList = Array.isArray(answer.answer_ids)
+        ? answer.answer_ids
+        : Array.isArray(answer.answers)
+          ? answer.answers
+          : answer.answer !== undefined
+            ? [answer.answer]
+            : [];
+      const resolved = answerList.map(toLabeledMapping).filter(Boolean).join(', ');
+      if (resolved) return resolved;
+    }
+  }
+
+  return resolveAnswerText(question) || resolveAnswerShortText(question) || '--';
+};
+
+const buildMatchingAnswerBox = (question, questionIndex) =>
+  new Table({
+    width: { size: 96, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    borders: DOCX_TABLE_BORDER,
+    rows: [
+      new TableRow({
+        children: [
+          buildMatchDocxCell({
+            html: escapeDocxHtmlText(`Q${questionIndex} - ${resolveMatchingAnswerText(question)}`),
+            size: DOCX_BODY_FONT_SIZE,
+            bold: true,
+          }),
+        ],
+      }),
+    ],
+  });
+
 const resolveSolutionLines = (question) => {
   const multiline = richTextToMultilineText(question?.solution);
   if (!multiline) return [];
@@ -3114,14 +3298,14 @@ const resolveAnswerRuns = (question) => {
     if (idx === undefined || !options[idx]) return null;
     const label = `${optionLabelFromIndex(idx)}. `;
     const optionHtml = extractRichHtmlString(options[idx]?.text);
-    const optionRuns = htmlToDocxRuns(optionHtml, { size: DOCX_BODY_FONT_SIZE });
+    const optionRuns = htmlToDocxRuns(optionHtml, { size: DOCX_BODY_FONT_SIZE, bold: true });
     const optionText = extractOptionText(options[idx]);
     return [
-      new TextRun(buildDocxTextRunOptions({ text: label })),
+      new TextRun(buildDocxTextRunOptions({ text: label, bold: true })),
       ...(optionRuns.length > 0
         ? optionRuns
         : optionText
-          ? [new TextRun(buildDocxTextRunOptions({ text: optionText }))]
+          ? [new TextRun(buildDocxTextRunOptions({ text: optionText, bold: true }))]
           : []),
     ];
   };
@@ -3137,7 +3321,7 @@ const resolveAnswerRuns = (question) => {
       answer.forEach((item, index) => {
         const runs = buildOptionRuns(item);
         if (!runs) return;
-        if (index > 0) combined.push(new TextRun(buildDocxTextRunOptions({ text: ', ' })));
+        if (index > 0) combined.push(new TextRun(buildDocxTextRunOptions({ text: ', ', bold: true })));
         combined.push(...runs);
       });
       if (combined.length > 0) return [...prefixRuns, ...combined];
@@ -3156,7 +3340,7 @@ const resolveAnswerRuns = (question) => {
         answerList.forEach((item, index) => {
           const runs = buildOptionRuns(item);
           if (!runs) return;
-          if (index > 0) combined.push(new TextRun(buildDocxTextRunOptions({ text: ', ' })));
+          if (index > 0) combined.push(new TextRun(buildDocxTextRunOptions({ text: ', ', bold: true })));
           combined.push(...runs);
         });
         if (combined.length > 0) return [...prefixRuns, ...combined];
@@ -3165,7 +3349,22 @@ const resolveAnswerRuns = (question) => {
   }
 
   const fallback = resolveAnswerText(question);
-  return [...prefixRuns, new TextRun(buildDocxTextRunOptions({ text: fallback || '--' }))];
+  return [...prefixRuns, new TextRun(buildDocxTextRunOptions({ text: fallback || '--', bold: true }))];
+};
+
+const buildSolutionPlainLineRuns = (line) => {
+  const source = String(line || '--');
+  const stepMatch = source.match(/^(Step\s*\d+\s*[.:]?)(\s*)([\s\S]*)$/i);
+  if (!stepMatch) {
+    return [new TextRun(buildDocxTextRunOptions({ text: source }))];
+  }
+
+  const [, label, gap, explanation] = stepMatch;
+  return [
+    new TextRun(buildDocxTextRunOptions({ text: label, bold: true })),
+    new TextRun(buildDocxTextRunOptions({ text: gap || ' ' })),
+    new TextRun(buildDocxTextRunOptions({ text: explanation || '' })),
+  ];
 };
 
 const sanitizeFilenamePart = (value) =>
@@ -3437,11 +3636,21 @@ const DOCX_CELL_MARGINS = Object.freeze({
 });
 
 const DOCX_FONT_FAMILY = 'Times New Roman';
-const DOCX_BODY_FONT_SIZE = 24;
-const DOCX_QUESTION_AFTER = 160;
-const DOCX_OPTION_AFTER = 160;
-const DOCX_ANSWER_AFTER = 180;
-const DOCX_SOLUTION_LINE_AFTER = 160;
+const DOCX_MATH_FONT_FAMILY = 'Cambria Math';
+const DOCX_BODY_FONT_SIZE = 22;
+const DOCX_LINE_SPACING = 276;
+const DOCX_PARAGRAPH_SPACING = Object.freeze({ before: 0, after: 0, line: DOCX_LINE_SPACING, lineRule: 'auto' });
+const DOCX_QUESTION_AFTER = 120;
+const DOCX_OPTION_AFTER = 120;
+const DOCX_ANSWER_AFTER = 120;
+const DOCX_SOLUTION_LINE_AFTER = 120;
+const DOCX_QUESTION_INDENT = Object.freeze({ left: 360, hanging: 360 });
+const DOCX_MATCH_CELL_SPACING = Object.freeze({
+  before: 0,
+  after: 60,
+  line: DOCX_LINE_SPACING,
+  lineRule: 'auto',
+});
 
 const buildDocxTextRunOptions = ({ text = '', bold = false, italics = false, size = DOCX_BODY_FONT_SIZE } = {}) => ({
   text: String(text || ''),
@@ -3453,9 +3662,14 @@ const buildDocxTextRunOptions = ({ text = '', bold = false, italics = false, siz
 
 const buildDocxSectionProperties = ({ columns = 1, type = undefined } = {}) => ({
   page: {
+    size: {
+      width: 11906,
+      height: 16838,
+      orientation: PageOrientation.PORTRAIT,
+    },
     margin: {
-      top: 720,
-      right: 720,
+      top: 750,
+      right: 660,
       bottom: 720,
       left: 720,
       header: 220,
@@ -3467,7 +3681,7 @@ const buildDocxSectionProperties = ({ columns = 1, type = undefined } = {}) => (
   column: columns > 1
     ? {
       count: columns,
-      space: 520,
+      space: 230,
       equalWidth: true,
       sep: true,
     }
@@ -3493,7 +3707,7 @@ const getExamMaxMarks = (preview) => {
 const buildDocxTextParagraph = (text, options = {}) =>
   new Paragraph({
     ...(options.alignment ? { alignment: options.alignment } : {}),
-    ...(options.spacing ? { spacing: options.spacing } : {}),
+    spacing: options.spacing || DOCX_PARAGRAPH_SPACING,
     ...(options.indent ? { indent: options.indent } : {}),
     children: [
       new TextRun(
@@ -3511,7 +3725,7 @@ const buildDocxCell = ({
   text = '',
   children = null,
   bold = false,
-  size = 20,
+  size = DOCX_BODY_FONT_SIZE,
   alignment = AlignmentType.CENTER,
   widthPct = null,
   columnSpan = undefined,
@@ -3522,7 +3736,7 @@ const buildDocxCell = ({
       [
         new Paragraph({
           alignment,
-          spacing: { after: 0, before: 0 },
+          spacing: DOCX_PARAGRAPH_SPACING,
           children: [new TextRun(buildDocxTextRunOptions({ text, bold, size }))],
         }),
       ],
@@ -3727,15 +3941,23 @@ const buildComprehensionPassageParagraphs = (question) => {
   ];
 };
 
-const buildRichDocxCell = ({ html = '', bold = false, size = 18, alignment = AlignmentType.LEFT } = {}) => {
+const buildRichDocxCell = ({
+  html = '',
+  bold = false,
+  size = 18,
+  alignment = AlignmentType.LEFT,
+  spacing = DOCX_PARAGRAPH_SPACING,
+  widthPct = null,
+} = {}) => {
   const runs = htmlToDocxRuns(html, { size, bold });
   const fallback = stripHtmlToText(html);
   return buildDocxCell({
     alignment,
+    widthPct,
     children: [
       new Paragraph({
         alignment,
-        spacing: { after: 0, before: 0 },
+        spacing,
         children:
           runs.length > 0
             ? runs
@@ -3745,23 +3967,40 @@ const buildRichDocxCell = ({ html = '', bold = false, size = 18, alignment = Ali
   });
 };
 
+const buildMatchDocxCell = (options = {}) =>
+  buildRichDocxCell({
+    ...options,
+    spacing: DOCX_MATCH_CELL_SPACING,
+  });
+
+const normalizeMatchHeaderForDocx = (value, fallback) => {
+  const text = stripHtmlToText(value).replace(/\s+/g, ' ').trim();
+  if (/^column\s*(?:-|–|—)?\s*(?:i|a)\b/i.test(text)) return 'Column-I';
+  if (/^column\s*(?:-|–|—)?\s*(?:ii|b)\b/i.test(text)) return 'Column-II';
+  return value || fallback;
+};
+
 const buildMatchFollowingTable = (question, tableMeta = {}) => {
   if (Array.isArray(tableMeta.rows) && tableMeta.rows.length > 0) {
-    const headers = Array.isArray(tableMeta.headers) && tableMeta.headers.length >= 2
+    const rawHeaders = Array.isArray(tableMeta.headers) && tableMeta.headers.length >= 2
       ? tableMeta.headers
-      : ['Column A', 'Column B'];
+      : ['Column-I', 'Column-II'];
+    const headers = [
+      normalizeMatchHeaderForDocx(rawHeaders[0], 'Column-I'),
+      normalizeMatchHeaderForDocx(rawHeaders[1], 'Column-II'),
+    ];
     const rows = [
       new TableRow({
         children: [
-          buildRichDocxCell({ html: headers[0], bold: true, size: 20, alignment: AlignmentType.CENTER }),
-          buildRichDocxCell({ html: headers[1], bold: true, size: 20, alignment: AlignmentType.CENTER }),
+          buildMatchDocxCell({ html: headers[0], bold: true, size: DOCX_BODY_FONT_SIZE, alignment: AlignmentType.CENTER, widthPct: 50 }),
+          buildMatchDocxCell({ html: headers[1], bold: true, size: DOCX_BODY_FONT_SIZE, alignment: AlignmentType.CENTER, widthPct: 50 }),
         ],
       }),
       ...tableMeta.rows.map((row) =>
         new TableRow({
           children: [
-            buildRichDocxCell({ html: row?.[0] || '--', size: 18 }),
-            buildRichDocxCell({ html: row?.[1] || '--', size: 18 }),
+            buildMatchDocxCell({ html: row?.[0] || '--', size: DOCX_BODY_FONT_SIZE, widthPct: 50 }),
+            buildMatchDocxCell({ html: row?.[1] || '--', size: DOCX_BODY_FONT_SIZE, widthPct: 50 }),
           ],
         })
       ),
@@ -3771,7 +4010,6 @@ const buildMatchFollowingTable = (question, tableMeta = {}) => {
       width: { size: 96, type: WidthType.PERCENTAGE },
       layout: TableLayoutType.FIXED,
       borders: DOCX_TABLE_BORDER,
-      columnWidths: [5000, 5000],
       rows,
     });
   }
@@ -3785,17 +4023,19 @@ const buildMatchFollowingTable = (question, tableMeta = {}) => {
   const rows = [
     new TableRow({
       children: [
-        buildRichDocxCell({
-          html: tableMeta.headers?.[0] || 'Column A',
+        buildMatchDocxCell({
+          html: normalizeMatchHeaderForDocx(tableMeta.headers?.[0], 'Column-I'),
           bold: true,
-          size: 20,
+          size: DOCX_BODY_FONT_SIZE,
           alignment: AlignmentType.CENTER,
+          widthPct: 50,
         }),
-        buildRichDocxCell({
-          html: tableMeta.headers?.[1] || 'Column B',
+        buildMatchDocxCell({
+          html: normalizeMatchHeaderForDocx(tableMeta.headers?.[1], 'Column-II'),
           bold: true,
-          size: 20,
+          size: DOCX_BODY_FONT_SIZE,
           alignment: AlignmentType.CENTER,
+          widthPct: 50,
         }),
       ],
     }),
@@ -3816,8 +4056,8 @@ const buildMatchFollowingTable = (question, tableMeta = {}) => {
     rows.push(
       new TableRow({
         children: [
-          buildRichDocxCell({ html: leftLabel || '--', size: 18 }),
-          buildRichDocxCell({ html: rightLabel || '--', size: 18 }),
+          buildMatchDocxCell({ html: leftLabel || '--', size: DOCX_BODY_FONT_SIZE, widthPct: 50 }),
+          buildMatchDocxCell({ html: rightLabel || '--', size: DOCX_BODY_FONT_SIZE, widthPct: 50 }),
         ],
       })
     );
@@ -3827,9 +4067,33 @@ const buildMatchFollowingTable = (question, tableMeta = {}) => {
     width: { size: 96, type: WidthType.PERCENTAGE },
     layout: TableLayoutType.FIXED,
     borders: DOCX_TABLE_BORDER,
-    columnWidths: [5000, 5000],
     rows,
   });
+};
+
+const buildMatchOptionBoxes = (question) => {
+  const options = Array.isArray(question?.options) ? question.options : [];
+  if (options.length === 0) return [];
+
+  return options
+    .map((option, optionIndex) => {
+      const optionHtml = extractRichHtmlString(option?.text);
+      const optionRuns = htmlToDocxRuns(optionHtml, { size: DOCX_BODY_FONT_SIZE });
+      const optionText = extractOptionText(option);
+      if (!optionText && optionRuns.length === 0) return null;
+
+      return new Paragraph({
+        spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_OPTION_AFTER },
+        indent: { left: 220, hanging: 120 },
+        children: [
+          new TextRun(buildDocxTextRunOptions({ text: `(${String.fromCharCode(97 + optionIndex)}) ` })),
+          ...(optionRuns.length > 0
+            ? optionRuns
+            : [new TextRun(buildDocxTextRunOptions({ text: optionText }))]),
+        ],
+      });
+    })
+    .filter(Boolean);
 };
 
 const buildDocxTableFromHtml = (html) => {
@@ -3854,6 +4118,7 @@ const buildDocxTableFromHtml = (html) => {
         columnSpan: Number.parseInt($(cellEl).attr('colspan') || '1', 10),
         children: [
           new Paragraph({
+            spacing: DOCX_MATCH_CELL_SPACING,
             children: cellRuns.length
               ? cellRuns
               : [new TextRun(buildDocxTextRunOptions({ text: '', bold: isHeader }))],
@@ -3870,7 +4135,7 @@ const buildDocxTableFromHtml = (html) => {
     while (paddedCells.length < maxColumnCount) {
       paddedCells.push({
         columnSpan: null,
-        children: [new Paragraph({ children: [new TextRun('')] })],
+        children: [new Paragraph({ spacing: DOCX_MATCH_CELL_SPACING, children: [new TextRun('')] })],
       });
     }
 
@@ -3882,6 +4147,8 @@ const buildDocxTableFromHtml = (html) => {
             columnSpan:
               Number.isFinite(cell.columnSpan) && cell.columnSpan > 1 ? cell.columnSpan : undefined,
             width: { size: Math.floor(100 / Math.max(maxColumnCount, 1)), type: WidthType.PERCENTAGE },
+            margins: DOCX_CELL_MARGINS,
+            verticalAlign: 'center',
             children: cell.children,
           })
         ),
@@ -3901,6 +4168,7 @@ const buildDocxTableFromHtml = (html) => {
 
 const buildMatchFollowingBlocks = (question) => {
   const structuredTable = buildMatchFollowingTable(question);
+  const optionBoxes = buildMatchOptionBoxes(question);
   const sourceQuestionHtml = extractRichHtmlString(question?.question_text);
   const htmlTable = structuredTable ? null : buildDocxTableFromHtml(sourceQuestionHtml);
   const plainMatch = structuredTable || htmlTable ? null : normalizePlainMatchFollowing(question);
@@ -3950,34 +4218,34 @@ const buildMatchFollowingBlocks = (question) => {
   if (plainMatch) {
     return {
       questionParagraphs: stemParagraphs,
-      optionTable: buildMatchFollowingTable(question, plainMatch.tableMeta),
+      optionTables: [buildMatchFollowingTable(question, plainMatch.tableMeta), ...optionBoxes].filter(Boolean),
     };
   }
 
   if (structuredTable) {
     return {
       questionParagraphs: stemParagraphs,
-      optionTable: structuredTable,
+      optionTables: [structuredTable, ...optionBoxes].filter(Boolean),
     };
   }
 
   if (htmlTable) {
     return {
       questionParagraphs: stemParagraphs,
-      optionTable: htmlTable,
+      optionTables: [htmlTable, ...optionBoxes].filter(Boolean),
     };
   }
 
   if (fallbackMatch) {
     return {
       questionParagraphs: stemParagraphs,
-      optionTable: fallbackMatch.table,
+      optionTables: [fallbackMatch.table, ...optionBoxes].filter(Boolean),
     };
   }
 
   return {
     questionParagraphs: [],
-    optionTable: buildPlainMatchFollowingTable(question),
+    optionTables: [buildPlainMatchFollowingTable(question), ...optionBoxes].filter(Boolean),
   };
 };
 
@@ -4047,8 +4315,8 @@ const buildFallbackMatchFollowing = (question) => {
     rows: [
       new TableRow({
         children: [
-          buildRichDocxCell({
-            html: 'Matching Content',
+          buildMatchDocxCell({
+            html: 'Column I / Column II',
             bold: true,
             size: 20,
             alignment: AlignmentType.CENTER,
@@ -4057,9 +4325,9 @@ const buildFallbackMatchFollowing = (question) => {
       }),
       new TableRow({
         children: [
-          buildRichDocxCell({
+          buildMatchDocxCell({
             html: escapeDocxHtmlText(text),
-            size: 18,
+            size: DOCX_BODY_FONT_SIZE,
           }),
         ],
       }),
@@ -4086,7 +4354,7 @@ const splitPlainMatchEntries = (value, labelPattern) => {
 };
 
 const formatMatchLabel = (raw) => {
-  const label = String(raw || '').trim();
+  const label = String(raw || '').replace(/\s+/g, '').trim();
   if (!label) return '';
   return /^[A-Z][.)]$/.test(label) || /^\d+[.)]$/.test(label) || /^\([A-Z0-9]+\)$/.test(label)
     ? label
@@ -4099,6 +4367,80 @@ const getMatchLabelKind = (raw) => {
   if (/^\(?[P-Z]\)?[.)]?$/.test(value)) return 'letter-p';
   if (/^\([A-Z]\)$/.test(value) || /^[A-Z][.)]$/.test(value)) return 'letter';
   return 'unknown';
+};
+
+const buildCompactMatchLabelRegex = (label) => {
+  const escaped = String(label || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return /^[0-9]$/.test(escaped)
+    ? new RegExp(`(?:\\(${escaped}\\)|(?<![0-9(])${escaped}\\s*[.)])`)
+    : new RegExp(`(?:\\(${escaped}\\)|${escaped}\\s*[.)])`);
+};
+
+const findCompactMatchLabel = (source, label, startIndex = 0) => {
+  const segment = String(source || '').slice(startIndex);
+  const match = segment.match(buildCompactMatchLabelRegex(label));
+  if (!match || match.index === undefined) return null;
+  const index = startIndex + match.index;
+  return {
+    index,
+    end: index + match[0].length,
+    raw: match[0],
+  };
+};
+
+const trimCompactMatchOptionChoices = (value) => {
+  const source = String(value || '');
+  const optionStart = source.search(/\s\([a-d]\)\s*(?:[A-ZP-S]\s*(?:[-–—→]|to)\s*[0-9A-Z])/i);
+  return optionStart > 0 ? source.slice(0, optionStart) : source;
+};
+
+const parseSequentialCompactMatchRows = (source, leftLabels, rightLabels) => {
+  const text = trimCompactMatchOptionChoices(source).replace(/\s+/g, ' ').trim();
+  const rows = [];
+  let cursor = 0;
+
+  for (let index = 0; index < leftLabels.length; index += 1) {
+    const leftMatch = findCompactMatchLabel(text, leftLabels[index], cursor);
+    if (!leftMatch) break;
+
+    const rightMatch = findCompactMatchLabel(text, rightLabels[index], leftMatch.end);
+    if (!rightMatch) return null;
+
+    const nextLeftMatch = leftLabels[index + 1]
+      ? findCompactMatchLabel(text, leftLabels[index + 1], rightMatch.end)
+      : null;
+    const rowEnd = nextLeftMatch?.index ?? text.length;
+    const leftBody = text.slice(leftMatch.end, rightMatch.index).replace(/^[:\s-]+/, '').trim();
+    const rightBody = text.slice(rightMatch.end, rowEnd).replace(/^[:\s-]+/, '').trim();
+
+    if (!leftBody || !rightBody) return null;
+    rows.push([
+      `${formatMatchLabel(leftMatch.raw)} ${leftBody}`.trim(),
+      `${formatMatchLabel(rightMatch.raw)} ${rightBody}`.trim(),
+    ]);
+    cursor = rowEnd;
+  }
+
+  return rows.length >= 2 ? rows : null;
+};
+
+const parseCompactMatchRows = (source) => {
+  const patterns = [
+    {
+      headers: ['Column I', 'Column II'],
+      rows: parseSequentialCompactMatchRows(source, ['A', 'B', 'C', 'D'], ['P', 'Q', 'R', 'S']),
+    },
+    {
+      headers: ['Column I', 'Column II'],
+      rows: parseSequentialCompactMatchRows(source, ['A', 'B', 'C', 'D'], ['1', '2', '3', '4']),
+    },
+    {
+      headers: ['Column I', 'Column II'],
+      rows: parseSequentialCompactMatchRows(source, ['P', 'Q', 'R', 'S'], ['1', '2', '3', '4']),
+    },
+  ];
+
+  return patterns.find((pattern) => Array.isArray(pattern.rows) && pattern.rows.length >= 2) || null;
 };
 
 const parseParenthesizedLetterMatchColumns = (value) => {
@@ -4132,6 +4474,8 @@ const parseInlineMatchColumns = (value) => {
   const source = String(value || '').replace(/\s+/g, ' ').trim();
   const parenthesizedLetterRows = parseParenthesizedLetterMatchColumns(source);
   if (parenthesizedLetterRows) return parenthesizedLetterRows;
+  const compactRows = parseCompactMatchRows(source)?.rows;
+  if (compactRows) return compactRows;
 
   const tokens = Array.from(source.matchAll(/(\([A-Z]\)|\([1-9]\)(?=\s+)|[A-Z][.)]|(?<!\()[1-9][.)](?!\d))\s*/g))
     .map((match) => ({
@@ -4173,14 +4517,25 @@ const parseInlineMatchColumns = (value) => {
 
 const normalizePlainMatchFollowing = (question) => {
   const sections = getPlainMatchSections(question);
-  if (!sections) return null;
-  const { prompt, source, headers } = sections;
+  const fullText = stripHtmlToText(question?.question_text);
+  const { prompt = '', source = fullText, headers = ['Column I', 'Column II'] } = sections || {};
 
   const inlineRows = parseInlineMatchColumns(source);
   if (inlineRows) {
     return {
       promptHtml: escapeDocxHtmlText(prompt),
       tableMeta: { headers, rows: inlineRows.map((row) => row.map(escapeDocxHtmlText)) },
+    };
+  }
+
+  const compactMatch = parseCompactMatchRows(fullText);
+  if (compactMatch) {
+    return {
+      promptHtml: escapeDocxHtmlText(prompt || 'Match the following:'),
+      tableMeta: {
+        headers: sections?.headers || compactMatch.headers,
+        rows: compactMatch.rows.map((row) => row.map(escapeDocxHtmlText)),
+      },
     };
   }
 
@@ -4260,12 +4615,13 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
       const isMatchFollowing = isLikelyMatchFollowingQuestion(question);
 
       if (isMatchFollowing) {
-        const { questionParagraphs, optionTable } = buildMatchFollowingBlocks(question);
+        const { questionParagraphs, optionTables } = buildMatchFollowingBlocks(question);
         if (questionParagraphs.length > 0) {
           const [firstParagraph, ...restParagraphs] = questionParagraphs;
           children.push(
             new Paragraph({
-              spacing: firstParagraph.spacing,
+              spacing: { ...firstParagraph.spacing, after: DOCX_QUESTION_AFTER },
+              indent: DOCX_QUESTION_INDENT,
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
                 ...firstParagraph.runs,
@@ -4277,7 +4633,7 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
               ...restParagraphs.map(
                 (paragraph) =>
                   new Paragraph({
-                    spacing: paragraph.spacing,
+                    spacing: paragraph.spacing || DOCX_PARAGRAPH_SPACING,
                     children: paragraph.runs,
                   })
               )
@@ -4289,7 +4645,8 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
           const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
           children.push(
             new Paragraph({
-              spacing: { after: DOCX_QUESTION_AFTER },
+              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
+              indent: DOCX_QUESTION_INDENT,
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
                 ...(questionRuns.length > 0
@@ -4299,8 +4656,8 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
             })
           );
         }
-        if (optionTable) {
-          children.push(optionTable);
+        if (optionTables.length > 0) {
+          children.push(...optionTables);
         }
       } else {
         const questionHtml = normalizeQuestionPromptHtmlForDocx(extractRichHtmlString(question?.question_text));
@@ -4308,7 +4665,8 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
         const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
         children.push(
           new Paragraph({
-            spacing: { after: DOCX_QUESTION_AFTER },
+            spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
+            indent: DOCX_QUESTION_INDENT,
             children: [
               new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
               ...(questionRuns.length > 0
@@ -4319,7 +4677,7 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
         );
       }
 
-      if (Array.isArray(question?.options) && question.options.length > 0) {
+      if (!isMatchFollowing && Array.isArray(question?.options) && question.options.length > 0) {
         question.options.forEach((option, optionIndex) => {
           const optionPrefix = String.fromCharCode(97 + optionIndex);
           const optionHtml = extractRichHtmlString(option?.text);
@@ -4328,7 +4686,7 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
           if (!optionText && optionRuns.length === 0) return;
           children.push(
             new Paragraph({
-              spacing: { after: DOCX_OPTION_AFTER },
+              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_OPTION_AFTER },
               indent: { left: 220, hanging: 120 },
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `(${optionPrefix}) ` })),
@@ -4357,13 +4715,19 @@ const buildAnswerParagraphsForSection = (section, startingQuestionIndex) => {
     if (!Array.isArray(questions) || questions.length === 0) continue;
 
     for (const question of questions) {
+      if (isLikelyMatchFollowingQuestion(question)) {
+        children.push(buildMatchingAnswerBox(question, runningQuestionIndex));
+        runningQuestionIndex += 1;
+        continue;
+      }
+
       const answerText = resolveAnswerShortText(question) || '--';
       children.push(
         new Paragraph({
-          spacing: { after: DOCX_ANSWER_AFTER },
+          spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_ANSWER_AFTER },
           children: [
             new TextRun(buildDocxTextRunOptions({ text: `Q${runningQuestionIndex} - `, bold: true })),
-            new TextRun(buildDocxTextRunOptions({ text: answerText })),
+            new TextRun(buildDocxTextRunOptions({ text: answerText, bold: true })),
           ],
         })
       );
@@ -4395,12 +4759,13 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
       const isMatchFollowing = isLikelyMatchFollowingQuestion(question);
 
       if (isMatchFollowing) {
-        const { questionParagraphs, optionTable } = buildMatchFollowingBlocks(question);
+        const { questionParagraphs, optionTables } = buildMatchFollowingBlocks(question);
         if (questionParagraphs.length > 0) {
           const [firstParagraph, ...restParagraphs] = questionParagraphs;
           children.push(
             new Paragraph({
-              spacing: firstParagraph.spacing,
+              spacing: { ...firstParagraph.spacing, after: DOCX_QUESTION_AFTER },
+              indent: DOCX_QUESTION_INDENT,
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
                 ...firstParagraph.runs,
@@ -4412,7 +4777,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
               ...restParagraphs.map(
                 (paragraph) =>
                   new Paragraph({
-                    spacing: paragraph.spacing,
+                    spacing: paragraph.spacing || DOCX_PARAGRAPH_SPACING,
                     children: paragraph.runs,
                   })
               )
@@ -4424,7 +4789,8 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
           children.push(
             new Paragraph({
-              spacing: { after: DOCX_QUESTION_AFTER },
+              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
+              indent: DOCX_QUESTION_INDENT,
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
                 ...(questionRuns.length > 0
@@ -4434,8 +4800,8 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
             })
           );
         }
-        if (optionTable) {
-          children.push(optionTable);
+        if (optionTables.length > 0) {
+          children.push(...optionTables);
         }
       } else {
         const questionHtml = normalizeQuestionPromptHtmlForDocx(extractRichHtmlString(question?.question_text));
@@ -4443,7 +4809,8 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
         const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
         children.push(
           new Paragraph({
-            spacing: { after: DOCX_QUESTION_AFTER },
+            spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
+            indent: DOCX_QUESTION_INDENT,
             children: [
               new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
               ...(questionRuns.length > 0
@@ -4454,7 +4821,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
         );
       }
 
-      if (Array.isArray(question?.options) && question.options.length > 0) {
+      if (!isMatchFollowing && Array.isArray(question?.options) && question.options.length > 0) {
         question.options.forEach((option, optionIndex) => {
           const optionPrefix = String.fromCharCode(97 + optionIndex);
           const optionHtml = extractRichHtmlString(option?.text);
@@ -4463,7 +4830,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           if (!optionText && optionRuns.length === 0) return;
           children.push(
             new Paragraph({
-              spacing: { after: DOCX_OPTION_AFTER },
+              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_OPTION_AFTER },
               indent: { left: 220, hanging: 120 },
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `(${optionPrefix}) ` })),
@@ -4475,7 +4842,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
       }
       children.push(
         new Paragraph({
-          spacing: { after: DOCX_ANSWER_AFTER },
+          spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_ANSWER_AFTER },
           indent: { left: 220 },
           children: resolveAnswerRuns(question),
         })
@@ -4489,7 +4856,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           const lineRuns = htmlToDocxRuns(line, { size: DOCX_BODY_FONT_SIZE });
           children.push(
             new Paragraph({
-              spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_SOLUTION_LINE_AFTER },
               indent: { left: 220 },
               children: [
                 ...(lineIndex === 0
@@ -4506,13 +4873,13 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
         solutionLines.forEach((line, lineIndex) => {
           children.push(
             new Paragraph({
-              spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_SOLUTION_LINE_AFTER },
               indent: { left: 220 },
               children: [
                 ...(lineIndex === 0
                   ? [new TextRun(buildDocxTextRunOptions({ text: 'Solution: ', bold: true }))]
                   : []),
-                new TextRun(buildDocxTextRunOptions({ text: line || '--' })),
+                ...buildSolutionPlainLineRuns(line),
               ],
             })
           );
@@ -4520,7 +4887,7 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
       } else {
         children.push(
           new Paragraph({
-            spacing: { after: DOCX_SOLUTION_LINE_AFTER },
+            spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_SOLUTION_LINE_AFTER },
             indent: { left: 220 },
             children: [
               new TextRun(buildDocxTextRunOptions({ text: 'Solution: ', bold: true })),
@@ -4569,6 +4936,12 @@ const normalizeExamDocxXml = (xml) => {
       return `<w:cols${attrs} w:sep="1">`;
     }
   );
+
+  const mathRunProperties =
+    `<w:rPr><w:rFonts w:ascii="${DOCX_MATH_FONT_FAMILY}" w:hAnsi="${DOCX_MATH_FONT_FAMILY}" w:cs="${DOCX_MATH_FONT_FAMILY}"/>` +
+    `<w:sz w:val="${DOCX_BODY_FONT_SIZE}"/><w:szCs w:val="${DOCX_BODY_FONT_SIZE}"/></w:rPr>`;
+
+  normalized = normalized.replace(/<m:r>(?!<w:rPr>)/g, `<m:r>${mathRunProperties}`);
 
   return normalized;
 };
