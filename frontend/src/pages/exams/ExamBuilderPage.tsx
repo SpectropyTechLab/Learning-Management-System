@@ -362,6 +362,47 @@ const filterTopicsBySelectedIds = (topics: CurriculumOption[], selectedTopicIds:
   return topics.filter((topic) => selectedIds.has(String(topic.id)));
 };
 
+const buildSyllabusRequestKey = (subjectId: string, chapterIds: string[]) =>
+  `${subjectId || "none"}::${[...chapterIds].sort().join(",")}`;
+
+const buildFallbackSubjectOptions = (section: ExamBuilderSection): CurriculumOption[] =>
+  section.selected_subject_id && section.selected_subject_name
+    ? [
+        {
+          id: Number(section.selected_subject_id),
+          name: section.selected_subject_name,
+        },
+      ]
+    : [];
+
+const buildFallbackChapterOptions = (section: ExamBuilderSection): CurriculumOption[] =>
+  Array.isArray(section.chapters)
+    ? section.chapters.map((chapter) => ({
+        id: Number(chapter.id),
+        name: chapter.name,
+        chapter_number: chapter.chapter_number ?? null,
+      }))
+    : [];
+
+const buildFallbackTopicOptions = (
+  section: ExamBuilderSection,
+  selectedChapterIds: string[]
+): CurriculumOption[] =>
+  Array.isArray(section.topics)
+    ? section.topics
+        .filter(
+          (topic) =>
+            selectedChapterIds.length === 0 ||
+            selectedChapterIds.includes(String(topic.chapter_id ?? ""))
+        )
+        .map((topic) => ({
+          id: Number(topic.id),
+          name: topic.name,
+          chapter_id: topic.chapter_id ?? null,
+          topic_number: topic.topic_number ?? null,
+        }))
+    : [];
+
 const calculateAllocationTotals = (rows: TopicAllocationRow[]): AllocationTotals =>
   rows.reduce(
     (totals: AllocationTotals, row: TopicAllocationRow) => ({
@@ -1210,6 +1251,9 @@ export default function ExamBuilderPage() {
   const [activeSectionId, setActiveSectionId] = useState<number | null>(null);
   const [picker, setPicker] = useState<PickerState>(createDefaultPickerState);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const syllabusLoadInFlightRef = useRef<Record<number, string>>({});
+  const syllabusLoadResolvedRef = useRef<Record<number, string>>({});
+  const syllabusLoadFailedRef = useRef<Record<number, string>>({});
 
   const deferredPickerSearch = useDeferredValue(picker.search);
 
@@ -1276,10 +1320,9 @@ export default function ExamBuilderPage() {
           current.selectedChapterIds.length > 0
             ? current.selectedChapterIds
             : (section.chapter_ids ?? []).map(String);
-        const initialTopics = (section.topics ?? []).filter(
-          (topic) =>
-            selectedChapterIds.length === 0 || selectedChapterIds.includes(String(topic.chapter_id ?? ""))
-        );
+        const fallbackSubjects = buildFallbackSubjectOptions(section);
+        const fallbackChapters = buildFallbackChapterOptions(section);
+        const initialTopics = buildFallbackTopicOptions(section, selectedChapterIds);
         const selectedTopicIds =
           current.selectedTopicIds.length > 0
             ? current.selectedTopicIds
@@ -1292,6 +1335,9 @@ export default function ExamBuilderPage() {
           subjectId,
           selectedChapterIds,
           selectedTopicIds,
+          subjects: current.subjects.length > 0 ? current.subjects : fallbackSubjects,
+          chapters: current.chapters.length > 0 ? current.chapters : fallbackChapters,
+          topics: current.topics.length > 0 ? current.topics : initialTopics,
           allocationRows:
             current.allocationRows.length > 0
               ? current.allocationRows
@@ -1314,6 +1360,12 @@ export default function ExamBuilderPage() {
     nextChapterIds: string[],
     preserveCounts: boolean
   ) => {
+    const requestKey = buildSyllabusRequestKey(nextSubjectId, nextChapterIds);
+    if (syllabusLoadInFlightRef.current[section.id] === requestKey) {
+      return;
+    }
+
+    syllabusLoadInFlightRef.current[section.id] = requestKey;
     setEditors((previous) => ({
       ...previous,
       [section.id]: {
@@ -1365,15 +1417,28 @@ export default function ExamBuilderPage() {
           },
         };
       });
+      syllabusLoadResolvedRef.current[section.id] = requestKey;
+      delete syllabusLoadFailedRef.current[section.id];
     } catch (err) {
+      const isInvalidSelectionError =
+        axios.isAxiosError(err) && err.response?.status === 400;
       setEditors((previous) => ({
         ...previous,
         [section.id]: {
           ...(previous[section.id] ?? createDefaultEditorState()),
+          selectedChapterIds: isInvalidSelectionError ? [] : (previous[section.id]?.selectedChapterIds ?? []),
+          selectedTopicIds: isInvalidSelectionError ? [] : (previous[section.id]?.selectedTopicIds ?? []),
+          topics: isInvalidSelectionError ? [] : (previous[section.id]?.topics ?? []),
+          allocationRows: isInvalidSelectionError ? [] : (previous[section.id]?.allocationRows ?? []),
           loadingOptions: false,
         },
       }));
+      syllabusLoadFailedRef.current[section.id] = requestKey;
       toast.error(readApiErrorMessage(err, "Failed to load syllabus options."));
+    } finally {
+      if (syllabusLoadInFlightRef.current[section.id] === requestKey) {
+        delete syllabusLoadInFlightRef.current[section.id];
+      }
     }
   }, [examId]);
 
@@ -1386,7 +1451,18 @@ export default function ExamBuilderPage() {
         ? editor.selectedChapterIds
         : (activeSection.chapter_ids ?? []).map(String);
 
-    if (editor.subjects.length === 0 && !editor.loadingOptions) {
+    const shouldLoadInitialOptions =
+      editor.grades.length === 0 ||
+      editor.subjects.length === 0 ||
+      (subjectId ? editor.chapters.length === 0 : false) ||
+      (chapterIds.length > 0 ? editor.topics.length === 0 : false);
+    const requestKey = buildSyllabusRequestKey(subjectId, chapterIds);
+    const sectionId = activeSection.id;
+    const alreadyResolved = syllabusLoadResolvedRef.current[sectionId] === requestKey;
+    const alreadyFailed = syllabusLoadFailedRef.current[sectionId] === requestKey;
+    const alreadyLoading = syllabusLoadInFlightRef.current[sectionId] === requestKey;
+
+    if (shouldLoadInitialOptions && !editor.loadingOptions && !alreadyResolved && !alreadyFailed && !alreadyLoading) {
       void loadSectionOptions(activeSection, subjectId, chapterIds, true);
     }
   }, [activeEditor, activeSection, loadSectionOptions]);
@@ -1881,7 +1957,10 @@ export default function ExamBuilderPage() {
       ? getAllocationValidation(activeEditor.allocationRows, activeSection)
       : null;
   const activeTopicsById = new Map(
-    (activeEditor?.allocationRows ?? []).map((row) => [row.topicId, row.topicName])
+    [
+      ...((activeSection?.topics ?? []).map((topic) => [String(topic.id), topic.name] as const)),
+      ...((activeEditor?.allocationRows ?? []).map((row) => [row.topicId, row.topicName] as const)),
+    ]
   );
 
   return (
