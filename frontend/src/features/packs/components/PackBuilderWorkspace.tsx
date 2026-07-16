@@ -52,6 +52,9 @@ const buildPackItemPreview = (item: CourseContentPreviewItem): PackItemPreview =
   subject: item.subject,
 });
 
+const isSelectablePackRoot = (item: CourseContentPreviewItem) =>
+  item.parent_id !== null && ['folder', 'chapter', 'topic'].includes(String(item.item_type).toLowerCase());
+
 type PendingRemoval = {
   packId: number;
   timerId: number;
@@ -59,6 +62,12 @@ type PendingRemoval = {
   packItems: PaginatedResponse<PackItemPreview> | null;
   packSummary: PackCompositionSummary | null;
   selectedPack: PackSummary | null;
+};
+
+type PackEntitlementSyncResponse = {
+  pack_id: number;
+  synced_client_ids: number[];
+  synced_client_count: number;
 };
 
 interface PackBuilderWorkspaceProps {
@@ -99,6 +108,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [attachSubmitting, setAttachSubmitting] = useState(false);
   const [importSubmitting, setImportSubmitting] = useState(false);
+  const [syncSubmitting, setSyncSubmitting] = useState(false);
   const [pendingRemoveIds, setPendingRemoveIds] = useState<number[]>([]);
   const [createCourseOpen, setCreateCourseOpen] = useState(false);
   const [createCourseSubmitting, setCreateCourseSubmitting] = useState(false);
@@ -108,7 +118,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
   const pendingRemovalRef = useRef<Map<number, PendingRemoval>>(new Map());
 
   const selectedCourseItems = useMemo(
-    () => (courseContent?.data ?? []).filter((item) => selectedItemIds.includes(item.id)),
+    () => (courseContent?.data ?? []).filter((item) => selectedItemIds.includes(item.id) && isSelectablePackRoot(item)),
     [courseContent?.data, selectedItemIds],
   );
 
@@ -357,6 +367,26 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     }
   };
 
+  const syncPackEntitlements = async () => {
+    try {
+      setSyncSubmitting(true);
+      const response = await api.post<PackEntitlementSyncResponse>(
+        `/platform/content-packs/${packId}/sync-entitlements`,
+      );
+      const syncedCount = response.data.synced_client_count;
+      toast.success(
+        syncedCount > 0
+          ? `Synced active entitlements for ${syncedCount} client${syncedCount === 1 ? '' : 's'}.`
+          : 'No active client entitlements to sync.',
+      );
+      await Promise.all([refreshSelectedPack(true), refreshPackData(packItemsPage, true)]);
+    } catch (error) {
+      toast.error(readError(error, 'Failed to sync pack entitlements.'));
+    } finally {
+      setSyncSubmitting(false);
+    }
+  };
+
   const undoRemove = async (itemId: number) => {
     const pending = pendingRemovalRef.current.get(itemId);
     if (!pending) return;
@@ -560,6 +590,13 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
             )}
             <GhostButton onClick={() => void refreshSelectedPack()} className="!rounded-full !px-4 !py-2 !text-sm">
               Refresh Pack
+            </GhostButton>
+            <GhostButton
+              onClick={() => void syncPackEntitlements()}
+              disabled={!selectedPack || syncSubmitting}
+              className="!rounded-full !px-4 !py-2 !text-sm"
+            >
+              {syncSubmitting ? 'Syncing...' : 'Sync Entitlements'}
             </GhostButton>
           </div>
         </div>

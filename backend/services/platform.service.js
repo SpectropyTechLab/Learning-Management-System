@@ -133,7 +133,7 @@ const loadPackDerivedGroups = async ({ packId, clientId }) => {
         JOIN content_items ci ON ci.id = cpi.${packItemColumn}
         WHERE cpi.pack_id = $1
       ),
-      expanded_pack_items AS (
+      descendant_items AS (
         SELECT id, course_id, parent_id, item_type
         FROM pack_roots
 
@@ -141,9 +141,19 @@ const loadPackDerivedGroups = async ({ packId, clientId }) => {
 
         SELECT child.id, child.course_id, child.parent_id, child.item_type
         FROM content_items child
-        JOIN expanded_pack_items parent
-          ON parent.id = child.parent_id
-        WHERE parent.item_type = 'folder'
+        JOIN descendant_items parent
+          ON child.parent_id = parent.id
+      ),
+      selected_pack_items AS (
+        SELECT id, course_id, parent_id, item_type
+        FROM descendant_items
+
+        UNION
+
+        SELECT parent.id, parent.course_id, parent.parent_id, parent.item_type
+        FROM content_items parent
+        JOIN selected_pack_items child
+          ON child.parent_id = parent.id
       )
       SELECT DISTINCT
         c.id AS source_course_id,
@@ -153,10 +163,10 @@ const loadPackDerivedGroups = async ({ packId, clientId }) => {
         ci.id AS item_id,
         ci.order_index,
         ci.created_at
-      FROM expanded_pack_items epi
-      JOIN content_items ci ON ci.id = epi.id
+      FROM selected_pack_items spi
+      JOIN content_items ci ON ci.id = spi.id
       JOIN courses c ON c.id = ci.course_id
-      ORDER BY c.id ASC, ci.order_index ASC, ci.created_at ASC
+      ORDER BY source_course_id ASC, ci.order_index ASC, ci.created_at ASC
     `,
     [packId]
   );
@@ -454,7 +464,7 @@ const syncDerivedCoursesForPackEntitlement = async ({ clientId, packId, userId }
 export const syncActivePackEntitlementsForClient = async ({ clientId, userId = null }) => {
   const normalizedClientId = Number(clientId);
   if (!Number.isInteger(normalizedClientId) || normalizedClientId <= 0) {
-    return;
+    return { syncedClientIds: [], syncedCount: 0 };
   }
 
   const result = await dbQuery(
@@ -479,6 +489,46 @@ export const syncActivePackEntitlementsForClient = async ({ clientId, userId = n
       userId,
     });
   }
+
+  return { syncedClientIds: [normalizedClientId], syncedCount: result.rows.length };
+};
+
+export const syncActivePackEntitlementsForPack = async ({ packId, userId = null }) => {
+  const normalizedPackId = Number(packId);
+  if (!Number.isInteger(normalizedPackId) || normalizedPackId <= 0) {
+    throw new Error('packId must be a positive integer');
+  }
+
+  const result = await dbQuery(
+    `
+      SELECT DISTINCT client_id
+      FROM content_entitlements
+      WHERE pack_id = $1
+        AND pack_id IS NOT NULL
+        AND status = 'active'
+        AND NOW() BETWEEN start_at AND end_at
+      ORDER BY client_id ASC
+    `,
+    [normalizedPackId]
+  );
+
+  const syncedClientIds = [];
+  for (const row of result.rows) {
+    const clientId = Number(row.client_id);
+    if (!Number.isInteger(clientId) || clientId <= 0) continue;
+    await syncDerivedCoursesForPackEntitlement({
+      clientId,
+      packId: normalizedPackId,
+      userId,
+    });
+    syncedClientIds.push(clientId);
+  }
+
+  return {
+    pack_id: normalizedPackId,
+    synced_client_ids: syncedClientIds,
+    synced_client_count: syncedClientIds.length,
+  };
 };
 
 // ----- Clients (Super Admin only) -----
@@ -691,6 +741,22 @@ export const removeContentPackItem = async (req, res) => {
   }
 };
 
+export const syncContentPackEntitlements = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await syncActivePackEntitlementsForPack({
+      packId: id,
+      userId: req.user?.id ?? null,
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Failed to sync content pack entitlements:', err);
+    res.status(500).json({ error: 'Failed to sync content pack entitlements' });
+  }
+};
+
 // ----- Programs (Super Admin only) -----
 export const listPrograms = async (req, res) => {
   try {
@@ -749,7 +815,9 @@ export const listEntitlements = async (req, res) => {
       LEFT JOIN clients c ON ce.client_id = c.id
       LEFT JOIN content_packs cp ON ce.pack_id = cp.id
       LEFT JOIN content_items ci ON ce.content_id = ci.id
-      ${clientId ? 'WHERE ce.client_id = $1' : ''}
+      WHERE ce.status <> 'revoked'
+        AND ce.revoked_at IS NULL
+        ${clientId ? 'AND ce.client_id = $1' : ''}
       ORDER BY ce.granted_at DESC
       `,
       clientId ? [clientId] : []

@@ -147,8 +147,8 @@ export const reorderContentItems = async (req, res) => {
             return res.status(400).json({ error: "item_ids cannot contain duplicates." });
         }
 
-        if (!["chapters", "topics", "items"].includes(reorderScope)) {
-            return res.status(400).json({ error: "reorder_scope must be one of chapters, topics, or items." });
+        if (!["chapters", "topics", "folders", "items"].includes(reorderScope)) {
+            return res.status(400).json({ error: "reorder_scope must be one of chapters, topics, folders, or items." });
         }
 
         if (parentId !== null) {

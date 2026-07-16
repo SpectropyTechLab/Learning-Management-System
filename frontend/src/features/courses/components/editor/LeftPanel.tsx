@@ -61,6 +61,7 @@ interface Props {
     onAddLicensedContent?: (parentId: number, parentLabel: string) => void;
     onReorderChapters: (newChapters: Chapter[]) => void;
     onReorderTopics: (chapterId: number, newTopics: FolderNode[]) => void;
+    onReorderFolders: (parentId: number, newFolders: FolderNode[]) => void;
     onReorderItems: (chapterId: number, newItems: CourseItem[]) => void;
     onReorderTopicItems: (topicId: number, newItems: CourseItem[]) => void;
     onUpdateFile: (item: CourseItem) => void;
@@ -89,6 +90,7 @@ const LeftPanel: React.FC<Props> = ({
     onAddLicensedContent,
     onReorderChapters,
     onReorderTopics,
+    onReorderFolders,
     onReorderItems,
     onReorderTopicItems,
     onUpdateFile,
@@ -276,6 +278,15 @@ const LeftPanel: React.FC<Props> = ({
         if (!destination) return;
         if (source.droppableId !== destination.droppableId) return;
 
+        const findFolderById = (folders: FolderNode[], targetId: number): FolderNode | null => {
+            for (const folder of folders) {
+                if (folder.id === targetId) return folder;
+                const nested = findFolderById(folder.folders, targetId);
+                if (nested) return nested;
+            }
+            return null;
+        };
+
         if (type === "CHAPTER") {
             onReorderChapters(reorderList(chapters, source.index, destination.index));
             return;
@@ -288,19 +299,24 @@ const LeftPanel: React.FC<Props> = ({
             const parentId = Number(parentIdValue);
             if (!Number.isInteger(parentId)) return;
 
-            const findFolderById = (folders: FolderNode[], targetId: number): FolderNode | null => {
-                for (const folder of folders) {
-                    if (folder.id === targetId) return folder;
-                    const nested = findFolderById(folder.folders, targetId);
-                    if (nested) return nested;
-                }
-                return null;
-            };
-
             const parentFolder = chapters.find((chapter) => chapter.id === parentId) ?? findFolderById(chapters, parentId);
             if (!parentFolder) return;
 
             onReorderTopics(parentId, reorderList(parentFolder.folders, source.index, destination.index));
+            return;
+        }
+
+        if (type.startsWith("FOLDER:")) {
+            const [scope, parentIdValue] = source.droppableId.split(":");
+            if (scope !== "folders") return;
+
+            const parentId = Number(parentIdValue);
+            if (!Number.isInteger(parentId)) return;
+
+            const parentFolder = chapters.find((chapter) => chapter.id === parentId) ?? findFolderById(chapters, parentId);
+            if (!parentFolder) return;
+
+            onReorderFolders(parentId, reorderList(parentFolder.folders, source.index, destination.index));
             return;
         }
 
@@ -310,15 +326,6 @@ const LeftPanel: React.FC<Props> = ({
 
             const parentId = Number(parentIdValue);
             if (!Number.isInteger(parentId)) return;
-
-            const findFolderById = (folders: FolderNode[], targetId: number): FolderNode | null => {
-                for (const folder of folders) {
-                    if (folder.id === targetId) return folder;
-                    const nested = findFolderById(folder.folders, targetId);
-                    if (nested) return nested;
-                }
-                return null;
-            };
 
             const parentFolder = chapters.find((chapter) => chapter.id === parentId) ?? findFolderById(chapters, parentId);
             if (!parentFolder) return;
@@ -532,13 +539,13 @@ const LeftPanel: React.FC<Props> = ({
 
                 {isExpanded && (
                     <div className={depth > 0 ? "ml-6 border-l border-gray-100 pl-2" : "px-0.5 py-0.5"}>
-                        <Droppable droppableId={`topics:${folder.id}`} type="TOPIC">
+                        <Droppable droppableId={`folders:${folder.id}`} type={`FOLDER:${folder.id}`}>
                             {(topicsProvided) => (
                                 <div ref={topicsProvided.innerRef} {...topicsProvided.droppableProps}>
                                     {folder.folders.map((childFolder, childFolderIndex) => (
                                         <Draggable
                                             key={childFolder.id}
-                                            draggableId={`topic-${childFolder.id}`}
+                                            draggableId={`folder-${childFolder.id}`}
                                             index={childFolderIndex}
                                         >
                                             {(topicProvided) => (

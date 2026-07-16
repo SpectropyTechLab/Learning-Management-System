@@ -201,7 +201,39 @@ const loadPackCompositionRows = async (packId, itemColumn) => {
 
   const result = await dbQuery(
     `
-      SELECT
+      WITH RECURSIVE pack_roots AS (
+        SELECT
+          ci.id,
+          ci.course_id,
+          ci.parent_id,
+          ci.item_type
+        FROM content_pack_items cpi
+        JOIN content_items ci ON ci.id = cpi.${itemColumn}
+        WHERE cpi.pack_id = $1
+      ),
+      descendant_items AS (
+        SELECT id, course_id, parent_id, item_type
+        FROM pack_roots
+
+        UNION
+
+        SELECT child.id, child.course_id, child.parent_id, child.item_type
+        FROM content_items child
+        JOIN descendant_items parent
+          ON child.parent_id = parent.id
+      ),
+      selected_pack_items AS (
+        SELECT id, course_id, parent_id, item_type
+        FROM descendant_items
+
+        UNION
+
+        SELECT parent.id, parent.course_id, parent.parent_id, parent.item_type
+        FROM content_items parent
+        JOIN selected_pack_items child
+          ON child.parent_id = parent.id
+      )
+      SELECT DISTINCT
         ci.id,
         ci.course_id,
         c.title AS course_name,
@@ -213,11 +245,10 @@ const loadPackCompositionRows = async (packId, itemColumn) => {
         NULL::timestamptz AS attached_at,
         ${metadata.grade} AS grade,
         ${metadata.subject} AS subject
-      FROM content_pack_items cpi
-      JOIN content_items ci ON ci.id = cpi.${itemColumn}
+      FROM selected_pack_items spi
+      JOIN content_items ci ON ci.id = spi.id
       JOIN courses c ON c.id = ci.course_id
-      WHERE cpi.pack_id = $1
-      ORDER BY c.title ASC, ci.order_index ASC, ci.created_at ASC
+      ORDER BY course_name ASC, ci.order_index ASC, ci.created_at ASC
     `,
     [packId]
   );
@@ -270,6 +301,34 @@ const getExistingPackItemIds = async (packId, itemIds, itemColumn) => {
   );
 
   return result.rows.map((row) => Number(row.item_id));
+};
+
+const removeAncestorPackRoots = async (packId, itemIds, itemColumn) => {
+  if (itemIds.length === 0) return;
+
+  await dbQuery(
+    `
+      WITH RECURSIVE ancestors AS (
+        SELECT parent.id, parent.parent_id
+        FROM content_items child
+        JOIN content_items parent
+          ON parent.id = child.parent_id
+        WHERE child.id = ANY($2::int[])
+
+        UNION
+
+        SELECT parent.id, parent.parent_id
+        FROM content_items parent
+        JOIN ancestors child
+          ON parent.id = child.parent_id
+      )
+      DELETE FROM content_pack_items cpi
+      USING ancestors
+      WHERE cpi.pack_id = $1
+        AND cpi.${itemColumn} = ancestors.id
+    `,
+    [packId, itemIds]
+  );
 };
 
 const validateAttachableItems = async (itemIds) => {
@@ -335,6 +394,7 @@ const ensureCourseExamsTable = async () => {
 const attachItemsToPack = async (packId, itemIds, itemColumn) => {
   await getPackOrThrow(packId);
   await validateAttachableItems(itemIds);
+  await removeAncestorPackRoots(packId, itemIds, itemColumn);
 
   const existingIds = await getExistingPackItemIds(packId, itemIds, itemColumn);
   const existingSet = new Set(existingIds.map((value) => Number(value)));
@@ -466,37 +526,11 @@ export const getPackItems = async (req, res) => {
 
     await getPackOrThrow(packId);
 
-    const countResult = await dbQuery(
-      `SELECT COUNT(*)::int AS total FROM content_pack_items WHERE pack_id = $1`,
-      [packId]
-    );
-    const total = Number(countResult.rows[0]?.total ?? 0);
-
-    const metadata = await getCourseMetadataExpressions('c');
-    const result = await dbQuery(
-      `
-        SELECT
-          ci.id,
-          ci.course_id,
-          c.title AS course_name,
-          ci.item_type,
-          ci.title,
-          ci.created_at,
-          NULL::timestamptz AS attached_at,
-          ${metadata.grade} AS grade,
-          ${metadata.subject} AS subject
-        FROM content_pack_items cpi
-        JOIN content_items ci ON ci.id = cpi.${itemColumn}
-        JOIN courses c ON c.id = ci.course_id
-        WHERE cpi.pack_id = $1
-        ORDER BY c.title ASC, ci.order_index ASC, ci.created_at ASC
-        LIMIT $2 OFFSET $3
-      `,
-      [packId, pageSize, offset]
-    );
+    const rows = await loadPackCompositionRows(packId, itemColumn);
+    const total = rows.length;
 
     return res.json({
-      data: result.rows,
+      data: rows.slice(offset, offset + pageSize),
       page,
       page_size: pageSize,
       total,
@@ -532,7 +566,8 @@ export const listCourses = async (req, res) => {
     const { page, pageSize, offset } = parsePagination(req.query);
     const q = String(req.query?.q ?? '').trim();
     const hasClientFilter = Object.prototype.hasOwnProperty.call(req.query ?? {}, 'client_id');
-    const clientId = hasClientFilter ? parseNullableInt(req.query?.client_id, 'client_id') : undefined;
+    const clientId = hasClientFilter ? parseNullableInt(req.query?.client_id, 'client_id') : null;
+    const hasMetadata = await hasCourseMetadataColumn();
     const metadata = await getCourseMetadataExpressions('c');
 
     const params = [];
@@ -543,6 +578,10 @@ export const listCourses = async (req, res) => {
     } else if (clientId !== undefined) {
       params.push(clientId);
       conditions.push(`c.client_id = $${params.length}`);
+    }
+
+    if (hasMetadata) {
+      conditions.push(`COALESCE(c.metadata->>'is_pack_derived', 'false') <> 'true'`);
     }
 
     if (q) {

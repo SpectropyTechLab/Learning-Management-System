@@ -39,6 +39,11 @@ type CourseTreeNode = CourseContentPreviewItem & {
   children: CourseTreeNode[];
 };
 
+type PickerTreeNode = CourseTreeNode & {
+  branchItemCount: number;
+  children: PickerTreeNode[];
+};
+
 type SelectionStats = {
   allSelected: boolean;
   partiallySelected: boolean;
@@ -56,11 +61,6 @@ const FOLDER_ITEM_TYPES = new Set(['folder', 'chapter', 'topic']);
 
 const isFolderNode = (itemType: string) => FOLDER_ITEM_TYPES.has(String(itemType).toLowerCase());
 
-const collectNodeIds = (node: CourseTreeNode): number[] => [
-  node.id,
-  ...node.children.flatMap((child) => collectNodeIds(child)),
-];
-
 const countDescendants = (node: CourseTreeNode): number =>
   node.children.reduce((total, child) => total + 1 + countDescendants(child), 0);
 
@@ -69,13 +69,19 @@ const countLeafDescendants = (node: CourseTreeNode): number => {
   return node.children.reduce((total, child) => total + countLeafDescendants(child), 0);
 };
 
+const countContentDescendants = (node: CourseTreeNode): number =>
+  node.children.reduce(
+    (total, child) => total + (isFolderNode(child.item_type) ? 0 : 1) + countContentDescendants(child),
+    0,
+  );
+
 const sortTreeNodes = <T extends { order_index: number; children: T[] }>(nodes: T[]): T[] =>
   [...nodes]
     .sort((left, right) => left.order_index - right.order_index)
     .map((node) => ({ ...node, children: sortTreeNodes(node.children) }));
 
 const getSelectionStats = (node: CourseTreeNode, selectedIds: Set<number>): SelectionStats => {
-  const nodeIds = collectNodeIds(node);
+  const nodeIds = [node.id];
   const selectedCount = nodeIds.filter((id) => selectedIds.has(id)).length;
   const selectableCount = nodeIds.length;
 
@@ -95,7 +101,7 @@ function ContentTreeNode({
   expandedNodeIds,
   onToggleExpanded,
 }: {
-  node: CourseTreeNode;
+  node: PickerTreeNode;
   depth: number;
   selectedIds: Set<number>;
   onToggleItemSelection: (itemId: number) => void;
@@ -105,14 +111,21 @@ function ContentTreeNode({
   const checkboxRef = useRef<HTMLInputElement | null>(null);
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedNodeIds.has(node.id);
+  const isChapterContext = depth === 0;
   const stats = getSelectionStats(node, selectedIds);
-  const isSelected = stats.allSelected;
+  const selectedChildCount = node.children.filter((child) => selectedIds.has(child.id)).length;
+  const isSelected = isChapterContext
+    ? node.children.length > 0 && selectedChildCount === node.children.length
+    : stats.allSelected;
+  const isPartiallySelected = isChapterContext
+    ? selectedChildCount > 0 && selectedChildCount < node.children.length
+    : stats.partiallySelected;
 
   useEffect(() => {
     if (checkboxRef.current) {
-      checkboxRef.current.indeterminate = stats.partiallySelected;
+      checkboxRef.current.indeterminate = isPartiallySelected;
     }
-  }, [stats.partiallySelected]);
+  }, [isPartiallySelected]);
 
   return (
     <div className="space-y-2">
@@ -136,8 +149,23 @@ function ContentTreeNode({
           ref={checkboxRef}
           type="checkbox"
           checked={isSelected}
-          onChange={() => onToggleItemSelection(node.id)}
+          onChange={() => {
+            if (isChapterContext) {
+              if (selectedIds.has(node.id)) {
+                onToggleItemSelection(node.id);
+              }
+              onToggleExpanded(node.id);
+              return;
+            }
+
+            onToggleItemSelection(node.id);
+          }}
           className="mt-1 h-4 w-4 rounded border-slate-300 text-[#073b8a]"
+          aria-label={
+            isChapterContext
+              ? `${node.title} chapter context`
+              : `Select ${node.title}`
+          }
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -147,7 +175,7 @@ function ContentTreeNode({
             <span className="truncate text-sm font-semibold text-slate-900">{node.title}</span>
             {hasChildren && (
               <span className="text-xs text-slate-400">
-                {countDescendants(node)} nested item{countDescendants(node) === 1 ? '' : 's'}
+                {node.children.length} topic{node.children.length === 1 ? '' : 's'}
               </span>
             )}
           </div>
@@ -155,10 +183,10 @@ function ContentTreeNode({
             <span>Order {node.order_index + 1}</span>
             {hasChildren && (
               <span>
-                {countLeafDescendants(node)} content item{countLeafDescendants(node) === 1 ? '' : 's'} in branch
+                {node.branchItemCount} content item{node.branchItemCount === 1 ? '' : 's'} in branch
               </span>
             )}
-            {stats.partiallySelected && (
+            {isPartiallySelected && !isChapterContext && (
               <span>
                 {stats.selectedCount} of {stats.selectableCount} selected
               </span>
@@ -205,6 +233,15 @@ const buildCourseTree = (items: CourseContentPreviewItem[]) => {
 
   return sortTreeNodes(roots);
 };
+
+const buildPickerTree = (nodes: CourseTreeNode[], depth = 0): PickerTreeNode[] =>
+  nodes
+    .filter((node) => isFolderNode(node.item_type))
+    .map((node) => ({
+      ...node,
+      branchItemCount: countContentDescendants(node),
+      children: depth === 0 ? buildPickerTree(node.children, depth + 1) : [],
+    }));
 
 const buildSelectedTree = (
   nodes: CourseTreeNode[],
@@ -300,12 +337,21 @@ export default function PackBuilderTab({
   onImportSelectedItemsToCourse,
 }: PackBuilderTabProps) {
   const courseTree = useMemo(() => buildCourseTree(courseContent?.data ?? []), [courseContent?.data]);
+  const pickerTree = useMemo(() => buildPickerTree(courseTree), [courseTree]);
   const [expandedNodeIds, setExpandedNodeIds] = useState<number[]>([]);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const hasMoreCourses = courseResults.length < courseResultsTotal;
   const isInitialCourseLoad = coursesLoading && courseResults.length === 0;
   const isLoadingMoreCourses = coursesLoading && courseResults.length > 0;
-  const selectedIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
+  const selectableRootIds = useMemo(
+    () => new Set(pickerTree.flatMap((chapter) => chapter.children.map((topic) => topic.id))),
+    [pickerTree],
+  );
+  const selectedTopicIds = useMemo(
+    () => selectedItemIds.filter((itemId) => selectableRootIds.has(itemId)),
+    [selectableRootIds, selectedItemIds],
+  );
+  const selectedIdSet = useMemo(() => new Set(selectedTopicIds), [selectedTopicIds]);
   const expandedNodeIdSet = useMemo(() => new Set(expandedNodeIds), [expandedNodeIds]);
   const visibleCourseResults = useMemo(
     () => courseResults.filter((course) => course.id !== targetCourse?.id),
@@ -318,9 +364,9 @@ export default function PackBuilderTab({
       nodeMap.set(node.id, node);
       node.children.forEach(visit);
     };
-    courseTree.forEach(visit);
+    pickerTree.forEach(visit);
     return nodeMap;
-  }, [courseTree]);
+  }, [pickerTree]);
 
   const selectionBreakdown = useMemo(() => {
     const selectedFolderIds: number[] = [];
@@ -366,7 +412,7 @@ export default function PackBuilderTab({
   }, [coursesError, coursesLoading, hasMoreCourses, onLoadMoreCourses]);
 
   useEffect(() => {
-    if (!courseTree.length) {
+    if (!pickerTree.length) {
       setExpandedNodeIds([]);
       return;
     }
@@ -379,9 +425,9 @@ export default function PackBuilderTab({
       }
     };
 
-    courseTree.forEach(collectExpandedIds);
+    pickerTree.forEach(collectExpandedIds);
     setExpandedNodeIds(nextExpandedIds);
-  }, [courseTree]);
+  }, [pickerTree]);
 
   const handleToggleExpanded = (itemId: number) => {
     setExpandedNodeIds((current) =>
@@ -396,20 +442,7 @@ export default function PackBuilderTab({
       return;
     }
 
-    const branchIds = collectNodeIds(node);
-    const allSelected = branchIds.every((id) => selectedIdSet.has(id));
-
-    branchIds.forEach((id) => {
-      const isSelected = selectedIdSet.has(id);
-      if (allSelected && isSelected) {
-        onToggleItemSelection(id);
-        return;
-      }
-
-      if (!allSelected && !isSelected) {
-        onToggleItemSelection(id);
-      }
-    });
+    onToggleItemSelection(node.id);
   };
 
   return (
@@ -421,11 +454,11 @@ export default function PackBuilderTab({
             <p className="mt-1 text-sm text-slate-500">
               {targetCourse
                 ? 'Browse existing courses and pick the content you want to add into the new course.'
-                : 'Search global and client-owned courses by name, grade, or subject.'}
+                : 'Search platform source courses by name, grade, or subject.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Badge tone="border-slate-200 bg-slate-50 text-slate-700">All course scopes</Badge>
+            <Badge tone="border-slate-200 bg-slate-50 text-slate-700">Platform sources</Badge>
             <GhostButton onClick={onOpenCreateCourse} className="!rounded-full !px-4 !py-2 !text-sm">
               Create Course
             </GhostButton>
@@ -497,9 +530,9 @@ export default function PackBuilderTab({
                 : 'Select a course and choose the exact items you want to attach to the pack.'}
             </p>
           </div>
-          {selectedItemIds.length > 0 && (
+          {selectedTopicIds.length > 0 && (
             <Badge tone="border-emerald-200 bg-emerald-50 text-emerald-700">
-              {selectedItemIds.length} item{selectedItemIds.length === 1 ? '' : 's'} selected
+              {selectedTopicIds.length} topic{selectedTopicIds.length === 1 ? '' : 's'} selected
             </Badge>
           )}
         </div>
@@ -539,13 +572,13 @@ export default function PackBuilderTab({
           {selectedCourse && courseContentError && (
             <div className="border-l-2 border-rose-300 pl-4 text-sm text-rose-600">{courseContentError}</div>
           )}
-          {selectedCourse && !courseContentLoading && !courseContentError && courseTree.length === 0 && (
-            <EmptyState message="This course does not contain any items yet." />
+          {selectedCourse && !courseContentLoading && !courseContentError && pickerTree.length === 0 && (
+            <EmptyState message="This course does not contain any chapter or topic folders yet." />
           )}
           {selectedCourse &&
             !courseContentLoading &&
             !courseContentError &&
-            courseTree.map((node) => (
+            pickerTree.map((node) => (
               <ContentTreeNode
                 key={node.id}
                 node={node}
@@ -600,7 +633,7 @@ export default function PackBuilderTab({
           {targetCourse && (
             <PrimaryButton
               onClick={onImportSelectedItemsToCourse}
-              disabled={!targetCourse || !selectedCourse || selectedItemIds.length === 0 || importSubmitting}
+              disabled={!targetCourse || !selectedCourse || selectedTopicIds.length === 0 || importSubmitting}
             >
               {importSubmitting ? 'Adding to Course...' : 'Add Selected to New Course'}
             </PrimaryButton>
@@ -614,13 +647,13 @@ export default function PackBuilderTab({
           </GhostButton>
           <PrimaryButton
             onClick={onAddSelectedItems}
-            disabled={!selectedPack || selectedItemIds.length === 0 || addSubmitting}
+            disabled={!selectedPack || selectedTopicIds.length === 0 || addSubmitting}
           >
             {addSubmitting ? 'Adding...' : 'Add Selected to Pack'}
           </PrimaryButton>
           <GhostButton
             onClick={onClearSelection}
-            disabled={selectedItemIds.length === 0}
+            disabled={selectedTopicIds.length === 0}
             className="!w-full !rounded-full !px-4 !py-3 !text-sm"
           >
             Clear Selection

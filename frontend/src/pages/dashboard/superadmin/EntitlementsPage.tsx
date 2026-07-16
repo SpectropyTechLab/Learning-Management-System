@@ -7,11 +7,10 @@ import type { Client, ContentPack, Entitlement } from './types';
 
 const statusTone: Record<string, string> = {
   active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  pending: 'border-amber-200 bg-amber-50 text-amber-700',
-  grace: 'border-indigo-200 bg-indigo-50 text-indigo-700',
   expired: 'border-rose-200 bg-rose-50 text-rose-700',
-  revoked: 'border-slate-300 bg-slate-100 text-slate-700',
 };
+
+const visibleEntitlementStatuses = new Set(['active', 'expired']);
 
 const toUtcIsoString = (value: string) => {
   if (!value) return value;
@@ -35,8 +34,11 @@ export default function EntitlementsPage() {
   });
 
   const filteredEntitlements = useMemo(() => {
-    if (entitlementStatusFilter === 'all') return entitlements;
-    return entitlements.filter((entitlement) => entitlement.status === entitlementStatusFilter);
+    const visibleEntitlements = entitlements.filter((entitlement) =>
+      visibleEntitlementStatuses.has(entitlement.status),
+    );
+    if (entitlementStatusFilter === 'all') return visibleEntitlements;
+    return visibleEntitlements.filter((entitlement) => entitlement.status === entitlementStatusFilter);
   }, [entitlements, entitlementStatusFilter]);
 
   const loadClients = async () => {
@@ -127,10 +129,7 @@ export default function EntitlementsPage() {
             >
               <option value="all">All statuses</option>
               <option value="active">Active</option>
-              <option value="pending">Pending</option>
-              <option value="grace">Grace</option>
               <option value="expired">Expired</option>
-              <option value="revoked">Revoked</option>
             </select>
           </div>
           <div className="mt-5 space-y-3">

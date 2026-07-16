@@ -644,7 +644,7 @@ export default function CourseContentManager({
   const persistReorder = async (
     parentId: number | null,
     itemIds: number[],
-    reorderScope: "chapters" | "topics" | "items",
+    reorderScope: "chapters" | "topics" | "folders" | "items",
   ) => {
     if (!resolvedCourseId || !canEdit) return;
 
@@ -700,6 +700,17 @@ export default function CourseContentManager({
       )
     );
     void persistReorder(chapterId, newTopics.map((topic) => topic.id), "topics");
+  };
+
+  const handleReorderFolders = (parentId: number, newFolders: FolderNode[]) => {
+    setChapters((prev) =>
+      prev.map((chapter) =>
+        chapter.id === parentId
+          ? { ...chapter, folders: newFolders }
+          : { ...chapter, folders: replaceFolderChildren(chapter.folders, parentId, newFolders) }
+      )
+    );
+    void persistReorder(parentId, newFolders.map((folder) => folder.id), "folders");
   };
 
   const handleReorderTopicItems = (topicId: number, newItems: ContentItem[]) => {
@@ -796,6 +807,7 @@ export default function CourseContentManager({
           onReorderChapters={handleReorderChapters}
           onReorderItems={handleReorderItems}
           onReorderTopics={handleReorderTopics}
+          onReorderFolders={handleReorderFolders}
           onReorderTopicItems={handleReorderTopicItems}
           onUpdateFile={openReplaceModal}
           onRemoveLinkedItem={canLinkLicensedContent ? handleRemoveLinkedItem : undefined}
