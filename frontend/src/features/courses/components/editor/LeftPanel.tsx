@@ -73,6 +73,7 @@ interface Props {
     readOnly?: boolean;
     onBack?: () => void;
     panelTitle?: string;
+    courseName?: string;
     hideProgress?: boolean;
     collapsed?: boolean;
     onToggleCollapsed?: () => void;
@@ -102,6 +103,7 @@ const LeftPanel: React.FC<Props> = ({
     readOnly = false,
     onBack,
     panelTitle = "Course Content",
+    courseName = "",
     hideProgress = false,
     collapsed = false,
     onToggleCollapsed,
@@ -648,7 +650,14 @@ const LeftPanel: React.FC<Props> = ({
                             <div className="w-5 shrink-0" />
                         )}
 
-                        <h1 className="whitespace-normal break-words leading-snug text-lg font-semibold">{panelTitle}</h1>
+                        <div className="min-w-0">
+                            <h1 className="whitespace-normal break-words leading-snug text-lg font-semibold">{panelTitle}</h1>
+                            {courseName.trim() ? (
+                                <p className="mt-0.5 whitespace-normal break-words text-sm font-medium leading-snug text-slate-500">
+                                    {courseName.trim()}
+                                </p>
+                            ) : null}
+                        </div>
                     </div>
 
                     <div className="flex shrink-0 items-center gap-2">

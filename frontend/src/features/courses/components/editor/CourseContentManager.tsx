@@ -124,13 +124,14 @@ export default function CourseContentManager({
   const [topicTitle, setTopicTitle] = useState("");
   const [addingTopic, setAddingTopic] = useState(false);
   const [topicParentFolderId, setTopicParentFolderId] = useState<number | null>(null);
-  const [courseMeta, setCourseMeta] = useState<{ can_manage_content?: boolean } | null>(null);
+  const [courseMeta, setCourseMeta] = useState<{ title?: string | null; can_manage_content?: boolean } | null>(null);
 
   const normalizedPrefix = apiPrefix.startsWith("/") ? apiPrefix : `/${apiPrefix}`;
   const resolvedCourseId = courseId ? String(courseId) : "";
   const serverReadOnly = courseMeta?.can_manage_content === false;
   const canEdit = !readOnly && !serverReadOnly && !disableFetch;
   const canLinkLicensedContent = false;
+  const courseName = typeof courseMeta?.title === "string" ? courseMeta.title.trim() : "";
 
   const items = useMemo(() => allItems, [allItems]);
   const filteredExamOptions = useMemo(() => {
@@ -767,6 +768,7 @@ export default function CourseContentManager({
             }
           })}
           panelTitle={panelTitle}
+          courseName={courseName}
           collapsed={leftPanelCollapsed}
           onToggleCollapsed={() => setLeftPanelCollapsed((prev) => !prev)}
           onCloseMobile={closeMobileLeftPanel}
