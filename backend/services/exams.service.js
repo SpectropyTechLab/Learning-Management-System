@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import {
   AlignmentType,
   BorderStyle,
+  Column,
   Footer,
   Header,
   Document,
@@ -21,6 +22,7 @@ import {
   TextRun,
   HeadingLevel,
   ImageRun,
+  LevelFormat,
   PageOrientation,
   SectionType,
   TabStopType,
@@ -28,6 +30,7 @@ import {
   TableCell,
   TableLayoutType,
   TableRow,
+  UnderlineType,
   WidthType,
   Math as DocxMath,
   MathRun,
@@ -2741,8 +2744,18 @@ const htmlToDocxRuns = (html, styles = {}) => {
   const $ = loadHtml(`<root>${source}</root>`);
   const runs = [];
 
+  const pushSpace = () => runs.push(new TextRun(buildDocxTextRunOptions({ text: ' ' })));
+  const needsSpaceBeforeMath = (text) => /[A-Za-z]{2,}$/.test(String(text || ''));
+  const needsSpaceAfterMath = (text) => /^[A-Za-z]{2,}/.test(String(text || ''));
+
   const pushPlainTextRun = (text, inherited = {}) => {
-    const normalized = normalizeLatexForDocx(text);
+    const sourceText = String(text || '');
+    const normalizedText = normalizeLatexForDocx(sourceText);
+    const normalized = normalizedText
+      ? `${/^\s/.test(sourceText) ? ' ' : ''}${normalizedText}${/\s$/.test(sourceText) ? ' ' : ''}`
+      : /^\s+$/.test(sourceText)
+        ? ' '
+        : '';
     if (!normalized) return;
     const fractionRegex = /\(\s*\d+(?:\.\d+)?\s*\)\s*\/\s*\(\s*\d+(?:\.\d+)?\s*\)/g;
     const plainMathTokenRegex = /(?:\\sqrt\s*\{[^{}]+\}|\\sqrt\s*\([^()]+\)|√\s*(?:\{[^{}]+\}|\([^()]+\)|[A-Za-z0-9]+)|[A-Za-z0-9]+(?:\s*(?:\^|_)\s*(?:\{[^{}]+\}|[A-Za-z0-9]+))+)/g;
@@ -2770,8 +2783,14 @@ const htmlToDocxRuns = (html, styles = {}) => {
             })
           );
         }
+        if (needsSpaceBeforeMath(sourceText.slice(0, tokenIndex))) {
+          pushSpace();
+        }
         runs.push(new DocxMath({ children: components }));
         tokenLastIndex = tokenIndex + token.length;
+        if (needsSpaceAfterMath(sourceText.slice(tokenLastIndex))) {
+          pushSpace();
+        }
       }
       if (!foundToken || tokenLastIndex < sourceText.length) {
         runs.push(
@@ -2832,14 +2851,19 @@ const htmlToDocxRuns = (html, styles = {}) => {
 
   const pushTextRun = (text, inherited = {}) => {
     const segments = splitLatexSegments(text);
-    for (const segment of segments) {
+    for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
+      const segment = segments[segmentIndex];
       if (segment.type === 'math') {
         const components = latexToMathComponents(String(segment.value));
+        const before = segments[segmentIndex - 1]?.type === 'text' ? segments[segmentIndex - 1].value : '';
+        const after = segments[segmentIndex + 1]?.type === 'text' ? segments[segmentIndex + 1].value : '';
+        if (needsSpaceBeforeMath(before)) pushSpace();
         runs.push(
           new DocxMath({
             children: components.length > 0 ? components : [new MathRun(normalizeLatexForDocx(String(segment.value)))],
           })
         );
+        if (needsSpaceAfterMath(after)) pushSpace();
       } else {
         pushPlainTextRun(String(segment.value), inherited);
       }
@@ -2859,13 +2883,9 @@ const htmlToDocxRuns = (html, styles = {}) => {
   const pushMathWithSpacing = (node, mathRun) => {
     const before = getAdjacentText(node, 'prev');
     const after = getAdjacentText(node, 'next');
-    if (before && !/\s$/.test(before)) {
-      runs.push(new TextRun(buildDocxTextRunOptions({ text: ' ' })));
-    }
+    if (needsSpaceBeforeMath(before)) pushSpace();
     runs.push(mathRun);
-    if (after && !/^\s|^[,.;:!?)]/.test(after)) {
-      runs.push(new TextRun(buildDocxTextRunOptions({ text: ' ' })));
-    }
+    if (needsSpaceAfterMath(after)) pushSpace();
   };
 
   const walk = (node, inherited = {}) => {
@@ -3147,9 +3167,7 @@ const resolveMatchingAnswerText = (question) => {
     if (idx === undefined || !options[idx]) {
       return String(raw ?? '').trim();
     }
-    const mapping = extractOptionText(options[idx]);
-    const label = `(${String.fromCharCode(97 + idx)})`;
-    return mapping ? `${label} ${mapping}` : label;
+    return `(${String.fromCharCode(97 + idx)})`;
   };
 
   if (options.length > 0) {
@@ -3178,24 +3196,6 @@ const resolveMatchingAnswerText = (question) => {
 
   return resolveAnswerText(question) || resolveAnswerShortText(question) || '--';
 };
-
-const buildMatchingAnswerBox = (question, questionIndex) =>
-  new Table({
-    width: { size: 96, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
-    borders: DOCX_TABLE_BORDER,
-    rows: [
-      new TableRow({
-        children: [
-          buildMatchDocxCell({
-            html: escapeDocxHtmlText(`Q${questionIndex} - ${resolveMatchingAnswerText(question)}`),
-            size: DOCX_BODY_FONT_SIZE,
-            bold: true,
-          }),
-        ],
-      }),
-    ],
-  });
 
 const resolveSolutionLines = (question) => {
   const multiline = richTextToMultilineText(question?.solution);
@@ -3639,23 +3639,43 @@ const DOCX_FONT_FAMILY = 'Times New Roman';
 const DOCX_MATH_FONT_FAMILY = 'Cambria Math';
 const DOCX_BODY_FONT_SIZE = 22;
 const DOCX_LINE_SPACING = 276;
+const DOCX_MULTIPLE_LINE_SPACING = 276;
+const DOCX_TABLE_LINE_SPACING = 240;
 const DOCX_PARAGRAPH_SPACING = Object.freeze({ before: 0, after: 0, line: DOCX_LINE_SPACING, lineRule: 'auto' });
+const DOCX_TABLE_PARAGRAPH_SPACING = Object.freeze({ before: 0, after: 0, line: DOCX_TABLE_LINE_SPACING, lineRule: 'auto' });
 const DOCX_QUESTION_AFTER = 120;
 const DOCX_OPTION_AFTER = 120;
 const DOCX_ANSWER_AFTER = 120;
 const DOCX_SOLUTION_LINE_AFTER = 120;
-const DOCX_QUESTION_INDENT = Object.freeze({ left: 360, hanging: 360 });
+// Word uses twips; 357 twips is 0.63 cm.
+// Use matching left and hanging values so Word displays Left: 0 cm and Hanging: 0.63 cm.
+const DOCX_FORMATTED_QUESTION_INDENT = Object.freeze({ left: 357, right: 0, hanging: 357 });
+const DOCX_FORMATTED_OPTION_INDENT = Object.freeze({ left: 357, right: 0 });
+const DOCX_QUESTION_SPACING = Object.freeze({ before: 0, after: DOCX_QUESTION_AFTER, line: 240, lineRule: 'auto' });
+const DOCX_OPTION_SPACING = Object.freeze({ before: 0, after: DOCX_OPTION_AFTER, line: 240, lineRule: 'auto' });
+const DOCX_SUBJECT_HEADING_SPACING = Object.freeze({ before: 120, after: 0, line: DOCX_MULTIPLE_LINE_SPACING, lineRule: 'auto' });
+const DOCX_QUESTION_NUMBERING_REFERENCE = 'exam-question-numbering';
+// Word's requested two-column measurements: 8.93 cm column width and 0.83 cm spacing.
+const DOCX_TWO_COLUMN_WIDTH = 5063;
+const DOCX_TWO_COLUMN_SPACING = 471;
 const DOCX_MATCH_CELL_SPACING = Object.freeze({
   before: 0,
   after: 60,
-  line: DOCX_LINE_SPACING,
+  line: DOCX_TABLE_LINE_SPACING,
   lineRule: 'auto',
 });
 
-const buildDocxTextRunOptions = ({ text = '', bold = false, italics = false, size = DOCX_BODY_FONT_SIZE } = {}) => ({
+const buildDocxTextRunOptions = ({
+  text = '',
+  bold = false,
+  italics = false,
+  underline = undefined,
+  size = DOCX_BODY_FONT_SIZE,
+} = {}) => ({
   text: String(text || ''),
   bold,
   italics,
+  ...(underline ? { underline } : {}),
   size,
   font: DOCX_FONT_FAMILY,
 });
@@ -3681,9 +3701,13 @@ const buildDocxSectionProperties = ({ columns = 1, type = undefined } = {}) => (
   column: columns > 1
     ? {
       count: columns,
-      space: 230,
-      equalWidth: true,
-      sep: true,
+      space: DOCX_TWO_COLUMN_SPACING,
+      equalWidth: false,
+      separate: true,
+      children: [
+        new Column({ width: DOCX_TWO_COLUMN_WIDTH, space: DOCX_TWO_COLUMN_SPACING }),
+        new Column({ width: DOCX_TWO_COLUMN_WIDTH }),
+      ],
     }
     : {
       count: 1,
@@ -3736,7 +3760,7 @@ const buildDocxCell = ({
       [
         new Paragraph({
           alignment,
-          spacing: DOCX_PARAGRAPH_SPACING,
+          spacing: DOCX_TABLE_PARAGRAPH_SPACING,
           children: [new TextRun(buildDocxTextRunOptions({ text, bold, size }))],
         }),
       ],
@@ -3795,26 +3819,6 @@ const buildExamPaperFooter = () =>
     ],
   });
 
-const collectSectionOverviewRows = (preview) =>
-  (preview?.sections ?? []).map((section, index) => ({
-    label: section?.title || `Section ${index + 1}`,
-    subject: section?.selected_subject_name || '--',
-    chapter:
-      Array.isArray(section?.chapters) && section.chapters.length > 0
-        ? section.chapters
-          .map((item) => item?.name || item?.title || item)
-          .filter(Boolean)
-          .join(', ')
-        : '--',
-    topic:
-      Array.isArray(section?.topics) && section.topics.length > 0
-        ? section.topics
-          .map((item) => item?.name || item?.title || item)
-          .filter(Boolean)
-          .join(', ')
-        : '--',
-  }));
-
 const buildFirstPageInfoTable = (preview) => {
   const classLabel = String(
     preview?.exam?.description || preview?.exam?.grade_name || preview?.exam?.grade_label || preview?.exam?.grade_id || '--'
@@ -3825,8 +3829,8 @@ const buildFirstPageInfoTable = (preview) => {
   const maxMarks = getExamMaxMarks(preview);
 
   return new Table({
-    width: { size: 96, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.AUTOFIT,
     borders: DOCX_TABLE_BORDER,
     columnWidths: [1800, 6000, 2200],
     rows: [
@@ -3836,8 +3840,10 @@ const buildFirstPageInfoTable = (preview) => {
             text: `CLASS: ${classLabel}`,
             bold: true,
             size: 18,
+            widthPct: 16,
           }),
           buildDocxCell({
+            widthPct: 68,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
@@ -3852,6 +3858,7 @@ const buildFirstPageInfoTable = (preview) => {
             ],
           }),
           buildDocxCell({
+            widthPct: 16,
             children: [
               new Paragraph({
                 alignment: AlignmentType.LEFT,
@@ -3872,33 +3879,63 @@ const buildFirstPageInfoTable = (preview) => {
 };
 
 const buildSectionOverviewTable = (preview) => {
-  const rows = collectSectionOverviewRows(preview);
+  const overviewBySubject = new Map(
+    ['Physics', 'Chemistry', 'Maths', 'Biology'].map((subject) => [
+      subject,
+      { chapters: [], topics: [] },
+    ])
+  );
+
+  (preview?.sections ?? []).forEach((section) => {
+    const subject = String(section?.selected_subject_name || '').trim().toLowerCase();
+    const subjectKey = ['Physics', 'Chemistry', 'Maths', 'Biology'].find(
+      (name) => name.toLowerCase() === subject
+    );
+    if (!subjectKey) return;
+
+    const overview = overviewBySubject.get(subjectKey);
+    const chapters = Array.isArray(section?.chapters) ? section.chapters : [];
+    const topics = Array.isArray(section?.topics) ? section.topics : [];
+    overview.chapters.push(
+      ...chapters.map((item) => item?.name || item?.title || item).filter(Boolean)
+    );
+    overview.topics.push(
+      ...topics.map((item) => item?.name || item?.title || item).filter(Boolean)
+    );
+  });
+
+  const subjects = ['Physics', 'Chemistry', 'Maths', 'Biology'];
+  const overviewValue = (subject, field) => {
+    const values = [...new Set(overviewBySubject.get(subject)?.[field] ?? [])];
+    return values.length > 0 ? values.join(', ') : '--';
+  };
+
   const tableRows = [
-      new TableRow({
-        children: [
-          buildDocxCell({ text: 'Section', bold: true, size: 24 }),
-          buildDocxCell({ text: 'Subject', bold: true, size: 24 }),
-          buildDocxCell({ text: 'Chapters', bold: true, size: 24 }),
-          buildDocxCell({ text: 'Topics', bold: true, size: 24 }),
-        ],
-      }),
-    ...rows.map((row) =>
-      new TableRow({
-        children: [
-          buildDocxCell({ text: row.label, size: 18 }),
-          buildDocxCell({ text: row.subject, size: 18 }),
-          buildDocxCell({ text: row.chapter, size: 18 }),
-          buildDocxCell({ text: row.topic, size: 18 }),
-        ],
-      })
-    ),
+    new TableRow({
+      children: [
+        buildDocxCell({ text: 'Subject', bold: true, size: 24 }),
+        ...subjects.map((subject) => buildDocxCell({ text: subject, bold: true, size: 24 })),
+      ],
+    }),
+    new TableRow({
+      children: [
+        buildDocxCell({ text: 'Chapter', bold: true, size: 24 }),
+        ...subjects.map((subject) => buildDocxCell({ text: overviewValue(subject, 'chapters'), size: 18 })),
+      ],
+    }),
+    new TableRow({
+      children: [
+        buildDocxCell({ text: 'Topic', bold: true, size: 24 }),
+        ...subjects.map((subject) => buildDocxCell({ text: overviewValue(subject, 'topics'), size: 18 })),
+      ],
+    }),
   ];
 
   return new Table({
-    width: { size: 96, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.AUTOFIT,
     borders: DOCX_TABLE_BORDER,
-    columnWidths: [1700, 2200, 3200, 2900],
+    columnWidths: [1800, 2050, 2050, 2050, 2050],
     rows: tableRows,
   });
 };
@@ -3946,7 +3983,7 @@ const buildRichDocxCell = ({
   bold = false,
   size = 18,
   alignment = AlignmentType.LEFT,
-  spacing = DOCX_PARAGRAPH_SPACING,
+  spacing = DOCX_TABLE_PARAGRAPH_SPACING,
   widthPct = null,
 } = {}) => {
   const runs = htmlToDocxRuns(html, { size, bold });
@@ -4567,8 +4604,8 @@ const buildInstructionsTable = (preview) => {
   const lines = customInstructions.length > 0 ? customInstructions : ['--'];
 
   return new Table({
-    width: { size: 96, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.AUTOFIT,
     borders: DOCX_TABLE_BORDER,
     rows: [
       new TableRow({
@@ -4587,7 +4624,7 @@ const buildInstructionsTable = (preview) => {
             children: lines.map((line) =>
               new Paragraph({
                 alignment: AlignmentType.LEFT,
-                spacing: { before: 0, after: 40, line: 360, lineRule: 'auto' },
+                spacing: { before: 0, after: 40, line: DOCX_TABLE_LINE_SPACING, lineRule: 'auto' },
                 children: [new TextRun(buildDocxTextRunOptions({ text: line, size: 24 }))],
               })
             ),
@@ -4620,12 +4657,10 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
           const [firstParagraph, ...restParagraphs] = questionParagraphs;
           children.push(
             new Paragraph({
-              spacing: { ...firstParagraph.spacing, after: DOCX_QUESTION_AFTER },
-              indent: DOCX_QUESTION_INDENT,
-              children: [
-                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
-                ...firstParagraph.runs,
-              ],
+              numbering: { reference: DOCX_QUESTION_NUMBERING_REFERENCE, level: 0, instance: 0 },
+              spacing: DOCX_QUESTION_SPACING,
+              indent: DOCX_FORMATTED_QUESTION_INDENT,
+              children: firstParagraph.runs,
             })
           );
           if (restParagraphs.length > 0) {
@@ -4645,10 +4680,10 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
           const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
           children.push(
             new Paragraph({
-              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
-              indent: DOCX_QUESTION_INDENT,
+              numbering: { reference: DOCX_QUESTION_NUMBERING_REFERENCE, level: 0, instance: 0 },
+              spacing: DOCX_QUESTION_SPACING,
+              indent: DOCX_FORMATTED_QUESTION_INDENT,
               children: [
-                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
                 ...(questionRuns.length > 0
                   ? questionRuns
                   : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
@@ -4665,10 +4700,10 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
         const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
         children.push(
           new Paragraph({
-            spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
-            indent: DOCX_QUESTION_INDENT,
+            numbering: { reference: DOCX_QUESTION_NUMBERING_REFERENCE, level: 0, instance: 0 },
+            spacing: DOCX_QUESTION_SPACING,
+            indent: DOCX_FORMATTED_QUESTION_INDENT,
             children: [
-              new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
               ...(questionRuns.length > 0
                 ? questionRuns
                 : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
@@ -4686,8 +4721,8 @@ const buildQuestionOnlyParagraphsForSection = (section, startingQuestionIndex) =
           if (!optionText && optionRuns.length === 0) return;
           children.push(
             new Paragraph({
-              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_OPTION_AFTER },
-              indent: { left: 220, hanging: 120 },
+              spacing: DOCX_OPTION_SPACING,
+              indent: DOCX_FORMATTED_OPTION_INDENT,
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `(${optionPrefix}) ` })),
                 ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text: optionText }))]),
@@ -4716,7 +4751,19 @@ const buildAnswerParagraphsForSection = (section, startingQuestionIndex) => {
 
     for (const question of questions) {
       if (isLikelyMatchFollowingQuestion(question)) {
-        children.push(buildMatchingAnswerBox(question, runningQuestionIndex));
+        children.push(
+          new Paragraph({
+            spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_ANSWER_AFTER },
+            children: [
+              new TextRun(
+                buildDocxTextRunOptions({
+                  text: `Q${runningQuestionIndex} - ${resolveMatchingAnswerText(question)}`,
+                  bold: true,
+                })
+              ),
+            ],
+          })
+        );
         runningQuestionIndex += 1;
         continue;
       }
@@ -4764,12 +4811,10 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           const [firstParagraph, ...restParagraphs] = questionParagraphs;
           children.push(
             new Paragraph({
-              spacing: { ...firstParagraph.spacing, after: DOCX_QUESTION_AFTER },
-              indent: DOCX_QUESTION_INDENT,
-              children: [
-                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
-                ...firstParagraph.runs,
-              ],
+              numbering: { reference: DOCX_QUESTION_NUMBERING_REFERENCE, level: 0, instance: 0 },
+              spacing: DOCX_QUESTION_SPACING,
+              indent: DOCX_FORMATTED_QUESTION_INDENT,
+              children: firstParagraph.runs,
             })
           );
           if (restParagraphs.length > 0) {
@@ -4789,10 +4834,10 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
           children.push(
             new Paragraph({
-              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
-              indent: DOCX_QUESTION_INDENT,
+              numbering: { reference: DOCX_QUESTION_NUMBERING_REFERENCE, level: 0, instance: 0 },
+              spacing: DOCX_QUESTION_SPACING,
+              indent: DOCX_FORMATTED_QUESTION_INDENT,
               children: [
-                new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
                 ...(questionRuns.length > 0
                   ? questionRuns
                   : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
@@ -4809,10 +4854,10 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
         const questionFallback = stripHtmlToText(question?.question_text) || 'Question text unavailable';
         children.push(
           new Paragraph({
-            spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_QUESTION_AFTER },
-            indent: DOCX_QUESTION_INDENT,
+            numbering: { reference: DOCX_QUESTION_NUMBERING_REFERENCE, level: 0, instance: 0 },
+            spacing: DOCX_QUESTION_SPACING,
+            indent: DOCX_FORMATTED_QUESTION_INDENT,
             children: [
-              new TextRun(buildDocxTextRunOptions({ text: `${runningQuestionIndex}) `, bold: true })),
               ...(questionRuns.length > 0
                 ? questionRuns
                 : [new TextRun(buildDocxTextRunOptions({ text: questionFallback, bold: true }))]),
@@ -4830,8 +4875,8 @@ const buildSolutionParagraphsForSection = (section, startingQuestionIndex) => {
           if (!optionText && optionRuns.length === 0) return;
           children.push(
             new Paragraph({
-              spacing: { ...DOCX_PARAGRAPH_SPACING, after: DOCX_OPTION_AFTER },
-              indent: { left: 220, hanging: 120 },
+              spacing: DOCX_OPTION_SPACING,
+              indent: DOCX_FORMATTED_OPTION_INDENT,
               children: [
                 new TextRun(buildDocxTextRunOptions({ text: `(${optionPrefix}) ` })),
                 ...(optionRuns.length > 0 ? optionRuns : [new TextRun(buildDocxTextRunOptions({ text: optionText }))]),
@@ -4965,57 +5010,53 @@ const finalizeExamDocxBuffer = async (doc) => {
 const buildExamDocxBuffer = async (preview, mode = 'questions') => {
   const firstPageChildren = [
     buildFirstPageInfoTable(preview),
-    buildDocxTextParagraph('', { spacing: { after: 140 } }),
+    buildDocxTextParagraph('\u00A0', { size: 2, spacing: { before: 0, after: 0 } }),
     buildSectionOverviewTable(preview),
     buildDocxTextParagraph('', { spacing: { after: 140 } }),
     buildInstructionsTable(preview),
   ];
 
-  const questionSections = [];
+  const subjectOrder = new Map(['physics', 'chemistry', 'maths', 'biology'].map((subject, index) => [subject, index]));
+  const orderedSections = [...(preview?.sections ?? [])]
+    .map((section, index) => ({ section, index }))
+    .sort((left, right) => {
+      const leftSubject = String(left.section?.selected_subject_name || '').trim().toLowerCase();
+      const rightSubject = String(right.section?.selected_subject_name || '').trim().toLowerCase();
+      const leftOrder = subjectOrder.get(leftSubject) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = subjectOrder.get(rightSubject) ?? Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || left.index - right.index;
+    });
+
+  const questionChildren = [];
   let runningQuestionIndex = 1;
 
-  for (let sectionIndex = 0; sectionIndex < (preview?.sections ?? []).length; sectionIndex += 1) {
-    const section = preview.sections[sectionIndex];
-    const headingChildren = [
+  for (let sectionIndex = 0; sectionIndex < orderedSections.length; sectionIndex += 1) {
+    const section = orderedSections[sectionIndex].section;
+    const subjectHeading = section?.selected_subject_name || section?.title || `Section ${sectionIndex + 1}`;
+    questionChildren.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { before: 120, after: 60 },
+        spacing: DOCX_SUBJECT_HEADING_SPACING,
         children: [
           new TextRun(
             buildDocxTextRunOptions({
-              text: `${section?.title || `Section ${sectionIndex + 1}`}`.toUpperCase(),
+              text: String(subjectHeading).toUpperCase(),
               bold: true,
               size: 24,
+              underline: { type: UnderlineType.SINGLE },
             })
           ),
         ],
-      }),
-    ];
-
-    questionSections.push({
-      properties: buildDocxSectionProperties({
-        columns: 1,
-        type: sectionIndex === 0 ? undefined : SectionType.CONTINUOUS,
-      }),
-      headers: { default: buildExamPaperHeader(preview) },
-      footers: { default: buildExamPaperFooter() },
-      children: headingChildren,
-    });
+      })
+    );
 
     const sectionContent = buildSectionDocxContentForMode(section, runningQuestionIndex, mode);
     runningQuestionIndex = sectionContent.nextQuestionIndex;
-
-    questionSections.push({
-      properties: buildDocxSectionProperties({
-        columns: 2,
-        type: SectionType.CONTINUOUS,
-      }),
-      headers: { default: buildExamPaperHeader(preview) },
-      footers: { default: buildExamPaperFooter() },
-      children: sectionContent.children.length > 0
+    questionChildren.push(
+      ...(sectionContent.children.length > 0
         ? sectionContent.children
-        : [buildDocxTextParagraph('No questions available in this section.', { size: 18 })],
-    });
+        : [buildDocxTextParagraph('No questions available in this section.', { size: 18 })])
+    );
   }
 
   const doc = new Document({
@@ -5026,17 +5067,34 @@ const buildExamDocxBuffer = async (preview, mode = 'questions') => {
         footers: { default: buildExamPaperFooter() },
         children: firstPageChildren,
       },
-      ...(questionSections.length > 0
-      ? questionSections
-      : [
-        {
-          properties: buildDocxSectionProperties({ columns: 1 }),
-          headers: { default: buildExamPaperHeader(preview) },
-          footers: { default: buildExamPaperFooter() },
-          children: [buildDocxTextParagraph('No questions available in this exam.', { size: 18 })],
-        },
-      ]),
+      {
+        properties: buildDocxSectionProperties({ columns: 2, type: SectionType.CONTINUOUS }),
+        headers: { default: buildExamPaperHeader(preview) },
+        footers: { default: buildExamPaperFooter() },
+        children: questionChildren.length > 0
+          ? questionChildren
+          : [buildDocxTextParagraph('No questions available in this exam.', { size: 18 })],
+      },
     ],
+    numbering: {
+      config: [
+        {
+          reference: DOCX_QUESTION_NUMBERING_REFERENCE,
+          levels: [
+            {
+              level: 0,
+              format: LevelFormat.DECIMAL,
+              text: '%1)',
+              alignment: AlignmentType.LEFT,
+              style: {
+                run: { font: DOCX_FONT_FAMILY, size: DOCX_BODY_FONT_SIZE, bold: true },
+                paragraph: { indent: DOCX_FORMATTED_QUESTION_INDENT },
+              },
+            },
+          ],
+        },
+      ],
+    },
   });
 
   return finalizeExamDocxBuffer(doc);
@@ -6914,11 +6972,8 @@ const downloadExamPreviewDocxByMode = async (req, res, { mode, filenameSuffix })
 
   const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
   const payload = await buildExamPreviewPayload(exam);
-  if (!payload?.validation?.can_finalize) {
-    throw new AppError(
-      payload?.validation?.blocking_reasons?.[0] || 'Exam cannot be exported until template validation passes.',
-      400
-    );
+  if (Number(payload?.totals?.question_count || 0) <= 0) {
+    throw new AppError('Add at least one question before downloading the exam.', 400);
   }
 
   const fileBuffer = await buildExamDocxBuffer(payload, mode);

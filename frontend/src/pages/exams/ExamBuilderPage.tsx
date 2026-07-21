@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import axios from "axios";
@@ -360,6 +360,33 @@ const filterTopicsBySelectedIds = (topics: CurriculumOption[], selectedTopicIds:
   if (selectedTopicIds.length === 0) return [];
   const selectedIds = new Set(selectedTopicIds);
   return topics.filter((topic) => selectedIds.has(String(topic.id)));
+};
+
+// This is deliberately a display-only sequence. `order_index` remains the
+// persisted section order used by generation and exports.
+const buildQuestionPreviewNumbers = (sections: ExamBuilderSection[]) => {
+  const nextNumberBySubject = new Map<string, number>();
+  const numberByQuestionId = new Map<number, number>();
+
+  for (const section of sections) {
+    const firstQuestion = QUESTION_GROUP_ORDER
+      .flatMap((groupType) => section.question_groups?.[groupType] ?? [])
+      .find(Boolean);
+    const subjectKey = section.selected_subject_id ?? firstQuestion?.subject_id ?? `section-${section.id}`;
+    const currentNumber = nextNumberBySubject.get(String(subjectKey)) ?? 0;
+    let nextNumber = currentNumber;
+
+    for (const groupType of QUESTION_GROUP_ORDER) {
+      for (const question of section.question_groups?.[groupType] ?? []) {
+        nextNumber += 1;
+        numberByQuestionId.set(question.question_id, nextNumber);
+      }
+    }
+
+    nextNumberBySubject.set(String(subjectKey), nextNumber);
+  }
+
+  return numberByQuestionId;
 };
 
 const buildSyllabusRequestKey = (subjectId: string, chapterIds: string[]) =>
@@ -837,6 +864,7 @@ function TopicAllocationTable({
 function QuestionGroupPreview({
   groupType,
   questions,
+  displayQuestionNumbers,
   topicsById,
   onDeleteAll,
   onDeleteQuestion,
@@ -847,6 +875,7 @@ function QuestionGroupPreview({
 }: {
   groupType: QuestionGroupType;
   questions: GeneratedExamQuestion[];
+  displayQuestionNumbers: ReadonlyMap<number, number>;
   topicsById: Map<string, string>;
   onDeleteAll: (groupType: QuestionGroupType) => void;
   onDeleteQuestion: (question: GeneratedExamQuestion) => void;
@@ -903,7 +932,7 @@ function QuestionGroupPreview({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                      Q{question.order_index}
+                      Q{displayQuestionNumbers.get(question.question_id) ?? question.order_index}
                     </span>
                     <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                       {question.question_type}
@@ -1937,13 +1966,8 @@ export default function ExamBuilderPage() {
   };
 
   const handleOpenSavePreview = () => {
-    if (!preview?.validation?.can_finalize) {
-      const firstReason = preview?.validation?.blocking_reasons?.[0];
-      toast.error(firstReason || "Resolve template validation issues before saving the exam.");
-      return;
-    }
-    if (!preview?.all_sections_completed) {
-      toast.error("Complete every blueprint section before saving the exam.");
+    if (!preview?.totals?.question_count) {
+      toast.error("Add at least one question before previewing the exam.");
       return;
     }
     navigate(`/exams/${examId}/paper-preview`);
@@ -1951,6 +1975,11 @@ export default function ExamBuilderPage() {
 
   const completedSections =
     preview?.sections.filter((section) => section.completion_status === "completed").length ?? 0;
+
+  const questionPreviewNumbers = useMemo(
+    () => buildQuestionPreviewNumbers(preview?.sections ?? []),
+    [preview?.sections]
+  );
 
   const activeAllocationValidation =
     activeSection && activeEditor
@@ -1984,7 +2013,7 @@ export default function ExamBuilderPage() {
             <button
               type="button"
               onClick={handleOpenSavePreview}
-              disabled={!preview?.validation?.can_finalize}
+              disabled={!preview?.totals?.question_count}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RiArrowRightUpLine className="h-4 w-4" />
@@ -2324,6 +2353,7 @@ export default function ExamBuilderPage() {
                       questions={
                         (activeSection.question_groups?.[groupType] ?? []) as GeneratedExamQuestion[]
                       }
+                      displayQuestionNumbers={questionPreviewNumbers}
                       topicsById={activeTopicsById}
                       deletingGroup={activeEditor.deletingGroup === groupType}
                       deletingQuestionId={activeEditor.deletingQuestionId}
