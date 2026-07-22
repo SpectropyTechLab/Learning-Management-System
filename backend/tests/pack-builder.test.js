@@ -88,7 +88,7 @@ const createMockDb = (overrides = {}) => {
       return String(left.created_at ?? '').localeCompare(String(right.created_at ?? ''));
     });
   };
-  const buildPackItemRow = (item) => {
+  const buildPackItemRow = (item, packId) => {
     const course = getCourse(item.course_id);
     return {
       id: item.id,
@@ -100,6 +100,9 @@ const createMockDb = (overrides = {}) => {
       order_index: item.order_index ?? 0,
       created_at: item.created_at,
       attached_at: null,
+      is_attached_root: data.packItems.some(
+        (entry) => Number(entry.pack_id) === Number(packId) && Number(entry.item_id) === Number(item.id)
+      ),
       grade: course?.metadata?.grade ?? null,
       subject: course?.metadata?.subject ?? null,
     };
@@ -189,14 +192,14 @@ const createMockDb = (overrides = {}) => {
       }
 
       if (normalized.includes('from content_pack_items cpi join content_items ci on ci.id = cpi.item_id') && normalized.includes('limit $2 offset $3')) {
-        const rows = getPackItemsForPack(params[0]).map(buildPackItemRow);
+        const rows = getPackItemsForPack(params[0]).map((item) => buildPackItemRow(item, params[0]));
         const limit = Number(params[1]);
         const offset = Number(params[2]);
         return { rows: rows.slice(offset, offset + limit) };
       }
 
       if (normalized.includes('from content_pack_items cpi join content_items ci on ci.id = cpi.item_id') && !normalized.includes('limit $2 offset $3')) {
-        return { rows: getPackItemsForPack(params[0]).map(buildPackItemRow) };
+        return { rows: getPackItemsForPack(params[0]).map((item) => buildPackItemRow(item, params[0])) };
       }
 
       if (normalized.startsWith('select count(*)::int as total from courses c')) {
@@ -445,6 +448,10 @@ test('GET /packs/:id/summary expands a selected folder root to ancestors and des
   assert.deepEqual(
     res.body.groups[0].items.map((item) => item.title),
     ['MATHEMATICAL TOOLS', 'Squares and Square roots', 'EBook', 'Concept'],
+  );
+  assert.deepEqual(
+    res.body.groups[0].items.map((item) => item.is_attached_root),
+    [false, true, false, false],
   );
 });
 

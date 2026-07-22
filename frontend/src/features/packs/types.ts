@@ -57,6 +57,7 @@ export interface PackSummaryGroupItem {
   title: string;
   item_type: string;
   order_index: number;
+  is_attached_root: boolean;
 }
 
 export interface PackSummaryGroup {

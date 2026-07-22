@@ -55,6 +55,56 @@ const buildPackItemPreview = (item: CourseContentPreviewItem): PackItemPreview =
 const isSelectablePackRoot = (item: CourseContentPreviewItem) =>
   item.parent_id !== null && ['folder', 'chapter', 'topic'].includes(String(item.item_type).toLowerCase());
 
+const detachRootFromSummary = (
+  summary: PackCompositionSummary | null,
+  itemId: number,
+): PackCompositionSummary | null => {
+  if (!summary) return summary;
+
+  const groups = summary.groups
+    .map((group) => {
+      const itemsById = new Map(group.items.map((item) => [item.id, item]));
+      const childrenByParent = new Map<number, number[]>();
+
+      group.items.forEach((item) => {
+        if (item.parent_id === null) return;
+        const children = childrenByParent.get(item.parent_id) ?? [];
+        children.push(item.id);
+        childrenByParent.set(item.parent_id, children);
+      });
+
+      const retainedIds = new Set<number>();
+      const retainDescendants = (id: number) => {
+        if (retainedIds.has(id)) return;
+        retainedIds.add(id);
+        (childrenByParent.get(id) ?? []).forEach(retainDescendants);
+      };
+      const retainAncestors = (id: number) => {
+        const parentId = itemsById.get(id)?.parent_id;
+        if (parentId === null || parentId === undefined || retainedIds.has(parentId)) return;
+        retainedIds.add(parentId);
+        retainAncestors(parentId);
+      };
+
+      group.items
+        .filter((item) => item.is_attached_root && item.id !== itemId)
+        .forEach((item) => {
+          retainDescendants(item.id);
+          retainAncestors(item.id);
+        });
+
+      const items = group.items.filter((item) => retainedIds.has(item.id));
+      return { ...group, item_count: items.length, items };
+    })
+    .filter((group) => group.items.length > 0);
+
+  return {
+    ...summary,
+    total_items: groups.reduce((total, group) => total + group.item_count, 0),
+    groups,
+  };
+};
+
 type PendingRemoval = {
   packId: number;
   timerId: number;
@@ -409,6 +459,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     if (!selectedPack || pendingRemovalRef.current.has(item.id)) return;
 
     const snapshot = { packItems, packSummary, selectedPack };
+    const nextSummary = detachRootFromSummary(packSummary, item.id);
     setPackItems((current) =>
       current
         ? {
@@ -418,13 +469,21 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
           }
         : current,
     );
-    syncPackMetrics(Math.max(selectedPack.item_count - 1, 0));
+    setPackSummary(nextSummary);
+    syncPackMetrics(nextSummary?.total_items ?? Math.max(selectedPack.item_count - 1, 0), nextSummary?.groups);
     setPendingRemoveIds((current) => [...current, item.id]);
 
     const timerId = window.setTimeout(async () => {
       try {
-        await api.delete<RemovePackItemResponse>(`/packs/${packId}/items/${item.id}`);
-        toast.success(`Removed ${item.title} from the pack.`);
+        const response = await api.delete<RemovePackItemResponse>(`/packs/${packId}/items/${item.id}`);
+        if (!response.data.removed) {
+          setPackItems(snapshot.packItems);
+          setPackSummary(snapshot.packSummary);
+          setSelectedPack(snapshot.selectedPack);
+          toast.error(`${item.title} was not directly attached to this pack.`);
+        } else {
+          toast.success(`Removed ${item.title} from the pack. The original content is unchanged.`);
+        }
       } catch (error) {
         setPackItems(snapshot.packItems);
         setPackSummary(snapshot.packSummary);
@@ -445,7 +504,9 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     const toastId = toast.custom(
       () => (
         <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
-          <span className="text-sm text-slate-700">Removed {item.title}</span>
+          <span className="text-sm text-slate-700">
+            Removing {item.title} from this pack only
+          </span>
           <button
             type="button"
             onClick={() => {
@@ -665,7 +726,6 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
       {activeTab === 'review' && (
         <PackReviewTab
           selectedPack={selectedPack}
-          packItems={packItems}
           packItemsLoading={packItemsLoading}
           packItemsError={packItemsError}
           pendingRemoveIds={pendingRemoveIds}

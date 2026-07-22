@@ -243,6 +243,12 @@ const loadPackCompositionRows = async (packId, itemColumn) => {
         ci.order_index,
         ci.created_at,
         NULL::timestamptz AS attached_at,
+        EXISTS (
+          SELECT 1
+          FROM content_pack_items direct_item
+          WHERE direct_item.pack_id = $1
+            AND direct_item.${itemColumn} = ci.id
+        ) AS is_attached_root,
         ${metadata.grade} AS grade,
         ${metadata.subject} AS subject
       FROM selected_pack_items spi
@@ -282,6 +288,7 @@ const buildSummaryGroups = (rows) => {
       title: row.title,
       item_type: row.item_type,
       order_index: Number(row.order_index ?? 0),
+      is_attached_root: row.is_attached_root === true,
     });
   });
 

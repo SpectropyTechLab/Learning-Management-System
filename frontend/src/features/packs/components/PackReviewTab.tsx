@@ -1,10 +1,9 @@
 import { Badge, GhostButton } from '@/pages/dashboard/superadmin/components/ui';
-import type { PackCompositionSummary, PackItemPreview, PackSummary, PaginatedResponse } from '../types';
+import type { PackCompositionSummary, PackItemPreview, PackSummary } from '../types';
 import { formatCourseMeta, prettyPackItemType } from '../packUi';
 
 interface PackReviewTabProps {
   selectedPack: PackSummary | null;
-  packItems: PaginatedResponse<PackItemPreview> | null;
   packItemsLoading: boolean;
   packItemsError: string | null;
   pendingRemoveIds: number[];
@@ -109,25 +108,27 @@ function AttachedTreeItem({
             {courseName} | {formatCourseMeta(grade, subject)}
           </div>
         </div>
-        <GhostButton
-          onClick={() =>
-            onRemoveItem({
-              id: node.id,
-              course_id: 0,
-              course_name: courseName,
-              item_type: node.item_type,
-              title: node.title,
-              created_at: '',
-              attached_at: null,
-              grade,
-              subject,
-            })
-          }
-          disabled={isPending}
-          className="!rounded-full !px-3 !py-2"
-        >
-          {isPending ? 'Undo window...' : 'Remove'}
-        </GhostButton>
+        {node.is_attached_root && (
+          <GhostButton
+            onClick={() =>
+              onRemoveItem({
+                id: node.id,
+                course_id: 0,
+                course_name: courseName,
+                item_type: node.item_type,
+                title: node.title,
+                created_at: '',
+                attached_at: null,
+                grade,
+                subject,
+              })
+            }
+            disabled={isPending}
+            className="!rounded-full !px-3 !py-2"
+          >
+            {isPending ? 'Removing...' : 'Remove from Pack'}
+          </GhostButton>
+        )}
       </div>
 
       {node.children.map((child) => (
@@ -148,7 +149,6 @@ function AttachedTreeItem({
 
 export default function PackReviewTab({
   selectedPack,
-  packItems,
   packItemsLoading,
   packItemsError,
   pendingRemoveIds,
