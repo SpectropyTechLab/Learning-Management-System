@@ -61,7 +61,7 @@ const navItems = [
 
 const appLinks: AppLink[] = [
     {
-        href: '/login',
+        href: 'https://learning-management-system-jade-one.vercel.app/login',
         label: 'Spectropy OS',
         description: 'Central operating system for Spectropy products and intelligence workflows.',
         variant: 'blue',
