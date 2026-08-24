@@ -1,6 +1,7 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiStackLine } from 'react-icons/ri';
+import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiStackLine, RiTeamLine } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
@@ -53,6 +54,13 @@ export default function ContentAuthorizerShell({
         icon: <RiStackLine />,
         active: isActive('/content-authorizer/packs'),
         onClick: () => navigate('/content-authorizer/packs'),
+      },
+      {
+        key: 'community',
+        label: 'Community',
+        icon: <RiTeamLine />,
+        active: isActive('/content-authorizer/community'),
+        onClick: () => navigate('/content-authorizer/community'),
       },
       {
         key: 'question-bank',

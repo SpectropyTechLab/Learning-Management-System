@@ -25,6 +25,7 @@ import {
   configureExamSectionSyllabus,
   previewExamSectionGeneration,
   generateExamSectionQuestions,
+  cloneExamSectionQuestions,
   getExamPreview,
   downloadExamPreviewDocx,
   downloadExamPreviewQuestionsDocx,
@@ -66,6 +67,7 @@ router.get('/exams/:id/sections/:sectionId/syllabus-options', requireExamProgram
 router.put('/exams/:id/sections/:sectionId/configure', requireExamProgramEntitlement, checkPermission('exams.update'), configureExamSectionSyllabus);
 router.get('/exams/:id/sections/:sectionId/generation-plan', requireExamProgramEntitlement, checkPermission('exams.read'), previewExamSectionGeneration);
 router.post('/exams/:id/sections/:sectionId/generate', requireExamProgramEntitlement, checkPermission('exams.update'), generateExamSectionQuestions);
+router.post('/exams/:id/sections/:sectionId/clone-questions', requireExamProgramEntitlement, checkPermission('exams.update'), cloneExamSectionQuestions);
 router.get('/exams/:id/preview', requireExamProgramEntitlement, checkPermission('exams.read'), getExamPreview);
 router.get('/exams/:id/preview-docx', requireExamProgramEntitlement, checkPermission('exams.read'), downloadExamPreviewDocx);
 router.get('/exams/:id/preview/docx/questions', requireExamProgramEntitlement, checkPermission('exams.read'), downloadExamPreviewQuestionsDocx);

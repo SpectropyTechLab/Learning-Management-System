@@ -1558,6 +1558,29 @@ const groupQuestionsByType = (questions) =>
     return acc;
   }, {});
 
+const findMatchingSourceSection = (sections, destinationSection) => {
+  const destinationSubjectId = Number(destinationSection?.selected_subject_id || 0);
+  const destinationSubjectName = String(destinationSection?.selected_subject_name || '').trim().toLowerCase();
+  const exactMatch = sections.find((section) => {
+    const sectionSubjectId = Number(section?.selected_subject_id || 0);
+    const sectionSubjectName = String(section?.selected_subject_name || '').trim().toLowerCase();
+    return (
+      (destinationSubjectId && sectionSubjectId === destinationSubjectId) ||
+      (destinationSubjectName && sectionSubjectName === destinationSubjectName)
+    );
+  }) ?? null;
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  return (
+    sections.find((section) => Number(section?.question_count || 0) > 0 && Object.values(section?.question_groups ?? {}).some((group) => Array.isArray(group) && group.length > 0)) ??
+    sections.find((section) => Number(section?.question_count || 0) > 0) ??
+    null
+  );
+};
+
 const createEmptyQuestionGroupCounts = () => ({
   direction: 0,
   similar: 0,
@@ -6944,6 +6967,86 @@ export const generateExamSectionQuestions = async (req, res) => {
     res.json(generatedSection);
   } catch (err) {
     handleServiceError(res, err, 'Failed to generate exam section questions');
+  }
+};
+
+export const cloneExamSectionQuestions = async (req, res) => {
+  try {
+    if (!req.user?.id || !req.user?.role) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const sourceExamId = parseRequiredInt(req.body?.source_exam_id, 'source_exam_id');
+    const exam = await getExamByIdForAccess({ examId: req.params.id, user: req.user });
+    ensureExamEditable(exam, req.user);
+
+    const destinationSection = await getSectionByIdForAccess({
+      examId: req.params.id,
+      sectionId: req.params.sectionId,
+      user: req.user,
+    });
+    const sourceExam = await getExamByIdForAccess({ examId: sourceExamId, user: req.user });
+
+    if (!exam.program_id || Number(sourceExam.program_id) !== Number(exam.program_id)) {
+      throw new AppError('Source exam does not belong to the same program', 400);
+    }
+
+    const sourcePreview = await buildExamPreviewPayload(sourceExam);
+    const sourceSection = findMatchingSourceSection(sourcePreview.sections ?? [], destinationSection);
+    if (!sourceSection) {
+      throw new AppError('No matching source section was found for the selected exam', 404);
+    }
+
+    const sourceQuestions = Object.values(sourceSection.question_groups ?? {})
+      .flatMap((group) => Array.isArray(group) ? group : [])
+      .sort((left, right) => Number(left.order_index || 0) - Number(right.order_index || 0));
+
+    if (sourceQuestions.length === 0) {
+      throw new AppError('Selected source section does not contain any questions', 400);
+    }
+
+    const tx = await getClient();
+    try {
+      await tx.query('BEGIN');
+      await tx.query(`DELETE FROM exam_questions WHERE section_id = $1`, [Number(destinationSection.id)]);
+
+      let orderIndex = 1;
+      for (const question of sourceQuestions) {
+        await tx.query(
+          `
+            INSERT INTO exam_questions
+              (section_id, question_id, order_index, question_group_type, generated_from_topic_selection)
+            VALUES
+              ($1, $2, $3, $4, FALSE)
+          `,
+          [Number(destinationSection.id), Number(question.question_id), orderIndex, question.question_group_type]
+        );
+        orderIndex += 1;
+      }
+
+      await tx.query(
+        `
+          UPDATE exam_sections
+          SET completion_status = $1,
+              syllabus_locked = $2
+          WHERE id = $3
+        `,
+        [sourceQuestions.length > 0 ? 'completed' : 'configured', sourceQuestions.length > 0, Number(destinationSection.id)]
+      );
+
+      await tx.query('COMMIT');
+    } catch (error) {
+      await tx.query('ROLLBACK');
+      throw error;
+    } finally {
+      tx.release();
+    }
+
+    const sections = await fetchExamSectionsWithBlueprintData(Number(exam.id));
+    const updatedSection = sections.find((item) => Number(item.id) === Number(destinationSection.id));
+    res.json(updatedSection);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to clone subject questions');
   }
 };
 

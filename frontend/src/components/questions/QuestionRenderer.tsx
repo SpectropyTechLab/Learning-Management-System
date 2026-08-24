@@ -61,6 +61,7 @@ export interface RenderableQuestion {
   comprehension_passage?: RichTextLike | null;
   comprehension_questions?: ComprehensiveQuestionLike[] | null;
   difficulty_level?: string | null;
+  chapter_id?: number | null;
   marks_positive?: number;
   marks_negative?: number;
   category?: QuestionCategoryLike;

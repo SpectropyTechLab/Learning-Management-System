@@ -212,6 +212,15 @@ export const replaceQuestionInSection = async (
   return res.data as ExamBuilderSection;
 };
 
+export const cloneExamSectionQuestions = async (
+  examId: number,
+  sectionId: number,
+  payload: { source_exam_id: number }
+): Promise<ExamBuilderSection> => {
+  const res = await api.post(`/exams/${examId}/sections/${sectionId}/clone-questions`, payload);
+  return res.data as ExamBuilderSection;
+};
+
 // ============================================
 // EXAM PUBLISHING
 // ============================================

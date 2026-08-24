@@ -6,6 +6,7 @@ import ProtectedRoute from './ProtectedRoute';
 
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage';
+import LandingPage from '@/pages/auth/LandingPage';
 import Courses from '@/pages/course/CoursesPage';
 
 // SuperAdmin
@@ -44,6 +45,7 @@ import ContentAuthorizerCourses from '@/pages/dashboard/content_authorizer/Cours
 import ContentAuthorizerDashboard from '@/pages/dashboard/content_authorizer/Dashboard';
 import ContentAuthorizerPacksPage from '@/pages/dashboard/content_authorizer/PacksPage';
 import ContentAuthorizerPackManagePage from '@/pages/dashboard/content_authorizer/PackManagePage';
+import ContentAuthorizerCommunity from '@/pages/dashboard/content_authorizer/Community';
 import SchoolOwnerProfile from '@/pages/dashboard/school_owner/Profile';
 import SchoolOwnerCourseContent from '@/pages/course/school_owner/CourseContent';
 import SchoolOwnerEnrollUsers from '@/pages/course/school_owner/EnrollUsers';
@@ -116,7 +118,7 @@ export default function AppRoutes() {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={<LoginPage />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/courses" element={<Courses />} />
       <Route path="/content/:contentId" element={<ContentViewer />} />
@@ -187,6 +189,7 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/courses" element={<ContentAuthorizerCourses />} />
         <Route path="/content-authorizer/packs" element={<ContentAuthorizerPacksPage />} />
         <Route path="/content-authorizer/packs/:packId" element={<ContentAuthorizerPackManagePage />} />
+        <Route path="/content-authorizer/community" element={<ContentAuthorizerCommunity />} />
         <Route path="/content-authorizer/courses/:courseId/content" element={<ContentAuthorizerCourseContent />} />
         <Route path="/content-authorizer/profile" element={<ContentAuthorizerProfile />} />
         <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />

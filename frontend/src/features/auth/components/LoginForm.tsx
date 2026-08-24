@@ -115,8 +115,16 @@ export default function LoginForm() {
               </div>
             </div>
           </Link>
-          <div className="hidden items-center gap-3 rounded-full border border-blue-100 bg-white px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm md:flex">
-            Secure client access
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="rounded-full border border-blue-100 bg-white px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50"
+            >
+              Back to Home
+            </Link>
+            <div className="hidden items-center gap-3 rounded-full border border-blue-100 bg-white px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm md:flex">
+              Secure client access
+            </div>
           </div>
         </div>
       </header>

@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+﻿import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import axios from "axios";
@@ -27,8 +27,10 @@ import {
   configureExamSectionSyllabus,
   fetchExamById,
   fetchExamPreview,
+  fetchExams,
   fetchExamSectionSyllabusOptions,
   generateExamSectionQuestions,
+  cloneExamSectionQuestions,
   removeQuestionFromExamSection,
   replaceQuestionInSection,
 } from "@/features/exams/api";
@@ -106,6 +108,39 @@ type PickerState = {
   selectedQuestionType: string;
   selectedQuestionIds: string[];
   questions: PickerQuestion[];
+};
+
+type CloneSourceExam = {
+  id: number;
+  title: string;
+  program_id?: number | null;
+  question_count?: number | null;
+  subject_name?: string | null;
+  grade_name?: string | null;
+  chapter_names?: string[];
+  topic_names?: string[];
+  section_title?: string | null;
+};
+
+type CloneSourceSummary = {
+  examTitle: string;
+  gradeName: string;
+  subjectName: string;
+  chapterNames: string[];
+  topicNames: string[];
+  questionCount: number;
+  sourceExamId: number;
+};
+
+type CloneModalState = {
+  open: boolean;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  sources: CloneSourceExam[];
+  selectedExamId: string;
+  selectedSummary: CloneSourceSummary | null;
+  summaryLoading: boolean;
 };
 
 type ApiErrorPayload = {
@@ -186,6 +221,17 @@ const createDefaultPickerState = (): PickerState => ({
   selectedQuestionType: "",
   selectedQuestionIds: [],
   questions: [],
+});
+
+const createDefaultCloneModalState = (): CloneModalState => ({
+  open: false,
+  loading: false,
+  saving: false,
+  error: null,
+  sources: [],
+  selectedExamId: "",
+  selectedSummary: null,
+  summaryLoading: false,
 });
 
 const readApiErrorMessage = (error: unknown, fallback: string) => {
@@ -543,6 +589,7 @@ const normalizeGeneratedQuestion = (question: GeneratedExamQuestion): Renderable
     solution: toRenderableField(source, "solution", null),
     difficulty_level:
       typeof question.difficulty_level === "string" ? question.difficulty_level : undefined,
+    chapter_id: question.chapter_id ? Number(question.chapter_id) : null,
     category: question.question_group_type,
     comprehension: toRenderableField(source, "comprehension", null),
     comprehension_passage: toRenderableField(source, "comprehension_passage", null),
@@ -866,6 +913,7 @@ function QuestionGroupPreview({
   questions,
   displayQuestionNumbers,
   topicsById,
+  chaptersById,
   onDeleteAll,
   onDeleteQuestion,
   onReplaceQuestion,
@@ -877,6 +925,7 @@ function QuestionGroupPreview({
   questions: GeneratedExamQuestion[];
   displayQuestionNumbers: ReadonlyMap<number, number>;
   topicsById: Map<string, string>;
+  chaptersById: Map<string, string>;
   onDeleteAll: (groupType: QuestionGroupType) => void;
   onDeleteQuestion: (question: GeneratedExamQuestion) => void;
   onReplaceQuestion: (question: GeneratedExamQuestion, groupType: QuestionGroupType) => void;
@@ -942,9 +991,14 @@ function QuestionGroupPreview({
                         {question.difficulty_level}
                       </span>
                     ) : null}
+                    {question.chapter_id ? (
+                      <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-medium text-violet-700">
+                        Chapter : {chaptersById.get(String(question.chapter_id)) ?? `Chapter ${question.chapter_id}`}
+                      </span>
+                    ) : null}
                     {question.topic_id ? (
                       <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                        {topicsById.get(String(question.topic_id)) ?? `Topic ${question.topic_id}`}
+                        Topic : {topicsById.get(String(question.topic_id)) ?? `Topic ${question.topic_id}`}
                       </span>
                     ) : null}
                   </div>
@@ -1268,6 +1322,135 @@ function QuestionPickerModal({
   );
 }
 
+function CloneSourceModal({
+  open,
+  loading,
+  saving,
+  error,
+  sources,
+  selectedExamId,
+  onClose,
+  onSelectExam,
+  onClone,
+}: {
+  open: boolean;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  sources: CloneSourceExam[];
+  selectedExamId: string;
+  onClose: () => void;
+  onSelectExam: (examId: string) => void;
+  onClone: () => void;
+}) {
+  if (!open) return null;
+  const selectedSource = sources.find((source) => String(source.id) === selectedExamId) ?? null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-3 sm:px-4 sm:py-8">
+      <div className="flex max-h-[96vh] w-full max-w-3xl min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-4xl">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Clone Subject Questions</h2>
+            <p className="mt-1 text-sm text-slate-500">Choose an exam from the same program and copy its questions.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 flex flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+            {error ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+            ) : loading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                Loading source exams...
+              </div>
+            ) : sources.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                No source exams were found for this program.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sources.map((source) => {
+                  const checked = String(source.id) === selectedExamId;
+                  return (
+                    <button
+                      key={source.id}
+                      type="button"
+                      onClick={() => onSelectExam(String(source.id))}
+                      className={`w-full rounded-2xl border p-4 text-left transition ${checked ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input type="radio" readOnly checked={checked} className="mt-1" />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-900">{source.title}</div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {source.subject_name ?? 'Subject'} · {source.question_count ?? 0} questions
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 px-4 py-4 sm:px-6">
+            {selectedSource ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div className="text-sm font-semibold text-slate-900">{selectedSource.section_title ?? selectedSource.title}</div>
+                <div className="mt-0.5 text-xs text-slate-500">
+                  {selectedSource.grade_name ?? 'Grade'} · {selectedSource.subject_name ?? 'Subject'} · {selectedSource.question_count ?? 0} questions
+                </div>
+                {selectedSource.chapter_names && selectedSource.chapter_names.length > 0 ? (
+                  <div className="mt-1 text-xs text-violet-700">
+                    Chapter : {selectedSource.chapter_names.join(', ')}
+                  </div>
+                ) : null}
+                {selectedSource.topic_names && selectedSource.topic_names.length > 0 ? (
+                  <div className="mt-0.5 text-xs text-sky-700">
+                    Topic : {selectedSource.topic_names.join(', ')}
+                  </div>
+                ) : null}
+                <div className="mt-2 rounded-lg bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700">
+                  All {selectedSource.question_count ?? 0} questions will be copied.
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200 px-4 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-lg border border-slate-300/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onClone}
+            disabled={saving || !selectedExamId}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            {saving ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiSparklingLine className="h-4 w-4" />}
+            Clone Questions
+          </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default function ExamBuilderPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -1279,6 +1462,8 @@ export default function ExamBuilderPage() {
   const [editors, setEditors] = useState<Record<number, SectionEditorState>>({});
   const [activeSectionId, setActiveSectionId] = useState<number | null>(null);
   const [picker, setPicker] = useState<PickerState>(createDefaultPickerState);
+  const [cloneModal, setCloneModal] = useState<CloneModalState>(createDefaultCloneModalState);
+  const [cloneSourceName, setCloneSourceName] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const syllabusLoadInFlightRef = useRef<Record<number, string>>({});
   const syllabusLoadResolvedRef = useRef<Record<number, string>>({});
@@ -1769,6 +1954,114 @@ export default function ExamBuilderPage() {
     });
   };
 
+  const handleOpenCloneModal = async (section: ExamBuilderSection) => {
+    const programId = preview?.exam?.program_id ? Number(preview.exam.program_id) : null;
+    if (!programId) {
+      setCloneModal({
+        ...createDefaultCloneModalState(),
+        open: true,
+        error: "Exam program is not configured.",
+      });
+      return;
+    }
+
+    setCloneModal({
+      ...createDefaultCloneModalState(),
+      open: true,
+      loading: true,
+    });
+
+    try {
+      const response = await fetchExams({ page_size: 500 });
+      const baseSources = (response.data ?? [])
+        .filter((exam) => Number(exam.program_id ?? 0) === programId)
+        .filter((exam) => Number(exam.id) !== Number(preview?.exam?.id ?? 0));
+
+      const currentSubject = String(section.selected_subject_name ?? '').trim().toLowerCase();
+
+      const sources = await Promise.all(
+        baseSources.map(async (exam) => {
+          try {
+            const examPreview = await fetchExamPreview(Number(exam.id));
+            const matchingSection = (examPreview.sections ?? []).find((candidate) => {
+              const subject = String(candidate.selected_subject_name ?? '').trim().toLowerCase();
+              return currentSubject && subject === currentSubject;
+            }) ?? (examPreview.sections ?? []).find((candidate) => String(candidate.selected_subject_name ?? '').trim().length > 0) ?? null;
+
+            const chapterNames = Array.isArray((matchingSection as any)?.chapters)
+              ? (matchingSection as any).chapters.map((chapter: any) => String(chapter.name ?? '')).filter(Boolean)
+              : [];
+            const topicNames = Array.isArray((matchingSection as any)?.topics)
+              ? (matchingSection as any).topics.map((topic: any) => String(topic.name ?? '')).filter(Boolean)
+              : [];
+
+            return {
+              id: Number(exam.id),
+              title: String(exam.title ?? `Exam ${exam.id}`),
+              program_id: exam.program_id ? Number(exam.program_id) : null,
+              question_count: Number(matchingSection?.question_count ?? 0),
+              subject_name: matchingSection?.selected_subject_name ? String(matchingSection.selected_subject_name) : null,
+              grade_name: String((examPreview.exam as any)?.grade_name ?? (examPreview.exam as any)?.grade_label ?? ''),
+              chapter_names: chapterNames,
+              topic_names: topicNames,
+              section_title: matchingSection?.selected_subject_name ? String(matchingSection.selected_subject_name) : null,
+            };
+          } catch {
+            return {
+              id: Number(exam.id),
+              title: String(exam.title ?? `Exam ${exam.id}`),
+              program_id: exam.program_id ? Number(exam.program_id) : null,
+              question_count: Number(exam.question_count ?? 0),
+              subject_name: null,
+            };
+          }
+        })
+      );
+
+      setCloneModal({
+        open: true,
+        loading: false,
+        saving: false,
+        error: sources.length === 0 ? "No source exam sections were found for this program." : null,
+        sources,
+        selectedExamId: sources[0] ? String(sources[0].id) : "",
+      });
+      setCloneSourceName(sources[0]?.title ?? null);
+    } catch (err) {
+      setCloneModal({
+        ...createDefaultCloneModalState(),
+        open: true,
+        error: readApiErrorMessage(err, "Failed to load source exams."),
+      });
+    }
+  };
+  const handleCloneQuestions = async () => {
+    if (!activeSection) return;
+    if (!cloneModal.selectedExamId) {
+      toast.error("Select a source exam first.");
+      return;
+    }
+
+    setCloneModal((current) => ({ ...current, saving: true, error: null }));
+    try {
+      await cloneExamSectionQuestions(examId, activeSection.id, {
+        source_exam_id: Number(cloneModal.selectedExamId),
+      });
+      setCloneSourceName(
+        cloneModal.sources.find((source) => String(source.id) === cloneModal.selectedExamId)?.title ?? null
+      );
+      await refreshPreview();
+      setCloneModal(createDefaultCloneModalState());
+      toast.success("Questions cloned successfully.");
+    } catch (err) {
+      setCloneModal((current) => ({
+        ...current,
+        saving: false,
+        error: readApiErrorMessage(err, "Failed to clone questions."),
+      }));
+    }
+  };
+
   const pickerSection =
     preview?.sections.find((section) => section.id === picker.sectionId) ?? null;
   const pickerEditor = pickerSection ? editors[pickerSection.id] ?? createDefaultEditorState() : null;
@@ -1985,6 +2278,9 @@ export default function ExamBuilderPage() {
     activeSection && activeEditor
       ? getAllocationValidation(activeEditor.allocationRows, activeSection)
       : null;
+  const activeChaptersById = new Map(
+    (activeSection?.chapters ?? []).map((chapter) => [String(chapter.id), chapter.name] as const)
+  );
   const activeTopicsById = new Map(
     [
       ...((activeSection?.topics ?? []).map((topic) => [String(topic.id), topic.name] as const)),
@@ -2211,12 +2507,22 @@ export default function ExamBuilderPage() {
                         Select the subject and chapters, define the topic-wise question mix, generate the section, then review each part below.
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Generated
-                      </div>
-                      <div className="mt-1 text-base font-semibold text-slate-950">
-                        {activeSection.question_count ?? 0}/{activeSection.required_question_count ?? 0}
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenCloneModal(activeSection)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      >
+                        <RiSparklingLine className="h-4 w-4" />
+                        Clone Subject Questions
+                      </button>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Generated
+                        </div>
+                        <div className="mt-1 text-base font-semibold text-slate-950">
+                          {activeSection.question_count ?? 0}/{activeSection.required_question_count ?? 0}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2339,7 +2645,14 @@ export default function ExamBuilderPage() {
                 <section className="space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-xl font-semibold text-slate-950">Question Preview</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-xl font-semibold text-slate-950">Question Preview</h3>
+                        {cloneSourceName ? (
+                          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                            Clone: {cloneSourceName}
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="mt-0.5 text-sm text-slate-500">
                         Review every part, remove questions, clear a full part, or add approved questions manually.
                       </p>
@@ -2355,6 +2668,7 @@ export default function ExamBuilderPage() {
                       }
                       displayQuestionNumbers={questionPreviewNumbers}
                       topicsById={activeTopicsById}
+                      chaptersById={activeChaptersById}
                       deletingGroup={activeEditor.deletingGroup === groupType}
                       deletingQuestionId={activeEditor.deletingQuestionId}
                       onDeleteAll={(nextGroupType) => void handleDeleteGroup(activeSection, nextGroupType)}
@@ -2371,6 +2685,23 @@ export default function ExamBuilderPage() {
           </div>
         )}
       </ExamShell>
+
+      <CloneSourceModal
+        open={cloneModal.open}
+        loading={cloneModal.loading}
+        saving={cloneModal.saving}
+        error={cloneModal.error}
+        sources={cloneModal.sources}
+        selectedExamId={cloneModal.selectedExamId}
+        onClose={() => setCloneModal(createDefaultCloneModalState())}
+        onSelectExam={(examId) =>
+          setCloneModal((current) => ({
+            ...current,
+            selectedExamId: examId,
+          }))
+        }
+        onClone={() => void handleCloneQuestions()}
+      />
 
       <QuestionPickerModal
         mode={picker.mode}
@@ -2411,3 +2742,5 @@ export default function ExamBuilderPage() {
       </>
     );
   }
+
+
