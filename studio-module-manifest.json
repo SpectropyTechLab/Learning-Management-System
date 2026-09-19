@@ -1,0 +1,14 @@
+{
+  "frontend/src/features/digital-studio/module/CurriculumPicker.tsx": "c177ba5f6ffc9a73a7a02fe786883eb4185ae71ae4289f8bd583844f0be90121",
+  "frontend/src/features/digital-studio/module/DraftReview.tsx": "d5a90cd78cc0c849ea817287cbef907eb4b41d435606e987cae7a530e922c169",
+  "frontend/src/features/digital-studio/module/SlideView.tsx": "824be5ecb3b49c38c71abe44f7c34b28bdab314b7ed3e73c41b4d0b520b4f359",
+  "frontend/src/features/digital-studio/module/studio.css": "6e4871ed5a29ad2deaf6ec0e99e1472b8c5dbcda7ea428a063d774c70c15be98",
+  "frontend/src/features/digital-studio/module/Studio.tsx": "aef6c4ad42041c49b08dd55a0f7693e8650f700024c0d92712c5e73da6aeaa01",
+  "frontend/src/features/digital-studio/module/types.ts": "fea998f83a2ddee689733beb063373fe72ae2c6b3a55823e822bfd481aa48b60",
+  "backend/studio/ai.mjs": "a707859be598d625015c95824b30047bce26dd2b311b54ee93d2448832aabd76",
+  "backend/studio/contracts.mjs": "726356a902a3450e3c08d5dca70ab79e26a1cb6cbebe6c5fcff2d98eeb1247fc",
+  "backend/studio/curriculum.mjs": "95c1205189b12a6fa8c95c9196eee220a906dbd832c004a2ce7cb08545067afa",
+  "backend/studio/providers.mjs": "fd318b592a0a1685c7d69e391c8958e5ec3ad208193fb2055670a5813fbe9330",
+  "backend/studio/router.mjs": "ed52a0cb6ea82457cae735d745a996bcf8d9198da625e6563462dd9e571e64c8",
+  "backend/scripts/studio/001_studio.sql": "b5a214c5c5e8342ef6ccee92ed9cb72db75b2eebffceb3d1a3d2ad34b5f86cd6"
+}
