@@ -4,7 +4,7 @@
 - **Product:** AI Powered Digital Classroom Studio, inside Spectropy OS/LMS
 - **Current delivery:** Version 1 · Phase 1 — limited live integration and manual authoring pilot
 - **Documentation baseline:** 19 September 2026 · revision 1
-- **Verified application release:** `90c2e8ceb20ef65e2055a54b555e9ad36631af23`
+- **Verified frontend release:** `dd934ba3fd486ddf493bb3d95bc4d070de1f2e4c` (21 September 2026); unchanged backend remains at `90c2e8ce`
 
 ## Start here
 

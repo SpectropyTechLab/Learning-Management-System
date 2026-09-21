@@ -1,6 +1,6 @@
 # Spectropy Studio brand consistency
 
-[Handbook](README.md). Version 1 · Phase 1 follow-up, 19 September 2026. Local implementation; not deployed.
+[Handbook](README.md). Version 1 · Phase 1 follow-up, 19 September 2026. Deployed 21 September 2026; signed-in live welcome and draft presentation checked.
 
 ## Source of truth
 

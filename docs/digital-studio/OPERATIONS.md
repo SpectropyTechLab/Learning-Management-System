@@ -81,3 +81,7 @@ Normally retain the additive Studio tables during an application rollback. Do no
 A user-supplied screenshot on 19 September showed daily physical backups, latest 18 September 20:24:01 UTC (19 September 01:54:01 IST). This was backup availability evidence, not a performed restore test. Supabase Storage objects were explicitly excluded. Recheck backup recency and coverage for each future release. Current Studio BYTEA assets are database data; future object-storage assets require their own recovery plan.
 
 Formal recovery-time/recovery-point targets, restore drills, monitoring thresholds and on-call ownership remain unassigned. During the pilot watch API errors, save failures, latency, connection pressure and asset growth; no automatic continuous monitoring was established by this documentation.
+
+## Branding release — 21 September 2026
+
+Frontend commit `dd934ba3fd486ddf493bb3d95bc4d070de1f2e4c` is live through Vercel `9NqVp1H2NSiKBvxkBruhJPouHJ4y`. Branch preview `9djujZU9yWJPQnEihxYYBcbDZmgg` passed first. Main was fast-forwarded; no PR. Render remains on initial pilot commit/deployment above; no backend source changed. No database migration, new permission or AI activation was required. Previous frontend deployment `HxUg3THfUxj99FAYq9oeZxTQZwfE` is the rollback reference. See CHANGELOG for live checks. Post-release documentation is maintained separately to avoid a documentation-only main deployment.

@@ -1,6 +1,6 @@
 # Current status and proposed roadmap
 
-As of 19 September 2026. [Handbook](README.md)
+As of 21 September 2026. [Handbook](README.md)
 
 ## Version 1 · Phase 1 — limited live pilot
 
@@ -15,10 +15,10 @@ The **integration milestone is complete**. The product remains a limited pilot w
 | Existing Courses, Exams and tracker pages | Live smoke checks passed | Not a full regression of all roles/workflows |
 | Plan/script/media uploads and flexible parsing | Implemented / local verified | Production upload acceptance remains pending |
 | Reviewed publication and published presentation | Implemented / local verified | Live sample publication was blocked by approval review; remains a draft |
-| AI adapters, model choice, jobs and proposal review | Implemented / local verified | No live provider evaluation or production configuration |
+| AI adapters, model choice, jobs and proposal review | Implemented / local verified | Local key authentication/catalogue verified 21 September; generation evaluation and production configuration pending |
 | Owner/scope isolation and denied access | Local automated evidence | Separate live denied-account check remains pending |
 | Team sharing / manager account | Pending design/onboarding | No automatic sharing or manager grant |
-| OS brand alignment | Implemented / local verified; not deployed | Navy/blue interface, inherited OS font; see [brand guidelines](BRAND_GUIDELINES.md) |
+| OS brand alignment | Live visual verification passed | Navy/blue interface, inherited OS font; see [brand guidelines](BRAND_GUIDELINES.md) |
 | Living documentation | Baseline established | Review/update with every material change |
 
 ## Proposed next phases — not yet committed delivery dates
@@ -46,7 +46,7 @@ No requirement may be marked completed solely because a UI button, schema table 
 
 ## Next delivery steps
 
-1. **Review and release the brand update.** Inspect the local preview, then release through GitHub and the existing Vercel/Render pipeline. Acceptance: correct OS styling, keyboard focus, desktop/mobile layout, and unchanged save/present behavior. Risk: CSS regressions or stale PWA assets; check the deployed build and retain the prior commit for rollback. No database migration is required.
+1. **Brand update released 21 September; continue visual feedback.** Released through GitHub main and Vercel; backend code was unchanged and Render retains the prior commit. Acceptance: correct OS styling, keyboard focus, desktop/mobile layout, and unchanged save/present behavior. Risk: CSS regressions or stale PWA assets; check the deployed build and retain the prior commit for rollback. No database migration is required.
 2. **Complete the Phase 1 pilot checks.** Use a clearly labeled sample for uploads and, when explicitly authorized, publication and published presentation. Check denial with a separate account. Identify the manager account and agree access/sharing expectations before expanding permissions. Publication changes live content; it is still pending approval, not implicitly approved by a styling request.
 3. **Prepare isolated staging and AI controls.** Establish test configuration and synthetic data; agree allowed providers/models, request limits, budget and what content may be sent. Keep keys server-side. Start with OpenRouter while retaining provider adapters and model selection. No real provider call or paid activation occurred in this change.
 4. **Validate AI across all four phases.** Evaluate brief, lesson-plan, script and slide proposals against varied subject examples. Require review before applying; verify failures, retries, revision conflicts and measured usage/cost. Promote to the limited live pilot only after these results are reviewed.

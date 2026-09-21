@@ -47,3 +47,7 @@ For each change record: requirement IDs, environment, commit, exact command/work
 ## Brand alignment validation — 19 September 2026
 
 Local source/deployable parity, focused TypeScript and Vite/PWA build passed. Browser acceptance passed create, edit, variable script import, drag/resize, autosave, draft/published presentation via mock transport, reopening, 390px mobile overflow check and mocked AI review/apply. Desktop/mobile screenshots were produced under canonical `application/qa/artifacts`. Real provider quality, live publication, full accessibility and post-deploy OS visual acceptance remain pending. The build still reports large chunks and an outdated Browserslist database.
+
+## Live branding release checks — 21 September 2026
+
+Vercel branch and production deployments Ready at `dd934ba3`. Actual pilot login: updated welcome visible, existing sample reopened, draft presentation displayed, exited successfully. No publication performed. Focused TypeScript and packaging parity rechecked before push. OpenRouter key authentication and catalogue passed locally; generation not tested, no paid generation requested. No database writes/migration or permission changes were part of release operations. Full OS regression and broader role checks remain pending.
