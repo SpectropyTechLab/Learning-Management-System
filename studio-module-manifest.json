@@ -2,7 +2,7 @@
   "frontend/src/features/digital-studio/module/CurriculumPicker.tsx": "c177ba5f6ffc9a73a7a02fe786883eb4185ae71ae4289f8bd583844f0be90121",
   "frontend/src/features/digital-studio/module/DraftReview.tsx": "d5a90cd78cc0c849ea817287cbef907eb4b41d435606e987cae7a530e922c169",
   "frontend/src/features/digital-studio/module/SlideView.tsx": "824be5ecb3b49c38c71abe44f7c34b28bdab314b7ed3e73c41b4d0b520b4f359",
-  "frontend/src/features/digital-studio/module/studio.css": "6e4871ed5a29ad2deaf6ec0e99e1472b8c5dbcda7ea428a063d774c70c15be98",
+  "frontend/src/features/digital-studio/module/studio.css": "2a7cf16586d343ec1a67347a2b5476969d48b0fdbb2b0cbfc46c73a02785a609",
   "frontend/src/features/digital-studio/module/Studio.tsx": "aef6c4ad42041c49b08dd55a0f7693e8650f700024c0d92712c5e73da6aeaa01",
   "frontend/src/features/digital-studio/module/types.ts": "fea998f83a2ddee689733beb063373fe72ae2c6b3a55823e822bfd481aa48b60",
   "backend/studio/ai.mjs": "a707859be598d625015c95824b30047bce26dd2b311b54ee93d2448832aabd76",

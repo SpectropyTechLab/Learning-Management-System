@@ -2,6 +2,12 @@
 
 [Handbook](README.md). Product phases, code releases and documentation revisions are separate.
 
+## Unreleased — Studio brand alignment
+
+19 September 2026. Replaced green interface accents and serif UI headings with the OS navy/blue palette, neutral surfaces and inherited sans-serif font. Updated local preview styling and synchronized the deployable CSS/manifest. Preserved authored slide appearance and saved content. No database, permission, backend or provider configuration changes; no GitHub push or production deployment. Added brand guidance and the next delivery sequence.
+
+Validation: source/package parity, focused TypeScript, Vite/PWA build and the local browser workflow passed (including mobile overflow and mocked AI review). Local publication uses mock transport and does not validate production publication. Existing large-chunk and outdated Browserslist warnings remain.
+
 ## Unreleased documentation — handbook revision 1
 
 19 September 2026. Established the living handbook for **Version 1 · Phase 1**: requirements, user guide, architecture, data/API, operations/recovery, status/roadmap, tests/risks and decisions. Added a maintenance checklist and working instructions. Clarified historical status notes. No runtime, database or hosting changes are part of this documentation update. Record remote publication separately when performed.

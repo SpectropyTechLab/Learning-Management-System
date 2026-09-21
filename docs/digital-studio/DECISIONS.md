@@ -17,3 +17,7 @@
 | ADR-011 | Living documentation with development | End-to-end understanding throughout delivery | Handbook/process established |
 
 For future decisions record date, context, chosen approach, alternatives, consequences, status and superseding decision when applicable. Preserve earlier decisions as history.
+
+## ADR-012 — Match the existing OS brand
+
+19 September 2026. User requested brand consistency. Studio interface follows the standard Content Authorizer OS navy/blue theme and inherits the host font. Keep changes in scoped Studio CSS; preserve authored slide rendering and immutable content. Introduce a branded slide theme separately as an explicit choice. See [brand guidelines](BRAND_GUIDELINES.md). Local implementation, deployment pending.

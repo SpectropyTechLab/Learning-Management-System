@@ -24,6 +24,8 @@ This handbook is the **current-state documentation entry point**. It is maintain
 | QA / release operator | [Testing and risks](TESTING_AND_RISKS.md) | [Operations](OPERATIONS.md), [change process](MAINTENANCE.md) |
 | Future maintainer | All of the above | [Decision log](DECISIONS.md) and linked source files |
 
+See also [brand guidelines](BRAND_GUIDELINES.md) for the OS visual reference and [next delivery steps](STATUS_AND_ROADMAP.md#next-delivery-steps) for the immediate sequence.
+
 ## How to read status
 
 - **Live verified:** checked on the deployed OS; the exact checked behavior is stated.

@@ -43,3 +43,7 @@ Risk owners are organizational assignments still pending. No uptime, security ce
 ## Future test records
 
 For each change record: requirement IDs, environment, commit, exact command/workflow, expected/actual behavior, date, evidence path, failures, exclusions and reviewer. Keep credentials and unnecessary customer records out of logs/screenshots. Distinguish “not run,” “blocked,” “failed” and “passed.”
+
+## Brand alignment validation — 19 September 2026
+
+Local source/deployable parity, focused TypeScript and Vite/PWA build passed. Browser acceptance passed create, edit, variable script import, drag/resize, autosave, draft/published presentation via mock transport, reopening, 390px mobile overflow check and mocked AI review/apply. Desktop/mobile screenshots were produced under canonical `application/qa/artifacts`. Real provider quality, live publication, full accessibility and post-deploy OS visual acceptance remain pending. The build still reports large chunks and an outdated Browserslist database.
