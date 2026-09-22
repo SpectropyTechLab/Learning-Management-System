@@ -6,6 +6,7 @@ import {
   scopeKey,
   validateWorkspace,
   emptyWorkspace,
+  workspaceAssetIds,
 } from "./contracts.mjs";
 import { aiConfig, listModels, generate } from "./ai.mjs";
 
@@ -76,15 +77,7 @@ export function createStudioRouter({
       );
     validateWorkspace(document);
     await validateCurriculum(db, req.user, document.curriculum);
-    const assetIds = [
-      ...new Set(
-        document.sessions
-          .flatMap((s) =>
-            s.slides.flatMap((x) => x.elements.map((e) => e.assetId)),
-          )
-          .filter(Boolean),
-      ),
-    ];
+    const assetIds = workspaceAssetIds(document);
     if (assetIds.length) {
       assetIds.forEach(uuid);
       const found = await db.query(
