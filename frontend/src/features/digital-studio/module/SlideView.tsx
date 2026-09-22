@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import type { Slide, Element, StudioTransport } from "./types";
+import { ActivityView } from "./ActivityView";
+import { MotionView } from "./MotionScene";
+import { CompositionView } from "./CompositionView";
 
 export function AssetView({
   id,
@@ -120,9 +123,10 @@ export function SlideView({
     };
   };
 
+  if (slide.composition) return <CompositionView key={slide.id} slide={slide} projectId={projectId} transport={transport} selected={selected} onSelect={onSelect} onTransform={onTransform} teaching={teaching} />;
   return (
     <div
-      className={`ds-slide ds-template-${slide.template} ds-transition-${teaching ? slide.transition : "none"}`}
+      className={`ds-slide ${slide.activity && slide.activity.kind !== "none" ? "ds-has-activity" : ""} ds-template-${slide.template} ds-transition-${teaching ? slide.transition : "none"}`}
       style={{ background: slide.background }}
     >
       <span className="ds-slide-eyebrow">
@@ -130,6 +134,8 @@ export function SlideView({
       </span>
       <h2>{slide.title}</h2>
       <div className="ds-slide-body">{slide.body}</div>
+      {slide.scene && <MotionView key={`${slide.id}:${JSON.stringify(slide.scene)}`} config={slide.scene} />}
+      {slide.activity && <ActivityView key={`${slide.id}:${JSON.stringify(slide.activity)}`} activity={slide.activity} background={slide.activity.imageId ? <AssetView id={slide.activity.imageId} projectId={projectId} transport={transport} /> : undefined} />}
       {interaction.type === "quiz" && (
         <div className="ds-activity">
           <strong>{interaction.prompt}</strong>

@@ -1,3 +1,5 @@
+export const boards = ["CBSE/NCERT", "TGSCERT", "APSCERT", "KSEAB", "MSBTE"] as const;
+export type Board = (typeof boards)[number];
 export type Template =
   | "opener"
   | "concept"
@@ -22,6 +24,9 @@ export interface Element {
   locked: boolean;
 }
 export interface Slide {
+  composition?: { version: 1; blocks: import("./composition").StudioBlock[] };
+  scene?: MotionScene;
+  activity?: TeachingActivity;
   id: string;
   title: string;
   body: string;
@@ -41,6 +46,15 @@ export interface Slide {
   visualBrief: string;
   warnings: string[];
 }
+export interface TeachingActivity {
+  version: 1;
+  kind: "none" | "steps" | "matching" | "table" | "hotspots" | "sorting";
+  imageId?: string;
+  prompt: string;
+  headers: string[];
+  items: { id: string; label: string; value: string; extra: string; x?: number; y?: number }[];
+}
+export interface MotionScene { version: 1; kind: "motion-path"; firstLeg: number; secondLeg: number; duration: number; yaw: number; elevation: number; cinematic: boolean; color: string; }
 export interface Session {
   id: string;
   title: string;
@@ -60,6 +74,7 @@ export interface Workspace {
     topicIds: string[];
   };
   metadata: {
+    boards?: Board[];
     title: string;
     program: string;
     grade: string;
@@ -149,35 +164,4 @@ export function newSession(): Session {
     slides: [],
   };
 }
-export function importScript(text: string): Slide[] {
-  const headings = [
-    ...text.matchAll(
-      /^#{1,4}\s+(?:Slide|Screen)\s+(\d+)\s*[:.\-—–]?\s*(.*)$/gim,
-    ),
-  ];
-  if (!headings.length)
-    return [
-      {
-        ...newSlide("Imported script"),
-        body: "Review your source in teacher notes. Use AI interpretation or split this into slides manually.",
-        notes: text.slice(0, 12000),
-        visualBrief: text.slice(12000, 24000),
-        warnings: [
-          "No numbered slide headings detected. The full source remains in the session script.",
-        ],
-      },
-    ];
-  if (headings.length > 80)
-    throw Error("Split this script into sessions of 80 slides or fewer.");
-  return headings.map((h, i) => ({
-    ...newSlide(h[2].slice(0, 400) || `Slide ${h[1]}`),
-    body: "Choose a template and add the student-facing explanation, or use AI to interpret the full script.",
-    notes: text
-      .slice(h.index! + h[0].length, headings[i + 1]?.index ?? text.length)
-      .trim()
-      .slice(0, 12000),
-    warnings: [
-      "Imported source needs review: separate visible content, teacher notes and visual requirements.",
-    ],
-  }));
-}
+export { importScript } from "./script";

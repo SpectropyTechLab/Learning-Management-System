@@ -67,3 +67,23 @@ Common outcomes: 400 invalid content/review, 401 authentication, 403 permission,
 - Projects have optimistic revision checks. An old AI result cannot replace a newer draft.
 - Publication is idempotent for project/revision and requires explicit review. It does not publish to an LMS course or enroll students.
 - Deletion/archival APIs, pagination beyond the listed limits and retention jobs are not implemented.
+
+## Additive Board metadata — local contract extension
+
+`workspace.metadata.boards` is optional, with at most five distinct values: CBSE/NCERT, TGSCERT, APSCERT, KSEAB, MSBTE. Stored in existing Studio document JSON; schemaVersion remains 1. Missing values mean no selection, preserving legacy revisions without rewriting them. Present optional fields are fully validated; arbitrary properties remain rejected. No SQL migration or existing LMS-table changes. Parser output uses the existing slide contract; it does not yet introduce versioned blocks. Future strict model schemas require all declared properties while local validation permits missing Board metadata in old documents. AI remains off.
+
+## Reusable activity update — local, 21 September 2026
+
+See [reusable activities](REUSABLE_ACTIVITIES.md) for the new versioned activity contract, editable comparison tables, step explanations and matching pairs, cross-subject examples, release compatibility and limitations. New comparison-row scripts now create aligned tables; legacy cards remain supported. This supersedes earlier planned-only/card-only descriptions for these three components. The full interaction library, source-aware merge and cinematic 3D remain pending. No production deployment, AI activation or LMS-table migration occurred.
+
+## Local exploration/scene increment — 21 September 2026
+
+[Hotspots, sorting and first 2D/3D scene](SCENES_AND_EXPLORATION.md) records the current controls, versioned contracts, ownership checks, examples, test evidence, deployment order and limitations. These features are now locally implemented; prior planned-only statements for this subset are superseded. P3/P4 remain partial. The full cinematic timeline, high-end graphics quality target and wider simulation library remain pending. Production remains unchanged; AI stays off.
+
+## Optional block composition contract — local
+
+See [composition contract](COMPOSITION_EDITOR.md#contract-and-compatibility). Workspace schemaVersion remains 1; optional slide.composition version 1 is independently bounded/validated. Asset ownership collection includes every block element and activity image. Uses existing Studio JSON document/revision storage; no schema migration or LMS-table changes. Compatibility requires the matching renderer: legacy fallback fields are not kept synchronized with block edits.
+
+## Local group/style contract
+
+Optional groupId and textStyle are validated inside each composition block. Groups are flat and slide-scoped with at least two members. Styles are allowlisted, limited to text blocks and persisted in existing Studio JSON/revision data. No SQL migration. Details: [arrangement editor](ARRANGEMENT_EDITOR.md).

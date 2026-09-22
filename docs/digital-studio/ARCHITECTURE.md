@@ -59,3 +59,27 @@ The current worker runs in the existing backend process only when explicitly ena
 - AI outputs are declarative, validated lesson data, not executable JavaScript.
 - Foreign keys reference existing users without altering their columns. They can briefly lock referenced objects and constrain future user deletion; separate tables do not eliminate all coupling.
 - Lazy loading keeps editor/PDF code out of the initial OS bundle. Shared deployment, database and runtime failures can still affect the OS.
+
+## Manual script parser — local extension
+
+Canonical `frontend/script.ts` performs bounded deterministic interpretation. It does not execute source code, fetch source URLs or call AI. The original session script remains authoritative source material. Recognized fields populate existing native slide/interaction fields; unknown requirements become warnings. The storyboard stores candidate slides in UI state until author application. Append and confirmed replace route through normal edit history/autosave. A versioned component registry and stable source-to-block mapping are still pending.
+
+## Reusable activity update — local, 21 September 2026
+
+See [reusable activities](REUSABLE_ACTIVITIES.md) for the new versioned activity contract, editable comparison tables, step explanations and matching pairs, cross-subject examples, release compatibility and limitations. New comparison-row scripts now create aligned tables; legacy cards remain supported. This supersedes earlier planned-only/card-only descriptions for these three components. The full interaction library, source-aware merge and cinematic 3D remain pending. No production deployment, AI activation or LMS-table migration occurred.
+
+## Local exploration/scene increment — 21 September 2026
+
+[Hotspots, sorting and first 2D/3D scene](SCENES_AND_EXPLORATION.md) records the current controls, versioned contracts, ownership checks, examples, test evidence, deployment order and limitations. These features are now locally implemented; prior planned-only statements for this subset are superseded. P3/P4 remain partial. The full cinematic timeline, high-end graphics quality target and wider simulation library remain pending. Production remains unchanged; AI stays off.
+
+## Editor composition boundary — F1a
+
+`application/frontend/composition.ts` is a pure, editor-only adapter and command layer. Its `version: 1` describes the internal composition, not a new workspace API schema. Existing persisted Workspace schemaVersion 1 is unchanged. The source slide is cloned, so adaptation does not mutate drafts or releases. Blocks use deterministic slide/role identities; transformations use percentage coordinates. Restoring legacy data rejects unsupported layouts rather than dropping them. The module is not yet bound to Studio UI/autosave; server validation and asset ownership must accompany a future persisted multi-block contract. No engine dependency was added.
+
+## Connected composition update
+
+The earlier editor-only F1a description is superseded by [COMPOSITION_EDITOR.md](COMPOSITION_EDITOR.md). Studio now saves composition blocks through the validated API and uses CompositionView for both editing and presentation. Original fields remain conversion context, not a synchronized fallback. No engine dependency was added.
+
+## F2 arrangement layer
+
+`blockCommands.ts` implements immutable group-aware movement, alignment, grouping and layer operations. ArrangePanel provides checkbox selection and keyboard-operable commands; CompositionView previews group drags and renders styles. Backend validates group cardinality and tagged text styling. [Arrangement editor](ARRANGEMENT_EDITOR.md) records compatibility and remaining scope.

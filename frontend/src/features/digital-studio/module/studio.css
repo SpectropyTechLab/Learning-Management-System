@@ -1026,3 +1026,63 @@
 .ds-guidance h2 {
   font-family: inherit;
 }
+/* Manual authoring extensions use the existing Studio/OS palette and font. */
+.ds-board-field { min-width: 0; margin-bottom: 16px; font-size: 12px; font-weight: 600; color: #374151; }
+.ds-board-picker { margin-top: 7px; border: 1px solid #d1d5db; border-radius: 7px; background: #fff; color: var(--ds-ink); }
+.ds-board-picker summary { cursor: pointer; padding: 10px 12px; overflow-wrap: anywhere; }
+.ds-board-picker fieldset { margin: 0; border: 0; border-top: 1px solid var(--ds-line); padding: 12px; min-width: 0; }
+.ds-board-picker label { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.ds-board-picker input[type="checkbox"] { width: 18px; height: 18px; accent-color: #2563eb; }
+.ds-script-card { padding: 16px 0; border-bottom: 1px solid #d1d5db; }
+.ds-script-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ds-comparison > div { white-space: pre-wrap; }
+.ds-teaching-activity { position: absolute; inset: 40% 7% 7%; overflow: auto; font-size: 1.7cqw; line-height: 1.4; z-index: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ds-has-activity .ds-slide-body { max-height: 12%; font-size: 1.7cqw; }
+.ds-teaching-activity table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ds-teaching-activity th, .ds-teaching-activity td { border: 1px solid #ffffff55; padding: 1.5%; text-align: left; vertical-align: top; }
+.ds-teaching-activity th { background: #ffffff16; }
+.ds-teaching-activity button { font-size: inherit; padding: 1% 2%; margin: 1%; }
+.ds-teaching-activity button:disabled { opacity: .6; }
+.ds-teaching-activity ol { padding-left: 5%; }
+.ds-teaching-activity li { padding: 1% 0; }
+.ds-match-row { display: grid !important; grid-template-columns: 1fr 1.3fr; gap: 2%; align-items: center; margin-bottom: 2%; }
+.ds-match-row select { font-size: inherit; padding: 2%; width: 100%; min-width: 0; color: #0f172a; background: white; }
+.ds-activity-editor { min-width: 0; }
+.ds-root .ds-teaching-activity .ds-match-row { color: inherit; font-size: inherit; }
+.ds-root .ds-teaching-activity select { font-size: inherit; }
+.ds-hotspot-map { position: relative; width:100%; aspect-ratio:2/1; background:#16324f; }
+.ds-hotspot-map svg,.ds-hotspot-map img { width:100%;height:100%;object-fit:fill;display:block; }
+.ds-root .ds-hotspot-map button { position:absolute; transform:translate(-50%,-50%); margin:0; border-radius:50%; min-width:28px;min-height:28px;background:#2563eb;color:white;border:2px solid white; }
+.ds-hotspot-map button[aria-pressed=true] {outline:3px solid #fbbf24;}
+.ds-motion {position:absolute;inset:31% 6% 3%;overflow:auto;font-size:1.3cqw;z-index:1;}
+.ds-motion-stage {height:65%;min-height:100px; background:#091b2e;border-radius:10px;overflow:hidden;}
+.ds-motion-stage svg,.ds-webgl,.ds-webgl canvas {width:100%;height:100%;display:block;}
+.ds-root .ds-motion-controls {display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;}
+.ds-root .ds-motion-controls button,.ds-root .ds-motion-controls label {font-size:inherit;color:inherit;}
+.ds-root .ds-motion-controls button {background:#153b64;color:white;padding:5px 9px;}
+.ds-root .ds-motion-controls label {display:flex;gap:5px;align-items:center;}
+.ds-motion p {margin:3px 0;}
+.ds-root .ds-motion small {color:#e2e8f0;font-size:inherit;}
+
+/* Composed slides use the same Spectropy canvas and independently positioned content. */
+.ds-composition { padding: 0; }
+.ds-block { position: absolute; min-width: 0; }
+.ds-block.selected { outline: 2px solid #60a5fa; outline-offset: 2px; }
+.ds-block-content { width: 100%; height: 100%; overflow: auto; }
+.ds-block-content > img, .ds-block-content > video { width: 100%; height: 100%; object-fit: contain; }
+.ds-block-content h2 { margin: 0; padding: 0; font-size: 3cqw; }
+.ds-block-text { font-size: 1.8cqw; line-height: 1.45; white-space: pre-wrap; }
+.ds-block-handle { position: absolute; z-index: 4; top: 0; left: 0; transform: translateY(-100%); touch-action: none; cursor: move; padding: 2px 7px !important; font-size: 10px !important; opacity: .8; }
+.ds-block-content .ds-activity { margin: 0; max-height: none; font-size: 1.25cqw; }
+.ds-block-content .ds-slide { width: 100%; height: 100%; aspect-ratio: auto; padding: 0; background: transparent !important; }
+.ds-block-content .ds-slide-eyebrow { display: none; }
+.ds-block-content .ds-slide h2:empty, .ds-block-content .ds-slide-body:empty { display: none; }
+.ds-block-inspector fieldset { min-width: 0; border: 1px solid #cbd5e1; border-radius: 8px; margin: 12px 0; padding: 10px; }
+.ds-block-inspector p { font-size: 12px; line-height: 1.5; color: #475569; }
+.ds-block-content .ds-teaching-activity, .ds-block-content .ds-motion { position: relative; inset: auto; width: 100%; height: 100%; margin: 0; font-size: 1.5cqw; }
+.ds-block-content h2 { position: static; max-width: none; }
+.ds-block-content h2 { font-family: inherit; font-weight: 600; }
+.ds-layer-list { max-height: 210px; overflow: auto; margin: 8px 0; }
+.ds-layer-row { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+.ds-root .ds-layer-row input { width: 16px; height: 16px; flex-shrink: 0; }
+.ds-layer-row button { text-align: left; flex: 1; overflow: hidden; text-overflow: ellipsis; }

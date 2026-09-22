@@ -36,3 +36,27 @@ In the current live pilot, AI buttons are disabled and a configuration message i
 `Studio pilot verification — sample lesson` is an internal sample draft created during deployment checks. It has one session and one slide and is not assigned to a course/student. It is available to its pilot owner for demonstration.
 
 When reporting a problem, give the action, approximate time, project title/revision and sanitized error text. Do not include passwords, tokens or student personal data. A support contact and response-time commitment have not yet been assigned.
+
+## Local authoring update (pending release)
+
+In Syllabus, Board sits beside Language on wide screens and below it on narrow screens, with the same field-label styling. Open Board and select any applicable checkboxes. Existing lessons may leave this blank.
+
+In Slide script, upload or paste a script. Upload opens a storyboard review; for pasted text select Create manual slide drafts. Review visible content, teacher notes, quiz keys and warnings. Close the review to revise the script. Append drafts preserves existing slides. Replace slides with drafts asks for confirmation if slides already exist. Undo restores the previous deck in the current editing session. The uploaded script remains saved even if you cancel applying its drafts.
+
+Supported structured fields and limitations are listed in [implementation tracker](CLEANUP_REVIEW.md). Use numbered Markdown headings such as `## Slide 1: Compare`. Correct option may be a supplied A–H label or the exact option text. Invalid keys are flagged, not invented. Unsupported scene/animation requests remain instructions for follow-up. After applying, content and activities are editable; comparison cards each have their own multiline field. The review itself is not yet an inline editor.
+
+## Reusable activity update — local, 21 September 2026
+
+See [reusable activities](REUSABLE_ACTIVITIES.md) for the new versioned activity contract, editable comparison tables, step explanations and matching pairs, cross-subject examples, release compatibility and limitations. New comparison-row scripts now create aligned tables; legacy cards remain supported. This supersedes earlier planned-only/card-only descriptions for these three components. The full interaction library, source-aware merge and cinematic 3D remain pending. No production deployment, AI activation or LMS-table migration occurred.
+
+## Local exploration/scene increment — 21 September 2026
+
+[Hotspots, sorting and first 2D/3D scene](SCENES_AND_EXPLORATION.md) records the current controls, versioned contracts, ownership checks, examples, test evidence, deployment order and limitations. These features are now locally implemented; prior planned-only statements for this subset are superseded. P3/P4 remain partial. The full cinematic timeline, high-end graphics quality target and wider simulation library remain pending. Production remains unchanged; AI stays off.
+
+## Multi-block editing (local preview)
+
+See [multi-block editor](COMPOSITION_EDITOR.md) for the current author workflow. In Design & teach click Enable multi-block editing beside the slide controls and confirm. Single-slide editing is the default. This conversion preserves content but changes layout; Undo restores it. Use the block selector/label to select, drag to move, Shift-drag to resize, or numeric fields for exact positions. Add text, activity, quiz, motion or uploaded media blocks. Save and Present draft use the same composed content. Current controls and limitations are documented there.
+
+## Arrange and format blocks (local)
+
+See [arrangement editor](ARRANGEMENT_EDITOR.md). Select blocks through the Layers & selection checkboxes, then align/group/move/order them. Group members move together; locked members prevent group movement. Ungroup before individual resizing or deletion. Select a text block to change whole-block size, color, bold, italic or text alignment. Refresh the local preview to load these controls.

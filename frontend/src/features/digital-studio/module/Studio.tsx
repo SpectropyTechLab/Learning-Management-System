@@ -13,8 +13,14 @@ import type {
 } from "./types";
 import { importScript, newId, newSession, newSlide, templates } from "./types";
 import { CurriculumPicker } from "./CurriculumPicker";
+import { BoardPicker } from "./BoardPicker";
+import { ActivityEditor } from "./ActivityEditor";
+import { MotionEditor } from "./MotionScene";
 import { DraftReview } from "./DraftReview";
 import { SlideView } from "./SlideView";
+import { CompositionEditor } from "./CompositionEditor";
+import { arrangeBlocks } from "./blockCommands";
+import { composeLegacySlide, applyCompositionCommand, enableBlockEditing } from "./composition";
 import "./studio.css";
 
 const stages = ["Syllabus", "Lesson plan", "Slide script", "Design & teach"];
@@ -56,6 +62,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
     projectRef = useRef(project);
   projectRef.current = project;
   const [published, setPublished] = useState<Workspace | null>(null);
+  const [scriptDraft, setScriptDraft] = useState<{sessionId: string; slides: Slide[]} | null>(null);
   const displayDocument = present && published ? published : project?.document;
   const session =
     displayDocument?.sessions.find((s) => s.id === sessionId) ||
@@ -65,7 +72,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
   const element = slide?.elements.find((e) => e.id === selected);
   const request = transport.request;
   useEffect(() => {
-    if (!review && !revisionList.length) return;
+    if (!review && !revisionList.length && !scriptDraft) return;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = document.querySelector<HTMLElement>(
       '.ds-root [role="dialog"]',
@@ -82,6 +89,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
       if (event.key === "Escape") {
         setReview(null);
         setRevisionList([]);
+        setScriptDraft(null);
       }
       if (event.key !== "Tab") return;
       const items = focusable(),
@@ -100,7 +108,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
       dialog.removeEventListener("keydown", handle);
       previous?.focus();
     };
-  }, [review?.id, revisionList.length]);
+  }, [review?.id, revisionList.length, !!scriptDraft]);
   const operate = async (label: string, fn: () => Promise<void>) => {
     setBusy(label);
     setNotice("");
@@ -286,7 +294,12 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
           color: "#ffffff",
           locked: false,
         };
-        editSlide((s) => s.elements.push(el));
+        editSlide((s) => {
+          if (s.composition) {
+            if (s.composition.blocks.length >= 40) return;
+            s.composition.blocks.push({ id: el.id, locked: false, box: { x: el.x, y: el.y, width: el.width, height: el.height }, content: { kind: "element", element: el } });
+          } else s.elements.push(el);
+        });
         setSelected(el.id);
         return;
       }
@@ -314,13 +327,15 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
           editSession((s) => {
             s.plan = text;
           });
-      } else if (stage === 2)
+      } else if (stage === 2 && session) {
+        const slides = importScript(text);
         editSession((s) => {
           s.script = text;
-          s.slides = importScript(text);
         });
+        setScriptDraft({ sessionId: session.id, slides });
+      }
       setNotice(
-        "Source imported. Review the text, or ask AI to interpret its structure.",
+        "Source imported. Review the text and mapped drafts before applying them.",
       );
     });
   };
@@ -366,7 +381,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
   useEffect(() => {
     if (!present) return;
     const handler = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).matches("input,textarea")) return;
+      if ((e.target as HTMLElement).closest("input,textarea,select,[contenteditable=true]")) return;
       if (e.key === "Escape") setPresent(false);
       if (e.key === "ArrowRight") navigate(1);
       if (e.key === "ArrowLeft") navigate(-1);
@@ -638,6 +653,9 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                   />
                 </label>
               ))}
+              <BoardPicker value={project.document.metadata.boards || []} onChange={(boards) =>
+                edit((w) => { w.metadata.boards = boards; })
+              } />
             </div>
             <label>
               Teaching brief / requirements
@@ -805,19 +823,9 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                     <>
                       <button
                         onClick={() => {
-                          if (
-                            session.slides.length &&
-                            !window.confirm(
-                              "Replace this session’s slides? You can undo this change before leaving the editor.",
-                            )
-                          )
-                            return;
                           try {
                             const slides = importScript(session.script);
-                            editSession((s) => {
-                              s.slides = slides;
-                            });
-                            setStage(3);
+                            setScriptDraft({ sessionId: session.id, slides });
                           } catch (e) {
                             setNotice(humanError(e));
                           }
@@ -996,12 +1004,29 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                     onSelect={setSelected}
                     onTransform={(id, box) =>
                       editSlide((s) => {
+                        if (s.composition) {
+                          const block = s.composition.blocks.find(b => b.id === id);
+                          if (block?.groupId) {
+                            s.composition.blocks = arrangeBlocks(s.composition.blocks, [id], { type: "move", dx: box.x - block.box.x, dy: box.y - block.box.y });
+                            return;
+                          }
+                          s.composition.blocks = applyCompositionCommand(composeLegacySlide(s), { type: "transform", id, box }).blocks;
+                          return;
+                        }
                         const e = s.elements.find((e) => e.id === id);
                         if (e && !e.locked) Object.assign(e, box);
                       })
                     }
                   />
                   <div className="ds-canvas-tools">
+                    {!slide.composition ? <button onClick={() => {
+                      if (!window.confirm("Enable multi-block editing for this slide only? Content is kept, but the layout changes. Undo restores the previous slide; History can restore a saved revision.")) return;
+                      try {
+                        const converted = enableBlockEditing(slide);
+                        editSlide(s => { s.composition = converted.composition; });
+                        setTab("blocks"); setSelected("");
+                      } catch (e) { setNotice(humanError(e)); }
+                    }}>Enable multi-block editing</button> : <span className="ds-editor-mode">Multi-block editing enabled</span>}
                     <button onClick={() => move(-1)}>← Earlier</button>
                     <button onClick={() => move(1)}>Later →</button>
                     <button
@@ -1072,10 +1097,10 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
             </main>
             <aside className="ds-inspector">
               <div className="ds-tabs">
-                {["templates", "content", "elements", "activity"].map((t) => (
+                {(slide?.composition ? ["blocks"] : ["templates", "content", "elements", "activity"]).map((t) => (
                   <button
                     key={t}
-                    className={tab === t ? "active" : ""}
+                    className={(slide?.composition ? t === "blocks" : (tab === "blocks" ? t === "templates" : tab === t)) ? "active" : ""}
                     onClick={() => setTab(t)}
                   >
                     {t}
@@ -1084,7 +1109,11 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
               </div>
               {slide && (
                 <>
-                  {tab === "templates" && (
+                  {slide.composition && <>
+                    <CompositionEditor slide={slide} edit={editSlide} assets={assets} selected={selected} select={setSelected} />
+                    {slide.composition && <label className="ds-upload">Upload block media<input type="file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm" onChange={e => upload(e, true)} /></label>}
+                  </>}
+                  {!slide.composition && (tab === "templates" || tab === "blocks") && (
                     <>
                       <h3>Start with a layout</h3>
                       <div className="ds-template-grid">
@@ -1133,7 +1162,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                       </label>
                     </>
                   )}
-                  {tab === "content" && (
+                  {!slide.composition && tab === "content" && (
                     <>
                       <label>
                         Title
@@ -1177,7 +1206,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                       </small>
                     </>
                   )}
-                  {tab === "elements" && (
+                  {!slide.composition && tab === "elements" && (
                     <>
                       <div className="ds-actions">
                         <button onClick={() => addElement("text")}>
@@ -1331,8 +1360,11 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                       )}
                     </>
                   )}
-                  {tab === "activity" && (
+                  {!slide.composition && tab === "activity" && (
                     <>
+                      <ActivityEditor slide={slide} edit={editSlide} assets={assets} />
+                      <MotionEditor slide={slide} edit={editSlide} />
+                      {!slide.scene && (!slide.activity || slide.activity.kind === "none") && <>
                       <label>
                         Component
                         <select
@@ -1376,8 +1408,15 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                           }
                         />
                       </label>
-                      <label>
-                        Options / comparison cards (one per line)
+                      {slide.interaction.type === "comparison" ? <>
+                        {slide.interaction.options.map((value, index) => <label key={index}>
+                          Comparison card {index + 1}
+                          <textarea rows={5} maxLength={1000} value={value} onChange={(e) => editSlide((s) => { s.interaction.options[index] = e.target.value; })} />
+                          <button onClick={() => editSlide((s) => { s.interaction.options.splice(index, 1); })}>Remove card {index + 1}</button>
+                        </label>)}
+                        <button disabled={slide.interaction.options.length >= 8} onClick={() => editSlide((s) => { s.interaction.options.push("New comparison card"); })}>Add comparison card</button>
+                      </> : <label>
+                        Options (one per line)
                         <textarea
                           rows={4}
                           value={slide.interaction.options.join("\n")}
@@ -1389,7 +1428,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                             })
                           }
                         />
-                      </label>
+                      </label>}
                       <label>
                         Correct answer
                         <select
@@ -1417,6 +1456,7 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
                           }
                         />
                       </label>
+                      </>}
                     </>
                   )}
                 </>
@@ -1442,6 +1482,46 @@ export default function Studio({ transport }: { transport: StudioTransport }) {
             </div>
           ))}
         </section>
+      )}
+      {scriptDraft && (
+        <div className="ds-modal-backdrop">
+          <section className="ds-modal" role="dialog" aria-modal="true" aria-label="Review script drafts">
+            <button className="ds-close" onClick={() => setScriptDraft(null)}>Close ×</button>
+            <span className="ds-eyebrow">SCRIPT / STORYBOARD REVIEW</span>
+            <h2>{scriptDraft.slides.length} editable drafts</h2>
+            <p>Review the mapping below. Your existing slides stay unchanged until you apply these drafts. Unavailable features are listed for manual follow-up.</p>
+            {scriptDraft.slides.map((draft, index) => (
+              <article className="ds-script-card" key={draft.id}>
+                <h3>{index + 1}. {draft.title}</h3>
+                <p>Layout: {draft.template} · Activity: {draft.activity?.kind || draft.interaction.type}</p>
+                {draft.scene && <p>2D/3D motion scene: {draft.scene.firstLeg} m + {draft.scene.secondLeg} m perpendicular journey; {draft.scene.duration} s illustrative playback.</p>}
+                {draft.activity && <ul>{draft.activity.items.map((item) => <li key={item.id}>{item.label} — {item.value}{item.extra ? ` / ${item.extra}` : ""}</li>)}</ul>}
+                <p className="ds-script-text">{draft.body || draft.interaction.prompt || "No visible explanation mapped."}</p>
+                {draft.interaction.options.length > 0 && <ul>{draft.interaction.options.map((option, i) => <li key={i}>{option}</li>)}</ul>}
+                {draft.interaction.type === "quiz" && <p>Author answer key: {draft.interaction.answer}</p>}
+                {draft.notes && <details><summary>Teacher notes</summary><p className="ds-script-text">{draft.notes}</p></details>}
+                {draft.visualBrief && <details><summary>Visual requirements (not generated)</summary><p className="ds-script-text">{draft.visualBrief}</p></details>}
+                {draft.warnings.map((warning, i) => <p className="ds-warning" key={i}>{warning}</p>)}
+              </article>
+            ))}
+            <div className="ds-actions">
+              {(["append", "replace"] as const).map((mode) => <button key={mode} onClick={() => {
+                const target = project.document.sessions.find((s) => s.id === scriptDraft.sessionId);
+                if (!target) { setNotice("The source session is no longer available."); return; }
+                if (mode === "append" && target.slides.length + scriptDraft.slides.length > 80) {
+                  setNotice("A session supports up to 80 slides. Split the session or choose replacement."); return;
+                }
+                if (mode === "replace" && target.slides.length && !window.confirm("Replace existing slides with these reviewed drafts? Undo is available in this editing session.")) return;
+                edit((w) => {
+                  const s = w.sessions.find((item) => item.id === target.id)!;
+                  s.slides = mode === "append" ? [...s.slides, ...scriptDraft.slides] : scriptDraft.slides;
+                });
+                setSessionId(target.id); setSlideId(scriptDraft.slides[0].id);
+                setSelected(""); setScriptDraft(null); setStage(3);
+              }}>{mode === "append" ? "Append drafts" : "Replace slides with drafts"}</button>)}
+            </div>
+          </section>
+        </div>
       )}
       {review?.result && (
         <div className="ds-modal-backdrop">
