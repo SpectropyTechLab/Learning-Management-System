@@ -31,7 +31,6 @@
     "schools.delete",
     "schools.read",
     "schools.update",
-    "studio.access",
     "teaching_sessions.analytics_client",
     "teaching_sessions.analytics_own",
     "teaching_sessions.analytics_school",

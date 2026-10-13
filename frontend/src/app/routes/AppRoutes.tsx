@@ -3,8 +3,6 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import Spinner from '@/components/ui/Spinner';
 import type { Role } from '@/features/auth/types';
 import ProtectedRoute from './ProtectedRoute';
-import { lazy, Suspense } from 'react';
-const DigitalStudio = lazy(() => import('@/pages/dashboard/content_authorizer/DigitalStudio'));
 
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage';
@@ -125,10 +123,6 @@ export default function AppRoutes() {
       <Route path="/courses" element={<Courses />} />
       <Route path="/content/:contentId" element={<ContentViewer />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
-      <Route element={<Protect roles={['content_authorizer']} permissions={['studio.access']} />}>
-        <Route path="/content-authorizer/digital-studio" element={<Suspense fallback={<Spinner />}><DigitalStudio /></Suspense>} />
-      </Route>
-
       {/* SuperAdmin */}
       <Route element={<Protect roles={['super_admin']} />}>
         <Route path="/superadmin/dashboard" element={<PlatformDashboard />} />

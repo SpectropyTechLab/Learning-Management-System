@@ -1,7 +1,5 @@
 # Learning Management System
 
-Digital Studio: [Version 1 · Phase 1 living project handbook](docs/digital-studio/README.md).
-
 This repository contains:
 
 - `frontend`: React 19 + TypeScript + Vite application

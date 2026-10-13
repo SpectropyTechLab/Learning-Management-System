@@ -83,13 +83,6 @@ export default function ContentAuthorizerShell({
         active: isActive('/content-authorizer/teaching-sessions'),
         onClick: () => navigate('/content-authorizer/teaching-sessions/micro-schedules'),
       },
-      ...(user?.permissions?.includes('studio.access') ? [{
-        key: 'digital-studio',
-        label: 'Digital Studio',
-        icon: <RiStackLine />,
-        active: isActive('/content-authorizer/digital-studio'),
-        onClick: () => navigate('/content-authorizer/digital-studio'),
-      }] : []),
     ],
     [location.pathname, navigate, user?.permissions],
   );

@@ -24,7 +24,6 @@ import curriculumRoutes from './routes/curriculum.routes.js';
 import questionsRoutes from './routes/questions.routes.js';
 import examsRoutes from './routes/exams.routes.js';
 import teachingSessionsRoutes from './routes/teachingSessions.routes.js';
-import studioRoutes, { stopStudioWorker } from './routes/studio.routes.js';
 import communityRoutes from './routes/community.routes.js';
 import questionBankEntitlementsRoutes from './routes/questionBankEntitlements.routes.js';
 import examEntitlementsRoutes from './routes/examEntitlements.routes.js';
@@ -206,7 +205,6 @@ app.use('/api', questionsRoutes);
 app.use('/api', examsRoutes);
 app.use('/api', packBuilderRoutes);
 app.use('/api', teachingSessionsRoutes);
-app.use('/api/studio/v1', studioRoutes);
 
 
 
@@ -223,7 +221,6 @@ process.on('unhandledRejection', (reason) => {
 
 const stopAttemptExpiryCron = startAttemptExpiryCron();
 const shutdown = () => {
-  stopStudioWorker();
   stopAttemptExpiryCron();
   process.exit(0);
 };
