@@ -6,7 +6,7 @@ import SidebarNav from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
 import type { ReactNode } from 'react';
 import spectropyLogo from '/logo.png';
-import { RiCalendarScheduleLine, RiFileList3Line, RiHome2Line, RiLineChartLine, RiShieldUserLine } from 'react-icons/ri';
+import { RiCalendarScheduleLine, RiFileList3Line, RiHome2Line, RiLineChartLine, RiShieldUserLine, RiLayoutGridLine } from 'react-icons/ri';
 import { HiOutlineBuildingOffice2 } from 'react-icons/hi2';
 import { getOrganizationLabel, getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
@@ -31,9 +31,8 @@ export default function TeachingSessionsShell({
   const role = user?.role;
   const organizationLabel = getOrganizationLabel(user);
 
-  const isActive = (path: string) => location.pathname.startsWith(path);
-
   const navItems = useMemo(() => {
+    const isActive = (path: string) => location.pathname.startsWith(path);
     const items = [
       {
         key: 'back',
@@ -54,6 +53,14 @@ export default function TeachingSessionsShell({
         },
       },
     ];
+
+    items.push({
+      key: 'teaching-studio',
+      label: 'Teaching Studio',
+      icon: <RiLayoutGridLine />,
+      active: isActive('/teaching-studio'),
+      onClick: () => navigate('/teaching-studio'),
+    });
 
     if (role === 'content_authorizer') {
       items.push(
@@ -154,7 +161,7 @@ export default function TeachingSessionsShell({
     }
 
     return items;
-  }, [isActive, navigate, role, location.pathname]);
+  }, [location.pathname, navigate, role]);
 
   const handleLogout = async () => {
     await logout();

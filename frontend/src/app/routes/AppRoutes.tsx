@@ -96,6 +96,7 @@ import TeachingSessionsListPage from '@/pages/teaching-sessions/TeachingSessions
 import MyTeachingSessionsPage from '@/pages/teaching-sessions/MyTeachingSessionsPage';
 import TeachingSessionDetailPage from '@/pages/teaching-sessions/TeachingSessionDetailPage';
 import TeachingSessionAnalyticsPage from '@/pages/teaching-sessions/TeachingSessionAnalyticsPage';
+import TeachingStudioPage from '@/features/teaching-studio/TeachingStudioPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -230,6 +231,9 @@ export default function AppRoutes() {
       </Route>
 
       {/* Teacher */}
+      <Route element={<Protect roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']} />}>
+        <Route path="/teaching-studio" element={<TeachingStudioPage />} />
+      </Route>
       <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} />}>
 
         <Route path="/teacher" element={<TeacherHome />} />
