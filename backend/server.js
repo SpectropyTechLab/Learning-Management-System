@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import './config/loadEnv.js';
 import superadminRoutes from './routes/superadmin.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import schoolOwnerRoutes from './routes/schoolOwner.routes.js';

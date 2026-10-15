@@ -41,8 +41,25 @@ npm.cmd run dev:frontend
 
 Default local ports used by the codebase:
 
-- Frontend: `http://localhost:5173`
+- Frontend: `http://localhost:5100`
 - Backend: `http://localhost:5000`
+
+## Fully Local LMS Testing
+
+The existing `backend/.env` targets the hosted Supabase project. For local testing, use the separate, Git-ignored `backend/.env.local`; `LOCAL_DEV=true` refuses non-local database or Supabase URLs. Do not run the API against the hosted database when creating test content.
+
+1. Start Docker Desktop and wait for its engine to be ready.
+2. Install locked dependencies in the repository root, `frontend`, and `backend` with `npm.cmd ci` in each directory.
+3. From the repository root, run `npx.cmd supabase start`. The first run downloads the local database, API, and Storage images. The committed migrations recreate the public schema exported from the hosted project **without table rows**.
+4. Run `node backend/scripts/setup-local-env.mjs` once. It writes local service URLs and random test-account passwords to `backend/.env.local`. Existing `.env.local` files are preserved.
+5. From `backend`, run `node update-superadmin.mjs` and `node scripts/setup-local-storage.mjs` to create two local users and the local Storage buckets.
+6. Start the backend with `npm.cmd run dev:backend` from the root and the frontend with `npm.cmd run dev:frontend` in another terminal. Open `http://localhost:5100`; the sample Teaching Studio route is `/teaching-studio` after login.
+
+The local admin email is `admin@local.test`. Read its password from `SUPER_ADMIN_PASSWORD` in your ignored `backend/.env.local`. The local authorizer uses `author@local.test` and `CONTENT_AUTH_PASSWORD`.
+
+The setup script makes only the `local-lms` and `local-teaching-sessions` test buckets public in the local Supabase instance, so existing LMS media URLs work during local testing. Do not put sensitive real data in these buckets.
+
+`npx.cmd supabase db reset --local` recreates and clears **only the local** database from migrations. Do not add `--linked`: that flag targets the hosted project. For a fresh hosted schema later, export only `public` with `node backend/scripts/dump-public-schema.mjs <output.sql>` from `backend`; review the result before replacing the committed migration. Student records and Storage objects are not copied by that command.
 
 ## Build And Verify
 
