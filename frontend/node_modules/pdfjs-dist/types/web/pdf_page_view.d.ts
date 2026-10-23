@@ -81,6 +81,12 @@ export type PDFPageViewOptions = {
      */
     enableDetailCanvas?: boolean | undefined;
     /**
+     * - All images whose width and
+     * height are at least this value (in pixels) will be lazily inserted in the
+     * dom to allow right-clicking and saving them. Use `-1` to disable this.
+     */
+    imagesRightClickMinSize?: number | undefined;
+    /**
      * - When enabled, PDF
      * rendering will keep track of which areas of the page each PDF operation
      * affects. Then, when rendering a partial page (if `enableDetailCanvas` is
@@ -110,13 +116,10 @@ export type PDFPageViewOptions = {
     enableAutoLinking?: boolean | undefined;
     /**
      * - The comment manager instance.
-     */
-    commentManager?: import("./comment_manager.js").CommentManager | undefined;
-    /**
-     * - The page view that is cloned
      * to.
      */
-    clonedFrom?: PDFPageView | undefined;
+    commentManager?: import("./comment_manager.js").CommentManager | undefined;
+    abortSignal?: AbortSignal | undefined;
 };
 export class PDFPageView extends BasePDFPageView {
     /**
@@ -215,7 +218,7 @@ export class PDFPageView extends BasePDFPageView {
     get height(): number;
     getPagePoint(x: any, y: any): any[];
     _ensureCanvasWrapper(): null;
-    _getRenderingContext(canvas: any, transform: any, recordOperations: any): {
+    _getRenderingContext(canvas: any, transform: any, recordOperations: any, recordImages: any): {
         canvas: any;
         transform: any;
         viewport: import("../src/display/display_utils").PageViewport;
@@ -225,6 +228,7 @@ export class PDFPageView extends BasePDFPageView {
         pageColors: null;
         isEditing: boolean;
         recordOperations: any;
+        recordImages: any;
     };
     draw(): Promise<void>;
     /**

@@ -111,6 +111,12 @@ export type PDFViewerOptions = {
      */
     enableDetailCanvas?: boolean | undefined;
     /**
+     * - All images whose width and
+     * height are at least this value (in pixels) will be lazily inserted in the
+     * dom to allow right-clicking and saving them. Use `-1` to disable this.
+     */
+    imagesRightClickMinSize?: number | undefined;
+    /**
      * - When enabled, PDF
      * rendering will keep track of which areas of the page each PDF operation
      * affects. Then, when rendering a partial page (if `enableDetailCanvas` is
@@ -132,11 +138,6 @@ export type PDFViewerOptions = {
      * mode.
      */
     pageColors?: Object | undefined;
-    /**
-     * - Enables hardware acceleration for
-     * rendering. The default value is `false`.
-     */
-    enableHWA?: boolean | undefined;
     /**
      * - Enable zooming on pinch gesture.
      * The default value is `true`.
@@ -204,6 +205,9 @@ export namespace PagesCountLimit {
  *   `maxCanvasDim`, it will draw a second canvas on top of the CSS-zoomed one,
  *   that only renders the part of the page that is close to the viewport.
  *   The default value is `true`.
+ * @property {number} [imagesRightClickMinSize] - All images whose width and
+ *  height are at least this value (in pixels) will be lazily inserted in the
+ *  dom to allow right-clicking and saving them. Use `-1` to disable this.
  * @property {boolean} [enableOptimizedPartialRendering] - When enabled, PDF
  *   rendering will keep track of which areas of the page each PDF operation
  *   affects. Then, when rendering a partial page (if `enableDetailCanvas` is
@@ -214,8 +218,6 @@ export namespace PagesCountLimit {
  * @property {Object} [pageColors] - Overwrites background and foreground colors
  *   with user defined ones in order to improve readability in high contrast
  *   mode.
- * @property {boolean} [enableHWA] - Enables hardware acceleration for
- *   rendering. The default value is `false`.
  * @property {boolean} [supportsPinchToZoom] - Enable zooming on pinch gesture.
  *   The default value is `true`.
  * @property {boolean} [enableAutoLinking] - Enable creation of hyperlinks from
@@ -261,6 +263,7 @@ export class PDFViewer {
     capCanvasAreaFactor: number | undefined;
     enableDetailCanvas: boolean;
     enableOptimizedPartialRendering: boolean;
+    imagesRightClickMinSize: number;
     l10n: import("./l10n.js").L10n | undefined;
     pageColors: Object | null;
     defaultRenderingQueue: boolean;
@@ -341,7 +344,7 @@ export class PDFViewer {
     get onePageRendered(): any;
     get pagesPromise(): any;
     get _layerProperties(): any;
-    getAllText(): Promise<string | null>;
+    getAllText(interruptSignal?: null): Promise<string | null>;
     /**
      * @param {PDFDocumentProxy} pdfDocument
      */

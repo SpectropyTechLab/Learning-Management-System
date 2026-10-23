@@ -16,6 +16,8 @@ type _ReadableStreamDefaultController<R = any> = typeof globalThis extends { onm
     : import("stream/web").ReadableStreamDefaultController<R>;
 type _ReadableStreamDefaultReader<R = any> = typeof globalThis extends { onmessage: any } ? {}
     : import("stream/web").ReadableStreamDefaultReader<R>;
+type _ReadableWritablePair<R = any, W = any> = typeof globalThis extends { onmessage: any } ? {}
+    : import("stream/web").ReadableWritablePair<R, W>;
 type _TextDecoderStream = typeof globalThis extends { onmessage: any } ? {}
     : import("stream/web").TextDecoderStream;
 type _TextEncoderStream = typeof globalThis extends { onmessage: any } ? {}
@@ -105,7 +107,7 @@ declare module "stream/web" {
     }
     interface ReadableStreamReadDoneResult<T> {
         done: true;
-        value?: T;
+        value: T | undefined;
     }
     type ReadableStreamReadResult<T> = ReadableStreamReadValueResult<T> | ReadableStreamReadDoneResult<T>;
     interface ReadableByteStreamControllerCallback {
@@ -250,13 +252,32 @@ declare module "stream/web" {
     interface ReadableStreamDefaultController<R = any> {
         readonly desiredSize: number | null;
         close(): void;
-        enqueue(chunk?: R): void;
+        enqueue(chunk: R): void;
         error(e?: any): void;
     }
     const ReadableStreamDefaultController: {
         prototype: ReadableStreamDefaultController;
         new(): ReadableStreamDefaultController;
     };
+    /**
+     * Runs the WHATWG `ReadableStreamTee` abstract operation on `stream`.
+     *
+     * This differs from `readableStream.tee()` only when `cloneForBranch2` is
+     * `true`. The `tee()` method always passes `false`, while other web platform
+     * specifications, such as Fetch body cloning, pass `true` so that the second
+     * branch receives cloned chunks and consumption of one branch cannot mutate chunks
+     * seen by the other.
+     * @since v24.19.0
+     * @experimental
+     * @param cloneForBranch2 When `true`, chunks enqueued into the second
+     * branch are cloned from chunks enqueued into the first branch. **Default:**
+     * `false`.
+     * @returns Two `ReadableStream` branches.
+     */
+    function ReadableStreamTee<R>(
+        stream: ReadableStream<R>,
+        cloneForBranch2?: boolean,
+    ): [ReadableStream<R>, ReadableStream<R>];
     interface Transformer<I = any, O = any> {
         flush?: TransformerFlushCallback<O>;
         readableType?: undefined;
@@ -279,7 +300,7 @@ declare module "stream/web" {
     };
     interface TransformStreamDefaultController<O = any> {
         readonly desiredSize: number | null;
-        enqueue(chunk?: O): void;
+        enqueue(chunk: O): void;
         error(reason?: any): void;
         terminate(): void;
     }
@@ -315,7 +336,7 @@ declare module "stream/web" {
         abort(reason?: any): Promise<void>;
         close(): Promise<void>;
         releaseLock(): void;
-        write(chunk?: W): Promise<void>;
+        write(chunk: W): Promise<void>;
     }
     const WritableStreamDefaultWriter: {
         prototype: WritableStreamDefaultWriter;
@@ -339,7 +360,7 @@ declare module "stream/web" {
         size?: QueuingStrategySize<T>;
     }
     interface QueuingStrategySize<T = any> {
-        (chunk?: T): number;
+        (chunk: T): number;
     }
     interface QueuingStrategyInit {
         /**
@@ -500,6 +521,8 @@ declare module "stream/web" {
         var ReadableStreamDefaultReader: typeof globalThis extends
             { onmessage: any; ReadableStreamDefaultReader: infer T } ? T
             : typeof import("stream/web").ReadableStreamDefaultReader;
+
+        interface ReadableWritablePair<R = any, W = any> extends _ReadableWritablePair<R, W> {}
 
         interface TextDecoderStream extends _TextDecoderStream {}
         /**

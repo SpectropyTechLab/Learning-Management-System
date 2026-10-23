@@ -14,7 +14,6 @@ export type AnnotationEditorLayerBuilderOptions = {
     textLayer?: TextLayer;
     drawLayer?: DrawLayer;
     onAppend?: Function | undefined;
-    clonedFrom?: AnnotationEditorLayer | undefined;
 };
 export type AnnotationEditorLayerBuilderRenderOptions = {
     viewport: PageViewport;
@@ -34,7 +33,6 @@ export type AnnotationEditorLayerBuilderRenderOptions = {
  * @property {TextLayer} [textLayer]
  * @property {DrawLayer} [drawLayer]
  * @property {function} [onAppend]
- * @property {AnnotationEditorLayer} [clonedFrom]
  */
 /**
  * @typedef {Object} AnnotationEditorLayerBuilderRenderOptions

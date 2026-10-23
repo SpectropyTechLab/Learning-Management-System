@@ -70,7 +70,6 @@ export class PDFFindController {
     /**
      * @typedef {Object} PDFFindControllerScrollMatchIntoViewParams
      * @property {HTMLElement} element
-     * @property {number} selectedLeft
      * @property {number} pageIndex
      * @property {number} matchIndex
      */
@@ -78,9 +77,8 @@ export class PDFFindController {
      * Scroll the current match into view.
      * @param {PDFFindControllerScrollMatchIntoViewParams}
      */
-    scrollMatchIntoView({ element, selectedLeft, pageIndex, matchIndex, }: {
+    scrollMatchIntoView({ element, pageIndex, matchIndex }: {
         element: HTMLElement;
-        selectedLeft: number;
         pageIndex: number;
         matchIndex: number;
     }): void;
@@ -96,10 +94,10 @@ export class PDFFindController {
         matchIdx: null;
         wrapped: boolean;
     } | undefined;
-    _extractTextPromises: any[] | undefined;
-    _pageContents: any[] | undefined;
-    _pageDiffs: any[] | undefined;
-    _hasDiacritics: any[] | undefined;
+    _extractTextPromises: any;
+    _pageContents: any;
+    _pageDiffs: any;
+    _hasDiacritics: any;
     _matchesCountTotal: number | undefined;
     _pagesToSearch: number | null | undefined;
     _pendingFindMatches: Set<any> | undefined;

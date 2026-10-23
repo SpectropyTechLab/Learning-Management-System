@@ -4,8 +4,10 @@ export class BasePDFPageView extends RenderableView {
     /** @type {null | HTMLDivElement} */
     div: null | HTMLDivElement;
     enableOptimizedPartialRendering: boolean;
+    imagesRightClickMinSize: number;
     eventBus: null;
     id: null;
+    imageCoordinates: null;
     pageColors: null;
     recordedBBoxes: null;
     renderingQueue: null;

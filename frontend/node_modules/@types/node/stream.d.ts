@@ -89,6 +89,7 @@ declare module "stream" {
                 streamReadable: Readable,
                 options?: {
                     strategy?: streamWeb.QueuingStrategy | undefined;
+                    type?: "bytes" | undefined;
                 },
             ): streamWeb.ReadableStream;
             /**
@@ -863,11 +864,20 @@ declare module "stream" {
              * @since v0.9.4
              * @param chunk Optional data to write. For streams not operating in object mode, `chunk` must be a {string}, {Buffer},
              * {TypedArray} or {DataView}. For object mode streams, `chunk` may be any JavaScript value other than `null`.
-             * @param [encoding='utf8'] The encoding, if `chunk` is a string.
              * @param callback Callback for when this chunk of data is flushed.
              * @return `false` if the stream wishes for the calling code to wait for the `'drain'` event to be emitted before continuing to write additional data; otherwise `true`.
              */
             write(chunk: any, callback?: (error: Error | null | undefined) => void): boolean;
+            /**
+             * Writes data to the stream, with an explicit encoding for string data.
+             * @see {@link Writable.write} for full details.
+             * @since v0.9.4
+             * @param chunk Optional data to write. For streams not operating in object mode, `chunk` must be a {string}, {Buffer},
+             * {TypedArray} or {DataView}. For object mode streams, `chunk` may be any JavaScript value other than `null`.
+             * @param encoding The encoding, if `chunk` is a string.
+             * @param callback Callback for when this chunk of data is flushed.
+             * @return `false` if the stream wishes for the calling code to wait for the `'drain'` event to be emitted before continuing to write additional data; otherwise `true`.
+             */
             write(chunk: any, encoding: BufferEncoding, callback?: (error: Error | null | undefined) => void): boolean;
             /**
              * The `writable.setDefaultEncoding()` method sets the default `encoding` for a `Writable` stream.
@@ -892,13 +902,27 @@ declare module "stream" {
              * // Writing more now is not allowed!
              * ```
              * @since v0.9.4
+             * @param cb Callback for when the stream is finished.
+             */
+            end(cb?: () => void): this;
+            /**
+             * Signals that no more data will be written, with one final chunk of data.
+             * @see {@link Writable.end} for full details.
+             * @since v0.9.4
+             * @param chunk Optional data to write. For streams not operating in object mode, `chunk` must be a {string}, {Buffer},
+             * {TypedArray} or {DataView}. For object mode streams, `chunk` may be any JavaScript value other than `null`.
+             * @param cb Callback for when the stream is finished.
+             */
+            end(chunk: any, cb?: () => void): this;
+            /**
+             * Signals that no more data will be written, with one final chunk of data.
+             * @see {@link Writable.end} for full details.
+             * @since v0.9.4
              * @param chunk Optional data to write. For streams not operating in object mode, `chunk` must be a {string}, {Buffer},
              * {TypedArray} or {DataView}. For object mode streams, `chunk` may be any JavaScript value other than `null`.
              * @param encoding The encoding if `chunk` is a string
-             * @param callback Callback for when the stream is finished.
+             * @param cb Callback for when the stream is finished.
              */
-            end(cb?: () => void): this;
-            end(chunk: any, cb?: () => void): this;
             end(chunk: any, encoding: BufferEncoding, cb?: () => void): this;
             /**
              * The `writable.cork()` method forces all written data to be buffered in memory.
@@ -1099,7 +1123,7 @@ declare module "stream" {
              * A utility method for creating a web `ReadableStream` and `WritableStream` from a `Duplex`.
              * @since v17.0.0
              */
-            static toWeb(streamDuplex: Duplex): {
+            static toWeb(streamDuplex: Duplex, options?: { readableType?: "bytes" | undefined }): {
                 readable: streamWeb.ReadableStream;
                 writable: streamWeb.WritableStream;
             };

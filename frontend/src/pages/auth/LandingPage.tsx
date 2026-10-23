@@ -61,7 +61,7 @@ const navItems = [
 
 const appLinks: AppLink[] = [
     {
-        href: 'https://learning-management-system-jade-one.vercel.app/login',
+        href: '/login',
         label: 'Spectropy OS',
         description: 'Central operating system for Spectropy products and intelligence workflows.',
         variant: 'blue',
@@ -152,13 +152,6 @@ const LandingPage: React.FC = () => {
             return;
         }
 
-        const openedWindow = window.open(app.href, '_blank', 'noopener,noreferrer');
-
-        if (!openedWindow) {
-            toast.error('Pop-up blocked. Please allow pop-ups or open the app link manually.');
-            return;
-        }
-
         toast.success(`${app.label} opened in a new tab.`);
     };
 
@@ -173,6 +166,21 @@ const LandingPage: React.FC = () => {
                 <p className={`${compact ? 'mt-1 text-xs' : 'mt-2 text-xs'} text-slate-600`}>{app.description}</p>
             </>
         );
+
+        if (app.type === 'external') {
+            return (
+                <a
+                    key={app.label}
+                    href={app.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={closeMenus}
+                    className={className}
+                >
+                    {content}
+                </a>
+            );
+        }
 
         return (
             <button

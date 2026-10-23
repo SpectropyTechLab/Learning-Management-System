@@ -9,7 +9,7 @@ export function validateRangeRequestCapabilities({ responseHeaders, isHttp, rang
     rangeChunkSize: any;
     disableRange: any;
 }): {
-    allowRangeRequests: boolean;
-    suggestedLength: undefined;
+    contentLength: number;
+    isRangeSupported: boolean;
 };
 import { ResponseException } from "../shared/util.js";

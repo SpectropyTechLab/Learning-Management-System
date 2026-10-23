@@ -56,18 +56,6 @@ export class AnnotationEditorLayer {
     viewport: import("../display_utils.js").PageViewport;
     drawLayer: import("../draw_layer.js").DrawLayer;
     _structTree: import("../../../web/struct_tree_layer_builder.js").StructTreeLayerBuilder;
-    updatePageIndex(newPageIndex: any): void;
-    /**
-     * Clones all annotation editors from another layer into this layer.
-     * This is typically used when duplicating a page - the editors from the
-     * source page are serialized and then deserialized into the new page's layer.
-     *
-     * @param {AnnotationEditorLayer} clonedFrom - The source annotation editor
-     *   layer to clone editors from. If null or undefined, no action is taken.
-     * @returns {Promise<void>} A promise that resolves when all editors have been
-     *   cloned and added to this layer.
-     */
-    setClonedFrom(clonedFrom: AnnotationEditorLayer): Promise<void>;
     get isEmpty(): boolean;
     get isInvisible(): boolean;
     /**
@@ -144,11 +132,6 @@ export class AnnotationEditorLayer {
      */
     addUndoableEditor(editor: AnnotationEditor): void;
     getEditorByUID(uid: any): any;
-    /**
-     * Get an id for an editor.
-     * @returns {string}
-     */
-    getNextId(): string;
     combinedSignal(ac: any): AbortSignal;
     canCreateNewEmptyEditor(): boolean | undefined;
     /**
@@ -222,7 +205,7 @@ export class AnnotationEditorLayer {
      * Render the main editor.
      * @param {RenderEditorLayerOptions} parameters
      */
-    render({ viewport }: RenderEditorLayerOptions): void;
+    render({ viewport }: RenderEditorLayerOptions): Promise<void>;
     /**
      * Update the main editor.
      * @param {RenderEditorLayerOptions} parameters

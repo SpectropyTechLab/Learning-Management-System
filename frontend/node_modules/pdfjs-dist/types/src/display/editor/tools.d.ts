@@ -140,6 +140,11 @@ export class AnnotationEditorUIManager {
     onEditingAction({ name }: {
         name: any;
     }): void;
+    updatePageIndex(oldPageIndex: any, newPageIndex: any): void;
+    startUpdatePages(): void;
+    endUpdatePages(): void;
+    clonePage(pageIndex: any, newPageIndex: any): void;
+    findClonesForPage(layer: any): Promise<any[]>;
     /**
      * Set the editing state.
      * It can be useful to temporarily disable it when the user is editing a
