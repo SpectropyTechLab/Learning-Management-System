@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - development
+  push:
+    branches:
+      - main
+      - development
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: PR policy and repository safety
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require releases to come from development or a hotfix branch
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "$HEAD_REF" != "development" && "$HEAD_REF" != hotfix/* ]]; then
+            echo "Pull requests to main must come from development or hotfix/*, not $HEAD_REF."
+            exit 1
+          fi
+
+      - name: Reject newly committed secrets and generated dependencies
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed_files="$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA")"
+          blocked_files="$(printf '%s\n' "$changed_files" \
+            | grep -E '(^|/)\.env($|\.)|(^|/)node_modules/|^frontend/dist/' \
+            | grep -Ev '\.example$' || true)"
+
+          if [[ -n "$blocked_files" ]]; then
+            echo "The following secret or generated paths must not be committed:"
+            printf '%s\n' "$blocked_files"
+            echo "Commit only sanitized *.example files, source files, and lockfiles."
+            exit 1
+          fi
+
+      - name: Keep applied Supabase migrations immutable
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed_migrations="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- 'supabase/migrations/*.sql' || true)"
+          rewritten_migrations="$(printf '%s\n' "$changed_migrations" | awk '$1 != "A" { print }')"
+
+          if [[ -n "$rewritten_migrations" ]]; then
+            echo "Existing Supabase migrations are append-only and cannot be modified, renamed, or deleted:"
+            printf '%s\n' "$rewritten_migrations"
+            echo "Add a new timestamped migration instead."
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+  backend:
+    name: Backend tests and lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run backend tests
+        run: npm run test:ci
+
+      - name: Run backend lint
+        run: npm run lint
+
+  known-question-bank-test-debt:
+    name: Known Question Bank test debt (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run the excluded legacy Question Bank suite
+        run: node --test --test-concurrency=1 --experimental-test-isolation=none tests/question-bank-flow.test.js

@@ -5,7 +5,9 @@
 .env.development
 .env.test
 .env.* 
+!**/.env.local.example
 /backend/.env
 /frontend/.env
 /backend/node_modules
 /frontend/node_modules
+/frontend/dist

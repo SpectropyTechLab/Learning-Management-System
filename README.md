@@ -64,9 +64,23 @@ Run lint checks:
 npm.cmd run lint
 ```
 
+## Team Collaboration And Releases
+
+All feature work is merged into `development` through pull requests and verified
+in the isolated staging environment before a release pull request is opened to
+`main`. Do not push directly to either long-lived branch or point preview
+deployments at production services or data.
+
+See [Collaboration and deployment workflow](docs/engineering/collaboration-and-deployment.md)
+for branch synchronization, required checks, staging configuration, database
+migration rules, release approval, and rollback procedures.
+
 ## Environment
 
-The repository already contains local `.env` files in both `frontend` and `backend`.
+Real environment files are intentionally not tracked. Copy the sanitized
+`.env.local.example` file in each application to `.env.local`, then provide the
+local values needed for that environment. Store staging and production values
+in the Vercel, Render, Supabase, or GitHub environment settings.
 
 Frontend variables used by the app include:
 
