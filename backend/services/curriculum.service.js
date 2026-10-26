@@ -9,9 +9,10 @@ import {
 import * as curriculumRepo from '../repositories/curriculum.repository.js';
 
 const resolveClientId = (user, sourceClientId) => {
-  if (user?.role === 'super_admin') {
+  if (user?.role === 'super_admin' || user?.role === 'content_authorizer') {
     return parseNullableInt(sourceClientId, 'client_id');
   }
+  
   const clientId = user?.client_id ?? null;
   if (!clientId) {
     throw new AppError('client_id is required', 400);
