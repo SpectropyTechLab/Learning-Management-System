@@ -81,4 +81,3 @@ export const sampleSlides: Record<string, Slide> = Object.fromEntries([...target
     { id: 'footer', slotId: 'footer', type: 'footer', text: layout.catalog === 'target' ? 'Target wireframe preview · sample labels only' : 'Ask students to justify the relationship, not only name the answer.' },
   ],
 }]));
-

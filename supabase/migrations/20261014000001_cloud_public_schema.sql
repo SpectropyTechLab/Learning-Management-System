@@ -83,7 +83,7 @@ BEGIN
       AND NOW() BETWEEN ce.start_at AND ce.end_at
       AND (ce.content_id = p_content_id OR cpi.content_id = p_content_id)
   ) INTO v_has_access;
-  
+
   RETURN v_has_access;
 END;
 $$;
@@ -105,7 +105,7 @@ BEGIN
     p_client_id, p_actor_id, p_action, p_entity_type, p_entity_id,
     p_before_state, p_after_state, p_ip_address, p_user_agent
   ) RETURNING id INTO v_log_id;
-  
+
   RETURN v_log_id;
 END;
 $$;
@@ -138,20 +138,20 @@ BEGIN
   -- Get user's role and client_id
   SELECT role, client_id INTO v_role, v_client_id
   FROM users WHERE id = p_user_id;
-  
+
   IF v_role IS NULL THEN
     RETURN FALSE;
   END IF;
-  
+
   -- Check client-specific permission first, then global default
   SELECT granted INTO v_granted
   FROM role_permissions
-  WHERE role = v_role 
+  WHERE role = v_role
     AND permission = p_permission
     AND (client_id = v_client_id OR client_id IS NULL)
   ORDER BY client_id NULLS LAST
   LIMIT 1;
-  
+
   RETURN COALESCE(v_granted, FALSE);
 END;
 $$;
@@ -4410,7 +4410,4 @@ CREATE POLICY "users_tenant_isolation" ON "public"."users" USING ((("public"."ap
 
 
 REVOKE USAGE ON SCHEMA "public" FROM PUBLIC;
-
-
-
 

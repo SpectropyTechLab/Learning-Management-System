@@ -140,7 +140,6 @@ BEGIN
         USING ERRCODE = '55000';
 END;
 $$;
-
 CREATE TRIGGER resource_review_decisions_append_only_trg
 BEFORE UPDATE OR DELETE ON resource_review_decisions
 FOR EACH ROW EXECUTE FUNCTION make_resource_review_decisions_append_only();
