@@ -127,7 +127,6 @@ jobs:
   known-question-bank-test-debt:
     name: Known Question Bank test debt (informational)
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       JWT_SECRET: ci-test-secret-not-used-outside-github-actions
     defaults:
@@ -148,4 +147,10 @@ jobs:
         run: npm ci
 
       - name: Run the excluded legacy Question Bank suite
+        id: question-bank-tests
+        continue-on-error: true
         run: node --test --test-concurrency=1 tests/question-bank-flow.test.js
+
+      - name: Report the known non-blocking failure
+        if: steps.question-bank-tests.outcome == 'failure'
+        run: echo "::warning title=Known Question Bank test debt::The excluded legacy Question Bank suite still fails and is intentionally non-blocking."
