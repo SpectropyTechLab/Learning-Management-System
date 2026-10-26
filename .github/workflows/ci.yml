@@ -99,6 +99,8 @@ jobs:
   backend:
     name: Backend tests and lint
     runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-test-secret-not-used-outside-github-actions
     defaults:
       run:
         working-directory: backend
@@ -126,6 +128,8 @@ jobs:
     name: Known Question Bank test debt (informational)
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      JWT_SECRET: ci-test-secret-not-used-outside-github-actions
     defaults:
       run:
         working-directory: backend
@@ -144,4 +148,4 @@ jobs:
         run: npm ci
 
       - name: Run the excluded legacy Question Bank suite
-        run: node --test --test-concurrency=1 --experimental-test-isolation=none tests/question-bank-flow.test.js
+        run: node --test --test-concurrency=1 tests/question-bank-flow.test.js
