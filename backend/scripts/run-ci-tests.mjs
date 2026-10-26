@@ -25,7 +25,7 @@ console.log(`Excluded known unrelated suite: ${Array.from(excludedTests).join(',
 
 const result = spawnSync(
   process.execPath,
-  ['--test', '--test-concurrency=1', '--experimental-test-isolation=none', ...testFiles],
+  ['--test', '--test-concurrency=1', ...testFiles],
   {
     cwd: backendRoot,
     stdio: 'inherit',
