@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "test": "node --test --test-concurrency=1 --experimental-test-isolation=none",
+    "test:ci": "node scripts/run-ci-tests.mjs",
     "lint": "eslint .",
     "verify:rls": "node scripts/verify-rls-policies.mjs",
     "seed:permissions": "node scripts/seed-role-permissions.mjs",

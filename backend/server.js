@@ -42,21 +42,33 @@ const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '50mb';
 
 app.use(helmet());
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5100,http://localhost:5173,http://192.168.0.151:5100')
+const isProduction = process.env.NODE_ENV === 'production';
+const defaultDevelopmentOrigins = 'http://localhost:5100,http://localhost:5173,http://192.168.0.151:5100';
+const allowedOrigins = (process.env.CORS_ORIGIN || (isProduction ? '' : defaultDevelopmentOrigins))
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
-const isProduction = process.env.NODE_ENV === 'production';
-const selfOrigins = new Set([
-  `http://localhost:${PORT}`,
-  `http://127.0.0.1:${PORT}`,
-]);
-const originPatterns = [
-  /^https:\/\/.*\.vercel\.app$/,
-  /^https:\/\/.*\.onrender\.com$/,
+const allowPreviewOrigins = process.env.ALLOW_PREVIEW_ORIGINS === 'true';
+const selfOrigins = new Set(
+  isProduction
+    ? []
+    : [
+        `http://localhost:${PORT}`,
+        `http://127.0.0.1:${PORT}`,
+      ]
+);
+const localOriginPatterns = [
   /^http:\/\/localhost(?::\d+)?$/,
   /^http:\/\/127\.0\.0\.1(?::\d+)?$/,
   /^http:\/\/192\.168\.\d+\.\d+(?::\d+)?$/,
+];
+const previewOriginPatterns = [
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/.*\.onrender\.com$/,
+];
+const originPatterns = [
+  ...(!isProduction ? localOriginPatterns : []),
+  ...(allowPreviewOrigins ? previewOriginPatterns : []),
 ];
 const isPatternAllowedOrigin = (origin) => originPatterns.some((pattern) => pattern.test(origin));
 const isAllowedOrigin = (origin) =>
