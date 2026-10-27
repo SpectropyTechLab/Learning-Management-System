@@ -2822,6 +2822,12 @@ CREATE TABLE IF NOT EXISTS public.resource_mappings (
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_screen ON public.resource_mappings(screen_id);
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_resource ON public.resource_mappings(resource_id);
 
+-- Supabase Storage bucket for private Session Plans and Screen Scripts.
+-- The backend uses the service key to upload and create short-lived signed download links.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('sessions-scripts-plans', 'sessions-scripts-plans', FALSE)
+ON CONFLICT (id) DO UPDATE SET public = FALSE;
+
 -- Standard timestamp maintenance for Studio tables.
 DROP TRIGGER IF EXISTS trg_boards_updated ON public.boards;
 CREATE TRIGGER trg_boards_updated BEFORE UPDATE ON public.boards FOR EACH ROW EXECUTE FUNCTION public.update_timestamp();
