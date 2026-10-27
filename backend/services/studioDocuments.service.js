@@ -35,7 +35,9 @@ const getScreen = async (screenId) => {
 const assertTenant = (record, user) => {
   if (user?.role === 'super_admin') return;
   if (user?.role === 'content_authorizer' && !user?.client_id) return;
-  if (!user?.client_id || record.client_id !== user.client_id) throw new AppError('Access denied', 403);
+  if (!user?.client_id || Number(record.client_id) !== Number(user.client_id)) {
+    throw new AppError('Access denied', 403);
+  }
 };
 
 const uploadFile = async ({ file, directory }) => {

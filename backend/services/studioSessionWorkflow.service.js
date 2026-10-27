@@ -19,7 +19,7 @@ const assertWorkflowRole = (user) => {
 const assertTenantAccess = (session, user) => {
   if (user?.role === 'super_admin') return;
   if (user?.role === 'content_authorizer' && !user?.client_id) return;
-  if (!user?.client_id || session.client_id !== user.client_id) {
+  if (!user?.client_id || Number(session.client_id) !== Number(user.client_id)) {
     throw new AppError('Access denied', 403);
   }
 };
