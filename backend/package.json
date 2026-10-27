@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "test": "node --test --test-concurrency=1 --experimental-test-isolation=none",
+    "test:ci": "node scripts/run-ci-tests.mjs",
     "lint": "eslint .",
     "verify:rls": "node scripts/verify-rls-policies.mjs",
     "seed:permissions": "node scripts/seed-role-permissions.mjs",
@@ -12,7 +13,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.1",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.0.0-rc.12",
@@ -20,7 +21,6 @@
     "docx": "^9.5.0",
     "dotenv": "^16.3",
     "express": "^4.18",
-    "fsy": "^1.0.5",
     "helmet": "^7.0",
     "jsonwebtoken": "^9.0",
     "mammoth": "^1.8.0",
