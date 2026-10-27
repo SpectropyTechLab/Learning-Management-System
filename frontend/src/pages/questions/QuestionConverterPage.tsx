@@ -12,7 +12,7 @@ type InsertSummary = {
 };
 
 const CATEGORY_OPTIONS = [
-  { value: "direction", label: "Direction" },
+  { value: "direct", label: "Direct" },
   { value: "similar", label: "Similar" },
   { value: "previous_year", label: "Previous Year" },
   { value: "reference", label: "Reference" },
@@ -39,11 +39,28 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
 const parseBlobError = async (blob: Blob) => {
   try {
     const text = await blob.text();
-    const parsed = JSON.parse(text) as { error?: string };
-    return parsed.error ?? "Request failed.";
+    try {
+      const parsed = JSON.parse(text) as { error?: string; message?: string };
+      return parsed.error ?? parsed.message ?? "Request failed.";
+    } catch {
+      const fallback = String(text || "").trim();
+      return fallback.length > 0 ? fallback : "Request failed.";
+    }
   } catch {
     return "Request failed.";
   }
+};
+
+const isUploadFileChangedError = (error: unknown) => {
+  const maybe = error as { message?: string; code?: string; toString?: () => string };
+  const combined = [
+    typeof maybe?.message === "string" ? maybe.message : "",
+    typeof maybe?.code === "string" ? maybe.code : "",
+    typeof maybe?.toString === "function" ? maybe.toString() : "",
+  ]
+    .join(" ")
+    .toLowerCase();
+  return combined.includes("err_upload_file_changed");
 };
 
 export default function QuestionConverterPage() {
@@ -53,7 +70,7 @@ export default function QuestionConverterPage() {
   const [subjectId, setSubjectId] = useState("");
   const [chapterId, setChapterId] = useState("");
   const [topicId, setTopicId] = useState("");
-  const [category, setCategory] = useState<(typeof CATEGORY_OPTIONS)[number]["value"]>("direction");
+  const [category, setCategory] = useState<(typeof CATEGORY_OPTIONS)[number]["value"]>("direct");
   const [marksPositive, setMarksPositive] = useState("4");
   const [marksNegative, setMarksNegative] = useState("0");
 
@@ -75,7 +92,7 @@ export default function QuestionConverterPage() {
   useEffect(() => {
     const loadInitial = async () => {
       try {
-        const programRes = await api.get("/programs");
+        const programRes = await api.get("/programs?writable=1");
 
         const programPayload = Array.isArray(programRes.data)
           ? programRes.data
@@ -254,6 +271,11 @@ export default function QuestionConverterPage() {
       window.URL.revokeObjectURL(url);
       setStatusMessage("Converted output file downloaded successfully.");
     } catch (error) {
+      if (isUploadFileChangedError(error)) {
+        setStatusMessage("Selected file changed after selection. Please re-select the DOCX file and try again.");
+        setSourceFile(null);
+        return;
+      }
       const blob = (error as { response?: { data?: Blob } })?.response?.data;
       setStatusMessage(blob instanceof Blob ? await parseBlobError(blob) : "Failed to download converted output.");
     } finally {
@@ -285,6 +307,11 @@ export default function QuestionConverterPage() {
           : `Inserted all ${res.data.inserted} detected questions successfully.`
       );
     } catch (error) {
+      if (isUploadFileChangedError(error)) {
+        setStatusMessage("Selected file changed after selection. Please re-select the DOCX file and try again.");
+        setSourceFile(null);
+        return;
+      }
       const message =
         typeof error === "object" && error && "response" in error
           ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
@@ -298,13 +325,13 @@ export default function QuestionConverterPage() {
   return (
     <QuestionBankLayout
       title="Converter"
-      description="Convert a source DOCX manual into question-bank rows, then download the output or insert the questions directly."
+      description="Convert supported DOCX manuals or worksheet-style source files into question-bank rows, then download the output or insert the questions directly."
     >
       <div className="space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Source File</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Upload the manual DOCX that contains numbered questions, answer keys, and solutions.
+            Upload a supported DOCX source file that contains numbered questions, options, and answer/solution content.
           </p>
 
           <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5">
@@ -315,7 +342,7 @@ export default function QuestionConverterPage() {
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
             />
             <p className="mt-3 text-xs text-slate-500">
-              Supported source format: `.docx`. The converter will parse numbered questions, equations, images, options, `Key:` lines, and `Solution:` blocks on the backend.
+              Supported source format: `.docx`. The converter can parse both section-based mentor manuals and worksheet-style DOCX files, while preserving equations, symbols, images, options, answer keys, and solution blocks on the backend.
             </p>
             {sourceFile ? (
               <p className="mt-2 text-xs font-semibold text-slate-700">Selected: {sourceFile.name}</p>

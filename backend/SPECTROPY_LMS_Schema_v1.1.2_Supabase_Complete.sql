@@ -23,21 +23,6 @@ CREATE TABLE users (
 );
 
 -- =====================================
--- 2. ADMIN PERMISSIONS
--- =====================================
-CREATE TABLE admin_permissions (
-  id SERIAL PRIMARY KEY,
-  admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  can_manage_courses BOOLEAN DEFAULT FALSE,
-  can_manage_users BOOLEAN DEFAULT FALSE,
-  can_issue_certificates BOOLEAN DEFAULT FALSE,
-  can_view_reports BOOLEAN DEFAULT FALSE,
-  can_manage_scorm BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(admin_id)
-);
-
--- =====================================
 -- 3. COURSES
 -- =====================================
 CREATE TABLE courses (
@@ -329,15 +314,23 @@ EXECUTE FUNCTION update_timestamp();
 
 -- =====================================
 -- 1.7 CONTENT_PACK_ITEMS
--- Purpose: Junction table linking courses to packs
+-- Purpose: Junction table linking content items to packs
 CREATE TABLE content_pack_items (
   pack_id INTEGER NOT NULL REFERENCES content_packs(id) ON DELETE CASCADE,
-  item_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  item_id INTEGER NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
   PRIMARY KEY (pack_id, item_id)
 );
 
 CREATE INDEX idx_content_pack_items_pack ON content_pack_items(pack_id);
 CREATE INDEX idx_content_pack_items_item ON content_pack_items(item_id);
+
+-- Backup table from the item-based content pack migration.
+CREATE TABLE IF NOT EXISTS content_pack_items_backup_20260330 (
+  pack_id INTEGER NOT NULL,
+  item_id INTEGER NOT NULL,
+  backup_reason TEXT NOT NULL,
+  backed_up_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- =====================================
 -- 1.8 CONTENT_ENTITLEMENTS
@@ -412,11 +405,58 @@ CREATE INDEX idx_audit_logs_action ON audit_logs(action);
 CREATE INDEX idx_audit_logs_created ON audit_logs(created_at);
 
 -- =====================================
+-- 1.10A PROGRAMS
+-- Purpose: Program hierarchy root used by curriculum, exams and tracker
+CREATE TABLE IF NOT EXISTS programs (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+  school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+  name VARCHAR(120) NOT NULL,
+  code VARCHAR(40) NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_programs_client_code
+  ON programs (COALESCE(client_id, 0), COALESCE(school_id, 0), LOWER(code));
+CREATE INDEX IF NOT EXISTS idx_programs_client ON programs(client_id);
+CREATE INDEX IF NOT EXISTS idx_programs_school ON programs(school_id);
+CREATE INDEX IF NOT EXISTS idx_programs_active ON programs(is_active);
+
+CREATE TRIGGER trg_programs_updated
+BEFORE UPDATE ON programs
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- =====================================
+-- 1.10B GRADES
+-- Purpose: Grade levels within a program
+CREATE TABLE IF NOT EXISTS grades (
+  id SERIAL PRIMARY KEY,
+  program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+  grade_number INTEGER NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (program_id, grade_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_grades_program ON grades(program_id);
+CREATE INDEX IF NOT EXISTS idx_grades_active ON grades(is_active);
+
+CREATE TRIGGER trg_grades_updated
+BEFORE UPDATE ON grades
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- =====================================
 -- 1.11 SUBJECTS
 -- Purpose: Master list of subjects for question bank
 CREATE TABLE subjects (
   id SERIAL PRIMARY KEY,
   client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+  grade_id INTEGER REFERENCES grades(id) ON DELETE SET NULL,
   name VARCHAR(100) NOT NULL,
   code VARCHAR(20) NOT NULL,
   description TEXT,
@@ -426,6 +466,7 @@ CREATE TABLE subjects (
 );
 
 CREATE INDEX idx_subjects_client ON subjects(client_id);
+CREATE INDEX IF NOT EXISTS idx_subjects_grade ON subjects(grade_id);
 CREATE UNIQUE INDEX idx_subjects_code ON subjects(COALESCE(client_id, 0), code);
 
 -- =====================================
@@ -657,6 +698,379 @@ CREATE TABLE exam_responses (
 );
 
 CREATE INDEX idx_exam_responses_attempt ON exam_responses(attempt_id);
+
+-- =====================================
+-- 1.20 QUESTION_FOLDERS
+-- Purpose: Saved folders for grouping question-bank questions
+CREATE TABLE IF NOT EXISTS question_folders (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+  school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  description TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_folders_client ON question_folders(client_id);
+CREATE INDEX IF NOT EXISTS idx_question_folders_school ON question_folders(school_id);
+CREATE INDEX IF NOT EXISTS idx_question_folders_active ON question_folders(is_active);
+
+CREATE TRIGGER trg_question_folders_updated
+BEFORE UPDATE ON question_folders
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- =====================================
+-- 1.21 COURSE_EXAMS
+-- Purpose: Links exams into courses/content playback
+CREATE TABLE IF NOT EXISTS course_exams (
+  id SERIAL PRIMARY KEY,
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(course_id, exam_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_exams_course_id ON course_exams(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_exams_exam_id ON course_exams(exam_id);
+
+-- =====================================
+-- 1.22 COURSE_LINKED_CONTENT
+-- Purpose: Links licensed/platform content into client courses
+CREATE TABLE IF NOT EXISTS course_linked_content (
+  id SERIAL PRIMARY KEY,
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  content_item_id INTEGER NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
+  source_pack_id INTEGER REFERENCES content_packs(id) ON DELETE SET NULL,
+  parent_content_id INTEGER NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
+  order_index INTEGER NOT NULL DEFAULT 0,
+  linked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE (course_id, content_item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_linked_content_course
+  ON course_linked_content(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_linked_content_item
+  ON course_linked_content(content_item_id);
+CREATE INDEX IF NOT EXISTS idx_course_linked_content_parent_order
+  ON course_linked_content(course_id, parent_content_id, order_index);
+
+-- =====================================
+-- 1.23 COURSE_SCHOOL_ASSIGNMENTS
+-- Purpose: Assigns courses to schools
+CREATE TABLE IF NOT EXISTS course_school_assignments (
+  id SERIAL PRIMARY KEY,
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (course_id, school_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_school_assignments_course
+  ON course_school_assignments(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_school_assignments_school
+  ON course_school_assignments(school_id);
+
+-- =====================================
+-- 1.24 CLIENT_COURSE_TITLE_OVERRIDES
+-- Purpose: Client-specific display titles for assigned courses
+CREATE TABLE IF NOT EXISTS client_course_title_overrides (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (client_id, course_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_course_title_overrides_client
+  ON client_course_title_overrides(client_id);
+CREATE INDEX IF NOT EXISTS idx_client_course_title_overrides_course
+  ON client_course_title_overrides(course_id);
+
+-- =====================================
+-- 1.25 QUESTION_BANK_SCHOOL_ASSIGNMENTS
+-- Purpose: Assigns question-bank programs to schools
+CREATE TABLE IF NOT EXISTS question_bank_school_assignments (
+  id SERIAL PRIMARY KEY,
+  program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+  school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(program_id, school_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_bank_school_assignments_program
+  ON question_bank_school_assignments(program_id);
+CREATE INDEX IF NOT EXISTS idx_question_bank_school_assignments_school
+  ON question_bank_school_assignments(school_id);
+
+-- =====================================
+-- 1.26 EXAM_SCHOOL_ASSIGNMENTS
+-- Purpose: Assigns exams to schools
+CREATE TABLE IF NOT EXISTS exam_school_assignments (
+  id SERIAL PRIMARY KEY,
+  exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+  school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(exam_id, school_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_school_assignments_exam
+  ON exam_school_assignments(exam_id);
+CREATE INDEX IF NOT EXISTS idx_exam_school_assignments_school
+  ON exam_school_assignments(school_id);
+
+-- =====================================
+-- 1.27 COMMUNITY_CONTENT
+-- Purpose: Public/community content entries for the landing/community area
+CREATE TABLE IF NOT EXISTS community_content (
+  id SERIAL PRIMARY KEY,
+  school_name TEXT NOT NULL,
+  area TEXT,
+  state TEXT,
+  date DATE,
+  session TEXT,
+  title TEXT NOT NULL,
+  description TEXT,
+  media JSONB NOT NULL DEFAULT '[]'::JSONB,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TRIGGER trg_community_content_updated
+BEFORE UPDATE ON community_content
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- =====================================
+-- 1.28 BLUEPRINTS
+-- Purpose: Reusable exam blueprints
+CREATE TABLE IF NOT EXISTS blueprints (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (
+    status IN ('active', 'inactive', 'archived')
+  ),
+  created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_blueprints_name
+  ON blueprints (client_id, COALESCE(school_id, 0), LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_blueprints_client ON blueprints(client_id);
+CREATE INDEX IF NOT EXISTS idx_blueprints_school ON blueprints(school_id);
+CREATE INDEX IF NOT EXISTS idx_blueprints_status ON blueprints(status);
+CREATE INDEX IF NOT EXISTS idx_blueprints_created_by ON blueprints(created_by);
+
+CREATE TRIGGER trg_blueprints_updated
+BEFORE UPDATE ON blueprints
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- =====================================
+-- 1.29 BLUEPRINT_SECTIONS
+-- Purpose: Section rules inside a blueprint
+CREATE TABLE IF NOT EXISTS blueprint_sections (
+  id SERIAL PRIMARY KEY,
+  blueprint_id INTEGER NOT NULL REFERENCES blueprints(id) ON DELETE CASCADE,
+  section_name VARCHAR(150) NOT NULL,
+  required_question_count INTEGER NOT NULL CHECK (required_question_count > 0),
+  display_order INTEGER NOT NULL DEFAULT 1 CHECK (display_order > 0),
+  direction_question_count INTEGER NOT NULL DEFAULT 0,
+  similar_question_count INTEGER NOT NULL DEFAULT 0,
+  previous_year_question_count INTEGER NOT NULL DEFAULT 0,
+  reference_question_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT blueprint_sections_distribution_check CHECK (
+    direction_question_count >= 0
+    AND similar_question_count >= 0
+    AND previous_year_question_count >= 0
+    AND reference_question_count >= 0
+    AND (
+      direction_question_count
+      + similar_question_count
+      + previous_year_question_count
+      + reference_question_count
+    ) = required_question_count
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_blueprint_sections_name
+  ON blueprint_sections (blueprint_id, LOWER(section_name));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_blueprint_sections_order
+  ON blueprint_sections (blueprint_id, display_order);
+CREATE INDEX IF NOT EXISTS idx_blueprint_sections_blueprint
+  ON blueprint_sections(blueprint_id);
+
+CREATE TRIGGER trg_blueprint_sections_updated
+BEFORE UPDATE ON blueprint_sections
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- =====================================
+-- 1.30 EXAM_SECTION_CHAPTERS
+-- Purpose: Chapter selections for generated exam sections
+CREATE TABLE IF NOT EXISTS exam_section_chapters (
+  id SERIAL PRIMARY KEY,
+  exam_section_id INTEGER NOT NULL REFERENCES exam_sections(id) ON DELETE CASCADE,
+  chapter_id INTEGER NOT NULL REFERENCES chapters(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (exam_section_id, chapter_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_section_chapters_section
+  ON exam_section_chapters(exam_section_id);
+CREATE INDEX IF NOT EXISTS idx_exam_section_chapters_chapter
+  ON exam_section_chapters(chapter_id);
+
+-- =====================================
+-- 1.31 EXAM_SECTION_TOPICS
+-- Purpose: Topic selections for generated exam sections
+CREATE TABLE IF NOT EXISTS exam_section_topics (
+  id SERIAL PRIMARY KEY,
+  exam_section_id INTEGER NOT NULL REFERENCES exam_sections(id) ON DELETE CASCADE,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (exam_section_id, topic_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_section_topics_section
+  ON exam_section_topics(exam_section_id);
+CREATE INDEX IF NOT EXISTS idx_exam_section_topics_topic
+  ON exam_section_topics(topic_id);
+
+-- =====================================
+-- 1.32 CURRENT SCHEMA COLUMN ALIGNMENT
+-- Purpose: Bring base tables in line with the existing Supabase schema export
+
+ALTER TABLE courses
+  ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::JSONB;
+
+ALTER TABLE questions
+  ALTER COLUMN subject_id DROP NOT NULL,
+  ALTER COLUMN chapter_id DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS folder_id INTEGER REFERENCES question_folders(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS category JSONB,
+  ADD COLUMN IF NOT EXISTS question_group_type VARCHAR(30);
+
+ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_question_type_check;
+ALTER TABLE questions
+  ADD CONSTRAINT questions_question_type_check CHECK (
+    question_type IN (
+      'mcq_single',
+      'assertion_reasoning',
+      'mcq_multiple',
+      'numerical',
+      'true_false',
+      'short_answer',
+      'match_following',
+      'fill_in_blank',
+      'comprehensive'
+    )
+  );
+
+ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_question_group_type_check;
+ALTER TABLE questions
+  ADD CONSTRAINT questions_question_group_type_check CHECK (
+    question_group_type IS NULL
+    OR question_group_type IN ('direction', 'similar', 'previous_year', 'reference')
+  );
+
+CREATE INDEX IF NOT EXISTS idx_questions_folder ON questions(folder_id);
+CREATE INDEX IF NOT EXISTS idx_questions_topic_status_group
+  ON questions(topic_id, status, question_group_type);
+CREATE INDEX IF NOT EXISTS idx_questions_subject_chapter_topic_status
+  ON questions(subject_id, chapter_id, topic_id, status);
+
+ALTER TABLE exams
+  ADD COLUMN IF NOT EXISTS show_score BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS show_pass_or_fail BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS show_solutions_to_user BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS instructions TEXT,
+  ADD COLUMN IF NOT EXISTS program_id INTEGER REFERENCES programs(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS blueprint_id INTEGER REFERENCES blueprints(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_exams_program ON exams(program_id);
+CREATE INDEX IF NOT EXISTS idx_exams_blueprint ON exams(blueprint_id);
+
+ALTER TABLE exam_sections
+  ADD COLUMN IF NOT EXISTS blueprint_section_id INTEGER REFERENCES blueprint_sections(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS required_question_count INTEGER,
+  ADD COLUMN IF NOT EXISTS selected_subject_id INTEGER REFERENCES subjects(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS completion_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS syllabus_locked BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS direction_question_count INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS similar_question_count INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS previous_year_question_count INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS reference_question_count INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE exam_sections DROP CONSTRAINT IF EXISTS exam_sections_completion_status_check;
+ALTER TABLE exam_sections
+  ADD CONSTRAINT exam_sections_completion_status_check CHECK (
+    completion_status IN ('pending', 'configured', 'generated', 'completed')
+  );
+
+ALTER TABLE exam_sections DROP CONSTRAINT IF EXISTS exam_sections_required_question_count_check;
+ALTER TABLE exam_sections
+  ADD CONSTRAINT exam_sections_required_question_count_check CHECK (
+    required_question_count IS NULL OR required_question_count > 0
+  );
+
+ALTER TABLE exam_sections DROP CONSTRAINT IF EXISTS exam_sections_distribution_check;
+ALTER TABLE exam_sections
+  ADD CONSTRAINT exam_sections_distribution_check CHECK (
+    direction_question_count >= 0
+    AND similar_question_count >= 0
+    AND previous_year_question_count >= 0
+    AND reference_question_count >= 0
+    AND (
+      required_question_count IS NULL
+      OR (
+        direction_question_count
+        + similar_question_count
+        + previous_year_question_count
+        + reference_question_count
+      ) = required_question_count
+    )
+  );
+
+CREATE INDEX IF NOT EXISTS idx_exam_sections_blueprint_section
+  ON exam_sections(blueprint_section_id);
+CREATE INDEX IF NOT EXISTS idx_exam_sections_subject
+  ON exam_sections(selected_subject_id);
+CREATE INDEX IF NOT EXISTS idx_exam_sections_status
+  ON exam_sections(completion_status);
+
+ALTER TABLE exam_questions
+  ADD COLUMN IF NOT EXISTS question_group_type VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS generated_from_topic_selection BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE exam_questions DROP CONSTRAINT IF EXISTS exam_questions_question_group_type_check;
+ALTER TABLE exam_questions
+  ADD CONSTRAINT exam_questions_question_group_type_check CHECK (
+    question_group_type IS NULL
+    OR question_group_type IN ('direction', 'similar', 'previous_year', 'reference')
+  );
+
+CREATE INDEX IF NOT EXISTS idx_exam_questions_group_type
+  ON exam_questions(question_group_type);
+CREATE INDEX IF NOT EXISTS idx_exam_questions_section_group
+  ON exam_questions(section_id, question_group_type);
 
 -- =====================================
 -- 2. MODIFY EXISTING TABLES
@@ -1156,25 +1570,6 @@ CREATE POLICY users_tenant_isolation ON users
   USING (app_role() = 'super_admin' OR client_id = app_client_id())
   WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
 
--- ADMIN PERMISSIONS (scoped by user's client)
-ALTER TABLE admin_permissions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY admin_permissions_tenant_isolation ON admin_permissions
-  FOR ALL
-  USING (
-    app_role() = 'super_admin'
-    OR EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = admin_id AND u.client_id = app_client_id()
-    )
-  )
-  WITH CHECK (
-    app_role() = 'super_admin'
-    OR EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = admin_id AND u.client_id = app_client_id()
-    )
-  );
-
 -- SCHOOLS
 ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
 CREATE POLICY schools_tenant_isolation ON schools
@@ -1550,4 +1945,899 @@ CREATE POLICY exam_responses_tenant_isolation ON exam_responses
     )
   );
 
+-- PROGRAMS
+ALTER TABLE programs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY programs_tenant_isolation ON programs
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
 
+-- GRADES (scoped by program->client)
+ALTER TABLE grades ENABLE ROW LEVEL SECURITY;
+CREATE POLICY grades_tenant_isolation ON grades
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM programs p
+      WHERE p.id = program_id AND p.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM programs p
+      WHERE p.id = program_id AND p.client_id = app_client_id()
+    )
+  );
+
+-- QUESTION FOLDERS
+ALTER TABLE question_folders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY question_folders_tenant_isolation ON question_folders
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+-- BLUEPRINTS
+ALTER TABLE blueprints ENABLE ROW LEVEL SECURITY;
+CREATE POLICY blueprints_tenant_isolation ON blueprints
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+-- BLUEPRINT SECTIONS (scoped by blueprint->client)
+ALTER TABLE blueprint_sections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY blueprint_sections_tenant_isolation ON blueprint_sections
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM blueprints b
+      WHERE b.id = blueprint_id AND b.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM blueprints b
+      WHERE b.id = blueprint_id AND b.client_id = app_client_id()
+    )
+  );
+
+-- EXAM SECTION CHAPTERS (scoped by exam_section->exam->client)
+ALTER TABLE exam_section_chapters ENABLE ROW LEVEL SECURITY;
+CREATE POLICY exam_section_chapters_tenant_isolation ON exam_section_chapters
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1
+      FROM exam_sections es
+      JOIN exams e ON es.exam_id = e.id
+      WHERE es.id = exam_section_id AND e.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1
+      FROM exam_sections es
+      JOIN exams e ON es.exam_id = e.id
+      WHERE es.id = exam_section_id AND e.client_id = app_client_id()
+    )
+  );
+
+-- EXAM SECTION TOPICS (scoped by exam_section->exam->client)
+ALTER TABLE exam_section_topics ENABLE ROW LEVEL SECURITY;
+CREATE POLICY exam_section_topics_tenant_isolation ON exam_section_topics
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1
+      FROM exam_sections es
+      JOIN exams e ON es.exam_id = e.id
+      WHERE es.id = exam_section_id AND e.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1
+      FROM exam_sections es
+      JOIN exams e ON es.exam_id = e.id
+      WHERE es.id = exam_section_id AND e.client_id = app_client_id()
+    )
+  );
+
+-- COURSE EXAMS (scoped by course->client)
+ALTER TABLE course_exams ENABLE ROW LEVEL SECURITY;
+CREATE POLICY course_exams_tenant_isolation ON course_exams
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.id = course_id AND c.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.id = course_id AND c.client_id = app_client_id()
+    )
+  );
+
+-- COURSE LINKED CONTENT (scoped by course->client)
+ALTER TABLE course_linked_content ENABLE ROW LEVEL SECURITY;
+CREATE POLICY course_linked_content_tenant_isolation ON course_linked_content
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.id = course_id AND c.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.id = course_id AND c.client_id = app_client_id()
+    )
+  );
+
+-- COURSE SCHOOL ASSIGNMENTS (scoped by course->client)
+ALTER TABLE course_school_assignments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY course_school_assignments_tenant_isolation ON course_school_assignments
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.id = course_id AND c.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.id = course_id AND c.client_id = app_client_id()
+    )
+  );
+
+-- CLIENT COURSE TITLE OVERRIDES
+ALTER TABLE client_course_title_overrides ENABLE ROW LEVEL SECURITY;
+CREATE POLICY client_course_title_overrides_tenant_isolation ON client_course_title_overrides
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+-- QUESTION BANK SCHOOL ASSIGNMENTS (scoped by program->client)
+ALTER TABLE question_bank_school_assignments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY question_bank_school_assignments_tenant_isolation ON question_bank_school_assignments
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM programs p
+      WHERE p.id = program_id AND p.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM programs p
+      WHERE p.id = program_id AND p.client_id = app_client_id()
+    )
+  );
+
+-- EXAM SCHOOL ASSIGNMENTS (scoped by exam->client)
+ALTER TABLE exam_school_assignments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY exam_school_assignments_tenant_isolation ON exam_school_assignments
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM exams e
+      WHERE e.id = exam_id AND e.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM exams e
+      WHERE e.id = exam_id AND e.client_id = app_client_id()
+    )
+  );
+
+-- =====================================
+-- 7. TEACHER SESSION TRACKER MVP
+-- =====================================
+
+-- 7.1 PROGRAM_MICRO_SCHEDULE_UPLOADS
+-- Purpose: Stores uploaded micro schedule files for shared programs
+CREATE TABLE IF NOT EXISTS program_micro_schedule_uploads (
+  id SERIAL PRIMARY KEY,
+  program_id INTEGER NOT NULL,
+  uploaded_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  file_name TEXT NOT NULL,
+  file_storage_path TEXT NOT NULL,
+  version_no INTEGER NOT NULL DEFAULT 1 CHECK (version_no > 0),
+  status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (
+    status IN ('draft', 'processed', 'published', 'failed', 'archived')
+  ),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(program_id, version_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_program_micro_schedule_uploads_program
+  ON program_micro_schedule_uploads(program_id);
+CREATE INDEX IF NOT EXISTS idx_program_micro_schedule_uploads_status
+  ON program_micro_schedule_uploads(status);
+
+CREATE TRIGGER trg_program_micro_schedule_uploads_updated
+BEFORE UPDATE ON program_micro_schedule_uploads
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.2 PROGRAM_MICRO_SCHEDULE_ROWS
+-- Purpose: Parsed row-wise micro schedule data
+CREATE TABLE IF NOT EXISTS program_micro_schedule_rows (
+  id BIGSERIAL PRIMARY KEY,
+  micro_schedule_upload_id INTEGER NOT NULL REFERENCES program_micro_schedule_uploads(id) ON DELETE CASCADE,
+  program_id INTEGER NOT NULL,
+  row_no INTEGER NOT NULL CHECK (row_no > 0),
+  serial_no INTEGER,
+  grade_label VARCHAR(100) NOT NULL,
+  subject_label VARCHAR(150) NOT NULL,
+  session_label VARCHAR(100) NOT NULL,
+  session_no INTEGER NOT NULL CHECK (session_no > 0),
+  chapter_label VARCHAR(255) NOT NULL,
+  learning_goal TEXT,
+  topic_label TEXT,
+  raw_row_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+  normalized_key TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(micro_schedule_upload_id, row_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_program_micro_schedule_rows_upload
+  ON program_micro_schedule_rows(micro_schedule_upload_id);
+CREATE INDEX IF NOT EXISTS idx_program_micro_schedule_rows_mapping
+  ON program_micro_schedule_rows(program_id, session_no, chapter_label);
+
+-- 7.3 PROGRAM_LESSON_PLANNER_UPLOADS
+-- Purpose: Stores uploaded lesson planner files for shared programs
+CREATE TABLE IF NOT EXISTS program_lesson_planner_uploads (
+  id SERIAL PRIMARY KEY,
+  program_id INTEGER NOT NULL,
+  uploaded_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  file_name TEXT NOT NULL,
+  file_storage_path TEXT NOT NULL,
+  source_type VARCHAR(20) NOT NULL DEFAULT 'docx' CHECK (
+    source_type IN ('docx', 'pdf', 'excel')
+  ),
+  version_no INTEGER NOT NULL DEFAULT 1 CHECK (version_no > 0),
+  status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (
+    status IN ('draft', 'processed', 'published', 'failed', 'archived')
+  ),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(program_id, source_type, version_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_program_lesson_planner_uploads_program
+  ON program_lesson_planner_uploads(program_id);
+CREATE INDEX IF NOT EXISTS idx_program_lesson_planner_uploads_status
+  ON program_lesson_planner_uploads(status);
+
+CREATE TRIGGER trg_program_lesson_planner_uploads_updated
+BEFORE UPDATE ON program_lesson_planner_uploads
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.4 PROGRAM_LESSON_PLANNER_SESSIONS
+-- Purpose: Parsed session-wise planner content
+CREATE TABLE IF NOT EXISTS program_lesson_planner_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  lesson_planner_upload_id INTEGER NOT NULL REFERENCES program_lesson_planner_uploads(id) ON DELETE CASCADE,
+  program_id INTEGER NOT NULL,
+  session_no INTEGER NOT NULL CHECK (session_no > 0),
+  session_label VARCHAR(100) NOT NULL,
+  part_type VARCHAR(20) NOT NULL DEFAULT 'teaching' CHECK (
+    part_type IN ('teaching', 'board_exam')
+  ),
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes > 0),
+  title TEXT NOT NULL,
+  chapter_label VARCHAR(255),
+  topic_label TEXT,
+  learning_objectives JSONB DEFAULT '[]'::JSONB,
+  materials_needed TEXT,
+  worksheet_questions_covered TEXT,
+  shortcuts_introduced TEXT,
+  common_errors_addressed TEXT,
+  homework TEXT,
+  next_session_preview TEXT,
+  pedagogy_note TEXT,
+  minute_plan_json JSONB DEFAULT '[]'::JSONB,
+  teacher_script_text TEXT,
+  raw_source_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+  normalized_key TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(lesson_planner_upload_id, session_no, part_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_program_lesson_planner_sessions_upload
+  ON program_lesson_planner_sessions(lesson_planner_upload_id);
+CREATE INDEX IF NOT EXISTS idx_program_lesson_planner_sessions_mapping
+  ON program_lesson_planner_sessions(program_id, session_no, chapter_label);
+
+-- 7.5 PROGRAM_SESSION_TEMPLATES
+-- Purpose: Final mapped template records plus mapping issue state
+CREATE TABLE IF NOT EXISTS program_session_templates (
+  id BIGSERIAL PRIMARY KEY,
+  program_id INTEGER NOT NULL,
+  template_version_no INTEGER NOT NULL DEFAULT 1 CHECK (template_version_no > 0),
+  grade_label VARCHAR(100) NOT NULL,
+  subject_label VARCHAR(150) NOT NULL,
+  session_no INTEGER NOT NULL CHECK (session_no > 0),
+  session_label VARCHAR(100) NOT NULL,
+  chapter_label VARCHAR(255),
+  learning_goal TEXT,
+  topic_label TEXT,
+  planner_title TEXT,
+  part_type VARCHAR(20) NOT NULL DEFAULT 'teaching' CHECK (
+    part_type IN ('teaching', 'board_exam')
+  ),
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes > 0),
+  learning_objectives JSONB DEFAULT '[]'::JSONB,
+  materials_needed TEXT,
+  worksheet_questions_covered TEXT,
+  shortcuts_introduced TEXT,
+  common_errors_addressed TEXT,
+  homework TEXT,
+  next_session_preview TEXT,
+  pedagogy_note TEXT,
+  minute_plan_json JSONB DEFAULT '[]'::JSONB,
+  teacher_script_text TEXT,
+  micro_schedule_row_id BIGINT REFERENCES program_micro_schedule_rows(id) ON DELETE SET NULL,
+  lesson_planner_session_id BIGINT REFERENCES program_lesson_planner_sessions(id) ON DELETE SET NULL,
+  mapping_status VARCHAR(20) NOT NULL DEFAULT 'matched' CHECK (
+    mapping_status IN ('matched', 'unmatched_micro', 'unmatched_planner', 'conflict')
+  ),
+  issue_details JSONB DEFAULT '{}'::JSONB,
+  is_published BOOLEAN DEFAULT FALSE,
+  published_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_program_session_templates_program
+  ON program_session_templates(program_id, template_version_no);
+CREATE INDEX IF NOT EXISTS idx_program_session_templates_mapping
+  ON program_session_templates(mapping_status, is_published);
+
+CREATE TRIGGER trg_program_session_templates_updated
+BEFORE UPDATE ON program_session_templates
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.6 CLIENT_ENTITLEMENTS
+-- Purpose: Stores tracker feature enablement and program access by client
+CREATE TABLE IF NOT EXISTS client_entitlements (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  entitlement_type VARCHAR(20) NOT NULL CHECK (
+    entitlement_type IN ('feature', 'program')
+  ),
+  feature_key VARCHAR(100),
+  program_id INTEGER,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  assigned_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT client_entitlements_scope_check CHECK (
+    (entitlement_type = 'feature' AND feature_key IS NOT NULL AND program_id IS NULL)
+    OR (entitlement_type = 'program' AND program_id IS NOT NULL AND feature_key IS NULL)
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_client_entitlements_feature_unique
+  ON client_entitlements(client_id, entitlement_type, feature_key)
+  WHERE entitlement_type = 'feature';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_client_entitlements_program_unique
+  ON client_entitlements(client_id, entitlement_type, program_id)
+  WHERE entitlement_type = 'program';
+CREATE INDEX IF NOT EXISTS idx_client_entitlements_client
+  ON client_entitlements(client_id);
+
+CREATE TRIGGER trg_client_entitlements_updated
+BEFORE UPDATE ON client_entitlements
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.7 QUESTION_BANK_ENTITLEMENTS
+-- Purpose: Stores Question Bank feature enablement and program access by client
+CREATE TABLE IF NOT EXISTS question_bank_entitlements (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  entitlement_type VARCHAR(20) NOT NULL CHECK (
+    entitlement_type IN ('feature', 'program')
+  ),
+  feature_key VARCHAR(100),
+  program_id INTEGER REFERENCES programs(id) ON DELETE CASCADE,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  assigned_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT question_bank_entitlements_scope_check CHECK (
+    (entitlement_type = 'feature' AND feature_key IS NOT NULL AND program_id IS NULL)
+    OR (entitlement_type = 'program' AND program_id IS NOT NULL AND feature_key IS NULL)
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_question_bank_entitlements_feature_unique
+  ON question_bank_entitlements(client_id, entitlement_type, feature_key)
+  WHERE entitlement_type = 'feature';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_question_bank_entitlements_program_unique
+  ON question_bank_entitlements(client_id, entitlement_type, program_id)
+  WHERE entitlement_type = 'program';
+CREATE INDEX IF NOT EXISTS idx_question_bank_entitlements_client
+  ON question_bank_entitlements(client_id);
+
+DROP TRIGGER IF EXISTS trg_question_bank_entitlements_updated ON question_bank_entitlements;
+CREATE TRIGGER trg_question_bank_entitlements_updated
+BEFORE UPDATE ON question_bank_entitlements
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.8 EXAM_ENTITLEMENTS
+-- Purpose: Stores Exams feature enablement and program access by client
+CREATE TABLE IF NOT EXISTS exam_entitlements (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  entitlement_type VARCHAR(20) NOT NULL CHECK (
+    entitlement_type IN ('feature', 'program')
+  ),
+  feature_key VARCHAR(100),
+  program_id INTEGER REFERENCES programs(id) ON DELETE CASCADE,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  assigned_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT exam_entitlements_scope_check CHECK (
+    (entitlement_type = 'feature' AND feature_key IS NOT NULL AND program_id IS NULL)
+    OR (entitlement_type = 'program' AND program_id IS NOT NULL AND feature_key IS NULL)
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exam_entitlements_feature_unique
+  ON exam_entitlements(client_id, entitlement_type, feature_key)
+  WHERE entitlement_type = 'feature';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exam_entitlements_program_unique
+  ON exam_entitlements(client_id, entitlement_type, program_id)
+  WHERE entitlement_type = 'program';
+CREATE INDEX IF NOT EXISTS idx_exam_entitlements_client
+  ON exam_entitlements(client_id);
+
+DROP TRIGGER IF EXISTS trg_exam_entitlements_updated ON exam_entitlements;
+CREATE TRIGGER trg_exam_entitlements_updated
+BEFORE UPDATE ON exam_entitlements
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.9 TEACHING_SESSIONS
+-- Purpose: Live client-scoped teaching sessions derived from shared templates
+CREATE TABLE IF NOT EXISTS teaching_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL,
+  program_id INTEGER NOT NULL,
+  program_session_template_id BIGINT REFERENCES program_session_templates(id) ON DELETE SET NULL,
+  grade_label VARCHAR(100) NOT NULL,
+  subject_label VARCHAR(150) NOT NULL,
+  chapter_label VARCHAR(255),
+  session_no INTEGER NOT NULL CHECK (session_no > 0),
+  session_label VARCHAR(100) NOT NULL,
+  part_type VARCHAR(20) NOT NULL DEFAULT 'teaching' CHECK (
+    part_type IN ('teaching', 'board_exam')
+  ),
+  planned_date DATE NOT NULL,
+  period_slot VARCHAR(100),
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes > 0),
+  teacher_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  learning_goal TEXT,
+  topic_label TEXT,
+  planner_title TEXT,
+  learning_objectives JSONB DEFAULT '[]'::JSONB,
+  materials_needed TEXT,
+  worksheet_questions_covered TEXT,
+  shortcuts_introduced TEXT,
+  common_errors_addressed TEXT,
+  homework TEXT,
+  next_session_preview TEXT,
+  pedagogy_note TEXT,
+  minute_plan_json JSONB DEFAULT '[]'::JSONB,
+  teacher_script_text TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'not_started' CHECK (
+    status IN ('not_started', 'completed', 'partially_completed', 'not_completed', 'update_pending', 'lagging')
+  ),
+  completion_percentage INTEGER NOT NULL DEFAULT 0 CHECK (completion_percentage BETWEEN 0 AND 100),
+  actual_date DATE,
+  topics_covered TEXT,
+  pending_topics TEXT,
+  reason_code VARCHAR(100),
+  remarks TEXT,
+  last_updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  last_updated_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_teaching_sessions_client_date
+  ON teaching_sessions(client_id, planned_date);
+CREATE INDEX IF NOT EXISTS idx_teaching_sessions_school_date
+  ON teaching_sessions(school_id, planned_date);
+CREATE INDEX IF NOT EXISTS idx_teaching_sessions_teacher_date
+  ON teaching_sessions(teacher_user_id, planned_date);
+CREATE INDEX IF NOT EXISTS idx_teaching_sessions_status
+  ON teaching_sessions(status);
+
+CREATE TRIGGER trg_teaching_sessions_updated
+BEFORE UPDATE ON teaching_sessions
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.8 TEACHING_SESSION_UPDATES
+-- Purpose: Audit trail of teacher session updates
+CREATE TABLE IF NOT EXISTS teaching_session_updates (
+  id BIGSERIAL PRIMARY KEY,
+  teaching_session_id BIGINT NOT NULL REFERENCES teaching_sessions(id) ON DELETE CASCADE,
+  teacher_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status_submitted VARCHAR(20) NOT NULL CHECK (
+    status_submitted IN ('completed', 'partially_completed', 'not_completed')
+  ),
+  completion_percentage INTEGER NOT NULL CHECK (completion_percentage BETWEEN 0 AND 100),
+  actual_date DATE,
+  topics_covered TEXT,
+  pending_topics TEXT,
+  reason_code VARCHAR(100),
+  remarks TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_teaching_session_updates_session
+  ON teaching_session_updates(teaching_session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_teaching_session_updates_teacher
+  ON teaching_session_updates(teacher_user_id, created_at DESC);
+
+-- 7.9 TEACHER_SESSION_TRACKER_PERMISSIONS
+-- Purpose: Client-scoped tracker access grants for teachers
+CREATE TABLE IF NOT EXISTS teacher_session_tracker_permissions (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  teacher_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
+  batch_id INTEGER REFERENCES batches(id) ON DELETE CASCADE,
+  program_id INTEGER,
+  can_view_tracker BOOLEAN NOT NULL DEFAULT TRUE,
+  can_update_tracker BOOLEAN NOT NULL DEFAULT TRUE,
+  granted_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(client_id, teacher_user_id, school_id, batch_id, program_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_tracker_permissions_client
+  ON teacher_session_tracker_permissions(client_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_tracker_permissions_teacher
+  ON teacher_session_tracker_permissions(teacher_user_id);
+
+CREATE TRIGGER trg_teacher_session_tracker_permissions_updated
+BEFORE UPDATE ON teacher_session_tracker_permissions
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+-- 7.10 TRACKER ROLE PERMISSIONS
+INSERT INTO role_permissions (client_id, role, permission, granted) VALUES
+(NULL, 'super_admin', 'teaching_sessions.feature_enable', TRUE),
+(NULL, 'super_admin', 'teaching_sessions.program_publish', TRUE),
+(NULL, 'content_authorizer', 'teaching_sessions.program_upload', TRUE),
+(NULL, 'content_authorizer', 'teaching_sessions.program_publish', TRUE),
+(NULL, 'client_admin', 'teaching_sessions.client_setup', TRUE),
+(NULL, 'client_admin', 'teaching_sessions.assign_teacher', TRUE),
+(NULL, 'client_admin', 'teaching_sessions.read_client', TRUE),
+(NULL, 'client_admin', 'teaching_sessions.analytics_client', TRUE),
+(NULL, 'school_owner', 'teaching_sessions.read_school', TRUE),
+(NULL, 'school_owner', 'teaching_sessions.analytics_school', TRUE),
+(NULL, 'teacher', 'teaching_sessions.read_own', TRUE),
+(NULL, 'teacher', 'teaching_sessions.update_own', TRUE),
+(NULL, 'teacher', 'teaching_sessions.analytics_own', TRUE)
+ON CONFLICT (client_id, role, permission) DO NOTHING;
+
+-- 7.11 TRACKER ROW LEVEL SECURITY
+
+-- Platform planning tables: available to super_admin and content_authorizer
+ALTER TABLE program_micro_schedule_uploads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY program_micro_schedule_uploads_platform_only ON program_micro_schedule_uploads
+  FOR ALL
+  USING (app_role() IN ('super_admin', 'content_authorizer'))
+  WITH CHECK (app_role() IN ('super_admin', 'content_authorizer'));
+
+ALTER TABLE program_micro_schedule_rows ENABLE ROW LEVEL SECURITY;
+CREATE POLICY program_micro_schedule_rows_platform_only ON program_micro_schedule_rows
+  FOR ALL
+  USING (app_role() IN ('super_admin', 'content_authorizer'))
+  WITH CHECK (app_role() IN ('super_admin', 'content_authorizer'));
+
+ALTER TABLE program_lesson_planner_uploads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY program_lesson_planner_uploads_platform_only ON program_lesson_planner_uploads
+  FOR ALL
+  USING (app_role() IN ('super_admin', 'content_authorizer'))
+  WITH CHECK (app_role() IN ('super_admin', 'content_authorizer'));
+
+ALTER TABLE program_lesson_planner_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY program_lesson_planner_sessions_platform_only ON program_lesson_planner_sessions
+  FOR ALL
+  USING (app_role() IN ('super_admin', 'content_authorizer'))
+  WITH CHECK (app_role() IN ('super_admin', 'content_authorizer'));
+
+ALTER TABLE program_session_templates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY program_session_templates_platform_read_publish ON program_session_templates
+  FOR ALL
+  USING (app_role() IN ('super_admin', 'content_authorizer'))
+  WITH CHECK (app_role() IN ('super_admin', 'content_authorizer'));
+
+-- Client-scoped tables
+ALTER TABLE client_entitlements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY client_entitlements_tenant_isolation ON client_entitlements
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+ALTER TABLE question_bank_entitlements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY question_bank_entitlements_tenant_isolation ON question_bank_entitlements
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+ALTER TABLE exam_entitlements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY exam_entitlements_tenant_isolation ON exam_entitlements
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+ALTER TABLE teaching_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY teaching_sessions_tenant_isolation ON teaching_sessions
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+ALTER TABLE teaching_session_updates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY teaching_session_updates_tenant_isolation ON teaching_session_updates
+  FOR ALL
+  USING (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM teaching_sessions ts
+      WHERE ts.id = teaching_session_id AND ts.client_id = app_client_id()
+    )
+  )
+  WITH CHECK (
+    app_role() = 'super_admin'
+    OR EXISTS (
+      SELECT 1 FROM teaching_sessions ts
+      WHERE ts.id = teaching_session_id AND ts.client_id = app_client_id()
+    )
+  );
+
+ALTER TABLE teacher_session_tracker_permissions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY teacher_session_tracker_permissions_tenant_isolation ON teacher_session_tracker_permissions
+  FOR ALL
+  USING (app_role() = 'super_admin' OR client_id = app_client_id())
+  WITH CHECK (app_role() = 'super_admin' OR client_id = app_client_id());
+
+
+
+
+-- SPECTROPY Studio curriculum hierarchy and authoring schema.
+-- Safe to run in Supabase after the LMS base schema.
+
+CREATE TABLE IF NOT EXISTS public.boards (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
+  name VARCHAR(120) NOT NULL,
+  code VARCHAR(40) NOT NULL,
+  description TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_boards_client_code
+  ON public.boards (COALESCE(client_id, 0), LOWER(code));
+CREATE INDEX IF NOT EXISTS idx_boards_active ON public.boards(client_id, is_active);
+
+-- Existing curriculum tables: add the fields required by Studio.
+ALTER TABLE public.programs ADD COLUMN IF NOT EXISTS board_id INTEGER;
+ALTER TABLE public.grades ADD COLUMN IF NOT EXISTS name VARCHAR(120);
+ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.chapters ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.chapters ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.topics ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.topics ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.topics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+UPDATE public.grades
+SET name = 'Grade ' || grade_number
+WHERE name IS NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'programs_board_id_fkey') THEN
+    ALTER TABLE public.programs
+      ADD CONSTRAINT programs_board_id_fkey
+      FOREIGN KEY (board_id) REFERENCES public.boards(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_programs_board ON public.programs(board_id);
+CREATE INDEX IF NOT EXISTS idx_subjects_grade_order ON public.subjects(grade_id, display_order, name);
+CREATE INDEX IF NOT EXISTS idx_chapters_subject_order ON public.chapters(subject_id, display_order, chapter_number);
+CREATE INDEX IF NOT EXISTS idx_topics_chapter_order ON public.topics(chapter_id, display_order, topic_number);
+
+CREATE TABLE IF NOT EXISTS public.subtopics (
+  id SERIAL PRIMARY KEY,
+  topic_id INTEGER NOT NULL REFERENCES public.topics(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  description TEXT,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_subtopics_topic_order
+  ON public.subtopics(topic_id, display_order, name);
+
+CREATE TABLE IF NOT EXISTS public.layouts (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
+  name VARCHAR(150) NOT NULL,
+  description TEXT,
+  layout_data_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+  thumbnail_url TEXT,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (jsonb_typeof(layout_data_json) = 'object')
+);
+CREATE INDEX IF NOT EXISTS idx_layouts_client_active ON public.layouts(client_id, is_active);
+
+CREATE TABLE IF NOT EXISTS public.sessions (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
+  subtopic_id INTEGER NOT NULL REFERENCES public.subtopics(id) ON DELETE RESTRICT,
+  title VARCHAR(250) NOT NULL,
+  description TEXT,
+  session_plan_file_url TEXT,
+  session_plan_file_name TEXT,
+  session_plan_file_type VARCHAR(100),
+  session_plan_uploaded_at TIMESTAMPTZ,
+  session_plan_content JSONB,
+  status VARCHAR(30) NOT NULL DEFAULT 'draft'
+    CHECK (status IN ('draft', 'submitted', 'approved', 'rejected', 'published')),
+  approval_comment TEXT,
+  submitted_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  submitted_at TIMESTAMPTZ,
+  approved_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+  published_at TIMESTAMPTZ,
+  created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (session_plan_content IS NULL OR jsonb_typeof(session_plan_content) IN ('object', 'array')),
+  UNIQUE (subtopic_id)
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_client_status ON public.sessions(client_id, status);
+CREATE INDEX IF NOT EXISTS idx_sessions_subtopic ON public.sessions(subtopic_id);
+
+CREATE TABLE IF NOT EXISTS public.screens (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
+  session_id INTEGER NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
+  title VARCHAR(250) NOT NULL,
+  screen_number INTEGER NOT NULL,
+  layout_id INTEGER REFERENCES public.layouts(id) ON DELETE SET NULL,
+  screen_script_file_url TEXT,
+  screen_script_file_name TEXT,
+  screen_script_file_type VARCHAR(100),
+  screen_script_uploaded_at TIMESTAMPTZ,
+  screen_script_content JSONB,
+  elements_json JSONB NOT NULL DEFAULT '[]'::JSONB,
+  branches_json JSONB NOT NULL DEFAULT '[]'::JSONB,
+  branch_tags_json JSONB NOT NULL DEFAULT '[]'::JSONB,
+  screen_settings_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (screen_script_content IS NULL OR jsonb_typeof(screen_script_content) IN ('object', 'array')),
+  CHECK (jsonb_typeof(elements_json) = 'array'),
+  CHECK (jsonb_typeof(branches_json) = 'array'),
+  CHECK (jsonb_typeof(branch_tags_json) = 'array'),
+  CHECK (jsonb_typeof(screen_settings_json) = 'object'),
+  UNIQUE (session_id, screen_number)
+);
+CREATE INDEX IF NOT EXISTS idx_screens_session_order
+  ON public.screens(session_id, display_order, screen_number);
+CREATE INDEX IF NOT EXISTS idx_screens_branch_tags
+  ON public.screens USING GIN(branch_tags_json);
+
+CREATE TABLE IF NOT EXISTS public.resources (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
+  name VARCHAR(250) NOT NULL,
+  description TEXT,
+  resource_type VARCHAR(30) NOT NULL CHECK (resource_type IN
+    ('image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm')),
+  file_url TEXT,
+  file_name TEXT,
+  file_type VARCHAR(100),
+  file_size BIGINT,
+  thumbnail_url TEXT,
+  external_url TEXT,
+  resource_data_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+  version INTEGER NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  uploaded_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (jsonb_typeof(resource_data_json) = 'object')
+);
+CREATE INDEX IF NOT EXISTS idx_resources_client_type ON public.resources(client_id, resource_type, is_active);
+
+CREATE TABLE IF NOT EXISTS public.resource_mappings (
+  id SERIAL PRIMARY KEY,
+  resource_id INTEGER NOT NULL REFERENCES public.resources(id) ON DELETE CASCADE,
+  screen_id INTEGER NOT NULL REFERENCES public.screens(id) ON DELETE CASCADE,
+  element_id TEXT NOT NULL,
+  usage_details_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (jsonb_typeof(usage_details_json) = 'object'),
+  UNIQUE (resource_id, screen_id, element_id)
+);
+CREATE INDEX IF NOT EXISTS idx_resource_mappings_screen ON public.resource_mappings(screen_id);
+CREATE INDEX IF NOT EXISTS idx_resource_mappings_resource ON public.resource_mappings(resource_id);
+
+-- Supabase Storage bucket for private Session Plans and Screen Scripts.
+-- The backend uses the service key to upload and create short-lived signed download links.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('sessions-scripts-plans', 'sessions-scripts-plans', FALSE)
+ON CONFLICT (id) DO UPDATE SET public = FALSE;
+
+-- Standard timestamp maintenance for Studio tables.
+DROP TRIGGER IF EXISTS trg_boards_updated ON public.boards;
+CREATE TRIGGER trg_boards_updated BEFORE UPDATE ON public.boards FOR EACH ROW EXECUTE FUNCTION public.update_timestamp();
+DROP TRIGGER IF EXISTS trg_subtopics_updated ON public.subtopics;
+CREATE TRIGGER trg_subtopics_updated BEFORE UPDATE ON public.subtopics FOR EACH ROW EXECUTE FUNCTION public.update_timestamp();
+DROP TRIGGER IF EXISTS trg_layouts_updated ON public.layouts;
+CREATE TRIGGER trg_layouts_updated BEFORE UPDATE ON public.layouts FOR EACH ROW EXECUTE FUNCTION public.update_timestamp();
+DROP TRIGGER IF EXISTS trg_sessions_updated ON public.sessions;
+CREATE TRIGGER trg_sessions_updated BEFORE UPDATE ON public.sessions FOR EACH ROW EXECUTE FUNCTION public.update_timestamp();
+DROP TRIGGER IF EXISTS trg_screens_updated ON public.screens;
+CREATE TRIGGER trg_screens_updated BEFORE UPDATE ON public.screens FOR EACH ROW EXECUTE FUNCTION public.update_timestamp();
+DROP TRIGGER IF EXISTS trg_resources_updated ON public.resources;
+CREATE TRIGGER trg_resources_updated BEFORE UPDATE ON public.resources FOR EACH ROW EXECUTE FUNCTION public.update_timestamp();

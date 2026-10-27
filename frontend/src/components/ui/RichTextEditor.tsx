@@ -8,7 +8,7 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
-import Table from "@tiptap/extension-table";
+import { Table } from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
@@ -58,6 +58,13 @@ const createInlineMathExtension = (
     return {
       latex: {
         default: "",
+        parseHTML: (element) =>
+          element.getAttribute("data-latex") ??
+          element.getAttribute("latex") ??
+          "",
+        renderHTML: (attributes) => ({
+          "data-latex": attributes.latex,
+        }),
       },
     };
   },
@@ -100,7 +107,7 @@ const createInlineMathExtension = (
         const container = document.createElement("span");
         try {
           katex.render(latex, container, { throwOnError: false });
-        } catch (error) {
+        } catch {
           container.textContent = latex;
         }
         dom.appendChild(container);

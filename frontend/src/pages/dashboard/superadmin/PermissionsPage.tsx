@@ -12,9 +12,10 @@ const permissionGroupLabels: Record<string, string> = {
   chapters: 'Chapters',
   topics: 'Topics',
   exams: 'Exams',
+  teaching_sessions: 'Teacher Session Tracker',
 };
 
-const permissionGroupOrder = ['Question Bank', 'Exams', 'Courses', 'Subjects', 'Chapters', 'Topics', 'Other'];
+const permissionGroupOrder = ['Question Bank', 'Exams', 'Courses', 'Teacher Session Tracker', 'Subjects', 'Chapters', 'Topics', 'Other'];
 
 const getPermissionGroup = (permission: string) => {
   const prefix = permission.split('.')[0];

@@ -272,8 +272,6 @@ export default function ContentViewer({ item }: ContentViewerProps) {
   if (!content) return <p className="p-6 text-red-500">Content not found.</p>;
 
   const { item_type, title } = content;
-  const valcss = "w-[70vw] h-[80vh]";
-
   if (item_type === "exam") {
     if (examLoading) {
       return (
@@ -411,7 +409,7 @@ export default function ContentViewer({ item }: ContentViewerProps) {
 
     case "scorm":
       viewerElement = (
-        <div className={valcss}>
+        <div className="h-full w-full">
           <ScormPlayer contentUrl={content.content_url!} contentId={content.id} />
         </div>
       );
@@ -433,5 +431,9 @@ export default function ContentViewer({ item }: ContentViewerProps) {
       viewerElement = <div className="rounded border bg-gray-50 p-4">{title}</div>;
   }
 
-  return <div className="mx-auto flex h-full w-full flex-1 flex-col items-center justify-center p-2">{viewerElement}</div>;
+  return (
+    <div className={`mx-auto flex h-full w-full flex-1 flex-col ${item_type === "pdf" ? "p-0" : "items-center justify-center p-2"}`}>
+      {viewerElement}
+    </div>
+  );
 }

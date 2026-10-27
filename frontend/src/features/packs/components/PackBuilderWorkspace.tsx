@@ -21,6 +21,7 @@ import type {
   CourseSearchResult,
   CreateCourseResponse,
   EditableCourseFormValues,
+  ImportCourseContentResponse,
   PackCompositionSummary,
   PackItemPreview,
   PackSummary,
@@ -51,6 +52,59 @@ const buildPackItemPreview = (item: CourseContentPreviewItem): PackItemPreview =
   subject: item.subject,
 });
 
+const isSelectablePackRoot = (item: CourseContentPreviewItem) =>
+  item.parent_id !== null && ['folder', 'chapter', 'topic'].includes(String(item.item_type).toLowerCase());
+
+const detachRootFromSummary = (
+  summary: PackCompositionSummary | null,
+  itemId: number,
+): PackCompositionSummary | null => {
+  if (!summary) return summary;
+
+  const groups = summary.groups
+    .map((group) => {
+      const itemsById = new Map(group.items.map((item) => [item.id, item]));
+      const childrenByParent = new Map<number, number[]>();
+
+      group.items.forEach((item) => {
+        if (item.parent_id === null) return;
+        const children = childrenByParent.get(item.parent_id) ?? [];
+        children.push(item.id);
+        childrenByParent.set(item.parent_id, children);
+      });
+
+      const retainedIds = new Set<number>();
+      const retainDescendants = (id: number) => {
+        if (retainedIds.has(id)) return;
+        retainedIds.add(id);
+        (childrenByParent.get(id) ?? []).forEach(retainDescendants);
+      };
+      const retainAncestors = (id: number) => {
+        const parentId = itemsById.get(id)?.parent_id;
+        if (parentId === null || parentId === undefined || retainedIds.has(parentId)) return;
+        retainedIds.add(parentId);
+        retainAncestors(parentId);
+      };
+
+      group.items
+        .filter((item) => item.is_attached_root && item.id !== itemId)
+        .forEach((item) => {
+          retainDescendants(item.id);
+          retainAncestors(item.id);
+        });
+
+      const items = group.items.filter((item) => retainedIds.has(item.id));
+      return { ...group, item_count: items.length, items };
+    })
+    .filter((group) => group.items.length > 0);
+
+  return {
+    ...summary,
+    total_items: groups.reduce((total, group) => total + group.item_count, 0),
+    groups,
+  };
+};
+
 type PendingRemoval = {
   packId: number;
   timerId: number;
@@ -58,6 +112,12 @@ type PendingRemoval = {
   packItems: PaginatedResponse<PackItemPreview> | null;
   packSummary: PackCompositionSummary | null;
   selectedPack: PackSummary | null;
+};
+
+type PackEntitlementSyncResponse = {
+  pack_id: number;
+  synced_client_ids: number[];
+  synced_client_count: number;
 };
 
 interface PackBuilderWorkspaceProps {
@@ -88,15 +148,17 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [coursesError, setCoursesError] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<CourseSearchResult | null>(null);
+  const [targetCourse, setTargetCourse] = useState<CourseSearchResult | null>(null);
 
   const [courseContent, setCourseContent] = useState<PaginatedResponse<CourseContentPreviewItem> | null>(null);
   const [courseContentLoading, setCourseContentLoading] = useState(false);
   const [courseContentError, setCourseContentError] = useState<string | null>(null);
-  const [courseContentPage, setCourseContentPage] = useState(1);
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
 
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [attachSubmitting, setAttachSubmitting] = useState(false);
+  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [syncSubmitting, setSyncSubmitting] = useState(false);
   const [pendingRemoveIds, setPendingRemoveIds] = useState<number[]>([]);
   const [createCourseOpen, setCreateCourseOpen] = useState(false);
   const [createCourseSubmitting, setCreateCourseSubmitting] = useState(false);
@@ -106,7 +168,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
   const pendingRemovalRef = useRef<Map<number, PendingRemoval>>(new Map());
 
   const selectedCourseItems = useMemo(
-    () => (courseContent?.data ?? []).filter((item) => selectedItemIds.includes(item.id)),
+    () => (courseContent?.data ?? []).filter((item) => selectedItemIds.includes(item.id) && isSelectablePackRoot(item)),
     [courseContent?.data, selectedItemIds],
   );
 
@@ -186,10 +248,10 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     setActiveTab('review');
     setSelectedPack(null);
     setPackItemsPage(1);
-    setCourseContentPage(1);
     setCollapsedGroups([]);
     setSelectedItemIds([]);
     setSelectedCourse(null);
+    setTargetCourse(null);
   }, [packId]);
 
   useEffect(() => {
@@ -233,7 +295,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
 
   useEffect(() => {
     setSelectedItemIds([]);
-  }, [selectedCourse?.id, courseContentPage]);
+  }, [selectedCourse?.id]);
 
   useEffect(() => {
     if (!selectedCourse) {
@@ -249,7 +311,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
         setCourseContentError(null);
         const response = await api.get<PaginatedResponse<CourseContentPreviewItem>>(
           `/courses/${selectedCourse.id}/content`,
-          { params: { page: courseContentPage, page_size: COURSE_PAGE_SIZE } },
+          { params: { view: 'tree' } },
         );
         if (!cancelled) setCourseContent(response.data);
       } catch (error) {
@@ -263,7 +325,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     return () => {
       cancelled = true;
     };
-  }, [selectedCourse, courseContentPage]);
+  }, [selectedCourse]);
 
   const addSelectedItems = async () => {
     if (!selectedPack || selectedCourseItems.length === 0) return;
@@ -333,6 +395,48 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     }
   };
 
+  const importSelectedItemsToCourse = async () => {
+    if (!targetCourse || !selectedCourse || selectedCourseItems.length === 0) return;
+
+    try {
+      setImportSubmitting(true);
+      const response = await api.post<ImportCourseContentResponse>(`/courses/${targetCourse.id}/import-content`, {
+        source_course_id: selectedCourse.id,
+        item_ids: selectedCourseItems.map((item) => item.id),
+      });
+      setSelectedItemIds([]);
+      toast.success(
+        response.data.imported_count > 0
+          ? `Added ${response.data.imported_count} item${response.data.imported_count === 1 ? '' : 's'} to ${targetCourse.name}.`
+          : `${targetCourse.name} already has those items.`,
+      );
+    } catch (error) {
+      toast.error(readError(error, 'Failed to add selected content to the course.'));
+    } finally {
+      setImportSubmitting(false);
+    }
+  };
+
+  const syncPackEntitlements = async () => {
+    try {
+      setSyncSubmitting(true);
+      const response = await api.post<PackEntitlementSyncResponse>(
+        `/platform/content-packs/${packId}/sync-entitlements`,
+      );
+      const syncedCount = response.data.synced_client_count;
+      toast.success(
+        syncedCount > 0
+          ? `Synced active entitlements for ${syncedCount} client${syncedCount === 1 ? '' : 's'}.`
+          : 'No active client entitlements to sync.',
+      );
+      await Promise.all([refreshSelectedPack(true), refreshPackData(packItemsPage, true)]);
+    } catch (error) {
+      toast.error(readError(error, 'Failed to sync pack entitlements.'));
+    } finally {
+      setSyncSubmitting(false);
+    }
+  };
+
   const undoRemove = async (itemId: number) => {
     const pending = pendingRemovalRef.current.get(itemId);
     if (!pending) return;
@@ -355,6 +459,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     if (!selectedPack || pendingRemovalRef.current.has(item.id)) return;
 
     const snapshot = { packItems, packSummary, selectedPack };
+    const nextSummary = detachRootFromSummary(packSummary, item.id);
     setPackItems((current) =>
       current
         ? {
@@ -364,13 +469,21 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
           }
         : current,
     );
-    syncPackMetrics(Math.max(selectedPack.item_count - 1, 0));
+    setPackSummary(nextSummary);
+    syncPackMetrics(nextSummary?.total_items ?? Math.max(selectedPack.item_count - 1, 0), nextSummary?.groups);
     setPendingRemoveIds((current) => [...current, item.id]);
 
     const timerId = window.setTimeout(async () => {
       try {
-        await api.delete<RemovePackItemResponse>(`/packs/${packId}/items/${item.id}`);
-        toast.success(`Removed ${item.title} from the pack.`);
+        const response = await api.delete<RemovePackItemResponse>(`/packs/${packId}/items/${item.id}`);
+        if (!response.data.removed) {
+          setPackItems(snapshot.packItems);
+          setPackSummary(snapshot.packSummary);
+          setSelectedPack(snapshot.selectedPack);
+          toast.error(`${item.title} was not directly attached to this pack.`);
+        } else {
+          toast.success(`Removed ${item.title} from the pack. The original content is unchanged.`);
+        }
       } catch (error) {
         setPackItems(snapshot.packItems);
         setPackSummary(snapshot.packSummary);
@@ -391,7 +504,9 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
     const toastId = toast.custom(
       () => (
         <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
-          <span className="text-sm text-slate-700">Removed {item.title}</span>
+          <span className="text-sm text-slate-700">
+            Removing {item.title} from this pack only
+          </span>
           <button
             type="button"
             onClick={() => {
@@ -464,16 +579,32 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
       const response = await api.post<CreateCourseResponse>('/courses', payload);
       toast.success('Course created.');
 
-      startTransition(() => setCourseQuery(payload.name));
-      const refreshedCourses = await loadCourses({ page: 1, query: payload.name });
+      startTransition(() => setCourseQuery(''));
+      const refreshedCourses = await loadCourses({ page: 1, query: '' });
       const createdCourse =
         refreshedCourses.find((course) => course.id === response.data.course_id) ??
         refreshedCourses.find((course) => course.name.trim().toLowerCase() === payload.name.toLowerCase()) ??
-        null;
+        {
+          id: response.data.course_id,
+          name: payload.name,
+          grade: payload.grade,
+          subject: payload.subject ?? null,
+          client_id: null,
+          content_item_count: 0,
+          created_at: new Date().toISOString(),
+        };
 
       if (createdCourse) {
-        setSelectedCourse(createdCourse);
-        setCourseContentPage(1);
+        setTargetCourse(createdCourse);
+        setCourseResults((current) =>
+          current.some((course) => course.id === createdCourse.id) ? current : [createdCourse, ...current],
+        );
+        setSelectedCourse((current) => {
+          if (current && current.id !== createdCourse.id) {
+            return current;
+          }
+          return refreshedCourses.find((course) => course.id !== createdCourse.id) ?? null;
+        });
       }
 
       closeCreateCourseDialog();
@@ -521,6 +652,13 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
             <GhostButton onClick={() => void refreshSelectedPack()} className="!rounded-full !px-4 !py-2 !text-sm">
               Refresh Pack
             </GhostButton>
+            <GhostButton
+              onClick={() => void syncPackEntitlements()}
+              disabled={!selectedPack || syncSubmitting}
+              className="!rounded-full !px-4 !py-2 !text-sm"
+            >
+              {syncSubmitting ? 'Syncing...' : 'Sync Entitlements'}
+            </GhostButton>
           </div>
         </div>
 
@@ -551,6 +689,7 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
       {activeTab === 'builder' && (
         <PackBuilderTab
           selectedPack={selectedPack}
+          targetCourse={targetCourse}
           courseQuery={courseQuery}
           onCourseQueryChange={(value) => startTransition(() => setCourseQuery(value))}
           onOpenCreateCourse={openCreateCourseDialog}
@@ -559,29 +698,27 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
           coursesLoading={coursesLoading}
           coursesError={coursesError}
           selectedCourse={selectedCourse}
-          onSelectCourse={(course) => {
-            setSelectedCourse(course);
-            setCourseContentPage(1);
-          }}
+          onSelectCourse={setSelectedCourse}
           onLoadMoreCourses={() => {
             void loadMoreCourses();
           }}
           courseContent={courseContent}
           courseContentLoading={courseContentLoading}
           courseContentError={courseContentError}
-          courseContentPage={courseContentPage}
-          onCourseContentPageChange={setCourseContentPage}
           selectedItemIds={selectedItemIds}
-          selectedCourseItems={selectedCourseItems}
           onToggleItemSelection={handleToggleItemSelection}
           onClearSelection={() => setSelectedItemIds([])}
           addSubmitting={addSubmitting}
           attachSubmitting={attachSubmitting}
+          importSubmitting={importSubmitting}
           onAddSelectedItems={() => {
             void addSelectedItems();
           }}
           onAttachCourse={() => {
             void attachCourse();
+          }}
+          onImportSelectedItemsToCourse={() => {
+            void importSelectedItemsToCourse();
           }}
         />
       )}
@@ -589,12 +726,10 @@ export default function PackBuilderWorkspace({ packId }: PackBuilderWorkspacePro
       {activeTab === 'review' && (
         <PackReviewTab
           selectedPack={selectedPack}
-          packItems={packItems}
           packItemsLoading={packItemsLoading}
           packItemsError={packItemsError}
           pendingRemoveIds={pendingRemoveIds}
           onRemoveItem={removeItem}
-          onPackItemsPageChange={setPackItemsPage}
           packSummary={packSummary}
           packSummaryLoading={packSummaryLoading}
           packSummaryError={packSummaryError}

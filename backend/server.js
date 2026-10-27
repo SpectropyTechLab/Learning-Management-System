@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import './config/loadEnv.js';
 import superadminRoutes from './routes/superadmin.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import schoolOwnerRoutes from './routes/schoolOwner.routes.js';
@@ -23,6 +24,12 @@ import orgRoutes from './routes/org.routes.js';
 import curriculumRoutes from './routes/curriculum.routes.js';
 import questionsRoutes from './routes/questions.routes.js';
 import examsRoutes from './routes/exams.routes.js';
+import teachingSessionsRoutes from './routes/teachingSessions.routes.js';
+import communityRoutes from './routes/community.routes.js';
+import questionBankEntitlementsRoutes from './routes/questionBankEntitlements.routes.js';
+import examEntitlementsRoutes from './routes/examEntitlements.routes.js';
+import studioDocumentsRoutes from './routes/studioDocuments.routes.js';
+import studioSessionWorkflowRoutes from './routes/studioSessionWorkflow.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
 import { startAttemptExpiryCron } from './services/student.service.js';
@@ -38,21 +45,33 @@ const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '50mb';
 
 app.use(helmet());
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5100,http://localhost:5173,http://192.168.0.102:5100')
+const isProduction = process.env.NODE_ENV === 'production';
+const defaultDevelopmentOrigins = 'http://localhost:5100,http://localhost:5173,http://192.168.0.151:5100';
+const allowedOrigins = (process.env.CORS_ORIGIN || (isProduction ? '' : defaultDevelopmentOrigins))
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
-const isProduction = process.env.NODE_ENV === 'production';
-const selfOrigins = new Set([
-  `http://localhost:${PORT}`,
-  `http://127.0.0.1:${PORT}`,
-]);
-const originPatterns = [
-  /^https:\/\/.*\.vercel\.app$/,
-  /^https:\/\/.*\.onrender\.com$/,
+const allowPreviewOrigins = process.env.ALLOW_PREVIEW_ORIGINS === 'true';
+const selfOrigins = new Set(
+  isProduction
+    ? []
+    : [
+        `http://localhost:${PORT}`,
+        `http://127.0.0.1:${PORT}`,
+      ]
+);
+const localOriginPatterns = [
   /^http:\/\/localhost(?::\d+)?$/,
   /^http:\/\/127\.0\.0\.1(?::\d+)?$/,
   /^http:\/\/192\.168\.\d+\.\d+(?::\d+)?$/,
+];
+const previewOriginPatterns = [
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/.*\.onrender\.com$/,
+];
+const originPatterns = [
+  ...(!isProduction ? localOriginPatterns : []),
+  ...(allowPreviewOrigins ? previewOriginPatterns : []),
 ];
 const isPatternAllowedOrigin = (origin) => originPatterns.some((pattern) => pattern.test(origin));
 const isAllowedOrigin = (origin) =>
@@ -115,6 +134,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Refresh-Token'],
+    exposedHeaders: ['Content-Disposition'],
   })
 );
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
@@ -189,12 +209,19 @@ app.use('/api/course', CourseRouter);
 
 app.use('/api/users', userRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/platform', questionBankEntitlementsRoutes);
+app.use('/api/platform', examEntitlementsRoutes);
+// Community content includes a public read endpoint used by the landing page.
+app.use('/api', communityRoutes);
 app.use('/api', clientContentRoutes);
 app.use('/api/org', orgRoutes);
 app.use('/api', curriculumRoutes);
 app.use('/api', questionsRoutes);
 app.use('/api', examsRoutes);
 app.use('/api', packBuilderRoutes);
+app.use('/api', teachingSessionsRoutes);
+app.use('/api', studioDocumentsRoutes);
+app.use('/api', studioSessionWorkflowRoutes);
 
 
 

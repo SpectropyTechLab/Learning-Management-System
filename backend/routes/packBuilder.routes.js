@@ -5,6 +5,7 @@ import {
   createCourse,
   createPack,
   getCourseContent,
+  importCourseContent,
   getPackItems,
   getPackSummary,
   listCourses,
@@ -28,5 +29,6 @@ router.post('/packs/:id/attach-course', requireRole(['super_admin', 'content_aut
 router.get('/courses', requireRole(['super_admin', 'content_authorizer']), listCourses);
 router.get('/courses/:id/content', requireRole(['super_admin', 'content_authorizer']), getCourseContent);
 router.post('/courses', requireRole(['super_admin', 'content_authorizer']), createCourse);
+router.post('/courses/:id/import-content', requireRole(['super_admin', 'content_authorizer']), importCourseContent);
 
 export default router;

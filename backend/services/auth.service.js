@@ -10,6 +10,7 @@ import {
   rotateRefreshSession,
   storeRefreshToken,
 } from '../utils/sessionTokens.js';
+import { enrichAuthUser } from './authUser.service.js';
 
 const VALID_ROLES = [
   'super_admin',
@@ -134,7 +135,7 @@ export const login = async (req, res) => {
       user_id: user.user_id,
     };
 
-    res.json({ token: accessToken, user: safeUser });
+    res.json({ token: accessToken, user: await enrichAuthUser(safeUser) });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
@@ -201,7 +202,7 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
-    res.json({ token: refreshedSession.accessToken, user: refreshedSession.user });
+    res.json({ token: refreshedSession.accessToken, user: await enrichAuthUser(refreshedSession.user) });
   } catch (err) {
     console.error('Refresh token error:', err);
     res.status(500).json({ error: 'Failed to refresh token' });

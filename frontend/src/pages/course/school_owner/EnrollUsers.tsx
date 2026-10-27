@@ -1,11 +1,11 @@
-import SharedEnrollUsers from "@/pages/course/admin/EnrollUsers";
+import SharedEnrollUsers from "@/pages/course/admin/EnrollUsersBulk";
 
 export default function SchoolOwnerEnrollUsers() {
   return (
     <SharedEnrollUsers
       apiPrefix="/school-owner"
       backRoute="/school-owner/courses"
-      backLabel="Back To School Owner Courses"
+      backLabel="Back To School Admin Courses"
     />
   );
 }

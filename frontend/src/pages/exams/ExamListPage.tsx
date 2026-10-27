@@ -10,6 +10,11 @@ import ExamFilters from "@/features/exams/components/ExamFilters";
 import ExamListTable from "@/features/exams/components/ExamListTable";
 import type { ExamFiltersState, ExamSummary } from "@/features/exams/types";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import {
+  downloadExamAnswersDocx,
+  downloadExamQuestionsDocx,
+  downloadExamSolutionsDocx,
+} from "@/features/exams/api";
 
 interface CourseOption {
   id: number;
@@ -21,6 +26,7 @@ interface CourseOption {
 interface ExamEditForm {
   title: string;
   description: string;
+  instructions: string;
   total_duration_minutes: string;
   start_datetime: string;
   end_datetime: string;
@@ -139,6 +145,24 @@ const normalizeExam = (item: unknown): ExamSummary => {
         : typeof source.createdByName === "string"
           ? source.createdByName
           : null,
+    client_id: normalizeNumber(source.client_id),
+    owner_client_id: normalizeNumber(source.owner_client_id ?? source.client_id),
+    owner_client_name:
+      typeof source.owner_client_name === "string" ? source.owner_client_name : null,
+    exam_access_type:
+      typeof source.exam_access_type === "string" ? source.exam_access_type : null,
+    can_preview: source.can_preview === true,
+    can_download: source.can_download === true,
+    can_edit: source.can_edit === true,
+    can_build: source.can_build === true,
+    can_delete: source.can_delete === true,
+    can_publish: source.can_publish === true,
+    section_count: normalizeNumber(source.section_count),
+    question_count: normalizeNumber(source.question_count),
+    all_sections_completed:
+      typeof source.all_sections_completed === "boolean"
+        ? source.all_sections_completed
+        : null,
     tags,
   };
 };
@@ -159,6 +183,14 @@ export default function ExamListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const examPermissions = useMemo(() => getExamPermissions(user), [user]);
+  const isNormalClientAdmin =
+    user?.role === "client_admin" && Number(user?.client_id) !== 17;
+  const isSchoolExamUser = user?.role === "school_owner" || user?.role === "teacher";
+  const usesPreviewOnlyReadOnlyRows = isNormalClientAdmin || isSchoolExamUser || user?.role === "content_authorizer";
+  const shouldHideExamUtilityActions =
+    user?.role === "client_admin" ||
+    user?.role === "teacher" ||
+    user?.role === "school_owner";
   const [exams, setExams] = useState<ExamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -191,6 +223,7 @@ export default function ExamListPage() {
   const [editForm, setEditForm] = useState<ExamEditForm>({
     title: "",
     description: "",
+    instructions: "",
     total_duration_minutes: "",
     start_datetime: "",
     end_datetime: "",
@@ -350,6 +383,7 @@ export default function ExamListPage() {
     setEditForm({
       title: "",
       description: "",
+      instructions: "",
       total_duration_minutes: "",
       start_datetime: "",
       end_datetime: "",
@@ -386,6 +420,10 @@ export default function ExamListPage() {
           typeof payload.description === "string"
             ? payload.description
             : exam.description ?? "",
+        instructions:
+          typeof payload.instructions === "string"
+            ? payload.instructions
+            : "",
         total_duration_minutes:
           durationValue !== null ? String(durationValue) : "",
         start_datetime: toDateTimeLocalValue(payload.start_datetime ?? exam.start_datetime),
@@ -444,6 +482,7 @@ export default function ExamListPage() {
       await api.put(`/exams/${editingExamId}`, {
         title: trimmedTitle,
         description: editForm.description.trim() || null,
+        instructions: editForm.instructions.trim() || null,
         total_duration_minutes: duration,
         start_datetime: startIso,
         end_datetime: endIso,
@@ -460,8 +499,12 @@ export default function ExamListPage() {
     }
   };
 
+  const openPublishModal = (exam: ExamSummary) => {
+    setPublishExamTarget(exam);
+  };
+
   const deleteExamById = async (exam: ExamSummary) => {
-    if (!examPermissions.canDelete) {
+    if (exam.can_delete === false || !examPermissions.canDelete) {
       toast.error("You don't have permission to delete exams.");
       return;
     }
@@ -515,8 +558,51 @@ export default function ExamListPage() {
   };
 
   const handleAction = (action: string, exam: ExamSummary) => {
+    if (action === "preview") {
+      if (exam.can_preview === false || !examPermissions.canRead) {
+        toast.error("You don't have permission to preview exams.");
+        return;
+      }
+      navigate(`/exams/${exam.id}/paper-preview`);
+      return;
+    }
+
+    if (action === "download-questions" || action === "download-answers" || action === "download-solutions") {
+      if (exam.can_download === false || !examPermissions.canRead) {
+        toast.error("You don't have permission to download this exam.");
+        return;
+      }
+
+      const examId = resolveExamId(exam.id);
+      if (!examId) {
+        toast.error("Invalid exam id.");
+        return;
+      }
+
+      const run = async () => {
+        try {
+          if (action === "download-questions") {
+            await downloadExamQuestionsDocx(examId, exam.title);
+            toast.success("Questions document downloaded.");
+          } else if (action === "download-answers") {
+            await downloadExamAnswersDocx(examId, exam.title);
+            toast.success("Answers document downloaded.");
+          } else {
+            await downloadExamSolutionsDocx(examId, exam.title);
+            toast.success("Solutions document downloaded.");
+          }
+        } catch (err: unknown) {
+          const label = action.replace("download-", "");
+          toast.error(readApiErrorMessage(err, `Failed to download ${label} document.`));
+        }
+      };
+
+      void run();
+      return;
+    }
+
     if (action === "builder") {
-      if (!examPermissions.canUpdate) {
+      if (exam.can_build === false || !examPermissions.canUpdate) {
         toast.error("You don't have permission to update exams.");
         return;
       }
@@ -534,7 +620,7 @@ export default function ExamListPage() {
     }
 
     if (action === "edit") {
-      if (!examPermissions.canUpdate) {
+      if (exam.can_edit === false || !examPermissions.canUpdate) {
         toast.error("You don't have permission to update exams.");
         return;
       }
@@ -548,6 +634,10 @@ export default function ExamListPage() {
     }
 
     if (action === "publish") {
+      if (exam.can_publish === false || !examPermissions.canPublish) {
+        toast.error("You don't have permission to publish exams.");
+        return;
+      }
       setPublishExamTarget(exam);
       return;
     }
@@ -570,6 +660,18 @@ export default function ExamListPage() {
       <ExamShell
         title="Exam List"
         description="Manage exams, monitor status, and maintain exam records."
+        headerAction={
+          examPermissions.canCreate ? (
+            <button
+              type="button"
+              onClick={() => navigate("/exams/new")}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Create Exam
+            </button>
+          ) : null
+        }
+        headerClassName="px-4 py-4 sm:px-6 sm:py-5"
       >
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -578,7 +680,7 @@ export default function ExamListPage() {
               <p className="text-sm text-slate-500">{total} exams found</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {examPermissions.canCreate && (
+              {examPermissions.canCreate && !shouldHideExamUtilityActions && (
                 <button
                   type="button"
                   onClick={() => navigate("/exams/blueprints")}
@@ -587,7 +689,7 @@ export default function ExamListPage() {
                   Manage Blueprints
                 </button>
               )}
-              {examPermissions.canCreate && (
+              {examPermissions.canCreate && !shouldHideExamUtilityActions && (
                 <button
                   type="button"
                   onClick={() => navigate("/exams/new")}
@@ -629,7 +731,13 @@ export default function ExamListPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <ExamListTable exams={exams} onAction={handleAction} permissions={examPermissions} />
+              <ExamListTable
+                exams={exams}
+                onAction={handleAction}
+                permissions={examPermissions}
+                onStatusClick={openPublishModal}
+                previewOnlyForReadOnly={usesPreviewOnlyReadOnlyRows}
+              />
               <Pagination
                 page={page}
                 pageSize={pageSize}
@@ -767,13 +875,25 @@ export default function ExamListPage() {
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-xs font-semibold text-slate-500">Description</label>
+                    <label className="text-xs font-semibold text-slate-500">Class/Grade Heading</label>
                     <textarea
                       value={editForm.description}
                       onChange={(event) =>
                         setEditForm((prev) => ({ ...prev, description: event.target.value }))
                       }
                       rows={3}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                      disabled={editSaving}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-semibold text-slate-500">Instructions</label>
+                    <textarea
+                      value={editForm.instructions}
+                      onChange={(event) =>
+                        setEditForm((prev) => ({ ...prev, instructions: event.target.value }))
+                      }
+                      rows={4}
                       className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
                       disabled={editSaving}
                     />

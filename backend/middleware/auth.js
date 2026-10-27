@@ -1,6 +1,6 @@
 // backend/middleware/auth.js
 import jwt from 'jsonwebtoken';
-import pool from '../config/db.js';
+import { query as dbQuery } from '../repositories/db.repository.js';
 import {
   clearAuthCookies,
   getRefreshTokenFromRequest,
@@ -89,7 +89,7 @@ const resolveAuthenticatedUser = async (decoded) => {
     return cachedUser;
   }
 
-  const user = await pool.query(
+  const user = await dbQuery(
     `SELECT id, email, full_name, role, is_active, client_id, user_id
      FROM users
      WHERE id = $1 AND is_active = true`,
@@ -289,7 +289,7 @@ export const loadPermissions = async (req, res, next) => {
          WHERE role = $1 AND (client_id = $2 OR client_id IS NULL)
          ORDER BY client_id NULLS LAST`;
 
-    const result = await pool.query(permissionsQuery, [role, clientId]);
+    const result = await dbQuery(permissionsQuery, [role, clientId]);
 
     const permissions = new Map();
     for (const row of result.rows) {
@@ -298,7 +298,7 @@ export const loadPermissions = async (req, res, next) => {
       }
     }
 
-    const overrides = await pool.query(
+    const overrides = await dbQuery(
       `SELECT permission, granted
        FROM user_permissions
        WHERE user_id = $1`,
@@ -333,6 +333,33 @@ export const checkPermission = (permission) => {
     } else if (Array.isArray(permissions)) {
       granted = permissions.includes(permission);
     }
+
+    if (!granted) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    next();
+  };
+};
+
+export const checkAnyPermission = (permissionsToCheck) => {
+  const permissionList = Array.isArray(permissionsToCheck) ? permissionsToCheck : [permissionsToCheck];
+
+  return (req, res, next) => {
+    if (permissionList.length === 0 || permissionList.some((permission) => !permission)) {
+      return res.status(500).json({ error: 'Permission not configured' });
+    }
+    if (req.user?.role === 'super_admin') return next();
+
+    const permissions = req.permissions;
+    if (!permissions) return res.status(500).json({ error: 'Permissions not loaded' });
+
+    const granted = permissionList.some((permission) => {
+      if (permissions instanceof Map) return permissions.get(permission) === true;
+      if (permissions instanceof Set) return permissions.has(permission);
+      if (Array.isArray(permissions)) return permissions.includes(permission);
+      return false;
+    });
 
     if (!granted) {
       return res.status(403).json({ error: 'Insufficient permissions' });

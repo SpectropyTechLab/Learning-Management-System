@@ -4,13 +4,15 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold } from "react-icons/pi";
 import AdminCourseManager from "@/features/courses/components/list/AdminCourseManager";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import { useHasVisibleExams } from "@/features/exams/hooks/useHasVisibleExams";
+import { useHasVisibleQuestionBankPrograms } from "@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function SchoolOwnerCourses() {
   const navigate = useNavigate();
@@ -18,11 +20,15 @@ export default function SchoolOwnerCourses() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const theme = getDashboardTheme(false);
-  const userFullName = user?.full_name || "School Owner";
+  const userFullName = user?.full_name || "School Admin";
   const userEmail = user?.email || "owner@spectropy.com";
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions(user);
   const examPermissions = getExamPermissions(user);
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
 
   if (!coursePermissions.canView) {
     return <Navigate to="/unauthorized" replace />;
@@ -43,7 +49,7 @@ export default function SchoolOwnerCourses() {
       active: true,
       onClick: () => navigate("/school-owner/courses"),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: "question-bank",
           label: "Question Bank",
@@ -52,7 +58,7 @@ export default function SchoolOwnerCourses() {
           onClick: () => navigate("/question-bank"),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: "exams",
           label: "Exams",
@@ -62,11 +68,11 @@ export default function SchoolOwnerCourses() {
         }]
       : []),
     {
-      key: "users",
-      label: "Users",
-      icon: <PiUsersBold />,
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => { },
+      onClick: () => navigate("/school-owner/teaching-sessions/analytics"),
     },
   ];
 
@@ -85,10 +91,11 @@ export default function SchoolOwnerCourses() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="School Owner"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
           navItems={navItems}
-          userInfo={{ name: userFullName, email: userEmail }}
+          userInfo={{ name: userFullName, email: userEmail, meta: organizationLabel }}
           onProfileClick={() => navigate("/school-owner/profile")}
           onLogout={handleLogout}
           sidebarOpen={sidebarOpen}
@@ -119,12 +126,12 @@ export default function SchoolOwnerCourses() {
       <div className="p-6">
         <AdminCourseManager
           mode="admin"
-          role={user?.role}
+          role="school_owner"
           permissionKeys={user?.permissions}
           apiPrefix="/school-owner"
           theme={theme}
           brandLogo="/logo.png"
-          brandName="Spectropy"
+          brandName={organizationLabel}
           courseBannerClass="bg-blue-50"
           listTitle="Assigned Courses"
           emptyMessage="No courses found."

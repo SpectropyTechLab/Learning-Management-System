@@ -6,10 +6,14 @@ import type { DashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
 import { getCoursePermissions, type CoursePermissions } from "@/features/courses/utils/coursePermissions";
 
+const PLATFORM_OWNER_CLIENT_ID = 17;
+
 type Course = {
   id: number;
   title: string;
+  original_title?: string;
   description: string | null;
+  client_id?: number | null;
   published?: boolean;
   created_at?: string;
   updated_at?: string | null;
@@ -18,7 +22,10 @@ type Course = {
   assigned_school_names?: string[];
   is_created_by_me?: boolean;
   is_assigned_to_my_school?: boolean;
+  is_pack_derived?: boolean;
+  course_access_type?: "platform_assigned" | "pack_derived" | "client_owned" | "school_owned";
   can_edit_course?: boolean;
+  can_rename_assigned_course?: boolean;
   can_publish_course?: boolean;
   can_delete_course?: boolean;
   can_manage_content?: boolean;
@@ -92,10 +99,17 @@ export default function AdminCourseManager({
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPublished, setEditPublished] = useState(false);
+  const [renamingCourseId, setRenamingCourseId] = useState<number | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [assignedSchoolsModal, setAssignedSchoolsModal] = useState<{
+    courseTitle: string;
+    schools: string[];
+  } | null>(null);
   const normalizedApiPrefix = apiPrefix.startsWith("/") ? apiPrefix : `/${apiPrefix}`;
 
   const displayCourses = mode === "custom" ? courseOverrides ?? [] : courses;
   const isLoading = mode === "custom" ? Boolean(loadingOverride) : fetching;
+  const canViewAssignedSchools = role === "content_authorizer";
   const hasPublishState = displayCourses.some(
     (course) => typeof course.published === "boolean"
   );
@@ -128,6 +142,9 @@ export default function AdminCourseManager({
   const canEditCourse = (course: Course) =>
     resolveCourseCapability(course, course.can_edit_course, mergedPermissions.canEdit);
 
+  const canRenameAssignedCourse = (course: Course) =>
+    Boolean(course.can_rename_assigned_course);
+
   const canPublishCourse = (course: Course) =>
     resolveCourseCapability(course, course.can_publish_course, mergedPermissions.canPublish);
 
@@ -141,6 +158,22 @@ export default function AdminCourseManager({
     resolveCourseCapability(course, course.can_enroll, mergedPermissions.canEnroll);
 
   const getCourseScopeLabel = (course: Course) => {
+    if (role === "school_owner" || role === "teacher") {
+      if (course.course_access_type === "school_owned" || course.is_created_by_me) {
+        return "Created by you";
+      }
+      const isPlatformCourse =
+        course.course_access_type === "platform_assigned" ||
+        course.client_id == null ||
+        Number(course.client_id) === PLATFORM_OWNER_CLIENT_ID;
+      return isPlatformCourse ? "Platform course" : "Assigned course";
+    }
+    if (course.course_access_type === "pack_derived" || course.is_pack_derived) {
+      return "Assigned course";
+    }
+    if (course.course_access_type === "platform_assigned" || course.client_id == null || Number(course.client_id) === PLATFORM_OWNER_CLIENT_ID) {
+      return "Platform course";
+    }
     if (course.is_assigned_to_my_school && !course.is_created_by_me) {
       return "Assigned";
     }
@@ -153,6 +186,11 @@ export default function AdminCourseManager({
     }
     return "Client course";
   };
+
+  const shouldShowOriginalTitle = (course: Course) =>
+    (course.course_access_type === "pack_derived" || course.is_pack_derived)
+    && Boolean(course.original_title)
+    && course.original_title?.trim().toLowerCase() !== course.title.trim().toLowerCase();
 
   const fetchAdminCourses = async () => {
     setFetching(true);
@@ -292,6 +330,47 @@ export default function AdminCourseManager({
     setEditingCourseId(null);
   };
 
+  const handleOpenRename = (course: Course) => {
+    setRenamingCourseId(course.id);
+    setRenameTitle(course.title);
+  };
+
+  const handleCloseRename = () => {
+    setRenamingCourseId(null);
+    setRenameTitle("");
+  };
+
+  const handleSaveRename = async () => {
+    if (renamingCourseId === null) return;
+    if (!renameTitle.trim()) {
+      alert("Title is required");
+      return;
+    }
+
+    try {
+      await api.patch(`${normalizedApiPrefix}/courses/${renamingCourseId}`, {
+        title: renameTitle.trim(),
+      });
+
+      setCourses((prev) =>
+        prev.map((course) =>
+          course.id === renamingCourseId
+            ? {
+                ...course,
+                title: renameTitle.trim(),
+              }
+            : course
+        )
+      );
+
+      handleCloseRename();
+      alert("Course name updated successfully!");
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Failed to rename course";
+      alert(errorMsg);
+    }
+  };
+
   const filteredCourses = displayCourses.filter((course) => {
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -362,7 +441,7 @@ export default function AdminCourseManager({
 
               {showFilters && (
                 <div
-                  className="absolute right-0 mt-2 w-56 bg-white border shadow-lg rounded-lg p-3 z-50 border-gray-200"
+                  className="absolute left-0 right-0 top-full mt-2 min-w-[220px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg z-50 sm:left-auto sm:right-0 sm:w-56"
                 >
                   <label
                     className="text-xs font-semibold text-gray-600"
@@ -467,9 +546,9 @@ export default function AdminCourseManager({
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center">
-                  <span className="text-sm font-medium mr-3 text-gray-700">
+              <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <span className="text-sm font-medium text-gray-700">
                     Publish Course
                   </span>
                   <button
@@ -485,7 +564,7 @@ export default function AdminCourseManager({
                         }`}
                     />
                   </button>
-                  <span className="ml-2 text-sm text-gray-600">
+                  <span className="text-sm text-gray-600">
                     {published ? "Published" : "Draft"}
                   </span>
                 </div>
@@ -493,7 +572,7 @@ export default function AdminCourseManager({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded disabled:opacity-50 font-medium bg-blue-900 text-white hover:bg-blue-700"
+                  className="w-full rounded px-4 py-2 text-sm font-medium bg-blue-900 text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
                 >
                   {loading ? "Creating..." : "Create Course"}
                 </button>
@@ -529,16 +608,35 @@ export default function AdminCourseManager({
                 ? `Created: ${new Date(course.created_at).toLocaleDateString()}`
                 : null;
               const courseCanEdit = canEditCourse(course);
+              const courseCanRename = canRenameAssignedCourse(course);
               const courseCanDelete = canDeleteCourse(course);
               const courseCanPublish = canPublishCourse(course);
-              const courseCanManageContent = canManageCourseContent(course);
-              const courseCanEnroll = canEnrollInCourse(course);
-              const showCourseMenu = courseCanEdit || courseCanDelete;
-              const showViewAction = !courseCanManageContent && Boolean(onViewCourse);
+              const isSchoolOwnerCourse = role === "school_owner";
+              const isCreatedCourse = Boolean(course.is_created_by_me);
+              const isSchoolOwnedCourse = course.course_access_type === "school_owned" || isCreatedCourse;
+              const courseCanManageContent = isSchoolOwnerCourse && isSchoolOwnedCourse
+                ? true
+                : canManageCourseContent(course);
+              const courseCanEnroll = isSchoolOwnerCourse && isSchoolOwnedCourse
+                ? true
+                : canEnrollInCourse(course);
+              const isAssignedCourse = Boolean(course.is_assigned_to_my_school && !course.is_created_by_me);
+              const showCourseMenu = courseCanEdit || courseCanRename || courseCanDelete;
+              const showViewAction = isSchoolOwnerCourse
+                ? isAssignedCourse && Boolean(onViewCourse)
+                : !courseCanManageContent && Boolean(onViewCourse);
+              const showEnrollAction = isSchoolOwnerCourse
+                ? isSchoolOwnedCourse && Boolean(onEnroll)
+                : Boolean(onEnroll);
+              const showContentAction = isSchoolOwnerCourse
+                ? isSchoolOwnedCourse && Boolean(onManageContent)
+                : Boolean(onManageContent);
               const scopeLabel = getCourseScopeLabel(course);
-              const assignedSchoolsLabel = Array.isArray(course.assigned_school_names) && course.assigned_school_names.length > 0
-                ? course.assigned_school_names.join(", ")
-                : null;
+              const showOriginalTitle = shouldShowOriginalTitle(course);
+              const assignedSchoolNames = Array.isArray(course.assigned_school_names)
+                ? course.assigned_school_names.filter(Boolean)
+                : [];
+              const canOpenAssignedSchools = canViewAssignedSchools && assignedSchoolNames.length > 0;
 
               return (
                 <div
@@ -644,17 +742,26 @@ export default function AdminCourseManager({
                               </div>
                             )}
 
-                            {assignedSchoolsLabel && (
-                              <div className="mt-2 text-[11px] text-slate-500">
-                                Assigned schools: {assignedSchoolsLabel}
-                              </div>
+                            {canOpenAssignedSchools && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAssignedSchoolsModal({
+                                    courseTitle: course.title,
+                                    schools: assignedSchoolNames,
+                                  })
+                                }
+                                className="mt-2 text-[11px] font-medium text-blue-900 hover:text-blue-700"
+                              >
+                                View Assigned Schools
+                              </button>
                             )}
                           </>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {courseCanManageContent && onManageContent && (
+                        {showContentAction && courseCanManageContent && onManageContent && (
                           <button
                             onClick={() => onManageContent(course.id)}
                             className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50 flex items-center gap-1"
@@ -664,22 +771,22 @@ export default function AdminCourseManager({
                           </button>
                         )}
 
-                        {courseCanEnroll && onEnroll && (
-                          <button
-                            onClick={() => onEnroll(course.id)}
-                            className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50 flex items-center gap-1"
-                          >
-                            <PiUsersBold className="text-xs" />
-                            Enroll
-                          </button>
-                        )}
-
                         {showViewAction && onViewCourse && (
                           <button
                             onClick={() => onViewCourse(course.id)}
                             className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50"
                           >
                             View Course
+                          </button>
+                        )}
+
+                        {showEnrollAction && courseCanEnroll && onEnroll && (
+                          <button
+                            onClick={() => onEnroll(course.id)}
+                            className="px-3 py-1.5 text-xs border rounded-md hover:bg-gray-50 flex items-center gap-1"
+                          >
+                            <PiUsersBold className="text-xs" />
+                            Enroll
                           </button>
                         )}
 
@@ -710,6 +817,17 @@ export default function AdminCourseManager({
                                     className="w-full text-left px-3 py-2 hover:bg-gray-100"
                                   >
                                     Update
+                                  </button>
+                                )}
+                                {!courseCanEdit && courseCanRename && (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      handleOpenRename(course);
+                                    }}
+                                    className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                                  >
+                                    Rename
                                   </button>
                                 )}
                                 {courseCanDelete && (
@@ -848,6 +966,17 @@ export default function AdminCourseManager({
                                           Update
                                         </button>
                                       )}
+                                      {!courseCanEdit && courseCanRename && (
+                                        <button
+                                          onClick={() => {
+                                            setOpenMenuId(null);
+                                            handleOpenRename(course);
+                                          }}
+                                          className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                                        >
+                                          Rename
+                                        </button>
+                                      )}
                                       {courseCanDelete && (
                                         <button
                                           onClick={() => {
@@ -873,12 +1002,27 @@ export default function AdminCourseManager({
                               <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700">
                                 {scopeLabel}
                               </span>
-                              {assignedSchoolsLabel && (
-                                <span className="text-[10px] text-slate-500">
-                                  {assignedSchoolsLabel}
-                                </span>
+                              {canOpenAssignedSchools && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAssignedSchoolsModal({
+                                      courseTitle: course.title,
+                                      schools: assignedSchoolNames,
+                                    })
+                                  }
+                                  className="text-[10px] font-medium text-blue-900 hover:text-blue-700"
+                                >
+                                  View Assigned Schools
+                                </button>
                               )}
                             </div>
+
+                            {showOriginalTitle && (
+                              <div className="mb-1 text-[10px] text-slate-500">
+                                Original: {course.original_title}
+                              </div>
+                            )}
 
                             {course.description && (
                               <div className="relative group overflow-visible">
@@ -893,7 +1037,7 @@ export default function AdminCourseManager({
                             )}
 
                             <div className="mt-auto grid grid-cols-3 gap-2">
-                              {courseCanManageContent && onManageContent && (
+                              {showContentAction && courseCanManageContent && onManageContent && (
                                 <button
                                   onClick={() => onManageContent(course.id)}
                                   className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"
@@ -903,22 +1047,22 @@ export default function AdminCourseManager({
                                 </button>
                               )}
 
-                              {courseCanEnroll && onEnroll && (
-                                <button
-                                  onClick={() => onEnroll(course.id)}
-                                  className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"
-                                >
-                                  <PiUsersBold className="text-xs" />
-                                  Enroll
-                                </button>
-                              )}
-
                               {showViewAction && onViewCourse && (
                                 <button
                                   onClick={() => onViewCourse(course.id)}
                                   className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"
                                 >
                                   View
+                                </button>
+                              )}
+
+                              {showEnrollAction && courseCanEnroll && onEnroll && (
+                                <button
+                                  onClick={() => onEnroll(course.id)}
+                                  className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] border rounded-md hover:bg-gray-50"
+                                >
+                                  <PiUsersBold className="text-xs" />
+                                  Enroll
                                 </button>
                               )}
                             </div>
@@ -933,6 +1077,49 @@ export default function AdminCourseManager({
           </div>
         )}
       </div>
+      {assignedSchoolsModal && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">Assigned Schools</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {assignedSchoolsModal.courseTitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssignedSchoolsModal(null)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close assigned schools"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200">
+              {assignedSchoolsModal.schools.map((school) => (
+                <div
+                  key={school}
+                  className="border-b border-slate-100 px-3 py-2 text-sm text-slate-700 last:border-b-0"
+                >
+                  {school}
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAssignedSchoolsModal(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {publishModalOpen && mergedPermissions.canPublish && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
           <div className="bg-white rounded-lg p-6 w-96 max-w-[90%]">
@@ -953,6 +1140,42 @@ export default function AdminCourseManager({
               >
                 Yes, Publish
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {renamingCourseId !== null && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-[90%]">
+            <h3 className="text-lg font-semibold mb-3">Rename Assigned Course</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Course Title</label>
+                <input
+                  value={renameTitle}
+                  onChange={(e) => setRenameTitle(e.target.value)}
+                  className="w-full p-2 border rounded focus:outline-none focus:ring-2 border-gray-300 focus:ring-blue-900 focus:border-transparent"
+                  placeholder="Enter course title"
+                  autoFocus
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                This only changes the course name for your client view. It will not rename the platform course globally.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleCloseRename}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleSaveRename()}
+                  className="px-4 py-2 bg-blue-900 text-white rounded hover:bg-blue-700"
+                >
+                  Save Name
+                </button>
+              </div>
             </div>
           </div>
         </div>

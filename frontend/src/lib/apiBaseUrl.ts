@@ -23,3 +23,10 @@ export const resolveApiBaseUrl = () => {
   }
 };
 
+export const resolveAssetUrl = (assetPath?: string | null) => {
+  if (!assetPath) return null;
+  if (/^https?:\/\//i.test(assetPath)) return assetPath;
+
+  const normalizedPath = assetPath.startsWith('/') ? assetPath : `/${assetPath}`;
+  return `${resolveApiBaseUrl()}${normalizedPath}`;
+};

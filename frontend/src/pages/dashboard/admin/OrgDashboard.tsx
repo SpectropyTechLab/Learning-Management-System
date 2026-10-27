@@ -10,11 +10,13 @@ import { RiFileList3Line } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
 import { PiUsersBold, PiChatsCircleBold } from 'react-icons/pi';
 import { HiOutlineBuildingOffice2 } from 'react-icons/hi2';
+import { RiHome2Line } from 'react-icons/ri';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav, { type SidebarNavItem } from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
+import { getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
-type TabKey = 'schools' | 'schoolMembers' | 'courseAssignments' | 'batches' | 'batchMembers' | 'roles' | 'users' | 'bulkSetup';
+type TabKey = 'schools' | 'schoolMembers' | 'courseAssignments' | 'examAssignments' | 'batches' | 'batchMembers' | 'roles' | 'users' | 'bulkSetup';
 
 interface School {
   id: number;
@@ -70,6 +72,7 @@ interface AssignableCourse {
   description?: string | null;
   published?: boolean;
   client_id?: number | null;
+  is_entitled_platform_course?: boolean;
 }
 
 interface SchoolCourseAssignment {
@@ -79,6 +82,49 @@ interface SchoolCourseAssignment {
   title: string;
   description?: string | null;
   published?: boolean;
+  assigned_at?: string;
+}
+
+interface AssignableExam {
+  id: number;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+  client_id?: number | null;
+  program_id?: number | null;
+  exam_access_type?: string | null;
+}
+
+interface AssignableQuestionBankProgram {
+  id: number;
+  name: string;
+  code?: string | null;
+  client_id?: number | null;
+  school_id?: number | null;
+  is_active?: boolean;
+}
+
+interface SchoolExamAssignment {
+  id: number;
+  school_id: number;
+  exam_id: number;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+  client_id?: number | null;
+  program_id?: number | null;
+  assigned_at?: string;
+}
+
+interface SchoolQuestionBankAssignment {
+  id: number;
+  school_id: number;
+  program_id: number;
+  name: string;
+  code?: string | null;
+  client_id?: number | null;
+  program_school_id?: number | null;
+  is_active?: boolean;
   assigned_at?: string;
 }
 
@@ -131,6 +177,14 @@ export default function OrgDashboard() {
   const [schoolCourseAssignments, setSchoolCourseAssignments] = useState<SchoolCourseAssignment[]>([]);
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [loadingCourseAssignments, setLoadingCourseAssignments] = useState(false);
+  const [clientExams, setClientExams] = useState<AssignableExam[]>([]);
+  const [schoolExamAssignments, setSchoolExamAssignments] = useState<SchoolExamAssignment[]>([]);
+  const [selectedExamIds, setSelectedExamIds] = useState<string[]>([]);
+  const [loadingExamAssignments, setLoadingExamAssignments] = useState(false);
+  const [clientQuestionBankPrograms, setClientQuestionBankPrograms] = useState<AssignableQuestionBankProgram[]>([]);
+  const [schoolQuestionBankAssignments, setSchoolQuestionBankAssignments] = useState<SchoolQuestionBankAssignment[]>([]);
+  const [selectedQuestionBankProgramIds, setSelectedQuestionBankProgramIds] = useState<string[]>([]);
+  const [loadingQuestionBankAssignments, setLoadingQuestionBankAssignments] = useState(false);
 
   const [schoolForm, setSchoolForm] = useState({ name: '', school_code: '' });
   const [batchForm, setBatchForm] = useState({ name: '', school_id: '' });
@@ -191,6 +245,26 @@ export default function OrgDashboard() {
     setClientCourses(res.data);
   };
 
+  const loadClientExams = async () => {
+    const role = user?.role;
+    if (!role || (role !== 'super_admin' && role !== 'client_admin')) return;
+    const res = await api.get('/exams', {
+      params: {
+        page: 1,
+        page_size: 200,
+        status: 'published',
+      },
+    });
+    setClientExams(Array.isArray(res.data?.data) ? res.data.data : []);
+  };
+
+  const loadClientQuestionBankPrograms = async () => {
+    const role = user?.role;
+    if (!role || (role !== 'super_admin' && role !== 'client_admin')) return;
+    const res = await api.get('/programs');
+    setClientQuestionBankPrograms(Array.isArray(res.data) ? res.data : []);
+  };
+
   const loadSchoolCourseAssignments = async (schoolId: string) => {
     if (!schoolId) {
       setSchoolCourseAssignments([]);
@@ -203,6 +277,36 @@ export default function OrgDashboard() {
       setSchoolCourseAssignments(res.data);
     } finally {
       setLoadingCourseAssignments(false);
+    }
+  };
+
+  const loadSchoolExamAssignments = async (schoolId: string) => {
+    if (!schoolId) {
+      setSchoolExamAssignments([]);
+      return;
+    }
+
+    setLoadingExamAssignments(true);
+    try {
+      const res = await api.get(`/org/schools/${schoolId}/exam-assignments`);
+      setSchoolExamAssignments(res.data);
+    } finally {
+      setLoadingExamAssignments(false);
+    }
+  };
+
+  const loadSchoolQuestionBankAssignments = async (schoolId: string) => {
+    if (!schoolId) {
+      setSchoolQuestionBankAssignments([]);
+      return;
+    }
+
+    setLoadingQuestionBankAssignments(true);
+    try {
+      const res = await api.get(`/org/schools/${schoolId}/question-bank-assignments`);
+      setSchoolQuestionBankAssignments(res.data);
+    } finally {
+      setLoadingQuestionBankAssignments(false);
     }
   };
 
@@ -221,6 +325,8 @@ export default function OrgDashboard() {
     loadBatches();
     loadUsers();
     loadClientCourses();
+    loadClientExams();
+    loadClientQuestionBankPrograms();
   }, [user?.role]);
 
   useEffect(() => {
@@ -237,10 +343,14 @@ export default function OrgDashboard() {
 
   useEffect(() => {
     loadSchoolCourseAssignments(selectedAssignmentSchoolId);
+    loadSchoolExamAssignments(selectedAssignmentSchoolId);
+    loadSchoolQuestionBankAssignments(selectedAssignmentSchoolId);
   }, [selectedAssignmentSchoolId]);
 
   useEffect(() => {
     setSelectedCourseIds([]);
+    setSelectedExamIds([]);
+    setSelectedQuestionBankProgramIds([]);
   }, [selectedAssignmentSchoolId]);
 
   useEffect(() => {
@@ -329,12 +439,48 @@ export default function OrgDashboard() {
   const availableCoursesForAssignment = useMemo(() => {
     const assignedIds = new Set(schoolCourseAssignments.map((assignment) => assignment.course_id));
     return clientCourses.filter((course) => {
+      const isPlatformCourse = course.client_id == null || Number(course.client_id) === 17;
       const courseClientMatches = !selectedAssignmentSchool?.client_id
-        || !course.client_id
-        || Number(course.client_id) === Number(selectedAssignmentSchool.client_id);
+        || Number(course.client_id) === Number(selectedAssignmentSchool.client_id)
+        || isPlatformCourse
+        || course.is_entitled_platform_course === true;
       return courseClientMatches && !assignedIds.has(course.id);
     });
   }, [clientCourses, schoolCourseAssignments, selectedAssignmentSchool]);
+
+  const availableExamsForAssignment = useMemo(() => {
+    const assignedIds = new Set(schoolExamAssignments.map((assignment) => assignment.exam_id));
+    return clientExams.filter((exam) => {
+      const isPlatformExam = Number(exam.client_id) === 17 || exam.exam_access_type === 'platform_owned';
+      const examClientMatches = !selectedAssignmentSchool?.client_id
+        || Number(exam.client_id) === Number(selectedAssignmentSchool.client_id)
+        || isPlatformExam;
+      return examClientMatches && !assignedIds.has(exam.id);
+    });
+  }, [clientExams, schoolExamAssignments, selectedAssignmentSchool]);
+
+  const availableQuestionBankProgramsForAssignment = useMemo(() => {
+    const assignedIds = new Set(schoolQuestionBankAssignments.map((assignment) => assignment.program_id));
+    return clientQuestionBankPrograms.filter((program) => {
+      const isPlatformProgram = Number(program.client_id) === 17 && !program.school_id;
+      const programClientMatches = !selectedAssignmentSchool?.client_id
+        || Number(program.client_id) === Number(selectedAssignmentSchool.client_id)
+        || isPlatformProgram;
+      const schoolScopedMatches = !program.school_id
+        || !selectedAssignmentSchoolId
+        || Number(program.school_id) === Number(selectedAssignmentSchoolId);
+      return program.is_active !== false && programClientMatches && schoolScopedMatches && !assignedIds.has(program.id);
+    });
+  }, [clientQuestionBankPrograms, schoolQuestionBankAssignments, selectedAssignmentSchool, selectedAssignmentSchoolId]);
+
+  const userPermissionSet = useMemo(
+    () => new Set((user?.permissions ?? []).filter(Boolean)),
+    [user?.permissions]
+  );
+  const hasAnyPermission = (permissions: string[]) =>
+    user?.role === 'super_admin' || permissions.some((permission) => userPermissionSet.has(permission));
+  const canAssignExams = hasAnyPermission(['exams.assign', 'exams.create', 'exams.update', 'exams.publish']);
+  const canAssignQuestionBank = hasAnyPermission(['questions.assign', 'questions.create', 'questions.approve']);
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, RolePermission>();
@@ -581,10 +727,79 @@ export default function OrgDashboard() {
     }
   };
 
-  const tabs: { key: TabKey; label: string; roles?: string[] }[] = [
+  const assignExamsToSchool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAssignmentSchoolId || selectedExamIds.length === 0) {
+      toast.error('Select a school and at least one exam');
+      return;
+    }
+
+    try {
+      await api.post(`/org/schools/${selectedAssignmentSchoolId}/exam-assignments`, {
+        exam_ids: selectedExamIds.map((examId) => Number(examId)),
+      });
+      setSelectedExamIds([]);
+      await loadSchoolExamAssignments(selectedAssignmentSchoolId);
+      await loadClientExams();
+      toast.success('Exams assigned successfully');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to assign exams');
+    }
+  };
+
+  const removeExamAssignment = async (examId: number) => {
+    if (!selectedAssignmentSchoolId) return;
+
+    try {
+      await api.delete(`/org/schools/${selectedAssignmentSchoolId}/exam-assignments/${examId}`);
+      await loadSchoolExamAssignments(selectedAssignmentSchoolId);
+      toast.success('Exam unassigned');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to remove exam assignment');
+    }
+  };
+
+  const assignQuestionBankProgramsToSchool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAssignmentSchoolId || selectedQuestionBankProgramIds.length === 0) {
+      toast.error('Select a school and at least one question bank program');
+      return;
+    }
+
+    try {
+      await api.post(`/org/schools/${selectedAssignmentSchoolId}/question-bank-assignments`, {
+        program_ids: selectedQuestionBankProgramIds.map((programId) => Number(programId)),
+      });
+      setSelectedQuestionBankProgramIds([]);
+      await loadSchoolQuestionBankAssignments(selectedAssignmentSchoolId);
+      await loadClientQuestionBankPrograms();
+      toast.success('Question bank programs assigned successfully');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to assign question bank programs');
+    }
+  };
+
+  const removeQuestionBankAssignment = async (programId: number) => {
+    if (!selectedAssignmentSchoolId) return;
+
+    try {
+      await api.delete(`/org/schools/${selectedAssignmentSchoolId}/question-bank-assignments/${programId}`);
+      await loadSchoolQuestionBankAssignments(selectedAssignmentSchoolId);
+      toast.success('Question bank assignment removed');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to remove question bank assignment');
+    }
+  };
+
+  const tabs: { key: TabKey; label: string; roles?: string[]; permissions?: string[] }[] = [
     { key: 'schools', label: 'Schools', roles: ['super_admin', 'client_admin', 'school_owner'] },
     { key: 'schoolMembers', label: 'School Members', roles: ['super_admin', 'client_admin', 'school_owner'] },
     { key: 'courseAssignments', label: 'Course Assignments', roles: ['super_admin', 'client_admin'] },
+    { key: 'examAssignments', label: 'Exam & Question Bank Assignments', roles: ['super_admin', 'client_admin'], permissions: ['exams.assign', 'exams.create', 'exams.update', 'exams.publish', 'questions.assign', 'questions.create', 'questions.approve'] },
     { key: 'batches', label: 'Batches', roles: ['super_admin', 'client_admin', 'school_owner'] },
     { key: 'batchMembers', label: 'Batch Members', roles: ['super_admin', 'client_admin', 'school_owner', 'teacher'] },
     { key: 'roles', label: 'Role Permissions', roles: ['super_admin', 'client_admin'] },
@@ -595,14 +810,27 @@ export default function OrgDashboard() {
   const theme = getDashboardTheme(false);
   const brandLogo = clientUser?.logo || spectropyLogo;
   const brandName = clientUser?.client_name || 'Spectropy';
-  const dashboardTitle = clientUser?.client_name ? `${clientUser.client_name} Dashboard` : 'Organization Dashboard';
+  const dashboardTitle = getRoleDisplayTitle(user?.role);
   const clientMeta = clientUser?.client_name ? `${clientUser.client_name} Client` : null;
-  const visibleTabs = tabs.filter((tab) => !tab.roles || tab.roles.includes(user?.role || ''));
+  const visibleTabs = tabs.filter((tab) => {
+    const roleAllowed = !tab.roles || tab.roles.includes(user?.role || '');
+    const permissionAllowed = user?.role === 'super_admin'
+      || !tab.permissions
+      || tab.permissions.some((permission) => userPermissionSet.has(permission));
+    return roleAllowed && permissionAllowed;
+  });
+  const dashboardPath =
+    user?.role === 'super_admin'
+      ? '/superadmin/dashboard'
+      : user?.role === 'school_owner'
+        ? '/school-owner/dashboard'
+        : '/admin/dashboard';
   const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label || 'Organization Setup';
   const activeTabSubtitle: Record<TabKey, string> = {
     schools: 'Create and manage schools under your organization.',
     schoolMembers: 'Assign users to schools and define their scope.',
     courseAssignments: 'Assign client courses to schools so school owners see only their own course catalog.',
+    examAssignments: 'Assign published exams and question bank programs to selected schools.',
     batches: 'Create and organize batches for schools.',
     batchMembers: 'Manage users enrolled inside each batch.',
     roles: 'Control role-based permissions for organization users.',
@@ -613,6 +841,7 @@ export default function OrgDashboard() {
     schools: <HiOutlineBuildingOffice2 />,
     schoolMembers: <PiUsersBold />,
     courseAssignments: <BiBookOpen />,
+    examAssignments: <RiFileList3Line />,
     batches: <BiBookOpen />,
     batchMembers: <PiUsersBold />,
     roles: <RiFileList3Line />,
@@ -620,12 +849,12 @@ export default function OrgDashboard() {
     bulkSetup: <PiChatsCircleBold />,
   };
   const navItems: SidebarNavItem[] = visibleTabs.map((tab) => ({
-    key: tab.key,
-    label: tab.label,
-    icon: tabIcons[tab.key],
-    active: activeTab === tab.key,
-    onClick: () => setActiveTab(tab.key),
-  }));
+      key: tab.key,
+      label: tab.label,
+      icon: tabIcons[tab.key],
+      active: activeTab === tab.key,
+      onClick: () => setActiveTab(tab.key),
+    }));
 
   return (
     <DashboardLayout
@@ -633,13 +862,26 @@ export default function OrgDashboard() {
       layoutClass={theme.layoutClass}
       sidebarOpen={sidebarOpen}
       onSidebarClose={() => setSidebarOpen(false)}
-      contentClassName="p-6"
+      contentClassName="min-w-0 px-4 py-4 sm:px-6 sm:py-6"
       sidebar={
         <SidebarNav
           brandLogo={brandLogo}
           brandName={brandName}
           title={dashboardTitle}
           brandTag={clientUser?.client_name}
+          topAction={
+            <button
+              type="button"
+              onClick={() => {
+                navigate(dashboardPath);
+                setSidebarOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-slate-900"
+            >
+              <RiHome2Line className="text-base" />
+              <span>Back to Dashboard</span>
+            </button>
+          }
           navItems={navItems}
           userInfo={{
             name: user?.full_name || 'Organization Admin',
@@ -654,25 +896,19 @@ export default function OrgDashboard() {
         />
       }
       header={
-        <div className={theme.headerClass}>
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className={`md:hidden mr-3 p-2 rounded-lg border ${theme.secondaryBorderClass}`}
-            aria-label="Open menu"
-          >
-            Menu
-          </button>
+        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white px-4 py-4 sm:px-6 sm:py-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className={`mb-3 inline-flex md:hidden rounded-lg border px-3 py-2 text-sm font-medium ${theme.secondaryBorderClass}`}
+                aria-label="Open menu"
+              >
+                Menu
+              </button>
               <h1 className="text-xl md:text-2xl font-bold">{activeTabLabel}</h1>
               <p className="mt-1 text-sm md:text-base text-gray-600">{activeTabSubtitle[activeTab]}</p>
             </div>
-            <button
-              onClick={() => navigate('/admin/dashboard')}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              Back to Admin Dashboard
-            </button>
           </div>
         </div>
       }
@@ -905,6 +1141,252 @@ export default function OrgDashboard() {
         </section>
       )}
 
+      {activeTab === 'examAssignments' && (
+        <section className="mt-6 space-y-6">
+          {canAssignExams && (
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">Assigned Exams</h3>
+                <p className="text-sm text-slate-500">Published exams attached to the selected school.</p>
+              </div>
+              <select
+                value={selectedAssignmentSchoolId}
+                onChange={(e) => setSelectedAssignmentSchoolId(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Select school</option>
+                {schools.map((school) => (
+                  <option key={`exam-assignment-school:${school.id}`} value={school.id}>
+                    {school.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {!selectedAssignmentSchoolId ? (
+              <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                Choose a school to review and manage its assigned exams.
+              </div>
+            ) : loadingExamAssignments ? (
+              <div className="mt-4 text-sm text-slate-500">Loading assignments...</div>
+            ) : schoolExamAssignments.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                No exams assigned yet.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {schoolExamAssignments.map((assignment) => (
+                  <div key={assignment.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-slate-900">{assignment.title}</div>
+                        {assignment.description && (
+                          <div className="mt-1 text-sm text-slate-500">{assignment.description}</div>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
+                            {assignment.status || 'published'}
+                          </span>
+                          {assignment.assigned_at && (
+                            <span>Assigned {new Date(assignment.assigned_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeExamAssignment(assignment.exam_id)}
+                        className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={assignExamsToSchool} className="rounded-2xl border border-slate-200 bg-white p-5">
+            <h3 className="text-lg font-semibold">Assign Exams</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Select one school and assign one or more published exams to it.
+            </p>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">School</label>
+                <select
+                  value={selectedAssignmentSchoolId}
+                  onChange={(e) => setSelectedAssignmentSchoolId(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="">Select school</option>
+                  {schools.map((school) => (
+                    <option key={`exam-assign-form-school:${school.id}`} value={school.id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Available Exams</label>
+                <select
+                  multiple
+                  value={selectedExamIds}
+                  onChange={(e) => {
+                    const next = Array.from(e.target.selectedOptions).map((option) => option.value);
+                    setSelectedExamIds(next);
+                  }}
+                  className="mt-2 h-64 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                >
+                  {availableExamsForAssignment.map((exam) => (
+                    <option key={`assign-exam:${exam.id}`} value={exam.id}>
+                      {exam.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-slate-500">
+                  Hold Ctrl/Cmd to select multiple published exams.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+              >
+                Assign Selected Exams
+              </button>
+            </div>
+          </form>
+          </div>
+          )}
+
+          {canAssignQuestionBank && (
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">Assigned Question Bank</h3>
+                  <p className="text-sm text-slate-500">Question bank programs attached to the selected school.</p>
+                </div>
+                <select
+                  value={selectedAssignmentSchoolId}
+                  onChange={(e) => setSelectedAssignmentSchoolId(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="">Select school</option>
+                  {schools.map((school) => (
+                    <option key={`question-bank-assignment-school:${school.id}`} value={school.id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {!selectedAssignmentSchoolId ? (
+                <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                  Choose a school to review and manage its assigned question bank.
+                </div>
+              ) : loadingQuestionBankAssignments ? (
+                <div className="mt-4 text-sm text-slate-500">Loading assignments...</div>
+              ) : schoolQuestionBankAssignments.length === 0 ? (
+                <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                  No question bank programs assigned yet.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {schoolQuestionBankAssignments.map((assignment) => (
+                    <div key={assignment.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-slate-900">{assignment.name}</div>
+                          {assignment.code && (
+                            <div className="mt-1 text-sm text-slate-500">{assignment.code}</div>
+                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
+                              {assignment.is_active === false ? 'Inactive' : 'Active'}
+                            </span>
+                            {assignment.assigned_at && (
+                              <span>Assigned {new Date(assignment.assigned_at).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeQuestionBankAssignment(assignment.program_id)}
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={assignQuestionBankProgramsToSchool} className="rounded-2xl border border-slate-200 bg-white p-5">
+              <h3 className="text-lg font-semibold">Assign Question Bank</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Select one school and assign one or more question bank programs to it.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">School</label>
+                  <select
+                    value={selectedAssignmentSchoolId}
+                    onChange={(e) => setSelectedAssignmentSchoolId(e.target.value)}
+                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    <option value="">Select school</option>
+                    {schools.map((school) => (
+                      <option key={`question-bank-assign-form-school:${school.id}`} value={school.id}>
+                        {school.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Available Programs</label>
+                  <select
+                    multiple
+                    value={selectedQuestionBankProgramIds}
+                    onChange={(e) => {
+                      const next = Array.from(e.target.selectedOptions).map((option) => option.value);
+                      setSelectedQuestionBankProgramIds(next);
+                    }}
+                    className="mt-2 h-64 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    {availableQuestionBankProgramsForAssignment.map((program) => (
+                      <option key={`assign-question-bank-program:${program.id}`} value={program.id}>
+                        {program.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Hold Ctrl/Cmd to select multiple question bank programs.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                >
+                  Assign Selected Programs
+                </button>
+              </div>
+            </form>
+          </div>
+          )}
+        </section>
+      )}
+
       {activeTab === 'batches' && (
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -1007,7 +1489,7 @@ export default function OrgDashboard() {
 
       {activeTab === 'roles' && (
         <section className="mt-6 space-y-6">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold">Role Permissions</h3>
@@ -1088,7 +1570,7 @@ export default function OrgDashboard() {
               </div>
             </div>
 
-            <div className="mt-6 space-y-6">
+            <div className="mt-6 min-w-0 space-y-6">
                 {filteredGroupedPermissions.length === 0 && (
                   <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6 text-sm text-slate-600">
                     No permissions match your filters.
@@ -1097,7 +1579,7 @@ export default function OrgDashboard() {
                 {filteredGroupedPermissions.map((group) => {
                   const isGroupSaving = saving === `group:${group.name}`;
                   return (
-                    <div key={group.name} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                    <div key={group.name} className="min-w-0 w-full rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">{group.name}</div>
@@ -1126,7 +1608,7 @@ export default function OrgDashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {group.permissions
                         .filter((permission) => !['exams.update', 'exams.publish'].includes(permission))
                         .map((permission) => {
@@ -1137,10 +1619,10 @@ export default function OrgDashboard() {
                           return (
                             <div
                               key={permission}
-                              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3"
+                              className="flex min-w-0 w-full items-start justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3"
                             >
-                              <div>
-                                <div className="text-sm font-semibold text-slate-900">{permission}</div>
+                              <div className="min-w-0 flex-1">
+                                <div className="break-words text-sm font-semibold text-slate-900">{permission}</div>
                                 <div className="text-xs text-slate-500">
                                   {enabled ? 'Granted' : 'Not granted'}
                                 </div>
@@ -1150,7 +1632,7 @@ export default function OrgDashboard() {
                                 onClick={() => handleTogglePermission(permission, !enabled)}
                                 disabled={isSaving}
                                 aria-pressed={enabled}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                className={`relative ml-2 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
                                   enabled ? 'bg-emerald-500' : 'bg-slate-200'
                                 } ${isSaving ? 'cursor-not-allowed opacity-60' : ''}`}
                               >
@@ -1176,7 +1658,7 @@ export default function OrgDashboard() {
                 <h3 className="text-lg font-semibold">User Overrides</h3>
                 <p className="text-sm text-slate-500">Grant or deny permissions for a specific client user.</p>
               </div>
-              <div className="min-w-[220px]">
+              <div className="w-full min-w-0 md:w-auto md:min-w-[220px]">
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">School</label>
                 <select
                   value={selectedOverrideSchoolId}
@@ -1191,7 +1673,7 @@ export default function OrgDashboard() {
                   ))}
                 </select>
               </div>
-              <div className="min-w-[280px]">
+              <div className="w-full min-w-0 md:w-auto md:min-w-[280px]">
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">User</label>
                 <select
                   value={selectedUserId}
@@ -1219,11 +1701,11 @@ export default function OrgDashboard() {
             )}
 
             {selectedUserId && (
-              <div className="mt-6 space-y-6">
+              <div className="mt-6 min-w-0 space-y-6">
                 {groupedPermissions.map((group) => (
-                  <div key={`override:${group.name}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                  <div key={`override:${group.name}`} className="min-w-0 w-full rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                     <div className="text-sm font-semibold text-slate-900">{group.name}</div>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {group.permissions
                         .filter((permission) => !['exams.update', 'exams.publish'].includes(permission))
                         .map((permission) => {
@@ -1235,11 +1717,11 @@ export default function OrgDashboard() {
                           return (
                             <div
                               key={`override:${permission}`}
-                              className="rounded-2xl border border-slate-100 bg-white p-4"
+                              className="min-w-0 w-full rounded-2xl border border-slate-100 bg-white p-4"
                             >
-                              <div className="text-sm font-semibold text-slate-900">{permission}</div>
+                              <div className="break-words text-sm font-semibold text-slate-900">{permission}</div>
                               <div className="text-xs text-slate-500">{state}</div>
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-3 flex min-w-0 flex-wrap gap-2">
                                 <button
                                   type="button"
                                   onClick={() => handleUserOverride(permission, true)}

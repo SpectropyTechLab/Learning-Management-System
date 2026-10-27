@@ -15,6 +15,7 @@ interface SidebarNavProps {
   brandName: string;
   title: string;
   brandTag?: string;
+  topAction?: React.ReactNode;
   navItems: SidebarNavItem[];
   userInfo: {
     name: string;
@@ -37,6 +38,7 @@ export default function SidebarNav({
   brandName,
   title,
   brandTag,
+  topAction,
   navItems,
   userInfo,
   onProfileClick,
@@ -55,28 +57,34 @@ export default function SidebarNav({
         fixed md:static
         inset-y-0 left-0
         z-50
-        w-64 lg:w-72
+        w-[78vw] max-w-[16rem] lg:w-64 xl:w-72 lg:max-w-none
         ${theme.sidebarThemeClass}
         border-r
-        flex flex-col
+        flex h-full min-h-0 flex-col overflow-hidden
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0
       `}
     >
-      <div className={`p-6 border-b ${theme.sidebarHeaderBorder}`}>
+      <div className={`shrink-0 px-4 py-4 lg:px-5 lg:py-5 border-b ${theme.sidebarHeaderBorder}`}>
         <div className="flex items-center space-x-2 cursor-pointer">
           <img
             src={brandLogo}
             alt={`${brandName} Logo`}
-            className="h-10 w-auto md:h-10 lg:h-12 rounded-md"
+            className="h-9 w-auto md:h-10 lg:h-11 rounded-md"
           />
         </div>
         {brandTag && <p className={theme.brandTagClass}>{brandTag}</p>}
-        <h1 className="text-lg font-semibold">{title}</h1>
+        <h1 className="text-base font-semibold lg:text-lg">{title}</h1>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2">
+      {topAction ? (
+        <div className="shrink-0 px-3 py-2.5 lg:px-4 lg:py-3">
+          {topAction}
+        </div>
+      ) : null}
+
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-1.5 lg:p-4 lg:space-y-2">
         {navItems.map((item) => (
           <button
             key={item.key}
@@ -84,7 +92,7 @@ export default function SidebarNav({
               item.onClick();
               onClose();
             }}
-            className={`w-full flex items-center px-4 py-3 text-sm font-medium ${theme.navRadiusClass} transition-colors ${
+            className={`w-full flex items-center px-3 py-2.5 lg:px-4 lg:py-3 text-sm font-medium ${theme.navRadiusClass} transition-colors ${
               item.active ? theme.navActiveClass : theme.navInactiveClass
             }`}
           >
@@ -99,7 +107,7 @@ export default function SidebarNav({
           <button
             type="button"
             onClick={onProfileClick}
-            className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 focus-visible:ring-offset-2 transition"
+            className="shrink-0 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 focus-visible:ring-offset-2 transition"
             aria-label="Open profile"
           >
             <UserInfoCard
@@ -126,7 +134,7 @@ export default function SidebarNav({
 
       {showLogout && onLogout && (
         <div
-          className={`border-t ${
+          className={`shrink-0 border-t ${
             theme.brandTagClass ? "mt-auto border-amber-100 px-4 py-2" : "border-gray-200 p-4"
           }`}
         >

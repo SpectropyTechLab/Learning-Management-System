@@ -22,6 +22,10 @@ import {
   archiveQuestionFolderQuestions,
 } from '../controllers/questions.controller.js';
 import { authenticateToken, requireRole, attachClientContext, loadPermissions, checkPermission } from '../middleware/auth.js';
+import {
+  requireQuestionBankFeatureEntitlement,
+  requireQuestionBankProgramEntitlement,
+} from '../middleware/moduleEntitlements.js';
 import multer from 'multer';
 
 const router = Router();
@@ -31,16 +35,17 @@ router.use(
   authenticateToken,
   requireRole(['super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher']),
   attachClientContext,
-  loadPermissions
+  loadPermissions,
+  requireQuestionBankFeatureEntitlement
 );
-router.get('/questions', checkPermission('questions.read'), listQuestions);
+router.get('/questions', requireQuestionBankProgramEntitlement, checkPermission('questions.read'), listQuestions);
 router.get('/questions/bulk-upload/template', checkPermission('questions.read'), bulkUploadTemplate);
-router.post('/questions/bulk-upload', checkPermission('questions.create'), upload.single('file'), bulkUploadQuestions);
+router.post('/questions/bulk-upload', requireQuestionBankProgramEntitlement, checkPermission('questions.create'), upload.single('file'), bulkUploadQuestions);
 router.post('/questions/converter/download', checkPermission('questions.create'), upload.single('file'), downloadConvertedQuestions);
-router.post('/questions/converter/insert', checkPermission('questions.create'), upload.single('file'), insertConvertedQuestions);
-router.get('/questions/:id', checkPermission('questions.read'), getQuestionById);
-router.post('/questions', checkPermission('questions.create'), createQuestion);
-router.put('/questions/:id', checkPermission('questions.create'), updateQuestion);
+router.post('/questions/converter/insert', requireQuestionBankProgramEntitlement, checkPermission('questions.create'), upload.single('file'), insertConvertedQuestions);
+router.get('/questions/:id', requireQuestionBankProgramEntitlement, checkPermission('questions.read'), getQuestionById);
+router.post('/questions', requireQuestionBankProgramEntitlement, checkPermission('questions.create'), createQuestion);
+router.put('/questions/:id', requireQuestionBankProgramEntitlement, checkPermission('questions.create'), updateQuestion);
 router.delete('/questions/:id', checkPermission('questions.delete'), softDeleteQuestion);
 router.post('/questions/:id/approve', checkPermission('questions.approve'), approveQuestion);
 router.post('/questions/:id/reject', checkPermission('questions.reject'), rejectQuestion);

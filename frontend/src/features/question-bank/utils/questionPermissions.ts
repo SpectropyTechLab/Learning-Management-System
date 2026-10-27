@@ -11,6 +11,12 @@ export interface QuestionPermissions {
 }
 
 type PermissionUser = { role?: Role | null; permissions?: string[] | null };
+export const PLATFORM_QUESTION_BANK_CLIENT_ID = 17;
+
+export const isQuestionBankPlatformUser = (user?: (PermissionUser & { client_id?: number | string | null }) | null) =>
+  user?.role === "super_admin" ||
+  user?.role === "content_authorizer" ||
+  (user?.role === "client_admin" && Number(user?.client_id) === PLATFORM_QUESTION_BANK_CLIENT_ID);
 
 export const getQuestionPermissions = (user?: PermissionUser | null): QuestionPermissions => {
   const role = user?.role ?? null;
@@ -26,7 +32,7 @@ export const getQuestionPermissions = (user?: PermissionUser | null): QuestionPe
     };
   }
 
-  if (role === "super_admin") {
+  if (isQuestionBankPlatformUser(user as PermissionUser & { client_id?: number | string | null })) {
     return {
       canView: true,
       canCreate: true,

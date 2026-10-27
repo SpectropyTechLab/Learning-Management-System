@@ -5,7 +5,9 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
-import { RiFileList3Line } from "react-icons/ri";
+import { RiFileList3Line, RiHome2Line } from "react-icons/ri";
+import { getOrganizationLabel } from "@/features/auth/utils/roleBranding";
+import { isQuestionBankPlatformUser } from "@/features/question-bank/utils/questionPermissions";
 
 interface QuestionBankShellProps {
   title: string;
@@ -28,7 +30,7 @@ const roleConfig = {
     profilePath: "/content-authorizer/profile",
   },
   school_owner: {
-    label: "School Owner",
+    label: "School Admin",
     profilePath: "/school-owner/profile",
   },
   teacher: {
@@ -48,10 +50,17 @@ const questionBankTabs = [
   { key: "subjects", label: "Subjects", to: "/question-bank/subjects" },
   { key: "chapters", label: "Chapters", to: "/question-bank/chapters" },
   { key: "topics", label: "Topics", to: "/question-bank/topics" },
-  { key: "folders", label: "Folders", to: "/question-bank/folders" },
   { key: "converter", label: "Converter", to: "/question-bank/converter" },
   { key: "bulk-upload", label: "Bulk Upload", to: "/question-bank/bulk-upload" },
 ] as const;
+
+const dashboardPathByRole: Record<string, string> = {
+  super_admin: "/superadmin/dashboard",
+  client_admin: "/admin/dashboard",
+  content_authorizer: "/content-authorizer/dashboard",
+  school_owner: "/school-owner/dashboard",
+  teacher: "/teacher/dashboard",
+};
 
 export default function QuestionBankShell({
   title,
@@ -65,26 +74,38 @@ export default function QuestionBankShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const brandLogo = spectropyLogo;
-  const brandName = "Spectropy";
+  const brandName = getOrganizationLabel(user);
   const theme = getDashboardTheme(false);
+  const dashboardPath = dashboardPathByRole[user?.role ?? "teacher"] || "/admin/dashboard";
 
   const roleKey = (user?.role ?? "student") as keyof typeof roleConfig;
   const config = roleConfig[roleKey];
   const userFullName = user?.full_name || config.label;
   const userEmail = user?.email || "";
+  const isPlatformUser = isQuestionBankPlatformUser(user);
 
   const isTabActive = (to: string) =>
     to === "/question-bank"
       ? location.pathname === to
       : location.pathname === to || location.pathname.startsWith(`${to}/`);
 
-  const navItems = questionBankTabs.map((tab) => ({
+  const navItems = questionBankTabs
+    .filter((tab) => {
+      if (tab.key === "converter") {
+        return isPlatformUser;
+      }
+      if (tab.key === "bulk-upload") {
+        return true;
+      }
+      return true;
+    })
+    .map((tab) => ({
     key: tab.key,
     label: tab.label,
     icon: <RiFileList3Line />,
     active: isTabActive(tab.to),
     onClick: () => navigate(tab.to),
-  }));
+    }));
 
   return (
     <DashboardLayout
@@ -97,8 +118,21 @@ export default function QuestionBankShell({
         <SidebarNav
           brandLogo={brandLogo}
           brandName={brandName}
-          title="Question Bank"
-          brandTag={config.label}
+          title={config.label}
+          brandTag={brandName}
+          topAction={
+            <button
+              type="button"
+              onClick={() => {
+                navigate(dashboardPath);
+                setSidebarOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-slate-900"
+            >
+              <RiHome2Line className="text-base" />
+              <span>Back to Dashboard</span>
+            </button>
+          }
           navItems={navItems}
           userInfo={{ name: userFullName, email: userEmail }}
           showUserInfo={false}

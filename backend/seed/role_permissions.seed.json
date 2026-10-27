@@ -13,12 +13,14 @@
     "courses.update",
     "enrollments.enroll",
     "enrollments.remove",
+    "exams.assign",
     "exams.create",
     "exams.delete",
     "exams.publish",
     "exams.read",
     "exams.update",
     "questions.approve",
+    "questions.assign",
     "questions.create",
     "questions.delete",
     "questions.read",
@@ -29,6 +31,18 @@
     "schools.delete",
     "schools.read",
     "schools.update",
+    "teaching_sessions.analytics_client",
+    "teaching_sessions.analytics_own",
+    "teaching_sessions.analytics_school",
+    "teaching_sessions.assign_teacher",
+    "teaching_sessions.client_setup",
+    "teaching_sessions.feature_enable",
+    "teaching_sessions.program_publish",
+    "teaching_sessions.program_upload",
+    "teaching_sessions.read_client",
+    "teaching_sessions.read_own",
+    "teaching_sessions.read_school",
+    "teaching_sessions.update_own",
     "users.create",
     "users.delete",
     "users.read",
@@ -104,6 +118,16 @@
       "role": "content_authorizer",
       "permission": "courses.publish",
       "granted": true
+    },
+    {
+      "role": "content_authorizer",
+      "permission": "teaching_sessions.program_upload",
+      "granted": true
+    },
+    {
+      "role": "content_authorizer",
+      "permission": "teaching_sessions.program_publish",
+      "granted": true
     }
   ],
   "tenant_permissions": [
@@ -129,12 +153,22 @@
     },
     {
       "role": "client_admin",
+      "permission": "questions.assign",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
       "permission": "questions.delete",
       "granted": true
     },
     {
       "role": "client_admin",
       "permission": "exams.read",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "exams.assign",
       "granted": true
     },
     {
@@ -155,6 +189,26 @@
     {
       "role": "client_admin",
       "permission": "exams.publish",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "teaching_sessions.client_setup",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "teaching_sessions.assign_teacher",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "teaching_sessions.read_client",
+      "granted": true
+    },
+    {
+      "role": "client_admin",
+      "permission": "teaching_sessions.analytics_client",
       "granted": true
     },
     {
@@ -208,6 +262,16 @@
       "granted": true
     },
     {
+      "role": "school_owner",
+      "permission": "teaching_sessions.read_school",
+      "granted": true
+    },
+    {
+      "role": "school_owner",
+      "permission": "teaching_sessions.analytics_school",
+      "granted": true
+    },
+    {
       "role": "teacher",
       "permission": "questions.read",
       "granted": true
@@ -235,6 +299,21 @@
     {
       "role": "teacher",
       "permission": "exams.publish",
+      "granted": true
+    },
+    {
+      "role": "teacher",
+      "permission": "teaching_sessions.read_own",
+      "granted": true
+    },
+    {
+      "role": "teacher",
+      "permission": "teaching_sessions.update_own",
+      "granted": true
+    },
+    {
+      "role": "teacher",
+      "permission": "teaching_sessions.analytics_own",
       "granted": true
     }
   ]
