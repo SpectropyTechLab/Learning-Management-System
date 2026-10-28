@@ -95,8 +95,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK (session_plan_content IS NULL OR jsonb_typeof(session_plan_content) IN ('object', 'array')),
-  UNIQUE (subtopic_id)
+  CHECK (session_plan_content IS NULL OR jsonb_typeof(session_plan_content) IN ('object', 'array'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_client_status ON public.sessions(client_id, status);
 CREATE INDEX IF NOT EXISTS idx_sessions_subtopic ON public.sessions(subtopic_id);
