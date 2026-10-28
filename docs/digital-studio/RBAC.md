@@ -56,31 +56,27 @@ The seed stores explicit `false` values for every read-only role's write actions
 Curriculum is a separate LMS module for the normalized academic hierarchy already stored in LMS tables:
 
 ```text
-Program -> Grade -> Subject -> Chapter -> Topic
+Board -> Program -> Grade -> Subject -> Chapter -> Topic -> Subtopic
 ```
 
 The APIs in `backend/routes/curriculum.routes.js` create, list, update and delete these records. They are shared academic structure, not questions and not an individual Studio lesson. Question Bank remains a separate module using `questions.*`; Curriculum now has its own `curriculum.*` permission namespace in the same existing permission system.
 
-### Lesson
+### Studio session
 
-Digital Studio does not currently have a normalized `lessons` table or a standalone lesson route family. A Studio project stores one validated workspace JSON document. That document contains `sessions[]`, and each session contains its authored plan, script and `slides[]`.
-
-In product language, this project/workspace is often called a lesson. In current backend storage it is primarily a row in `studio_projects` plus revision and release snapshots.
+Digital Studio sessions are normalized records under a subtopic. A subtopic can have multiple ordered sessions. Session Plan and Screen Script originals and their revision metadata are stored separately from the session identity.
 
 ### Screen
 
-There is no current backend `screens` entity or `/screens` API. The closest implemented concept is a Studio slide nested inside a session in the workspace JSON. A slide becomes a screen when rendered in the editor, draft presentation or future student/teacher delivery view.
-
-Therefore, adding `lesson.*` or `screen.*` permissions now would create unused policy names. Add them to the existing permission catalog only when their real routes and response contracts are implemented.
+The Day 3 schema includes normalized `screens`, `screen_elements`, `screen_tags` and `screen_branches` entities. Their dedicated API permission namespace should be added when those route contracts are implemented; the current `curriculum.*` permissions apply only to the curriculum routes described above.
 
 ## Current effect and deployment boundary
 
 - Current curriculum routes now use their own `curriculum.*` permissions instead of temporarily reusing Question Bank-specific `questions.*` permissions.
 - Client Admins, School Owners, Teachers and Students retain scoped curriculum reads after the new seed is applied, but receive 403 for curriculum mutations.
 - Existing curriculum service scope enforcement remains unchanged.
-- The permission catalog and seed file changed; no permission rows were written to any database during this task.
+- The permission catalog and seed file changed. Every environment must run the permission seed as part of rollout; repository changes alone do not populate an already-running database.
 - Deploy/preview rollout must seed platform permissions and each intended tenant before deploying routes that require them, then invalidate or wait out permission caches.
-- No role grant, database migration, production deployment or live verification was performed.
+- The append-only Resource versioning migration is part of the Supabase migration chain. Production deployment remains a separate, reviewed operation.
 
 ## Future student delivery boundary
 

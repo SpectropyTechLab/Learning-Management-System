@@ -1,12 +1,25 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pool from '../config/db.js';
-import curriculumRouter from '../routes/curriculum.routes.js';
+import curriculumRouter, {
+  curriculumWriterOnly,
+  requireCurriculumCreate,
+  requireCurriculumUpdate,
+  requireCurriculumDelete,
+} from '../routes/curriculum.routes.js';
 import * as curriculumService from '../services/curriculum.service.js';
 
 const normalizeSql = (value) => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
 
 const clientAdmin = { id: 31, role: 'client_admin', client_id: 101 };
+const platformAdmin = { id: 1, role: 'super_admin', client_id: null };
+
+const routeHandlers = (method, path) => {
+  const layer = curriculumRouter.stack.find(
+    (candidate) => candidate.route?.path === path && candidate.route.methods[method]
+  );
+  return layer?.route?.stack.map((handlerLayer) => handlerLayer.handle) ?? [];
+};
 
 test('curriculum router registers board and subtopic endpoints', () => {
   const routes = curriculumRouter.stack
@@ -24,6 +37,79 @@ test('curriculum router registers board and subtopic endpoints', () => {
   assert.ok(routes.includes('GET /subtopics/:id'));
   assert.ok(routes.includes('PATCH /subtopics/:id'));
   assert.ok(routes.includes('DELETE /subtopics/:id'));
+});
+
+test('curriculum mutations enforce writer roles and distinct create/update/delete permissions', () => {
+  const permissionByMethod = {
+    post: requireCurriculumCreate,
+    patch: requireCurriculumUpdate,
+    delete: requireCurriculumDelete,
+  };
+  const mutationLayers = curriculumRouter.stack.filter((layer) =>
+    layer.route && Object.keys(layer.route.methods).some((method) => permissionByMethod[method])
+  );
+
+  assert.ok(mutationLayers.length > 0);
+  for (const layer of mutationLayers) {
+    const method = Object.keys(layer.route.methods).find((candidate) => permissionByMethod[candidate]);
+    const handlers = routeHandlers(method, layer.route.path);
+    assert.ok(
+      handlers.includes(curriculumWriterOnly),
+      `${method.toUpperCase()} ${layer.route.path} is missing the canonical writer boundary`
+    );
+    assert.ok(
+      handlers.includes(permissionByMethod[method]),
+      `${method.toUpperCase()} ${layer.route.path} uses the wrong curriculum permission`
+    );
+  }
+
+  let statusCode = null;
+  let responseBody = null;
+  curriculumWriterOnly(
+    { user: clientAdmin },
+    {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(body) {
+        responseBody = body;
+      },
+    },
+    () => assert.fail('client_admin must not pass the curriculum writer boundary')
+  );
+  assert.equal(statusCode, 403);
+  assert.deepEqual(responseBody, { error: 'Access denied' });
+});
+
+test('child-list endpoints reject an inaccessible parent instead of returning an empty list', async (t) => {
+  const originalQuery = pool.query;
+  let queryCount = 0;
+
+  pool.query = async () => {
+    queryCount += 1;
+    return { rows: [] };
+  };
+
+  t.after(() => {
+    pool.query = originalQuery;
+  });
+
+  const cases = [
+    [() => curriculumService.listGrades({ user: platformAdmin, params: { programId: '991' } }), 'Program not found'],
+    [() => curriculumService.listSubjectsByGrade({ user: platformAdmin, params: { gradeId: '992' } }), 'Grade not found'],
+    [() => curriculumService.listChapters({ user: platformAdmin, params: { subjectId: '993' } }), 'Subject not found'],
+    [() => curriculumService.listTopics({ user: platformAdmin, params: { chapterId: '994' } }), 'Chapter not found'],
+  ];
+
+  for (const [operation, message] of cases) {
+    const queriesBefore = queryCount;
+    await assert.rejects(
+      operation(),
+      (error) => error?.status === 404 && error?.message === message
+    );
+    assert.equal(queryCount, queriesBefore + 1, 'the child query must not run after parent validation fails');
+  }
 });
 
 test('client admin can create a client-owned board', async (t) => {
