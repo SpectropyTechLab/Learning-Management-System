@@ -2791,40 +2791,74 @@ CREATE TABLE IF NOT EXISTS public.resources (
   description TEXT,
   resource_type VARCHAR(30) NOT NULL CHECK (resource_type IN
     ('image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm')),
-  file_url TEXT,
-  file_name TEXT,
-  file_type VARCHAR(100),
-  file_size BIGINT,
-  thumbnail_url TEXT,
-  external_url TEXT,
-  resource_data_json JSONB NOT NULL DEFAULT '{}'::JSONB,
-  version INTEGER NOT NULL DEFAULT 1,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  uploaded_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK (jsonb_typeof(resource_data_json) = 'object')
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_resources_client_type ON public.resources(client_id, resource_type, is_active);
 
-CREATE TABLE IF NOT EXISTS public.resource_mappings (
+-- A Resource is the stable reusable identity; every uploaded/replaced file is
+-- an immutable version row. Published Screens pin resource_versions.id so a
+-- later upload cannot silently change already published content.
+CREATE TABLE IF NOT EXISTS public.resource_versions (
   id SERIAL PRIMARY KEY,
   resource_id INTEGER NOT NULL REFERENCES public.resources(id) ON DELETE CASCADE,
+  version_number INTEGER NOT NULL,
+  storage_key TEXT,
+  original_file_name TEXT,
+  mime_type VARCHAR(150),
+  file_size BIGINT,
+  checksum_sha256 VARCHAR(64),
+  thumbnail_storage_key TEXT,
+  external_url TEXT,
+  width INTEGER,
+  height INTEGER,
+  duration_seconds NUMERIC(12, 3),
+  entry_point TEXT,
+  metadata_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+  uploaded_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (version_number > 0),
+  CHECK (file_size IS NULL OR file_size >= 0),
+  CHECK (width IS NULL OR width > 0),
+  CHECK (height IS NULL OR height > 0),
+  CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+  CHECK (jsonb_typeof(metadata_json) = 'object'),
+  UNIQUE (resource_id, version_number),
+  UNIQUE (resource_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_resource_versions_resource
+  ON public.resource_versions(resource_id, version_number DESC);
+
+CREATE TABLE IF NOT EXISTS public.resource_mappings (
+  id SERIAL PRIMARY KEY,
+  resource_id INTEGER NOT NULL REFERENCES public.resources(id) ON DELETE RESTRICT,
+  resource_version_id INTEGER NOT NULL,
   screen_id INTEGER NOT NULL REFERENCES public.screens(id) ON DELETE CASCADE,
   element_id TEXT NOT NULL,
   usage_details_json JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (jsonb_typeof(usage_details_json) = 'object'),
-  UNIQUE (resource_id, screen_id, element_id)
+  CONSTRAINT resource_mappings_screen_element_unique UNIQUE (screen_id, element_id),
+  CONSTRAINT resource_mappings_resource_version_fkey FOREIGN KEY (resource_id, resource_version_id)
+    REFERENCES public.resource_versions(resource_id, id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_screen ON public.resource_mappings(screen_id);
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_resource ON public.resource_mappings(resource_id);
+CREATE INDEX IF NOT EXISTS idx_resource_mappings_version ON public.resource_mappings(resource_version_id);
 
 -- Supabase Storage bucket for private Session Plans and Screen Scripts.
 -- The backend uses the service key to upload and create short-lived signed download links.
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('sessions-scripts-plans', 'sessions-scripts-plans', FALSE)
+ON CONFLICT (id) DO UPDATE SET public = FALSE;
+
+-- Private Resource bytes and thumbnails. The backend should expose protected
+-- downloads or short-lived signed URLs rather than public object URLs.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('studio-resources', 'studio-resources', FALSE)
 ON CONFLICT (id) DO UPDATE SET public = FALSE;
 
 -- Standard timestamp maintenance for Studio tables.
