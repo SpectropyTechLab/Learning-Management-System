@@ -12,7 +12,7 @@ const loadModule = (filename, dependencies = {}) => {
   return result;
 };
 const targetModule = loadModule('targetLayouts.ts');
-const { MASTER, layouts, pilotLayouts, sampleSlides, validateSlide, fitScale } = loadModule('layouts.ts', { './targetLayouts': targetModule });
+const { MASTER, layouts, pilotLayouts, sampleSlides, validateSlide, fitScale, createBlankSlide } = loadModule('layouts.ts', { './targetLayouts': targetModule });
 
 test('all fourteen target layouts and eight pilot arrangements validate', () => {
   assert.deepEqual(layouts.map((layout) => layout.id), Array.from({ length: 14 }, (_, index) => `LYT-${String(index + 1).padStart(3, '0')}`));
@@ -49,4 +49,15 @@ test('the slide fits desktop and narrow viewports with one scale on both axes', 
     assert.ok(MASTER.height * scale <= height + 0.001);
     assert.equal((MASTER.width * scale) / (MASTER.height * scale), 16 / 9);
   }
+});
+
+test('a genuinely blank screen has no layout, title, or preset objects', () => {
+  const blank = createBlankSlide();
+  assert.equal(blank.title, '');
+  assert.equal(blank.creationMode, 'blank');
+  assert.deepEqual(blank.objects, []);
+  assert.deepEqual(validateSlide(null, blank), []);
+
+  const invalidBlank = { ...blank, objects: [{ id: 'preset', slotId: 'title', type: 'title', text: 'Preset' }] };
+  assert.match(validateSlide(null, invalidBlank).join(' '), /must not contain preset objects/);
 });
