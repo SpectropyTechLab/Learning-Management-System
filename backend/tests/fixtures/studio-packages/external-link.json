@@ -1,0 +1,5 @@
+{
+  "fixture_version": "day1-external-link-v1",
+  "url": "https://example.com/teaching-studio-fixture",
+  "expected_policy": "Open only through the approved external-link policy; do not send LMS credentials to the destination."
+}
