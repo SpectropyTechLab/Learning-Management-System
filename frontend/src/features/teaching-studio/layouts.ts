@@ -47,14 +47,22 @@ export { targetLayouts };
 export const layouts = targetLayouts;
 
 export type SlideObject = { id: string; slotId: string; type: ObjectType; text: string };
-export type Slide = { title: string; objects: SlideObject[] };
+export type Slide = { title: string; creationMode: 'blank' | 'layout'; objects: SlideObject[] };
+
+export const createBlankSlide = (): Slide => ({ title: '', creationMode: 'blank', objects: [] });
 
 export function fitScale(availableWidth: number, availableHeight: number): number {
   return Math.max(0, Math.min(availableWidth / MASTER.width, availableHeight / MASTER.height));
 }
 
-export function validateSlide(layout: Layout, slide: Slide): string[] {
+export function validateSlide(layout: Layout | null, slide: Slide): string[] {
   const errors: string[] = [];
+  if (!layout) {
+    if (slide.creationMode !== 'blank') errors.push('A screen without a layout must use blank creation mode');
+    if (slide.objects.length > 0) errors.push('A newly created blank screen must not contain preset objects');
+    return errors;
+  }
+  if (slide.creationMode !== 'layout') errors.push('A screen with a layout must use layout creation mode');
   for (const field of layout.slots) {
     const { x, y, width, height } = field.bounds;
     const region = field.region === 'header' ? MASTER.header : field.region === 'content' ? MASTER.content : rect(90, 980, 1740, 50);
@@ -70,6 +78,7 @@ export function validateSlide(layout: Layout, slide: Slide): string[] {
 
 export const sampleSlides: Record<string, Slide> = Object.fromEntries([...targetLayouts, ...pilotLayouts].map((layout) => [layout.id, {
   title: layout.catalog === 'target' ? layout.name : 'Equivalent fractions',
+  creationMode: 'layout',
   objects: [
     { id: 'title', slotId: 'title', type: 'title', text: layout.catalog === 'target' ? layout.name : 'Equivalent fractions' },
     ...layout.slots.filter((field) => field.region === 'content').map((field, index) => ({

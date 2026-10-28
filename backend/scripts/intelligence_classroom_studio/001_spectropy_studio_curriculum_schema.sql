@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   id SERIAL PRIMARY KEY,
   client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
   subtopic_id INTEGER NOT NULL REFERENCES public.subtopics(id) ON DELETE RESTRICT,
+  session_number INTEGER NOT NULL CHECK (session_number > 0),
   title VARCHAR(250) NOT NULL,
   description TEXT,
   session_plan_file_url TEXT,
@@ -96,7 +97,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (session_plan_content IS NULL OR jsonb_typeof(session_plan_content) IN ('object', 'array')),
-  UNIQUE (subtopic_id)
+  UNIQUE (subtopic_id, session_number)
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_client_status ON public.sessions(client_id, status);
 CREATE INDEX IF NOT EXISTS idx_sessions_subtopic ON public.sessions(subtopic_id);
