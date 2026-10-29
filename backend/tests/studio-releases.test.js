@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import pool from '../config/db.js';
 import {
   getCurrentTeacherRelease,
@@ -8,7 +9,18 @@ import {
 
 const normalizeSql = (text) => String(text).replace(/\s+/g, ' ').trim().toLowerCase();
 
-test('publishing snapshots screens, layouts, resources and mappings into Release 1', async (t) => {
+test('Day 6 migration makes releases append-only and unique per Session revision', () => {
+  const migration = readFileSync(
+    new URL('../../supabase/migrations/20261029160000_studio_day6_publication.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(migration, /BEFORE UPDATE OR DELETE ON public\.session_releases/);
+  assert.match(migration, /UNIQUE \(session_id, session_revision_no\)/);
+  assert.match(migration, /validation_id BIGINT NOT NULL/);
+  assert.match(migration, /authorization_id BIGINT NOT NULL/);
+});
+
+test('publishing pins exact authorized document, screen, layout and Resource revisions', async (t) => {
   const originalConnect = pool.connect;
   const calls = [];
   let insertedManifest;
@@ -26,15 +38,34 @@ test('publishing snapshots screens, layouts, resources and mappings into Release
             title: 'Introduction to Motion',
             description: 'Lesson description',
             status: 'approved',
-            session_plan_file_url: 'draft/session-plan.docx',
-            session_plan_file_name: 'session-plan.docx',
-            session_plan_file_type: 'application/docx',
-            session_plan_uploaded_at: '2026-10-28T09:00:00.000Z',
-            session_plan_content: null,
+            revision_no: 6,
+            program_id: 4,
+            program_school_id: 9,
             approved_by: 12,
             approved_at: '2026-10-28T09:30:00.000Z',
           }],
         };
+      }
+      if (sql.includes('from session_authorizations sa')) {
+        return { rows: [{
+          authorization_id: 301, validation_id: 201, session_revision_no: 6,
+          session_plan_document_id: 91, screen_script_document_id: 92,
+          screen_revisions_json: [{ screen_id: 40, screen_number: 1, revision_no: 4 }],
+          authorized_by: 12, authorized_at: '2026-10-28T09:30:00.000Z',
+        }] };
+      }
+      if (sql.includes('from session_documents')) {
+        return { rows: [
+          { id: 91, session_id: 25, document_type: 'session_plan', revision_no: 2,
+            source_mode: 'upload', storage_key: 'plans/91.docx', original_file_name: 'plan.docx',
+            content_type: 'application/docx', size_bytes: 100, content_sha256: 'a'.repeat(64),
+            manual_content: null, metadata_json: {}, created_by: 21, created_at: '2026-10-28T09:00:00Z' },
+          { id: 92, session_id: 25, document_type: 'screen_script', revision_no: 3,
+            source_mode: 'manual', storage_key: null, original_file_name: null,
+            content_type: null, size_bytes: null, content_sha256: null,
+            manual_content: { script: 'Motion' }, metadata_json: {}, created_by: 21,
+            created_at: '2026-10-28T09:05:00Z' },
+        ] };
       }
       if (sql.includes('from screens sc')) {
         return {
@@ -44,52 +75,62 @@ test('publishing snapshots screens, layouts, resources and mappings into Release
             title: 'Motion screen',
             screen_number: 1,
             display_order: 0,
+            creation_mode: 'layout',
+            revision_no: 4,
             layout_id: 5,
-            screen_script_file_url: 'draft/screen-script.docx',
-            screen_script_file_name: 'screen-script.docx',
-            screen_script_file_type: 'application/docx',
-            screen_script_uploaded_at: '2026-10-28T09:05:00.000Z',
-            screen_script_content: null,
-            elements_json: [{ id: 'video-1' }],
-            branches_json: [],
-            branch_tags_json: ['motion'],
             screen_settings_json: { background: 'white' },
+            layout_key: 'video-left',
+            layout_version_no: 3,
             layout_name: 'Video Left',
             layout_description: null,
             layout_data_json: { regions: ['left', 'right'] },
             thumbnail_url: null,
             is_default: true,
+            canvas_width: 1920,
+            canvas_height: 1080,
+            safe_margin: 90,
           }],
         };
       }
-      if (sql.includes('from resource_mappings rm')) {
+      if (sql.includes('from screen_elements se')) {
         return {
           rows: [{
+            screen_element_id: 60,
             mapping_id: 70,
             screen_id: 40,
-            element_id: 'video-1',
+            element_key: 'video-1',
+            slot_id: 'left',
+            element_type: 'media',
+            content_json: {},
+            position_json: {},
+            display_order: 0,
             usage_details_json: { fit: 'contain' },
             resource_id: 80,
-            client_id: 7,
-            name: 'Motion animation',
-            description: null,
+            resource_client_id: 7,
+            resource_name: 'Motion animation',
+            resource_description: null,
             resource_type: 'animation',
-            file_url: 'resources/motion.html',
-            file_name: 'motion.html',
-            file_type: 'text/html',
+            resource_version_id: 82,
+            version_number: 2,
+            storage_key: 'resources/motion.html',
+            original_file_name: 'motion.html',
+            mime_type: 'text/html',
             file_size: 5000,
-            thumbnail_url: null,
+            checksum_sha256: 'b'.repeat(64),
+            thumbnail_storage_key: null,
             external_url: null,
-            resource_data_json: { entry_point: 'index.html' },
-            version: 2,
+            entry_point: 'index.html',
+            metadata_json: {},
           }],
         };
       }
+      if (sql.includes('from screen_tags')) return { rows: [{ screen_id: 40, tag: 'motion' }] };
+      if (sql.includes('from screen_branches')) return { rows: [] };
       if (sql.startsWith('select coalesce(max(release_number)')) {
         return { rows: [{ release_number: 1 }] };
       }
       if (sql.startsWith('insert into session_releases')) {
-        insertedManifest = JSON.parse(params[3]);
+        insertedManifest = JSON.parse(params[6]);
         return {
           rows: [{
             id: '101',
@@ -97,14 +138,14 @@ test('publishing snapshots screens, layouts, resources and mappings into Release
             session_id: 25,
             release_number: 1,
             manifest_json: insertedManifest,
-            approved_by: 12,
-            approved_at: '2026-10-28T09:30:00.000Z',
+            authorization_id: 301,
+            validation_id: 201,
             published_by: 21,
             published_at: '2026-10-28T10:00:00.000Z',
           }],
         };
       }
-      if (sql.startsWith("update sessions set status = 'published'")) return { rows: [], rowCount: 1 };
+      if (sql.startsWith("update sessions set status = 'published'")) return { rows: [{ id: 25 }], rowCount: 1 };
       throw new Error(`Unhandled query: ${sql}`);
     },
     release() {},
@@ -121,10 +162,16 @@ test('publishing snapshots screens, layouts, resources and mappings into Release
   });
 
   assert.equal(release.release_number, 1);
+  assert.equal(insertedManifest.manifest_version, 2);
+  assert.equal(insertedManifest.session.revision_no, 6);
+  assert.equal(insertedManifest.documents.session_plan.document_id, 91);
+  assert.equal(insertedManifest.documents.screen_script.revision_no, 3);
   assert.equal(insertedManifest.session.session_id, 25);
   assert.deepEqual(insertedManifest.screens[0].layout.layout_data_json, { regions: ['left', 'right'] });
-  assert.equal(insertedManifest.screens[0].resource_mappings[0].resource.version, 2);
-  assert.equal(insertedManifest.screens[0].resource_mappings[0].element_id, 'video-1');
+  assert.equal(insertedManifest.screens[0].layout.version_no, 3);
+  assert.equal(insertedManifest.screens[0].revision_no, 4);
+  assert.equal(insertedManifest.screens[0].elements[0].resource_mapping.resource_version_id, 82);
+  assert.equal(insertedManifest.screens[0].elements[0].resource_mapping.version_number, 2);
   assert.ok(calls.includes('commit'));
 });
 
@@ -132,21 +179,27 @@ test('teacher current-release read comes only from session_releases and is tenan
   const originalQuery = pool.query;
   let executedSql = '';
   pool.query = async (text, params) => {
-    executedSql = normalizeSql(text);
-    assert.deepEqual(params, [25, 7]);
-    return {
-      rows: [{
+    const sql = normalizeSql(text);
+    if (sql.includes('from session_releases')) {
+      executedSql = sql;
+      assert.deepEqual(params, [25, 7]);
+      return { rows: [{
         id: '101',
         client_id: 7,
         session_id: 25,
         release_number: 1,
-        manifest_json: { session: { session_id: 25 }, screens: [] },
+        manifest_json: { session: { session_id: 25, program_id: 4, program_school_id: 9 }, screens: [] },
         approved_by: 12,
         approved_at: '2026-10-28T09:30:00.000Z',
         published_by: 21,
         published_at: '2026-10-28T10:00:00.000Z',
-      }],
-    };
+      }] };
+    }
+    if (sql.includes('from school_memberships')) {
+      assert.deepEqual(params, [30]);
+      return { rows: [{ school_id: 9 }] };
+    }
+    throw new Error(`Unhandled query: ${sql}`);
   };
   t.after(() => {
     pool.query = originalQuery;

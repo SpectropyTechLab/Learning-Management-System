@@ -30,7 +30,7 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
   </text>;
 }
 
-export default function SlideCanvas({ layout, slide, showGuides = false }: { layout: Layout; slide: Slide; showGuides?: boolean }) {
+export default function SlideCanvas({ layout, slide, showGuides = false }: { layout: Layout | null; slide: Slide; showGuides?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function SlideCanvas({ layout, slide, showGuides = false }: { lay
   const scale = fitScale(available.width, available.height);
   const errors = validateSlide(layout, slide);
   return <div ref={containerRef} className="flex h-[min(70vh,760px)] min-h-[240px] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-200 p-2" data-testid="slide-viewport">
-    {scale > 0 && <svg role="img" aria-label={`${layout.name} teaching slide preview`} viewBox={`0 0 ${MASTER.width} ${MASTER.height}`} width={MASTER.width * scale} height={MASTER.height * scale} className="shrink-0 shadow-xl" data-scale={scale}>
+    {scale > 0 && <svg role="img" aria-label={layout ? `${layout.name} teaching slide preview` : 'Blank teaching screen'} viewBox={`0 0 ${MASTER.width} ${MASTER.height}`} width={MASTER.width * scale} height={MASTER.height * scale} className="shrink-0 shadow-xl" data-scale={scale}>
       <rect width={MASTER.width} height={MASTER.height} fill="#ffffff" />
       <rect x="45" y="30" width="1830" height="1020" rx="24" fill="#f9fcff" stroke="#d6e3f0" strokeWidth="3" />
       {showGuides && <>
@@ -51,7 +51,7 @@ export default function SlideCanvas({ layout, slide, showGuides = false }: { lay
         <rect {...MASTER.header} fill="none" stroke="#65a3d4" strokeWidth="2" strokeDasharray="8 7" />
         <rect {...MASTER.content} fill="none" stroke="#65a3d4" strokeWidth="2" strokeDasharray="8 7" />
       </>}
-      {layout.slots.map((field) => {
+      {(layout?.slots ?? []).map((field) => {
         const object = slide.objects.find((item) => item.slotId === field.id);
         const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
         return <g key={field.id} data-slot={field.id}>

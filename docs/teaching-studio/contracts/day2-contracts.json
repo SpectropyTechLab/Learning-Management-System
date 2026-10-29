@@ -1,0 +1,118 @@
+{
+  "contractVersion": "2026-10-28",
+  "status": "day2-baseline",
+  "identity": {
+    "primaryKeyType": "integer",
+    "tenantKey": "client_id",
+    "rule": "Reuse the existing LMS clients and users; do not introduce a parallel UUID tenant model."
+  },
+  "curriculum": {
+    "hierarchy": [
+      "board",
+      "program",
+      "grade",
+      "subject",
+      "chapter",
+      "topic",
+      "subtopic",
+      "session",
+      "screen"
+    ],
+    "relationships": {
+      "boardToProgram": "one-to-many",
+      "programToGrade": "one-to-many",
+      "gradeToSubject": "one-to-many",
+      "subjectToChapter": "one-to-many",
+      "chapterToTopic": "one-to-many",
+      "topicToSubtopic": "one-to-many",
+      "subtopicToSession": "one-to-many",
+      "sessionToScreen": "one-to-many"
+    },
+    "ownership": "Every tenant-owned descendant must resolve to the same client_id as its program. Global boards and layouts use client_id=null; tenant overrides use that tenant's client_id."
+  },
+  "documents": {
+    "sessionPlan": {
+      "cardinality": "one-current-original-per-session",
+      "inputModes": ["protected-file-upload", "manual-json"],
+      "mutualExclusion": true
+    },
+    "screenScript": {
+      "cardinality": "one-current-original-per-session",
+      "inputModes": ["protected-file-upload", "manual-json"],
+      "mutualExclusion": true,
+      "implementationNote": "The current cloud schema stores these fields on screens; later implementation must move or aggregate them at session level before this contract is satisfied."
+    },
+    "revision": {
+      "immutableOriginalBytes": true,
+      "currentRevisionPointer": true,
+      "requiredMetadata": ["revision_no", "source_mode", "storage_path", "original_name", "mime_type", "size_bytes", "sha256", "created_by", "created_at"],
+      "download": "Authorized users receive a short-lived signed URL or streamed response; storage objects remain private."
+    }
+  },
+  "workflow": {
+    "states": ["draft", "submitted", "approved", "rejected", "published"],
+    "transitions": [
+      "draft->submitted",
+      "rejected->submitted",
+      "submitted->approved",
+      "submitted->rejected",
+      "approved->published",
+      "published->draft-on-content-change"
+    ]
+  },
+  "permissions": {
+    "super_admin": ["cross_tenant_admin", "author", "submit", "review", "publish", "download_original", "runtime"],
+    "content_authorizer": ["tenant_author", "submit", "review", "publish", "download_original", "runtime"],
+    "client_admin": ["tenant_read_published", "download_original", "runtime"],
+    "school_owner": ["assigned_read_published", "download_original", "runtime"],
+    "teacher": ["assigned_read_published", "download_original", "runtime"],
+    "student": ["assigned_runtime"]
+  },
+  "layout": {
+    "master": {"width": 1920, "height": 1080, "safeMargin": 90},
+    "defaultLayoutIds": ["LYT-001", "LYT-002", "LYT-003", "LYT-004", "LYT-005", "LYT-006", "LYT-007", "LYT-008", "LYT-009", "LYT-010", "LYT-011", "LYT-012", "LYT-013", "LYT-014"],
+    "elementTypes": ["title", "text", "visual", "question", "response", "steps", "workspace", "footer", "simulation", "activity", "media", "graph", "data", "options"],
+    "element": {
+      "required": ["id", "slotId", "type"],
+      "optional": ["text", "resourceId", "style", "accessibility", "interaction"],
+      "rule": "An element type must be allowed by its selected layout slot."
+    }
+  },
+  "branching": {
+    "tags": {
+      "type": "string-array",
+      "normalization": "trim, lowercase, unique",
+      "match": "A screen is discoverable when it contains every requested tag."
+    },
+    "branch": {
+      "required": ["id", "sourceScreenId", "destinationScreenId", "trigger", "returnState"],
+      "triggerKinds": ["manual", "answer", "score", "tag"],
+      "returnState": {
+        "required": ["returnScreenId", "restoreScreenState", "restoreSessionState"],
+        "rule": "A remediation branch returns to the recorded screen and restores retained learner state."
+      }
+    }
+  },
+  "api": {
+    "base": "/api/studio",
+    "successEnvelope": {"data": "object-or-array", "meta": "optional-object"},
+    "errorEnvelope": {"error": {"code": "stable-string", "message": "human-readable-string", "details": "optional-object-or-array"}},
+    "concurrency": "Mutating session and screen requests carry revision or updated_at; stale writes return 409.",
+    "endpoints": [
+      "GET /curriculum/boards",
+      "GET /curriculum/programs?board_id={id}",
+      "GET /curriculum/topics/{topicId}/subtopics",
+      "GET|POST /subtopics/{subtopicId}/sessions",
+      "GET|PATCH /sessions/{sessionId}",
+      "GET|POST /sessions/{sessionId}/screens",
+      "GET|PATCH|DELETE /screens/{screenId}",
+      "PUT|GET /sessions/{sessionId}/session-plan",
+      "PUT|GET /sessions/{sessionId}/screen-script",
+      "POST /sessions/{sessionId}/submit",
+      "POST /sessions/{sessionId}/review",
+      "POST /sessions/{sessionId}/publish",
+      "GET /layouts",
+      "GET /resources?tags={csv}"
+    ]
+  }
+}
