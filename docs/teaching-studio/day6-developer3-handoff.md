@@ -63,15 +63,14 @@ Immutable teacher release:
 - Poojitha's pending migration `20261029160000_studio_day6_publication.sql` was reviewed, applied and registered in local Supabase.
 - Local database verification confirmed the immutable release table, trigger and revision index.
 - A transactional real-database fixture confirmed all-tag matching, stable branch destination/return IDs and cross-tenant result isolation; generated fixture rows were rolled back.
-- Combined Day 6 publication and discovery tests: 11 of 11 passed.
-- Full backend CI suite: 99 of 99 applicable tests passed when the required local test environment variables were supplied.
+- Combined Day 6 publication, runtime and discovery tests: 19 of 19 passed.
+- Full backend CI suite: 107 of 107 applicable tests passed when the required local test environment variables were supplied.
 - Backend ESLint: zero errors with `--quiet`.
 - `git diff --check`: no whitespace errors.
 
 The repository's known Question Bank debt suite remains excluded by the existing CI runner. The first local CI attempt without `JWT_SECRET` failed during test-module startup; rerunning with the required local test variables passed all applicable tests. This was an environment prerequisite, not an application failure.
 
-## Remaining Day 6 integration
+## Day 6 integration
 
-- Rahul owns isolated HTML and browser-ready ZIP launch behavior.
-- After Rahul's PR is merged, update this branch from `development` and run the combined Day 6 acceptance checks.
+Rahul's isolated HTML and browser-ready ZIP launch work is integrated from PR #14. The complete Day 6 acceptance evidence, including real local database and Storage execution, is recorded in `day6-complete-handoff.md`.
 
