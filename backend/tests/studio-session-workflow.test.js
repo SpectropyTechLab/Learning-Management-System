@@ -21,18 +21,17 @@ test('submitSession validates complete content and submits a draft session', asy
             subtopic_id: 9,
             title: 'Fractions',
             status: 'draft',
-            session_plan_file_url: 'sessions/41/plan.docx',
-            session_plan_content: null,
           }],
         };
+      }
+      if (sql.includes('from session_documents')) {
+        return { rows: [{ document_type: 'session_plan' }, { document_type: 'screen_script' }] };
       }
       if (sql.includes('from screens')) {
         return {
           rows: [{
             id: 71,
             screen_number: 1,
-            screen_script_file_url: 'screens/71/script.docx',
-            screen_script_content: null,
           }],
         };
       }
@@ -85,8 +84,6 @@ test('submitSession rejects access to a session from another tenant', async (t) 
             subtopic_id: 9,
             title: 'Fractions',
             status: 'draft',
-            session_plan_file_url: 'sessions/41/plan.docx',
-            session_plan_content: null,
           }],
         };
       }
