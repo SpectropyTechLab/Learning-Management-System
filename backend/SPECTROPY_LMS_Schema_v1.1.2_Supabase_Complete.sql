@@ -2747,7 +2747,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK (session_plan_content IS NULL OR jsonb_typeof(session_plan_content) IN ('object', 'array')),
+  CHECK (session_plan_content IS NULL OR jsonb_typeof(session_plan_content) IN ('object', 'array'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_client_status ON public.sessions(client_id, status);
 CREATE INDEX IF NOT EXISTS idx_sessions_subtopic ON public.sessions(subtopic_id);
@@ -2847,19 +2847,38 @@ CREATE TABLE IF NOT EXISTS public.resource_mappings (
 );
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_screen ON public.resource_mappings(screen_id);
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_resource ON public.resource_mappings(resource_id);
-CREATE INDEX IF NOT EXISTS idx_resource_mappings_version ON public.resource_mappings(resource_version_id);
 
--- Supabase Storage bucket for private Session Plans and Screen Scripts.
--- The backend uses the service key to upload and create short-lived signed download links.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('sessions-scripts-plans', 'sessions-scripts-plans', FALSE)
-ON CONFLICT (id) DO UPDATE SET public = FALSE;
+-- Immutable publication snapshots. Authoring continues in sessions/screens/layouts/resources;
+-- teachers read only these frozen release manifests.
+CREATE TABLE IF NOT EXISTS public.session_releases (
+  id BIGSERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE RESTRICT,
+  session_id INTEGER NOT NULL REFERENCES public.sessions(id) ON DELETE RESTRICT,
+  release_number INTEGER NOT NULL CHECK (release_number > 0),
+  manifest_json JSONB NOT NULL,
+  approved_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+  published_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+  published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (jsonb_typeof(manifest_json) = 'object'),
+  UNIQUE (session_id, release_number)
+);
+CREATE INDEX IF NOT EXISTS idx_session_releases_latest
+  ON public.session_releases(client_id, session_id, release_number DESC);
 
--- Private Resource bytes and thumbnails. The backend should expose protected
--- downloads or short-lived signed URLs rather than public object URLs.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('studio-resources', 'studio-resources', FALSE)
-ON CONFLICT (id) DO UPDATE SET public = FALSE;
+-- Releases are append-only: corrections must be published as the next release.
+CREATE OR REPLACE FUNCTION public.prevent_session_release_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'Published Session releases are immutable; create a new release instead';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_session_releases_immutable ON public.session_releases;
+CREATE TRIGGER trg_session_releases_immutable
+  BEFORE UPDATE OR DELETE ON public.session_releases
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_session_release_mutation();
 
 -- Standard timestamp maintenance for Studio tables.
 DROP TRIGGER IF EXISTS trg_boards_updated ON public.boards;

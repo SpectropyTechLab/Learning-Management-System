@@ -1,5 +1,6 @@
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
+import { publishSessionRelease } from './studioReleases.service.js';
 
 const WORKFLOW_ROLES = new Set(['super_admin', 'content_authorizer']);
 const VALID_REVIEW_DECISIONS = new Set(['approved', 'rejected']);
@@ -233,45 +234,11 @@ export const reviewSession = async ({ sessionId: rawSessionId, decision, comment
   });
 };
 
-export const publishSession = async ({ sessionId: rawSessionId, user }) => {
-  assertWorkflowRole(user);
-  const sessionId = parseId(rawSessionId, 'Session ID');
-  return runTransaction(async (db) => {
-    const session = await loadSession(db, sessionId, { lock: true });
-    assertTenantAccess(session, user);
-    if (session.status !== 'approved') {
-      throw new AppError('Only approved Sessions can be published', 409);
-    }
-    const validation = await validateContent(db, session);
-    throwValidationError(validation);
-    const validationRecord = await loadCurrentValidation(db, session);
-    if (!exactRevisionMatches(validationRecord, validation)) {
-      throw new AppError('Authorization does not match the current Session revision', 409);
-    }
-    const authorizationResult = await db.query(
-      `SELECT id, validation_id, decision, authorized_by, authorized_at
-       FROM session_authorizations
-       WHERE session_id = $1 AND validation_id = $2
-         AND decision = 'authorized' AND invalidated_at IS NULL
-       ORDER BY authorized_at DESC, id DESC LIMIT 1`,
-      [session.id, validationRecord.id]
-    );
-    if (!authorizationResult.rows[0]) {
-      throw new AppError('The exact current Session revision is not authorized', 409);
-    }
-    const result = await db.query(
-      `UPDATE sessions
-       SET status = 'published', published_at = NOW(), updated_at = NOW()
-       WHERE id = $1 AND status = 'approved'
-       RETURNING id AS session_id, status, published_at`,
-      [session.id]
-    );
-    if (!result.rows[0]) throw new AppError('Session status changed; publish again', 409);
-    return {
-      ...result.rows[0], workflow_state: 'published', validation,
-      authorization: authorizationResult.rows[0],
-    };
-  });
+// Publication has one authoritative transaction: status changes only after the
+// immutable release row has been created successfully.
+export const publishSession = async ({ sessionId, user }) => {
+  const release = await publishSessionRelease({ sessionId, user });
+  return { ...release, status: 'published', workflow_state: 'published' };
 };
 
 export const getSessionStatus = async ({ sessionId: rawSessionId, user }) => {
