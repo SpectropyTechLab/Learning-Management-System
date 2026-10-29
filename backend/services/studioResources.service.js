@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import supabase from '../config/supabaseClient.js';
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
+import { inspectRuntimePackage } from './studioPackageInspection.service.js';
 
 const BUCKET = process.env.STUDIO_RESOURCES_BUCKET || 'studio-resources';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
@@ -64,10 +65,24 @@ const resolveClientId = (user, requested) => {
   return parseId(user?.client_id, 'client_id');
 };
 
-const normalizeVersionInput = (body, file) => {
+const normalizeVersionInput = (body, file, resourceType) => {
   const externalUrl = String(body.external_url || '').trim() || null;
   if (!file && !externalUrl) throw new AppError('A resource file or external_url is required');
   if (file && externalUrl) throw new AppError('Provide either a resource file or external_url, not both');
+  if (externalUrl) {
+    try {
+      const parsed = new URL(externalUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
+    } catch {
+      throw new AppError('external_url must be a valid HTTP or HTTPS URL');
+    }
+  }
+  if (resourceType === 'external_link' && !externalUrl) {
+    throw new AppError('external_link resources require external_url');
+  }
+  if (['html', 'zip'].includes(resourceType) && !file) {
+    throw new AppError(`${resourceType} resources require a file`);
+  }
   const metadata = parseJsonObject(body.metadata_json, 'metadata_json');
   return {
     externalUrl,
@@ -97,10 +112,66 @@ const uploadFile = async (file) => {
   };
 };
 
-const removeUpload = async (storageKey) => {
-  if (!storageKey) return;
-  const { error } = await supabase.storage.from(BUCKET).remove([storageKey]);
+const removeUploads = async (storageKeys) => {
+  const keys = [...new Set((Array.isArray(storageKeys) ? storageKeys : [storageKeys]).filter(Boolean))];
+  if (!keys.length) return;
+  const { error } = await supabase.storage.from(BUCKET).remove(keys);
   if (error) console.error('Studio resource cleanup failed:', error.message);
+};
+
+const prepareVersionUpload = async ({ resourceType, body, file }) => {
+  const versionInput = normalizeVersionInput(body, file, resourceType);
+  const inspection = inspectRuntimePackage({
+    resourceType,
+    file,
+    requestedEntryPoint: versionInput.entryPoint,
+  });
+  const cleanupKeys = [];
+  let upload = null;
+  try {
+    upload = await uploadFile(file);
+    if (upload?.storageKey) cleanupKeys.push(upload.storageKey);
+    if (!inspection) return { upload, versionInput, cleanupKeys };
+
+    const packagePrefix = inspection.kind === 'browser_zip'
+      ? `runtime-packages/${randomUUID()}`
+      : null;
+    const runtimeFiles = [];
+    for (const packageFile of inspection.files) {
+      const storageKey = `${packagePrefix}/${packageFile.path}`;
+      const { error } = await supabase.storage.from(BUCKET).upload(storageKey, packageFile.buffer, {
+        contentType: packageFile.mimeType,
+        upsert: false,
+      });
+      if (error) throw new AppError(`Unable to upload package file ${packageFile.path}: ${error.message}`, 502);
+      cleanupKeys.push(storageKey);
+      runtimeFiles.push({
+        path: packageFile.path,
+        size: packageFile.size,
+        mime_type: packageFile.mimeType,
+      });
+    }
+
+    versionInput.entryPoint = inspection.entryPoint;
+    versionInput.metadata = {
+      ...versionInput.metadata,
+      runtime: {
+        kind: inspection.kind,
+        package_prefix: packagePrefix,
+        entry_point: inspection.entryPoint,
+        files: inspection.kind === 'single_html'
+          ? [{ path: inspection.entryPoint, size: file.buffer.length, mime_type: 'text/html' }]
+          : runtimeFiles,
+        dependencies: inspection.dependencies,
+        file_count: inspection.kind === 'single_html' ? 1 : runtimeFiles.length,
+        extracted_size: inspection.extractedSize,
+      },
+    };
+    return { upload, versionInput, cleanupKeys };
+  } catch (error) {
+    await removeUploads(cleanupKeys);
+    throw error;
+  }
 };
 
 const loadResource = async (db, resourceId, user, { lock = false } = {}) => {
@@ -135,13 +206,11 @@ export const createResource = async ({ body = {}, file, user }) => {
   assertAuthor(user);
   const resourceType = String(body.resource_type || '').trim();
   if (!RESOURCE_TYPES.has(resourceType)) throw new AppError('Unsupported resource_type');
-  const versionInput = normalizeVersionInput(body, file);
-  if (resourceType === 'external_link' && !versionInput.externalUrl) {
-    throw new AppError('external_link resources require external_url');
-  }
-  const upload = await uploadFile(file);
-  const client = await getClient();
+  const prepared = await prepareVersionUpload({ resourceType, body, file });
+  const { upload, versionInput, cleanupKeys } = prepared;
+  let client;
   try {
+    client = await getClient();
     await client.query('BEGIN');
     const resourceResult = await client.query(
       `INSERT INTO resources (
@@ -159,21 +228,33 @@ export const createResource = async ({ body = {}, file, user }) => {
     await client.query('COMMIT');
     return { ...resource, latest_version: version };
   } catch (error) {
-    await client.query('ROLLBACK');
-    await removeUpload(upload?.storageKey);
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Studio resource transaction rollback failed:', rollbackError.message);
+      }
+    }
+    await removeUploads(cleanupKeys);
     throw error;
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
 export const createResourceVersion = async ({ resourceId: rawResourceId, body = {}, file, user }) => {
   assertAuthor(user);
   const resourceId = parseId(rawResourceId, 'Resource ID');
-  const versionInput = normalizeVersionInput(body, file);
-  const upload = await uploadFile(file);
-  const client = await getClient();
+  const existingResource = await loadResource({ query: dbQuery }, resourceId, user);
+  const prepared = await prepareVersionUpload({
+    resourceType: existingResource.resource_type,
+    body,
+    file,
+  });
+  const { upload, versionInput, cleanupKeys } = prepared;
+  let client;
   try {
+    client = await getClient();
     await client.query('BEGIN');
     const resource = await loadResource(client, resourceId, user, { lock: true });
     const numberResult = await client.query(
@@ -186,11 +267,17 @@ export const createResourceVersion = async ({ resourceId: rawResourceId, body = 
     await client.query('COMMIT');
     return { resource_id: resource.id, version };
   } catch (error) {
-    await client.query('ROLLBACK');
-    await removeUpload(upload?.storageKey);
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Studio resource version rollback failed:', rollbackError.message);
+      }
+    }
+    await removeUploads(cleanupKeys);
     throw error;
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
