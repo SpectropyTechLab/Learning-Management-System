@@ -27,7 +27,6 @@ const assertTenantAccess = (session, user) => {
 const loadSession = async (db, sessionId, { lock = false } = {}) => {
   const result = await db.query(
     `SELECT id, client_id, subtopic_id, title, status,
-            session_plan_file_url, session_plan_content,
             submitted_by, submitted_at, approved_by, approved_at,
             approval_comment, published_at
      FROM sessions
@@ -41,31 +40,28 @@ const loadSession = async (db, sessionId, { lock = false } = {}) => {
 
 const validateContent = async (db, session) => {
   const errors = [];
-  const hasPlan = Boolean(session.session_plan_file_url) || session.session_plan_content !== null;
-  if (!hasPlan) {
+  const documentsResult = await db.query(
+    `SELECT document_type, source_mode
+     FROM session_documents
+     WHERE session_id = $1 AND is_current = TRUE`,
+    [session.id]
+  );
+  const documentTypes = new Set(documentsResult.rows.map((row) => row.document_type));
+  if (!documentTypes.has('session_plan')) {
     errors.push({ code: 'SESSION_PLAN_MISSING', message: 'Session Plan is required.' });
+  }
+  if (!documentTypes.has('screen_script')) {
+    errors.push({ code: 'SCREEN_SCRIPT_MISSING', message: 'A session-level Screen Script is required.' });
   }
 
   const screensResult = await db.query(
-    `SELECT id, screen_number, screen_script_file_url, screen_script_content
+    `SELECT id, screen_number
      FROM screens WHERE session_id = $1 ORDER BY display_order, screen_number`,
     [session.id]
   );
 
   if (screensResult.rows.length === 0) {
     errors.push({ code: 'SCREENS_MISSING', message: 'At least one Screen is required.' });
-  }
-
-  for (const screen of screensResult.rows) {
-    const hasScript = Boolean(screen.screen_script_file_url) || screen.screen_script_content !== null;
-    if (!hasScript) {
-      errors.push({
-        code: 'SCREEN_SCRIPT_MISSING',
-        screen_id: screen.id,
-        screen_number: screen.screen_number,
-        message: `Screen ${screen.screen_number} requires a Screen Script.`,
-      });
-    }
   }
 
   return { valid: errors.length === 0, errors, screen_count: screensResult.rows.length };
