@@ -30,6 +30,9 @@ import questionBankEntitlementsRoutes from './routes/questionBankEntitlements.ro
 import examEntitlementsRoutes from './routes/examEntitlements.routes.js';
 import studioDocumentsRoutes from './routes/studioDocuments.routes.js';
 import studioSessionWorkflowRoutes from './routes/studioSessionWorkflow.routes.js';
+import studioLayoutsRoutes from './routes/studioLayouts.routes.js';
+import studioResourcesRoutes from './routes/studioResources.routes.js';
+import studioScreensRoutes from './routes/studioScreens.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
 import { startAttemptExpiryCron } from './services/student.service.js';
@@ -134,7 +137,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Refresh-Token'],
-    exposedHeaders: ['Content-Disposition'],
+    exposedHeaders: ['Content-Disposition', 'Content-Length', 'X-Content-SHA256', 'X-Studio-Document-Revision'],
   })
 );
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
@@ -222,6 +225,9 @@ app.use('/api', packBuilderRoutes);
 app.use('/api', teachingSessionsRoutes);
 app.use('/api', studioDocumentsRoutes);
 app.use('/api', studioSessionWorkflowRoutes);
+app.use('/api', studioLayoutsRoutes);
+app.use('/api', studioResourcesRoutes);
+app.use('/api', studioScreensRoutes);
 
 
 

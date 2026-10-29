@@ -21,20 +21,27 @@ test('submitSession validates complete content and submits a draft session', asy
             subtopic_id: 9,
             title: 'Fractions',
             status: 'draft',
-            session_plan_file_url: 'sessions/41/plan.docx',
-            session_plan_content: null,
+            revision_no: 3,
           }],
         };
+      }
+      if (sql.includes('from session_documents')) {
+        return { rows: [
+          { id: 101, document_type: 'session_plan', revision_no: 2 },
+          { id: 102, document_type: 'screen_script', revision_no: 4 },
+        ] };
       }
       if (sql.includes('from screens')) {
         return {
           rows: [{
             id: 71,
             screen_number: 1,
-            screen_script_file_url: 'screens/71/script.docx',
-            screen_script_content: null,
+            revision_no: 5,
           }],
         };
+      }
+      if (sql.startsWith('insert into session_validations')) {
+        return { rows: [{ id: 201, session_id: 41, session_revision_no: 3, is_valid: true }] };
       }
       if (sql.startsWith("update sessions set status = 'submitted'")) {
         return {
@@ -64,6 +71,9 @@ test('submitSession validates complete content and submits a draft session', asy
 
   assert.equal(result.session_id, 41);
   assert.equal(result.status, 'submitted');
+  assert.equal(result.workflow_state, 'validated');
+  assert.equal(result.validation.exact_revision.session_plan_revision_no, 2);
+  assert.equal(result.validation.exact_revision.screen_script_revision_no, 4);
   assert.equal(result.validation.valid, true);
   assert.equal(result.validation.screen_count, 1);
   assert.ok(calls.some(({ sql }) => sql === 'commit'));
@@ -85,8 +95,7 @@ test('submitSession rejects access to a session from another tenant', async (t) 
             subtopic_id: 9,
             title: 'Fractions',
             status: 'draft',
-            session_plan_file_url: 'sessions/41/plan.docx',
-            session_plan_content: null,
+            revision_no: 1,
           }],
         };
       }
