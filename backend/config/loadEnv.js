@@ -1,17 +1,15 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, readFileSync } from 'fs';
 
 const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localPath = path.join(backendRoot, '.env.local');
 dotenv.config({ path: path.join(backendRoot, '.env') });
-const localValues = existsSync(localPath) ? dotenv.parse(readFileSync(localPath)) : {};
 dotenv.config({ path: localPath, override: true, quiet: true });
 
 if (process.env.LOCAL_DEV === 'true') {
   const required = ['DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
-  const missing = required.filter((name) => !localValues[name]);
+  const missing = required.filter((name) => !process.env[name]);
   if (missing.length) throw new Error(`Local development configuration is missing: ${missing.join(', ')}`);
   const databaseHost = new URL(process.env.DATABASE_URL).hostname;
   const apiHost = new URL(process.env.SUPABASE_URL).hostname;
