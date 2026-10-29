@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
+﻿import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import axios from "axios";
@@ -27,8 +27,10 @@ import {
   configureExamSectionSyllabus,
   fetchExamById,
   fetchExamPreview,
+  fetchExams,
   fetchExamSectionSyllabusOptions,
   generateExamSectionQuestions,
+  cloneExamSectionQuestions,
   removeQuestionFromExamSection,
   replaceQuestionInSection,
 } from "@/features/exams/api";
@@ -70,9 +72,11 @@ type SectionDistributionTargets = AllocationTotals & {
 };
 
 type SectionEditorState = {
+  gradeId: string;
   subjectId: string;
   selectedChapterIds: string[];
   selectedTopicIds: string[];
+  grades: CurriculumOption[];
   subjects: CurriculumOption[];
   chapters: CurriculumOption[];
   topics: CurriculumOption[];
@@ -87,6 +91,7 @@ type PickerQuestion = RenderableQuestion & {
   id: number;
   topic_id?: number | null;
   category?: RenderableQuestion["category"];
+  question_group_type?: QuestionGroupType | null;
 };
 
 type PickerState = {
@@ -100,8 +105,42 @@ type PickerState = {
   error: string | null;
   search: string;
   selectedTopicId: string;
+  selectedQuestionType: string;
   selectedQuestionIds: string[];
   questions: PickerQuestion[];
+};
+
+type CloneSourceExam = {
+  id: number;
+  title: string;
+  program_id?: number | null;
+  question_count?: number | null;
+  subject_name?: string | null;
+  grade_name?: string | null;
+  chapter_names?: string[];
+  topic_names?: string[];
+  section_title?: string | null;
+};
+
+type CloneSourceSummary = {
+  examTitle: string;
+  gradeName: string;
+  subjectName: string;
+  chapterNames: string[];
+  topicNames: string[];
+  questionCount: number;
+  sourceExamId: number;
+};
+
+type CloneModalState = {
+  open: boolean;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  sources: CloneSourceExam[];
+  selectedExamId: string;
+  selectedSummary: CloneSourceSummary | null;
+  summaryLoading: boolean;
 };
 
 type ApiErrorPayload = {
@@ -140,10 +179,24 @@ const QUESTION_GROUP_HELP: Record<QuestionGroupType, string> = {
   reference: "Reference questions mapped to the configured topic selection.",
 };
 
+const PICKER_QUESTION_TYPE_LABELS: Record<string, string> = {
+  mcq_single: "mcq_single",
+  assertion_reasoning: "assertion_reasoning",
+  mcq_multiple: "mcq_multiple",
+  true_false: "true_false",
+  numerical: "numerical",
+  short_answer: "short_answer",
+  match_following: "match_following",
+  fill_in_blank: "fill_in_blank",
+  comprehensive: "comprehensive",
+};
+
 const createDefaultEditorState = (): SectionEditorState => ({
+  gradeId: "",
   subjectId: "",
   selectedChapterIds: [],
   selectedTopicIds: [],
+  grades: [],
   subjects: [],
   chapters: [],
   topics: [],
@@ -165,8 +218,20 @@ const createDefaultPickerState = (): PickerState => ({
   error: null,
   search: "",
   selectedTopicId: "",
+  selectedQuestionType: "",
   selectedQuestionIds: [],
   questions: [],
+});
+
+const createDefaultCloneModalState = (): CloneModalState => ({
+  open: false,
+  loading: false,
+  saving: false,
+  error: null,
+  sources: [],
+  selectedExamId: "",
+  selectedSummary: null,
+  summaryLoading: false,
 });
 
 const readApiErrorMessage = (error: unknown, fallback: string) => {
@@ -338,10 +403,78 @@ const buildAllocationRows = (
 };
 
 const filterTopicsBySelectedIds = (topics: CurriculumOption[], selectedTopicIds: string[]) => {
-  if (selectedTopicIds.length === 0) return topics;
+  if (selectedTopicIds.length === 0) return [];
   const selectedIds = new Set(selectedTopicIds);
   return topics.filter((topic) => selectedIds.has(String(topic.id)));
 };
+
+// This is deliberately a display-only sequence. `order_index` remains the
+// persisted section order used by generation and exports.
+const buildQuestionPreviewNumbers = (sections: ExamBuilderSection[]) => {
+  const nextNumberBySubject = new Map<string, number>();
+  const numberByQuestionId = new Map<number, number>();
+
+  for (const section of sections) {
+    const firstQuestion = QUESTION_GROUP_ORDER
+      .flatMap((groupType) => section.question_groups?.[groupType] ?? [])
+      .find(Boolean);
+    const subjectKey = section.selected_subject_id ?? firstQuestion?.subject_id ?? `section-${section.id}`;
+    const currentNumber = nextNumberBySubject.get(String(subjectKey)) ?? 0;
+    let nextNumber = currentNumber;
+
+    for (const groupType of QUESTION_GROUP_ORDER) {
+      for (const question of section.question_groups?.[groupType] ?? []) {
+        nextNumber += 1;
+        numberByQuestionId.set(question.question_id, nextNumber);
+      }
+    }
+
+    nextNumberBySubject.set(String(subjectKey), nextNumber);
+  }
+
+  return numberByQuestionId;
+};
+
+const buildSyllabusRequestKey = (subjectId: string, chapterIds: string[]) =>
+  `${subjectId || "none"}::${[...chapterIds].sort().join(",")}`;
+
+const buildFallbackSubjectOptions = (section: ExamBuilderSection): CurriculumOption[] =>
+  section.selected_subject_id && section.selected_subject_name
+    ? [
+        {
+          id: Number(section.selected_subject_id),
+          name: section.selected_subject_name,
+        },
+      ]
+    : [];
+
+const buildFallbackChapterOptions = (section: ExamBuilderSection): CurriculumOption[] =>
+  Array.isArray(section.chapters)
+    ? section.chapters.map((chapter) => ({
+        id: Number(chapter.id),
+        name: chapter.name,
+        chapter_number: chapter.chapter_number ?? null,
+      }))
+    : [];
+
+const buildFallbackTopicOptions = (
+  section: ExamBuilderSection,
+  selectedChapterIds: string[]
+): CurriculumOption[] =>
+  Array.isArray(section.topics)
+    ? section.topics
+        .filter(
+          (topic) =>
+            selectedChapterIds.length === 0 ||
+            selectedChapterIds.includes(String(topic.chapter_id ?? ""))
+        )
+        .map((topic) => ({
+          id: Number(topic.id),
+          name: topic.name,
+          chapter_id: topic.chapter_id ?? null,
+          topic_number: topic.topic_number ?? null,
+        }))
+    : [];
 
 const calculateAllocationTotals = (rows: TopicAllocationRow[]): AllocationTotals =>
   rows.reduce(
@@ -354,43 +487,6 @@ const calculateAllocationTotals = (rows: TopicAllocationRow[]): AllocationTotals
     }),
     { direction: 0, similar: 0, previous_year: 0, reference: 0, total: 0 }
   );
-
-const replaceSectionInPreview = (
-  preview: ExamPreviewPayload,
-  updatedSection: ExamBuilderSection
-): ExamPreviewPayload => {
-  const sections = preview.sections.map((section) =>
-    section.id === updatedSection.id ? updatedSection : section
-  );
-  const completedSectionCount = sections.filter(
-    (section) => section.completion_status === "completed"
-  ).length;
-  const questionCount = sections.reduce(
-    (sum, section) => sum + Number(section.question_count ?? 0),
-    0
-  );
-  const requiredQuestionCount = sections.reduce(
-    (sum, section) => sum + Number(section.required_question_count ?? 0),
-    0
-  );
-
-  return {
-    ...preview,
-    sections,
-    totals: {
-      section_count: sections.length,
-      question_count: questionCount,
-      required_question_count: requiredQuestionCount,
-      completed_section_count: completedSectionCount,
-    },
-    all_sections_completed: sections.every(
-      (section) =>
-        Number(section.question_count ?? 0) ===
-          Number(section.required_question_count ?? 0) &&
-        section.completion_status === "completed"
-    ),
-  };
-};
 
 const normalizeQuestionGroupTypeFromCategory = (category: unknown): QuestionGroupType | null => {
   const normalizeToken = (value: unknown) => {
@@ -462,6 +558,9 @@ const toRenderableField = <K extends keyof RenderableQuestionFields>(
 
 const normalizePickerQuestion = (item: unknown): PickerQuestion => {
   const source = asRecord(item);
+  const questionGroupType =
+    normalizeQuestionGroupTypeFromCategory(source.question_group_type) ??
+    normalizeQuestionGroupTypeFromCategory(source.category);
   return {
     id: Number(source.id ?? source.question_id),
     question_type: typeof source.question_type === "string" ? source.question_type : "mcq_single",
@@ -473,6 +572,7 @@ const normalizePickerQuestion = (item: unknown): PickerQuestion => {
       typeof source.difficulty_level === "string" ? source.difficulty_level : undefined,
     topic_id: source.topic_id ? Number(source.topic_id) : null,
     category: source.category as RenderableQuestion["category"],
+    question_group_type: questionGroupType,
     comprehension: toRenderableField(source, "comprehension", null),
     comprehension_passage: toRenderableField(source, "comprehension_passage", null),
     comprehension_questions: toRenderableField(source, "comprehension_questions", null),
@@ -489,6 +589,7 @@ const normalizeGeneratedQuestion = (question: GeneratedExamQuestion): Renderable
     solution: toRenderableField(source, "solution", null),
     difficulty_level:
       typeof question.difficulty_level === "string" ? question.difficulty_level : undefined,
+    chapter_id: question.chapter_id ? Number(question.chapter_id) : null,
     category: question.question_group_type,
     comprehension: toRenderableField(source, "comprehension", null),
     comprehension_passage: toRenderableField(source, "comprehension_passage", null),
@@ -558,16 +659,9 @@ function SelectionDropdown({
           {selectedOptions.length === 0 ? (
             <span className="text-slate-500">{placeholder}</span>
           ) : multiple ? (
-            <div className="flex flex-wrap gap-2">
-              {selectedOptions.map((option) => (
-                <span
-                  key={option.value}
-                  className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                >
-                  <span className="truncate">{option.label}</span>
-                </span>
-              ))}
-            </div>
+            <span className="text-slate-700">
+              {values.length} {label.toLowerCase()}{values.length === 1 ? "" : "s"} selected
+            </span>
           ) : (
             <span className="font-medium text-slate-900">{selectedOptions[0]?.label}</span>
           )}
@@ -603,15 +697,20 @@ function SelectionDropdown({
                     className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition ${checked ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"
                       }`}
                   >
-                    <div className="min-w-0">
-                      <div className="font-medium">{option.label}</div>
-                      {option.meta ? (
-                        <div className={`mt-0.5 text-xs ${checked ? "text-slate-200" : "text-slate-400"}`}>
-                          {option.meta}
-                        </div>
-                      ) : null}
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-white bg-white text-slate-900" : "border-slate-300 bg-white text-transparent"}`}>
+                        <RiCheckLine className="h-3 w-3" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-medium">{option.label}</div>
+                        {option.meta ? (
+                          <div className={`mt-0.5 text-xs ${checked ? "text-slate-200" : "text-slate-400"}`}>
+                            {option.meta}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                    {checked ? <RiCheckLine className="mt-0.5 h-4 w-4 shrink-0" /> : null}
+                    {multiple ? null : checked ? <RiCheckLine className="mt-0.5 h-4 w-4 shrink-0" /> : null}
                   </button>
                 );
               })
@@ -673,7 +772,7 @@ function TopicAllocationTable({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-1 py-4">
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-slate-950">Topic Allocation</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-slate-500">
             Enter how many questions should be picked from each topic and category.
           </p>
         </div>
@@ -812,7 +911,9 @@ function TopicAllocationTable({
 function QuestionGroupPreview({
   groupType,
   questions,
+  displayQuestionNumbers,
   topicsById,
+  chaptersById,
   onDeleteAll,
   onDeleteQuestion,
   onReplaceQuestion,
@@ -822,7 +923,9 @@ function QuestionGroupPreview({
 }: {
   groupType: QuestionGroupType;
   questions: GeneratedExamQuestion[];
+  displayQuestionNumbers: ReadonlyMap<number, number>;
   topicsById: Map<string, string>;
+  chaptersById: Map<string, string>;
   onDeleteAll: (groupType: QuestionGroupType) => void;
   onDeleteQuestion: (question: GeneratedExamQuestion) => void;
   onReplaceQuestion: (question: GeneratedExamQuestion, groupType: QuestionGroupType) => void;
@@ -874,11 +977,11 @@ function QuestionGroupPreview({
               key={`${groupType}-${question.question_id}`}
               className="rounded-3xl border border-slate-200 bg-slate-50/70 px-4 py-5"
             >
-              <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                      Q{question.order_index}
+                      Q{displayQuestionNumbers.get(question.question_id) ?? question.order_index}
                     </span>
                     <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                       {question.question_type}
@@ -888,14 +991,19 @@ function QuestionGroupPreview({
                         {question.difficulty_level}
                       </span>
                     ) : null}
+                    {question.chapter_id ? (
+                      <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-medium text-violet-700">
+                        Chapter : {chaptersById.get(String(question.chapter_id)) ?? `Chapter ${question.chapter_id}`}
+                      </span>
+                    ) : null}
                     {question.topic_id ? (
                       <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                        {topicsById.get(String(question.topic_id)) ?? `Topic ${question.topic_id}`}
+                        Topic : {topicsById.get(String(question.topic_id)) ?? `Topic ${question.topic_id}`}
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-4 w-full">
                     <QuestionRenderer
                       question={normalizeGeneratedQuestion(question)}
                       showMeta={false}
@@ -903,12 +1011,12 @@ function QuestionGroupPreview({
                       showAnswer
                       showSolution
                       showComprehension
-                      contentClassName="text-sm font-semibold text-slate-900"
+                      contentClassName="w-full max-w-none text-sm font-semibold leading-6 text-slate-900"
                     />
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:shrink-0">
                   <button
                     type="button"
                     onClick={() => onReplaceQuestion(question, groupType)}
@@ -946,6 +1054,7 @@ function QuestionPickerModal({
   sectionTitle,
   topics,
   selectedTopicId,
+  selectedQuestionType,
   search,
   selectedQuestionIds,
   questions,
@@ -955,6 +1064,7 @@ function QuestionPickerModal({
   onClose,
   onSearchChange,
   onTopicChange,
+  onQuestionTypeChange,
   onToggleQuestion,
   onSave,
 }: {
@@ -964,6 +1074,7 @@ function QuestionPickerModal({
   sectionTitle: string;
   topics: TopicAllocationRow[];
   selectedTopicId: string;
+  selectedQuestionType: string;
   search: string;
   selectedQuestionIds: string[];
   questions: PickerQuestion[];
@@ -973,26 +1084,23 @@ function QuestionPickerModal({
   onClose: () => void;
   onSearchChange: (value: string) => void;
   onTopicChange: (value: string) => void;
+  onQuestionTypeChange: (value: string) => void;
   onToggleQuestion: (questionId: string) => void;
   onSave: () => void;
 }) {
   if (!open || !groupType) return null;
   const isReplaceMode = mode === "replace";
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8">
-      <div className="max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-4xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
-          <div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-3 sm:px-4 sm:py-8">
+      <div className="flex max-h-[96vh] w-full max-w-6xl min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-4xl">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{sectionTitle}</div>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900">
+            <h2 className="mt-1.5 text-lg font-semibold text-slate-900 sm:text-xl">
               {isReplaceMode ? "Replace with" : "Select"} {QUESTION_GROUP_LABELS[groupType]}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {isReplaceMode
-                ? "Choose one approved question to replace the current question in this part."
-                : "Choose additional approved questions for this part using the filters below."}
-            </p>
           </div>
           <button
             type="button"
@@ -1003,7 +1111,67 @@ function QuestionPickerModal({
           </button>
         </div>
 
-        <div className="grid gap-4 border-b border-slate-200 bg-slate-50/70 px-6 py-4 md:grid-cols-[1.3fr_0.7fr]">
+        <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-2.5 sm:px-6 md:hidden">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((current) => !current)}
+            aria-expanded={filtersOpen}
+            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            {filtersOpen ? "Hide Filters" : "Show Filters"}
+            <RiArrowDownSLine className={`h-4 w-4 transition ${filtersOpen ? "rotate-180" : ""}`} />
+          </button>
+          {filtersOpen ? (
+            <div className="mt-2 grid gap-2.5">
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Search</span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  placeholder="Search approved questions"
+                  className="mt-1 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Topic</span>
+                <select
+                  value={selectedTopicId}
+                  onChange={(event) => onTopicChange(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                >
+                  <option value="">All topics</option>
+                  {topics.map((topic) => (
+                    <option key={topic.topicId} value={topic.topicId}>
+                      {topic.topicName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Type</span>
+                <select
+                  value={selectedQuestionType}
+                  onChange={(event) => onQuestionTypeChange(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                >
+                  <option value="">All types</option>
+                  <option value="mcq_single">MCQ Single</option>
+                  <option value="assertion_reasoning">Assertion Reasoning</option>
+                  <option value="mcq_multiple">MCQ Multiple</option>
+                  <option value="true_false">True/False</option>
+                  <option value="numerical">Numerical</option>
+                  <option value="short_answer">Short Answer</option>
+                  <option value="match_following">Match the Following</option>
+                  <option value="fill_in_blank">Fill in the Blank</option>
+                  <option value="comprehensive">Comprehensive</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="hidden gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-3 sm:px-6 md:grid md:grid-cols-[1.1fr_0.7fr_0.7fr]">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Search</span>
             <input
@@ -1011,7 +1179,7 @@ function QuestionPickerModal({
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Search approved questions"
-              className="mt-2 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              className="mt-1.5 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
             />
           </label>
           <label className="block">
@@ -1019,7 +1187,7 @@ function QuestionPickerModal({
             <select
               value={selectedTopicId}
               onChange={(event) => onTopicChange(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              className="mt-1.5 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
             >
               <option value="">All topics</option>
               {topics.map((topic) => (
@@ -1029,9 +1197,28 @@ function QuestionPickerModal({
               ))}
             </select>
           </label>
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Type</span>
+            <select
+              value={selectedQuestionType}
+              onChange={(event) => onQuestionTypeChange(event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+            >
+              <option value="">All types</option>
+              <option value="mcq_single">MCQ Single</option>
+              <option value="assertion_reasoning">Assertion Reasoning</option>
+              <option value="mcq_multiple">MCQ Multiple</option>
+              <option value="true_false">True/False</option>
+              <option value="numerical">Numerical</option>
+              <option value="short_answer">Short Answer</option>
+              <option value="match_following">Match the Following</option>
+              <option value="fill_in_blank">Fill in the Blank</option>
+              <option value="comprehensive">Comprehensive</option>
+            </select>
+          </label>
         </div>
 
-        <div className="max-h-[58vh] overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
           {error ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {error}
@@ -1046,8 +1233,16 @@ function QuestionPickerModal({
             </div>
           ) : (
             <div className="space-y-4">
-              {questions.map((question) => {
+              {questions.map((question, index) => {
                 const checked = selectedQuestionIds.includes(String(question.id));
+                const displayQuestionType =
+                  selectedQuestionType === "comprehensive" && question.comprehension?.passage_content
+                    ? "comprehensive"
+                    : question.question_type;
+                const displayQuestionTypeKey =
+                  displayQuestionType && displayQuestionType in PICKER_QUESTION_TYPE_LABELS
+                    ? displayQuestionType
+                    : undefined;
                 return (
                   <label
                     key={question.id}
@@ -1066,10 +1261,12 @@ function QuestionPickerModal({
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                            #{question.id}
+                            {index + 1}
                           </span>
                           <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                            {question.question_type}
+                            {displayQuestionTypeKey
+                              ? PICKER_QUESTION_TYPE_LABELS[displayQuestionTypeKey]
+                              : displayQuestionType ?? "question"}
                           </span>
                           {question.difficulty_level ? (
                             <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
@@ -1097,15 +1294,15 @@ function QuestionPickerModal({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-6 py-4">
+        <div className="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6">
           <div className="text-sm text-slate-500">
             {selectedQuestionIds.length} question{selectedQuestionIds.length === 1 ? "" : "s"} selected
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-300/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="w-full rounded-lg border border-slate-300/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
             >
               Cancel
             </button>
@@ -1113,7 +1310,7 @@ function QuestionPickerModal({
               type="button"
               onClick={onSave}
               disabled={saving || selectedQuestionIds.length === 0}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {saving ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiAddLine className="h-4 w-4" />}
               {isReplaceMode ? "Replace Question" : "Add Selected Questions"}
@@ -1125,6 +1322,135 @@ function QuestionPickerModal({
   );
 }
 
+function CloneSourceModal({
+  open,
+  loading,
+  saving,
+  error,
+  sources,
+  selectedExamId,
+  onClose,
+  onSelectExam,
+  onClone,
+}: {
+  open: boolean;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  sources: CloneSourceExam[];
+  selectedExamId: string;
+  onClose: () => void;
+  onSelectExam: (examId: string) => void;
+  onClone: () => void;
+}) {
+  if (!open) return null;
+  const selectedSource = sources.find((source) => String(source.id) === selectedExamId) ?? null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-3 sm:px-4 sm:py-8">
+      <div className="flex max-h-[96vh] w-full max-w-3xl min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-4xl">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Clone Subject Questions</h2>
+            <p className="mt-1 text-sm text-slate-500">Choose an exam from the same program and copy its questions.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 flex flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+            {error ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+            ) : loading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                Loading source exams...
+              </div>
+            ) : sources.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                No source exams were found for this program.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sources.map((source) => {
+                  const checked = String(source.id) === selectedExamId;
+                  return (
+                    <button
+                      key={source.id}
+                      type="button"
+                      onClick={() => onSelectExam(String(source.id))}
+                      className={`w-full rounded-2xl border p-4 text-left transition ${checked ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input type="radio" readOnly checked={checked} className="mt-1" />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-900">{source.title}</div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {source.subject_name ?? 'Subject'} · {source.question_count ?? 0} questions
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 px-4 py-4 sm:px-6">
+            {selectedSource ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div className="text-sm font-semibold text-slate-900">{selectedSource.section_title ?? selectedSource.title}</div>
+                <div className="mt-0.5 text-xs text-slate-500">
+                  {selectedSource.grade_name ?? 'Grade'} · {selectedSource.subject_name ?? 'Subject'} · {selectedSource.question_count ?? 0} questions
+                </div>
+                {selectedSource.chapter_names && selectedSource.chapter_names.length > 0 ? (
+                  <div className="mt-1 text-xs text-violet-700">
+                    Chapter : {selectedSource.chapter_names.join(', ')}
+                  </div>
+                ) : null}
+                {selectedSource.topic_names && selectedSource.topic_names.length > 0 ? (
+                  <div className="mt-0.5 text-xs text-sky-700">
+                    Topic : {selectedSource.topic_names.join(', ')}
+                  </div>
+                ) : null}
+                <div className="mt-2 rounded-lg bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700">
+                  All {selectedSource.question_count ?? 0} questions will be copied.
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200 px-4 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-lg border border-slate-300/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onClone}
+            disabled={saving || !selectedExamId}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            {saving ? <RiLoader4Line className="h-4 w-4 animate-spin" /> : <RiSparklingLine className="h-4 w-4" />}
+            Clone Questions
+          </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default function ExamBuilderPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -1136,6 +1462,12 @@ export default function ExamBuilderPage() {
   const [editors, setEditors] = useState<Record<number, SectionEditorState>>({});
   const [activeSectionId, setActiveSectionId] = useState<number | null>(null);
   const [picker, setPicker] = useState<PickerState>(createDefaultPickerState);
+  const [cloneModal, setCloneModal] = useState<CloneModalState>(createDefaultCloneModalState);
+  const [cloneSourceName, setCloneSourceName] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const syllabusLoadInFlightRef = useRef<Record<number, string>>({});
+  const syllabusLoadResolvedRef = useRef<Record<number, string>>({});
+  const syllabusLoadFailedRef = useRef<Record<number, string>>({});
 
   const deferredPickerSearch = useDeferredValue(picker.search);
 
@@ -1167,6 +1499,20 @@ export default function ExamBuilderPage() {
     }
   }, [examId]);
 
+  const refreshPreview = useCallback(async () => {
+    if (!Number.isInteger(examId) || examId <= 0) return;
+
+    const previewPayload = await fetchExamPreview(examId);
+    setPreview((current) => ({
+      ...previewPayload,
+      exam: {
+        ...previewPayload.exam,
+        status: previewPayload.exam.status ?? current?.exam.status,
+        title: previewPayload.exam.title ?? current?.exam.title,
+      },
+    }));
+  }, [examId]);
+
   useEffect(() => {
     void loadPreview();
   }, [loadPreview]);
@@ -1181,25 +1527,31 @@ export default function ExamBuilderPage() {
       for (const section of preview.sections) {
         const current = previous[section.id] ?? createDefaultEditorState();
         const subjectId = current.subjectId || (section.selected_subject_id ? String(section.selected_subject_id) : "");
+        const gradeId =
+          current.gradeId ||
+          String(current.subjects.find((subject) => String(subject.id) === subjectId)?.grade_id ?? "");
         const selectedChapterIds =
           current.selectedChapterIds.length > 0
             ? current.selectedChapterIds
             : (section.chapter_ids ?? []).map(String);
-        const initialTopics = (section.topics ?? []).filter(
-          (topic) =>
-            selectedChapterIds.length === 0 || selectedChapterIds.includes(String(topic.chapter_id ?? ""))
-        );
+        const fallbackSubjects = buildFallbackSubjectOptions(section);
+        const fallbackChapters = buildFallbackChapterOptions(section);
+        const initialTopics = buildFallbackTopicOptions(section, selectedChapterIds);
         const selectedTopicIds =
           current.selectedTopicIds.length > 0
             ? current.selectedTopicIds
-            : (section.topic_ids ?? initialTopics.map((topic) => topic.id)).map(String);
+            : (section.topic_ids ?? []).map(String);
         const filteredTopics = filterTopicsBySelectedIds(initialTopics, selectedTopicIds);
 
         next[section.id] = {
           ...current,
+          gradeId,
           subjectId,
           selectedChapterIds,
           selectedTopicIds,
+          subjects: current.subjects.length > 0 ? current.subjects : fallbackSubjects,
+          chapters: current.chapters.length > 0 ? current.chapters : fallbackChapters,
+          topics: current.topics.length > 0 ? current.topics : initialTopics,
           allocationRows:
             current.allocationRows.length > 0
               ? current.allocationRows
@@ -1222,6 +1574,12 @@ export default function ExamBuilderPage() {
     nextChapterIds: string[],
     preserveCounts: boolean
   ) => {
+    const requestKey = buildSyllabusRequestKey(nextSubjectId, nextChapterIds);
+    if (syllabusLoadInFlightRef.current[section.id] === requestKey) {
+      return;
+    }
+
+    syllabusLoadInFlightRef.current[section.id] = requestKey;
     setEditors((previous) => ({
       ...previous,
       [section.id]: {
@@ -1239,6 +1597,12 @@ export default function ExamBuilderPage() {
       setEditors((previous) => {
         const current = previous[section.id] ?? createDefaultEditorState();
         const nextTopics = payload.topics ?? [];
+        const nextGrades = payload.grades ?? [];
+        const resolvedGradeId = nextSubjectId
+          ? String(payload.subjects?.find((subject) => String(subject.id) === nextSubjectId)?.grade_id ?? "")
+          : current.gradeId && nextGrades.some((grade) => String(grade.id) === current.gradeId)
+            ? current.gradeId
+            : "";
         const selectedTopicIds =
           nextChapterIds.length === 0
             ? []
@@ -1246,17 +1610,17 @@ export default function ExamBuilderPage() {
               ? current.selectedTopicIds.filter((topicId) =>
                 nextTopics.some((topic) => String(topic.id) === topicId)
               )
-              : nextTopics.map((topic) => String(topic.id));
-        const effectiveSelectedTopicIds =
-          selectedTopicIds.length > 0 ? selectedTopicIds : nextTopics.map((topic) => String(topic.id));
-        const filteredTopics = filterTopicsBySelectedIds(nextTopics, effectiveSelectedTopicIds);
+              : [];
+        const filteredTopics = filterTopicsBySelectedIds(nextTopics, selectedTopicIds);
         return {
           ...previous,
           [section.id]: {
             ...current,
+            gradeId: resolvedGradeId,
             subjectId: nextSubjectId,
             selectedChapterIds: nextChapterIds,
-            selectedTopicIds: effectiveSelectedTopicIds,
+            selectedTopicIds,
+            grades: nextGrades,
             subjects: payload.subjects ?? [],
             chapters: payload.chapters ?? [],
             topics: nextTopics,
@@ -1267,15 +1631,28 @@ export default function ExamBuilderPage() {
           },
         };
       });
+      syllabusLoadResolvedRef.current[section.id] = requestKey;
+      delete syllabusLoadFailedRef.current[section.id];
     } catch (err) {
+      const isInvalidSelectionError =
+        axios.isAxiosError(err) && err.response?.status === 400;
       setEditors((previous) => ({
         ...previous,
         [section.id]: {
           ...(previous[section.id] ?? createDefaultEditorState()),
+          selectedChapterIds: isInvalidSelectionError ? [] : (previous[section.id]?.selectedChapterIds ?? []),
+          selectedTopicIds: isInvalidSelectionError ? [] : (previous[section.id]?.selectedTopicIds ?? []),
+          topics: isInvalidSelectionError ? [] : (previous[section.id]?.topics ?? []),
+          allocationRows: isInvalidSelectionError ? [] : (previous[section.id]?.allocationRows ?? []),
           loadingOptions: false,
         },
       }));
+      syllabusLoadFailedRef.current[section.id] = requestKey;
       toast.error(readApiErrorMessage(err, "Failed to load syllabus options."));
+    } finally {
+      if (syllabusLoadInFlightRef.current[section.id] === requestKey) {
+        delete syllabusLoadInFlightRef.current[section.id];
+      }
     }
   }, [examId]);
 
@@ -1288,10 +1665,37 @@ export default function ExamBuilderPage() {
         ? editor.selectedChapterIds
         : (activeSection.chapter_ids ?? []).map(String);
 
-    if (editor.subjects.length === 0 && !editor.loadingOptions) {
+    const shouldLoadInitialOptions =
+      editor.grades.length === 0 ||
+      editor.subjects.length === 0 ||
+      (subjectId ? editor.chapters.length === 0 : false) ||
+      (chapterIds.length > 0 ? editor.topics.length === 0 : false);
+    const requestKey = buildSyllabusRequestKey(subjectId, chapterIds);
+    const sectionId = activeSection.id;
+    const alreadyResolved = syllabusLoadResolvedRef.current[sectionId] === requestKey;
+    const alreadyFailed = syllabusLoadFailedRef.current[sectionId] === requestKey;
+    const alreadyLoading = syllabusLoadInFlightRef.current[sectionId] === requestKey;
+
+    if (shouldLoadInitialOptions && !editor.loadingOptions && !alreadyResolved && !alreadyFailed && !alreadyLoading) {
       void loadSectionOptions(activeSection, subjectId, chapterIds, true);
     }
   }, [activeEditor, activeSection, loadSectionOptions]);
+
+  const handleGradeChange = (section: ExamBuilderSection, gradeId: string) => {
+    setEditors((previous) => ({
+      ...previous,
+      [section.id]: {
+        ...(previous[section.id] ?? createDefaultEditorState()),
+        gradeId,
+        subjectId: "",
+        selectedChapterIds: [],
+        selectedTopicIds: [],
+        chapters: [],
+        topics: [],
+        allocationRows: [],
+      },
+    }));
+  };
 
   const handleReplaceQuestion = (
     section: ExamBuilderSection,
@@ -1316,10 +1720,14 @@ export default function ExamBuilderPage() {
   };
 
   const handleSubjectChange = async (section: ExamBuilderSection, subjectId: string) => {
+    const editor = editors[section.id] ?? createDefaultEditorState();
     setEditors((previous) => ({
       ...previous,
       [section.id]: {
         ...(previous[section.id] ?? createDefaultEditorState()),
+        gradeId: subjectId
+          ? String(editor.subjects.find((subject) => String(subject.id) === subjectId)?.grade_id ?? "")
+          : editor.gradeId,
         subjectId,
         selectedChapterIds: [],
         selectedTopicIds: [],
@@ -1355,15 +1763,13 @@ export default function ExamBuilderPage() {
   const handleTopicChange = (section: ExamBuilderSection, topicIds: string[]) => {
     setEditors((previous) => {
       const current = previous[section.id] ?? createDefaultEditorState();
-      const nextSelectedTopicIds =
-        topicIds.length > 0 ? topicIds : current.topics.map((topic) => String(topic.id));
-      const filteredTopics = filterTopicsBySelectedIds(current.topics, nextSelectedTopicIds);
+      const filteredTopics = filterTopicsBySelectedIds(current.topics, topicIds);
 
       return {
         ...previous,
         [section.id]: {
           ...current,
-          selectedTopicIds: nextSelectedTopicIds,
+          selectedTopicIds: topicIds,
           allocationRows: buildAllocationRows(filteredTopics, section, current.allocationRows),
         },
       };
@@ -1459,7 +1865,7 @@ export default function ExamBuilderPage() {
         });
       }
 
-      const generatedSection = await generateExamSectionQuestions(examId, section.id, {
+      await generateExamSectionQuestions(examId, section.id, {
         generation_plan: {
           topics: editor.allocationRows.map((row) => ({
             topic_id: Number(row.topicId),
@@ -1471,9 +1877,7 @@ export default function ExamBuilderPage() {
         },
       });
 
-      setPreview((current) =>
-        current ? replaceSectionInPreview(current, generatedSection) : current
-      );
+      await refreshPreview();
       toast.success(`${section.title} generated successfully.`);
     } catch (err) {
       toast.error(readApiErrorMessage(err, "Failed to generate section questions."));
@@ -1498,10 +1902,8 @@ export default function ExamBuilderPage() {
     }));
 
     try {
-      const updatedSection = await removeQuestionFromExamSection(examId, section.id, question.question_id);
-      setPreview((current) =>
-        current ? replaceSectionInPreview(current, updatedSection) : current
-      );
+      await removeQuestionFromExamSection(examId, section.id, question.question_id);
+      await refreshPreview();
       toast.success("Question removed from section.");
     } catch (err) {
       toast.error(readApiErrorMessage(err, "Failed to remove question."));
@@ -1526,10 +1928,8 @@ export default function ExamBuilderPage() {
     }));
 
     try {
-      const updatedSection = await clearExamSectionQuestionGroup(examId, section.id, groupType);
-      setPreview((current) =>
-        current ? replaceSectionInPreview(current, updatedSection) : current
-      );
+      await clearExamSectionQuestionGroup(examId, section.id, groupType);
+      await refreshPreview();
       toast.success(`${QUESTION_GROUP_LABELS[groupType]}s removed.`);
     } catch (err) {
       toast.error(readApiErrorMessage(err, "Failed to clear question group."));
@@ -1552,6 +1952,114 @@ export default function ExamBuilderPage() {
       sectionId: section.id,
       groupType,
     });
+  };
+
+  const handleOpenCloneModal = async (section: ExamBuilderSection) => {
+    const programId = preview?.exam?.program_id ? Number(preview.exam.program_id) : null;
+    if (!programId) {
+      setCloneModal({
+        ...createDefaultCloneModalState(),
+        open: true,
+        error: "Exam program is not configured.",
+      });
+      return;
+    }
+
+    setCloneModal({
+      ...createDefaultCloneModalState(),
+      open: true,
+      loading: true,
+    });
+
+    try {
+      const response = await fetchExams({ page_size: 500 });
+      const baseSources = (response.data ?? [])
+        .filter((exam) => Number(exam.program_id ?? 0) === programId)
+        .filter((exam) => Number(exam.id) !== Number(preview?.exam?.id ?? 0));
+
+      const currentSubject = String(section.selected_subject_name ?? '').trim().toLowerCase();
+
+      const sources = await Promise.all(
+        baseSources.map(async (exam) => {
+          try {
+            const examPreview = await fetchExamPreview(Number(exam.id));
+            const matchingSection = (examPreview.sections ?? []).find((candidate) => {
+              const subject = String(candidate.selected_subject_name ?? '').trim().toLowerCase();
+              return currentSubject && subject === currentSubject;
+            }) ?? (examPreview.sections ?? []).find((candidate) => String(candidate.selected_subject_name ?? '').trim().length > 0) ?? null;
+
+            const chapterNames = Array.isArray((matchingSection as any)?.chapters)
+              ? (matchingSection as any).chapters.map((chapter: any) => String(chapter.name ?? '')).filter(Boolean)
+              : [];
+            const topicNames = Array.isArray((matchingSection as any)?.topics)
+              ? (matchingSection as any).topics.map((topic: any) => String(topic.name ?? '')).filter(Boolean)
+              : [];
+
+            return {
+              id: Number(exam.id),
+              title: String(exam.title ?? `Exam ${exam.id}`),
+              program_id: exam.program_id ? Number(exam.program_id) : null,
+              question_count: Number(matchingSection?.question_count ?? 0),
+              subject_name: matchingSection?.selected_subject_name ? String(matchingSection.selected_subject_name) : null,
+              grade_name: String((examPreview.exam as any)?.grade_name ?? (examPreview.exam as any)?.grade_label ?? ''),
+              chapter_names: chapterNames,
+              topic_names: topicNames,
+              section_title: matchingSection?.selected_subject_name ? String(matchingSection.selected_subject_name) : null,
+            };
+          } catch {
+            return {
+              id: Number(exam.id),
+              title: String(exam.title ?? `Exam ${exam.id}`),
+              program_id: exam.program_id ? Number(exam.program_id) : null,
+              question_count: Number(exam.question_count ?? 0),
+              subject_name: null,
+            };
+          }
+        })
+      );
+
+      setCloneModal({
+        open: true,
+        loading: false,
+        saving: false,
+        error: sources.length === 0 ? "No source exam sections were found for this program." : null,
+        sources,
+        selectedExamId: sources[0] ? String(sources[0].id) : "",
+      });
+      setCloneSourceName(sources[0]?.title ?? null);
+    } catch (err) {
+      setCloneModal({
+        ...createDefaultCloneModalState(),
+        open: true,
+        error: readApiErrorMessage(err, "Failed to load source exams."),
+      });
+    }
+  };
+  const handleCloneQuestions = async () => {
+    if (!activeSection) return;
+    if (!cloneModal.selectedExamId) {
+      toast.error("Select a source exam first.");
+      return;
+    }
+
+    setCloneModal((current) => ({ ...current, saving: true, error: null }));
+    try {
+      await cloneExamSectionQuestions(examId, activeSection.id, {
+        source_exam_id: Number(cloneModal.selectedExamId),
+      });
+      setCloneSourceName(
+        cloneModal.sources.find((source) => String(source.id) === cloneModal.selectedExamId)?.title ?? null
+      );
+      await refreshPreview();
+      setCloneModal(createDefaultCloneModalState());
+      toast.success("Questions cloned successfully.");
+    } catch (err) {
+      setCloneModal((current) => ({
+        ...current,
+        saving: false,
+        error: readApiErrorMessage(err, "Failed to clone questions."),
+      }));
+    }
   };
 
   const pickerSection =
@@ -1595,6 +2103,19 @@ export default function ExamBuilderPage() {
           status: "approved",
           subject_id: Number(pickerEditor.subjectId),
         };
+        if (picker.selectedQuestionType !== "comprehensive") {
+          params.exclude_question_type = "comprehensive";
+        }
+        if (picker.groupType) {
+          params.question_group_type = picker.groupType;
+        }
+        if (picker.selectedQuestionType) {
+          if (picker.selectedQuestionType === "comprehensive") {
+            params.has_comprehension = "true";
+          } else {
+            params.question_type = picker.selectedQuestionType;
+          }
+        }
         if (pickerEditor.selectedChapterIds.length === 1) {
           params.chapter_id = Number(pickerEditor.selectedChapterIds[0]);
         }
@@ -1610,7 +2131,16 @@ export default function ExamBuilderPage() {
         const payload = Array.isArray(res.data?.data) ? res.data.data : [];
         const nextQuestions: PickerQuestion[] = payload
           .map(normalizePickerQuestion)
-          .filter((question: PickerQuestion) => normalizeQuestionGroupTypeFromCategory(question.category) === picker.groupType)
+          .filter((question: PickerQuestion) =>
+            picker.selectedQuestionType === "comprehensive"
+              ? Boolean(
+                  question.comprehension?.passage_content ||
+                  question.comprehension_passage ||
+                  question.question_type === "comprehensive"
+                )
+              : question.question_type !== "comprehensive"
+          )
+          .filter((question: PickerQuestion) => question.question_group_type === picker.groupType)
           .filter((question: PickerQuestion) => !usedQuestionIds.has(question.id))
           .filter((question: PickerQuestion) =>
             question.topic_id ? allowedTopicIds.has(Number(question.topic_id)) : true
@@ -1645,6 +2175,7 @@ export default function ExamBuilderPage() {
   }, [
     deferredPickerSearch,
     picker.open,
+    picker.selectedQuestionType,
     picker.selectedTopicId,
     picker.groupType,
     pickerEditor,
@@ -1689,14 +2220,12 @@ export default function ExamBuilderPage() {
         }
 
         const replacementQuestionId = Number(picker.selectedQuestionIds[0]);
-        const updatedSection = await replaceQuestionInSection(examId, pickerSection.id, {
+        await replaceQuestionInSection(examId, pickerSection.id, {
           current_question_id: picker.replaceQuestionId,
           new_question_id: replacementQuestionId,
         });
 
-        setPreview((current) =>
-          current ? replaceSectionInPreview(current, updatedSection) : current
-        );
+        await refreshPreview();
         setPicker(createDefaultPickerState());
         toast.success(`Question replaced in ${pickerSection.title}.`);
         return;
@@ -1720,7 +2249,7 @@ export default function ExamBuilderPage() {
       if (failed === 0) {
         setPicker(createDefaultPickerState());
       }
-      await loadPreview();
+      await refreshPreview();
     } finally {
       setPicker((current) => ({
         ...current,
@@ -1730,8 +2259,8 @@ export default function ExamBuilderPage() {
   };
 
   const handleOpenSavePreview = () => {
-    if (!preview?.all_sections_completed) {
-      toast.error("Complete every blueprint section before saving the exam.");
+    if (!preview?.totals?.question_count) {
+      toast.error("Add at least one question before previewing the exam.");
       return;
     }
     navigate(`/exams/${examId}/paper-preview`);
@@ -1740,12 +2269,23 @@ export default function ExamBuilderPage() {
   const completedSections =
     preview?.sections.filter((section) => section.completion_status === "completed").length ?? 0;
 
+  const questionPreviewNumbers = useMemo(
+    () => buildQuestionPreviewNumbers(preview?.sections ?? []),
+    [preview?.sections]
+  );
+
   const activeAllocationValidation =
     activeSection && activeEditor
       ? getAllocationValidation(activeEditor.allocationRows, activeSection)
       : null;
+  const activeChaptersById = new Map(
+    (activeSection?.chapters ?? []).map((chapter) => [String(chapter.id), chapter.name] as const)
+  );
   const activeTopicsById = new Map(
-    (activeEditor?.allocationRows ?? []).map((row) => [row.topicId, row.topicName])
+    [
+      ...((activeSection?.topics ?? []).map((topic) => [String(topic.id), topic.name] as const)),
+      ...((activeEditor?.allocationRows ?? []).map((row) => [row.topicId, row.topicName] as const)),
+    ]
   );
 
   return (
@@ -1753,6 +2293,8 @@ export default function ExamBuilderPage() {
       <ExamShell
         title="Exam Builder"
         description="Build each section, generate questions, review every part, and save the final exam."
+        headerClassName="sticky top-0 z-30 px-6 py-4"
+        bodyClassName="px-6 pt-2 pb-6"
         headerAction={
           <>
             <button
@@ -1761,16 +2303,18 @@ export default function ExamBuilderPage() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               <RiArrowLeftLine className="h-4 w-4" />
-              Back to Exam List
+              <span className="sm:hidden">Back</span>
+              <span className="hidden sm:inline">Back to Exam List</span>
             </button>
             <button
               type="button"
               onClick={handleOpenSavePreview}
-              disabled={!preview?.all_sections_completed}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!preview?.totals?.question_count}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RiArrowRightUpLine className="h-4 w-4" />
-              Save and Preview Exam
+              <span className="sm:hidden">Save</span>
+              <span className="hidden sm:inline">Save and Preview Exam</span>
             </button>
           </>
         }
@@ -1788,56 +2332,98 @@ export default function ExamBuilderPage() {
             Exam not found.
           </div>
         ) : (
-          <div className="space-y-6">
-            <section className="sticky top-4 z-20 rounded-[18px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.09),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] px-4 py-3 shadow-sm backdrop-blur">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-5">
+            <section className="sticky top-0 z-20 -mt-1 rounded-2xl border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.09),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] px-3 py-2 shadow-sm backdrop-blur sm:px-4">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold tracking-tight text-slate-950">{preview.exam.title}</h2>
+                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-950">{preview.exam.title}</h2>
                     <ExamStatusBadge status={normalizeExamStatus(preview.exam.status)} />
+                    <button
+                      type="button"
+                      onClick={() => setSummaryOpen((current) => !current)}
+                      aria-expanded={summaryOpen}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 sm:hidden"
+                    >
+                      {summaryOpen ? "Hide" : "Show"}
+                    </button>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {activeSection ? (
+                      <span className="rounded-full bg-amber-50 px-3 py-1.5 text-sm font-bold text-amber-700">
+                        Active: {activeSection.title}
+                      </span>
+                    ) : null}
+                    <div className="text-xs text-slate-500">
+                      {completedSections}/{preview.totals.section_count} sections • {preview.totals.question_count}/{preview.totals.required_question_count} ready
+                    </div>
+                  </div>
+                  {summaryOpen ? (
+                  <div className="mt-1.5 hidden flex-wrap items-center gap-1 text-xs text-slate-500 md:flex">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiBookMarkedLine className="h-4 w-4 text-slate-400" />
                       Blueprint: {preview.blueprint?.name ?? "--"}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiDraftLine className="h-4 w-4 text-slate-400" />
                       Sections: {preview.sections.length}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiFolderChartLine className="h-4 w-4 text-slate-400" />
-                      Program: {preview.exam.program_id ?? "--"}
+                      Program: {preview.exam.program_name ?? preview.exam.program_id ?? "--"}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2.5 py-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
                       <RiSparklingLine className="h-4 w-4 text-slate-400" />
                       Window: {formatDateTime(preview.exam.start_datetime)} to {formatDateTime(preview.exam.end_datetime)}
                     </span>
+                    {preview.template_resolution?.template_key ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5">
+                        <RiDraftLine className="h-4 w-4 text-slate-400" />
+                        Template: {preview.template_resolution.template_key}
+                        {preview.template_resolution.template_version
+                          ? ` (${preview.template_resolution.template_version})`
+                          : ""}
+                        {preview.template_resolution.exam_type
+                          ? ` · ${preview.template_resolution.exam_type}`
+                          : ""}
+                      </span>
+                    ) : null}
                   </div>
+                  ) : null}
                 </div>
 
-                <div className="rounded-[14px] border border-slate-200 bg-white/90 px-3 py-2 shadow-sm">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Progress
+                <div className="hidden w-full items-center justify-between gap-2 sm:flex sm:w-auto sm:justify-end sm:self-start">
+                  <div className="rounded-xl border border-slate-200 bg-white/90 px-2.5 py-1.5 shadow-sm">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Progress
+                    </div>
+                    <div className="mt-0.5 flex items-baseline gap-2">
+                      <span className="text-base font-semibold tracking-tight text-slate-950">
+                        {completedSections}/{preview.totals.section_count}
+                      </span>
+                      <span className="text-xs text-slate-500">ready</span>
+                    </div>
                   </div>
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="text-lg font-semibold tracking-tight text-slate-950">
-                      {completedSections}/{preview.totals.section_count}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {preview.totals.question_count}/{preview.totals.required_question_count} ready
-                    </span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryOpen((current) => !current)}
+                    aria-expanded={summaryOpen}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    {summaryOpen ? "Hide" : "Show"}
+                    <RiArrowDownSLine className={`h-4 w-4 transition ${summaryOpen ? "rotate-180" : ""}`} />
+                  </button>
                 </div>
               </div>
 
-              <div className="mt-3 border-t border-slate-200/80 pt-2.5">
-                <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+              {summaryOpen ? (
+              <div className="mt-2 border-t border-slate-200/80 pt-1.5">
+                <div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                   <RiDraftLine className="h-4 w-4" />
                   Sections
                 </div>
                 <div className="overflow-x-auto">
-                  <div className="flex min-w-max gap-2">
+                  <div className="flex min-w-max gap-1.5">
                     {preview.sections.map((section) => {
                       const isActive = activeSection?.id === section.id;
 
@@ -1846,7 +2432,7 @@ export default function ExamBuilderPage() {
                           key={`sticky-section-${section.id}`}
                           type="button"
                           onClick={() => startTransition(() => setActiveSectionId(section.id))}
-                          className={`min-w-37.5 rounded-[14px] border px-3 py-2 text-left transition ${isActive
+                          className={`min-w-37.5 rounded-[14px] border px-3 py-1.5 text-left transition ${isActive
                               ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10"
                               : "border-slate-200 bg-slate-50 text-slate-900 hover:border-slate-300 hover:bg-white"
                             }`}
@@ -1858,11 +2444,18 @@ export default function ExamBuilderPage() {
                   </div>
                 </div>
               </div>
+              ) : null}
+
+              {summaryOpen && preview.validation?.blocking_reasons?.length ? (
+                <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs text-rose-700">
+                  {preview.validation.blocking_reasons[0]}
+                </div>
+              ) : null}
             </section>
 
             <section className="hidden rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
               <div className="overflow-x-auto">
-                <div className="flex min-w-max gap-2.5 px-3 py-1">
+                <div className="flex min-w-max gap-1.5.5 px-3 py-1">
                   {preview.sections.map((section, index) => {
                     const isActive = activeSection?.id === section.id;
                     const ready = Number(section.question_count ?? 0) === Number(section.required_question_count ?? 0);
@@ -1898,8 +2491,8 @@ export default function ExamBuilderPage() {
 
             {activeSection && activeEditor ? (
               <div className="space-y-6">
-                <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h3 className="text-xl font-semibold tracking-tight text-slate-950">{activeSection.title}</h3>
@@ -1910,30 +2503,62 @@ export default function ExamBuilderPage() {
                           {activeSection.completion_status ?? "pending"}
                         </span>
                       </div>
-                      <p className="mt-2 max-w-3xl text-sm text-slate-500">
+                      <p className="mt-1 max-w-3xl text-sm text-slate-500">
                         Select the subject and chapters, define the topic-wise question mix, generate the section, then review each part below.
                       </p>
                     </div>
-                    <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Generated
-                      </div>
-                      <div className="mt-2 text-lg font-semibold text-slate-950">
-                        {activeSection.question_count ?? 0}/{activeSection.required_question_count ?? 0}
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenCloneModal(activeSection)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      >
+                        <RiSparklingLine className="h-4 w-4" />
+                        Clone Subject Questions
+                      </button>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Generated
+                        </div>
+                        <div className="mt-1 text-base font-semibold text-slate-950">
+                          {activeSection.question_count ?? 0}/{activeSection.required_question_count ?? 0}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <SelectionDropdown
+                      label="Grade"
+                      placeholder="Select grade"
+                      multiple={false}
+                      values={activeEditor.gradeId ? [activeEditor.gradeId] : []}
+                      options={activeEditor.grades.map((grade) => ({
+                        value: String(grade.id),
+                        label:
+                          grade.grade_number !== undefined && grade.grade_number !== null
+                            ? `Grade ${grade.grade_number}`
+                            : grade.name,
+                      }))}
+                      onChange={(nextValues) => handleGradeChange(activeSection, nextValues[0] ?? "")}
+                    />
                     <SelectionDropdown
                       label="Subject"
                       placeholder="Select subject"
                       multiple={false}
                       values={activeEditor.subjectId ? [activeEditor.subjectId] : []}
-                      options={activeEditor.subjects.map((subject) => ({
-                        value: String(subject.id),
-                        label: subject.name,
-                      }))}
+                      options={activeEditor.subjects
+                        .filter((subject) =>
+                          !activeEditor.gradeId || String(subject.grade_id ?? "") === activeEditor.gradeId
+                        )
+                        .map((subject) => ({
+                          value: String(subject.id),
+                          label: subject.name,
+                          meta:
+                            subject.grade_number !== undefined && subject.grade_number !== null
+                              ? `Grade ${subject.grade_number}`
+                              : undefined,
+                        }))}
                       onChange={(nextValues) => void handleSubjectChange(activeSection, nextValues[0] ?? "")}
                     />
 
@@ -1948,7 +2573,7 @@ export default function ExamBuilderPage() {
                         label: chapter.name,
                         meta:
                           chapter.chapter_number !== undefined && chapter.chapter_number !== null
-                            ? `Chapter #${chapter.chapter_number}`
+                            ? `Chapter-${chapter.chapter_number}`
                             : undefined,
                       }))}
                       onChange={(nextValues) => void handleChapterChange(activeSection, nextValues)}
@@ -1965,7 +2590,7 @@ export default function ExamBuilderPage() {
                         label: topic.name,
                         meta:
                           topic.topic_number !== undefined && topic.topic_number !== null
-                            ? `Topic #${topic.topic_number}`
+                            ? `Topic-${topic.topic_number}`
                             : undefined,
                       }))}
                       onChange={(nextValues) => handleTopicChange(activeSection, nextValues)}
@@ -1973,7 +2598,7 @@ export default function ExamBuilderPage() {
                   </div>
 
                   {activeEditor.loadingOptions ? (
-                    <div className="mt-5 border-l-2 border-slate-300 bg-slate-50/70 px-4 py-4 text-sm text-slate-500">
+                    <div className="mt-4 border-l-2 border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-500">
                       Loading section syllabus...
                     </div>
                   ) : null}
@@ -1989,10 +2614,10 @@ export default function ExamBuilderPage() {
                     />
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">Generate Section</div>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-0.5 text-sm text-slate-500">
                         The generator will use the allocation table above and replace the existing generated questions for this section.
                       </p>
                     </div>
@@ -2005,7 +2630,7 @@ export default function ExamBuilderPage() {
                         activeEditor.allocationRows.length === 0 ||
                         !activeAllocationValidation?.isReady
                       }
-                      className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {activeEditor.generating ? (
                         <RiLoader4Line className="h-4 w-4 animate-spin" />
@@ -2020,8 +2645,15 @@ export default function ExamBuilderPage() {
                 <section className="space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-xl font-semibold text-slate-950">Question Preview</h3>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-xl font-semibold text-slate-950">Question Preview</h3>
+                        {cloneSourceName ? (
+                          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                            Clone: {cloneSourceName}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 text-sm text-slate-500">
                         Review every part, remove questions, clear a full part, or add approved questions manually.
                       </p>
                     </div>
@@ -2034,7 +2666,9 @@ export default function ExamBuilderPage() {
                       questions={
                         (activeSection.question_groups?.[groupType] ?? []) as GeneratedExamQuestion[]
                       }
+                      displayQuestionNumbers={questionPreviewNumbers}
                       topicsById={activeTopicsById}
+                      chaptersById={activeChaptersById}
                       deletingGroup={activeEditor.deletingGroup === groupType}
                       deletingQuestionId={activeEditor.deletingQuestionId}
                       onDeleteAll={(nextGroupType) => void handleDeleteGroup(activeSection, nextGroupType)}
@@ -2052,6 +2686,23 @@ export default function ExamBuilderPage() {
         )}
       </ExamShell>
 
+      <CloneSourceModal
+        open={cloneModal.open}
+        loading={cloneModal.loading}
+        saving={cloneModal.saving}
+        error={cloneModal.error}
+        sources={cloneModal.sources}
+        selectedExamId={cloneModal.selectedExamId}
+        onClose={() => setCloneModal(createDefaultCloneModalState())}
+        onSelectExam={(examId) =>
+          setCloneModal((current) => ({
+            ...current,
+            selectedExamId: examId,
+          }))
+        }
+        onClone={() => void handleCloneQuestions()}
+      />
+
       <QuestionPickerModal
         mode={picker.mode}
         open={picker.open}
@@ -2059,6 +2710,7 @@ export default function ExamBuilderPage() {
         sectionTitle={pickerSection?.title ?? "Section"}
         topics={pickerEditor?.allocationRows ?? []}
         selectedTopicId={picker.selectedTopicId}
+        selectedQuestionType={picker.selectedQuestionType}
         search={picker.search}
         selectedQuestionIds={picker.selectedQuestionIds}
         questions={picker.questions}
@@ -2078,9 +2730,17 @@ export default function ExamBuilderPage() {
             selectedTopicId: value,
           }))
         }
+        onQuestionTypeChange={(value) =>
+          setPicker((current) => ({
+            ...current,
+            selectedQuestionType: value,
+          }))
+        }
         onToggleQuestion={handleTogglePickerQuestion}
         onSave={() => void handleSavePickedQuestions()}
-        />
+      />
       </>
     );
   }
+
+

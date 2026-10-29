@@ -48,24 +48,24 @@ export const getDashboardTheme = (isGvjbClient: boolean): DashboardTheme => {
   }
 
   return {
-    shellClass: "h-screen bg-gray-50",
-    layoutClass: "flex h-screen",
+    shellClass: "min-h-screen bg-gray-50",
+    layoutClass: "flex min-h-screen",
     sidebarThemeClass: "bg-white border-gray-200",
     sidebarHeaderBorder: "border-gray-200",
     navActiveClass: "bg-blue-50 text-blue-900 border-l-4 border-blue-900",
     navInactiveClass: "text-gray-700 hover:bg-gray-100",
     navRadiusClass: "rounded-lg",
-    navIconClass: "text-lg text-black mr-3",
-    userInfoWrapperClass: "mb-3 flex items-center px-3",
+    navIconClass: "text-lg text-black mr-2.5",
+    userInfoWrapperClass: "mb-2.5 flex items-center px-2.5",
     userInfoInnerClass:
       "flex w-full items-center rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition hover:bg-gray-50",
     avatarClass:
       "h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center ml-1",
     avatarTextClass: "text-blue-900 font-medium text-xl",
-    headerClass: "sticky top-0 z-40 p-6 border-b border-gray-200 bg-white",
+    headerClass: "sticky top-0 z-40 px-4 py-4 lg:px-6 lg:py-5 border-b border-gray-200 bg-white",
     primaryButtonClass: "bg-blue-900 text-white hover:bg-blue-700",
     secondaryBorderClass: "border-gray-300",
-    logoutButtonClass: "px-4 py-2 text-sm text-blue-900 hover:text-blue-600",
+    logoutButtonClass: "px-3 py-2 text-sm text-blue-900 hover:text-blue-600",
     brandTagClass: "",
   };
 };

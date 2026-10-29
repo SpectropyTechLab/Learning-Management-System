@@ -22,6 +22,8 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
       grade_number: item.grade_number ?? null,
       subject_id: item.subject_id ?? null,
       chapter_id: item.chapter_id ?? null,
+      canEdit: item.canEdit ?? item.can_edit,
+      canDelete: item.canDelete ?? item.can_delete,
     }))
     .filter((item) => item.id !== undefined && item.id !== null);
 
@@ -212,27 +214,43 @@ export default function QuestionChaptersPage() {
     () => subjects.find((subject) => String(subject.id) === selectedSubjectId)?.name ?? "Selected Subject",
     [selectedSubjectId, subjects]
   );
+  const selectedSubjectCanEdit = useMemo(
+    () => subjects.find((subject) => String(subject.id) === selectedSubjectId)?.canEdit !== false,
+    [selectedSubjectId, subjects]
+  );
+
+  const handleDeleteChapter = async (chapter: CurriculumItem) => {
+    if (!window.confirm(`Delete chapter "${chapter.name}"?`)) return;
+    try {
+      await api.delete(`/chapters/${chapter.id}`);
+      setChapters((prev) => prev.filter((item) => String(item.id) !== String(chapter.id)));
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete chapter");
+    }
+  };
 
   return (
     <QuestionBankLayout
       title="Chapters"
       description="Manage chapters under each subject."
       actions={
-        <button
-          onClick={() =>
-            navigate(
-              `/question-bank/chapters/new${buildHierarchyQuery(
-                selectedProgramId,
-                selectedGradeId,
-                selectedSubjectId
-              )}`
-            )
-          }
-          disabled={!selectedSubjectId}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Add Chapter
-        </button>
+        selectedSubjectCanEdit ? (
+          <button
+            onClick={() =>
+              navigate(
+                `/question-bank/chapters/new${buildHierarchyQuery(
+                  selectedProgramId,
+                  selectedGradeId,
+                  selectedSubjectId
+                )}`
+              )
+            }
+            disabled={!selectedSubjectId}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Add Chapter
+          </button>
+        ) : null
       }
     >
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -324,20 +342,32 @@ export default function QuestionChaptersPage() {
                         ID: {chapter.id} | {selectedProgramName} | {selectedGradeName} | {selectedSubjectName}
                       </div>
                     </div>
-                    <button
-                      onClick={() =>
-                        navigate(
-                          `/question-bank/chapters/${chapter.id}/edit${buildHierarchyQuery(
-                            selectedProgramId,
-                            selectedGradeId,
-                            selectedSubjectId
-                          )}`
-                        )
-                      }
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                      Edit
-                    </button>
+                    <div className="flex gap-2">
+                      {chapter.canEdit !== false ? (
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/question-bank/chapters/${chapter.id}/edit${buildHierarchyQuery(
+                                selectedProgramId,
+                                selectedGradeId,
+                                selectedSubjectId
+                              )}`
+                            )
+                          }
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      {chapter.canDelete !== false ? (
+                        <button
+                          onClick={() => handleDeleteChapter(chapter)}
+                          className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
                 {chapters.length === 0 && (

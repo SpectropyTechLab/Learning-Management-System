@@ -204,12 +204,12 @@ export default function ExamCreatePage() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="text-xs font-semibold text-slate-500">Description</label>
-                <textarea
-                  rows={3}
+                <label className="text-xs font-semibold text-slate-500">Grade</label>
+                <input
+                  type="text"
                   value={form.description}
                   onChange={(event) => handleChange("description", event.target.value)}
-                  placeholder="Short note about this paper"
+                  placeholder="e.g. Grade 10"
                   className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
                 />
               </div>

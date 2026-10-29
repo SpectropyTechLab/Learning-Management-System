@@ -68,6 +68,27 @@ export default function SuperAdminShell({
         onClick: () => navigate('/superadmin/entitlements'),
       },
       {
+        key: 'tracker-entitlements',
+        label: 'Tracker Entitlements',
+        icon: <RiFileList3Line />,
+        active: isActive('/superadmin/teaching-sessions/entitlements'),
+        onClick: () => navigate('/superadmin/teaching-sessions/entitlements'),
+      },
+      {
+        key: 'question-bank-entitlements',
+        label: 'Question Bank Entitlements',
+        icon: <RiFileList3Line />,
+        active: isActive('/superadmin/question-bank/entitlements'),
+        onClick: () => navigate('/superadmin/question-bank/entitlements'),
+      },
+      {
+        key: 'exam-entitlements',
+        label: 'Exam Entitlements',
+        icon: <RiFileList3Line />,
+        active: isActive('/superadmin/exams/entitlements'),
+        onClick: () => navigate('/superadmin/exams/entitlements'),
+      },
+      {
         key: 'users',
         label: 'Users',
         icon: <PiUsersBold />,
@@ -103,6 +124,19 @@ export default function SuperAdminShell({
           brandName="Spectropy"
           title="Super Admin"
           brandTag="Platform"
+          topAction={
+            <button
+              type="button"
+              onClick={() => {
+                navigate('/superadmin/dashboard');
+                setSidebarOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-slate-900"
+            >
+              <RiHome2Line className="text-base" />
+              <span>Back to Dashboard</span>
+            </button>
+          }
           navItems={navItems}
           userInfo={{ name: userFullName, email: userEmail, meta: 'Platform Admin' }}
           onLogout={handleLogout}

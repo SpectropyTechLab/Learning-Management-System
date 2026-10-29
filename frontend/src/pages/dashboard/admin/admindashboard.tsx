@@ -4,11 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
 import spectropyLogo from "/logo.png";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold } from 'react-icons/pi';
 import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
-import UserManagement from './UserManagement';
 import DashboardHome from './Home';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
@@ -17,6 +15,7 @@ import AdminCourseManager from '@/features/courses/components/list/AdminCourseMa
 import { getCoursePermissions } from '@/features/courses/utils/coursePermissions';
 import { getQuestionPermissions } from '@/features/question-bank/utils/questionPermissions';
 import { getExamPermissions } from '@/features/exams/utils/examPermissions';
+import { getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 type ClientUser = {
   logo?: string;
@@ -36,18 +35,17 @@ export default function CourseStudents() {
 
   const brandLogo = clientUser?.logo || spectropyLogo;
   const brandName = clientUser?.client_name || 'Spectropy';
-  const dashboardTitle = clientUser?.client_name ? `${clientUser.client_name} Dashboard` : 'Admin Dashboard';
+  const dashboardTitle = getRoleDisplayTitle(user?.role);
   const homeTitle = clientUser?.client_name
     ? `Welcome to the ${clientUser.client_name} Dashboard`
     : 'Welcome to the Admin Dashboard';
-  const clientMeta = clientUser?.client_name ? `${clientUser.client_name} Client` : null;
   const theme = getDashboardTheme(false);
   const courseBannerClass = isContentAuthorizer ? 'bg-sky-100' : 'bg-blue-50';
   const coursePermissions = getCoursePermissions(user);
   const questionPermissions = getQuestionPermissions(user);
   const examPermissions = getExamPermissions(user);
 
-  const [activeTab, setActiveTab] = useState<'courses' | 'home' | 'users'>('home');
+  const [activeTab, setActiveTab] = useState<'courses' | 'home'>('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -89,11 +87,11 @@ export default function CourseStudents() {
       : []),
     ...(user?.role === 'client_admin'
       ? [{
-          key: 'licensed-content',
-          label: 'Licensed Content',
-          icon: <RiFileList3Line />,
+          key: 'teaching-sessions',
+          label: 'Teacher Session Tracker',
+          icon: <RiCalendarCheckLine />,
           active: false,
-          onClick: () => navigate('/admin/licensed-content'),
+          onClick: () => navigate('/admin/teaching-sessions/setup'),
         }]
       : []),
     ...(questionPermissions.canView
@@ -114,13 +112,6 @@ export default function CourseStudents() {
           onClick: () => navigate('/exams'),
         }]
       : []),
-    {
-      key: 'users',
-      label: 'Users',
-      icon: <PiUsersBold />,
-      active: activeTab === 'users',
-      onClick: () => setActiveTab('users'),
-    },
   ];
 
   const handleBackToLogin = async () => {
@@ -144,7 +135,7 @@ export default function CourseStudents() {
           title={dashboardTitle}
           brandTag={clientUser?.client_name}
           navItems={navItems}
-          userInfo={{ name: userFullName, email: userEmail, meta: clientMeta }}
+          userInfo={{ name: userFullName, email: userEmail }}
           onProfileClick={() => navigate("/admin/profile")}
           onLogout={handleBackToLogin}
           sidebarOpen={sidebarOpen}
@@ -166,7 +157,7 @@ export default function CourseStudents() {
               <h1 className="text-xl md:text-2xl font-bold">
                 {activeTab === 'courses' && 'Courses'}
                 {activeTab === 'home' && homeTitle}
-                {activeTab === 'users' && 'User Management'}
+                
               </h1>
 
               <p
@@ -175,7 +166,7 @@ export default function CourseStudents() {
                 {activeTab === 'courses' &&
                   'Set up your courses and share your knowledge.'}
                 {activeTab === 'home' && 'Key metrics at a glance'}
-                {activeTab === 'users' && 'Manage your users and their activities.'}
+                
               </p>
             </div>
           </div>
@@ -214,7 +205,6 @@ export default function CourseStudents() {
 
         {activeTab === 'home' && <DashboardHome />}
 
-        {activeTab === 'users' && <UserManagement />}
       </div>
     </DashboardLayout>
   );

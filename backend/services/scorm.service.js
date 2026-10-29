@@ -7,7 +7,6 @@ import * as fs from "fs";
 import AdmZip from "adm-zip";
 import { parseStringPromise } from "xml2js";
 import mime from "mime-types"; // ✅ Add this at the top with your imports
-import fsy from "fsy";
 import { url } from "inspector";
 import fetch from "node-fetch"; // add at top if not already
 import { contentIsLinkedIntoCourse, userCanAccessContentItem } from "./clientContent.service.js";
@@ -560,7 +559,6 @@ export const viewScormFile = async (req, res) => {
     const filePath = String(req.params[0] || "").replace(/^\/+/, "");
     if (!filePath) return res.status(400).send("Missing file");
     if (!req.user?.id) return res.status(401).send("Unauthorized");
-
     const hasAccess = await ensureContentAccessByPath(filePath, req);
     if (!hasAccess) return res.status(403).send("Access denied");
 

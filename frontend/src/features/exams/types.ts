@@ -1,4 +1,11 @@
-export type ExamStatus = "draft" | "active" | "completed";
+import type {
+  RenderableQuestion,
+  MatchFollowingOptionsLike,
+  QuestionOptionLike,
+  RichTextLike,
+} from "@/components/questions/QuestionRenderer";
+
+export type ExamStatus = "draft" | "published" | "active" | "completed";
 
 export type BlueprintStatus = "active" | "inactive" | "archived";
 export type QuestionGroupType = "direction" | "similar" | "previous_year" | "reference";
@@ -88,12 +95,13 @@ export interface GeneratedExamQuestion {
   question_text: { html?: string; text?: string } | string | null;
   options?: GeneratedQuestionOption[] | GeneratedMatchFollowingOptions | null;
   correct_answer?: unknown;
-  solution?: { html?: string; text?: string } | string | null;
+  solution?: RichTextLike;
   subject_id?: number | null;
   chapter_id?: number | null;
   topic_id?: number | null;
   difficulty_level?: string;
   status?: string | null;
+  comprehension?: RenderableQuestion["comprehension"];
 }
 
 export interface ExamBuilderSection {
@@ -138,9 +146,44 @@ export interface ExamSectionSyllabusOptions {
   program_id: number;
   section_id: number;
   selected_subject_id: number | null;
+  grades: CurriculumOption[];
   subjects: CurriculumOption[];
   chapters: CurriculumOption[];
   topics: CurriculumOption[];
+}
+
+export interface ExamSectionGenerationPlanTopicRow {
+  topic_id: number;
+  topic_name: string;
+  topic_number?: number | null;
+  direction: number;
+  similar: number;
+  reference: number;
+  previous_year: number;
+  total: number;
+}
+
+export interface ExamSectionGenerationPlan {
+  section_id: number;
+  section_title: string;
+  required_question_count: number;
+  total_planned_questions: number;
+  available_question_count: number;
+  topics: ExamSectionGenerationPlanTopicRow[];
+  totals: {
+    direction: number;
+    similar: number;
+    reference: number;
+    previous_year: number;
+    total: number;
+  };
+  available_counts: {
+    direction: number;
+    similar: number;
+    reference: number;
+    previous_year: number;
+    total: number;
+  };
 }
 
 export interface ExamPreviewPayload {
@@ -148,9 +191,42 @@ export interface ExamPreviewPayload {
     client_id?: number | null;
     school_id?: number | null;
     program_id?: number | null;
+    program_name?: string | null;
     blueprint_id?: number | null;
     total_duration_minutes?: number | null;
     max_attempts?: number | null;
+  };
+  template_resolution?: {
+    template_key?: string | null;
+    template_version?: string | null;
+    source_file?: string | null;
+    exam_type?: "WT" | "UT" | "GT" | null;
+    strict_mode?: boolean;
+    fallback_used?: boolean;
+    fallback_template_key?: string | null;
+  };
+  render_blocks?: Array<{
+    section_id: number;
+    section_title: string;
+    section_label?: string;
+    order_index?: number;
+    instructions?: string;
+    question_count?: number;
+    required_question_count?: number;
+    question_groups?: Record<QuestionGroupType, GeneratedExamQuestion[]>;
+    render_metadata?: {
+      marks_per_question?: number | null;
+      negative_marks?: number | null;
+      completion_status?: string | null;
+      selected_subject_name?: string | null;
+    };
+  }>;
+  validation?: {
+    can_save_draft: boolean;
+    can_finalize: boolean;
+    has_warnings: boolean;
+    warnings: string[];
+    blocking_reasons: string[];
   };
   blueprint: BlueprintSummary | null;
   sections: ExamBuilderSection[];
@@ -181,6 +257,19 @@ export interface ExamSummary {
   tags?: string[] | null;
   program_id?: number | null;
   blueprint_id?: number | null;
+  client_id?: number | null;
+  owner_client_id?: number | null;
+  owner_client_name?: string | null;
+  exam_access_type?: "platform_owned" | "client_owned" | "school_owned" | string | null;
+  can_preview?: boolean;
+  can_download?: boolean;
+  can_edit?: boolean;
+  can_build?: boolean;
+  can_delete?: boolean;
+  can_publish?: boolean;
+  section_count?: number | null;
+  question_count?: number | null;
+  all_sections_completed?: boolean | null;
 }
 
 export interface ExamFiltersState {

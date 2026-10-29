@@ -13,6 +13,23 @@ const ScormPlayer: React.FC<Props> = ({ contentUrl, contentId }) => {
     const { user } = useAuth();
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [proxyUrl, setProxyUrl] = useState<string>("");
+    const [isLandscape, setIsLandscape] = useState(false);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia("(orientation: landscape)");
+        const updateOrientation = () => {
+            setIsLandscape(mediaQuery.matches);
+        };
+
+        updateOrientation();
+        mediaQuery.addEventListener("change", updateOrientation);
+        window.addEventListener("resize", updateOrientation);
+
+        return () => {
+            mediaQuery.removeEventListener("change", updateOrientation);
+            window.removeEventListener("resize", updateOrientation);
+        };
+    }, []);
 
     useEffect(() => {
         if (!user || !contentUrl) return;
@@ -42,21 +59,26 @@ const ScormPlayer: React.FC<Props> = ({ contentUrl, contentId }) => {
             api.LMSFinish();
             delete windowWithApi.API;
         };
-    }, [user, contentUrl, contentId]);
+    }, [user, contentUrl, contentId, isLandscape]);
 
     return (
-        <div className="w-full h-full bg-gray-100">
+        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50">
+            <div className={`shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 md:hidden ${isLandscape ? "hidden" : ""}`}>
+                For the best experience, rotate your device to landscape.
+            </div>
             {proxyUrl ? (
-                <iframe
-                    ref={iframeRef}
-                    src={proxyUrl}
-                    title="SCORM Content"
-                    className="w-full h-full border-none background-white"
-                    allow="fullscreen"
-                />
+                <div className="min-h-0 flex-1 overflow-hidden">
+                    <iframe
+                        ref={iframeRef}
+                        src={proxyUrl}
+                        title="SCORM Content"
+                        className="h-full w-full border-none bg-white"
+                        allow="fullscreen"
+                    />
+                </div>
             ) : (
-                <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-600 text-lg">Loading SCORM content...</p>
+                <div className="flex min-h-0 flex-1 items-center justify-center px-4">
+                    <p className="text-sm text-slate-600 md:text-base">Loading SCORM content...</p>
                 </div>
             )}
         </div>

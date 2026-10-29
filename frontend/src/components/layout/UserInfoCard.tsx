@@ -27,7 +27,7 @@ export default function UserInfoCard({
             {name?.charAt(0).toUpperCase() || "U"}
           </span>
         </div>
-        <div className="ml-3">
+        <div className="ml-3 min-w-0 flex-1">
           <p className="text-m font-medium text-gray-900 truncate">{name}</p>
           <p className="text-xs text-gray-500 truncate">{email}</p>
           {meta && <p className="text-[11px] text-gray-500 truncate">{meta}</p>}

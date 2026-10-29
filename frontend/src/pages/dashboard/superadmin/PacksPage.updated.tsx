@@ -127,7 +127,11 @@ export default function PacksPage() {
     try {
       setContentLoading(true);
       const res = await api.get(`/admin/courses/${courseId}/content`);
-      const nextItems = Array.isArray(res.data) ? res.data : [];
+      const nextItems = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.items)
+          ? res.data.items
+          : [];
       setCourseItems(nextItems);
       setSelectedContentIds([]);
     } catch (error) {

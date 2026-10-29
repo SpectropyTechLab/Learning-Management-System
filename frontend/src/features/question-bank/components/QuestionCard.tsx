@@ -11,6 +11,7 @@ const statusStyles: Record<string, string> = {
 
 const typeLabels: Record<string, string> = {
   mcq_single: "MCQ Single",
+  assertion_reasoning: "Assertion Reasoning",
   mcq_multiple: "MCQ Multiple",
   numerical: "Numerical",
   true_false: "True/False",
@@ -21,7 +22,8 @@ const typeLabels: Record<string, string> = {
 };
 
 const questionGroupTypeLabels: Record<string, string> = {
-  direction: "Direction",
+  direction: "Direct",
+  direct: "Direct",
   similar: "Similar",
   previous_year: "Previous Year",
   reference: "Reference",
@@ -56,7 +58,12 @@ function QuestionCard({
   onApprove,
   onReject,
 }: QuestionCardProps) {
-  const isEditable = permissions.canEdit;
+  const isEditable = permissions.canEdit && question.canEdit !== false;
+  const canDelete = permissions.canDelete && question.canDelete !== false;
+  const canApprove = permissions.canApprove && question.canApprove !== false;
+  const canReject = permissions.canReject && question.canReject !== false;
+  const isLegacyComprehensiveParent =
+    question.question_type === "comprehensive" && !question.comprehension_passage_id;
   const categoryLabel = formatQuestionCategory(question.category ?? null);
 
   return (
@@ -125,39 +132,39 @@ function QuestionCard({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {isEditable && (
           <button
             type="button"
             onClick={() => onEdit(question)}
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
           >
-            Edit
+            {isLegacyComprehensiveParent ? "Open Passage Library" : "Edit"}
           </button>
         )}
-        {permissions.canDelete && onDelete && (
+        {canDelete && onDelete && (
           <button
             type="button"
             onClick={() => onDelete(question)}
-            className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+            className="w-full rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 sm:w-auto"
           >
             Delete
           </button>
         )}
-        {permissions.canApprove && question.status === "draft" && (
+        {canApprove && question.status === "draft" && (
           <button
             type="button"
             onClick={() => onApprove(question)}
-            className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600"
+            className="w-full rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 sm:w-auto"
           >
             Approve
           </button>
         )}
-        {permissions.canReject && question.status === "draft" && (
+        {canReject && question.status === "draft" && (
           <button
             type="button"
             onClick={() => onReject(question)}
-            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+            className="w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 sm:w-auto"
           >
             Reject
           </button>

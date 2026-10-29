@@ -5,7 +5,8 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import spectropyLogo from "/logo.png";
-import { RiArrowLeftLine, RiDraftLine, RiFileList3Line } from "react-icons/ri";
+import { RiArrowLeftLine, RiDraftLine, RiFileList3Line, RiHome2Line } from "react-icons/ri";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 interface ExamShellProps {
   title: string;
@@ -13,6 +14,8 @@ interface ExamShellProps {
   children: React.ReactNode;
   headerAction?: React.ReactNode;
   backTo?: string;
+  headerClassName?: string;
+  bodyClassName?: string;
 }
 
 const DASHBOARD_BY_ROLE: Record<string, string> = {
@@ -29,6 +32,8 @@ export default function ExamShell({
   children,
   headerAction,
   backTo,
+  headerClassName,
+  bodyClassName,
 }: ExamShellProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -38,6 +43,8 @@ export default function ExamShell({
   const theme = getDashboardTheme(false);
   const userFullName = user?.full_name || "Exam Manager";
   const userEmail = user?.email || "";
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const isActive = (path: string) => location.pathname === path;
   const resolvedBackPath =
     backTo || DASHBOARD_BY_ROLE[String(user?.role ?? "")] || "/admin/dashboard";
@@ -72,22 +79,33 @@ export default function ExamShell({
       sidebar={
         <SidebarNav
           brandLogo={spectropyLogo}
-          brandName="Spectropy"
-          title="Exam Management"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
+          topAction={
+            <button
+              type="button"
+              onClick={() => {
+                navigate(resolvedBackPath);
+                setSidebarOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-slate-900"
+            >
+              <RiHome2Line className="text-base" />
+              <span>Back to Dashboard</span>
+            </button>
+          }
           navItems={navItems}
-          userInfo={{ name: userFullName, email: userEmail }}
+          userInfo={{ name: userFullName, email: userEmail, meta: organizationLabel }}
           showUserInfo={false}
-          showLogout={true}
-          onLogout={handleBack}
-          logoutLabel="Back"
-          logoutIcon={<RiArrowLeftLine className="h-4 w-4" />}
+          showLogout={false}
           sidebarOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           theme={theme}
         />
       }
       header={
-        <div className={theme.headerClass}>
+        <div className={`${theme.headerClass} ${headerClassName ?? ""}`.trim()}>
           <button
             onClick={() => setSidebarOpen(true)}
             className={`md:hidden mr-3 p-2 rounded-lg border ${theme.secondaryBorderClass}`}
@@ -95,19 +113,23 @@ export default function ExamShell({
           >
             Menu
           </button>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-bold">{title}</h1>
               <p className="mt-1 text-sm md:text-base text-slate-600">
                 {description}
               </p>
             </div>
-            {headerAction && <div className="flex items-center gap-2">{headerAction}</div>}
+            {headerAction && (
+              <div className="flex w-full flex-wrap items-stretch gap-2 md:w-auto md:justify-end">
+                {headerAction}
+              </div>
+            )}
           </div>
         </div>
       }
     >
-      <div className="p-6">{children}</div>
+      <div className={bodyClassName ?? "p-6"}>{children}</div>
     </DashboardLayout>
   );
 }

@@ -2,6 +2,81 @@
 import * as curriculumService from '../services/curriculum.service.js';
 import { handleServiceError } from '../utils/errors.js';
 
+export const listBoards = async (req, res) => {
+  try {
+    const data = await curriculumService.listBoards({ user: req.user, query: req.query });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to list boards');
+  }
+};
+
+export const getBoard = async (req, res) => {
+  try {
+    const data = await curriculumService.getBoard({ user: req.user, params: req.params });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to load board');
+  }
+};
+
+export const createBoard = async (req, res) => {
+  try {
+    const data = await curriculumService.createBoard({ user: req.user, body: req.body });
+    res.status(201).json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to create board');
+  }
+};
+
+export const updateBoard = async (req, res) => {
+  try {
+    const data = await curriculumService.updateBoard({
+      user: req.user,
+      params: req.params,
+      body: req.body,
+    });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to update board');
+  }
+};
+
+export const deleteBoard = async (req, res) => {
+  try {
+    const data = await curriculumService.deleteBoard({ user: req.user, params: req.params });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to delete board');
+  }
+};
+
+export const listProgramsByBoard = async (req, res) => {
+  try {
+    const data = await curriculumService.listProgramsByBoard({
+      user: req.user,
+      params: req.params,
+      query: req.query,
+    });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to list programs by board');
+  }
+};
+
+export const createProgramForBoard = async (req, res) => {
+  try {
+    const data = await curriculumService.createProgramForBoard({
+      user: req.user,
+      params: req.params,
+      body: req.body,
+    });
+    res.status(201).json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to create program for board');
+  }
+};
+
 export const listPrograms = async (req, res) => {
   try {
     const data = await curriculumService.listPrograms({ user: req.user, query: req.query });
@@ -233,5 +308,58 @@ export const deleteTopic = async (req, res) => {
     res.json(data);
   } catch (err) {
     handleServiceError(res, err, 'Failed to delete topic');
+  }
+};
+
+export const listSubtopics = async (req, res) => {
+  try {
+    const data = await curriculumService.listSubtopics({ user: req.user, params: req.params });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to list subtopics');
+  }
+};
+
+export const getSubtopic = async (req, res) => {
+  try {
+    const data = await curriculumService.getSubtopic({ user: req.user, params: req.params });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to load subtopic');
+  }
+};
+
+export const createSubtopic = async (req, res) => {
+  try {
+    const data = await curriculumService.createSubtopic({
+      user: req.user,
+      params: req.params,
+      body: req.body,
+    });
+    res.status(201).json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to create subtopic');
+  }
+};
+
+export const updateSubtopic = async (req, res) => {
+  try {
+    const data = await curriculumService.updateSubtopic({
+      user: req.user,
+      params: req.params,
+      body: req.body,
+    });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to update subtopic');
+  }
+};
+
+export const deleteSubtopic = async (req, res) => {
+  try {
+    const data = await curriculumService.deleteSubtopic({ user: req.user, params: req.params });
+    res.json(data);
+  } catch (err) {
+    handleServiceError(res, err, 'Failed to delete subtopic');
   }
 };

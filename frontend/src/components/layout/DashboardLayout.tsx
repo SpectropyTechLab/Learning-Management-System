@@ -22,8 +22,8 @@ export default function DashboardLayout({
   contentClassName = "p-6",
 }: DashboardLayoutProps) {
   return (
-    <div className={shellClass}>
-      <div className={layoutClass}>
+    <div className={`${shellClass} h-screen overflow-hidden`}>
+      <div className={`${layoutClass} h-full overflow-hidden`}>
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-black/40 z-40 md:hidden"
@@ -33,9 +33,9 @@ export default function DashboardLayout({
 
         {sidebar}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {header}
-          <div className={contentClassName}>{children}</div>
+          <div className={`min-h-0 flex-1 overflow-y-auto ${contentClassName}`}>{children}</div>
         </div>
       </div>
     </div>

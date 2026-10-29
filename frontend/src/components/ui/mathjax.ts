@@ -46,7 +46,13 @@ export const ensureMathJax = async () => {
     };
     window.__mathjaxLoadingPromise = loadScript(MATHJAX_SRC);
   }
-  await window.__mathjaxLoadingPromise;
+  try {
+    await window.__mathjaxLoadingPromise;
+  } catch (error) {
+    // Keep UI usable even if CDN is blocked; renderer will show raw text fallback.
+    console.error("MathJax failed to load:", error);
+    window.MathJax = undefined;
+  }
 };
 
 export const typesetMathJax = async (elements?: HTMLElement[]) => {

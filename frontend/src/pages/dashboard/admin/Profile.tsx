@@ -6,10 +6,10 @@ import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import ProfilePanel from "@/features/users/components/ProfilePanel";
 import spectropyLogo from "/logo.png";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold, PiChatsCircleBold } from 'react-icons/pi';
 import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
+import { getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 type ClientUser = {
   logo?: string;
@@ -26,7 +26,7 @@ export default function AdminProfile() {
   const theme = getDashboardTheme(false);
   const brandLogo = clientUser?.logo || spectropyLogo;
   const brandName = clientUser?.client_name || "Spectropy";
-  const dashboardTitle = clientUser?.client_name ? `${clientUser.client_name} Dashboard` : "Admin Dashboard";
+  const dashboardTitle = getRoleDisplayTitle(user?.role);
 
   const navItems = [
     {
@@ -58,18 +58,11 @@ export default function AdminProfile() {
       onClick: () => navigate("/question-bank"),
     },
     {
-      key: "users",
-      label: "Users",
-      icon: <PiUsersBold />,
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => navigate("/admin/dashboard"),
-    },
-    {
-      key: "community",
-      label: "Community",
-      icon: <PiChatsCircleBold />,
-      active: false,
-      onClick: () => navigate("/admin/dashboard"),
+      onClick: () => navigate("/admin/teaching-sessions/setup"),
     },
   ];
 

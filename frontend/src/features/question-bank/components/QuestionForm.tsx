@@ -1,5 +1,5 @@
 ﻿
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ComprehensionPassage,
   CorrectAnswer,
@@ -17,6 +17,8 @@ import type {
 import { formatSubjectDisplay } from "@/types/questionBank";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import api from "@/lib/api";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 interface QuestionFormProps {
   open?: boolean;
@@ -32,17 +34,34 @@ interface QuestionFormProps {
 }
 
 type ComprehensionMode = "new" | "existing";
+type QuestionTypeSelection = QuestionType | "comprehension";
+type MatchRow = {
+  id: string;
+  left: RichTextValue;
+  right: RichTextValue;
+};
 
 const QUESTION_GROUP_TYPE_OPTIONS: Array<{ value: QuestionGroupType; label: string }> = [
-  { value: "direction", label: "Direction" },
+  { value: "direct", label: "Direct" },
   { value: "similar", label: "Similar" },
   { value: "previous_year", label: "Previous Year" },
   { value: "reference", label: "Reference" },
 ];
 
+const BASE_QUESTION_TYPE_OPTIONS: Array<{ value: QuestionType; label: string }> = [
+  { value: "mcq_single", label: "MCQ Single" },
+  { value: "assertion_reasoning", label: "Assertion Reasoning" },
+  { value: "mcq_multiple", label: "MCQ Multiple" },
+  { value: "short_answer", label: "Short Answer" },
+  { value: "numerical", label: "Numeric Response" },
+  { value: "true_false", label: "True/False" },
+  { value: "match_following", label: "Match the Following" },
+  { value: "fill_in_blank", label: "Fill in the Blank" },
+];
+
 const normalizeCategorySelection = (category: Question["category"] | undefined): QuestionGroupType | "" => {
   if (typeof category !== "string") return "";
-  const normalized = category.trim();
+  const normalized = category.trim().toLowerCase() === "direction" ? "direct" : category.trim();
   return QUESTION_GROUP_TYPE_OPTIONS.some((option) => option.value === normalized) ? (normalized as QuestionGroupType) : "";
 };
 
@@ -76,16 +95,285 @@ const toNullableNumber = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const isNumericLike = (value: string) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return false;
+  return Number.isFinite(Number(normalized.replace(/,/g, "")));
+};
+
+const normalizeLatexPreviewSource = (input: string) => {
+  if (!input) return "";
+  let next = String(input);
+  for (let i = 0; i < 3; i += 1) {
+    const updated = next
+      .replace(/\\\\\(/g, "\\(")
+      .replace(/\\\\\)/g, "\\)")
+      .replace(/\\\\\[/g, "\\[")
+      .replace(/\\\\\]/g, "\\]")
+      .replace(/\\\\\{/g, "\\{")
+      .replace(/\\\\\}/g, "\\}");
+    if (updated === next) break;
+    next = updated;
+  }
+  return next;
+};
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const renderEquationPreviewHtml = (value: string) => {
+  const content = normalizeLatexPreviewSource(value);
+  if (!content.trim()) {
+    return "<span class='text-slate-400'>Type an answer or insert LaTeX to preview</span>";
+  }
+
+  const latexPattern =
+    /\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$\$([\s\S]+?)\$\$|\$([^\n$]+?)\$/g;
+
+  let html = "";
+  let lastIndex = 0;
+  for (const match of content.matchAll(latexPattern)) {
+    const index = match.index ?? 0;
+    if (index > lastIndex) {
+      html += escapeHtml(content.slice(lastIndex, index)).replace(/\n/g, "<br />");
+    }
+    const expression = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";
+    const displayMode = Boolean(match[1] || match[3]);
+    try {
+      html += katex.renderToString(expression.trim(), {
+        throwOnError: false,
+        displayMode,
+        output: "htmlAndMathml",
+      });
+    } catch {
+      html += escapeHtml(match[0]);
+    }
+    lastIndex = index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    html += escapeHtml(content.slice(lastIndex)).replace(/\n/g, "<br />");
+  }
+
+  return html || escapeHtml(content).replace(/\n/g, "<br />");
+};
+
+const splitAnswerEntries = (value: string) =>
+  value
+    .split(/\r?\n|,/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+type EquationAnswerInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  helpText?: string;
+  multiline?: boolean;
+  rows?: number;
+};
+
+function EquationAnswerInput({
+  value,
+  onChange,
+  placeholder,
+  helpText,
+  multiline = false,
+  rows = 3,
+}: EquationAnswerInputProps) {
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const [mathModalOpen, setMathModalOpen] = useState(false);
+  const [latexValue, setLatexValue] = useState("");
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  const captureSelection = () => {
+    const element = inputRef.current;
+    if (!element) return;
+    setSelection({
+      start: element.selectionStart ?? value.length,
+      end: element.selectionEnd ?? value.length,
+    });
+  };
+
+  const handleInsertEquation = () => {
+    captureSelection();
+    setLatexValue("");
+    setMathModalOpen(true);
+  };
+
+  const applyEquation = () => {
+    const trimmed = latexValue.trim();
+    if (!trimmed) {
+      setMathModalOpen(false);
+      return;
+    }
+    const wrapped = `\\(${trimmed}\\)`;
+    const before = value.slice(0, selection.start);
+    const after = value.slice(selection.end);
+    onChange(`${before}${wrapped}${after}`);
+    setMathModalOpen(false);
+    setLatexValue("");
+  };
+
+  const inputClassName =
+    "mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">
+          Paste normal text directly, or insert LaTeX for mathematical/chemical equations.
+        </p>
+        <button
+          type="button"
+          onClick={handleInsertEquation}
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+        >
+          Insert Equation
+        </button>
+      </div>
+
+      {multiline ? (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onSelect={captureSelection}
+          onClick={captureSelection}
+          onKeyUp={captureSelection}
+          rows={rows}
+          className={inputClassName}
+          placeholder={placeholder}
+          style={{ resize: "vertical" }}
+        />
+      ) : (
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onSelect={captureSelection}
+          onClick={captureSelection}
+          onKeyUp={captureSelection}
+          className={inputClassName}
+          placeholder={placeholder}
+        />
+      )}
+
+      {helpText ? <p className="text-xs text-slate-500">{helpText}</p> : null}
+
+      <div>
+        <div className="text-xs font-semibold text-slate-500">Preview</div>
+        <div
+          className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+          dangerouslySetInnerHTML={{ __html: renderEquationPreviewHtml(value) }}
+        />
+      </div>
+
+      {mathModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-xl rounded-xl bg-white p-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">Insert Equation</h3>
+            </div>
+            <div className="mt-3">
+              <label className="text-xs font-semibold text-slate-500">LaTeX</label>
+              <textarea
+                value={latexValue}
+                onChange={(event) => setLatexValue(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                style={{ minHeight: "120px", resize: "vertical" }}
+                placeholder="e.g. \\frac{a}{b}, H_2SO_4, \\sin \\alpha"
+              />
+            </div>
+            <div className="mt-3">
+              <div className="text-xs font-semibold text-slate-500">Preview</div>
+              <div
+                className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800"
+                dangerouslySetInnerHTML={{
+                  __html: latexValue.trim()
+                    ? katex.renderToString(latexValue, { throwOnError: false, output: "htmlAndMathml" })
+                    : "<span class='text-slate-400'>Type LaTeX to preview</span>",
+                }}
+              />
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMathModalOpen(false);
+                  setLatexValue("");
+                }}
+                className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyEquation}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+              >
+                Insert
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const makeDefaultOptions = () =>
   Array.from({ length: 4 }).map(() => ({ id: makeId(), text: emptyRichText() }));
 
 const makeDefaultMatchSide = () =>
   Array.from({ length: 4 }).map(() => ({ id: makeId(), text: emptyRichText() }));
 
+const makeDefaultMatchRows = () =>
+  Array.from({ length: 4 }).map(() => ({ id: makeId(), left: emptyRichText(), right: emptyRichText() }));
+
 type MatchOptionWithSide = QuestionOption & { side?: "left" | "right" };
 
 const getArrayOptions = (options: Question["options"] | undefined): QuestionOption[] =>
   Array.isArray(options) ? options : [];
+
+const inferLinkedChildQuestionType = (question: Question): QuestionType => {
+  const savedAnswer = question.correct_answer as CorrectAnswer;
+  const matchOptions = normalizeMatchOptions(question.options);
+  if (matchOptions) return "match_following";
+
+  if (typeof savedAnswer === "object" && savedAnswer) {
+    if ("blanks" in savedAnswer && Array.isArray(savedAnswer.blanks)) return "fill_in_blank";
+    if ("answers" in savedAnswer && Array.isArray(savedAnswer.answers)) return "short_answer";
+    if ("value" in savedAnswer || "raw" in savedAnswer) return "numerical";
+    if ("answer" in savedAnswer && typeof savedAnswer.answer === "boolean") return "true_false";
+    if ("answer_ids" in savedAnswer && Array.isArray(savedAnswer.answer_ids)) {
+      return savedAnswer.answer_ids.length > 1 ? "mcq_multiple" : "mcq_single";
+    }
+  }
+
+  if (Array.isArray(savedAnswer)) return savedAnswer.length > 1 ? "mcq_multiple" : "mcq_single";
+  if (typeof savedAnswer === "boolean") return "true_false";
+  if (typeof savedAnswer === "number") return "numerical";
+  if (typeof savedAnswer === "string") return "mcq_single";
+
+  const arrayOptions = getArrayOptions(question.options);
+  const selectedCount = arrayOptions.filter((opt) => opt.is_correct).length;
+  if (selectedCount > 1) return "mcq_multiple";
+  if (selectedCount === 1 || arrayOptions.length > 0) return "mcq_single";
+
+  return "mcq_single";
+};
+
+const getEditableQuestionType = (question: Question): QuestionType =>
+  question.question_type === "comprehensive" && question.comprehension_passage_id
+    ? inferLinkedChildQuestionType(question)
+    : question.question_type;
 
 const normalizeMatchOptions = (options: unknown): MatchFollowingOptions | null => {
   if (options && typeof options === "object" && !Array.isArray(options)) {
@@ -126,6 +414,43 @@ const normalizeMatchOptions = (options: unknown): MatchFollowingOptions | null =
   return null;
 };
 
+const buildMatchRowsFromSavedQuestion = (
+  matchOptions: MatchFollowingOptions | null,
+  pairs: MatchFollowingPair[] | undefined
+): MatchRow[] => {
+  const leftItems = matchOptions?.left ?? [];
+  const rightItems = matchOptions?.right ?? [];
+  const savedPairs = Array.isArray(pairs) ? pairs : [];
+
+  if (savedPairs.length > 0) {
+    const rows = savedPairs
+      .map((pair, index) => {
+        const left = leftItems.find((item) => item.id === pair.left_id);
+        const right = rightItems.find((item) => item.id === pair.right_id);
+        if (!left && !right) return null;
+        return {
+          id: `${pair.left_id}-${pair.right_id}-${index}`,
+          left: normalizeRichText(left?.text),
+          right: normalizeRichText(right?.text),
+        };
+      })
+      .filter((row): row is MatchRow => Boolean(row));
+
+    if (rows.length > 0) return rows;
+  }
+
+  const maxLength = Math.max(leftItems.length, rightItems.length);
+  if (maxLength > 0) {
+    return Array.from({ length: maxLength }).map((_, index) => ({
+      id: makeId(),
+      left: normalizeRichText(leftItems[index]?.text),
+      right: normalizeRichText(rightItems[index]?.text),
+    }));
+  }
+
+  return makeDefaultMatchRows();
+};
+
 const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
   items
     .map((item) => ({
@@ -149,7 +474,7 @@ const normalizeCurriculum = (items: any[]): CurriculumItem[] =>
 const normalizePassages = (items: any[]): ComprehensionPassage[] =>
   items
     .map((item) => ({
-      id: item.id,
+      id: (item.id ?? "") as string | number,
       title: normalizeRichText(item.title),
       passage_content: normalizeRichText(item.passage_content),
       program_id: item.program_id ?? null,
@@ -160,7 +485,7 @@ const normalizePassages = (items: any[]): ComprehensionPassage[] =>
       created_at: item.created_at ?? undefined,
       updated_at: item.updated_at ?? undefined,
     }))
-    .filter((item) => item.id !== undefined && item.id !== null);
+    .filter((item): item is ComprehensionPassage => item.id !== "");
 
 export default function QuestionForm({
   open = true,
@@ -179,13 +504,11 @@ export default function QuestionForm({
   const [options, setOptions] = useState<QuestionOption[]>(makeDefaultOptions());
   const [correctAnswer, setCorrectAnswer] = useState<string | string[] | null>(null);
   const [trueFalseAnswer, setTrueFalseAnswer] = useState(true);
-  const [numericalValue, setNumericalValue] = useState<number | "">("");
+  const [numericalValue, setNumericalValue] = useState("");
   const [numericalTolerance, setNumericalTolerance] = useState<number>(0.01);
   const [shortAnswers, setShortAnswers] = useState("");
   const [shortCaseSensitive, setShortCaseSensitive] = useState(false);
-  const [matchLeft, setMatchLeft] = useState<QuestionOption[]>(makeDefaultMatchSide());
-  const [matchRight, setMatchRight] = useState<QuestionOption[]>(makeDefaultMatchSide());
-  const [matchPairs, setMatchPairs] = useState<MatchFollowingPair[]>([]);
+  const [matchRows, setMatchRows] = useState<MatchRow[]>(makeDefaultMatchRows());
   const [fillBlanks, setFillBlanks] = useState<FillBlankAnswer[]>([]);
   const [hasComprehension, setHasComprehension] = useState(false);
   const [comprehensionMode, setComprehensionMode] = useState<ComprehensionMode>("new");
@@ -210,6 +533,10 @@ export default function QuestionForm({
   const [dynamicChapters, setDynamicChapters] = useState<CurriculumItem[]>([]);
   const [dynamicTopics, setDynamicTopics] = useState<CurriculumItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const selectedQuestionType = useMemo<QuestionTypeSelection>(
+    () => (hasComprehension ? "comprehension" : questionType),
+    [hasComprehension, questionType]
+  );
 
   const availableGrades = useMemo(
     () => {
@@ -424,7 +751,8 @@ export default function QuestionForm({
   useEffect(() => {
     if (!open) return;
     if (initialQuestion) {
-      setQuestionType(initialQuestion.question_type);
+      const editableQuestionType = getEditableQuestionType(initialQuestion);
+      setQuestionType(editableQuestionType);
       setQuestionText(normalizeRichText(initialQuestion.question_text));
       if (Array.isArray(initialQuestion.options)) {
         setOptions(
@@ -439,7 +767,11 @@ export default function QuestionForm({
       }
 
       const correct = initialQuestion.correct_answer as CorrectAnswer;
-      if (initialQuestion.question_type === "mcq_single") {
+      if (
+        editableQuestionType === "mcq_single" ||
+        editableQuestionType === "assertion_reasoning" ||
+        editableQuestionType === "match_following"
+      ) {
         if (typeof correct === "string") {
           setCorrectAnswer(correct);
         } else if (typeof correct === "object" && correct && "answer_ids" in correct) {
@@ -449,7 +781,7 @@ export default function QuestionForm({
           setCorrectAnswer(selected?.id ?? null);
         }
       }
-      if (initialQuestion.question_type === "mcq_multiple") {
+      if (editableQuestionType === "mcq_multiple") {
         if (Array.isArray(correct)) {
           setCorrectAnswer(correct);
         } else if (typeof correct === "object" && correct && "answer_ids" in correct) {
@@ -461,40 +793,33 @@ export default function QuestionForm({
           setCorrectAnswer(selected);
         }
       }
-      if (initialQuestion.question_type === "true_false") {
+      if (editableQuestionType === "true_false") {
         if (typeof correct === "boolean") {
           setTrueFalseAnswer(correct);
         } else if (typeof correct === "object" && correct && "answer" in correct) {
           setTrueFalseAnswer(Boolean((correct as { answer?: boolean }).answer));
         }
       }
-      if (initialQuestion.question_type === "numerical") {
-        if (typeof correct === "object" && correct && "value" in correct) {
-          setNumericalValue((correct as { value?: number }).value ?? "");
-          setNumericalTolerance((correct as { tolerance?: number }).tolerance ?? 0.01);
+      if (editableQuestionType === "numerical") {
+        if (typeof correct === "object" && correct) {
+          const typed = correct as { value?: number | string; raw?: string; answer?: string; tolerance?: number };
+          const resolvedValue =
+            typed.raw ??
+            typed.value ??
+            typed.answer ??
+            "";
+          setNumericalValue(String(resolvedValue ?? ""));
+          setNumericalTolerance(typed.tolerance ?? 0.01);
         }
       }
-      if (initialQuestion.question_type === "short_answer") {
+      if (editableQuestionType === "short_answer") {
         if (typeof correct === "object" && correct && "answers" in correct) {
           const answers = (correct as { answers?: string[] }).answers ?? [];
-          setShortAnswers(answers.join(", "));
+          setShortAnswers(answers.join("\n"));
           setShortCaseSensitive(Boolean((correct as { case_sensitive?: boolean }).case_sensitive));
         }
       }
-      if (initialQuestion.question_type === "match_following") {
-        const matchOptions = normalizeMatchOptions(initialQuestion.options);
-        if (matchOptions?.left && matchOptions?.right) {
-          setMatchLeft(matchOptions.left);
-          setMatchRight(matchOptions.right);
-        } else {
-          setMatchLeft(makeDefaultMatchSide());
-          setMatchRight(makeDefaultMatchSide());
-        }
-        if (typeof correct === "object" && correct && "pairs" in correct) {
-          setMatchPairs((correct as { pairs?: MatchFollowingPair[] }).pairs ?? []);
-        }
-      }
-      if (initialQuestion.question_type === "fill_in_blank") {
+      if (editableQuestionType === "fill_in_blank") {
         if (typeof correct === "object" && correct && "blanks" in correct) {
           setFillBlanks((correct as { blanks?: FillBlankAnswer[] }).blanks ?? []);
         }
@@ -531,9 +856,7 @@ export default function QuestionForm({
     setNumericalTolerance(0.01);
     setShortAnswers("");
     setShortCaseSensitive(false);
-    setMatchLeft(makeDefaultMatchSide());
-    setMatchRight(makeDefaultMatchSide());
-    setMatchPairs([]);
+    setMatchRows(makeDefaultMatchRows());
     setFillBlanks([]);
     setHasComprehension(false);
     setComprehensionMode("new");
@@ -567,9 +890,19 @@ export default function QuestionForm({
   }, [comprehensionMode, comprehensionPassageId, comprehensionPassages, hasComprehension]);
   const handleTypeChange = (nextType: QuestionType) => {
     setQuestionType(nextType);
-    if (nextType === "mcq_single" || nextType === "mcq_multiple") {
+    if (
+      nextType === "mcq_single" ||
+      nextType === "assertion_reasoning" ||
+      nextType === "mcq_multiple" ||
+      nextType === "match_following"
+    ) {
       if (options.length === 0) setOptions(makeDefaultOptions());
-      if (nextType === "mcq_single" && Array.isArray(correctAnswer)) {
+      if (
+        (nextType === "mcq_single" ||
+          nextType === "assertion_reasoning" ||
+          nextType === "match_following") &&
+        Array.isArray(correctAnswer)
+      ) {
         setCorrectAnswer(correctAnswer[0] ?? null);
       }
       if (nextType === "mcq_multiple" && typeof correctAnswer === "string") {
@@ -583,13 +916,31 @@ export default function QuestionForm({
     }
   };
 
+  const handleTypeSelectionChange = (nextType: QuestionTypeSelection) => {
+    if (nextType === "comprehension") {
+      setHasComprehension(true);
+      if (questionType === "comprehensive") {
+        handleTypeChange("mcq_single");
+      }
+      return;
+    }
+
+    setHasComprehension(false);
+    handleTypeChange(nextType);
+  };
+
   const updateOptionText = (id: string, value: RichTextValue) => {
     setOptions((prev) => prev.map((option) => (option.id === id ? { ...option, text: value } : option)));
   };
 
   const removeOption = (id: string) => {
     setOptions((prev) => prev.filter((option) => option.id !== id));
-    if (questionType === "mcq_single" && correctAnswer === id) {
+    if (
+      (questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following") &&
+      correctAnswer === id
+    ) {
       setCorrectAnswer(null);
     }
     if (questionType === "mcq_multiple" && Array.isArray(correctAnswer)) {
@@ -606,31 +957,18 @@ export default function QuestionForm({
     });
   };
 
-  const updateMatchOption = (
-    side: "left" | "right",
-    id: string,
-    value: RichTextValue
-  ) => {
-    const updater = side === "left" ? setMatchLeft : setMatchRight;
-    updater((prev) => prev.map((opt) => (opt.id === id ? { ...opt, text: value } : opt)));
-  };
-
-  const addMatchPair = () => {
-    if (!matchLeft.length || !matchRight.length) return;
-    setMatchPairs((prev) => [
-      ...prev,
-      { left_id: matchLeft[0].id, right_id: matchRight[0].id },
-    ]);
-  };
-
-  const updateMatchPair = (index: number, key: "left_id" | "right_id", value: string) => {
-    setMatchPairs((prev) =>
-      prev.map((pair, idx) => (idx === index ? { ...pair, [key]: value } : pair))
+  const updateMatchRow = (id: string, side: "left" | "right", value: RichTextValue) => {
+    setMatchRows((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, [side]: value } : row))
     );
   };
 
-  const removeMatchPair = (index: number) => {
-    setMatchPairs((prev) => prev.filter((_, idx) => idx !== index));
+  const addMatchRow = () => {
+    setMatchRows((prev) => [...prev, { id: makeId(), left: emptyRichText(), right: emptyRichText() }]);
+  };
+
+  const removeMatchRow = (id: string) => {
+    setMatchRows((prev) => prev.filter((row) => row.id !== id));
   };
 
   const addBlank = () => {
@@ -638,10 +976,7 @@ export default function QuestionForm({
   };
 
   const updateBlankAnswers = (index: number, value: string) => {
-    const answers = value
-      .split(",")
-      .map((ans) => ans.trim())
-      .filter(Boolean);
+    const answers = splitAnswerEntries(value);
     setFillBlanks((prev) => prev.map((blank, idx) => (idx === index ? { ...blank, answers } : blank)));
   };
 
@@ -663,13 +998,23 @@ export default function QuestionForm({
     }
 
     if (
-      (questionType === "mcq_single" || questionType === "mcq_multiple") &&
+      (
+        questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "mcq_multiple" ||
+        questionType === "match_following"
+      ) &&
       options.some((option) => !hasRichContent(option.text))
     ) {
       alert("All options must contain text or an image.");
       return;
     }
-    if (questionType === "mcq_single" && !correctAnswer) {
+    if (
+      (questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following") &&
+      !correctAnswer
+    ) {
       alert("Select the correct option.");
       return;
     }
@@ -678,20 +1023,29 @@ export default function QuestionForm({
       return;
     }
     if (questionType === "short_answer") {
-      const answers = shortAnswers
-        .split(",")
-        .map((ans) => ans.trim())
-        .filter(Boolean);
+      const answers = splitAnswerEntries(shortAnswers);
       if (answers.length === 0) {
         alert("Add at least one short answer.");
         return;
       }
     }
-    if (questionType === "match_following" && matchPairs.length === 0) {
-      alert("Add at least one match pair.");
+    if (questionType === "numerical" && String(numericalValue).trim().length === 0) {
+      alert("Correct answer is required.");
       return;
     }
-
+    if (
+      (questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following") &&
+      typeof correctAnswer !== "string"
+    ) {
+      alert("Select the correct answer.");
+      return;
+    }
+    if (questionType === "mcq_multiple" && (!Array.isArray(correctAnswer) || correctAnswer.length === 0)) {
+      alert("Select at least one correct answer.");
+      return;
+    }
     const parsedTags = tags
       .split(",")
       .map((tag) => tag.trim())
@@ -726,18 +1080,27 @@ export default function QuestionForm({
     let finalOptions: QuestionOption[] | MatchFollowingOptions | undefined = undefined;
     let finalCorrectAnswer: CorrectAnswer = null;
 
-    if (questionType === "mcq_single" || questionType === "mcq_multiple") {
+    if (
+      questionType === "mcq_single" ||
+      questionType === "assertion_reasoning" ||
+      questionType === "mcq_multiple" ||
+      questionType === "match_following"
+    ) {
       finalOptions = options.map((option) => ({
         ...option,
         is_correct:
-          questionType === "mcq_single"
+          questionType === "mcq_single" ||
+          questionType === "assertion_reasoning" ||
+          questionType === "match_following"
             ? option.id === correctAnswer
             : Array.isArray(correctAnswer)
             ? correctAnswer.includes(option.id)
             : false,
       }));
       const answerIds =
-        questionType === "mcq_single"
+        questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "match_following"
           ? typeof correctAnswer === "string"
             ? [correctAnswer]
             : []
@@ -752,26 +1115,22 @@ export default function QuestionForm({
     }
 
     if (questionType === "numerical") {
-      finalCorrectAnswer = {
-        value: Number(numericalValue) || 0,
-        tolerance: Number(numericalTolerance) || 0,
-      };
+      const normalizedValue = String(numericalValue).trim();
+      if (isNumericLike(normalizedValue)) {
+        finalCorrectAnswer = {
+          value: Number(normalizedValue.replace(/,/g, "")),
+          tolerance: Number(numericalTolerance) || 0,
+        };
+      } else {
+        finalCorrectAnswer = {
+          raw: normalizedValue,
+        };
+      }
     }
 
     if (questionType === "short_answer") {
-      const answers = shortAnswers
-        .split(",")
-        .map((ans) => ans.trim())
-        .filter(Boolean);
+      const answers = splitAnswerEntries(shortAnswers);
       finalCorrectAnswer = { answers, case_sensitive: shortCaseSensitive };
-    }
-
-    if (questionType === "match_following") {
-      finalOptions = [
-        ...matchLeft.map((option) => ({ ...option, side: "left" as const })),
-        ...matchRight.map((option) => ({ ...option, side: "right" as const })),
-      ];
-      finalCorrectAnswer = { pairs: matchPairs };
     }
 
     if (questionType === "fill_in_blank") {
@@ -843,9 +1202,12 @@ export default function QuestionForm({
         }
       }
 
+      const persistedQuestionType: QuestionType =
+        resolvedComprehensionPassageId !== null ? "comprehensive" : questionType;
+
       await onSave(
         {
-          question_type: questionType,
+          question_type: persistedQuestionType,
           question_text: questionText,
           options: finalOptions,
           correct_answer: finalCorrectAnswer,
@@ -889,15 +1251,16 @@ export default function QuestionForm({
         <div>
           <label className="text-xs font-semibold text-slate-500">Question Type</label>
           <select
-            value={questionType}
-            onChange={(event) => handleTypeChange(event.target.value as QuestionType)}
+            value={selectedQuestionType}
+            onChange={(event) => handleTypeSelectionChange(event.target.value as QuestionTypeSelection)}
             className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
           >
-            <option value="mcq_single">MCQ Single</option>
-            <option value="mcq_multiple">MCQ Multiple</option>
-            <option value="short_answer">Short Answer</option>
-            <option value="numerical">Numeric Response</option>
-            <option value="true_false">True/False</option>
+            {BASE_QUESTION_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="comprehension">Comprehension</option>
           </select>
         </div>
         <div>
@@ -943,8 +1306,8 @@ export default function QuestionForm({
       </div>
 
       <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <label className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
               Comprehensive Passage
             </label>
@@ -952,7 +1315,7 @@ export default function QuestionForm({
               Turn this on to place a passage before the question and keep both editable here.
             </p>
           </div>
-          <label className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700">
+          <label className="inline-flex w-full items-center justify-center gap-2 self-start rounded-full border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700 sm:w-auto">
             <input
               type="checkbox"
               checked={hasComprehension}
@@ -964,6 +1327,24 @@ export default function QuestionForm({
 
         {hasComprehension ? (
           <div className="mt-4 space-y-4 rounded-xl border border-sky-200 bg-white p-4">
+            <div>
+              <label className="text-xs font-semibold text-slate-500">Child Question Type</label>
+              <select
+                value={questionType}
+                onChange={(event) => handleTypeChange(event.target.value as QuestionType)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              >
+                {BASE_QUESTION_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Choose the question type that appears below this passage.
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1074,13 +1455,20 @@ export default function QuestionForm({
         </div>
       </div>
 
-      {(questionType === "mcq_single" || questionType === "mcq_multiple") && (
+      {(
+        questionType === "mcq_single" ||
+        questionType === "assertion_reasoning" ||
+        questionType === "mcq_multiple" ||
+        questionType === "match_following"
+      ) && (
         <div>
           <label className="text-xs font-semibold text-slate-500">Options</label>
           <div className="mt-2 space-y-3">
             {options.map((option, index) => (
               <div key={option.id} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
-                {questionType === "mcq_single" ? (
+                {questionType === "mcq_single" ||
+                questionType === "assertion_reasoning" ||
+                questionType === "match_following" ? (
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                     <input
                       type="radio"
@@ -1145,14 +1533,17 @@ export default function QuestionForm({
 
       {questionType === "short_answer" && (
         <div>
-          <label className="text-xs font-semibold text-slate-500">Accepted Answers (comma separated)</label>
-          <input
-            type="text"
-            value={shortAnswers}
-            onChange={(event) => setShortAnswers(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-            placeholder="e.g. Newton, Isaac Newton"
-          />
+          <label className="text-xs font-semibold text-slate-500">Accepted Answers</label>
+          <div className="mt-1">
+            <EquationAnswerInput
+              value={shortAnswers}
+              onChange={setShortAnswers}
+              multiline
+              rows={4}
+              placeholder={"Enter one accepted answer per line\nExample: Newton\n\\(\\frac{a}{b}\\)\nH₂SO₄"}
+              helpText="Use one answer per line. Plain text, chemical notation, and LaTeX-wrapped equations are supported."
+            />
+          </div>
           <label className="mt-2 flex items-center gap-2 text-xs text-slate-500">
             <input
               type="checkbox"
@@ -1168,13 +1559,14 @@ export default function QuestionForm({
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="text-xs font-semibold text-slate-500">Correct Answer</label>
-            <input
-              type="number"
-              value={numericalValue}
-              onChange={(event) => setNumericalValue(Number(event.target.value))}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-              placeholder="Enter numeric answer"
-            />
+            <div className="mt-1">
+              <EquationAnswerInput
+                value={numericalValue}
+                onChange={setNumericalValue}
+                placeholder="Enter number, chemical expression, symbolic answer, or equation"
+                helpText="Pure numbers use tolerance. Text, chemical formulas, and inserted LaTeX are saved as symbolic answers."
+              />
+            </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500">Tolerance</label>
@@ -1182,8 +1574,12 @@ export default function QuestionForm({
               type="number"
               value={numericalTolerance}
               onChange={(event) => setNumericalTolerance(Number(event.target.value))}
+              disabled={!isNumericLike(numericalValue)}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Used only when the correct answer is numeric.
+            </p>
           </div>
         </div>
       )}
@@ -1201,104 +1597,26 @@ export default function QuestionForm({
           </select>
         </div>
       )}
-      {questionType === "match_following" && (
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold text-slate-500">Left Items</label>
-              <div className="mt-2 space-y-2">
-                {matchLeft.map((item, index) => (
-                  <RichTextEditor
-                    key={item.id}
-                    value={item.text}
-                    onChange={(value) => updateMatchOption("left", item.id, value)}
-                    placeholder={`Left ${index + 1}`}
-                    height={90}
-                  />
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500">Right Items</label>
-              <div className="mt-2 space-y-2">
-                {matchRight.map((item, index) => (
-                  <RichTextEditor
-                    key={item.id}
-                    value={item.text}
-                    onChange={(value) => updateMatchOption("right", item.id, value)}
-                    placeholder={`Right ${index + 1}`}
-                    height={90}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500">Pairs</label>
-            <div className="mt-2 space-y-2">
-              {matchPairs.map((pair, index) => (
-                <div key={`${pair.left_id}-${pair.right_id}-${index}`} className="flex items-center gap-2">
-                  <select
-                    value={pair.left_id}
-                    onChange={(event) => updateMatchPair(index, "left_id", event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  >
-                    {matchLeft.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {stripHtml(item.text) || item.id}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-xs text-slate-400">→</span>
-                  <select
-                    value={pair.right_id}
-                    onChange={(event) => updateMatchPair(index, "right_id", event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  >
-                    {matchRight.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {stripHtml(item.text) || item.id}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => removeMatchPair(index)}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={addMatchPair}
-              className="mt-2 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
-            >
-              Add pair
-            </button>
-          </div>
-        </div>
-      )}
-
       {questionType === "fill_in_blank" && (
         <div>
           <label className="text-xs font-semibold text-slate-500">Blanks</label>
           <p className="text-xs text-slate-400">
             Use placeholders like {"{{blank1}}"} in the question text.
           </p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 space-y-3">
             {fillBlanks.map((blank, index) => (
-              <div key={blank.id} className="flex items-center gap-2">
+              <div key={blank.id} className="rounded-lg border border-slate-200 p-3">
                 <span className="text-xs font-semibold text-slate-500">{blank.id}</span>
-                <input
-                  type="text"
-                  value={blank.answers.join(", ")}
-                  onChange={(event) => updateBlankAnswers(index, event.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  placeholder="Accepted answers, comma separated"
-                />
+                <div className="mt-2">
+                  <EquationAnswerInput
+                    value={blank.answers.join("\n")}
+                    onChange={(next) => updateBlankAnswers(index, next)}
+                    multiline
+                    rows={3}
+                    placeholder={"Enter one accepted answer per line\nExample: density\n\\(\\rho = \\frac{m}{V}\\)"}
+                    helpText="Use one accepted answer per line for this blank."
+                  />
+                </div>
               </div>
             ))}
           </div>

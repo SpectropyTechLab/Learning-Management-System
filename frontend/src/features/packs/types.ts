@@ -53,8 +53,11 @@ export interface CourseContentPreviewItem {
 
 export interface PackSummaryGroupItem {
   id: number;
+  parent_id: number | null;
   title: string;
   item_type: string;
+  order_index: number;
+  is_attached_root: boolean;
 }
 
 export interface PackSummaryGroup {
@@ -80,6 +83,13 @@ export interface AddPackItemsResponse {
 
 export interface CreateCourseResponse {
   course_id: number;
+}
+
+export interface ImportCourseContentResponse {
+  target_course_id: number;
+  source_course_id: number;
+  added_item_ids: number[];
+  imported_count: number;
 }
 
 export interface CreatePackResponse {

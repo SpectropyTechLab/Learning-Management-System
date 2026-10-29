@@ -1,5 +1,6 @@
 export type QuestionType =
   | "mcq_single"
+  | "assertion_reasoning"
   | "mcq_multiple"
   | "numerical"
   | "true_false"
@@ -14,7 +15,7 @@ export type DifficultyLevel = "easy" | "medium" | "hard";
 
 export type QuestionStatus = "draft" | "approved" | "rejected";
 
-export type QuestionGroupType = "direction" | "similar" | "previous_year" | "reference";
+export type QuestionGroupType = "direct" | "similar" | "previous_year" | "reference";
 
 export type CorrectAnswer =
   | string
@@ -125,6 +126,11 @@ export interface Question {
   created_by?: string;
   created_at?: string;
   review_note?: string | null;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canApprove?: boolean;
+  canReject?: boolean;
+  canAddQuestion?: boolean;
 }
 
 export interface CurriculumItem {
@@ -136,6 +142,10 @@ export interface CurriculumItem {
   grade_number?: string | number | null;
   subject_id?: string | number | null;
   chapter_id?: string | number | null;
+  school_id?: string | number | null;
+  ownership_scope?: "platform" | "client" | "school";
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export const formatSubjectDisplay = (
@@ -155,10 +165,16 @@ export const formatSubjectDisplay = (
 
 export const formatQuestionCategory = (category: QuestionCategory) => {
   if (category === undefined || category === null) return "";
-  if (typeof category === "string") return category.trim();
+  if (typeof category === "string") {
+    const trimmed = category.trim();
+    return trimmed.toLowerCase() === "direction" ? "direct" : trimmed;
+  }
   if (Array.isArray(category)) {
     return category
-      .map((entry) => String(entry).trim())
+      .map((entry) => {
+        const trimmed = String(entry).trim();
+        return trimmed.toLowerCase() === "direction" ? "direct" : trimmed;
+      })
       .filter(Boolean)
       .join(", ");
   }
@@ -169,7 +185,8 @@ export const formatQuestionCategory = (category: QuestionCategory) => {
       category.value ??
       category.type ??
       (Array.isArray(category.tags) ? category.tags.join(", ") : "");
-    return String(preferred ?? "").trim();
+    const trimmed = String(preferred ?? "").trim();
+    return trimmed.toLowerCase() === "direction" ? "direct" : trimmed;
   }
   return String(category).trim();
 };

@@ -5,19 +5,14 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold } from 'react-icons/pi';
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
-
-const featureCards = [
-  { title: "Question Bank", desc: "Create and draft questions by subject and chapter." },
-  { title: "Exams", desc: "Build exams with sections and rules." },
-  { title: "Results", desc: "Review performance after grading." },
-  { title: "Courses", desc: "Publish lessons and manage course content." },
-];
+import { useHasVisibleExams } from "@/features/exams/hooks/useHasVisibleExams";
+import { useHasVisibleQuestionBankPrograms } from "@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function TeacherHome() {
   const navigate = useNavigate();
@@ -27,9 +22,39 @@ export default function TeacherHome() {
   const theme = getDashboardTheme(false);
   const userFullName = user?.full_name || "Teacher";
   const userEmail = user?.email || "teacher@spectropy.com";
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
+  const featureCards = [
+    {
+      title: "Courses",
+      desc: "Review assigned courses, manage class access, and open teaching content quickly.",
+      enabled: coursePermissions.canView,
+      badge: "Live",
+    },
+    {
+      title: "Question Bank",
+      desc: "Create and review question content available for teaching workflows.",
+      enabled: canShowQuestionBank,
+      badge: "Live",
+    },
+    {
+      title: "Exams",
+      desc: "Prepare assessments, monitor readiness, and review exam-related work.",
+      enabled: canShowExams,
+      badge: "Live",
+    },
+    {
+      title: "Teacher Session Tracker",
+      desc: "Track classroom execution, delivery progress, and teaching-session activity.",
+      enabled: true,
+      badge: "Live",
+    },
+  ];
 
   const navItems = [
     {
@@ -39,7 +64,7 @@ export default function TeacherHome() {
       active: true,
       onClick: () => navigate("/teacher/dashboard"),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: "question-bank",
           label: "Question Bank",
@@ -48,7 +73,7 @@ export default function TeacherHome() {
           onClick: () => navigate("/question-bank"),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: "exams",
           label: "Exams",
@@ -67,11 +92,11 @@ export default function TeacherHome() {
         }]
       : []),
     {
-      key: "users",
-      label: "Students",
-      icon: <PiUsersBold />,
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => { },
+      onClick: () => navigate("/teacher/teaching-sessions"),
     },
   ];
 
@@ -90,8 +115,9 @@ export default function TeacherHome() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="Teacher"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
           navItems={navItems}
           userInfo={{ name: userFullName, email: userEmail }}
           onProfileClick={() => navigate("/teacher/profile")}
@@ -112,19 +138,11 @@ export default function TeacherHome() {
           </button>
           <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">Teaching Dashboard</h1>
+              <h1 className="text-xl md:text-2xl font-bold">Teacher Dashboard</h1>
               <p className="mt-1 text-sm md:text-base text-gray-600">
                 Manage your classes, assessments, and learning materials.
               </p>
             </div>
-            {coursePermissions.canView && (
-              <button
-                onClick={() => navigate("/teacher/courses")}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg border ${theme.secondaryBorderClass}`}
-              >
-                Manage Courses
-              </button>
-            )}
           </div>
         </div>
       }
@@ -132,38 +150,29 @@ export default function TeacherHome() {
       <div className="p-6 space-y-6">
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {featureCards
-            .filter((card) => {
-              if (card.title === "Question Bank") {
-                return questionPermissions.canView;
-              }
-              if (card.title === "Exams") {
-                return examPermissions.canRead;
-              }
-              if (card.title === "Courses") {
-                return coursePermissions.canView;
-              }
-              return true;
-            })
+            .filter((card) => card.enabled)
             .map((card) => (
             <div
               key={card.title}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+              className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm"
             >
-              <h2 className="text-lg font-semibold">{card.title}</h2>
-              <p className="mt-2 text-sm text-slate-600">{card.desc}</p>
-              <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Coming soon
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                  {card.badge}
+                </span>
               </div>
+              <p className="mt-2 text-sm text-slate-600">{card.desc}</p>
             </div>
           ))}
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Focus for MVP</h2>
+          <h2 className="text-lg font-semibold">Daily Priorities</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
-            <li>Create draft questions for approval.</li>
-            <li>Assemble exams and assign them to batches.</li>
-            <li>Track submissions and view results.</li>
+            <li>Keep assigned courses ready for classroom delivery.</li>
+            <li>Review question and exam work needed for active teaching plans.</li>
+            <li>Monitor teacher session activity and follow up on execution gaps.</li>
           </ul>
         </section>
       </div>

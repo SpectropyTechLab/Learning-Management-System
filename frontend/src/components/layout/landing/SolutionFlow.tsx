@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- 1. CUSTOM GRAPHICS COMPONENTS ---
@@ -129,10 +129,10 @@ const SolutionFlow: React.FC<{ activeModal: string | null; onClose?: () => void 
         }
     }, [activeModal]);
 
-    const handleInternalClose = useCallback(() => {
+    const handleInternalClose = () => {
         setShowModal(false);
         if (onClose) onClose();
-    }, [onClose]);
+    };
 
     // AUTO-TRANSITION
     useEffect(() => {
@@ -142,14 +142,8 @@ const SolutionFlow: React.FC<{ activeModal: string | null; onClose?: () => void 
     }, [viewMode, showModal]);
 
     // HANDLERS
-    const handleNext = useCallback(
-        () => setActiveStep((prev) => Math.min(prev + 1, 4) as StepId),
-        []
-    );
-    const handlePrev = useCallback(
-        () => setActiveStep((prev) => Math.max(prev - 1, 1) as StepId),
-        []
-    );
+    const handleNext = () => setActiveStep((prev) => Math.min(prev + 1, 4) as StepId);
+    const handlePrev = () => setActiveStep((prev) => Math.max(prev - 1, 1) as StepId);
 
     // INPUT LISTENERS
     useEffect(() => {
@@ -212,7 +206,7 @@ const SolutionFlow: React.FC<{ activeModal: string | null; onClose?: () => void 
             window.removeEventListener('touchend', handleTouchEnd);
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [viewMode, showModal, handleNext, handlePrev, handleInternalClose]);
+    }, [viewMode, showModal, activeStep]);
 
     // DATA
     const contentData: Record<StepId, SolutionContent> = {

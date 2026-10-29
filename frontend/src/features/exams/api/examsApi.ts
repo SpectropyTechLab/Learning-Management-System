@@ -8,7 +8,6 @@ import type {
   ExamBuilderSection,
   ExamPreviewPayload,
   ExamSectionSyllabusOptions,
-  ExamSectionGenerationPlan,
   ExamSectionGenerationPlanInput,
   CurriculumOption,
 } from '../types';
@@ -22,6 +21,7 @@ export interface ExamFilters {
   status?: string;
   start_from?: string;
   start_to?: string;
+  assignment_only?: string;
   page?: number;
   page_size?: number;
 }
@@ -48,6 +48,71 @@ export const fetchExamById = async (id: number): Promise<ExamSummary> => {
 export const fetchExamPreview = async (id: number): Promise<ExamPreviewPayload> => {
   const res = await api.get(`/exams/${id}/preview`);
   return res.data as ExamPreviewPayload;
+};
+
+const sanitizeExamTitleForFilename = (value?: string | null) =>
+  String(value || "question-paper")
+    .replace(/[<>:\"/\\|?*\x00-\x1F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim() || "question-paper";
+
+const buildExamDocxFallbackFilename = (
+  examTitle: string | null | undefined,
+  suffix: "questions" | "answer" | "solution"
+) => `${sanitizeExamTitleForFilename(examTitle)}${suffix}.docx`;
+
+const triggerDocxDownload = (blobData: BlobPart, disposition: string | undefined, fallbackFilename: string) => {
+  const blob = new Blob([blobData], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  const utf8FilenameMatch = disposition?.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  const basicFilenameMatch = disposition?.match(/filename="?([^"]+)"?/i);
+  const filename =
+    (utf8FilenameMatch?.[1] ? decodeURIComponent(utf8FilenameMatch[1]) : null) ||
+    basicFilenameMatch?.[1] ||
+    fallbackFilename;
+
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+export const downloadExamPreviewDocx = async (id: number, examTitle?: string | null): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview-docx`, {
+    responseType: "blob",
+  });
+
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, buildExamDocxFallbackFilename(examTitle, "questions"));
+};
+
+export const downloadExamQuestionsDocx = async (id: number, examTitle?: string | null): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview/docx/questions`, {
+    responseType: "blob",
+  });
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, buildExamDocxFallbackFilename(examTitle, "questions"));
+};
+
+export const downloadExamAnswersDocx = async (id: number, examTitle?: string | null): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview/docx/answers`, {
+    responseType: "blob",
+  });
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, buildExamDocxFallbackFilename(examTitle, "answer"));
+};
+
+export const downloadExamSolutionsDocx = async (id: number, examTitle?: string | null): Promise<void> => {
+  const res = await api.get(`/exams/${id}/preview/docx/solutions`, {
+    responseType: "blob",
+  });
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  triggerDocxDownload(res.data, disposition, buildExamDocxFallbackFilename(examTitle, "solution"));
 };
 
 // ============================================
@@ -147,6 +212,15 @@ export const replaceQuestionInSection = async (
   return res.data as ExamBuilderSection;
 };
 
+export const cloneExamSectionQuestions = async (
+  examId: number,
+  sectionId: number,
+  payload: { source_exam_id: number }
+): Promise<ExamBuilderSection> => {
+  const res = await api.post(`/exams/${examId}/sections/${sectionId}/clone-questions`, payload);
+  return res.data as ExamBuilderSection;
+};
+
 // ============================================
 // EXAM PUBLISHING
 // ============================================
@@ -241,14 +315,6 @@ export const configureExamSectionSyllabus = async (
 ): Promise<ExamBuilderSection> => {
   const res = await api.put(`/exams/${examId}/sections/${sectionId}/configure`, payload);
   return res.data as ExamBuilderSection;
-};
-
-export const fetchExamSectionGenerationPlan = async (
-  examId: number,
-  sectionId: number
-): Promise<ExamSectionGenerationPlan> => {
-  const res = await api.get(`/exams/${examId}/sections/${sectionId}/generation-plan`);
-  return (res.data?.generation_plan ?? res.data) as ExamSectionGenerationPlan;
 };
 
 export const generateExamSectionQuestions = async (

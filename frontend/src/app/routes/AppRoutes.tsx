@@ -6,6 +6,7 @@ import ProtectedRoute from './ProtectedRoute';
 
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage';
+import LandingPage from '@/pages/auth/LandingPage';
 import Courses from '@/pages/course/CoursesPage';
 
 // SuperAdmin
@@ -15,6 +16,8 @@ import ClientsPage from '@/pages/dashboard/superadmin/ClientsPage';
 import PacksPage from '@/pages/dashboard/superadmin/PacksPage';
 import PackManagePage from '@/pages/dashboard/superadmin/PackManagePage';
 import EntitlementsPage from '@/pages/dashboard/superadmin/EntitlementsPage';
+import QuestionBankEntitlementsPage from '@/pages/dashboard/superadmin/QuestionBankEntitlementsPage';
+import ExamEntitlementsPage from '@/pages/dashboard/superadmin/ExamEntitlementsPage';
 import UsersPage from '@/pages/dashboard/superadmin/UsersPage';
 import PermissionsPage from '@/pages/dashboard/superadmin/PermissionsPage';
 
@@ -22,7 +25,7 @@ import PermissionsPage from '@/pages/dashboard/superadmin/PermissionsPage';
 import AdminDashboard from '@/pages/dashboard/admin/admindashboard';
 import OrgDashboard from '@/pages/dashboard/admin/OrgDashboard';
 import CourseContent from '@/pages/course/admin/CourseContent';
-import EnrollUsers from '@/pages/course/admin/EnrollUsers';
+import EnrollUsers from '@/pages/course/admin/EnrollUsersBulk';
 
 // Teacher
 import TeacherDashboard from '@/pages/dashboard/teacher/Dashboard';
@@ -42,6 +45,7 @@ import ContentAuthorizerCourses from '@/pages/dashboard/content_authorizer/Cours
 import ContentAuthorizerDashboard from '@/pages/dashboard/content_authorizer/Dashboard';
 import ContentAuthorizerPacksPage from '@/pages/dashboard/content_authorizer/PacksPage';
 import ContentAuthorizerPackManagePage from '@/pages/dashboard/content_authorizer/PackManagePage';
+import ContentAuthorizerCommunity from '@/pages/dashboard/content_authorizer/Community';
 import SchoolOwnerProfile from '@/pages/dashboard/school_owner/Profile';
 import SchoolOwnerCourseContent from '@/pages/course/school_owner/CourseContent';
 import SchoolOwnerEnrollUsers from '@/pages/course/school_owner/EnrollUsers';
@@ -67,10 +71,6 @@ import QuestionGradeEditPage from '@/pages/questions/QuestionGradeEditPage';
 import QuestionSubjectsPage from '@/pages/questions/QuestionSubjectsPage';
 import QuestionSubjectCreatePage from '@/pages/questions/QuestionSubjectCreatePage';
 import QuestionSubjectEditPage from '@/pages/questions/QuestionSubjectEditPage';
-import QuestionFoldersPage from '@/pages/questions/QuestionFoldersPage';
-import QuestionFolderDetailPage from '@/pages/questions/QuestionFolderDetailPage';
-import QuestionFolderCreatePage from '@/pages/questions/QuestionFolderCreatePage';
-import QuestionFolderEditPage from '@/pages/questions/QuestionFolderEditPage';
 import QuestionChaptersPage from '@/pages/questions/QuestionChaptersPage';
 import QuestionChapterCreatePage from '@/pages/questions/QuestionChapterCreatePage';
 import QuestionChapterEditPage from '@/pages/questions/QuestionChapterEditPage';
@@ -86,6 +86,17 @@ import ExamBuilderPage from '@/pages/exams/ExamBuilderPage';
 import ExamPaperPreviewPage from '@/pages/exams/ExamPaperPreviewPage';
 import ExamSectionQuestionsPage from '@/pages/exams/ExamSectionQuestionsPage';
 import BlueprintsPage from '@/pages/exams/BlueprintsPage';
+import ProgramMicroScheduleUploadPage from '@/pages/teaching-sessions/ProgramMicroScheduleUploadPage';
+import ProgramLessonPlannerUploadPage from '@/pages/teaching-sessions/ProgramLessonPlannerUploadPage';
+import ProgramTemplateMappingPage from '@/pages/teaching-sessions/ProgramTemplateMappingPage';
+import ClientEntitlementsPage from '@/pages/teaching-sessions/ClientEntitlementsPage';
+import TeachingSessionSetupPage from '@/pages/teaching-sessions/TeachingSessionSetupPage';
+import TeacherTrackerPermissionsPage from '@/pages/teaching-sessions/TeacherTrackerPermissionsPage';
+import TeachingSessionsListPage from '@/pages/teaching-sessions/TeachingSessionsListPage';
+import MyTeachingSessionsPage from '@/pages/teaching-sessions/MyTeachingSessionsPage';
+import TeachingSessionDetailPage from '@/pages/teaching-sessions/TeachingSessionDetailPage';
+import TeachingSessionAnalyticsPage from '@/pages/teaching-sessions/TeachingSessionAnalyticsPage';
+import TeachingStudioPage from '@/features/teaching-studio/TeachingStudioPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -108,12 +119,11 @@ export default function AppRoutes() {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={<LoginPage />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/courses" element={<Courses />} />
       <Route path="/content/:contentId" element={<ContentViewer />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
-
       {/* SuperAdmin */}
       <Route element={<Protect roles={['super_admin']} />}>
         <Route path="/superadmin/dashboard" element={<PlatformDashboard />} />
@@ -121,6 +131,9 @@ export default function AppRoutes() {
         <Route path="/superadmin/packs" element={<PacksPage />} />
         <Route path="/superadmin/packs/:packId" element={<PackManagePage />} />
         <Route path="/superadmin/entitlements" element={<EntitlementsPage />} />
+        <Route path="/superadmin/question-bank/entitlements" element={<QuestionBankEntitlementsPage />} />
+        <Route path="/superadmin/exams/entitlements" element={<ExamEntitlementsPage />} />
+        <Route path="/superadmin/teaching-sessions/entitlements" element={<ClientEntitlementsPage />} />
         <Route path="/superadmin/users" element={<UsersPage />} />
         <Route path="/superadmin/permissions" element={<PermissionsPage />} />
         <Route path="/superadmin/register" element={<RegisterAdmin />} />
@@ -171,19 +184,24 @@ export default function AppRoutes() {
       </Route>
 
       {/* Content Authorizer */}
-      <Route element={<Protect roles={['content_authorizer', 'super_admin']} />}>
+      <Route element={<Protect roles={['content_authorizer']} />}>
         <Route path="/content-authorizer/dashboard" element={<ContentAuthorizerDashboard />} />
         <Route path="/content-authorizer/courses" element={<ContentAuthorizerCourses />} />
         <Route path="/content-authorizer/packs" element={<ContentAuthorizerPacksPage />} />
         <Route path="/content-authorizer/packs/:packId" element={<ContentAuthorizerPackManagePage />} />
+        <Route path="/content-authorizer/community" element={<ContentAuthorizerCommunity />} />
         <Route path="/content-authorizer/courses/:courseId/content" element={<ContentAuthorizerCourseContent />} />
         <Route path="/content-authorizer/profile" element={<ContentAuthorizerProfile />} />
+        <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />
+        <Route path="/content-authorizer/teaching-sessions/lesson-planners" element={<ProgramLessonPlannerUploadPage />} />
+        <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
       </Route>
 
       {/* School Owner */}
       <Route element={<Protect roles={['school_owner', 'client_admin', 'super_admin']} />}>
         <Route path="/school-owner/dashboard" element={<SchoolOwnerDashboard />} />
         <Route path="/school-owner/profile" element={<SchoolOwnerProfile />} />
+        <Route path="/school-owner/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
       </Route>
 
       <Route element={<Protect roles={['school_owner', 'client_admin', 'super_admin']} permissions={['courses.read']} />}>
@@ -213,11 +231,24 @@ export default function AppRoutes() {
       </Route>
 
       {/* Teacher */}
+      <Route element={<Protect roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']} />}>
+        <Route path="/teaching-studio" element={<TeachingStudioPage />} />
+      </Route>
       <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} />}>
 
         <Route path="/teacher" element={<TeacherHome />} />
         <Route path="/teacher/dashboard" element={<TeacherHome />} />
         <Route path="/teacher/profile" element={<TeacherProfile />} />
+        <Route path="/teacher/teaching-sessions" element={<MyTeachingSessionsPage />} />
+        <Route path="/teacher/teaching-sessions/:id" element={<TeachingSessionDetailPage />} />
+        <Route path="/teacher/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
+      </Route>
+
+      <Route element={<Protect roles={['client_admin']} />}>
+        <Route path="/admin/teaching-sessions/setup" element={<TeachingSessionSetupPage />} />
+        <Route path="/admin/teaching-sessions/permissions" element={<TeacherTrackerPermissionsPage />} />
+        <Route path="/admin/teaching-sessions/sessions" element={<TeachingSessionsListPage />} />
+        <Route path="/admin/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
       </Route>
 
       <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} permissions={['courses.read']} />}>
@@ -267,8 +298,8 @@ export default function AppRoutes() {
         <Route path="/question-bank/subjects" element={<QuestionSubjectsPage />} />
         <Route path="/question-bank/chapters" element={<QuestionChaptersPage />} />
         <Route path="/question-bank/topics" element={<QuestionTopicsPage />} />
-        <Route path="/question-bank/folders" element={<QuestionFoldersPage />} />
-        <Route path="/question-bank/folders/:id" element={<QuestionFolderDetailPage />} />
+        <Route path="/question-bank/folders" element={<Navigate to="/question-bank" replace />} />
+        <Route path="/question-bank/folders/:id" element={<Navigate to="/question-bank" replace />} />
         <Route path="/question-bank/passages" element={<QuestionPassagesPage />} />
       </Route>
 
@@ -300,8 +331,8 @@ export default function AppRoutes() {
         <Route path="/question-bank/chapters/:id/edit" element={<QuestionChapterEditPage />} />
         <Route path="/question-bank/topics/new" element={<QuestionTopicCreatePage />} />
         <Route path="/question-bank/topics/:id/edit" element={<QuestionTopicEditPage />} />
-        <Route path="/question-bank/folders/new" element={<QuestionFolderCreatePage />} />
-        <Route path="/question-bank/folders/:id/edit" element={<QuestionFolderEditPage />} />
+        <Route path="/question-bank/folders/new" element={<Navigate to="/question-bank" replace />} />
+        <Route path="/question-bank/folders/:id/edit" element={<Navigate to="/question-bank" replace />} />
         <Route path="/question-bank/passages/new" element={<QuestionPassageCreatePage />} />
         <Route path="/question-bank/passages/:id/edit" element={<QuestionPassageEditPage />} />
       </Route>
@@ -340,6 +371,7 @@ export default function AppRoutes() {
       >
         <Route path="/exams" element={<ExamListPage />} />
         <Route path="/exams/blueprints" element={<BlueprintsPage />} />
+        <Route path="/exams/:id/paper-preview" element={<ExamPaperPreviewPage />} />
       </Route>
 
       <Route
@@ -374,7 +406,6 @@ export default function AppRoutes() {
         }
       >
         <Route path="/exams/:id/builder" element={<ExamBuilderPage />} />
-        <Route path="/exams/:id/paper-preview" element={<ExamPaperPreviewPage />} />
         <Route path="/exams/:id/sections/:sectionId/questions" element={<ExamSectionQuestionsPage />} />
       </Route>
 

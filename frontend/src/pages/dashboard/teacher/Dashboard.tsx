@@ -5,22 +5,28 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
-import { RiHome2Line, RiFileList3Line } from 'react-icons/ri';
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
-import { PiUsersBold } from 'react-icons/pi';
 import AdminCourseManager from '@/features/courses/components/list/AdminCourseManager';
 import { getCoursePermissions } from '@/features/courses/utils/coursePermissions';
 import { getQuestionPermissions } from '@/features/question-bank/utils/questionPermissions';
 import { getExamPermissions } from '@/features/exams/utils/examPermissions';
+import { useHasVisibleExams } from '@/features/exams/hooks/useHasVisibleExams';
+import { useHasVisibleQuestionBankPrograms } from '@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms';
+import { getOrganizationLabel, getRoleDisplayTitle } from '@/features/auth/utils/roleBranding';
 
 export default function TeacherDashboard() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const theme = getDashboardTheme(false);
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
 
   const navItems = [
     {
@@ -30,7 +36,7 @@ export default function TeacherDashboard() {
       active: false,
       onClick: () => navigate('/teacher/dashboard'),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: 'question-bank',
           label: 'Question Bank',
@@ -39,7 +45,7 @@ export default function TeacherDashboard() {
           onClick: () => navigate('/question-bank'),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: 'exams',
           label: 'Exams',
@@ -58,11 +64,11 @@ export default function TeacherDashboard() {
         }]
       : []),
     {
-      key: 'students',
-      label: 'Students',
-      icon: <PiUsersBold />,
+      key: 'teaching-sessions',
+      label: 'Teacher Session Tracker',
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => { },
+      onClick: () => navigate('/teacher/teaching-sessions'),
     },
   ];
 
@@ -85,12 +91,14 @@ export default function TeacherDashboard() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="Teacher"
+          brandName={organizationLabel}
+          title={roleTitle}
+          brandTag={organizationLabel}
           navItems={navItems}
           userInfo={{
             name: user?.full_name || 'Teacher',
             email: user?.email || 'teacher@spectropy.com',
+            meta: organizationLabel,
           }}
           onProfileClick={() => navigate('/teacher/profile')}
           onLogout={handleBackToLogin}
@@ -110,25 +118,25 @@ export default function TeacherDashboard() {
           </button>
           <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">My Courses</h1>
+              <h1 className="text-xl md:text-2xl font-bold">Courses</h1>
               <p className="mt-1 text-sm md:text-base text-gray-600">
-                Review your active classes and content packages.
+                Set up your courses and share your knowledge.
               </p>
             </div>
           </div>
         </div>
       }
     >
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6">
         <AdminCourseManager
           mode="admin"
           role={user?.role}
           permissionKeys={user?.permissions}
           theme={theme}
           brandLogo="/logo.png"
-          brandName="Spectropy"
+          brandName={organizationLabel}
           courseBannerClass="bg-blue-50"
-          listTitle="My Courses"
+          listTitle="Courses"
           emptyMessage="No courses found."
           onManageContent={(courseId) =>
             navigate(`/teacher/courses/${courseId}/content`)
@@ -141,5 +149,3 @@ export default function TeacherDashboard() {
     </DashboardLayout>
   );
 }
-
-

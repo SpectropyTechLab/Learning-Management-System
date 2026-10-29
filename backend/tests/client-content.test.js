@@ -121,7 +121,7 @@ const createMockDb = () => {
         return { rows: item ? [{ ...item, client_id: item.course_id === 10 ? null : 201 }] : [] };
       }
 
-      if (normalized.startsWith('select 1 from content_entitlements ce left join content_pack_items cpi on ce.pack_id = cpi.pack_id')) {
+      if (normalized.startsWith('with recursive entitlement_ancestors as (')) {
         return { rows: Number(params[0]) === 201 && Number(params[1]) === 100 ? [{}] : [] };
       }
 

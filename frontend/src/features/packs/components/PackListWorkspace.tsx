@@ -62,7 +62,6 @@ export default function PackListWorkspace({ basePath }: PackListWorkspaceProps) 
   const [packsLoading, setPacksLoading] = useState(true);
   const [packsError, setPacksError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [packFormMode, setPackFormMode] = useState<'create' | 'edit' | null>(null);
   const [packFormSubmitting, setPackFormSubmitting] = useState(false);
@@ -95,10 +94,7 @@ export default function PackListWorkspace({ basePath }: PackListWorkspaceProps) 
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return packs.filter((pack) => {
-      const matchesStatus =
-        statusFilter === 'all' ? true : statusFilter === 'active' ? pack.is_active : !pack.is_active;
-
-      if (!matchesStatus) return false;
+      if (!pack.is_active) return false;
       if (!normalizedQuery) return true;
 
       return [pack.name, pack.description ?? '', String(pack.item_count), String(pack.course_count)]
@@ -106,7 +102,7 @@ export default function PackListWorkspace({ basePath }: PackListWorkspaceProps) 
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [packs, searchQuery, statusFilter]);
+  }, [packs, searchQuery]);
 
   const refreshPacks = async () => {
     try {
@@ -115,7 +111,7 @@ export default function PackListWorkspace({ basePath }: PackListWorkspaceProps) 
       const response = await api.get<PaginatedResponse<PackSummary>>('/packs', {
         params: { page: 1, page_size: 100 },
       });
-      setPacks(response.data.data);
+      setPacks(response.data.data.filter((pack) => pack.is_active));
     } catch (error) {
       setPacksError(readError(error, 'Failed to load packs.'));
     } finally {
@@ -304,27 +300,6 @@ export default function PackListWorkspace({ basePath }: PackListWorkspaceProps) 
               placeholder="Search packs"
               className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-slate-300"
             />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(['all', 'active', 'inactive'] as const).map((filter) => {
-              const isActive = statusFilter === filter;
-              const label = filter === 'all' ? 'All' : filter === 'active' ? 'Active' : 'Inactive';
-
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => setStatusFilter(filter)}
-                  className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                    isActive
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
           </div>
         </div>
 

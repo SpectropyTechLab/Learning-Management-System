@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import ExamShell from "@/features/exams/components/ExamShell";
@@ -93,6 +93,10 @@ export default function ExamSectionQuestionsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id, sectionId } = useParams();
+  const [searchParams] = useSearchParams();
+  const replaceQuestionId = searchParams.get("replaceQuestionId");
+  const replaceOrderIndex = searchParams.get("orderIndex");
+  const isReplaceMode = Boolean(replaceQuestionId);
 
   const [section, setSection] = useState<ExamSection | null>(null);
   const [sectionLoading, setSectionLoading] = useState(true);
@@ -347,6 +351,10 @@ export default function ExamSectionQuestionsPage() {
   const toggleQuestion = (question: Question) => {
     const key = String(question.id);
     setSelectedQuestions((prev) => {
+      if (isReplaceMode) {
+        if (prev.length === 1 && String(prev[0].id) === key) return [];
+        return [question];
+      }
       const index = prev.findIndex((item) => String(item.id) === key);
       if (index >= 0) {
         const next = [...prev];
@@ -360,11 +368,37 @@ export default function ExamSectionQuestionsPage() {
   const handleSave = async () => {
     if (!id || !sectionId) return;
     if (selectedQuestions.length === 0) {
-      toast.error("Select at least one question");
+      toast.error(isReplaceMode ? "Select one replacement question" : "Select at least one question");
+      return;
+    }
+
+    if (isReplaceMode && selectedQuestions.length !== 1) {
+      toast.error("Select exactly one replacement question");
       return;
     }
 
     setSaving(true);
+
+    if (isReplaceMode) {
+      try {
+        await api.put(`/exams/${id}/sections/${sectionId}/questions/replace`, {
+          current_question_id: Number(replaceQuestionId),
+          new_question_id: Number(selectedQuestions[0].id),
+        });
+        toast.success("Question updated");
+        navigate(`/exams/${id}/builder`);
+      } catch (err: any) {
+        const message =
+          err?.response?.data?.error ??
+          err?.response?.data?.message ??
+          "Failed to replace question";
+        toast.error(message);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     let added = 0;
     let duplicates = 0;
     let failed = 0;
@@ -410,7 +444,15 @@ export default function ExamSectionQuestionsPage() {
   };
 
   return (
-    <ExamShell title="Add Questions" description="Pick questions and save them into this section." backTo={id ? `/exams/${id}/builder` : "/exams"}>
+    <ExamShell
+      title={isReplaceMode ? "Replace Question" : "Add Questions"}
+      description={
+        isReplaceMode
+          ? "Select one approved question to replace the generated question in this section."
+          : "Pick questions and save them into this section."
+      }
+      backTo={id ? `/exams/${id}/builder` : "/exams"}
+    >
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -418,7 +460,12 @@ export default function ExamSectionQuestionsPage() {
               <h2 className="text-lg font-semibold text-slate-900">
                 {sectionLoading ? "Loading section..." : `Section: ${section?.title ?? "Unknown"}`}
               </h2>
-              <p className="text-sm text-slate-500">{selectedQuestions.length} selected (not saved)</p>
+              <p className="text-sm text-slate-500">
+                {selectedQuestions.length} selected {isReplaceMode ? "(replacement)" : "(not saved)"}
+              </p>
+              {isReplaceMode && replaceOrderIndex && (
+                <p className="mt-1 text-xs text-slate-400">Replacing generated question Q{replaceOrderIndex}</p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -434,7 +481,7 @@ export default function ExamSectionQuestionsPage() {
                 disabled={saving || selectedQuestions.length === 0 || sectionLoading || !section}
                 className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save Questions"}
+                {saving ? "Saving..." : isReplaceMode ? "Save Replacement" : "Save Questions"}
               </button>
             </div>
           </div>

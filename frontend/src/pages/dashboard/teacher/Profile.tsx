@@ -5,12 +5,14 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
 import ProfilePanel from "@/features/users/components/ProfilePanel";
-import { RiHome2Line, RiFileList3Line } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
-import { PiUsersBold } from 'react-icons/pi';
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
 import { getExamPermissions } from "@/features/exams/utils/examPermissions";
+import { useHasVisibleExams } from "@/features/exams/hooks/useHasVisibleExams";
+import { useHasVisibleQuestionBankPrograms } from "@/features/question-bank/hooks/useHasVisibleQuestionBankPrograms";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
+import { getOrganizationLabel, getRoleDisplayTitle } from "@/features/auth/utils/roleBranding";
 
 export default function TeacherProfile() {
   const navigate = useNavigate();
@@ -20,7 +22,11 @@ export default function TeacherProfile() {
   const theme = getDashboardTheme(false);
   const questionPermissions = getQuestionPermissions({ role: user?.role, permissions: user?.permissions });
   const examPermissions = getExamPermissions({ role: user?.role, permissions: user?.permissions });
+  const canShowQuestionBank = useHasVisibleQuestionBankPrograms(questionPermissions.canView);
+  const canShowExams = useHasVisibleExams(examPermissions.canRead);
   const coursePermissions = getCoursePermissions({ role: user?.role, permissions: user?.permissions });
+  const organizationLabel = getOrganizationLabel(user);
+  const roleTitle = getRoleDisplayTitle(user?.role);
 
   const navItems = [
     {
@@ -30,7 +36,7 @@ export default function TeacherProfile() {
       active: false,
       onClick: () => navigate("/teacher/dashboard"),
     },
-    ...(questionPermissions.canView
+    ...(canShowQuestionBank
       ? [{
           key: "question-bank",
           label: "Question Bank",
@@ -39,7 +45,7 @@ export default function TeacherProfile() {
           onClick: () => navigate("/question-bank"),
         }]
       : []),
-    ...(examPermissions.canRead
+    ...(canShowExams
       ? [{
           key: "exams",
           label: "Exams",
@@ -58,11 +64,11 @@ export default function TeacherProfile() {
         }]
       : []),
     {
-      key: "students",
-      label: "Students",
-      icon: <PiUsersBold />,
+      key: "teaching-sessions",
+      label: "Teacher Session Tracker",
+      icon: <RiCalendarCheckLine />,
       active: false,
-      onClick: () => {},
+      onClick: () => navigate("/teacher/teaching-sessions"),
     },
   ];
 
@@ -81,8 +87,8 @@ export default function TeacherProfile() {
       sidebar={
         <SidebarNav
           brandLogo="/logo.png"
-          brandName="Spectropy"
-          title="Teacher"
+          brandName={organizationLabel}
+          title={roleTitle}
           navItems={navItems}
           userInfo={{
             name: user?.full_name || "Teacher",

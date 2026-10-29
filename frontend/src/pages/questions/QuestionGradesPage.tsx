@@ -10,6 +10,8 @@ const normalizePrograms = (items: any[]): CurriculumItem[] =>
       id: item.id,
       name: item.name ?? "Untitled",
       code: item.code ?? null,
+      canEdit: item.canEdit ?? item.can_edit,
+      canDelete: item.canDelete ?? item.can_delete,
     }))
     .filter((item) => item.id !== undefined && item.id !== null);
 
@@ -20,6 +22,8 @@ const normalizeGrades = (items: any[]): CurriculumItem[] =>
       name: item.name ?? `Grade ${item.grade_number}`,
       grade_number: item.grade_number ?? null,
       program_id: item.program_id ?? null,
+      canEdit: item.canEdit ?? item.can_edit,
+      canDelete: item.canDelete ?? item.can_delete,
     }))
     .filter((item) => item.id !== undefined && item.id !== null);
 
@@ -31,10 +35,25 @@ export default function QuestionGradesPage() {
   const [selectedProgramId, setSelectedProgramId] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const handleDeleteGrade = async (grade: CurriculumItem) => {
+    if (!window.confirm(`Delete grade "${grade.name ?? `Grade ${grade.grade_number}`}"?`)) return;
+    try {
+      await api.delete(`/grades/${grade.id}`);
+      setGrades((prev) => prev.filter((item) => String(item.id) !== String(grade.id)));
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to delete grade.");
+    }
+  };
+
   const programFromQuery = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get("program_id") ?? "";
   }, [location.search]);
+
+  const selectedProgramCanEdit = useMemo(
+    () => programs.find((program) => String(program.id) === selectedProgramId)?.canEdit !== false,
+    [programs, selectedProgramId]
+  );
 
   useEffect(() => {
     if (programFromQuery && !selectedProgramId) {
@@ -93,14 +112,16 @@ export default function QuestionGradesPage() {
       title="Grades"
       description="Manage grade catalogs under programs."
       actions={
-        <button
-          onClick={() =>
-            navigate(`/question-bank/grades/new${selectedProgramId ? `?program_id=${selectedProgramId}` : ""}`)
-          }
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-        >
-          Add Grade
-        </button>
+        selectedProgramCanEdit ? (
+          <button
+            onClick={() =>
+              navigate(`/question-bank/grades/new${selectedProgramId ? `?program_id=${selectedProgramId}` : ""}`)
+            }
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            Add Grade
+          </button>
+        ) : null
       }
     >
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -136,16 +157,28 @@ export default function QuestionGradesPage() {
                       ID: {grade.id} {grade.grade_number ? `| Number: ${grade.grade_number}` : ""}
                     </div>
                   </div>
-                  <button
-                    onClick={() =>
-                      navigate(
-                        `/question-bank/grades/${grade.id}/edit${selectedProgramId ? `?program_id=${selectedProgramId}` : ""}`
-                      )
-                    }
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex gap-2">
+                    {grade.canEdit !== false ? (
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/question-bank/grades/${grade.id}/edit${selectedProgramId ? `?program_id=${selectedProgramId}` : ""}`
+                          )
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+                    ) : null}
+                    {grade.canDelete !== false ? (
+                      <button
+                        onClick={() => handleDeleteGrade(grade)}
+                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
               {grades.length === 0 && (

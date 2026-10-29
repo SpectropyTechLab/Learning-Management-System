@@ -6,9 +6,15 @@ import {
   deactivateSchool,
   listSchoolMemberships,
   listSchoolCourseAssignments,
+  listSchoolExamAssignments,
+  listSchoolQuestionBankAssignments,
   addSchoolMembership,
   assignCoursesToSchool,
+  assignExamsToSchool,
+  assignQuestionBankProgramsToSchool,
   removeCourseAssignmentFromSchool,
+  removeExamAssignmentFromSchool,
+  removeQuestionBankAssignmentFromSchool,
   removeSchoolMembership,
   listBatches,
   createBatch,
@@ -24,11 +30,11 @@ import {
   upsertUserPermission,
   deleteUserPermission,
 } from '../controllers/hierarchy.controller.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireRole, attachClientContext, loadPermissions, checkAnyPermission } from '../middleware/auth.js';
 
 const router = Router();
 
-router.use(authenticateToken);
+router.use(authenticateToken, attachClientContext, loadPermissions);
 
 // Schools
 router.get('/schools', requireRole(['super_admin', 'client_admin', 'school_owner']), listSchools);
@@ -41,6 +47,12 @@ router.get('/schools/:schoolId/memberships', requireRole(['super_admin', 'client
 router.get('/schools/:schoolId/course-assignments', requireRole(['super_admin', 'client_admin']), listSchoolCourseAssignments);
 router.post('/schools/:schoolId/course-assignments', requireRole(['super_admin', 'client_admin']), assignCoursesToSchool);
 router.delete('/schools/:schoolId/course-assignments/:courseId', requireRole(['super_admin', 'client_admin']), removeCourseAssignmentFromSchool);
+router.get('/schools/:schoolId/exam-assignments', requireRole(['super_admin', 'client_admin']), checkAnyPermission(['exams.assign', 'exams.create', 'exams.update', 'exams.publish']), listSchoolExamAssignments);
+router.post('/schools/:schoolId/exam-assignments', requireRole(['super_admin', 'client_admin']), checkAnyPermission(['exams.assign', 'exams.create', 'exams.update', 'exams.publish']), assignExamsToSchool);
+router.delete('/schools/:schoolId/exam-assignments/:examId', requireRole(['super_admin', 'client_admin']), checkAnyPermission(['exams.assign', 'exams.create', 'exams.update', 'exams.publish']), removeExamAssignmentFromSchool);
+router.get('/schools/:schoolId/question-bank-assignments', requireRole(['super_admin', 'client_admin']), checkAnyPermission(['questions.assign', 'questions.create', 'questions.approve']), listSchoolQuestionBankAssignments);
+router.post('/schools/:schoolId/question-bank-assignments', requireRole(['super_admin', 'client_admin']), checkAnyPermission(['questions.assign', 'questions.create', 'questions.approve']), assignQuestionBankProgramsToSchool);
+router.delete('/schools/:schoolId/question-bank-assignments/:programId', requireRole(['super_admin', 'client_admin']), checkAnyPermission(['questions.assign', 'questions.create', 'questions.approve']), removeQuestionBankAssignmentFromSchool);
 router.post('/schools/:schoolId/memberships', requireRole(['super_admin', 'client_admin', 'school_owner']), addSchoolMembership);
 router.delete('/schools/:schoolId/memberships/:userId', requireRole(['super_admin', 'client_admin', 'school_owner']), removeSchoolMembership);
 
