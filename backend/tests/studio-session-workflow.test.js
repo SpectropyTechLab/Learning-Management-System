@@ -21,19 +21,27 @@ test('submitSession validates complete content and submits a draft session', asy
             subtopic_id: 9,
             title: 'Fractions',
             status: 'draft',
+            revision_no: 3,
           }],
         };
       }
       if (sql.includes('from session_documents')) {
-        return { rows: [{ document_type: 'session_plan' }, { document_type: 'screen_script' }] };
+        return { rows: [
+          { id: 101, document_type: 'session_plan', revision_no: 2 },
+          { id: 102, document_type: 'screen_script', revision_no: 4 },
+        ] };
       }
       if (sql.includes('from screens')) {
         return {
           rows: [{
             id: 71,
             screen_number: 1,
+            revision_no: 5,
           }],
         };
+      }
+      if (sql.startsWith('insert into session_validations')) {
+        return { rows: [{ id: 201, session_id: 41, session_revision_no: 3, is_valid: true }] };
       }
       if (sql.startsWith("update sessions set status = 'submitted'")) {
         return {
@@ -63,6 +71,9 @@ test('submitSession validates complete content and submits a draft session', asy
 
   assert.equal(result.session_id, 41);
   assert.equal(result.status, 'submitted');
+  assert.equal(result.workflow_state, 'validated');
+  assert.equal(result.validation.exact_revision.session_plan_revision_no, 2);
+  assert.equal(result.validation.exact_revision.screen_script_revision_no, 4);
   assert.equal(result.validation.valid, true);
   assert.equal(result.validation.screen_count, 1);
   assert.ok(calls.some(({ sql }) => sql === 'commit'));
@@ -84,6 +95,7 @@ test('submitSession rejects access to a session from another tenant', async (t) 
             subtopic_id: 9,
             title: 'Fractions',
             status: 'draft',
+            revision_no: 1,
           }],
         };
       }

@@ -31,6 +31,8 @@ import examEntitlementsRoutes from './routes/examEntitlements.routes.js';
 import studioDocumentsRoutes from './routes/studioDocuments.routes.js';
 import studioSessionWorkflowRoutes from './routes/studioSessionWorkflow.routes.js';
 import studioLayoutsRoutes from './routes/studioLayouts.routes.js';
+import studioResourcesRoutes from './routes/studioResources.routes.js';
+import studioScreensRoutes from './routes/studioScreens.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
 import { startAttemptExpiryCron } from './services/student.service.js';
@@ -224,6 +226,8 @@ app.use('/api', teachingSessionsRoutes);
 app.use('/api', studioDocumentsRoutes);
 app.use('/api', studioSessionWorkflowRoutes);
 app.use('/api', studioLayoutsRoutes);
+app.use('/api', studioResourcesRoutes);
+app.use('/api', studioScreensRoutes);
 
 
 
