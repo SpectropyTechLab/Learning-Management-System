@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiStackLine, RiTeamLine } from 'react-icons/ri';
+import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiLayoutGridLine, RiStackLine, RiTeamLine } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
@@ -30,7 +30,10 @@ export default function ContentAuthorizerShell({
   const userFullName = user?.full_name || 'Content Authorizer';
   const userEmail = user?.email || 'authorizer@spectropy.com';
 
-  const isActive = (path: string) => location.pathname.startsWith(path);
+  const isActive = useCallback(
+    (path: string) => location.pathname.startsWith(path),
+    [location.pathname],
+  );
 
   const navItems = useMemo(
     () => [
@@ -83,8 +86,15 @@ export default function ContentAuthorizerShell({
         active: isActive('/content-authorizer/teaching-sessions'),
         onClick: () => navigate('/content-authorizer/teaching-sessions/micro-schedules'),
       },
+      {
+        key: 'teaching-studio',
+        label: 'Teaching Studio',
+        icon: <RiLayoutGridLine />,
+        active: isActive('/teaching-studio'),
+        onClick: () => navigate('/teaching-studio'),
+      },
     ],
-    [location.pathname, navigate, user?.permissions],
+    [isActive, location.pathname, navigate],
   );
 
   const handleLogout = async () => {
