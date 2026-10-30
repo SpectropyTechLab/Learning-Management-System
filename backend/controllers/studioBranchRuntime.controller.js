@@ -1,16 +1,11 @@
 import * as runtime from '../services/studioBranchRuntime.service.js';
-import { handleServiceError } from '../utils/errors.js';
+import { handleStudioServiceError } from '../utils/errors.js';
 
 const respond = (action, status = 200) => async (req, res) => {
   try {
     return res.status(status).json({ data: await action(req) });
   } catch (error) {
-    if (error?.status && error?.code) {
-      return res.status(error.status).json({
-        error: { code: error.code, message: error.message },
-      });
-    }
-    return handleServiceError(res, error, 'Studio branch runtime request failed');
+    return handleStudioServiceError(res, error, 'Studio branch runtime request failed');
   }
 };
 

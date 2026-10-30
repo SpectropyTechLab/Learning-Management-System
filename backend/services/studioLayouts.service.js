@@ -319,7 +319,19 @@ export const createScreen = async ({ sessionId: rawSessionId, body = {}, user })
     }
     await returnSessionToDraft(session.id, client);
     await client.query('COMMIT');
-    return { ...screenResult.rows[0], elements };
+    return {
+      ...screenResult.rows[0],
+      revision_no: Number(screenResult.rows[0].revision_no),
+      elements: elements.map((element) => ({
+        id: element.key,
+        slotId: element.slotId,
+        type: element.type,
+        content: element.content,
+        position: element.position,
+      })),
+      tags: [],
+      branches: [],
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

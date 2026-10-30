@@ -1,0 +1,62 @@
+{
+  "recorded_on": "2026-10-30",
+  "scope": "Day 8 Developer 2 backend acceptance",
+  "outcomes": [
+    {
+      "capability": "Session Plan and Screen Script original download",
+      "status": "pass",
+      "evidence": "studio-day8-original-downloads.test.js"
+    },
+    {
+      "capability": "Resource original signed download",
+      "status": "pass",
+      "evidence": "studio-day8-original-downloads.test.js"
+    },
+    {
+      "capability": "Resource reverse usage counts",
+      "status": "pass",
+      "evidence": "studio-day8-resource-runtime-acceptance.test.js"
+    },
+    {
+      "capability": "Immutable Resource replacement versions",
+      "status": "pass",
+      "evidence": "studio-day8-resource-runtime-acceptance.test.js"
+    },
+    {
+      "capability": "Single-file HTML launch",
+      "status": "synthetic_pass",
+      "evidence": "studio-day8-resource-runtime-acceptance.test.js"
+    },
+    {
+      "capability": "Browser-ready ZIP launch",
+      "status": "synthetic_pass",
+      "evidence": "studio-day8-resource-runtime-acceptance.test.js"
+    },
+    {
+      "capability": "SCORM 1.2 single and multi-SCO profiles",
+      "status": "synthetic_pass",
+      "evidence": "studio-day7-scorm-runtime.test.js"
+    },
+    {
+      "capability": "SCORM 2004 single and multi-SCO profiles",
+      "status": "synthetic_pass",
+      "evidence": "studio-day7-scorm-runtime.test.js"
+    },
+    {
+      "capability": "Representative real-vendor SCORM compatibility",
+      "status": "blocked",
+      "severity": "high",
+      "owner": "runtime integration owner",
+      "schedule_impact": "Required before claiming general vendor compatibility",
+      "reason": "No licensed representative vendor packages are available in the repository"
+    },
+    {
+      "capability": "Cross-browser package playback",
+      "status": "blocked",
+      "severity": "medium",
+      "owner": "frontend viewer integration owner",
+      "schedule_impact": "Must be completed with the teacher viewer/browser acceptance pass",
+      "reason": "Current evidence is backend and synthetic-runtime focused"
+    }
+  ]
+}
