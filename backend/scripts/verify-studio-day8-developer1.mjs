@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 process.env.DATABASE_URL ||= 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 process.env.SUPABASE_URL ||= 'http://127.0.0.1:54321';
+process.env.LOCAL_DEV ||= 'true';
 // Manual JSON documents do not call Storage, but the shared document service
 // initializes the Supabase client during import.
 process.env.SUPABASE_SERVICE_KEY ||= 'local-day8-acceptance-not-used-for-storage';
