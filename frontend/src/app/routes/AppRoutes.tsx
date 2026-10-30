@@ -230,10 +230,12 @@ export default function AppRoutes() {
         <Route path="/school-owner/courses/:courseId/enroll" element={<SchoolOwnerEnrollUsers />} />
       </Route>
 
-      {/* Teacher */}
-      <Route element={<Protect roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']} />}>
+      {/* Teaching Studio authoring */}
+      <Route element={<Protect roles={['super_admin', 'content_authorizer']} />}>
         <Route path="/teaching-studio" element={<TeachingStudioPage />} />
+        <Route path="/teaching-studio/sessions/:sessionId" element={<TeachingStudioPage />} />
       </Route>
+      {/* Teacher */}
       <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} />}>
 
         <Route path="/teacher" element={<TeacherHome />} />
