@@ -36,6 +36,7 @@ import studioResourcesRoutes from './routes/studioResources.routes.js';
 import studioScreensRoutes from './routes/studioScreens.routes.js';
 import studioResourceRuntimeRoutes from './routes/studioResourceRuntime.routes.js';
 import studioBranchRuntimeRoutes from './routes/studioBranchRuntime.routes.js';
+import studioScormRuntimeRoutes from './routes/studioScormRuntime.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
 import { startAttemptExpiryCron } from './services/student.service.js';
@@ -234,6 +235,7 @@ app.use('/api', studioResourcesRoutes);
 app.use('/api', studioScreensRoutes);
 app.use('/api', studioResourceRuntimeRoutes);
 app.use('/api', studioBranchRuntimeRoutes);
+app.use('/api', studioScormRuntimeRoutes);
 
 
 

@@ -125,7 +125,66 @@ const chooseEntryPoint = (files, requestedEntryPoint) => {
   throw new AppError('ZIP must contain index.html or an explicit HTML entry_point', 400);
 };
 
-const inspectZip = ({ file, requestedEntryPoint }) => {
+const inspectScormManifest = ({ files, availablePaths }) => {
+  const manifest = files.find((candidate) => candidate.path.toLowerCase() === 'imsmanifest.xml');
+  if (!manifest) throw new AppError('SCORM package must contain imsmanifest.xml at its root', 400);
+  const $ = load(manifest.buffer.toString('utf8'), { xmlMode: true });
+  const schemaVersion = $('schemaversion').first().text().trim();
+  const edition = /2004/i.test(schemaVersion) ? '2004' : /1\.2/i.test(schemaVersion) ? '1.2' : null;
+  if (!edition) throw new AppError(`Unsupported SCORM schema version: ${schemaVersion || 'missing'}`, 400);
+
+  const resources = new Map();
+  $('resources > resource').each((_index, element) => {
+    const node = $(element);
+    const identifier = String(node.attr('identifier') || '').trim();
+    const href = String(node.attr('href') || '').trim();
+    const scormType = String(node.attr('adlcp:scormtype') || node.attr('adlcp:scormType') || '').toLowerCase();
+    if (identifier && href && (!scormType || scormType === 'sco')) {
+      resources.set(identifier, normalizeStudioRuntimePath(href, `SCORM Resource ${identifier} href`));
+    }
+  });
+
+  const organization = $('organizations > organization').first();
+  if (!organization.length) throw new AppError('SCORM manifest has no default Organization', 400);
+  const scos = [];
+  organization.find('item').each((_index, element) => {
+    const node = $(element);
+    const resourceRef = String(node.attr('identifierref') || '').trim();
+    const launchPath = resources.get(resourceRef);
+    if (!launchPath) return;
+    if (!availablePaths.has(launchPath.toLowerCase())) {
+      throw new AppError(`SCORM launch file not found: ${launchPath}`, 400);
+    }
+    scos.push({
+      identifier: String(node.attr('identifier') || resourceRef).trim(),
+      resource_identifier: resourceRef,
+      title: node.children('title').first().text().trim() || launchPath,
+      launch_path: launchPath,
+      order: scos.length,
+    });
+  });
+  if (!scos.length) throw new AppError('SCORM manifest contains no launchable SCOs', 400);
+
+  const dependencies = new Set();
+  for (const sco of scos) {
+    if (!/\.html?$/i.test(sco.launch_path)) continue;
+    const launchFile = files.find((candidate) => candidate.path.toLowerCase() === sco.launch_path.toLowerCase());
+    for (const dependency of inspectHtmlDependencies({
+      html: launchFile.buffer.toString('utf8'),
+      entryPoint: launchFile.path,
+      availablePaths,
+    })) dependencies.add(dependency);
+  }
+  return {
+    edition,
+    schemaVersion,
+    profile: edition === '1.2' ? 'SCORM 1.2' : `SCORM ${schemaVersion}`,
+    scos,
+    dependencies: [...dependencies].sort(),
+  };
+};
+
+const inspectZip = ({ file, requestedEntryPoint, resourceType = 'zip' }) => {
   let zip;
   try {
     zip = new AdmZip(file.buffer);
@@ -179,9 +238,21 @@ const inspectZip = ({ file, requestedEntryPoint }) => {
     };
   });
 
+  const availablePaths = new Set(files.map((candidate) => candidate.path.toLowerCase()));
+  if (resourceType === 'scorm') {
+    const scorm = inspectScormManifest({ files, availablePaths });
+    return {
+      kind: 'scorm',
+      entryPoint: scorm.scos[0].launch_path,
+      files,
+      dependencies: scorm.dependencies,
+      extractedSize: totalBytes,
+      scorm,
+    };
+  }
+
   const entryPoint = chooseEntryPoint(files, requestedEntryPoint);
   const entryFile = files.find((candidate) => candidate.path === entryPoint);
-  const availablePaths = new Set(files.map((candidate) => candidate.path.toLowerCase()));
   const dependencies = inspectHtmlDependencies({
     html: entryFile.buffer.toString('utf8'),
     entryPoint,
@@ -219,10 +290,10 @@ const inspectSingleHtml = ({ file }) => {
 };
 
 export const inspectRuntimePackage = ({ resourceType, file, requestedEntryPoint = null }) => {
-  if (!['html', 'zip'].includes(resourceType)) return null;
+  if (!['html', 'zip', 'scorm'].includes(resourceType)) return null;
   if (!file?.buffer?.length) throw new AppError(`${resourceType} Resources require a file`, 400);
-  return resourceType === 'zip'
-    ? inspectZip({ file, requestedEntryPoint })
+  return ['zip', 'scorm'].includes(resourceType)
+    ? inspectZip({ file, requestedEntryPoint, resourceType })
     : inspectSingleHtml({ file });
 };
 
