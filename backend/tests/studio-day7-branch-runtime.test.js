@@ -292,4 +292,15 @@ test('Day 7 migration normalizes runtime state and protects checkpoint origins',
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.studio_branch_checkpoints/);
   assert.match(migration, /studio_protect_branch_checkpoint_origin/);
   assert.doesNotMatch(migration, /ALTER TABLE public\.(screens|screen_elements|screen_tags|screen_branches|session_releases)/);
+
+  for (const schemaPath of [
+    '../scripts/intelligence_classroom_studio/001_spectropy_studio_curriculum_schema.sql',
+    '../SPECTROPY_LMS_Schema_v1.1.2_Supabase_Complete.sql',
+  ]) {
+    const schema = fs.readFileSync(path.resolve(current, schemaPath), 'utf8');
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS public\.studio_branch_runs/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS public\.studio_branch_checkpoints/);
+    assert.match(schema, /studio_validate_branch_checkpoint/);
+    assert.match(schema, /studio_protect_branch_checkpoint_origin/);
+  }
 });
