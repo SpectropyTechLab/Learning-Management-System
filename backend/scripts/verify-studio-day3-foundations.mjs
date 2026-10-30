@@ -12,6 +12,11 @@ const migrationPath = path.join(repoDir, 'supabase', 'migrations', '202610281500
 const migration = fs.readFileSync(migrationPath, 'utf8');
 const pass = (message) => console.log(`PASS ${message}`);
 
+const canonicalSchemaPaths = [
+  path.join(backendDir, 'scripts', 'intelligence_classroom_studio', '001_spectropy_studio_curriculum_schema.sql'),
+  path.join(backendDir, 'SPECTROPY_LMS_Schema_v1.1.2_Supabase_Complete.sql'),
+];
+
 for (const required of [
   'session_documents',
   'screen_elements',
@@ -28,6 +33,21 @@ assert.match(migration, /DROP COLUMN elements_json/);
 assert.match(migration, /DROP COLUMN branches_json/);
 assert.match(migration, /DROP COLUMN branch_tags_json/);
 pass('forward migration selects one canonical session, document, element, tag and branch model');
+
+for (const schemaPath of canonicalSchemaPaths) {
+  const schema = fs.readFileSync(schemaPath, 'utf8');
+  for (const table of ['screen_elements', 'screen_tags', 'screen_branches']) {
+    assert.match(
+      schema,
+      new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${table}\\s*\\(`),
+      `${path.basename(schemaPath)} is missing ${table}`,
+    );
+  }
+  assert.doesNotMatch(schema, /^\s*(elements_json|branches_json|branch_tags_json)\s+JSONB\b/m);
+  assert.match(schema, /UNIQUE \(id, session_id\)/);
+  assert.match(schema, /resource_mappings_screen_element_fkey/);
+}
+pass('bootstrap and complete schema snapshots use only the canonical relational Screen model');
 
 const frontendModel = fs.readFileSync(
   path.join(repoDir, 'frontend', 'src', 'features', 'teaching-studio', 'layouts.ts'),
