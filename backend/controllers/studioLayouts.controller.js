@@ -1,12 +1,12 @@
 import * as studioLayouts from '../services/studioLayouts.service.js';
-import { handleServiceError } from '../utils/errors.js';
+import { handleStudioServiceError } from '../utils/errors.js';
 
 const respond = (action, successStatus = 200) => async (req, res) => {
   try {
     const data = await action(req);
     return res.status(successStatus).json({ data });
   } catch (error) {
-    return handleServiceError(res, error, 'Studio layout request failed');
+    return handleStudioServiceError(res, error, 'Studio layout request failed');
   }
 };
 

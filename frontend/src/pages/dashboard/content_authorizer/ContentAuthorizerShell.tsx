@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiStackLine, RiTeamLine } from 'react-icons/ri';
+import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiPresentationLine, RiStackLine, RiTeamLine } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
@@ -34,6 +34,13 @@ export default function ContentAuthorizerShell({
 
   const navItems = useMemo(
     () => [
+      {
+        key: 'studio',
+        label: 'Studio',
+        icon: <RiPresentationLine />,
+        active: isActive('/content-authorizer/studio'),
+        onClick: () => navigate('/content-authorizer/studio'),
+      },
       {
         key: 'dashboard',
         label: 'Dashboard',

@@ -2,7 +2,7 @@
 
 **Scope:** migration and publication acceptance on a representative dataset.
 
-**Status on 2026-10-30:** acceptance implementation complete; real-database execution remains blocked on this workstation because local PostgreSQL is not running and Docker/Podman is not installed. Do not mark the database gate passed until the command below completes successfully.
+**Status on 2026-10-30:** complete. The representative scenario passed against the local Docker-based Supabase database after integration into the shared Day 8 branch.
 
 ## Executable evidence
 
@@ -35,8 +35,8 @@ The verifier checks migration registration, required Day 5-7 relations, publicat
 
 ## Status and blockers
 
-Implementation is complete. Static syntax and focused ESLint checks pass. The combined Day 7 suite passes 20 tests, and the full applicable backend CI passes 127 tests with no failures.
+The real-database execution completed successfully. It verified registered migrations and relations, curriculum ownership, ordered sibling Sessions, revision-pinned publication, assigned and unassigned teacher boundaries, authorization invalidation after draft edits, stale-publication rejection, immutable historical releases and database rejection of release update/delete operations.
 
-The first real-database execution reached the connection step and failed with `ECONNREFUSED 127.0.0.1:54322`. Supabase CLI inspection confirmed that Docker and Podman are unavailable. Owner: local development environment owner. Severity: blocking for Day 8 database acceptance evidence. Schedule impact: the gate cannot be marked passed until local Supabase or another explicitly approved non-production acceptance database is available.
+The earlier local-environment blocker is closed. Docker-based Supabase was available during the combined execution, and the verifier rolled back its representative fixture after completion.
 
-Record the successful execution output, database identity, actual hours and date in the team workbook. Any branch-depth product decision remains owned by its Day 7 owner and must be carried into the shared Day 8 blocker register.
+Record the successful execution output, database identity, actual hours and date in the team workbook. The branch-depth product decision remains open in the shared Day 8 blocker register.
