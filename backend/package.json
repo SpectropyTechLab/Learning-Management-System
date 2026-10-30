@@ -19,6 +19,7 @@
     "studio:day8:developer2:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-day8-original-downloads.test.js tests/studio-day8-resource-runtime-acceptance.test.js tests/studio-day8-compatibility-record.test.js tests/studio-day7-scorm-runtime.test.js",
     "studio:day8:developer3:verify": "node scripts/run-studio-day8-developer3-tests.mjs",
     "studio:day8:verify": "npm run studio:day8:developer1:verify && npm run studio:day8:developer2:verify && npm run studio:day8:developer3:verify",
+    "studio:day9:developer2:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-day9-session-setup.test.js",
     "lint": "eslint .",
     "verify:rls": "node scripts/verify-rls-policies.mjs",
     "seed:permissions": "node scripts/seed-role-permissions.mjs",

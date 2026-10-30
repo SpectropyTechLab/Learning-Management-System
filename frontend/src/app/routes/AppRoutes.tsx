@@ -97,6 +97,7 @@ import MyTeachingSessionsPage from '@/pages/teaching-sessions/MyTeachingSessions
 import TeachingSessionDetailPage from '@/pages/teaching-sessions/TeachingSessionDetailPage';
 import TeachingSessionAnalyticsPage from '@/pages/teaching-sessions/TeachingSessionAnalyticsPage';
 import TeachingStudioPage from '@/features/teaching-studio/TeachingStudioPage';
+import StudioSessionSetupPage from '@/features/teaching-studio/setup/StudioSessionSetupPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -195,6 +196,8 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/lesson-planners" element={<ProgramLessonPlannerUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
+        <Route path="/content-authorizer/studio" element={<StudioSessionSetupPage />} />
+        <Route path="/content-authorizer/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
       </Route>
 
       {/* School Owner */}
