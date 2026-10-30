@@ -80,7 +80,7 @@ const normalizeVersionInput = (body, file, resourceType) => {
   if (resourceType === 'external_link' && !externalUrl) {
     throw new AppError('external_link resources require external_url');
   }
-  if (['html', 'zip'].includes(resourceType) && !file) {
+  if (['html', 'zip', 'scorm'].includes(resourceType) && !file) {
     throw new AppError(`${resourceType} resources require a file`);
   }
   const metadata = parseJsonObject(body.metadata_json, 'metadata_json');
@@ -133,7 +133,7 @@ const prepareVersionUpload = async ({ resourceType, body, file }) => {
     if (upload?.storageKey) cleanupKeys.push(upload.storageKey);
     if (!inspection) return { upload, versionInput, cleanupKeys };
 
-    const packagePrefix = inspection.kind === 'browser_zip'
+    const packagePrefix = ['browser_zip', 'scorm'].includes(inspection.kind)
       ? `runtime-packages/${randomUUID()}`
       : null;
     const runtimeFiles = [];
@@ -165,6 +165,7 @@ const prepareVersionUpload = async ({ resourceType, body, file }) => {
         dependencies: inspection.dependencies,
         file_count: inspection.kind === 'single_html' ? 1 : runtimeFiles.length,
         extracted_size: inspection.extractedSize,
+        ...(inspection.scorm ? { scorm: inspection.scorm } : {}),
       },
     };
     return { upload, versionInput, cleanupKeys };

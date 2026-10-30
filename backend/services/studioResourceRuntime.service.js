@@ -64,8 +64,14 @@ const fallbackFor = (versionId) => ({
   endpoint: `/api/studio/resource-versions/${versionId}/download`,
 });
 
-export const createRuntimeLaunch = async ({ versionId: rawVersionId, user }) => {
-  if (!AUTHOR_ROLES.has(user?.role)) {
+export const createRuntimeLaunch = async ({
+  versionId: rawVersionId,
+  user,
+  allowAuthorizedReader = false,
+  entryPointOverride = null,
+  attemptId = null,
+}) => {
+  if (!AUTHOR_ROLES.has(user?.role) && !allowAuthorizedReader) {
     throw new AppError('Only Studio authors can preview draft executable Resources', 403);
   }
   const versionId = parseId(rawVersionId, 'Resource version ID');
@@ -74,12 +80,12 @@ export const createRuntimeLaunch = async ({ versionId: rawVersionId, user }) => 
     throw new AppError('Resource version not found', 404);
   }
   if (!version.is_active) throw new AppError('Inactive Resources cannot be launched', 409);
-  if (!['html', 'zip'].includes(version.resource_type)) {
-    throw new AppError('This Resource type is not executable by the HTML/ZIP runtime', 422);
+  if (!['html', 'zip', 'scorm'].includes(version.resource_type)) {
+    throw new AppError('This Resource type is not executable by the package runtime', 422);
   }
 
   const runtime = runtimeMetadata(version);
-  if (!runtime || (runtime.kind === 'browser_zip' && !runtime.package_prefix)) {
+  if (!runtime || (['browser_zip', 'scorm'].includes(runtime.kind) && !runtime.package_prefix)) {
     return {
       launchable: false,
       error_code: 'PACKAGE_NOT_PREPARED',
@@ -87,13 +93,22 @@ export const createRuntimeLaunch = async ({ versionId: rawVersionId, user }) => 
       fallback: fallbackFor(version.id),
     };
   }
-  const entryPoint = normalizeStudioRuntimePath(runtime.entry_point || version.entry_point, 'entry_point');
+  const entryPoint = normalizeStudioRuntimePath(
+    entryPointOverride || runtime.entry_point || version.entry_point,
+    'entry_point',
+  );
+  if (entryPointOverride) {
+    const allowed = (runtime.files || []).some((file) =>
+      String(file?.path || '').toLowerCase() === entryPoint.toLowerCase());
+    if (!allowed) throw new AppError('Requested SCO launch path is not part of the package', 404);
+  }
   if (!TOKEN_SECRET) throw new AppError('Studio runtime signing is not configured', 503);
   const launchToken = jwt.sign(
     {
       purpose: 'studio-resource-runtime',
       resourceVersionId: version.id,
       requestedBy: user.id,
+      ...(attemptId ? { scormAttemptId: Number(attemptId) } : {}),
     },
     TOKEN_SECRET,
     { expiresIn: TOKEN_SECONDS }
@@ -110,6 +125,7 @@ export const createRuntimeLaunch = async ({ versionId: rawVersionId, user }) => 
       fullscreen: true,
       download: true,
     },
+    ...(runtime.kind === 'scorm' ? { scorm: runtime.scorm } : {}),
     fallback: fallbackFor(version.id),
   };
 };
