@@ -1,11 +1,11 @@
 import * as screens from '../services/studioScreens.service.js';
-import { handleServiceError } from '../utils/errors.js';
+import { handleStudioServiceError } from '../utils/errors.js';
 
 const respond = (action) => async (req, res) => {
   try {
     return res.json({ data: await action(req) });
   } catch (error) {
-    return handleServiceError(res, error, 'Studio screen request failed');
+    return handleStudioServiceError(res, error, 'Studio screen request failed');
   }
 };
 
