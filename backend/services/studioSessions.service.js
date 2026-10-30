@@ -105,15 +105,24 @@ export const listSubtopicSessions = async ({ subtopicId: rawSubtopicId, user, db
   return { curriculum: context, sessions: result.rows };
 };
 
+// Compatibility name used by the Day 9 session-setup acceptance suite.
+// Both names intentionally share the same permission and parent-chain checks.
+export const listStudioSessions = listSubtopicSessions;
+
 export const getStudioSession = async ({ sessionId: rawSessionId, user, db = { query: dbQuery } }) =>
   loadSession(db, parseId(rawSessionId, 'Session ID'), user);
 
-export const createStudioSession = async ({ subtopicId: rawSubtopicId, body = {}, user }) => {
+export const createStudioSession = async ({
+  subtopicId: rawSubtopicId,
+  body = {},
+  user,
+  getDbClient = getClient,
+}) => {
   assertAuthor(user);
   const subtopicId = parseId(rawSubtopicId, 'Subtopic ID');
   const title = requiredText(body.title, 'title', 250);
   const description = optionalText(body.description, 'description', 5000);
-  const client = await getClient();
+  const client = await getDbClient();
   try {
     await client.query('BEGIN');
     const context = await loadSubtopicContext(client, subtopicId, user, { lock: true });
