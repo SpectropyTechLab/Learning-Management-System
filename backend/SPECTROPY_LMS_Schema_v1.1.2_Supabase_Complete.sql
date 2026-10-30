@@ -2756,7 +2756,7 @@ CREATE TABLE IF NOT EXISTS public.screens (
   id SERIAL PRIMARY KEY,
   client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
   session_id INTEGER NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
-  title VARCHAR(250) NOT NULL,
+  title VARCHAR(250) NOT NULL DEFAULT '',
   screen_number INTEGER NOT NULL,
   layout_id INTEGER REFERENCES public.layouts(id) ON DELETE SET NULL,
   screen_script_file_url TEXT,
@@ -2764,25 +2764,97 @@ CREATE TABLE IF NOT EXISTS public.screens (
   screen_script_file_type VARCHAR(100),
   screen_script_uploaded_at TIMESTAMPTZ,
   screen_script_content JSONB,
-  elements_json JSONB NOT NULL DEFAULT '[]'::JSONB,
-  branches_json JSONB NOT NULL DEFAULT '[]'::JSONB,
-  branch_tags_json JSONB NOT NULL DEFAULT '[]'::JSONB,
   screen_settings_json JSONB NOT NULL DEFAULT '{}'::JSONB,
   display_order INTEGER NOT NULL DEFAULT 0,
+  creation_mode VARCHAR(20) NOT NULL DEFAULT 'layout'
+    CHECK (creation_mode IN ('blank', 'layout')),
+  revision_no INTEGER NOT NULL DEFAULT 1 CHECK (revision_no > 0),
   created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (screen_script_content IS NULL OR jsonb_typeof(screen_script_content) IN ('object', 'array')),
-  CHECK (jsonb_typeof(elements_json) = 'array'),
-  CHECK (jsonb_typeof(branches_json) = 'array'),
-  CHECK (jsonb_typeof(branch_tags_json) = 'array'),
   CHECK (jsonb_typeof(screen_settings_json) = 'object'),
-  UNIQUE (session_id, screen_number)
+  UNIQUE (session_id, screen_number),
+  UNIQUE (id, session_id)
 );
 CREATE INDEX IF NOT EXISTS idx_screens_session_order
   ON public.screens(session_id, display_order, screen_number);
-CREATE INDEX IF NOT EXISTS idx_screens_branch_tags
-  ON public.screens USING GIN(branch_tags_json);
+
+-- Canonical Screen composition. These relational tables replace the former
+-- screens.elements_json, screens.branch_tags_json and screens.branches_json columns.
+CREATE TABLE IF NOT EXISTS public.screen_elements (
+  id BIGSERIAL PRIMARY KEY,
+  screen_id INTEGER NOT NULL REFERENCES public.screens(id) ON DELETE CASCADE,
+  element_key TEXT NOT NULL CHECK (BTRIM(element_key) <> ''),
+  slot_id TEXT,
+  element_type VARCHAR(30) NOT NULL CHECK (element_type IN (
+    'title', 'text', 'visual', 'question', 'response', 'steps', 'workspace',
+    'footer', 'simulation', 'activity', 'media', 'graph', 'data', 'options'
+  )),
+  content_json JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(content_json) = 'object'),
+  position_json JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(position_json) = 'object'),
+  display_order INTEGER NOT NULL DEFAULT 0 CHECK (display_order >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (screen_id, element_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.screen_tags (
+  screen_id INTEGER NOT NULL REFERENCES public.screens(id) ON DELETE CASCADE,
+  tag TEXT NOT NULL CHECK (tag = LOWER(BTRIM(tag)) AND tag <> ''),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (screen_id, tag)
+);
+
+CREATE TABLE IF NOT EXISTS public.screen_branches (
+  id BIGSERIAL PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
+  branch_key TEXT NOT NULL CHECK (BTRIM(branch_key) <> ''),
+  source_screen_id INTEGER NOT NULL,
+  destination_screen_id INTEGER NOT NULL,
+  trigger_kind VARCHAR(20) NOT NULL CHECK (trigger_kind IN ('manual', 'answer', 'score', 'tag')),
+  trigger_config_json JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(trigger_config_json) = 'object'),
+  return_screen_id INTEGER NOT NULL,
+  restore_screen_state BOOLEAN NOT NULL DEFAULT TRUE,
+  restore_session_state BOOLEAN NOT NULL DEFAULT TRUE,
+  display_order INTEGER NOT NULL DEFAULT 0 CHECK (display_order >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT screen_branches_source_session_fkey
+    FOREIGN KEY (source_screen_id, session_id)
+    REFERENCES public.screens(id, session_id) ON DELETE CASCADE,
+  CONSTRAINT screen_branches_destination_session_fkey
+    FOREIGN KEY (destination_screen_id, session_id)
+    REFERENCES public.screens(id, session_id) ON DELETE RESTRICT,
+  CONSTRAINT screen_branches_return_session_fkey
+    FOREIGN KEY (return_screen_id, session_id)
+    REFERENCES public.screens(id, session_id) ON DELETE RESTRICT,
+  UNIQUE (source_screen_id, branch_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_screen_elements_screen_order
+  ON public.screen_elements(screen_id, display_order, id);
+CREATE INDEX IF NOT EXISTS idx_screen_tags_tag
+  ON public.screen_tags(tag, screen_id);
+CREATE INDEX IF NOT EXISTS idx_screen_branches_source_order
+  ON public.screen_branches(source_screen_id, display_order, id);
+CREATE INDEX IF NOT EXISTS idx_screen_branches_destination
+  ON public.screen_branches(destination_screen_id);
+
+ALTER TABLE public.screen_elements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.screen_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.screen_branches ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.screen_elements, public.screen_tags, public.screen_branches
+  FROM anon, authenticated, service_role;
+REVOKE ALL ON SEQUENCE public.screen_elements_id_seq, public.screen_branches_id_seq
+  FROM anon, authenticated, service_role;
+
+COMMENT ON TABLE public.screen_elements IS
+  'Canonical typed Studio elements. Replaces screens.elements_json.';
+COMMENT ON TABLE public.screen_tags IS
+  'Canonical normalized multi-tag discovery values. Replaces screens.branch_tags_json.';
+COMMENT ON TABLE public.screen_branches IS
+  'Canonical same-session branch destinations and explicit return-state references. Replaces screens.branches_json.';
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id SERIAL PRIMARY KEY,
@@ -2843,7 +2915,9 @@ CREATE TABLE IF NOT EXISTS public.resource_mappings (
   CHECK (jsonb_typeof(usage_details_json) = 'object'),
   CONSTRAINT resource_mappings_screen_element_unique UNIQUE (screen_id, element_id),
   CONSTRAINT resource_mappings_resource_version_fkey FOREIGN KEY (resource_id, resource_version_id)
-    REFERENCES public.resource_versions(resource_id, id) ON DELETE RESTRICT
+    REFERENCES public.resource_versions(resource_id, id) ON DELETE RESTRICT,
+  CONSTRAINT resource_mappings_screen_element_fkey FOREIGN KEY (screen_id, element_id)
+    REFERENCES public.screen_elements(screen_id, element_key) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_screen ON public.resource_mappings(screen_id);
 CREATE INDEX IF NOT EXISTS idx_resource_mappings_resource ON public.resource_mappings(resource_id);

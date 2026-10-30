@@ -14,6 +14,7 @@
     "studio:day6:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-releases.test.js tests/studio-day6-runtime.test.js tests/studio-day6-discovery.test.js",
     "studio:day6:db-verify": "node scripts/verify-studio-day6-discovery.mjs",
     "studio:day6:integrated-verify": "node scripts/verify-studio-day6-integrated.mjs",
+    "studio:day7:verify": "node --test --test-concurrency=1 tests/studio-day7-authorization.test.js",
     "lint": "eslint .",
     "verify:rls": "node scripts/verify-rls-policies.mjs",
     "seed:permissions": "node scripts/seed-role-permissions.mjs",
