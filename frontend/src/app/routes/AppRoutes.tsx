@@ -97,6 +97,7 @@ import MyTeachingSessionsPage from '@/pages/teaching-sessions/MyTeachingSessions
 import TeachingSessionDetailPage from '@/pages/teaching-sessions/TeachingSessionDetailPage';
 import TeachingSessionAnalyticsPage from '@/pages/teaching-sessions/TeachingSessionAnalyticsPage';
 import TeachingStudioPage from '@/features/teaching-studio/TeachingStudioPage';
+import StudioSessionSetupPage from '@/features/teaching-studio/setup/StudioSessionSetupPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -195,6 +196,8 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/lesson-planners" element={<ProgramLessonPlannerUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
+        <Route path="/content-authorizer/studio" element={<StudioSessionSetupPage />} />
+        <Route path="/content-authorizer/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
       </Route>
 
       {/* School Owner */}
@@ -230,10 +233,12 @@ export default function AppRoutes() {
         <Route path="/school-owner/courses/:courseId/enroll" element={<SchoolOwnerEnrollUsers />} />
       </Route>
 
-      {/* Teacher */}
-      <Route element={<Protect roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']} />}>
+      {/* Teaching Studio authoring */}
+      <Route element={<Protect roles={['super_admin', 'content_authorizer']} />}>
         <Route path="/teaching-studio" element={<TeachingStudioPage />} />
+        <Route path="/teaching-studio/sessions/:sessionId" element={<TeachingStudioPage />} />
       </Route>
+      {/* Teacher */}
       <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} />}>
 
         <Route path="/teacher" element={<TeacherHome />} />
