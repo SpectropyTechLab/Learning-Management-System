@@ -214,6 +214,8 @@ export default function AppRoutes() {
         <Route path="/studio/screen-scripts" element={<StudioScreenScriptsPage />} />
         <Route path="/studio/editor" element={<StudioEditorEntryPage />} />
         <Route path="/studio/editor/:sessionId" element={<TeachingStudioPage />} />
+        <Route path="/studio/resources" element={<StudioResourceLibraryPage />} />
+        <Route path="/studio/resources/:resourceId" element={<StudioResourceDetailsPage />} />
         <Route path="/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
         {/* Compatibility aliases retained for existing Day 9/10 links. */}
         <Route path="/content-authorizer/studio" element={<StudioDashboardPage />} />

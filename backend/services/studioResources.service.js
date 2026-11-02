@@ -326,11 +326,13 @@ export const getResourceUsages = async ({ resourceId: rawResourceId, user }) => 
   const clientId = user?.client_id || null;
   const result = await dbQuery(
     `SELECT rm.id AS placement_id, rm.resource_version_id, rv.version_number,
-            rm.screen_id, s.session_id, s.screen_number, s.display_order,
+            rm.screen_id, s.title AS screen_title, s.session_id,
+            session.title AS session_title, s.screen_number, s.display_order,
             rm.element_id, se.element_type, rm.usage_details_json
      FROM resource_mappings rm
      JOIN resource_versions rv ON rv.id = rm.resource_version_id AND rv.resource_id = rm.resource_id
      JOIN screens s ON s.id = rm.screen_id
+     JOIN sessions session ON session.id = s.session_id
      JOIN screen_elements se ON se.screen_id = rm.screen_id AND se.element_key = rm.element_id
      WHERE rm.resource_id = $1
        AND ($2::boolean OR s.client_id = $3)

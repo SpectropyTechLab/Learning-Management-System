@@ -4,11 +4,13 @@ import type { Layout } from '../layouts';
 
 export interface StudioLayoutSummary {
   id: number;
+  client_id?: number | null;
   name: string;
+  description?: string | null;
   layout_key: string;
   version_no: number;
   is_default: boolean;
-  layout_data_json?: { slots?: Layout['slots'] };
+  layout_data_json: { slots: Layout['slots'] };
   canvas_width?: number;
   canvas_height?: number;
   safe_margin?: number;
@@ -28,7 +30,23 @@ export interface StudioResourceSummary {
 
 const dataOf = <T>(payload: { data: T } | T) => (payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload) as T;
 
-export const listStudioLayouts = async () => dataOf<StudioLayoutSummary[]>((await api.get('/studio/layouts')).data);
+export interface StudioLayoutWriteInput {
+  layout_key: string;
+  name: string;
+  description?: string;
+  layout_data_json: { slots: Layout['slots'] };
+  canvas_width: number;
+  canvas_height: number;
+  safe_margin: number;
+}
+
+export const listStudioLayouts = async (includeHistory = false) => dataOf<StudioLayoutSummary[]>((await api.get('/studio/layouts', {
+  params: includeHistory ? { include_history: true } : undefined,
+})).data);
+export const createStudioLayout = async (input: StudioLayoutWriteInput) =>
+  dataOf<StudioLayoutSummary>((await api.post('/studio/layouts', input)).data);
+export const reviseStudioLayout = async (layoutId: number, input: Omit<StudioLayoutWriteInput, 'layout_key'>) =>
+  dataOf<StudioLayoutSummary>((await api.patch(`/studio/layouts/${layoutId}`, input)).data);
 export const listStudioResources = async () => dataOf<StudioResourceSummary[]>((await api.get('/studio/resources')).data);
 
 const createTargetLayout = async (layout: Layout) => api.post('/studio/layouts', {
@@ -56,5 +74,5 @@ export const ensureTargetStudioLayouts = async () => {
     }
   }
   rows = await listStudioLayouts();
-  return rows.filter((row) => targetLayouts.some((layout) => layout.id === row.layout_key.toUpperCase()));
+  return rows;
 };

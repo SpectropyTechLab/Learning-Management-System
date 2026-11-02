@@ -15,9 +15,11 @@ import StudioShell from './components/StudioShell';
 import StudioLayoutGallery from './components/StudioLayoutGallery';
 import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
+import ResourceLibrary from './components/resources/ResourceLibrary';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
-import { ensureTargetStudioLayouts, listStudioResources } from './api/studioEditorApi';
-import type { StudioLayoutSummary, StudioResourceSummary } from './api/studioEditorApi';
+import { ensureTargetStudioLayouts } from './api/studioEditorApi';
+import type { StudioLayoutSummary } from './api/studioEditorApi';
+import type { StudioResourceSummary } from './api/studioResourcesApi';
 import {
   approveStudioSession,
   getStudioWorkflowStatus,
@@ -55,7 +57,6 @@ export default function TeachingStudioPage() {
   const [panel, setPanel] = useState<'layouts' | 'script' | 'resources' | 'elements' | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
-  const [resources, setResources] = useState<StudioResourceSummary[]>([]);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
   const [workflowStatus, setWorkflowStatus] = useState<StudioWorkflowStatus | null>(null);
   const [workflowProblems, setWorkflowProblems] = useState<StudioValidationProblem[]>([]);
@@ -117,10 +118,14 @@ export default function TeachingStudioPage() {
     if (sessionId) void loadScreens();
   }, [loadScreens, sessionId]);
 
+  const loadLayouts = useCallback(async () => {
+    setLayouts(await ensureTargetStudioLayouts());
+  }, []);
+
   useEffect(() => {
     if (!sessionId) return;
-    Promise.all([ensureTargetStudioLayouts(), listStudioResources(), studioDocumentsApi.screenScripts(sessionId)])
-      .then(([layoutRows, resourceRows, scriptRows]) => { setLayouts(layoutRows); setResources(resourceRows); setScripts(scriptRows); })
+    Promise.all([ensureTargetStudioLayouts(), studioDocumentsApi.screenScripts(sessionId)])
+      .then(([layoutRows, scriptRows]) => { setLayouts(layoutRows); setScripts(scriptRows); })
       .catch(() => { /* Individual editor panels show their empty state. */ });
   }, [sessionId]);
 
@@ -284,7 +289,13 @@ export default function TeachingStudioPage() {
   const selectedLayout = useMemo(() => {
     const row = layouts.find((layout) => layout.id === selectedScreen?.layout_id);
     if (!row) return null;
-    return targetLayouts.find((layout) => layout.id === row.layout_key.toUpperCase()) || null;
+    return targetLayouts.find((layout) => layout.id === row.layout_key.toUpperCase()) || {
+      id: row.layout_key,
+      name: row.name,
+      purpose: row.description || 'Custom Studio layout',
+      catalog: 'pilot' as const,
+      slots: row.layout_data_json?.slots || [],
+    };
   }, [layouts, selectedScreen?.layout_id]);
 
   const commitElements = (elements: StudioElement[], selectElementId?: string | null) => {
@@ -475,9 +486,10 @@ export default function TeachingStudioPage() {
               selectedLayoutId={selectedScreen?.layout_id ?? null}
               applying={applyingLayout}
               onApply={requestLayoutApplication}
+              onLayoutsChanged={loadLayouts}
             />
           )}
-          {panel === 'resources' && <><h2 className="font-semibold">Resources</h2><p className="mt-1 text-sm text-slate-500">Select an element on the canvas or in Elements, then attach an immutable Resource version here.</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{resources.map((resource) => <div key={resource.id} className="rounded-lg border border-gray-200 p-3"><p className="text-sm font-semibold">{resource.name}</p><p className="text-xs text-slate-500">{resource.resource_type || 'Resource'}{resource.latest_version ? ` · Version ${resource.latest_version.version_number}` : ''}</p><button type="button" disabled={!selectedElementId || !resource.latest_version} onClick={() => bindResourceToSelectedElement(resource)} className="mt-3 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Use in selected element</button></div>)}{resources.length === 0 && <p className="text-sm text-slate-500">No resources are available.</p>}</div></>}
+          {panel === 'resources' && <><div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Resources</h2><p className="mt-1 text-sm text-slate-500">Select an element, then search and attach the latest immutable Resource version.</p></div><a href="/studio/resources" className="rounded-lg border border-blue-800 px-3 py-2 text-sm font-semibold text-blue-900">Manage Resource library</a></div><ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} /></>}
           {panel === 'script' && <><h2 className="font-semibold">Screen Script</h2>{(() => { const script = scripts.find((row) => row.screen_id === selectedScreenId); return script?.content_json ? <div className="mt-3 grid gap-3 md:grid-cols-2">{Object.entries(script.content_json).filter(([, value]) => typeof value === 'string').map(([key, value]) => <div key={key} className="rounded-lg bg-gray-50 p-3"><p className="text-xs font-semibold uppercase text-slate-500">{key.replaceAll('_', ' ')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{value || '—'}</p></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No saved script exists for the selected Screen.</p>; })()}</>}
           {panel === 'elements' && <StudioElementPanel layout={selectedLayout} screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addElement} onUpdate={updateElement} onRemove={removeElement} />}
         </section>

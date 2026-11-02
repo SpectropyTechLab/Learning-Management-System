@@ -64,7 +64,9 @@ export interface StudioResourcePlacement {
   resource_version_id: number;
   version_number: number;
   screen_id: number;
+  screen_title: string;
   session_id: number;
+  session_title: string;
   screen_number: number;
   display_order: number;
   element_id: string;
