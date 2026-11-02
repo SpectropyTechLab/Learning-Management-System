@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { BookOpen, FileText, Home, LayoutDashboard, MonitorPlay, ScrollText } from 'lucide-react';
+import { BookOpen, FileText, Home, Layers3, LayoutDashboard, MonitorPlay, ScrollText } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
@@ -13,6 +13,7 @@ const sections = [
   ['Session Plan', '/studio/session-plans', FileText],
   ['Screen Scripts', '/studio/screen-scripts', ScrollText],
   ['Screen Editor', '/studio/editor', MonitorPlay],
+  ['Resource Library', '/studio/resources', Layers3],
 ] as const;
 
 export default function StudioShell({ title, subtitle, actions, scrollContent = true, wrapContent = true, children }: {
