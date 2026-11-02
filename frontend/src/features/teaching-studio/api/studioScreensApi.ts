@@ -39,9 +39,9 @@ export const listStudioScreens = async (sessionId: number) =>
 export const getStudioScreen = async (screenId: number) =>
   unwrap<StudioScreen>(await api.get(`/studio/screens/${screenId}`));
 
-export const createBlankStudioScreen = async (sessionId: number) =>
+export const createBlankStudioScreen = async (sessionId: number, title = 'Untitled Screen') =>
   unwrap<StudioScreen>(await api.post(`/studio/sessions/${sessionId}/screens`, {
     creation_mode: 'blank',
-    title: 'Untitled Screen',
+    title,
   }));
 

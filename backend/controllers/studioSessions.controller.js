@@ -5,22 +5,15 @@ const respond = (action, status = 200) => async (req, res) => {
   try {
     return res.status(status).json({ data: await action(req) });
   } catch (error) {
-    return handleStudioServiceError(res, error, 'Studio Session request failed');
+    return handleStudioServiceError(res, error, 'Studio session request failed');
   }
 };
 
-export const listStudioSessions = respond((req) => sessions.listStudioSessions({
-  subtopicId: req.params.subtopicId,
-  user: req.user,
-}));
-
-export const getStudioSession = respond((req) => sessions.getStudioSession({
-  sessionId: req.params.sessionId,
-  user: req.user,
-}));
-
-export const createStudioSession = respond((req) => sessions.createStudioSession({
-  subtopicId: req.params.subtopicId,
-  body: req.body,
-  user: req.user,
-}), 201);
+export const listSubtopicSessions = respond((req) =>
+  sessions.listSubtopicSessions({ subtopicId: req.params.subtopicId, user: req.user }));
+export const getStudioSession = respond((req) =>
+  sessions.getStudioSession({ sessionId: req.params.sessionId, user: req.user }));
+export const createStudioSession = respond((req) =>
+  sessions.createStudioSession({ subtopicId: req.params.subtopicId, body: req.body, user: req.user }), 201);
+export const updateStudioSession = respond((req) =>
+  sessions.updateStudioSession({ sessionId: req.params.sessionId, body: req.body, user: req.user }));
