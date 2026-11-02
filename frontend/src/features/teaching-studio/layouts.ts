@@ -46,7 +46,15 @@ export const pilotLayouts: Layout[] = [
 export { targetLayouts };
 export const layouts = targetLayouts;
 
-export type SlideObject = { id: string; slotId: string; type: ObjectType; text: string };
+export type SlideObject = {
+  id: string;
+  slotId: string;
+  type: ObjectType;
+  text: string;
+  url?: string;
+  altText?: string;
+  caption?: string;
+};
 export type Slide = { title: string; creationMode: 'blank' | 'layout'; objects: SlideObject[] };
 
 export const createBlankSlide = (): Slide => ({ title: '', creationMode: 'blank', objects: [] });

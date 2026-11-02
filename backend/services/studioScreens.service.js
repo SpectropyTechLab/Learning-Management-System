@@ -246,14 +246,20 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     if (Number(screen.revision_no) !== expectedRevision) {
       throw new AppError('Screen revision is stale; reload before saving', 409);
     }
+    const requestedLayoutId = body.layout_id === undefined
+      ? (screen.layout_id ? Number(screen.layout_id) : null)
+      : (body.layout_id === null ? null : parseId(body.layout_id, 'layout_id'));
     let layout = null;
-    if (screen.layout_id) {
+    if (requestedLayoutId) {
       const layoutResult = await client.query(
-        'SELECT layout_data_json FROM layouts WHERE id = $1',
-        [screen.layout_id],
+        `SELECT id, client_id, layout_data_json
+         FROM layouts
+         WHERE id = $1 AND is_active = TRUE`,
+        [requestedLayoutId],
       );
       layout = layoutResult.rows[0];
       if (!layout) throw new AppError('The Screen layout version no longer exists', 409);
+      assertTenant(layout.client_id, user);
     }
     const elements = normalizeElements(body.elements, layout);
     const tags = normalizeTags(body.tags);
@@ -266,12 +272,15 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     const updateResult = await client.query(
       `UPDATE screens
        SET title = $1, screen_settings_json = $2::jsonb,
+           layout_id = $3, creation_mode = $4,
            revision_no = revision_no + 1, updated_at = NOW()
-       WHERE id = $3 AND revision_no = $4
+       WHERE id = $5 AND revision_no = $6
        RETURNING *`,
       [
         optionalText(body.title ?? screen.title, 'title', 250),
         JSON.stringify(settings),
+        requestedLayoutId,
+        requestedLayoutId ? 'layout' : 'blank',
         screen.id,
         expectedRevision,
       ],

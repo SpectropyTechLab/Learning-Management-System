@@ -30,7 +30,13 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
   </text>;
 }
 
-export default function SlideCanvas({ layout, slide, showGuides = false }: { layout: Layout | null; slide: Slide; showGuides?: boolean }) {
+export default function SlideCanvas({ layout, slide, showGuides = false, selectedObjectId, onSelectObject }: {
+  layout: Layout | null;
+  slide: Slide;
+  showGuides?: boolean;
+  selectedObjectId?: string | null;
+  onSelectObject?: (objectId: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -53,10 +59,14 @@ export default function SlideCanvas({ layout, slide, showGuides = false }: { lay
       </>}
       {(layout?.slots ?? []).map((field) => {
         const object = slide.objects.find((item) => item.slotId === field.id);
+        if (!showGuides && !object) return null;
         const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
-        return <g key={field.id} data-slot={field.id}>
-          <rect {...field.bounds} rx={field.region === 'footer' ? 12 : 22} fill={tone.fill} stroke={tone.stroke} strokeWidth="3" />
-          {object && <FittedText slot={field} text={object.text} ink={tone.ink} />}
+        const isImage = object && ['visual', 'media'].includes(object.type) && object.url;
+        return <g key={field.id} data-slot={field.id} role={object ? 'button' : undefined} tabIndex={object ? 0 : undefined} onClick={() => object && onSelectObject?.(object.id)} onKeyDown={(event) => { if (object && (event.key === 'Enter' || event.key === ' ')) onSelectObject?.(object.id); }} className={object && onSelectObject ? 'cursor-pointer' : undefined}>
+          <rect {...field.bounds} rx={field.region === 'footer' ? 12 : 22} fill={tone.fill} stroke={object?.id === selectedObjectId ? '#1d4ed8' : tone.stroke} strokeWidth={object?.id === selectedObjectId ? 8 : 3} />
+          {isImage && <image href={object.url} x={field.bounds.x + 12} y={field.bounds.y + 12} width={field.bounds.width - 24} height={field.bounds.height - (object.caption ? 70 : 24)} preserveAspectRatio="xMidYMid meet"><title>{object.altText || object.text || field.label}</title></image>}
+          {object && !isImage && <FittedText slot={field} text={object.text || field.label} ink={tone.ink} />}
+          {isImage && object.caption && <text x={field.bounds.x + 24} y={field.bounds.y + field.bounds.height - 22} fontSize="25" fill="#334155">{object.caption}</text>}
           {showGuides && <text x={field.bounds.x + 14} y={field.bounds.y + field.bounds.height - 18} fontSize="20" fill="#64748b">{field.label}</text>}
         </g>;
       })}
