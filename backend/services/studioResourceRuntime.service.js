@@ -192,3 +192,20 @@ export const getRuntimeDownload = async ({ versionId: rawVersionId, user }) => {
     file_name: version.original_file_name,
   };
 };
+
+export const getRuntimePreview = async ({ versionId: rawVersionId, user }) => {
+  if (!AUTHOR_ROLES.has(user?.role)) throw new AppError('Access denied', 403);
+  const versionId = parseId(rawVersionId, 'Resource version ID');
+  const version = await loadVersion(versionId);
+  if (!version || !canAccessTenant(version.client_id, user)) {
+    throw new AppError('Resource version not found', 404);
+  }
+  if (!version.storage_key) throw new AppError('This Resource version has no previewable file', 404);
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(version.storage_key, 60);
+  if (error || !data?.signedUrl) throw new AppError('Unable to create Resource preview link', 502);
+  return {
+    url: data.signedUrl,
+    expires_in_seconds: 60,
+    mime_type: version.mime_type,
+  };
+};

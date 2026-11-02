@@ -102,6 +102,8 @@ import StudioDashboardPage from '@/features/teaching-studio/StudioDashboardPage'
 import StudioCurriculumPage from '@/features/teaching-studio/StudioCurriculumPage';
 import StudioSessionPlanPage from '@/features/teaching-studio/StudioSessionPlanPage';
 import StudioScreenScriptsPage from '@/features/teaching-studio/StudioScreenScriptsPage';
+import StudioResourceLibraryPage from '@/features/teaching-studio/StudioResourceLibraryPage';
+import StudioResourceDetailsPage from '@/features/teaching-studio/StudioResourceDetailsPage';
 import StudioEditorEntryPage from '@/features/teaching-studio/StudioEditorEntryPage';
 
 export default function AppRoutes() {
@@ -221,6 +223,8 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/studio/screen-scripts" element={<StudioScreenScriptsPage />} />
         <Route path="/content-authorizer/studio/editor" element={<StudioEditorEntryPage />} />
         <Route path="/content-authorizer/studio/editor/:sessionId" element={<TeachingStudioPage />} />
+        <Route path="/content-authorizer/studio/resources" element={<StudioResourceLibraryPage />} />
+        <Route path="/content-authorizer/studio/resources/:resourceId" element={<StudioResourceDetailsPage />} />
         <Route path="/content-authorizer/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
       </Route>
 
