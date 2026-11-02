@@ -18,3 +18,21 @@ test('clearing a parent also clears its descendants', () => {
   const full = { boardId: 1, programId: 2, gradeId: 3, subjectId: 4, chapterId: 5, topicId: 6, subtopicId: 7, sessionId: 8 };
   assert.deepEqual(mod.changeSelection(full, 'boardId', null), mod.emptyStudioSelection());
 });
+
+test('workflow context round-trips through URL parameters', () => {
+  const full = { boardId: 1, programId: 2, gradeId: 3, subjectId: 4, chapterId: 5, topicId: 6, subtopicId: 7, sessionId: 8 };
+  const params = mod.selectionSearchParams(full);
+
+  assert.deepEqual(mod.selectionFromSearchParams(params), full);
+  assert.equal(mod.selectionPath('/studio/screen-scripts', full), '/studio/screen-scripts?boardId=1&programId=2&gradeId=3&subjectId=4&chapterId=5&topicId=6&subtopicId=7&sessionId=8');
+});
+
+test('invalid URL values are ignored and session can be omitted', () => {
+  const selection = mod.selectionFromSearchParams(new URLSearchParams('boardId=-1&programId=nope&gradeId=3.5&subjectId=4'));
+  assert.deepEqual(selection, { boardId: null, programId: null, gradeId: null, subjectId: 4, chapterId: null, topicId: null, subtopicId: null, sessionId: null });
+
+  const full = { boardId: 1, programId: 2, gradeId: 3, subjectId: 4, chapterId: 5, topicId: 6, subtopicId: 7, sessionId: 8 };
+  assert.equal(mod.selectionSearchParams(full, false).has('sessionId'), false);
+  assert.equal(mod.hasCompleteHierarchy(full), true);
+  assert.equal(mod.hasCompleteHierarchy({ ...full, topicId: null }), false);
+});
