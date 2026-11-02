@@ -178,6 +178,7 @@ export default function ResourceUploadModal({
           ) : (
             <label className="block text-sm font-semibold text-slate-700">External URL
               <div className="relative mt-1.5"><Link2 className="absolute left-3 top-3 text-slate-400" size={18} /><input type="url" value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://example.com/resource" className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-3 font-normal text-slate-900 outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100" /></div>
+              {effectiveType === 'image' ? <span className="mt-1.5 block text-xs font-normal text-slate-500">Use the direct image file URL, not a Google/Bing image-search or result-page URL.</span> : null}
             </label>
           )}
 

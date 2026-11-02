@@ -201,11 +201,12 @@ export const getRuntimePreview = async ({ versionId: rawVersionId, user }) => {
     throw new AppError('Resource version not found', 404);
   }
   if (!version.storage_key) throw new AppError('This Resource version has no previewable file', 404);
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(version.storage_key, 60);
+  const previewSeconds = 300;
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(version.storage_key, previewSeconds);
   if (error || !data?.signedUrl) throw new AppError('Unable to create Resource preview link', 502);
   return {
     url: data.signedUrl,
-    expires_in_seconds: 60,
+    expires_in_seconds: previewSeconds,
     mime_type: version.mime_type,
   };
 };

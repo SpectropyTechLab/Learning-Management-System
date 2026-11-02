@@ -70,11 +70,20 @@ const normalizeVersionInput = (body, file, resourceType) => {
   if (!file && !externalUrl) throw new AppError('A resource file or external_url is required');
   if (file && externalUrl) throw new AppError('Provide either a resource file or external_url, not both');
   if (externalUrl) {
+    let parsed;
     try {
-      const parsed = new URL(externalUrl);
+      parsed = new URL(externalUrl);
       if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
     } catch {
       throw new AppError('external_url must be a valid HTTP or HTTPS URL');
+    }
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    const isSearchResultPage =
+      ((host === 'bing.com' || host.endsWith('.bing.com')) && path.startsWith('/images/search')) ||
+      ((host === 'google.com' || host.endsWith('.google.com')) && ['/search', '/imgres'].includes(path));
+    if (resourceType === 'image' && isSearchResultPage) {
+      throw new AppError('Image URLs must point directly to an image file, not a Google or Bing search-result page');
     }
   }
   if (resourceType === 'external_link' && !externalUrl) {

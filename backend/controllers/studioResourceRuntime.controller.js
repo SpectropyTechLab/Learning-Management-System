@@ -8,6 +8,10 @@ import { handleServiceError } from '../utils/errors.js';
 
 const respond = (action) => async (req, res) => {
   try {
+    // Signed URLs are short-lived credentials and must never be reused from a
+    // browser, proxy or service-worker cache after their expiry.
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
     return res.json({ data: await action(req) });
   } catch (error) {
     return handleServiceError(res, error, 'Studio runtime request failed');
