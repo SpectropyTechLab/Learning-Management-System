@@ -64,7 +64,9 @@ export interface StudioResourcePlacement {
   resource_version_id: number;
   version_number: number;
   screen_id: number;
+  screen_title: string;
   session_id: number;
+  session_title: string;
   screen_number: number;
   display_order: number;
   element_id: string;
@@ -181,7 +183,10 @@ export const getStudioResourceDownload = async (versionId: number) =>
   dataOf<StudioResourceDownload>((await api.get(`/studio/resource-versions/${versionId}/download`)).data);
 
 export const getStudioResourcePreview = async (versionId: number) =>
-  dataOf<StudioResourcePreview>((await api.get(`/studio/resource-versions/${versionId}/preview`)).data);
+  dataOf<StudioResourcePreview>((await api.get(`/studio/resource-versions/${versionId}/preview`, {
+    params: { fresh: Date.now() },
+    headers: { 'Cache-Control': 'no-cache' },
+  })).data);
 
 export const deleteStudioResource = async (resourceId: number) =>
   dataOf<{ id: number; deleted: true }>((await api.delete(`/studio/resources/${resourceId}`)).data);

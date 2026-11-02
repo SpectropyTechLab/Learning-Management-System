@@ -120,7 +120,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
     const params = new URLSearchParams();
     if (searchInput.trim()) params.set('search', searchInput.trim());
     if (resourceType) params.set('type', resourceType);
-    navigate(`/content-authorizer/studio/resources/${resource.id}`, { state: { librarySearch: params.toString() } });
+    navigate(`/studio/resources/${resource.id}`, { state: { librarySearch: params.toString() } });
   };
 
   const requestDelete = (resource: StudioResourceSummary) => {

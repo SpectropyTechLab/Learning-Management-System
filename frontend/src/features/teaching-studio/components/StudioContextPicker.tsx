@@ -10,14 +10,21 @@ const blankLists = (): Lists => ({ boards: [], programs: [], grades: [], subject
 const listOrder: ListKey[] = ['boards', 'programs', 'grades', 'subjects', 'chapters', 'topics', 'subtopics', 'sessions'];
 const optionLabel = (item: CurriculumOption | StudioSession) => 'session_number' in item ? `Session ${item.session_number}: ${item.title}` : item.name ?? item.title ?? (item.grade_number ? `Grade ${item.grade_number}` : `Item ${item.id}`);
 
-export default function StudioContextPicker({ includeSession = true, onChange }: {
+export default function StudioContextPicker({ includeSession = true, initialSelection, onChange }: {
   includeSession?: boolean;
+  initialSelection?: StudioSelection;
   onChange: (selection: StudioSelection) => void;
 }) {
-  const [selection, setSelection] = useState(emptyStudioSelection);
+  const [selection, setSelection] = useState(() => initialSelection ?? emptyStudioSelection());
   const [lists, setLists] = useState<Lists>(blankLists);
   const [loading, setLoading] = useState<Partial<Record<ListKey, boolean>>>({});
   const [errors, setErrors] = useState<Partial<Record<ListKey, string>>>({});
+
+  useEffect(() => {
+    if (!initialSelection) return;
+    setSelection(initialSelection);
+    onChange(initialSelection);
+  }, [initialSelection, onChange]);
 
   const load = useCallback((key: ListKey, request: (signal: AbortSignal) => Promise<Array<CurriculumOption | StudioSession>>) => {
     const controller = new AbortController();

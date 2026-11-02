@@ -4,6 +4,11 @@ export interface StudioElement {
   type: string;
   content: Record<string, unknown>;
   position: Record<string, unknown>;
+  resource?: {
+    resource_id: number;
+    resource_version_id: number;
+    usage: Record<string, unknown>;
+  };
 }
 
 export interface StudioScreen {
