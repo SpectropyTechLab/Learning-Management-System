@@ -1,6 +1,7 @@
 import {
   createRuntimeLaunch,
   getRuntimeDownload,
+  getRuntimePreview,
   loadRuntimeAsset,
 } from '../services/studioResourceRuntime.service.js';
 import { handleServiceError } from '../utils/errors.js';
@@ -19,6 +20,11 @@ export const launchResourceVersion = respond((req) => createRuntimeLaunch({
 }));
 
 export const downloadResourceVersion = respond((req) => getRuntimeDownload({
+  versionId: req.params.versionId,
+  user: req.user,
+}));
+
+export const previewResourceVersion = respond((req) => getRuntimePreview({
   versionId: req.params.versionId,
   user: req.user,
 }));
