@@ -229,3 +229,27 @@ export const downloadSessionPlan = (input) => downloadDocument({ ...input, docum
 export const downloadScreenScript = (input) => downloadDocument({ ...input, documentType: 'screen_script' });
 export const saveSessionPlanContent = (input) => saveDocumentContent({ ...input, documentType: 'session_plan' });
 export const saveScreenScriptContent = (input) => saveDocumentContent({ ...input, documentType: 'screen_script' });
+
+export const listScreenScripts = async ({ sessionId: rawSessionId, user, db = { query: dbQuery } }) => {
+  assertAuthor(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const session = await getSession(db, sessionId);
+  assertTenant(session, user);
+  const result = await db.query(
+    `SELECT id, session_id, revision_no, source_mode, original_file_name,
+            manual_content, is_current, created_at
+     FROM session_documents
+     WHERE session_id = $1 AND document_type = 'screen_script'
+     ORDER BY revision_no DESC`,
+    [sessionId],
+  );
+  return result.rows.map((row) => ({
+    id: Number(row.id),
+    session_id: Number(row.session_id),
+    revision_no: Number(row.revision_no),
+    source_mode: row.source_mode,
+    name: row.manual_content?.script_plan_name || row.original_file_name || `Script Plan revision ${row.revision_no}`,
+    is_current: row.is_current === true,
+    created_at: row.created_at,
+  }));
+};

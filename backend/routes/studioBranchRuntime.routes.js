@@ -13,7 +13,7 @@ import {
 
 const router = Router();
 
-router.use(authenticateToken, attachClientContext, requireRole(['teacher']));
+router.use('/studio/branch-runs', authenticateToken, attachClientContext, requireRole(['teacher']));
 router.post('/studio/branch-runs', createBranchRun);
 router.post('/studio/branch-runs/:runId/enter', enterBranch);
 router.patch('/studio/branch-runs/:runId/checkpoints/:checkpointId/state', updateBranchState);

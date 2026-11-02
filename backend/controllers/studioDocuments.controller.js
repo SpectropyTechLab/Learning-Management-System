@@ -28,3 +28,4 @@ export const downloadSessionPlan = download((req) => studioDocuments.downloadSes
 export const downloadScreenScript = download((req) => studioDocuments.downloadScreenScript({ sessionId: Number(req.params.sessionId), user: req.user }));
 export const saveSessionPlanContent = respond((req) => studioDocuments.saveSessionPlanContent({ sessionId: Number(req.params.sessionId), content: req.body.content, user: req.user }));
 export const saveScreenScriptContent = respond((req) => studioDocuments.saveScreenScriptContent({ sessionId: Number(req.params.sessionId), content: req.body.content, user: req.user }));
+export const listScreenScripts = respond((req) => studioDocuments.listScreenScripts({ sessionId: Number(req.params.sessionId), user: req.user }));

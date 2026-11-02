@@ -4,6 +4,7 @@ import { authenticateToken, attachClientContext, requireRole } from '../middlewa
 import {
   uploadSessionPlan, uploadScreenScript, downloadSessionPlan, downloadScreenScript,
   saveSessionPlanContent, saveScreenScriptContent,
+  listScreenScripts,
 } from '../controllers/studioDocuments.controller.js';
 
 const router = Router();
@@ -21,5 +22,6 @@ router.post('/studio/sessions/:sessionId/screen-script', authors, upload.single(
 router.put('/studio/sessions/:sessionId/screen-script', authors, upload.single('file'), uploadScreenScript);
 router.patch('/studio/sessions/:sessionId/screen-script/content', authors, saveScreenScriptContent);
 router.get('/studio/sessions/:sessionId/screen-script/download', downloadScreenScript);
+router.get('/studio/sessions/:sessionId/screen-scripts', authors, listScreenScripts);
 
 export default router;

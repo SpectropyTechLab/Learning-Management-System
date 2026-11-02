@@ -19,6 +19,16 @@ export interface StudioSession {
   revision_no: number;
 }
 
+export interface StudioScript {
+  id: number;
+  session_id: number;
+  revision_no: number;
+  source_mode: 'upload' | 'manual';
+  name: string;
+  is_current: boolean;
+  created_at: string;
+}
+
 const rows = (payload: unknown): CurriculumOption[] => {
   if (Array.isArray(payload)) return payload as CurriculumOption[];
   if (payload && typeof payload === 'object') {
@@ -42,9 +52,31 @@ export const studioSetupApi = {
     const payload = (await api.get(`/studio/subtopics/${id}/sessions`, { signal })).data;
     return payload?.data?.sessions ?? [];
   },
+  scripts: async (sessionId: number, signal?: AbortSignal): Promise<StudioScript[]> => {
+    const payload = (await api.get(`/studio/sessions/${sessionId}/screen-scripts`, { signal })).data;
+    return payload?.data ?? [];
+  },
   createSession: async (subtopicId: number, body: { session_number: number; title: string; description?: string }) => {
     const response = await api.post(`/studio/subtopics/${subtopicId}/sessions`, body);
     return response.data.data as StudioSession;
+  },
+  createHierarchy: async (input: {
+    boardName: string; boardCode: string;
+    programName: string; programCode: string;
+    gradeNumber: number;
+    subjectName: string; subjectCode: string;
+    chapterName: string; chapterNumber: number;
+    topicName: string; topicNumber: number;
+    subtopicName: string;
+  }) => {
+    const board = (await api.post('/boards', { name: input.boardName, code: input.boardCode })).data as CurriculumOption;
+    const program = (await api.post(`/boards/${board.id}/programs`, { name: input.programName, code: input.programCode })).data as CurriculumOption;
+    const grade = (await api.post(`/programs/${program.id}/grades`, { grade_number: input.gradeNumber })).data as CurriculumOption;
+    const subject = (await api.post('/subjects', { grade_id: grade.id, name: input.subjectName, code: input.subjectCode, display_order: 1 })).data as CurriculumOption;
+    const chapter = (await api.post(`/subjects/${subject.id}/chapters`, { name: input.chapterName, chapter_number: input.chapterNumber })).data as CurriculumOption;
+    const topic = (await api.post(`/chapters/${chapter.id}/topics`, { name: input.topicName, topic_number: input.topicNumber })).data as CurriculumOption;
+    const subtopic = (await api.post(`/topics/${topic.id}/subtopics`, { name: input.subtopicName, display_order: 1 })).data as CurriculumOption;
+    return { board, program, grade, subject, chapter, topic, subtopic };
   },
 };
 
