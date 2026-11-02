@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ContentAuthorizerShell from '@/pages/dashboard/content_authorizer/ContentAuthorizerShell';
+import toast from 'react-hot-toast';
+import StudioShell from '../components/StudioShell';
 import { setupErrorMessage, studioSetupApi } from '../api/studioSetupApi';
 import type { CurriculumOption, StudioSession } from '../api/studioSetupApi';
 import { changeSelection, emptyStudioSelection } from './selectionState';
@@ -94,10 +95,11 @@ export default function StudioSessionSetupPage() {
       setLists((state) => ({ ...state, sessions: [...state.sessions as StudioSession[], created].sort((a, b) => a.session_number - b.session_number) }));
       setSelection((state) => changeSelection(state, 'sessionId', created.id));
       setShowCreate(false); setTitle(''); setDescription('');
-    } catch (error) { setCreateError(setupErrorMessage(error)); } finally { setCreating(false); }
+      toast.success(`Studio Session “${created.title}” created successfully.`);
+    } catch (error) { const response = setupErrorMessage(error); setCreateError(response); toast.error(response); } finally { setCreating(false); }
   };
 
-  return <ContentAuthorizerShell title="Content Authorizer Studio" subtitle="Choose the curriculum context, then create or open a separate Studio session.">
+  return <StudioShell title="Create Studio Session" subtitle="Choose the curriculum context, then create a Session under the selected Subtopic.">
     <div className="mx-auto max-w-5xl space-y-6">
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Curriculum selection</h2>
@@ -108,7 +110,7 @@ export default function StudioSessionSetupPage() {
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Studio session</h2><p className="text-sm text-slate-600">Sessions are stored separately under the selected subtopic and numbered automatically.</p></div><button type="button" onClick={() => setShowCreate((value) => !value)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Create new session</button></div>
         {showCreate && <div className="mt-5 grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2"><label className="text-sm font-medium md:col-span-2">Title<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2" /></label><label className="text-sm font-medium md:col-span-2">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2" /></label>{createError && <p className="text-sm text-red-700 md:col-span-2">{createError}</p>}<div className="md:col-span-2"><button type="button" disabled={creating || !title.trim()} onClick={createSession} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{creating ? 'Creating…' : 'Create session'}</button></div></div>}
       </section>}
-      <div className="flex justify-end"><button type="button" disabled={!selection.sessionId} onClick={() => navigate(`/content-authorizer/studio/sessions/${selection.sessionId}`)} className="rounded-lg bg-slate-900 px-5 py-2.5 font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">Open Studio</button></div>
+      <div className="flex justify-start"><button type="button" onClick={() => navigate('/content-authorizer/studio/session-plans')} className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 font-medium text-slate-700 hover:bg-gray-50">Back to Session Plan</button></div>
     </div>
-  </ContentAuthorizerShell>;
+  </StudioShell>;
 }

@@ -17,6 +17,14 @@ export const publishSessionRelease = async (req, res) => {
   }
 };
 
+export const listPublishedChapters = async (req, res) => {
+  try {
+    return res.json({ data: await releases.listPublishedChapters({ user: req.user }) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 export const getCurrentTeacherRelease = async (req, res) => {
   try {
     const release = await releases.getCurrentTeacherRelease({ sessionId: req.params.sessionId, user: req.user });
