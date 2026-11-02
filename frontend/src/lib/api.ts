@@ -63,14 +63,50 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise: Promise<string | null> | null = null;
 
+export type ApiErrorDetails = {
+  status?: number;
+  code?: string;
+  message: string;
+  details?: unknown;
+};
+
+// Studio APIs use a structured error envelope while older LMS APIs return a
+// string. Day 9 screens can use this one helper for both during the transition.
+export const getApiErrorDetails = (
+  error: unknown,
+  fallback = 'Request failed. Please try again.',
+): ApiErrorDetails => {
+  const axiosError = axios.isAxiosError(error) ? error : null;
+  const data = axiosError?.response?.data;
+  const payload = typeof data === 'object' && data !== null
+    ? data as Record<string, unknown>
+    : {};
+  const nested = typeof payload.error === 'object' && payload.error !== null
+    ? payload.error as Record<string, unknown>
+    : null;
+  const legacyMessage = typeof payload.error === 'string' ? payload.error : undefined;
+  const message = nested?.message ?? legacyMessage ?? payload.message ?? axiosError?.message;
+  const code = nested?.code ?? payload.code;
+
+  return {
+    status: axiosError?.response?.status,
+    code: typeof code === 'string' && code.trim() ? code : undefined,
+    message: typeof message === 'string' && message.trim() ? message : fallback,
+    details: nested?.details ?? payload.details,
+  };
+};
+
 const isAuthError = (status?: number, data?: unknown) => {
   const payload = typeof data === 'object' && data !== null ? data as Record<string, unknown> : {};
-  const code = String(payload.code ?? '').toUpperCase();
+  const nested = typeof payload.error === 'object' && payload.error !== null
+    ? payload.error as Record<string, unknown>
+    : {};
+  const code = String(nested.code ?? payload.code ?? '').toUpperCase();
   if (code === 'TOKEN_EXPIRED' || code === 'TOKEN_INVALID') return true;
   if (status === 401) return true;
   if (status !== 403) return false;
 
-  const rawMessage = payload.error ?? payload.message ?? '';
+  const rawMessage = nested.message ?? payload.error ?? payload.message ?? '';
   const message = String(rawMessage).toLowerCase();
 
   return (

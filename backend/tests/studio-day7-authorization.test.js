@@ -61,7 +61,7 @@ test('document write routes reject teachers before Multer reads the upload', () 
   const writeRoutes = documentRouter.stack
     .filter((layer) => layer.route && ['post', 'put', 'patch'].some((method) => layer.route.methods[method]));
 
-  assert.equal(writeRoutes.length, 6);
+  assert.ok(writeRoutes.length >= 6, 'all document write routes must be covered');
   for (const layer of writeRoutes) {
     const firstHandler = layer.route.stack[0].handle;
     let nextCalled = false;

@@ -98,6 +98,11 @@ import TeachingSessionDetailPage from '@/pages/teaching-sessions/TeachingSession
 import TeachingSessionAnalyticsPage from '@/pages/teaching-sessions/TeachingSessionAnalyticsPage';
 import TeachingStudioPage from '@/features/teaching-studio/TeachingStudioPage';
 import StudioSessionSetupPage from '@/features/teaching-studio/setup/StudioSessionSetupPage';
+import StudioDashboardPage from '@/features/teaching-studio/StudioDashboardPage';
+import StudioCurriculumPage from '@/features/teaching-studio/StudioCurriculumPage';
+import StudioSessionPlanPage from '@/features/teaching-studio/StudioSessionPlanPage';
+import StudioScreenScriptsPage from '@/features/teaching-studio/StudioScreenScriptsPage';
+import StudioEditorEntryPage from '@/features/teaching-studio/StudioEditorEntryPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -196,7 +201,13 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/lesson-planners" element={<ProgramLessonPlannerUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
-        <Route path="/content-authorizer/studio" element={<StudioSessionSetupPage />} />
+        <Route path="/content-authorizer/studio" element={<StudioDashboardPage />} />
+        <Route path="/content-authorizer/studio/curriculum" element={<StudioCurriculumPage />} />
+        <Route path="/content-authorizer/studio/session-setup" element={<StudioSessionSetupPage />} />
+        <Route path="/content-authorizer/studio/session-plans" element={<StudioSessionPlanPage />} />
+        <Route path="/content-authorizer/studio/screen-scripts" element={<StudioScreenScriptsPage />} />
+        <Route path="/content-authorizer/studio/editor" element={<StudioEditorEntryPage />} />
+        <Route path="/content-authorizer/studio/editor/:sessionId" element={<TeachingStudioPage />} />
         <Route path="/content-authorizer/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
       </Route>
 

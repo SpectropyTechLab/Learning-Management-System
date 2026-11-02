@@ -19,6 +19,8 @@ export interface StudioSession {
   revision_no: number;
 }
 
+export type CurriculumLevel = 'board' | 'program' | 'grade' | 'subject' | 'chapter' | 'topic' | 'subtopic';
+
 const rows = (payload: unknown): CurriculumOption[] => {
   if (Array.isArray(payload)) return payload as CurriculumOption[];
   if (payload && typeof payload === 'object') {
@@ -42,9 +44,30 @@ export const studioSetupApi = {
     const payload = (await api.get(`/studio/subtopics/${id}/sessions`, { signal })).data;
     return payload?.data?.sessions ?? [];
   },
-  createSession: async (subtopicId: number, body: { session_number: number; title: string; description?: string }) => {
+  createSession: async (subtopicId: number, body: { title: string; description?: string }) => {
     const response = await api.post(`/studio/subtopics/${subtopicId}/sessions`, body);
     return response.data.data as StudioSession;
+  },
+  createHierarchyChild: async ({ level, parentId, name, code, order }: {
+    level: CurriculumLevel;
+    parentId?: number | null;
+    name: string;
+    code?: string;
+    order?: number;
+  }) => {
+    const safeCode = (code || name).trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30);
+    const number = Number(order || 1);
+    const contracts: Record<CurriculumLevel, { url: string; body: Record<string, unknown> }> = {
+      board: { url: '/boards', body: { name, code: safeCode } },
+      program: { url: `/boards/${parentId}/programs`, body: { name, code: safeCode } },
+      grade: { url: `/programs/${parentId}/grades`, body: { grade_number: number } },
+      subject: { url: '/subjects', body: { name, code: safeCode, grade_id: parentId } },
+      chapter: { url: `/subjects/${parentId}/chapters`, body: { name, chapter_number: number } },
+      topic: { url: `/chapters/${parentId}/topics`, body: { name, topic_number: number } },
+      subtopic: { url: `/topics/${parentId}/subtopics`, body: { name, display_order: number } },
+    };
+    const contract = contracts[level];
+    return (await api.post(contract.url, contract.body)).data;
   },
 };
 

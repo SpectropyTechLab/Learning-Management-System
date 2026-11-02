@@ -49,7 +49,7 @@ const loadExactAuthorization = async (db, session) => {
     `SELECT sa.id AS authorization_id, sa.authorized_by, sa.authorized_at,
             sv.id AS validation_id, sv.session_revision_no,
             sv.session_plan_document_id, sv.screen_script_document_id,
-            sv.screen_revisions_json
+            sv.screen_revisions_json, sv.screen_script_revisions_json
      FROM session_authorizations sa
      JOIN session_validations sv ON sv.id = sa.validation_id
      WHERE sa.session_id = $1 AND sv.session_revision_no = $2 AND sv.is_valid = TRUE
@@ -62,18 +62,36 @@ const loadExactAuthorization = async (db, session) => {
 };
 
 const loadDocuments = async (db, sessionId, authorization) => {
-  const ids = [authorization.session_plan_document_id, authorization.screen_script_document_id];
-  if (ids.some((id) => !id)) throw new AppError('Authorized document revisions are incomplete', 409);
+  const ids = [authorization.session_plan_document_id, authorization.screen_script_document_id].filter(Boolean);
+  if (!authorization.session_plan_document_id) throw new AppError('Authorized Session Plan revision is incomplete', 409);
   const result = await db.query(
     `SELECT id, session_id, document_type, revision_no, source_mode, storage_key,
             original_file_name, content_type, size_bytes, content_sha256,
-            manual_content, metadata_json, created_by, created_at
+            manual_content, structured_content, metadata_json, created_by, created_at
      FROM session_documents WHERE session_id = $1 AND id = ANY($2::bigint[])
      ORDER BY document_type`, [sessionId, ids]
   );
   const documents = Object.fromEntries(result.rows.map((row) => [row.document_type, row]));
-  if (!documents.session_plan || !documents.screen_script) throw new AppError('Authorized document revisions could not be loaded', 409);
+  if (!documents.session_plan) throw new AppError('Authorized Session Plan revision could not be loaded', 409);
   return documents;
+};
+
+const loadScreenScripts = async (db, sessionId, authorization) => {
+  const recorded = parseJsonArray(authorization.screen_script_revisions_json);
+  const ids = recorded.map((script) => Number(script.script_revision_id)).filter(Number.isInteger);
+  if (ids.length === 0) {
+    if (authorization.screen_script_document_id) return [];
+    throw new AppError('Authorized per-Screen Script revisions are incomplete', 409);
+  }
+  const result = await db.query(
+    `SELECT id, session_id, screen_id, revision_no, source_mode, source_document_id,
+            content_json, created_by, created_at
+     FROM screen_script_revisions
+     WHERE session_id = $1 AND id = ANY($2::bigint[]) ORDER BY screen_id`,
+    [sessionId, ids],
+  );
+  if (result.rows.length !== ids.length) throw new AppError('Authorized Screen Script revisions could not be loaded', 409);
+  return result.rows;
 };
 
 const loadScreens = async (db, sessionId) => (await db.query(
@@ -145,10 +163,11 @@ const documentManifest = (document) => ({
   original_file_name: document.original_file_name, content_type: document.content_type,
   size_bytes: document.size_bytes === null ? null : Number(document.size_bytes),
   content_sha256: document.content_sha256, manual_content: document.manual_content,
+  structured_content: document.structured_content,
   metadata_json: document.metadata_json, created_by: document.created_by, created_at: document.created_at,
 });
 
-const buildManifest = ({ session, authorization, documents, screens, content, releaseNumber }) => {
+const buildManifest = ({ session, authorization, documents, screenScripts, screens, content, releaseNumber }) => {
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
@@ -162,8 +181,15 @@ const buildManifest = ({ session, authorization, documents, screens, content, re
     },
     documents: {
       session_plan: documentManifest(documents.session_plan),
-      screen_script: documentManifest(documents.screen_script),
+      screen_script: documents.screen_script ? documentManifest(documents.screen_script) : null,
+      screen_script_source: documents.screen_script ? documentManifest(documents.screen_script) : null,
     },
+    screen_scripts: screenScripts.map((script) => ({
+      script_revision_id: Number(script.id), screen_id: Number(script.screen_id),
+      revision_no: Number(script.revision_no), source_mode: script.source_mode,
+      source_document_id: script.source_document_id ? Number(script.source_document_id) : null,
+      content: script.content_json, created_by: script.created_by, created_at: script.created_at,
+    })),
     authorization: {
       authorization_id: Number(authorization.authorization_id),
       validation_id: Number(authorization.validation_id),
@@ -214,6 +240,47 @@ const serializeRelease = (row) => ({
   published_by: row.published_by, published_at: row.published_at,
 });
 
+export const listPublishedChapters = async ({ user }) => {
+  assertPublisher(user);
+  const tenantId = user?.role === 'super_admin' || (user?.role === 'content_authorizer' && !user?.client_id)
+    ? null : parseId(user.client_id, 'Client ID');
+  const result = await dbQuery(
+    `WITH latest AS (
+       SELECT DISTINCT ON (sr.session_id)
+              sr.id, sr.session_id, sr.release_number, sr.published_at
+       FROM session_releases sr
+       JOIN sessions tenant_session ON tenant_session.id = sr.session_id
+       WHERE ($1::int IS NULL OR tenant_session.client_id = $1)
+       ORDER BY sr.session_id, sr.release_number DESC
+     )
+     SELECT latest.id AS release_id, latest.release_number, latest.published_at,
+            se.id AS session_id, se.title AS session_title,
+            p.id AS program_id, p.name AS program_name, g.grade_number,
+            su.id AS subject_id, su.name AS subject_name,
+            ch.id AS chapter_id, ch.name AS chapter_name, ch.chapter_number,
+            COUNT(sc.id)::int AS screen_count
+     FROM latest
+     JOIN sessions se ON se.id = latest.session_id
+     JOIN subtopics st ON st.id = se.subtopic_id
+     JOIN topics t ON t.id = st.topic_id
+     JOIN chapters ch ON ch.id = t.chapter_id
+     JOIN subjects su ON su.id = ch.subject_id
+     JOIN grades g ON g.id = su.grade_id
+     JOIN programs p ON p.id = g.program_id
+     LEFT JOIN screens sc ON sc.session_id = se.id
+     GROUP BY latest.id, latest.release_number, latest.published_at, se.id, se.title,
+              p.id, p.name, g.grade_number, su.id, su.name, ch.id, ch.name, ch.chapter_number
+     ORDER BY latest.published_at DESC, ch.chapter_number, se.id`,
+    [tenantId],
+  );
+  return result.rows.map((row) => ({ ...row,
+    release_id: Number(row.release_id), release_number: Number(row.release_number),
+    session_id: Number(row.session_id), chapter_id: Number(row.chapter_id),
+    grade_number: Number(row.grade_number), chapter_number: Number(row.chapter_number),
+    screen_count: Number(row.screen_count),
+  }));
+};
+
 export const publishSessionRelease = async ({ sessionId: rawSessionId, user }) => {
   assertPublisher(user);
   const sessionId = parseId(rawSessionId, 'Session ID');
@@ -225,6 +292,7 @@ export const publishSessionRelease = async ({ sessionId: rawSessionId, user }) =
     if (session.status !== 'approved') throw new AppError('Only approved Sessions can be published', 409);
     const authorization = await loadExactAuthorization(client, session);
     const documents = await loadDocuments(client, session.id, authorization);
+    const screenScripts = await loadScreenScripts(client, session.id, authorization);
     const screens = await loadScreens(client, session.id);
     if (screens.length === 0) throw new AppError('At least one Screen is required for publication', 422);
     assertAuthorizedScreens(screens, authorization);
@@ -234,7 +302,7 @@ export const publishSessionRelease = async ({ sessionId: rawSessionId, user }) =
       [session.id]
     );
     const releaseNumber = Number(numberResult.rows[0].release_number);
-    const manifest = buildManifest({ session, authorization, documents, screens, content, releaseNumber });
+    const manifest = buildManifest({ session, authorization, documents, screenScripts, screens, content, releaseNumber });
     const releaseResult = await client.query(
       `INSERT INTO session_releases
         (client_id, session_id, release_number, session_revision_no,

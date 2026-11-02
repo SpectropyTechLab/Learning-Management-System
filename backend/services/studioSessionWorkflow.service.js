@@ -51,9 +51,6 @@ const validateContent = async (db, session) => {
   if (!documents.session_plan) {
     errors.push({ code: 'SESSION_PLAN_MISSING', message: 'Session Plan is required.' });
   }
-  if (!documents.screen_script) {
-    errors.push({ code: 'SCREEN_SCRIPT_MISSING', message: 'A session-level Screen Script is required.' });
-  }
 
   const screensResult = await db.query(
     `SELECT id, screen_number, revision_no
@@ -63,6 +60,26 @@ const validateContent = async (db, session) => {
 
   if (screensResult.rows.length === 0) {
     errors.push({ code: 'SCREENS_MISSING', message: 'At least one Screen is required.' });
+  }
+
+  const legacyScriptDocument = documents.screen_script && !documents.screen_script.metadata_json?.parser;
+  const scriptsResult = screensResult.rows.length === 0 || legacyScriptDocument || !documents.session_plan ? { rows: [] } : await db.query(
+    `SELECT ssr.id, ssr.screen_id, ssr.revision_no, ssr.source_mode, ssr.source_document_id
+     FROM screen_script_revisions ssr
+     WHERE ssr.session_id = $1 AND ssr.is_current = TRUE
+     ORDER BY ssr.screen_id`,
+    [session.id],
+  );
+  const scriptsByScreen = new Map(scriptsResult.rows.map((script) => [Number(script.screen_id), script]));
+  const usesLegacySessionScript = scriptsResult.rows.length === 0 && Boolean(legacyScriptDocument);
+  for (const screen of screensResult.rows) {
+    if (!usesLegacySessionScript && !scriptsByScreen.has(Number(screen.id))) {
+      errors.push({
+        code: 'SCREEN_SCRIPT_MISSING',
+        message: `Screen Script is required for Screen ${screen.screen_number}.`,
+        screen_id: Number(screen.id),
+      });
+    }
   }
 
   return {
@@ -75,6 +92,14 @@ const validateContent = async (db, session) => {
       session_plan_revision_no: documents.session_plan ? Number(documents.session_plan.revision_no) : null,
       screen_script_document_id: documents.screen_script?.id ?? null,
       screen_script_revision_no: documents.screen_script ? Number(documents.screen_script.revision_no) : null,
+      screen_scripts: scriptsResult.rows.map((script) => ({
+        script_revision_id: Number(script.id),
+        screen_id: Number(script.screen_id),
+        revision_no: Number(script.revision_no),
+        source_mode: script.source_mode,
+        source_document_id: script.source_document_id ? Number(script.source_document_id) : null,
+      })),
+      legacy_session_script: usesLegacySessionScript,
       screens: screensResult.rows.map((screen) => ({
         screen_id: Number(screen.id),
         screen_number: Number(screen.screen_number),
@@ -89,12 +114,13 @@ const recordValidation = async (db, session, validation, user) => {
   const result = await db.query(
     `INSERT INTO session_validations (
        session_id, session_revision_no, session_plan_document_id,
-       screen_script_document_id, screen_revisions_json, is_valid,
+       screen_script_document_id, screen_revisions_json, screen_script_revisions_json, is_valid,
        validation_errors_json, validated_by
-     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::jsonb, $8)
+     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::jsonb, $9)
      RETURNING id, session_id, session_revision_no, is_valid, validated_by, validated_at`,
     [session.id, exact.session_revision_no, exact.session_plan_document_id,
-      exact.screen_script_document_id, JSON.stringify(exact.screens), validation.valid,
+      exact.screen_script_document_id, JSON.stringify(exact.screens),
+      JSON.stringify(exact.screen_scripts), validation.valid,
       JSON.stringify(validation.errors), user?.id || null]
   );
   return result.rows[0];
@@ -129,10 +155,19 @@ const exactRevisionMatches = (validationRow, validation) => {
     return recorded?.screen_number === Number(screen.screen_number) &&
       recorded?.revision_no === Number(screen.revision_no);
   });
+  const recordedScripts = Array.isArray(validationRow.screen_script_revisions_json)
+    ? validationRow.screen_script_revisions_json
+    : JSON.parse(validationRow.screen_script_revisions_json || '[]');
+  const scriptsByScreen = new Map(recordedScripts.map((script) => [Number(script.screen_id), script]));
+  const scriptsMatch = scriptsByScreen.size === exact.screen_scripts.length && exact.screen_scripts.every((script) => {
+    const recorded = scriptsByScreen.get(Number(script.screen_id));
+    return Number(recorded?.script_revision_id) === Number(script.script_revision_id) &&
+      Number(recorded?.revision_no) === Number(script.revision_no);
+  });
   return Number(validationRow.session_revision_no) === exact.session_revision_no &&
     Number(validationRow.session_plan_document_id) === Number(exact.session_plan_document_id) &&
-    Number(validationRow.screen_script_document_id) === Number(exact.screen_script_document_id) &&
-    screensMatch;
+    Number(validationRow.screen_script_document_id || 0) === Number(exact.screen_script_document_id || 0) &&
+    screensMatch && scriptsMatch;
 };
 
 const throwValidationError = (validation) => {
