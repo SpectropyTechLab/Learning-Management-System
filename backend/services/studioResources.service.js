@@ -344,3 +344,74 @@ export const getResourceUsages = async ({ resourceId: rawResourceId, user }) => 
     placements: result.rows,
   };
 };
+
+const storageKeysForVersions = (versions) => {
+  const keys = [];
+  for (const version of versions) {
+    if (version.storage_key) keys.push(version.storage_key);
+    const runtime = version.metadata_json?.runtime;
+    if (!runtime?.package_prefix || !Array.isArray(runtime.files)) continue;
+    for (const file of runtime.files) {
+      if (file?.path) keys.push(`${runtime.package_prefix}/${file.path}`);
+    }
+  }
+  return [...new Set(keys)];
+};
+
+export const deleteResource = async ({ resourceId: rawResourceId, user }) => {
+  assertAuthor(user);
+  const resourceId = parseId(rawResourceId, 'Resource ID');
+  let client;
+  let storageKeys = [];
+  try {
+    client = await getClient();
+    await client.query('BEGIN');
+    const resource = await loadResource(client, resourceId, user, { lock: true });
+    const [placements, attempts, releases, versions] = await Promise.all([
+      client.query('SELECT COUNT(*)::int AS total FROM resource_mappings WHERE resource_id = $1', [resource.id]),
+      client.query('SELECT COUNT(*)::int AS total FROM studio_scorm_attempts WHERE resource_id = $1', [resource.id]),
+      client.query(
+        `SELECT COUNT(DISTINCT sr.id)::int AS total
+         FROM session_releases sr
+         CROSS JOIN LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(sr.manifest_json->'screens') = 'array'
+             THEN sr.manifest_json->'screens' ELSE '[]'::jsonb END
+         ) AS screen
+         CROSS JOIN LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(screen->'elements') = 'array'
+             THEN screen->'elements' ELSE '[]'::jsonb END
+         ) AS element
+         WHERE element->'resource_mapping'->>'resource_id' = $1::text`,
+        [resource.id]
+      ),
+      client.query('SELECT storage_key, metadata_json FROM resource_versions WHERE resource_id = $1', [resource.id]),
+    ]);
+    const blockers = {
+      placement_count: Number(placements.rows[0].total),
+      scorm_attempt_count: Number(attempts.rows[0].total),
+      published_release_count: Number(releases.rows[0].total),
+    };
+    if (Object.values(blockers).some((count) => count > 0)) {
+      throw new AppError(
+        'Resource is in use and cannot be permanently deleted',
+        409,
+        'RESOURCE_IN_USE',
+        blockers
+      );
+    }
+    storageKeys = storageKeysForVersions(versions.rows);
+    await client.query('DELETE FROM resources WHERE id = $1', [resource.id]);
+    await client.query('COMMIT');
+    await removeUploads(storageKeys);
+    return { id: resource.id, deleted: true };
+  } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {
+        console.error('Studio resource delete rollback failed:', rollbackError.message);
+      }
+    }
+    throw error;
+  } finally {
+    client?.release();
+  }
+};

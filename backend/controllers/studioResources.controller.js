@@ -1,11 +1,11 @@
 import * as resources from '../services/studioResources.service.js';
-import { handleServiceError } from '../utils/errors.js';
+import { handleStudioServiceError } from '../utils/errors.js';
 
 const respond = (action, status = 200) => async (req, res) => {
   try {
     return res.status(status).json({ data: await action(req) });
   } catch (error) {
-    return handleServiceError(res, error, 'Studio resource request failed');
+    return handleStudioServiceError(res, error, 'Studio resource request failed');
   }
 };
 
@@ -14,3 +14,4 @@ export const getResource = respond((req) => resources.getResource({ resourceId: 
 export const createResource = respond((req) => resources.createResource({ body: req.body, file: req.file, user: req.user }), 201);
 export const createResourceVersion = respond((req) => resources.createResourceVersion({ resourceId: req.params.resourceId, body: req.body, file: req.file, user: req.user }), 201);
 export const getResourceUsages = respond((req) => resources.getResourceUsages({ resourceId: req.params.resourceId, user: req.user }));
+export const deleteResource = respond((req) => resources.deleteResource({ resourceId: req.params.resourceId, user: req.user }));
