@@ -201,6 +201,19 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/lesson-planners" element={<ProgramLessonPlannerUploadPage />} />
         <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
+      </Route>
+
+      {/* Digital Studio authoring is shared equally by Super Admin and Content Authorizer. */}
+      <Route element={<Protect roles={['super_admin', 'content_authorizer']} />}>
+        <Route path="/studio" element={<StudioDashboardPage />} />
+        <Route path="/studio/curriculum" element={<StudioCurriculumPage />} />
+        <Route path="/studio/session-setup" element={<StudioSessionSetupPage />} />
+        <Route path="/studio/session-plans" element={<StudioSessionPlanPage />} />
+        <Route path="/studio/screen-scripts" element={<StudioScreenScriptsPage />} />
+        <Route path="/studio/editor" element={<StudioEditorEntryPage />} />
+        <Route path="/studio/editor/:sessionId" element={<TeachingStudioPage />} />
+        <Route path="/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
+        {/* Compatibility aliases retained for existing Day 9/10 links. */}
         <Route path="/content-authorizer/studio" element={<StudioDashboardPage />} />
         <Route path="/content-authorizer/studio/curriculum" element={<StudioCurriculumPage />} />
         <Route path="/content-authorizer/studio/session-setup" element={<StudioSessionSetupPage />} />
