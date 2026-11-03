@@ -8,6 +8,8 @@ interface StudioScreenNavigatorProps {
   creating: boolean;
   onSelect: (screenId: number) => void;
   onCreateBlank: () => void;
+  onRename: (screen: StudioScreen) => void;
+  onDelete: (screen: StudioScreen) => void;
 }
 
 export default function StudioScreenNavigator({
@@ -17,9 +19,14 @@ export default function StudioScreenNavigator({
   creating,
   onSelect,
   onCreateBlank,
+  onRename,
+  onDelete,
 }: StudioScreenNavigatorProps) {
   return (
-    <aside aria-label="Session Screens" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <aside
+      aria-label="Session Screens"
+      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+    >
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold text-slate-900">Screens</h2>
@@ -42,7 +49,10 @@ export default function StudioScreenNavigator({
 
       <div className="mt-4 space-y-2">
         {loading ? (
-          <p className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-500" role="status">
+          <p
+            className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-500"
+            role="status"
+          >
             Loading Screens...
           </p>
         ) : screens.length === 0 ? (
@@ -55,24 +65,44 @@ export default function StudioScreenNavigator({
           screens.map((screen, index) => {
             const selected = screen.id === selectedScreenId;
             return (
-              <button
+              <div
                 key={screen.id}
-                type="button"
-                onClick={() => onSelect(screen.id)}
-                aria-pressed={selected}
-                className={`w-full rounded-xl border px-3 py-3 text-left transition focus-visible:outline-2 focus-visible:outline-blue-600 ${
+                className={`rounded-xl border p-2 transition ${
                   selected
                     ? 'border-blue-600 bg-blue-50'
                     : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'
                 }`}
               >
-                <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Screen {index + 1}
-                </span>
-                <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
-                  {screen.title || `Untitled Screen ${screen.screen_number}`}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onSelect(screen.id)}
+                  aria-pressed={selected}
+                  className="w-full px-1 py-1 text-left focus-visible:outline-2 focus-visible:outline-blue-600"
+                >
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Screen {index + 1}
+                  </span>
+                  <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
+                    {screen.title || `Untitled Screen ${screen.screen_number}`}
+                  </span>
+                </button>
+                <div className="mt-2 flex justify-end gap-2 border-t border-slate-200 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => onRename(screen)}
+                    className="text-xs font-semibold text-blue-700"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(screen)}
+                    className="text-xs font-semibold text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
             );
           })
         )}
@@ -80,4 +110,3 @@ export default function StudioScreenNavigator({
     </aside>
   );
 }
-

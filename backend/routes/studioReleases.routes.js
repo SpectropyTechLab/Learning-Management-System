@@ -4,12 +4,19 @@ import {
   getCurrentTeacherRelease,
   getTeacherReleaseByNumber,
   listTeacherReleases,
+  listPublishedChapters,
   publishSessionRelease,
 } from '../controllers/studioReleases.controller.js';
 
 const router = Router();
 
 router.use(authenticateToken, attachClientContext);
+
+router.get(
+  '/studio/published-chapters',
+  requireRole(['super_admin', 'content_authorizer']),
+  listPublishedChapters
+);
 
 router.post(
   '/studio/sessions/:sessionId/publish',

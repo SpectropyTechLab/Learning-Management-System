@@ -246,14 +246,23 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     if (Number(screen.revision_no) !== expectedRevision) {
       throw new AppError('Screen revision is stale; reload before saving', 409);
     }
+    const requestedLayoutId = body.layout_id === undefined
+      ? screen.layout_id
+      : body.layout_id === null
+        ? null
+        : parseId(body.layout_id, 'layout_id');
     let layout = null;
-    if (screen.layout_id) {
+    if (requestedLayoutId) {
       const layoutResult = await client.query(
-        'SELECT layout_data_json FROM layouts WHERE id = $1',
-        [screen.layout_id],
+        'SELECT id, layout_data_json FROM layouts WHERE id = $1 AND is_active = TRUE',
+        [requestedLayoutId],
       );
       layout = layoutResult.rows[0];
       if (!layout) throw new AppError('The Screen layout version no longer exists', 409);
+    }
+    const creationMode = requestedLayoutId ? 'layout' : 'blank';
+    if (body.creation_mode !== undefined && body.creation_mode !== creationMode) {
+      throw new AppError(`creation_mode must be ${creationMode} for the selected layout`);
     }
     const elements = normalizeElements(body.elements, layout);
     const tags = normalizeTags(body.tags);
@@ -266,12 +275,15 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     const updateResult = await client.query(
       `UPDATE screens
        SET title = $1, screen_settings_json = $2::jsonb,
+           layout_id = $3, creation_mode = $4,
            revision_no = revision_no + 1, updated_at = NOW()
-       WHERE id = $3 AND revision_no = $4
+       WHERE id = $5 AND revision_no = $6
        RETURNING *`,
       [
         optionalText(body.title ?? screen.title, 'title', 250),
         JSON.stringify(settings),
+        requestedLayoutId,
+        creationMode,
         screen.id,
         expectedRevision,
       ],
@@ -326,6 +338,33 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     const hydrated = await hydrateScreen(client, updateResult.rows[0]);
     await client.query('COMMIT');
     return { ...hydrated, session_revision_no: Number(session.revision_no) };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteScreen = async ({ screenId: rawScreenId, user }) => {
+  assertAuthor(user);
+  const screenId = parseId(rawScreenId, 'Screen ID');
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const screen = await loadScreenRow(client, screenId, user, { lock: true });
+    const references = await client.query(
+      `SELECT COUNT(*)::integer AS count FROM screen_branches
+       WHERE destination_screen_id = $1 OR return_screen_id = $1`,
+      [screen.id],
+    );
+    if (Number(references.rows[0].count) > 0) {
+      throw new AppError('Remove branches that point to this Screen before deleting it', 409);
+    }
+    await client.query('DELETE FROM screens WHERE id = $1', [screen.id]);
+    const session = await returnSessionToDraft(screen.session_id, client);
+    await client.query('COMMIT');
+    return { id: screen.id, session_revision_no: Number(session.revision_no) };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

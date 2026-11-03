@@ -41,6 +41,7 @@ import studioScormRuntimeRoutes from './routes/studioScormRuntime.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
 import { startAttemptExpiryCron } from './services/student.service.js';
+import { query as dbQuery } from './repositories/db.repository.js';
 
 
 dotenv.config();
@@ -151,14 +152,13 @@ app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 app.get('/health', async (req, res) => {
   const startedAt = Date.now();
   try {
-    const { error } = await supabase
-      .from('users')
-      .select('id', { head: true, count: 'exact' })
-      .limit(1);
+    await dbQuery('SELECT 1');
+    const { error } = await supabase.storage.listBuckets();
 
     if (error) {
       return res.status(503).json({
         status: 'degraded',
+        database: 'ok',
         supabase: 'down',
         error: error.message,
         responseTimeMs: Date.now() - startedAt
@@ -167,12 +167,14 @@ app.get('/health', async (req, res) => {
 
     return res.json({
       status: 'ok',
+      database: 'ok',
       supabase: 'ok',
       responseTimeMs: Date.now() - startedAt
     });
   } catch (err) {
     return res.status(503).json({
       status: 'degraded',
+      database: 'down',
       supabase: 'down',
       error: err instanceof Error ? err.message : 'Unknown error',
       responseTimeMs: Date.now() - startedAt
@@ -234,9 +236,11 @@ app.use('/api', studioSessionWorkflowRoutes);
 app.use('/api', studioLayoutsRoutes);
 app.use('/api', studioResourcesRoutes);
 app.use('/api', studioScreensRoutes);
+// Session setup must be reached by Content Authorizers before the later
+// teacher-only branch runtime router evaluates its role boundary.
+app.use('/api', studioSessionsRoutes);
 app.use('/api', studioResourceRuntimeRoutes);
 app.use('/api', studioBranchRuntimeRoutes);
-app.use('/api', studioSessionsRoutes);
 app.use('/api', studioScormRuntimeRoutes);
 
 

@@ -1,4 +1,5 @@
 import * as studioDocuments from '../services/studioDocuments.service.js';
+import * as curriculumDocuments from '../services/studioCurriculumDocuments.service.js';
 import { handleServiceError } from '../utils/errors.js';
 
 const respond = (action) => async (req, res) => {
@@ -28,4 +29,23 @@ export const downloadSessionPlan = download((req) => studioDocuments.downloadSes
 export const downloadScreenScript = download((req) => studioDocuments.downloadScreenScript({ sessionId: Number(req.params.sessionId), user: req.user }));
 export const saveSessionPlanContent = respond((req) => studioDocuments.saveSessionPlanContent({ sessionId: Number(req.params.sessionId), content: req.body.content, user: req.user }));
 export const saveScreenScriptContent = respond((req) => studioDocuments.saveScreenScriptContent({ sessionId: Number(req.params.sessionId), content: req.body.content, user: req.user }));
+export const getSessionPlan = respond((req) => studioDocuments.getDocument({ sessionId: Number(req.params.sessionId), documentType: 'session_plan', user: req.user }));
+export const getScreenScriptSource = respond((req) => studioDocuments.getDocument({ sessionId: Number(req.params.sessionId), documentType: 'screen_script', user: req.user }));
+export const previewSessionPlanImport = respond((req) => studioDocuments.previewSessionPlanImport({ file: req.file, user: req.user }));
+export const importSessionPlan = respond((req) => studioDocuments.importSessionPlan({
+  sessionId: Number(req.params.sessionId), file: req.file,
+  content: JSON.parse(req.body.content || '{}'), user: req.user,
+}));
+export const previewScreenScriptImport = respond((req) => studioDocuments.previewScreenScriptImport({ sessionId: Number(req.params.sessionId), file: req.file, user: req.user }));
+export const importScreenScripts = respond((req) => studioDocuments.importScreenScripts({
+  sessionId: Number(req.params.sessionId), file: req.file,
+  mappings: JSON.parse(req.body.mappings || '[]'), user: req.user,
+}));
 export const listScreenScripts = respond((req) => studioDocuments.listScreenScripts({ sessionId: Number(req.params.sessionId), user: req.user }));
+export const saveScreenScript = respond((req) => studioDocuments.saveScreenScript({
+  sessionId: Number(req.params.sessionId), screenId: Number(req.params.screenId),
+  content: req.body.content, user: req.user,
+}));
+export const getCurriculumDocument = respond((req) => curriculumDocuments.getCurriculumDocument({ chapterId: Number(req.params.chapterId), user: req.user }));
+export const uploadCurriculumDocument = respond((req) => curriculumDocuments.uploadCurriculumDocument({ chapterId: Number(req.params.chapterId), file: req.file, user: req.user }));
+export const downloadCurriculumDocument = download((req) => curriculumDocuments.downloadCurriculumDocument({ chapterId: Number(req.params.chapterId), user: req.user }));

@@ -1,9 +1,11 @@
 // backend/utils/errors.js
 export class AppError extends Error {
-  constructor(message, status = 400) {
+  constructor(message, status = 400, code = undefined, details = undefined) {
     super(message);
     this.name = 'AppError';
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -33,6 +35,7 @@ export const handleStudioServiceError = (res, err, fallbackMessage = 'Studio req
       error: {
         code: err.code || studioStatusCode(err.status),
         message: err.message,
+        ...(err.details === undefined ? {} : { details: err.details }),
       },
     });
   }

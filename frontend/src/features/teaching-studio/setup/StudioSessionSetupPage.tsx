@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import TeachingStudioShell from '../components/TeachingStudioShell';
+import toast from 'react-hot-toast';
+import StudioShell from '../components/StudioShell';
 import { setupErrorMessage, studioSetupApi } from '../api/studioSetupApi';
-import type { CurriculumOption, StudioScript, StudioSession } from '../api/studioSetupApi';
+import type { CurriculumOption, StudioSession } from '../api/studioSetupApi';
 import { changeSelection, emptyStudioSelection } from './selectionState';
 import type { SelectionKey } from './selectionState';
 
@@ -43,11 +44,11 @@ export default function StudioSessionSetupPage() {
   const [loading, setLoading] = useState<Partial<Record<ListKey, boolean>>>({});
   const [errors, setErrors] = useState<Partial<Record<ListKey, string>>>({});
   const [retry, setRetry] = useState<Partial<Record<ListKey, number>>>({});
-  const [scripts, setScripts] = useState<StudioScript[]>([]);
-  const [selectedScriptId, setSelectedScriptId] = useState<number | null>(null);
-  const [scriptsLoading, setScriptsLoading] = useState(false);
-  const [scriptsError, setScriptsError] = useState('');
-  const [scriptsRetry, setScriptsRetry] = useState(0);
+  const [showCreate, setShowCreate] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [createError, setCreateError] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback((key: ListKey, request: (signal: AbortSignal) => Promise<CurriculumOption[] | StudioSession[]>) => {
     const controller = new AbortController();
@@ -70,32 +71,10 @@ export default function StudioSessionSetupPage() {
   useEffect(() => selection.chapterId ? load('topics', (signal) => studioSetupApi.topics(selection.chapterId!, signal)) : undefined, [load, retry.topics, selection.chapterId]);
   useEffect(() => selection.topicId ? load('subtopics', (signal) => studioSetupApi.subtopics(selection.topicId!, signal)) : undefined, [load, retry.subtopics, selection.topicId]);
   useEffect(() => selection.subtopicId ? load('sessions', (signal) => studioSetupApi.sessions(selection.subtopicId!, signal)) : undefined, [load, retry.sessions, selection.subtopicId]);
-  useEffect(() => {
-    setScripts([]);
-    setSelectedScriptId(null);
-    setScriptsError('');
-    if (!selection.sessionId) return undefined;
-    const controller = new AbortController();
-    setScriptsLoading(true);
-    studioSetupApi.scripts(selection.sessionId, controller.signal)
-      .then(setScripts)
-      .catch((error) => {
-        const message = setupErrorMessage(error);
-        if (message) setScriptsError(message);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setScriptsLoading(false);
-      });
-    return () => controller.abort();
-  }, [scriptsRetry, selection.sessionId]);
-
   const change = (key: SelectionKey, value: number | null) => {
     setSelection((state) => changeSelection(state, key, value));
     const index = listOrder.indexOf(key.replace('Id', 's') as ListKey);
     setLists((state) => listOrder.reduce<Lists>((next, item, itemIndex) => ({ ...next, [item]: itemIndex > index ? [] : state[item] }), blankLists()));
-    setScripts([]);
-    setSelectedScriptId(null);
-    setScriptsError('');
   };
 
   const fields = useMemo(() => [
@@ -105,25 +84,32 @@ export default function StudioSessionSetupPage() {
     ['Subtopic', 'subtopicId', 'subtopics', !!selection.topicId], ['Studio Session', 'sessionId', 'sessions', !!selection.subtopicId],
   ] as const, [selection]);
 
-  return <TeachingStudioShell title="Teaching Studio" subtitle="Choose the curriculum, Session and Studio Script to open.">
+  const createSession = async () => {
+    if (!selection.subtopicId || !title.trim()) return;
+    setCreating(true); setCreateError('');
+    try {
+      const created = await studioSetupApi.createSession(selection.subtopicId, { title: title.trim(), description: description.trim() || undefined });
+      setLists((state) => ({ ...state, sessions: [...state.sessions as StudioSession[], created].sort((a, b) => a.session_number - b.session_number) }));
+      setSelection((state) => changeSelection(state, 'sessionId', created.id));
+      setShowCreate(false); setTitle(''); setDescription('');
+      toast.success(`Studio Session “${created.title}” created successfully.`);
+    } catch (error) { const response = setupErrorMessage(error); setCreateError(response); toast.error(response); } finally { setCreating(false); }
+  };
+
+  return <StudioShell title="Create Studio Session" subtitle="Choose the curriculum context, then create a Session under the selected Subtopic.">
     <div className="mx-auto max-w-5xl space-y-6">
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Curriculum selection</h2>
         <p className="mb-5 mt-1 text-sm text-slate-600">Changing a parent clears every selection below it.</p>
         <div className="grid gap-4 md:grid-cols-2">
           {fields.map(([label, selectionKey, listKey, enabled]) => <SelectBox key={selectionKey} label={label} value={selection[selectionKey]} options={lists[listKey]} disabled={!enabled} loading={!!loading[listKey]} error={errors[listKey]} onChange={(value) => change(selectionKey, value)} onRetry={() => setRetry((state) => ({ ...state, [listKey]: (state[listKey] ?? 0) + 1 }))} />)}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Studio Script</label>
-            <select value={selectedScriptId ?? ''} disabled={!selection.sessionId || scriptsLoading} onChange={(event) => setSelectedScriptId(event.target.value ? Number(event.target.value) : null)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100">
-              <option value="">{scriptsLoading ? 'Loading...' : 'Select Studio Script'}</option>
-              {scripts.map((script) => <option key={script.id} value={script.id}>{script.name} — Revision {script.revision_no}{script.is_current ? ' (Current)' : ''}</option>)}
-            </select>
-            {scriptsError ? <div className="mt-1 flex gap-2 text-sm text-red-700"><span>{scriptsError}</span><button type="button" className="underline" onClick={() => setScriptsRetry((value) => value + 1)}>Retry</button></div> : null}
-            {!scriptsLoading && !scriptsError && selection.sessionId && scripts.length === 0 ? <p className="mt-1 text-sm text-amber-700">No Studio Scripts are available. Add one from Script Plan.</p> : null}
-          </div>
         </div>
       </section>
-      {selection.sessionId && selectedScriptId ? <div className="flex justify-end"><button type="button" onClick={() => navigate(`/content-authorizer/studio/sessions/${selection.sessionId}?script=${selectedScriptId}`)} className="rounded-lg bg-slate-900 px-5 py-2.5 font-medium text-white">Open Studio</button></div> : null}
+      {selection.subtopicId && <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Studio session</h2><p className="text-sm text-slate-600">Sessions are stored separately under the selected subtopic and numbered automatically.</p></div><button type="button" onClick={() => setShowCreate((value) => !value)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Create new session</button></div>
+        {showCreate && <div className="mt-5 grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2"><label className="text-sm font-medium md:col-span-2">Title<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2" /></label><label className="text-sm font-medium md:col-span-2">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2" /></label>{createError && <p className="text-sm text-red-700 md:col-span-2">{createError}</p>}<div className="md:col-span-2"><button type="button" disabled={creating || !title.trim()} onClick={createSession} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{creating ? 'Creating…' : 'Create session'}</button></div></div>}
+      </section>}
+      <div className="flex justify-start"><button type="button" onClick={() => navigate('/content-authorizer/studio/session-plans')} className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 font-medium text-slate-700 hover:bg-gray-50">Back to Session Plan</button></div>
     </div>
-  </TeachingStudioShell>;
+  </StudioShell>;
 }

@@ -6,7 +6,7 @@ export const MASTER = {
   safeMargin: 90,
   header: { x: 90, y: 60, width: 1740, height: 150 },
   content: { x: 90, y: 250, width: 1740, height: 680 },
-  footerY: 980,
+  footerY: 950,
 } as const;
 
 export type ObjectType = 'title' | 'text' | 'visual' | 'question' | 'response' | 'steps' | 'workspace' | 'footer' | 'simulation' | 'activity' | 'media' | 'graph' | 'data' | 'options';
@@ -29,7 +29,7 @@ const slot = (id: string, label: string, bounds: Rect, allowed: ObjectType[], re
   ({ id, label, bounds, allowed, region });
 const rect = (x: number, y: number, width: number, height: number): Rect => ({ x, y, width, height });
 const title = slot('title', 'Lesson title', MASTER.header, ['title'], 'header');
-const footer = slot('footer', 'Teaching cue', rect(90, 980, 1740, 50), ['footer'], 'footer');
+const footer = slot('footer', 'Teaching cue', rect(90, 950, 1740, 90), ['footer'], 'footer');
 
 // Provisional pilot geometry: the supplied SVGs are conceptual previews, not approved coordinates.
 export const pilotLayouts: Layout[] = [
@@ -65,7 +65,7 @@ export function validateSlide(layout: Layout | null, slide: Slide): string[] {
   if (slide.creationMode !== 'layout') errors.push('A screen with a layout must use layout creation mode');
   for (const field of layout.slots) {
     const { x, y, width, height } = field.bounds;
-    const region = field.region === 'header' ? MASTER.header : field.region === 'content' ? MASTER.content : rect(90, 980, 1740, 50);
+    const region = field.region === 'header' ? MASTER.header : field.region === 'content' ? MASTER.content : rect(90, 950, 1740, 90);
     if (x < region.x || y < region.y || x + width > region.x + region.width || y + height > region.y + region.height || width <= 0 || height <= 0) errors.push(`${field.id} is outside its ${field.region} region`);
   }
   for (const object of slide.objects) {
