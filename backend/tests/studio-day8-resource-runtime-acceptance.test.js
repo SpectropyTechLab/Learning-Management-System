@@ -247,7 +247,12 @@ test('HTML and browser ZIP launches serve only immutable manifest files', async 
   for (const [versionId, entryPoint] of [[301, 'index.html'], [302, 'lesson/index.html']]) {
     const launch = await createRuntimeLaunch({ versionId, user: author });
     assert.equal(launch.launchable, true);
-    assert.deepEqual(launch.sandbox, ['allow-scripts']);
+    assert.deepEqual(launch.sandbox, [
+      'allow-scripts',
+      'allow-popups',
+      'allow-top-navigation-by-user-activation',
+      'allow-pointer-lock',
+    ]);
     assert.match(launch.launch_url, new RegExp(`${entryPoint.replace('/', '\\/')}$`));
 
     const match = launch.launch_url.match(/^\/api\/studio\/runtime\/([^/]+)\/(.+)$/);
