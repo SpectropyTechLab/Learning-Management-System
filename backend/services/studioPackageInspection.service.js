@@ -292,9 +292,12 @@ const inspectSingleHtml = ({ file }) => {
 };
 
 export const inspectRuntimePackage = ({ resourceType, file, requestedEntryPoint = null }) => {
-  if (!['html', 'zip', 'scorm'].includes(resourceType)) return null;
+  if (!['html', 'zip', 'scorm', 'simulation'].includes(resourceType)) return null;
   if (!file?.buffer?.length) throw new AppError(`${resourceType} Resources require a file`, 400);
-  return ['zip', 'scorm'].includes(resourceType)
+  const isZip = ['zip', 'scorm'].includes(resourceType) ||
+    /\.zip$/i.test(String(file.originalname || '')) ||
+    ['application/zip', 'application/x-zip-compressed'].includes(file.mimetype);
+  return isZip
     ? inspectZip({ file, requestedEntryPoint, resourceType })
     : inspectSingleHtml({ file });
 };

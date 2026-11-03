@@ -123,22 +123,22 @@ export default function StudioCustomLayoutForm({ layout, onSaved, onCancel }: {
     }
   };
 
-  return <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+  return <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="font-semibold text-slate-900">{editing ? `Create revision ${Number(layout?.version_no || 0) + 1}` : 'Create custom layout'}</h3><p className="mt-1 text-sm text-slate-600">The canvas is fixed at 1920 × 1080. Saving an edit creates a new immutable layout revision; existing Screens and published releases stay pinned to their current revision.</p></div>
       <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Cancel</button>
     </div>
-    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="mt-4 grid min-w-0 grid-cols-1 gap-3">
       <label className="text-sm font-semibold text-slate-700">Layout key<input value={layoutKey} disabled={editing} onChange={(event) => setLayoutKey(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal disabled:bg-slate-100" /></label>
       <label className="text-sm font-semibold text-slate-700">Name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
       <label className="text-sm font-semibold text-slate-700 md:col-span-2">Description<input value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
       <label className="text-sm font-semibold text-slate-700">Safe margin<input type="number" min="0" value={safeMargin} onChange={(event) => setSafeMargin(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
     </div>
-    <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-3">
+    <div className="mt-5 grid min-w-0 grid-cols-1 gap-5">
+      <div className="min-w-0 space-y-3">
         {slots.map((slot, index) => <fieldset key={index} className="rounded-xl border border-slate-200 bg-white p-3">
           <div className="flex items-center justify-between"><legend className="font-semibold text-slate-800">Slot {index + 1}</legend><button type="button" onClick={() => setSlots((current) => current.filter((_, slotIndex) => slotIndex !== index))} className="rounded-lg p-2 text-red-700 hover:bg-red-50" aria-label={`Remove slot ${index + 1}`}><Trash2 size={17} /></button></div>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-2 grid min-w-0 grid-cols-1 gap-2">
             <label className="text-xs font-semibold text-slate-600">ID<input value={slot.id} onChange={(event) => updateSlot(index, (current) => ({ ...current, id: event.target.value }))} className="mt-1 w-full rounded-md border px-2 py-1.5 font-normal" /></label>
             <label className="text-xs font-semibold text-slate-600">Label<input value={slot.label} onChange={(event) => updateSlot(index, (current) => ({ ...current, label: event.target.value }))} className="mt-1 w-full rounded-md border px-2 py-1.5 font-normal" /></label>
             <label className="text-xs font-semibold text-slate-600">Region<select value={slot.region} onChange={(event) => updateSlot(index, (current) => ({ ...current, region: event.target.value as Slot['region'] }))} className="mt-1 w-full rounded-md border px-2 py-1.5 font-normal"><option value="header">Header</option><option value="content">Content</option><option value="footer">Footer</option></select></label>
@@ -148,9 +148,9 @@ export default function StudioCustomLayoutForm({ layout, onSaved, onCancel }: {
         </fieldset>)}
         <button type="button" onClick={() => setSlots((current) => [...current, emptySlot(current.length + 1)])} className="inline-flex items-center gap-2 rounded-lg border border-blue-800 bg-white px-3 py-2 text-sm font-semibold text-blue-900"><Plus size={16} />Add slot</button>
       </div>
-      <div>
+      <div className="min-w-0 max-w-full overflow-hidden">
         <p className="mb-2 text-sm font-semibold text-slate-700">Live geometry preview</p>
-        <div className="relative aspect-video overflow-hidden rounded-lg border-2 border-slate-300 bg-white">
+        <div className="relative aspect-video w-full max-w-full overflow-hidden rounded-lg border-2 border-slate-300 bg-white">
           {slots.map((slot, index) => <div key={`${slot.id}-${index}`} className="absolute overflow-hidden rounded border border-blue-500 bg-blue-100/80 p-1 text-[9px] font-semibold text-blue-950" style={{ left: `${slot.bounds.x / 19.2}%`, top: `${slot.bounds.y / 10.8}%`, width: `${slot.bounds.width / 19.2}%`, height: `${slot.bounds.height / 10.8}%` }}>{slot.label || slot.id}</div>)}
         </div>
         {errors.length > 0 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><p className="font-bold">Fix before saving</p><ul className="mt-1 list-disc space-y-1 pl-4">{errors.map((error) => <li key={error}>{error}</li>)}</ul></div>}

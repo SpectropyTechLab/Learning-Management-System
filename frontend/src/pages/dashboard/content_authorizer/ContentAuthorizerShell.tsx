@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiLayoutGridLine, RiStackLine, RiTeamLine } from 'react-icons/ri';
+import { RiCalendarCheckLine, RiFileList3Line, RiHome2Line, RiPresentationLine, RiStackLine, RiTeamLine } from 'react-icons/ri';
+import {  RiLayoutGridLine } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';

@@ -1,6 +1,7 @@
 import { ImagePlus, Plus, Trash2 } from 'lucide-react';
 import type { Layout, ObjectType, Slot } from '../layouts';
 import type { StudioElement, StudioScreen } from '../types';
+import { canPlaceResource } from '../resourcePlacement';
 
 interface Props {
   layout: Layout | null;
@@ -30,7 +31,7 @@ export default function StudioElementPanel({
   });
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(260px,0.85fr)_minmax(320px,1.15fr)]">
+    <div className="grid gap-5">
       <div>
         <h2 className="font-semibold text-slate-900">Layout slots</h2>
         <p className="mt-1 text-sm text-slate-500">Add one permitted object to a slot, then edit it in the inspector.</p>
@@ -75,7 +76,17 @@ export default function StudioElementPanel({
             <label className="mt-4 block text-sm font-semibold text-slate-700">Object type
               <select
                 value={selected.type}
-                onChange={(event) => onUpdate({ ...selected, type: event.target.value, content: { ...selected.content } })}
+                onChange={(event) => {
+                  const nextType = event.target.value;
+                  const boundType = selected.resource?.usage?.resource_type;
+                  const keepResource = typeof boundType === 'string' && canPlaceResource(nextType, boundType as Parameters<typeof canPlaceResource>[1]);
+                  onUpdate({
+                    ...selected,
+                    type: nextType,
+                    content: { ...selected.content },
+                    ...(keepResource ? {} : { resource: undefined }),
+                  });
+                }}
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
               >
                 {selectedSlot.allowed.map((type) => <option key={type} value={type}>{type}</option>)}

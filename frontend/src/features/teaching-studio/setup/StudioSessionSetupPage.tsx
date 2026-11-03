@@ -72,13 +72,10 @@ export default function StudioSessionSetupPage() {
   useEffect(() => selection.chapterId ? load('topics', (signal) => studioSetupApi.topics(selection.chapterId!, signal)) : undefined, [load, retry.topics, selection.chapterId]);
   useEffect(() => selection.topicId ? load('subtopics', (signal) => studioSetupApi.subtopics(selection.topicId!, signal)) : undefined, [load, retry.subtopics, selection.topicId]);
   useEffect(() => selection.subtopicId ? load('sessions', (signal) => studioSetupApi.sessions(selection.subtopicId!, signal)) : undefined, [load, retry.sessions, selection.subtopicId]);
-
   const change = (key: SelectionKey, value: number | null) => {
     setSelection((state) => changeSelection(state, key, value));
     const index = listOrder.indexOf(key.replace('Id', 's') as ListKey);
     setLists((state) => listOrder.reduce<Lists>((next, item, itemIndex) => ({ ...next, [item]: itemIndex > index ? [] : state[item] }), blankLists()));
-    setShowCreate(false);
-    setCreateError('');
   };
 
   const fields = useMemo(() => [
@@ -105,7 +102,9 @@ export default function StudioSessionSetupPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Curriculum selection</h2>
         <p className="mb-5 mt-1 text-sm text-slate-600">Changing a parent clears every selection below it.</p>
-        <div className="grid gap-4 md:grid-cols-2">{fields.map(([label, selectionKey, listKey, enabled]) => <SelectBox key={selectionKey} label={label} value={selection[selectionKey]} options={lists[listKey]} disabled={!enabled} loading={!!loading[listKey]} error={errors[listKey]} onChange={(value) => change(selectionKey, value)} onRetry={() => setRetry((state) => ({ ...state, [listKey]: (state[listKey] ?? 0) + 1 }))} />)}</div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {fields.map(([label, selectionKey, listKey, enabled]) => <SelectBox key={selectionKey} label={label} value={selection[selectionKey]} options={lists[listKey]} disabled={!enabled} loading={!!loading[listKey]} error={errors[listKey]} onChange={(value) => change(selectionKey, value)} onRetry={() => setRetry((state) => ({ ...state, [listKey]: (state[listKey] ?? 0) + 1 }))} />)}
+        </div>
       </section>
       {selection.subtopicId && <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Studio session</h2><p className="text-sm text-slate-600">Sessions are stored separately under the selected subtopic and numbered automatically.</p></div><button type="button" onClick={() => setShowCreate((value) => !value)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Create new session</button></div>

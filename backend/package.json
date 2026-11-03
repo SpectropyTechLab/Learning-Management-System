@@ -27,6 +27,7 @@
     "verify:rls": "node scripts/verify-rls-policies.mjs",
     "seed:permissions": "node scripts/seed-role-permissions.mjs",
     "seed:curriculum": "node scripts/seed-curriculum.mjs",
+    "seed:layouts": "node scripts/seed-layouts.mjs",
     "backfill:comprehension": "node scripts/backfill-comprehensive-questions.mjs"
   },
   "dependencies": {

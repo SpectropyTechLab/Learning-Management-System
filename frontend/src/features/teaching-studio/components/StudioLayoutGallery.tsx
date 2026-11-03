@@ -49,13 +49,7 @@ export default function StudioLayoutGallery({ layouts, selectedLayoutId, applyin
   const [formLayout, setFormLayout] = useState<StudioLayoutSummary | null | undefined>(undefined);
   return (
     <>
-      <div className="mb-3">
-        <h2 className="font-semibold text-slate-900">Default layouts</h2>
-        <p className="text-sm text-slate-500">
-          LYT-001 through LYT-014 use validated 16:9 slot geometry. Applying a layout saves it to the selected Screen.
-        </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3">
         {targetLayouts.map((layout) => {
           const row = byKey.get(layout.id);
           const selected = Boolean(row && selectedLayoutId === row.id);
@@ -88,7 +82,7 @@ export default function StudioLayoutGallery({ layouts, selectedLayoutId, applyin
           <button type="button" onClick={() => setFormLayout(null)} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white"><Plus size={16} />Create custom layout</button>
         </div>
         {formLayout !== undefined && <StudioCustomLayoutForm layout={formLayout} onCancel={() => setFormLayout(undefined)} onSaved={async () => { await onLayoutsChanged(); setFormLayout(undefined); }} />}
-        {formLayout === undefined && (customRows.length > 0 ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {formLayout === undefined && (customRows.length > 0 ? <div className="grid grid-cols-1 gap-3">
           {customRows.map((row) => {
             const layout = customLayout(row);
             const selected = selectedLayoutId === row.id;

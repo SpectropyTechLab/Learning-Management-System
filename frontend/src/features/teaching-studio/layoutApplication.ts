@@ -29,6 +29,12 @@ export const remapElementsToLayout = (
       ...element,
       slotId: destination.id,
       position: { ...destination.bounds },
+      ...(element.resource ? {
+        resource: {
+          ...element.resource,
+          usage: { ...element.resource.usage, slot_id: destination.id },
+        },
+      } : {}),
     });
   }
 
