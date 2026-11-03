@@ -40,6 +40,14 @@ test('Day 10 routes expose preview, confirm, manual and original-download operat
   assert.equal(has('/studio/chapters/:chapterId/curriculum-document/download', 'get'), true);
 });
 
+test('Screen save contract can change a layout version and revalidate remapped elements', () => {
+  const source = fs.readFileSync(new URL('../services/studioScreens.service.js', import.meta.url), 'utf8');
+  assert.match(source, /requestedLayoutId = body\.layout_id === undefined/i);
+  assert.match(source, /layout_id = \$3, creation_mode = \$4/i);
+  assert.match(source, /normalizeElements\(body\.elements, layout\)/i);
+  assert.match(source, /assertTenant\(layout\.client_id, user\)/i);
+});
+
 test('Session Plan DOCX parser returns the eleven structured fields', async () => {
   const headings = [
     'Time / duration', 'Screen mapped', 'Learning objective / evidence', 'Pedagogy',

@@ -13,6 +13,7 @@ const loadModule = (filename, dependencies = {}) => {
 };
 const targetModule = loadModule('targetLayouts.ts');
 const { MASTER, layouts, pilotLayouts, sampleSlides, validateSlide, fitScale, createBlankSlide } = loadModule('layouts.ts', { './targetLayouts': targetModule });
+const { remapElementsToLayout } = loadModule('layoutApplication.ts');
 
 test('all fourteen target layouts and eight pilot arrangements validate', () => {
   assert.deepEqual(layouts.map((layout) => layout.id), Array.from({ length: 14 }, (_, index) => `LYT-${String(index + 1).padStart(3, '0')}`));
@@ -60,4 +61,17 @@ test('a genuinely blank screen has no layout, title, or preset objects', () => {
 
   const invalidBlank = { ...blank, objects: [{ id: 'preset', slotId: 'title', type: 'title', text: 'Preset' }] };
   assert.match(validateSlide(null, invalidBlank).join(' '), /must not contain preset objects/);
+});
+
+test('changing layouts keeps compatible elements, remaps slots and reports removals', () => {
+  const elements = [
+    { id: 'visual-1', slotId: 'old-visual', type: 'visual', content: { text: 'Mirror' }, position: {} },
+    { id: 'question-1', slotId: 'prompt', type: 'question', content: { text: 'Predict' }, position: {} },
+    { id: 'question-2', slotId: 'old-question', type: 'question', content: { text: 'Explain' }, position: {} },
+  ];
+  const result = remapElementsToLayout(elements, layouts[0]);
+  assert.deepEqual(result.elements.map((element) => element.slotId), ['visual', 'prompt']);
+  assert.deepEqual(result.elements[0].content, { text: 'Mirror' });
+  assert.deepEqual(result.elements[0].position, layouts[0].slots.find((slot) => slot.id === 'visual').bounds);
+  assert.deepEqual(result.removed.map((element) => element.id), ['question-2']);
 });

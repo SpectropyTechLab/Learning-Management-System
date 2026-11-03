@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   downloadResourceVersion,
   launchResourceVersion,
+  previewResourceVersion,
   serveRuntimeAsset,
 } from '../controllers/studioResourceRuntime.controller.js';
 import { attachClientContext, authenticateToken, requireRole } from '../middleware/auth.js';
@@ -19,5 +20,6 @@ router.use(
 );
 router.post('/studio/resource-versions/:versionId/launch', launchResourceVersion);
 router.get('/studio/resource-versions/:versionId/download', downloadResourceVersion);
+router.get('/studio/resource-versions/:versionId/preview', previewResourceVersion);
 
 export default router;

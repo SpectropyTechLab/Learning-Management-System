@@ -45,3 +45,16 @@ export const createBlankStudioScreen = async (sessionId: number, title = 'Untitl
     title,
   }));
 
+export const updateStudioScreen = async (
+  screenId: number,
+  payload: {
+    revision_no: number;
+    title: string;
+    layout_id: number | null;
+    elements: StudioScreen['elements'];
+    tags: string[];
+  },
+) => unwrap<StudioScreen & { session_revision_no: number }>(
+  await api.patch(`/studio/screens/${screenId}`, payload),
+);
+

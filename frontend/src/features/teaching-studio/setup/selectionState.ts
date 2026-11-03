@@ -27,3 +27,40 @@ export const changeSelection = (
     return next;
   }, emptyStudioSelection());
 };
+
+const positiveId = (value: string | null): number | null => {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+export const selectionFromSearchParams = (params: URLSearchParams): StudioSelection =>
+  hierarchyKeys.reduce<StudioSelection>((selection, key) => {
+    selection[key] = positiveId(params.get(key));
+    return selection;
+  }, emptyStudioSelection());
+
+export const selectionSearchParams = (
+  selection: StudioSelection,
+  includeSession = true,
+): URLSearchParams => {
+  const params = new URLSearchParams();
+  hierarchyKeys.forEach((key) => {
+    if (key === 'sessionId' && !includeSession) return;
+    const value = selection[key];
+    if (value) params.set(key, String(value));
+  });
+  return params;
+};
+
+export const selectionPath = (
+  path: string,
+  selection: StudioSelection,
+  includeSession = true,
+): string => {
+  const query = selectionSearchParams(selection, includeSession).toString();
+  return query ? `${path}?${query}` : path;
+};
+
+export const hasCompleteHierarchy = (selection: StudioSelection | null): boolean =>
+  Boolean(selection && hierarchyKeys.slice(0, -1).every((key) => selection[key]));

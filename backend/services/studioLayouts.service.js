@@ -183,6 +183,19 @@ export const createLayout = async ({ body, user }) => {
   assertAuthor(user);
   const definition = validateLayoutDefinition(body);
   const clientId = resolveWriteClientId(user, body.client_id);
+  const existing = await dbQuery(
+    `SELECT id FROM layouts
+     WHERE client_id IS NOT DISTINCT FROM $1 AND LOWER(layout_key) = LOWER($2)
+     LIMIT 1`,
+    [clientId, definition.layoutKey]
+  );
+  if (existing.rows[0]) {
+    throw new AppError(
+      'A layout with this key already exists. Open that custom layout and create a new revision instead.',
+      409,
+      'LAYOUT_KEY_EXISTS'
+    );
+  }
   const result = await dbQuery(
     `INSERT INTO layouts (
        client_id, layout_key, version_no, name, description, layout_data_json,
@@ -204,6 +217,13 @@ export const updateLayout = async ({ layoutId, body, user }) => {
     await client.query('BEGIN');
     const current = await getLayout({ layoutId, user, db: client, lock: true });
     assertTenantAccess(current.client_id, user);
+    if (current.is_default) {
+      throw new AppError(
+        'Default layouts are protected. Create a custom layout instead of changing an LYT template.',
+        409,
+        'DEFAULT_LAYOUT_PROTECTED'
+      );
+    }
     const definition = validateLayoutDefinition({
       layout_key: current.layout_key,
       name: body.name ?? current.name,
