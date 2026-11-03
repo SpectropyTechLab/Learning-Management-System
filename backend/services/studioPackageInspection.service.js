@@ -3,6 +3,7 @@ import AdmZip from 'adm-zip';
 import { load } from 'cheerio';
 import mime from 'mime-types';
 import { AppError } from '../utils/errors.js';
+import { studioCdnOriginForUrl } from '../utils/studioCdnOrigins.js';
 
 const MAX_FILES = Number(process.env.STUDIO_PACKAGE_MAX_FILES || 500);
 const MAX_FILE_BYTES = Number(process.env.STUDIO_PACKAGE_MAX_FILE_BYTES || 25 * 1024 * 1024);
@@ -65,7 +66,8 @@ const resolveDependency = (reference, entryPoint) => {
   const raw = String(reference || '').trim();
   if (!raw || raw.startsWith('#') || raw.startsWith('data:') || raw.startsWith('blob:')) return null;
   if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(raw) || /^[a-z][a-z0-9+.-]*:/i.test(raw)) {
-    throw new AppError(`External package dependency is not allowed: ${raw}`, 400);
+    if (studioCdnOriginForUrl(raw)) return null;
+    throw new AppError(`External package dependency origin is not allowed: ${raw}`, 400);
   }
   const withoutQuery = raw.split('#')[0].split('?')[0];
   let decoded;
