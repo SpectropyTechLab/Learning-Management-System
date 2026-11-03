@@ -5,6 +5,7 @@ import {
   loadRuntimeAsset,
 } from '../services/studioResourceRuntime.service.js';
 import { handleServiceError } from '../utils/errors.js';
+import { studioCdnOrigins } from '../utils/studioCdnOrigins.js';
 
 const respond = (action) => async (req, res) => {
   try {
@@ -45,26 +46,33 @@ const frameAncestors = () => {
 };
 
 export const serveRuntimeAsset = async (req, res) => {
+  // A sandboxed iframe has an opaque origin. Apply these headers before token
+  // validation so error responses are visible instead of being replaced by
+  // ERR_BLOCKED_BY_RESPONSE.NotSameOrigin in browser developer tools.
+  res.removeHeader('X-Frame-Options');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('Referrer-Policy', 'no-referrer');
   try {
     const asset = await loadRuntimeAsset({
       launchToken: req.params.launchToken,
       requestedPath: req.params[0],
     });
-    res.removeHeader('X-Frame-Options');
+    const cdnSources = studioCdnOrigins().join(' ');
     res.setHeader(
       'Content-Security-Policy',
-      `sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; ` +
-      `style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; ` +
-      `font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; ` +
+      `sandbox allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock; ` +
+      `default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' ${cdnSources}; ` +
+      `style-src 'self' 'unsafe-inline' ${cdnSources}; img-src 'self' data: blob: ${cdnSources}; ` +
+      `media-src 'self' data: blob: ${cdnSources}; font-src 'self' data: ${cdnSources}; ` +
+      `connect-src 'self' ${cdnSources}; frame-src 'self' ${cdnSources}; ` +
+      `worker-src 'self' blob: ${cdnSources}; object-src 'none'; ` +
       `base-uri 'none'; form-action 'none'; frame-ancestors ${frameAncestors()}`
     );
     res.setHeader('Content-Type', asset.mimeType);
     res.setHeader('Content-Length', String(asset.buffer.length));
     res.setHeader('Content-Disposition', 'inline');
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('ETag', `"${asset.etag}"`);
     return res.status(200).send(asset.buffer);
   } catch (error) {

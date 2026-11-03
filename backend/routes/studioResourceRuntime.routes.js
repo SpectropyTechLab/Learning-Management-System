@@ -8,18 +8,18 @@ import {
 import { attachClientContext, authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
+const authorAccess = [
+  authenticateToken,
+  attachClientContext,
+  requireRole(['super_admin', 'content_authorizer']),
+];
 
 // The runtime token is the authorization for package assets. It is short-lived
 // and contains no LMS access token.
 router.get('/studio/runtime/:launchToken/*', serveRuntimeAsset);
 
-router.use(
-  authenticateToken,
-  attachClientContext,
-  requireRole(['super_admin', 'content_authorizer'])
-);
-router.post('/studio/resource-versions/:versionId/launch', launchResourceVersion);
-router.get('/studio/resource-versions/:versionId/download', downloadResourceVersion);
-router.get('/studio/resource-versions/:versionId/preview', previewResourceVersion);
+router.post('/studio/resource-versions/:versionId/launch', ...authorAccess, launchResourceVersion);
+router.get('/studio/resource-versions/:versionId/download', ...authorAccess, downloadResourceVersion);
+router.get('/studio/resource-versions/:versionId/preview', ...authorAccess, previewResourceVersion);
 
 export default router;

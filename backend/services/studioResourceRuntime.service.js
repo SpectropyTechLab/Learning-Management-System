@@ -119,7 +119,12 @@ export const createRuntimeLaunch = async ({
     resource_version_id: version.id,
     launch_url: `/api/studio/runtime/${encodeURIComponent(launchToken)}/${encodeRuntimePath(entryPoint)}`,
     expires_in_seconds: TOKEN_SECONDS,
-    sandbox: ['allow-scripts'],
+    sandbox: [
+      'allow-scripts',
+      'allow-popups',
+      'allow-top-navigation-by-user-activation',
+      'allow-pointer-lock',
+    ],
     controls: {
       reload: true,
       fullscreen: true,

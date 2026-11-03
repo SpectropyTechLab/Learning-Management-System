@@ -142,7 +142,7 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Refresh-Token'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Refresh-Token','Cache-Control'],
     exposedHeaders: ['Content-Disposition', 'Content-Length', 'X-Content-SHA256', 'X-Studio-Document-Revision'],
   })
 );
@@ -199,6 +199,12 @@ app.get(
   viewScormFile
 );
 
+// Tokenized Studio runtime assets must be reachable without the normal LMS
+// access cookie. The short-lived token in the URL authorizes only one immutable
+// Resource version. Mount this router before authenticated /api routers so
+// sandboxed iframe dependency requests cannot be intercepted by their guards.
+app.use('/api', studioResourceRuntimeRoutes);
+
 // ------------------------------
 // ⬇️ STATIC FILE SERVING FOR UPLOADS
 // ------------------------------
@@ -239,7 +245,6 @@ app.use('/api', studioScreensRoutes);
 // Session setup must be reached by Content Authorizers before the later
 // teacher-only branch runtime router evaluates its role boundary.
 app.use('/api', studioSessionsRoutes);
-app.use('/api', studioResourceRuntimeRoutes);
 app.use('/api', studioBranchRuntimeRoutes);
 app.use('/api', studioScormRuntimeRoutes);
 
