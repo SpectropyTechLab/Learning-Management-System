@@ -17,6 +17,9 @@ export interface StudioSession {
   description: string | null;
   status: string;
   revision_no: number;
+  subtopic_name?: string;
+  topic_name?: string;
+  chapter_name?: string;
 }
 
 export type CurriculumLevel = 'board' | 'program' | 'grade' | 'subject' | 'chapter' | 'topic' | 'subtopic';
@@ -33,6 +36,8 @@ const rows = (payload: unknown): CurriculumOption[] => {
 const getRows = async (url: string, signal?: AbortSignal) => rows((await api.get(url, { signal })).data);
 
 export const studioSetupApi = {
+  session: async (id: number, signal?: AbortSignal): Promise<StudioSession> =>
+    (await api.get(`/studio/sessions/${id}`, { signal })).data.data,
   boards: (signal?: AbortSignal) => getRows('/boards', signal),
   programs: (id: number, signal?: AbortSignal) => getRows(`/boards/${id}/programs`, signal),
   grades: (id: number, signal?: AbortSignal) => getRows(`/programs/${id}/grades`, signal),

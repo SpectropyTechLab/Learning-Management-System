@@ -8,8 +8,6 @@ interface StudioScreenNavigatorProps {
   creating: boolean;
   onSelect: (screenId: number) => void;
   onCreateBlank: () => void;
-  onRename: (screen: StudioScreen) => void;
-  onDelete: (screen: StudioScreen) => void;
 }
 
 export default function StudioScreenNavigator({
@@ -19,13 +17,11 @@ export default function StudioScreenNavigator({
   creating,
   onSelect,
   onCreateBlank,
-  onRename,
-  onDelete,
 }: StudioScreenNavigatorProps) {
   return (
     <aside
       aria-label="Session Screens"
-      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
     >
       <div className="flex items-center justify-between gap-2">
         <div>
@@ -37,17 +33,7 @@ export default function StudioScreenNavigator({
         </span>
       </div>
 
-      <button
-        type="button"
-        onClick={onCreateBlank}
-        disabled={creating || loading}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-300"
-      >
-        <RiAddLine aria-hidden="true" />
-        {creating ? 'Creating...' : 'Create blank Screen'}
-      </button>
-
-      <div className="mt-4 space-y-2">
+      <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {loading ? (
           <p
             className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-500"
@@ -86,27 +72,20 @@ export default function StudioScreenNavigator({
                     {screen.title || `Untitled Screen ${screen.screen_number}`}
                   </span>
                 </button>
-                <div className="mt-2 flex justify-end gap-2 border-t border-slate-200 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => onRename(screen)}
-                    className="text-xs font-semibold text-blue-700"
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(screen)}
-                    className="text-xs font-semibold text-red-600"
-                  >
-                    Delete
-                  </button>
-                </div>
               </div>
             );
           })
         )}
       </div>
+      <button
+        type="button"
+        onClick={onCreateBlank}
+        disabled={creating || loading}
+        className="mt-3 flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-300"
+      >
+        <RiAddLine aria-hidden="true" />
+        {creating ? 'Creating...' : 'Add Screen'}
+      </button>
     </aside>
   );
 }

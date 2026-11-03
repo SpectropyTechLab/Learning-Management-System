@@ -1,124 +1,100 @@
+import { useState } from 'react';
+import { Pencil, Plus } from 'lucide-react';
 import type { StudioLayoutSummary } from '../api/studioEditorApi';
+import { targetLayouts } from '../targetLayouts';
+import type { Layout } from '../layouts';
+import StudioCustomLayoutForm from './StudioCustomLayoutForm';
 
 interface Props {
   layouts: StudioLayoutSummary[];
-  loading: boolean;
-  error: string;
   selectedLayoutId: number | null;
   applying: boolean;
-  canApply: boolean;
-  onSelect: (layoutId: number) => void;
-  onRetry: () => void;
-  onApply: () => void;
+  onApply: (row: StudioLayoutSummary, layout: Layout) => void;
+  onLayoutsChanged: () => Promise<void>;
 }
 
-const sortedLayouts = (layouts: StudioLayoutSummary[]) =>
-  [...layouts].sort(
-    (a, b) =>
-      Number(b.is_default) - Number(a.is_default) ||
-      a.layout_key.localeCompare(b.layout_key, undefined, { numeric: true }) ||
-      a.version_no - b.version_no ||
-      a.id - b.id,
-  );
+const LayoutThumbnail = ({ layout }: { layout: Layout }) => (
+  <div className="relative aspect-video overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+    {layout.slots.map((slot) => (
+      <div
+        key={slot.id}
+        title={slot.label}
+        className={slot.region === 'header'
+          ? 'absolute rounded-sm border border-blue-300 bg-blue-100'
+          : slot.region === 'footer'
+            ? 'absolute rounded-sm border border-slate-300 bg-slate-200'
+            : 'absolute rounded-sm border border-teal-300 bg-teal-50'}
+        style={{
+          left: `${slot.bounds.x / 19.2}%`,
+          top: `${slot.bounds.y / 10.8}%`,
+          width: `${slot.bounds.width / 19.2}%`,
+          height: `${slot.bounds.height / 10.8}%`,
+        }}
+      />
+    ))}
+  </div>
+);
 
-export default function StudioLayoutGallery({
-  layouts,
-  loading,
-  error,
-  selectedLayoutId,
-  applying,
-  canApply,
-  onSelect,
-  onRetry,
-  onApply,
-}: Props) {
+const customLayout = (row: StudioLayoutSummary): Layout => ({
+  id: row.layout_key,
+  name: row.name,
+  purpose: row.description || 'Custom Studio layout',
+  catalog: 'pilot',
+  slots: row.layout_data_json?.slots || [],
+});
+
+export default function StudioLayoutGallery({ layouts, selectedLayoutId, applying, onApply, onLayoutsChanged }: Props) {
+  const byKey = new Map(layouts.map((row) => [row.layout_key.toUpperCase(), row]));
+  const customRows = layouts.filter((row) => !row.is_default);
+  const [formLayout, setFormLayout] = useState<StudioLayoutSummary | null | undefined>(undefined);
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold text-slate-900">Layouts</h2>
-          <p className="text-sm text-slate-500">
-            Choose a database layout for the selected Screen.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onApply}
-          disabled={!canApply || applying}
-          className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {applying ? 'Applying...' : 'Apply Layout'}
-        </button>
-      </div>
-      {loading ? (
-        <p className="py-8 text-center text-sm text-slate-500" role="status">
-          Loading layouts...
-        </p>
-      ) : null}
-      {error ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          <span>{error}</span>
-          <button type="button" onClick={onRetry} className="font-semibold underline">
-            Retry
-          </button>
-        </div>
-      ) : null}
-      {!loading && !error ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedLayouts(layouts).map((layout) => {
-            const selected = layout.id === selectedLayoutId;
-            const width = Number(layout.canvas_width) || 1920;
-            const height = Number(layout.canvas_height) || 1080;
-            const slots = layout.layout_data_json?.slots ?? [];
-            return (
+    <>
+      <div className="grid grid-cols-1 gap-3">
+        {targetLayouts.map((layout) => {
+          const row = byKey.get(layout.id);
+          const selected = Boolean(row && selectedLayoutId === row.id);
+          return (
+            <article key={layout.id} className={`rounded-xl border p-3 ${selected ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+              <LayoutThumbnail layout={layout} />
+              <div className="mt-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-blue-800">{layout.id}</p>
+                  <h3 className="truncate text-sm font-semibold text-slate-900">{layout.name}</h3>
+                </div>
+                {row ? <span className="shrink-0 text-xs text-slate-500">v{row.version_no}</span> : null}
+              </div>
+              <p className="mt-1 line-clamp-2 min-h-10 text-xs text-slate-600">{layout.purpose}</p>
               <button
-                key={layout.id}
                 type="button"
-                onClick={() => onSelect(layout.id)}
-                aria-pressed={selected}
-                className={`rounded-xl border p-3 text-left transition ${selected ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-300'}`}
+                disabled={!row || selected || applying}
+                onClick={() => row && onApply(row, layout)}
+                className="mt-3 w-full rounded-lg border border-blue-800 px-3 py-2 text-xs font-semibold text-blue-900 hover:bg-blue-900 hover:text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
               >
-                <div className="relative aspect-video overflow-hidden rounded-md border border-slate-200 bg-slate-50">
-                  {slots.map((slot) => (
-                    <div
-                      key={slot.id}
-                      title={slot.label}
-                      className={`absolute overflow-hidden rounded-[2px] border px-1 text-[7px] leading-tight ${slot.region === 'header' ? 'border-blue-300 bg-blue-100 text-blue-800' : slot.region === 'footer' ? 'border-slate-300 bg-slate-200 text-slate-600' : 'border-indigo-300 bg-indigo-50 text-indigo-700'}`}
-                      style={{
-                        left: `${(slot.bounds.x / width) * 100}%`,
-                        top: `${(slot.bounds.y / height) * 100}%`,
-                        width: `${(slot.bounds.width / width) * 100}%`,
-                        height: `${(slot.bounds.height / height) * 100}%`,
-                      }}
-                    >
-                      {slot.label}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{layout.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {layout.layout_key} · v{layout.version_no} · {slots.length} slots
-                    </p>
-                  </div>
-                  {layout.is_default ? (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                      Default
-                    </span>
-                  ) : null}
-                </div>
-                {layout.description ? (
-                  <p className="mt-2 line-clamp-2 text-xs text-slate-600">{layout.description}</p>
-                ) : null}
+                {selected ? 'Applied' : row ? (applying ? 'Applying...' : 'Apply layout') : 'Not provisioned'}
               </button>
-            );
-          })}
-          {layouts.length === 0 ? (
-            <p className="text-sm text-slate-500">No layouts are available.</p>
-          ) : null}
+            </article>
+          );
+        })}
+      </div>
+      <div className="mt-6 border-t border-slate-200 pt-5">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="font-semibold text-slate-900">Custom layouts</h2><p className="text-sm text-slate-500">Create reusable slot geometry or revise an existing custom layout. Default LYT templates are protected.</p></div>
+          <button type="button" onClick={() => setFormLayout(null)} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white"><Plus size={16} />Create custom layout</button>
         </div>
-      ) : null}
-    </div>
+        {formLayout !== undefined && <StudioCustomLayoutForm layout={formLayout} onCancel={() => setFormLayout(undefined)} onSaved={async () => { await onLayoutsChanged(); setFormLayout(undefined); }} />}
+        {formLayout === undefined && (customRows.length > 0 ? <div className="grid grid-cols-1 gap-3">
+          {customRows.map((row) => {
+            const layout = customLayout(row);
+            const selected = selectedLayoutId === row.id;
+            return <article key={row.id} className={`rounded-xl border p-3 ${selected ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+              <LayoutThumbnail layout={layout} />
+              <div className="mt-3 flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-bold text-blue-800">{row.layout_key}</p><h3 className="truncate text-sm font-semibold text-slate-900">{row.name}</h3></div><span className="shrink-0 text-xs text-slate-500">v{row.version_no}</span></div>
+              <p className="mt-1 line-clamp-2 min-h-10 text-xs text-slate-600">{row.description || 'Custom Studio layout'}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={selected || applying} onClick={() => onApply(row, layout)} className="rounded-lg border border-blue-800 px-2 py-2 text-xs font-semibold text-blue-900 disabled:border-slate-300 disabled:text-slate-400">{selected ? 'Applied' : applying ? 'Applying...' : 'Apply'}</button><button type="button" onClick={() => setFormLayout(row)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold text-slate-700"><Pencil size={14} />Revise</button></div>
+            </article>;
+          })}
+        </div> : <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No custom layouts yet.</p>)}
+      </div>
+    </>
   );
 }

@@ -1,32 +1,41 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { Boxes, Eye, FileText, LayoutTemplate, Redo2, Save, Undo2, Upload } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Boxes, ChevronDown, ChevronUp, Eye, FileText, LayoutTemplate, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Redo2, Save, Undo2, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   createBlankStudioScreen,
   getStudioErrorMessage,
   getStudioScreen,
   listStudioScreens,
+  updateStudioScreen,
 } from './api/studioScreensApi';
 import BlankScreenCanvas from './components/BlankScreenCanvas';
-import StudioElementDialog from './components/StudioElementDialog';
-import StudioLayoutGallery from './components/StudioLayoutGallery';
 import StudioScreenNavigator from './components/StudioScreenNavigator';
 import StudioShell from './components/StudioShell';
+import StudioLayoutGallery from './components/StudioLayoutGallery';
+import StudioWorkflowPanel from './components/StudioWorkflowPanel';
+import StudioElementPanel from './components/StudioElementPanel';
+import ResourceLibrary from './components/resources/ResourceLibrary';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
+import { ensureTargetStudioLayouts } from './api/studioEditorApi';
+import type { StudioLayoutSummary } from './api/studioEditorApi';
+import type { StudioResourceSummary } from './api/studioResourcesApi';
 import {
-  deleteStudioScreen,
-  listStudioLayouts,
-  listStudioResources,
-  saveStudioScreen,
-} from './api/studioEditorApi';
-import type {
-  StudioLayoutSlot,
-  StudioLayoutSummary,
-  StudioResourceSummary,
-} from './api/studioEditorApi';
+  approveStudioSession,
+  getStudioWorkflowStatus,
+  publishStudioSession,
+  submitStudioSession,
+  workflowError,
+} from './api/studioWorkflowApi';
+import type { StudioValidationProblem, StudioWorkflowStatus } from './api/studioWorkflowApi';
 import type { ScreenScriptRow } from './api/studioDocumentsApi';
 import type { StudioElement, StudioScreen, StudioScreenList } from './types';
+import type { Layout, Slot } from './layouts';
+import { targetLayouts } from './targetLayouts';
+import { remapElementsToLayout } from './layoutApplication';
+import { canPlaceResource, resourceTypesForObject, supportsResourcePlacement } from './resourcePlacement';
+import { studioSetupApi } from './api/studioSetupApi';
+import type { StudioSession } from './api/studioSetupApi';
 
 const positiveInteger = (value: string | undefined) => {
   const parsed = Number(value);
@@ -34,6 +43,7 @@ const positiveInteger = (value: string | undefined) => {
 };
 
 export default function TeachingStudioPage() {
+  const navigate = useNavigate();
   const { sessionId: rawSessionId } = useParams<{ sessionId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = positiveInteger(rawSessionId);
@@ -48,27 +58,30 @@ export default function TeachingStudioPage() {
   const [creating, setCreating] = useState(false);
   const [screenRequestVersion, setScreenRequestVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<'layouts' | 'script' | 'resources' | 'elements' | null>(null);
+  const [panel, setPanel] = useState<'layouts' | 'script' | 'resources' | 'elements' | null>('elements');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
-  const [layoutsLoading, setLayoutsLoading] = useState(false);
-  const [layoutsError, setLayoutsError] = useState('');
-  const [selectedLayoutId, setSelectedLayoutId] = useState<number | null>(null);
-  const [applyingLayout, setApplyingLayout] = useState(false);
-  const [elementEditor, setElementEditor] = useState<{
-    slot: StudioLayoutSlot;
-    element: StudioElement | null;
-  } | null>(null);
-  const [savingElement, setSavingElement] = useState(false);
-  const [resources, setResources] = useState<StudioResourceSummary[]>([]);
-  const [selectedResourceId, setSelectedResourceId] = useState<number | null>(null);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
+  const [workflowStatus, setWorkflowStatus] = useState<StudioWorkflowStatus | null>(null);
+  const [workflowProblems, setWorkflowProblems] = useState<StudioValidationProblem[]>([]);
+  const [loadingWorkflow, setLoadingWorkflow] = useState(false);
+  const [workflowAction, setWorkflowAction] = useState<'submit' | 'approve' | 'publish' | null>(null);
+  const [applyingLayout, setApplyingLayout] = useState(false);
+  const [pendingLayout, setPendingLayout] = useState<{ row: StudioLayoutSummary; layout: Layout } | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [elementPast, setElementPast] = useState<StudioElement[][]>([]);
+  const [elementFuture, setElementFuture] = useState<StudioElement[][]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [savingScreen, setSavingScreen] = useState(false);
+  const [sessionContext, setSessionContext] = useState<StudioSession | null>(null);
+  const [sessionOptions, setSessionOptions] = useState<StudioSession[]>([]);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [contextBarOpen, setContextBarOpen] = useState(true);
 
   useEffect(() => {
     if (!previewOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPreviewOpen(false);
-    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setPreviewOpen(false); };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [previewOpen]);
@@ -99,6 +112,10 @@ export default function TeachingStudioPage() {
   }, [sessionId]);
 
   const refreshScreens = async () => {
+    if (hasUnsavedChanges) {
+      toast.error('Save or undo the current Screen changes before refreshing.');
+      return;
+    }
     const refreshed = await loadScreens();
     if (refreshed) toast.success('Studio Screens refreshed successfully.');
     else toast.error('Unable to refresh Studio Screens.');
@@ -112,279 +129,47 @@ export default function TeachingStudioPage() {
 
   useEffect(() => {
     if (!sessionId) return;
-    Promise.all([listStudioResources(), studioDocumentsApi.screenScripts(sessionId)])
-      .then(([resourceRows, scriptRows]) => {
-        setResources(resourceRows);
-        setScripts(scriptRows);
-      })
-      .catch(() => {
-        /* Individual editor panels show their empty state. */
-      });
+    const controller = new AbortController();
+    void studioSetupApi.session(sessionId, controller.signal).then(async (session) => {
+      setSessionContext(session);
+      setSessionOptions(await studioSetupApi.sessions(session.subtopic_id, controller.signal));
+    }).catch(() => { /* The editor remains usable if context labels cannot load. */ });
+    return () => controller.abort();
   }, [sessionId]);
 
   const loadLayouts = useCallback(async () => {
-    setLayoutsLoading(true);
-    setLayoutsError('');
-    try {
-      setLayouts(await listStudioLayouts());
-    } catch (requestError) {
-      setLayoutsError(getStudioErrorMessage(requestError));
-    } finally {
-      setLayoutsLoading(false);
-    }
+    setLayouts(await ensureTargetStudioLayouts());
   }, []);
 
-  const toggleLayouts = () => {
-    if (panel === 'layouts') {
-      setPanel(null);
-      return;
-    }
-    setPanel('layouts');
-    setSelectedLayoutId(selectedScreen?.layout_id ?? null);
-    void loadLayouts();
-  };
+  useEffect(() => {
+    if (!sessionId) return;
+    Promise.all([ensureTargetStudioLayouts(), studioDocumentsApi.screenScripts(sessionId)])
+      .then(([layoutRows, scriptRows]) => { setLayouts(layoutRows); setScripts(scriptRows); })
+      .catch(() => { /* Individual editor panels show their empty state. */ });
+  }, [sessionId]);
 
-  const applyLayout = async () => {
-    if (!selectedScreen || !selectedLayoutId || applyingLayout) return;
-    const layout = layouts.find((item) => item.id === selectedLayoutId);
-    if (!layout) return;
-    const slots = layout.layout_data_json?.slots ?? [];
-    const usedSlots = new Set<string>();
-    const remappedElements = [] as StudioScreen['elements'];
-    const incompatible: string[] = [];
-    let remappedCount = 0;
-    for (const element of selectedScreen.elements) {
-      const current = slots.find(
-        (slot) =>
-          slot.id === element.slotId &&
-          slot.allowed.includes(element.type) &&
-          !usedSlots.has(slot.id),
-      );
-      const target =
-        current ??
-        slots.find((slot) => slot.allowed.includes(element.type) && !usedSlots.has(slot.id));
-      if (!target) {
-        incompatible.push(element.id);
-        continue;
-      }
-      usedSlots.add(target.id);
-      if (target.id !== element.slotId) remappedCount += 1;
-      remappedElements.push({ ...element, slotId: target.id });
-    }
-    if (incompatible.length) {
-      toast.error(`Layout cannot be applied: no compatible slot for ${incompatible.join(', ')}.`);
-      return;
-    }
-    if (
-      remappedCount > 0 &&
-      !window.confirm(
-        `${remappedCount} existing element${remappedCount === 1 ? '' : 's'} will be moved to compatible slots. Apply this layout?`,
-      )
-    ) {
-      return;
-    }
-    setApplyingLayout(true);
+  const loadWorkflow = useCallback(async (showSuccess = false) => {
+    if (!sessionId) return;
+    setLoadingWorkflow(true);
+    setWorkflowProblems([]);
     try {
-      const saved = await saveStudioScreen(selectedScreen.id, {
-        revision_no: selectedScreen.revision_no,
-        title: selectedScreen.title,
-        layout_id: layout.id,
-        creation_mode: 'layout',
-        elements: remappedElements,
-        tags: selectedScreen.tags,
-      });
-      setSelectedScreen(saved);
-      setScreenList((current) => ({
-        session_revision_no: saved.session_revision_no,
-        screens: current.screens.map((screen) => (screen.id === saved.id ? saved : screen)),
-      }));
-      toast.success(`${layout.name} applied successfully.`);
+      const status = await getStudioWorkflowStatus(sessionId);
+      setWorkflowStatus(status);
+      if (showSuccess) toast.success('Publication status checked successfully.');
     } catch (requestError) {
-      toast.error(getStudioErrorMessage(requestError));
+      const response = workflowError(requestError);
+      setWorkflowProblems(response.problems);
+      toast.error(response.message);
     } finally {
-      setApplyingLayout(false);
+      setLoadingWorkflow(false);
     }
-  };
+  }, [sessionId]);
 
-  const storeSavedScreen = (saved: StudioScreen & { session_revision_no: number }) => {
-    setSelectedScreen(saved);
-    setScreenList((current) => ({
-      session_revision_no: saved.session_revision_no,
-      screens: current.screens.map((screen) => (screen.id === saved.id ? saved : screen)),
-    }));
-  };
-
-  const persistElements = async (elements: StudioElement[]) => {
-    if (!selectedScreen) return null;
-    return saveStudioScreen(selectedScreen.id, {
-      revision_no: selectedScreen.revision_no,
-      title: selectedScreen.title,
-      layout_id: selectedScreen.layout_id,
-      creation_mode: selectedScreen.creation_mode,
-      elements,
-      tags: selectedScreen.tags,
-    });
-  };
-
-  const saveElementContent = async (type: string, text: string) => {
-    if (!selectedScreen || !elementEditor || savingElement) return;
-    const currentElement = elementEditor.element;
-    const nextElement: StudioElement = currentElement
-      ? {
-          ...currentElement,
-          type,
-          slotId: elementEditor.slot.id,
-          content: { ...currentElement.content, text: text.trim() },
-        }
-      : {
-          id: `element-${crypto.randomUUID()}`,
-          slotId: elementEditor.slot.id,
-          type,
-          content: { text: text.trim() },
-          position: {},
-        };
-    const elements = currentElement
-      ? selectedScreen.elements.map((element) =>
-          element.id === currentElement.id ? nextElement : element,
-        )
-      : [...selectedScreen.elements, nextElement];
-    setSavingElement(true);
-    try {
-      const saved = await persistElements(elements);
-      if (saved) storeSavedScreen(saved);
-      setElementEditor(null);
-      toast.success(
-        currentElement ? 'Content updated successfully.' : 'Content added successfully.',
-      );
-    } catch (requestError) {
-      toast.error(getStudioErrorMessage(requestError));
-    } finally {
-      setSavingElement(false);
-    }
-  };
-
-  const removeElement = async (element: StudioElement) => {
-    if (
-      !selectedScreen ||
-      savingElement ||
-      !window.confirm(`Remove ${element.id} from this Screen?`)
-    )
-      return;
-    setSavingElement(true);
-    try {
-      const saved = await persistElements(
-        selectedScreen.elements.filter((item) => item.id !== element.id),
-      );
-      if (saved) storeSavedScreen(saved);
-      toast.success('Content removed successfully.');
-    } catch (requestError) {
-      toast.error(getStudioErrorMessage(requestError));
-    } finally {
-      setSavingElement(false);
-    }
-  };
-
-  const renameScreen = async (screen: StudioScreen) => {
-    const title = window.prompt('Enter a new Screen name', screen.title);
-    if (title === null || !title.trim() || title.trim() === screen.title) return;
-    try {
-      const saved = await saveStudioScreen(screen.id, {
-        revision_no: screen.revision_no,
-        title: title.trim(),
-        layout_id: screen.layout_id,
-        creation_mode: screen.creation_mode,
-        elements: screen.elements,
-        tags: screen.tags,
-      });
-      storeSavedScreen(saved);
-      toast.success('Screen renamed successfully.');
-    } catch (requestError) {
-      toast.error(getStudioErrorMessage(requestError));
-    }
-  };
-
-  const deleteScreen = async (screen: StudioScreen) => {
-    if (
-      !window.confirm(
-        `Delete “${screen.title || `Screen ${screen.screen_number}`}”? This removes its elements and cannot be undone.`,
-      )
-    )
-      return;
-    try {
-      const deleted = await deleteStudioScreen(screen.id);
-      const remaining = screenList.screens.filter((item) => item.id !== screen.id);
-      setScreenList({ session_revision_no: deleted.session_revision_no, screens: remaining });
-      setSelectedScreen(null);
-      const next = remaining[0];
-      if (next) setSearchParams({ screen: String(next.id) });
-      else setSearchParams({});
-      toast.success('Screen deleted successfully.');
-    } catch (requestError) {
-      toast.error(getStudioErrorMessage(requestError));
-    }
-  };
-
-  const placeResource = async (slot: StudioLayoutSlot) => {
-    if (!selectedScreen || !selectedResourceId) return;
-    const resource = resources.find((item) => item.id === selectedResourceId);
-    const versionId = resource?.latest_version?.id;
-    if (!resource || !versionId) {
-      toast.error('This Resource has no available version.');
-      return;
-    }
-    const typeByResource: Record<string, string> = {
-      image: 'visual',
-      animation: 'visual',
-      video: 'media',
-      simulation: 'simulation',
-      external_link: 'activity',
-      html: 'activity',
-      zip: 'activity',
-      scorm: 'activity',
-    };
-    const preferredType = typeByResource[resource.resource_type || ''] || 'visual';
-    const type = slot.allowed.includes(preferredType)
-      ? preferredType
-      : slot.allowed.find((item) =>
-          ['visual', 'media', 'simulation', 'activity', 'graph', 'data'].includes(item),
-        );
-    if (!type) {
-      toast.error('The selected Resource is not compatible with this slot.');
-      return;
-    }
-    const existing = selectedScreen.elements.find((element) => element.slotId === slot.id);
-    if (existing && !window.confirm(`Replace the content currently in ${slot.label}?`)) return;
-    const resourceElement: StudioElement = {
-      id: existing?.id ?? `resource-${crypto.randomUUID()}`,
-      slotId: slot.id,
-      type,
-      content: {
-        text: resource.name,
-        resource_type: resource.resource_type || 'resource',
-        external_url: resource.latest_version?.external_url || null,
-      },
-      position: existing?.position ?? {},
-      resource: {
-        resource_id: resource.id,
-        resource_version_id: versionId,
-        usage: { slot_id: slot.id },
-      },
-    };
-    const elements = existing
-      ? selectedScreen.elements.map((item) => (item.id === existing.id ? resourceElement : item))
-      : [...selectedScreen.elements, resourceElement];
-    setSavingElement(true);
-    try {
-      const saved = await persistElements(elements);
-      if (saved) storeSavedScreen(saved);
-      setSelectedResourceId(null);
-      toast.success(`${resource.name} placed in ${slot.label}.`);
-    } catch (requestError) {
-      toast.error(getStudioErrorMessage(requestError));
-    } finally {
-      setSavingElement(false);
-    }
-  };
+  useEffect(() => {
+    setWorkflowStatus(null);
+    setWorkflowProblems([]);
+    if (sessionId) void loadWorkflow();
+  }, [loadWorkflow, sessionId]);
 
   useEffect(() => {
     if (!selectedScreenId) {
@@ -397,7 +182,13 @@ export default function TeachingStudioPage() {
     setLoadingScreen(true);
     void getStudioScreen(selectedScreenId)
       .then((screen) => {
-        if (active) setSelectedScreen(screen);
+        if (active) {
+          setSelectedScreen(screen);
+          setSelectedElementId(null);
+          setElementPast([]);
+          setElementFuture([]);
+          setHasUnsavedChanges(false);
+        }
       })
       .catch((requestError) => {
         if (active) {
@@ -414,12 +205,20 @@ export default function TeachingStudioPage() {
   }, [screenRequestVersion, selectedScreenId]);
 
   const selectScreen = (screenId: number) => {
+    if (hasUnsavedChanges) {
+      toast.error('Save or undo the current Screen changes before switching Screens.');
+      return;
+    }
     setError(null);
     setSearchParams({ screen: String(screenId) });
   };
 
   const createBlankScreen = async () => {
     if (!sessionId || creating) return;
+    if (hasUnsavedChanges) {
+      toast.error('Save or undo the current Screen changes before creating another Screen.');
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -429,12 +228,221 @@ export default function TeachingStudioPage() {
       toast.success('Blank Screen created successfully.');
     } catch (requestError) {
       const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      setError(response); toast.error(response);
     } finally {
       setCreating(false);
     }
   };
+
+  const runWorkflowAction = async (action: 'submit' | 'approve' | 'publish') => {
+    if (!sessionId || workflowAction) return;
+    setWorkflowAction(action);
+    setWorkflowProblems([]);
+    try {
+      if (action === 'submit') await submitStudioSession(sessionId);
+      if (action === 'approve') await approveStudioSession(sessionId);
+      if (action === 'publish') await publishStudioSession(sessionId);
+      toast.success(action === 'submit' ? 'Session submitted for review.' : action === 'approve' ? 'Session revision approved.' : 'Session published successfully.');
+      await loadWorkflow();
+    } catch (requestError) {
+      const response = workflowError(requestError);
+      toast.error(response.message);
+      await loadWorkflow();
+      setWorkflowProblems(response.problems.length > 0 ? response.problems : [{
+        code: 'WORKFLOW_ACTION_FAILED',
+        message: response.message,
+      }]);
+    } finally {
+      setWorkflowAction(null);
+    }
+  };
+
+  const saveAppliedLayout = async (row: StudioLayoutSummary, layout: Layout) => {
+    if (!selectedScreen || applyingLayout) return;
+    setApplyingLayout(true);
+    setError(null);
+    const remapped = remapElementsToLayout(selectedScreen.elements, layout);
+    try {
+      const saved = await updateStudioScreen(selectedScreen.id, {
+        revision_no: selectedScreen.revision_no,
+        title: selectedScreen.title,
+        layout_id: row.id,
+        elements: remapped.elements,
+        tags: selectedScreen.tags,
+      });
+      setSelectedScreen(saved);
+      setScreenList((current) => ({
+        session_revision_no: saved.session_revision_no,
+        screens: current.screens.map((screen) => screen.id === saved.id ? saved : screen),
+      }));
+      setPendingLayout(null);
+      setSelectedElementId(null);
+      setElementPast([]);
+      setElementFuture([]);
+      setHasUnsavedChanges(false);
+      setPanel('elements');
+      toast.success(`${layout.id} applied successfully${remapped.removed.length ? `; ${remapped.removed.length} incompatible element${remapped.removed.length === 1 ? '' : 's'} removed` : ''}.`);
+      await loadWorkflow();
+    } catch (requestError) {
+      const response = getStudioErrorMessage(requestError);
+      setError(response);
+      toast.error(response);
+    } finally {
+      setApplyingLayout(false);
+    }
+  };
+
+  const requestLayoutApplication = (row: StudioLayoutSummary, layout: Layout) => {
+    if (!selectedScreen) {
+      toast.error('Select or create a Screen before applying a layout.');
+      return;
+    }
+    if (hasUnsavedChanges) {
+      toast.error('Save or undo the current Screen changes before changing its layout.');
+      return;
+    }
+    if (selectedScreen.elements.length > 0) setPendingLayout({ row, layout });
+    else void saveAppliedLayout(row, layout);
+  };
+
+  const selectedLayout = useMemo(() => {
+    const row = layouts.find((layout) => layout.id === selectedScreen?.layout_id);
+    if (!row) return null;
+    return targetLayouts.find((layout) => layout.id === row.layout_key.toUpperCase()) || {
+      id: row.layout_key,
+      name: row.name,
+      purpose: row.description || 'Custom Studio layout',
+      catalog: 'pilot' as const,
+      slots: row.layout_data_json?.slots || [],
+    };
+  }, [layouts, selectedScreen?.layout_id]);
+
+  const commitElements = (elements: StudioElement[], selectElementId?: string | null) => {
+    if (!selectedScreen) return;
+    setElementPast((past) => [...past, selectedScreen.elements]);
+    setElementFuture([]);
+    setSelectedScreen({ ...selectedScreen, elements });
+    if (selectElementId !== undefined) setSelectedElementId(selectElementId);
+    setHasUnsavedChanges(true);
+  };
+
+  const addElement = (slot: Slot) => {
+    if (!selectedScreen) return;
+    const existing = selectedScreen.elements.find((element) => element.slotId === slot.id);
+    if (existing) {
+      setSelectedElementId(existing.id);
+      return;
+    }
+    const element: StudioElement = {
+      id: `${slot.id}-${Date.now()}`,
+      slotId: slot.id,
+      type: slot.allowed[0],
+      content: { text: '' },
+      position: { ...slot.bounds },
+    };
+    commitElements([...selectedScreen.elements, element], element.id);
+    toast.success(`${slot.label} content added. Edit it, then Save.`);
+  };
+
+  const updateElement = (updated: StudioElement) => {
+    if (!selectedScreen) return;
+    commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+  };
+
+  const removeElement = (elementId: string) => {
+    if (!selectedScreen) return;
+    commitElements(selectedScreen.elements.filter((element) => element.id !== elementId), null);
+    toast.success('Element removed from the draft. Save to persist the change.');
+  };
+
+  const bindResourceToSelectedElement = (resource: StudioResourceSummary) => {
+    if (!selectedScreen || !selectedElementId) {
+      toast.error('Select a visual or media element before choosing a Resource.');
+      return;
+    }
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    if (!element) return;
+    if (!canPlaceResource(element.type, resource.resource_type)) {
+      toast.error(`${resource.resource_type} Resources cannot be placed in a ${element.type} element.`);
+      return;
+    }
+    const version = resource.latest_version;
+    if (!version) {
+      toast.error('This Resource has no available version.');
+      return;
+    }
+    const updated: StudioElement = {
+      ...element,
+      content: {
+        ...element.content,
+        text: resource.name,
+        url: version.external_url || '',
+        altText: String(element.content.altText || resource.description || resource.name),
+        source: String(element.content.source || resource.name),
+      },
+      resource: {
+        resource_id: resource.id,
+        resource_version_id: version.id,
+        usage: { slot_id: element.slotId, resource_type: resource.resource_type || 'resource' },
+      },
+    };
+    commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
+    setPanel('elements');
+    toast.success(`${resource.name} linked to the selected element. Save to persist it.`);
+  };
+
+  const undoElementChange = () => {
+    if (!selectedScreen || elementPast.length === 0) return;
+    const previous = elementPast[elementPast.length - 1];
+    setElementPast((past) => past.slice(0, -1));
+    setElementFuture((future) => [selectedScreen.elements, ...future]);
+    setSelectedScreen({ ...selectedScreen, elements: previous });
+    setSelectedElementId(null);
+    setHasUnsavedChanges(elementPast.length > 1);
+  };
+
+  const redoElementChange = () => {
+    if (!selectedScreen || elementFuture.length === 0) return;
+    const next = elementFuture[0];
+    setElementFuture((future) => future.slice(1));
+    setElementPast((past) => [...past, selectedScreen.elements]);
+    setSelectedScreen({ ...selectedScreen, elements: next });
+    setSelectedElementId(null);
+    setHasUnsavedChanges(true);
+  };
+
+  const saveScreenDraft = async () => {
+    if (!selectedScreen || !hasUnsavedChanges || savingScreen) return;
+    setSavingScreen(true);
+    try {
+      const saved = await updateStudioScreen(selectedScreen.id, {
+        revision_no: selectedScreen.revision_no,
+        title: selectedScreen.title,
+        layout_id: selectedScreen.layout_id,
+        elements: selectedScreen.elements,
+        tags: selectedScreen.tags,
+      });
+      setSelectedScreen(saved);
+      setScreenList((current) => ({
+        session_revision_no: saved.session_revision_no,
+        screens: current.screens.map((screen) => screen.id === saved.id ? saved : screen),
+      }));
+      setElementPast([]);
+      setElementFuture([]);
+      setHasUnsavedChanges(false);
+      toast.success(`Screen ${saved.screen_number} saved as revision ${saved.revision_no}.`);
+      await loadWorkflow();
+    } catch (requestError) {
+      const response = getStudioErrorMessage(requestError);
+      setError(response);
+      toast.error(response);
+    } finally {
+      setSavingScreen(false);
+    }
+  };
+
+  const selectedElement = selectedScreen?.elements.find((element) => element.id === selectedElementId) ?? null;
+  const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
 
   if (rawSessionId && !sessionId) {
     return (
@@ -453,8 +461,7 @@ export default function TeachingStudioPage() {
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
           <h2 className="text-xl font-semibold text-slate-900">Select a Studio Session</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-            Choose a curriculum hierarchy and Session to open its editor. The selected Session will
-            open here without creating a second copy of its data.
+            Choose a curriculum hierarchy and Session to open its editor. The selected Session will open here without creating a second copy of its data.
           </p>
         </section>
       </StudioShell>
@@ -465,7 +472,9 @@ export default function TeachingStudioPage() {
     <StudioShell
       title="Screen Editor"
       subtitle={`Session ${sessionId} · Revision ${screenList.session_revision_no || '—'}`}
-      actions={
+      scrollContent={false}
+      wrapContent={false}
+      actions={(
         <button
           type="button"
           onClick={() => void refreshScreens()}
@@ -474,219 +483,85 @@ export default function TeachingStudioPage() {
         >
           {loadingScreens ? 'Refreshing...' : 'Refresh'}
         </button>
-      }
+      )}
     >
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
-        <button
-          type="button"
-          onClick={toggleLayouts}
-          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"
-        >
-          <LayoutTemplate size={17} />
-          Layouts
-        </button>
-        <button
-          type="button"
-          onClick={() => setPanel(panel === 'script' ? null : 'script')}
-          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"
-        >
-          <FileText size={17} />
-          Script View
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setPanel(panel === 'resources' ? null : 'resources');
-            if (layouts.length === 0) void loadLayouts();
-          }}
-          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"
-        >
-          <Upload size={17} />
-          Resources
-        </button>
-        <span className="mx-1 h-7 w-px bg-gray-200" />
-        <button
-          type="button"
-          disabled
-          title="Undo becomes active after an element change"
-          className="rounded-lg p-2 text-slate-400 disabled:cursor-not-allowed"
-        >
-          <Undo2 size={18} />
-        </button>
-        <button
-          type="button"
-          disabled
-          title="Redo becomes active after an undo"
-          className="rounded-lg p-2 text-slate-400 disabled:cursor-not-allowed"
-        >
-          <Redo2 size={18} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setPanel(panel === 'elements' ? null : 'elements')}
-          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"
-        >
-          <Boxes size={17} />
-          Elements
-        </button>
-        <div className="ml-auto flex gap-2">
-          <button
-            type="button"
-            disabled
-            title="There are no unsaved canvas changes"
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-slate-400 disabled:cursor-not-allowed"
-          >
-            <Save size={16} />
-            Save
-          </button>
-          <button
-            type="button"
-            disabled={!selectedScreen}
-            onClick={() => setPreviewOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            <Eye size={16} />
-            Preview
-          </button>
+      <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden bg-slate-100 p-3">
+        {contextBarOpen ? <section className="grid shrink-0 gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+            <span className="min-w-0 flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs"><b>Chapter:</b> {sessionContext?.chapter_name || '—'}</span>
+            <span className="min-w-0 flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs"><b>Topic:</b> {sessionContext?.topic_name || '—'}</span>
+            <span className="min-w-0 flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs"><b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}</span>
+            <button type="button" onClick={() => setLeftPanelOpen((open) => !open)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold" aria-expanded={leftPanelOpen}>{leftPanelOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}{leftPanelOpen ? 'Close script' : 'Open script'}</button>
+            <button type="button" onClick={() => setRightPanelOpen((open) => !open)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold" aria-expanded={rightPanelOpen}>{rightPanelOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}{rightPanelOpen ? 'Close tools' : 'Open tools'}</button>
+            {workflowStatus && <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>Publication: {workflowStatus.validation.valid ? 'Ready' : 'Action required'}</span>}
+          </div>
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+            <label className="flex min-w-0 items-center text-xs font-semibold text-slate-600">Session <select value={sessionId} onChange={(event) => navigate(`/studio/editor/${event.target.value}`)} className="ml-1 min-w-0 max-w-md rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900">{sessionOptions.map((session) => <option key={session.id} value={session.id}>Session {session.session_number}: {session.title}</option>)}</select></label>
+            <label className="flex min-w-0 items-center text-xs font-semibold text-slate-600">Screen <select value={selectedScreenId || ''} onChange={(event) => selectScreen(Number(event.target.value))} className="ml-1 min-w-0 max-w-48 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900">{screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screen.title}</option>)}</select></label>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <button type="button" onClick={() => void loadWorkflow(true)} disabled={loadingWorkflow} className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold">Check</button>
+            {workflowStatus?.can_submit && <button type="button" onClick={() => void runWorkflowAction('submit')} className="rounded-lg bg-blue-900 px-2.5 py-1.5 text-xs font-semibold text-white">Submit</button>}
+            <button type="button" disabled={!hasUnsavedChanges || savingScreen} onClick={() => void saveScreenDraft()} className="inline-flex items-center gap-1 rounded-lg border border-blue-900 px-2.5 py-1.5 text-xs font-semibold text-blue-900 disabled:opacity-40"><Save size={14} />Save</button>
+            <button type="button" disabled={!selectedScreen} onClick={() => setPreviewOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-blue-900 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"><Eye size={14} />Preview</button>
+            <button type="button" onClick={() => setContextBarOpen(false)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold" aria-label="Hide context controls"><ChevronUp size={15} />Hide</button>
+            </div>
+          </div>
+        </section> : <button type="button" onClick={() => setContextBarOpen(true)} className="inline-flex w-fit shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm"><ChevronDown size={15} />Show context and actions</button>}
+        {error && <div className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
+        <div className="grid min-h-0 flex-1 gap-3 overflow-x-auto" style={{ gridTemplateColumns: `${leftPanelOpen ? 'minmax(220px, 260px)' : ''} minmax(560px, 1fr) ${rightPanelOpen ? 'minmax(280px, 340px)' : ''}`.trim() }}>
+          {leftPanelOpen && <aside className="min-h-0 overflow-y-auto">
+            <section className="min-h-0 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><h2 className="font-semibold">Screen Script</h2>{(() => { const script = scripts.find((row) => row.screen_id === selectedScreenId); return script?.content_json ? <div className="mt-2 space-y-2">{Object.entries(script.content_json).filter(([, value]) => typeof value === 'string').map(([key, value]) => <div key={key} className="rounded-lg bg-slate-50 p-2"><p className="text-[10px] font-bold uppercase text-slate-500">{key.replaceAll('_', ' ')}</p><p className="mt-1 whitespace-pre-wrap text-xs">{value || '—'}</p></div>)}</div> : <p className="mt-2 text-xs text-slate-500">No saved script for this Screen.</p>; })()}</section>
+          </aside>}
+          <main className="flex min-h-0 flex-col gap-2 overflow-hidden"><div className="min-h-0 flex-1"><BlankScreenCanvas screen={selectedScreen} loading={loadingScreen} layout={selectedLayout} selectedElementId={selectedElementId} onSelectElement={(elementId) => { setSelectedElementId(elementId); setPanel('elements'); }} /></div><button type="button" onClick={() => void createBlankScreen()} disabled={creating || loadingScreens} className="inline-flex w-44 shrink-0 self-center items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"><Plus size={16} />{creating ? 'Adding Screen…' : 'Add Screen'}</button></main>
+          {rightPanelOpen && <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="grid shrink-0 grid-cols-3 gap-1 border-b p-2"><button onClick={() => setPanel('layouts')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold ${panel === 'layouts' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><LayoutTemplate size={15} />Layouts</button><button onClick={() => setPanel('resources')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold ${panel === 'resources' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Upload size={15} />Resources</button><button onClick={() => setPanel('elements')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold ${panel === 'elements' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Boxes size={15} />Elements</button></div>
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">{panel === 'layouts' && <StudioLayoutGallery layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} onApply={requestLayoutApplication} onLayoutsChanged={loadLayouts} />}{panel === 'resources' && <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />}{panel === 'elements' && <StudioElementPanel layout={selectedLayout} screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addElement} onUpdate={updateElement} onRemove={removeElement} />}</div>
+          </aside>}
         </div>
       </div>
+      {false && <>
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
+        <button type="button" onClick={() => setPanel(panel === 'layouts' ? null : 'layouts')} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"><LayoutTemplate size={17} />Layouts</button>
+        <button type="button" onClick={() => setPanel(panel === 'script' ? null : 'script')} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"><FileText size={17} />Script View</button>
+        <button type="button" onClick={() => setPanel(panel === 'resources' ? null : 'resources')} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"><Upload size={17} />Resources</button>
+        <span className="mx-1 h-7 w-px bg-gray-200" />
+        <button type="button" disabled={elementPast.length === 0} onClick={undoElementChange} title="Undo the latest element change" className="rounded-lg p-2 text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400"><Undo2 size={18} /></button>
+        <button type="button" disabled={elementFuture.length === 0} onClick={redoElementChange} title="Redo the latest element change" className="rounded-lg p-2 text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400"><Redo2 size={18} /></button>
+        <button type="button" onClick={() => setPanel(panel === 'elements' ? null : 'elements')} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"><Boxes size={17} />Elements</button>
+        {hasUnsavedChanges && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Unsaved changes</span>}
+        <div className="ml-auto flex gap-2"><button type="button" disabled={!hasUnsavedChanges || savingScreen} onClick={() => void saveScreenDraft()} title={hasUnsavedChanges ? 'Save this Screen draft' : 'There are no unsaved canvas changes'} className="inline-flex items-center gap-2 rounded-lg border border-blue-900 px-3 py-2 text-sm font-semibold text-blue-900 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-slate-400"><Save size={16} />{savingScreen ? 'Saving...' : 'Save'}</button><button type="button" disabled={!selectedScreen} onClick={() => setPreviewOpen(true)} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"><Eye size={16} />Preview</button></div>
+      </div>
+
+      <StudioWorkflowPanel
+        status={workflowStatus}
+        problems={workflowProblems}
+        loading={loadingWorkflow}
+        action={workflowAction}
+        onRefresh={() => void loadWorkflow(true)}
+        onAction={(action) => void runWorkflowAction(action)}
+      />
 
       {panel && (
         <section className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           {panel === 'layouts' && (
             <StudioLayoutGallery
               layouts={layouts}
-              loading={layoutsLoading}
-              error={layoutsError}
-              selectedLayoutId={selectedLayoutId}
+              selectedLayoutId={selectedScreen?.layout_id ?? null}
               applying={applyingLayout}
-              canApply={
-                !!selectedScreen &&
-                !!selectedLayoutId &&
-                selectedScreen.layout_id !== selectedLayoutId
-              }
-              onSelect={setSelectedLayoutId}
-              onRetry={() => void loadLayouts()}
-              onApply={() => void applyLayout()}
+              onApply={requestLayoutApplication}
+              onLayoutsChanged={loadLayouts}
             />
           )}
-          {panel === 'resources' && (
-            <>
-              <h2 className="font-semibold">Resources</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Select a Resource, then choose a compatible layout box.
-              </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {resources.map((resource) => (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedResourceId(resource.id)}
-                    key={resource.id}
-                    className={`rounded-lg border p-3 text-left ${selectedResourceId === resource.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200'}`}
-                  >
-                    <p className="text-sm font-semibold">{resource.name}</p>
-                    <p className="text-xs text-slate-500">{resource.resource_type || 'Resource'}</p>
-                  </button>
-                ))}
-                {resources.length === 0 && (
-                  <p className="text-sm text-slate-500">No resources are available.</p>
-                )}
-              </div>
-              {selectedResourceId ? (
-                <div className="mt-4 rounded-lg bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-700">Place in layout box</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(
-                      layouts.find((layout) => layout.id === selectedScreen?.layout_id)
-                        ?.layout_data_json.slots ?? []
-                    )
-                      .filter((slot) =>
-                        slot.allowed.some((type) =>
-                          ['visual', 'media', 'simulation', 'activity', 'graph', 'data'].includes(
-                            type,
-                          ),
-                        ),
-                      )
-                      .map((slot) => (
-                        <button
-                          type="button"
-                          key={slot.id}
-                          onClick={() => void placeResource(slot)}
-                          disabled={savingElement}
-                          className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-40"
-                        >
-                          {slot.label}
-                        </button>
-                      ))}
-                    {!selectedScreen?.layout_id ? (
-                      <p className="text-sm text-amber-700">
-                        Apply a layout before placing a Resource.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
-          {panel === 'script' && (
-            <>
-              <h2 className="font-semibold">Screen Script</h2>
-              {(() => {
-                const script = scripts.find((row) => row.screen_id === selectedScreenId);
-                return script?.content_json ? (
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    {Object.entries(script.content_json)
-                      .filter(([, value]) => typeof value === 'string')
-                      .map(([key, value]) => (
-                        <div key={key} className="rounded-lg bg-gray-50 p-3">
-                          <p className="text-xs font-semibold uppercase text-slate-500">
-                            {key.replaceAll('_', ' ')}
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap text-sm">{value || '—'}</p>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm text-slate-500">
-                    No saved script exists for the selected Screen.
-                  </p>
-                );
-              })()}
-            </>
-          )}
-          {panel === 'elements' && (
-            <>
-              <h2 className="font-semibold">Elements</h2>
-              {selectedScreen?.elements.length ? (
-                <div className="mt-3 space-y-2">
-                  {selectedScreen.elements.map((element) => (
-                    <div key={element.id} className="rounded-lg border border-gray-200 p-3 text-sm">
-                      <strong>{element.id}</strong>
-                      <span className="ml-2 text-slate-500">{element.type}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-slate-500">
-                  The selected Screen has no elements yet.
-                </p>
-              )}
-            </>
-          )}
+          {panel === 'resources' && <><div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Resources</h2><p className="mt-1 text-sm text-slate-500">Select a visual, media, or simulation element, then attach a compatible immutable Resource version.</p></div><a href="/studio/resources" className="rounded-lg border border-blue-800 px-3 py-2 text-sm font-semibold text-blue-900">Manage Resource library</a></div>{supportsResourcePlacement(selectedElement?.type) ? <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} allowedTypes={allowedResourceTypes} /> : <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">Select a visual, media, or simulation element to see compatible Resources.</p>}</>}
+          {panel === 'script' && <><h2 className="font-semibold">Screen Script</h2>{(() => { const script = scripts.find((row) => row.screen_id === selectedScreenId); return script?.content_json ? <div className="mt-3 grid gap-3 md:grid-cols-2">{Object.entries(script.content_json).filter(([, value]) => typeof value === 'string').map(([key, value]) => <div key={key} className="rounded-lg bg-gray-50 p-3"><p className="text-xs font-semibold uppercase text-slate-500">{key.replaceAll('_', ' ')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{value || '—'}</p></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No saved script exists for the selected Screen.</p>; })()}</>}
+          {panel === 'elements' && <StudioElementPanel layout={selectedLayout} screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addElement} onUpdate={updateElement} onRemove={removeElement} />}
         </section>
       )}
 
       {error ? (
-        <div
-          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-          role="alert"
-        >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
           <span>{error}</span>
-          <button
-            type="button"
-            onClick={() => void loadScreens()}
-            className="font-semibold underline underline-offset-2"
-          >
+          <button type="button" onClick={() => void loadScreens()} className="font-semibold underline underline-offset-2">
             Try again
           </button>
         </div>
@@ -700,61 +575,15 @@ export default function TeachingStudioPage() {
           creating={creating}
           onSelect={selectScreen}
           onCreateBlank={() => void createBlankScreen()}
-          onRename={(screen) => void renameScreen(screen)}
-          onDelete={(screen) => void deleteScreen(screen)}
         />
-        <BlankScreenCanvas
-          screen={selectedScreen}
-          layout={layouts.find((layout) => layout.id === selectedScreen?.layout_id) ?? null}
-          loading={loadingScreen}
-          editable={!!selectedScreen?.layout_id && !savingElement}
-          onEditElement={(slot, element) => setElementEditor({ slot, element })}
-          onRemoveElement={(element) => void removeElement(element)}
-        />
+        <BlankScreenCanvas screen={selectedScreen} loading={loadingScreen} layout={selectedLayout} selectedElementId={selectedElementId} onSelectElement={(elementId) => { setSelectedElementId(elementId); setPanel('elements'); }} />
       </div>
-      {previewOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/80 p-2 sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Screen Preview"
-        >
-          <div className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]">
-            <div className="flex flex-none items-center justify-between border-b border-gray-200 px-4 py-3">
-              <div>
-                <h2 className="font-semibold">Screen Preview</h2>
-                <p className="text-xs text-slate-500">
-                  Press Escape or Close to return to the editor.
-                </p>
-              </div>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => setPreviewOpen(false)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-auto p-2 sm:p-4">
-              <BlankScreenCanvas
-                screen={selectedScreen}
-                layout={layouts.find((layout) => layout.id === selectedScreen?.layout_id) ?? null}
-                loading={false}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-      {elementEditor ? (
-        <StudioElementDialog
-          slot={elementEditor.slot}
-          element={elementEditor.element}
-          saving={savingElement}
-          onClose={() => setElementEditor(null)}
-          onSave={(type, text) => void saveElementContent(type, text)}
-        />
-      ) : null}
+      </>}
+      {pendingLayout && selectedScreen && (() => {
+        const result = remapElementsToLayout(selectedScreen.elements, pendingLayout.layout);
+        return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Confirm layout change"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-semibold text-slate-900">Apply {pendingLayout.layout.id}?</h2><p className="mt-2 text-sm text-slate-600">Existing elements are never changed silently. {result.elements.length} compatible element{result.elements.length === 1 ? '' : 's'} will be kept and remapped. {result.removed.length} incompatible element{result.removed.length === 1 ? '' : 's'} will be removed.</p>{result.removed.length > 0 && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Removed: {result.removed.map((element) => element.id).join(', ')}</p>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setPendingLayout(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="button" disabled={applyingLayout} onClick={() => void saveAppliedLayout(pendingLayout.row, pendingLayout.layout)} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{applyingLayout ? 'Applying...' : 'Keep compatible and apply'}</button></div></div></div>;
+      })()}
+      {previewOpen && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Screen Preview"><div className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]"><div className="flex flex-none items-center justify-between border-b border-gray-200 px-4 py-3"><div><h2 className="font-semibold">Screen Preview</h2><p className="text-xs text-slate-500">Press Escape or Close to return to the editor.</p></div><button type="button" autoFocus onClick={() => setPreviewOpen(false)} className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-gray-50">Close</button></div><div className="min-h-0 flex-1 overflow-auto p-2 sm:p-4"><BlankScreenCanvas screen={selectedScreen} loading={false} layout={selectedLayout} showGuides={false} /></div></div></div>}
     </StudioShell>
   );
 }

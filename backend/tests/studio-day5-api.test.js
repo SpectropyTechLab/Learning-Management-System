@@ -68,7 +68,7 @@ test('screen save persists editable drawing data and Resource bindings in one tr
           revision_no: 4, screen_settings_json: {}, session_status: 'draft', session_revision_no: 6,
         }] };
       }
-      if (sql.includes('from resources r join resource_versions rv')) return { rows: [{ id: 9 }] };
+      if (sql.includes('from resources r join resource_versions rv')) return { rows: [{ id: 9, resource_type: 'image' }] };
       if (sql.startsWith('update screens set title')) {
         return { rows: [{
           id: 31, session_id: 21, client_id: 12, title: 'Edited', layout_id: null,
@@ -83,7 +83,7 @@ test('screen save persists editable drawing data and Resource bindings in one tr
       if (sql.startsWith('update sessions set status')) return { rows: [{ id: 21, status: 'draft', revision_no: 7 }] };
       if (sql.includes('from screen_elements se')) {
         return { rows: [{
-          id: 'drawing-1', slot_id: null, type: 'workspace',
+          id: 'drawing-1', slot_id: null, type: 'visual',
           content: { drawing: { strokes: [{ points: [[1, 2], [3, 4]] }] } },
           position: { x: 10, y: 20 }, resource_id: 9, resource_version_id: 15,
           usage: { placement: 'canvas' },
@@ -108,7 +108,7 @@ test('screen save persists editable drawing data and Resource bindings in one tr
       screen_settings: { grid: true },
       tags: ['Fractions', 'fractions'],
       elements: [{
-        id: 'drawing-1', type: 'workspace',
+        id: 'drawing-1', type: 'visual',
         content: { drawing: { strokes: [{ points: [[1, 2], [3, 4]] }] } },
         position: { x: 10, y: 20 },
         resource: { resource_id: 9, resource_version_id: 15, usage: { placement: 'canvas' } },

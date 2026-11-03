@@ -3,6 +3,11 @@ import { AppError } from '../utils/errors.js';
 import { returnSessionToDraft } from './studioSessionWorkflow.service.js';
 
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
+const RESOURCE_TYPES_BY_ELEMENT = new Map([
+  ['visual', new Set(['image', 'animation'])],
+  ['media', new Set(['image', 'video', 'animation', 'external_link'])],
+  ['simulation', new Set(['simulation', 'html', 'zip', 'scorm', 'external_link'])],
+]);
 const ELEMENT_TYPES = new Set([
   'title',
   'text',
@@ -222,7 +227,7 @@ export const listSessionScreens = async ({ sessionId: rawSessionId, user }) => {
 const validateResourceBindings = async (db, elements, clientId) => {
   for (const element of elements.filter((candidate) => candidate.resource)) {
     const result = await db.query(
-      `SELECT r.id
+      `SELECT r.id, r.resource_type
        FROM resources r
        JOIN resource_versions rv ON rv.resource_id = r.id
        WHERE r.id = $1 AND rv.id = $2 AND r.is_active = TRUE
@@ -232,6 +237,11 @@ const validateResourceBindings = async (db, elements, clientId) => {
     if (!result.rows[0]) {
       throw new AppError(`Element ${element.key} references an unavailable Resource version`, 422);
     }
+    const resourceType = result.rows[0].resource_type;
+    if (!RESOURCE_TYPES_BY_ELEMENT.get(element.type)?.has(resourceType)) {
+      throw new AppError(`Element ${element.key} does not support ${resourceType} Resources`, 422);
+    }
+    element.resource.resourceType = resourceType;
   }
 };
 
@@ -247,22 +257,19 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
       throw new AppError('Screen revision is stale; reload before saving', 409);
     }
     const requestedLayoutId = body.layout_id === undefined
-      ? screen.layout_id
-      : body.layout_id === null
-        ? null
-        : parseId(body.layout_id, 'layout_id');
+      ? (screen.layout_id ? Number(screen.layout_id) : null)
+      : (body.layout_id === null ? null : parseId(body.layout_id, 'layout_id'));
     let layout = null;
     if (requestedLayoutId) {
       const layoutResult = await client.query(
-        'SELECT id, layout_data_json FROM layouts WHERE id = $1 AND is_active = TRUE',
+        `SELECT id, client_id, layout_data_json
+         FROM layouts
+         WHERE id = $1 AND is_active = TRUE`,
         [requestedLayoutId],
       );
       layout = layoutResult.rows[0];
       if (!layout) throw new AppError('The Screen layout version no longer exists', 409);
-    }
-    const creationMode = requestedLayoutId ? 'layout' : 'blank';
-    if (body.creation_mode !== undefined && body.creation_mode !== creationMode) {
-      throw new AppError(`creation_mode must be ${creationMode} for the selected layout`);
+      assertTenant(layout.client_id, user);
     }
     const elements = normalizeElements(body.elements, layout);
     const tags = normalizeTags(body.tags);
@@ -283,7 +290,7 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
         optionalText(body.title ?? screen.title, 'title', 250),
         JSON.stringify(settings),
         requestedLayoutId,
-        creationMode,
+        requestedLayoutId ? 'layout' : 'blank',
         screen.id,
         expectedRevision,
       ],
@@ -319,7 +326,11 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
             element.resource.resourceVersionId,
             screen.id,
             element.key,
-            JSON.stringify(element.resource.usage),
+            JSON.stringify({
+              ...element.resource.usage,
+              slot_id: element.slotId,
+              resource_type: element.resource.resourceType,
+            }),
             user?.id || null,
           ],
         );

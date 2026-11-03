@@ -70,11 +70,20 @@ const normalizeVersionInput = (body, file, resourceType) => {
   if (!file && !externalUrl) throw new AppError('A resource file or external_url is required');
   if (file && externalUrl) throw new AppError('Provide either a resource file or external_url, not both');
   if (externalUrl) {
+    let parsed;
     try {
-      const parsed = new URL(externalUrl);
+      parsed = new URL(externalUrl);
       if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
     } catch {
       throw new AppError('external_url must be a valid HTTP or HTTPS URL');
+    }
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    const isSearchResultPage =
+      ((host === 'bing.com' || host.endsWith('.bing.com')) && path.startsWith('/images/search')) ||
+      ((host === 'google.com' || host.endsWith('.google.com')) && ['/search', '/imgres'].includes(path));
+    if (resourceType === 'image' && isSearchResultPage) {
+      throw new AppError('Image URLs must point directly to an image file, not a Google or Bing search-result page');
     }
   }
   if (resourceType === 'external_link' && !externalUrl) {
@@ -326,11 +335,13 @@ export const getResourceUsages = async ({ resourceId: rawResourceId, user }) => 
   const clientId = user?.client_id || null;
   const result = await dbQuery(
     `SELECT rm.id AS placement_id, rm.resource_version_id, rv.version_number,
-            rm.screen_id, s.session_id, s.screen_number, s.display_order,
+            rm.screen_id, s.title AS screen_title, s.session_id,
+            session.title AS session_title, s.screen_number, s.display_order,
             rm.element_id, se.element_type, rm.usage_details_json
      FROM resource_mappings rm
      JOIN resource_versions rv ON rv.id = rm.resource_version_id AND rv.resource_id = rm.resource_id
      JOIN screens s ON s.id = rm.screen_id
+     JOIN sessions session ON session.id = s.session_id
      JOIN screen_elements se ON se.screen_id = rm.screen_id AND se.element_key = rm.element_id
      WHERE rm.resource_id = $1
        AND ($2::boolean OR s.client_id = $3)
@@ -343,4 +354,75 @@ export const getResourceUsages = async ({ resourceId: rawResourceId, user }) => 
     distinct_screen_count: new Set(result.rows.map((row) => Number(row.screen_id))).size,
     placements: result.rows,
   };
+};
+
+const storageKeysForVersions = (versions) => {
+  const keys = [];
+  for (const version of versions) {
+    if (version.storage_key) keys.push(version.storage_key);
+    const runtime = version.metadata_json?.runtime;
+    if (!runtime?.package_prefix || !Array.isArray(runtime.files)) continue;
+    for (const file of runtime.files) {
+      if (file?.path) keys.push(`${runtime.package_prefix}/${file.path}`);
+    }
+  }
+  return [...new Set(keys)];
+};
+
+export const deleteResource = async ({ resourceId: rawResourceId, user }) => {
+  assertAuthor(user);
+  const resourceId = parseId(rawResourceId, 'Resource ID');
+  let client;
+  let storageKeys = [];
+  try {
+    client = await getClient();
+    await client.query('BEGIN');
+    const resource = await loadResource(client, resourceId, user, { lock: true });
+    const [placements, attempts, releases, versions] = await Promise.all([
+      client.query('SELECT COUNT(*)::int AS total FROM resource_mappings WHERE resource_id = $1', [resource.id]),
+      client.query('SELECT COUNT(*)::int AS total FROM studio_scorm_attempts WHERE resource_id = $1', [resource.id]),
+      client.query(
+        `SELECT COUNT(DISTINCT sr.id)::int AS total
+         FROM session_releases sr
+         CROSS JOIN LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(sr.manifest_json->'screens') = 'array'
+             THEN sr.manifest_json->'screens' ELSE '[]'::jsonb END
+         ) AS screen
+         CROSS JOIN LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(screen->'elements') = 'array'
+             THEN screen->'elements' ELSE '[]'::jsonb END
+         ) AS element
+         WHERE element->'resource_mapping'->>'resource_id' = $1::text`,
+        [resource.id]
+      ),
+      client.query('SELECT storage_key, metadata_json FROM resource_versions WHERE resource_id = $1', [resource.id]),
+    ]);
+    const blockers = {
+      placement_count: Number(placements.rows[0].total),
+      scorm_attempt_count: Number(attempts.rows[0].total),
+      published_release_count: Number(releases.rows[0].total),
+    };
+    if (Object.values(blockers).some((count) => count > 0)) {
+      throw new AppError(
+        'Resource is in use and cannot be permanently deleted',
+        409,
+        'RESOURCE_IN_USE',
+        blockers
+      );
+    }
+    storageKeys = storageKeysForVersions(versions.rows);
+    await client.query('DELETE FROM resources WHERE id = $1', [resource.id]);
+    await client.query('COMMIT');
+    await removeUploads(storageKeys);
+    return { id: resource.id, deleted: true };
+  } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {
+        console.error('Studio resource delete rollback failed:', rollbackError.message);
+      }
+    }
+    throw error;
+  } finally {
+    client?.release();
+  }
 };

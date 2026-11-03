@@ -79,9 +79,11 @@ const loadSubtopicContext = async (db, subtopicId, user, { lock = false } = {}) 
 
 const loadSession = async (db, sessionId, user, { lock = false } = {}) => {
   const result = await db.query(
-    `SELECT s.*, st.name AS subtopic_name
+    `SELECT s.*, st.name AS subtopic_name, t.name AS topic_name, ch.name AS chapter_name
      FROM sessions s
      JOIN subtopics st ON st.id = s.subtopic_id
+     JOIN topics t ON t.id = st.topic_id
+     JOIN chapters ch ON ch.id = t.chapter_id
      WHERE s.id = $1 ${lock ? 'FOR UPDATE OF s' : ''}`,
     [sessionId],
   );
