@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import AdmZip from 'adm-zip';
+import { readFileSync } from 'node:fs';
 
 process.env.JWT_SECRET ||= 'studio-day6-test-secret';
 process.env.SUPABASE_URL ||= 'http://127.0.0.1:54321';
@@ -75,7 +76,16 @@ test('browser ZIP inspection rejects path traversal', () => {
   );
 });
 
-test('single HTML inspection rejects external script dependencies', () => {
+test('single HTML inspection accepts approved CDN dependencies', () => {
+  const inspection = inspectRuntimePackage({
+    resourceType: 'html',
+    file: htmlFile('<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>'),
+  });
+  assert.equal(inspection.kind, 'single_html');
+  assert.deepEqual(inspection.dependencies, []);
+});
+
+test('single HTML inspection rejects unapproved external script dependencies', () => {
   assert.throws(
     () => inspectRuntimePackage({
       resourceType: 'html',
@@ -189,7 +199,12 @@ test('runtime launch serves a prepared package asset with isolation headers', as
     user: { id: 8, role: 'content_authorizer', client_id: 12 },
   });
   assert.equal(launch.launchable, true);
-  assert.deepEqual(launch.sandbox, ['allow-scripts']);
+  assert.deepEqual(launch.sandbox, [
+    'allow-scripts',
+    'allow-popups',
+    'allow-top-navigation-by-user-activation',
+    'allow-pointer-lock',
+  ]);
   const match = launch.launch_url.match(/^\/api\/studio\/runtime\/([^/]+)\/(.+)$/);
   assert.ok(match);
 
@@ -212,8 +227,12 @@ test('runtime launch serves a prepared package asset with isolation headers', as
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.toString(), '<h1>Runtime</h1>');
-  assert.match(headers.get('Content-Security-Policy'), /sandbox allow-scripts/);
+  assert.match(
+    headers.get('Content-Security-Policy'),
+    /sandbox allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock/,
+  );
   assert.match(headers.get('Content-Security-Policy'), /object-src 'none'/);
+  assert.match(headers.get('Content-Security-Policy'), /https:\/\/cdn\.jsdelivr\.net/);
   assert.equal(headers.get('Referrer-Policy'), 'no-referrer');
 });
 
@@ -225,4 +244,13 @@ test('Day 6 runtime routes expose launch, fallback download and tokenized asset 
   assert.ok(routes.includes('GET /studio/runtime/:launchToken/*'));
   assert.ok(routes.includes('POST /studio/resource-versions/:versionId/launch'));
   assert.ok(routes.includes('GET /studio/resource-versions/:versionId/download'));
+});
+
+test('tokenized runtime router is mounted before authenticated Studio API routers', () => {
+  const serverSource = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  const runtimeMount = serverSource.indexOf("app.use('/api', studioResourceRuntimeRoutes)");
+  const protectedResourcesMount = serverSource.indexOf("app.use('/api', studioResourcesRoutes)");
+  assert.ok(runtimeMount >= 0);
+  assert.ok(protectedResourcesMount >= 0);
+  assert.ok(runtimeMount < protectedResourcesMount);
 });
