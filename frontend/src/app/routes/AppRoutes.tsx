@@ -105,6 +105,7 @@ import StudioScreenScriptsPage from '@/features/teaching-studio/StudioScreenScri
 import StudioResourceLibraryPage from '@/features/teaching-studio/StudioResourceLibraryPage';
 import StudioResourceDetailsPage from '@/features/teaching-studio/StudioResourceDetailsPage';
 import StudioEditorEntryPage from '@/features/teaching-studio/StudioEditorEntryPage';
+import StudioSessionPlayerPage from '@/features/teaching-studio/StudioSessionPlayerPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -205,9 +206,14 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
       </Route>
 
+      {/* Published Digital Studio viewing is shared by all staff roles. */}
+      <Route element={<Protect roles={['super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher']} />}>
+        <Route path="/studio" element={<StudioDashboardPage />} />
+        <Route path="/studio/player/:sessionId/releases/:releaseNumber" element={<StudioSessionPlayerPage />} />
+      </Route>
+
       {/* Digital Studio authoring is shared equally by Super Admin and Content Authorizer. */}
       <Route element={<Protect roles={['super_admin', 'content_authorizer']} />}>
-        <Route path="/studio" element={<StudioDashboardPage />} />
         <Route path="/studio/curriculum" element={<StudioCurriculumPage />} />
         <Route path="/studio/session-setup" element={<StudioSessionSetupPage />} />
         <Route path="/studio/session-plans" element={<StudioSessionPlanPage />} />

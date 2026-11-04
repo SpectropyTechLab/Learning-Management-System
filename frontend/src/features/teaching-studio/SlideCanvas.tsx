@@ -27,9 +27,15 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
     else lines.push(word);
   }
   const visible = lines.slice(0, Math.max(1, Math.floor((height - 80) / (fontSize * 1.3))));
-  return <text x={x + 40} y={y + (slot.region === 'footer' ? 35 : 78)} fill={ink} fontSize={fontSize} fontWeight={slot.region === 'header' ? 700 : 500}>
-    {visible.map((line, index) => <tspan key={index} x={x + 40} dy={index ? fontSize * 1.3 : 0}>{line}</tspan>)}
-  </text>;
+  return (
+    <text x={x + 40} y={y + (slot.region === 'footer' ? 35 : 78)} fill={ink} fontSize={fontSize} fontWeight={slot.region === 'header' ? 700 : 500}>
+      {visible.map((line, index) => (
+        <tspan key={index} x={x + 40} dy={index ? fontSize * 1.3 : 0}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
 }
 
 type GeometryInteraction = {
