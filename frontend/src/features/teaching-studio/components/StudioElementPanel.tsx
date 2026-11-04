@@ -1,4 +1,4 @@
-import { ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { Copy, ImagePlus, Plus, Trash2 } from 'lucide-react';
 import type { Layout, ObjectType, Slot } from '../layouts';
 import type { StudioElement, StudioScreen } from '../types';
 import { canPlaceResource } from '../resourcePlacement';
@@ -9,22 +9,30 @@ interface Props {
   selectedElementId: string | null;
   onSelect: (elementId: string) => void;
   onAdd: (slot: Slot) => void;
+  onAddBlank: (type: ObjectType, region: Slot['region']) => void;
   onUpdate: (element: StudioElement) => void;
+  onDuplicate: (elementId: string) => void;
   onRemove: (elementId: string) => void;
 }
 
 const textValue = (element: StudioElement) => String(element.content.text || '');
 const fieldValue = (element: StudioElement, key: string) => String(element.content[key] || '');
 const textLike = new Set<ObjectType>(['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data']);
+const blankElementTypes: ObjectType[] = ['title', 'text', 'visual', 'media', 'simulation', 'question', 'response', 'steps', 'workspace', 'footer', 'activity', 'graph', 'data', 'options'];
 
 export default function StudioElementPanel({
-  layout, screen, selectedElementId, onSelect, onAdd, onUpdate, onRemove,
+  layout, screen, selectedElementId, onSelect, onAdd, onAddBlank, onUpdate, onDuplicate, onRemove,
 }: Props) {
   if (!screen) return <p className="text-sm text-slate-500">Select a Screen to edit its content.</p>;
-  if (!layout) return <p className="text-sm text-slate-500">Apply a layout first. Its named slots will become available for Author content.</p>;
 
   const selected = screen.elements.find((element) => element.id === selectedElementId) || null;
-  const selectedSlot = selected ? layout.slots.find((slot) => slot.id === selected.slotId) : null;
+  const selectedSlot = selected ? layout?.slots.find((slot) => slot.id === selected.slotId) ?? {
+    id: selected.slotId || selected.id,
+    label: 'Freeform element',
+    region: (selected.type === 'title' ? 'header' : selected.type === 'footer' ? 'footer' : 'content') as Slot['region'],
+    allowed: blankElementTypes,
+    bounds: selected.position as Slot['bounds'],
+  } : null;
   const updateContent = (key: string, value: string) => selected && onUpdate({
     ...selected,
     content: { ...selected.content, [key]: value },
@@ -33,10 +41,14 @@ export default function StudioElementPanel({
   return (
     <div className="grid gap-5">
       <div>
-        <h2 className="font-semibold text-slate-900">Layout slots</h2>
-        <p className="mt-1 text-sm text-slate-500">Add one permitted object to a slot, then edit it in the inspector.</p>
+        <h2 className="font-semibold text-slate-900">{layout ? 'Layout slots' : 'Blank screen elements'}</h2>
+        <p className="mt-1 text-sm text-slate-500">{layout ? 'Add one permitted object to a slot, then edit it in the inspector.' : 'Add freeform elements to the header, centre content, or footer.'}</p>
+        {!layout && <div className="mt-3 grid gap-2">
+          {([['Header', 'title', 'header'], ['Centre content', 'text', 'content'], ['Footer', 'footer', 'footer']] as const).map(([label, type, region]) => <button key={region} type="button" onClick={() => onAddBlank(type, region)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-blue-800 bg-white px-3 py-2 text-xs font-semibold text-blue-900"><Plus size={14} />Add {label}</button>)}
+          <label className="text-xs font-semibold text-slate-600">Add another element type<select defaultValue="" onChange={(event) => { if (event.target.value) { onAddBlank(event.target.value as ObjectType, 'content'); event.target.value = ''; } }} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"><option value="">Choose element…</option>{blankElementTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+        </div>}
         <div className="mt-3 space-y-2">
-          {layout.slots.map((slot) => {
+          {(layout?.slots ?? []).map((slot) => {
             const element = screen.elements.find((candidate) => candidate.slotId === slot.id);
             return (
               <div key={slot.id} className={`rounded-lg border p-3 ${element?.id === selectedElementId ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>
@@ -54,6 +66,7 @@ export default function StudioElementPanel({
               </div>
             );
           })}
+          {!layout && screen.elements.map((element) => <button key={element.id} type="button" onClick={() => onSelect(element.id)} className={`w-full rounded-lg border p-3 text-left ${element.id === selectedElementId ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}><span className="block truncate text-sm font-semibold capitalize text-slate-900">{element.type}</span><span className="block truncate text-xs text-slate-500">{textValue(element) || element.id}</span></button>)}
         </div>
       </div>
 
@@ -70,7 +83,7 @@ export default function StudioElementPanel({
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-800">{selectedSlot.label}</p>
                 <h3 className="mt-1 font-semibold text-slate-900">Object inspector</h3>
               </div>
-              <button type="button" onClick={() => onRemove(selected.id)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700"><Trash2 size={14} />Remove</button>
+              <div className="flex gap-1">{!layout && <button type="button" onClick={() => onDuplicate(selected.id)} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2 py-1.5 text-xs font-semibold text-blue-800"><Copy size={14} />Duplicate</button>}<button type="button" onClick={() => onRemove(selected.id)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1.5 text-xs font-semibold text-red-700"><Trash2 size={14} />Remove</button></div>
             </div>
 
             <label className="mt-4 block text-sm font-semibold text-slate-700">Object type
@@ -118,7 +131,7 @@ export default function StudioElementPanel({
                 </label>
               </>
             )}
-            <p className="mt-4 text-xs text-slate-500">Position and size use the validated {selectedSlot.id} slot geometry. Save creates the next Screen revision.</p>
+            <p className="mt-4 text-xs text-slate-500">{layout ? `Position and size start from the validated ${selectedSlot.id} slot geometry.` : 'Use the canvas Move and resize controls to position this freeform element.'} Save creates the next Screen revision.</p>
           </>
         )}
       </div>

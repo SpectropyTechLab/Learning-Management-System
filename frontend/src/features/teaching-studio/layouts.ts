@@ -51,6 +51,7 @@ export type SlideObject = {
   slotId: string;
   type: ObjectType;
   text: string;
+  position?: Rect;
   url?: string;
   altText?: string;
   caption?: string;
@@ -74,7 +75,7 @@ export function validateSlide(layout: Layout | null, slide: Slide): string[] {
   for (const field of layout.slots) {
     const { x, y, width, height } = field.bounds;
     const region = field.region === 'header' ? MASTER.header : field.region === 'content' ? MASTER.content : rect(90, 950, 1740, 90);
-    if (x < region.x || y < region.y || x + width > region.x + region.width || y + height > region.y + region.height || width <= 0 || height <= 0) errors.push(`${field.id} is outside its ${field.region} region`);
+    if (layout.id !== 'FREEFORM' && (x < region.x || y < region.y || x + width > region.x + region.width || y + height > region.y + region.height || width <= 0 || height <= 0)) errors.push(`${field.id} is outside its ${field.region} region`);
   }
   for (const object of slide.objects) {
     const field = layout.slots.find((item) => item.id === object.slotId);
