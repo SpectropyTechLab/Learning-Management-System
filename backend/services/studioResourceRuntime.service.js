@@ -198,8 +198,8 @@ export const getRuntimeDownload = async ({ versionId: rawVersionId, user }) => {
   };
 };
 
-export const getRuntimePreview = async ({ versionId: rawVersionId, user }) => {
-  if (!AUTHOR_ROLES.has(user?.role)) throw new AppError('Access denied', 403);
+export const getRuntimePreview = async ({ versionId: rawVersionId, user, allowAuthorizedReader = false }) => {
+  if (!AUTHOR_ROLES.has(user?.role) && !allowAuthorizedReader) throw new AppError('Access denied', 403);
   const versionId = parseId(rawVersionId, 'Resource version ID');
   const version = await loadVersion(versionId);
   if (!version || !canAccessTenant(version.client_id, user)) {
