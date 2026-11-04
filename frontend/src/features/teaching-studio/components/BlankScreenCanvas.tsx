@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { getStudioResource } from '../api/studioResourcesApi';
 import type { StudioResourceDetails, StudioResourceVersion } from '../api/studioResourcesApi';
-import type { Layout, Slide } from '../layouts';
+import type { Layout, ObjectType, Rect, Slide } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
 import type { StudioElement, StudioScreen } from '../types';
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
@@ -13,7 +14,9 @@ interface BlankScreenCanvasProps {
   layout?: Layout | null;
   selectedElementId?: string | null;
   onSelectElement?: (elementId: string) => void;
+  onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   showGuides?: boolean;
+  previewMode?: boolean;
 }
 
 const elementText = (content: Record<string, unknown>) => {
@@ -24,9 +27,11 @@ const elementText = (content: Record<string, unknown>) => {
 };
 
 function BoundResource({ element, onSelect }: { element: StudioElement; onSelect?: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
   const [error, setError] = useState('');
+  const [fullScreen, setFullScreen] = useState(false);
   const resourceId = element.resource?.resource_id;
   const versionId = element.resource?.resource_version_id;
 
@@ -50,17 +55,76 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
     return () => { active = false; };
   }, [resourceId, versionId]);
 
+  useEffect(() => {
+    const syncFullScreen = () => setFullScreen(document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', syncFullScreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullScreen);
+  }, []);
+
   if (error) return <div className="grid h-full place-items-center bg-slate-900 p-3 text-center text-xs text-white">{error}</div>;
   if (!resource || !version) return <div className="grid h-full place-items-center bg-slate-900 text-xs font-medium text-white">Preparing media…</div>;
 
-  return <div className="relative h-full w-full">
+  const toggleFullScreen = async () => {
+    const container = containerRef.current;
+    if (document.fullscreenElement === container) {
+      await document.exitFullscreen();
+      return;
+    }
+    if (container?.requestFullscreen) await container.requestFullscreen();
+  };
+
+  return <div ref={containerRef} className="relative h-full w-full bg-black" onClick={onSelect}>
     <StudioResourcePlayer resourceType={resource.resource_type} version={version} mode="canvas" className="h-full w-full" />
-    {onSelect ? <button type="button" onClick={onSelect} className="absolute right-2 top-2 z-10 rounded bg-white/95 px-2 py-1 text-xs font-semibold text-blue-900 shadow">Select</button> : null}
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        void toggleFullScreen();
+      }}
+      className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded bg-white/95 px-2 py-1 text-xs font-semibold text-blue-900 shadow"
+      title={fullScreen ? 'Exit full screen and return to the editor' : 'View this resource in full screen'}
+      aria-label={fullScreen ? 'Exit full screen' : 'View resource in full screen'}
+    >
+      {fullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+      {fullScreen ? 'Exit full screen' : 'Full screen'}
+    </button>
   </div>;
 }
 
-export default function BlankScreenCanvas({ screen, loading, layout = null, selectedElementId, onSelectElement, showGuides = true }: BlankScreenCanvasProps) {
-  const slide: Slide | null = screen && layout ? {
+const elementBounds = (position: Record<string, unknown>): Rect | undefined => {
+  const x = Number(position.x);
+  const y = Number(position.y);
+  const width = Number(position.width);
+  const height = Number(position.height);
+  return [x, y, width, height].every(Number.isFinite) && width > 0 && height > 0
+    ? { x, y, width, height }
+    : undefined;
+};
+
+export default function BlankScreenCanvas({ screen, loading, layout = null, selectedElementId, onSelectElement, onChangeElementBounds, showGuides = true, previewMode = false }: BlankScreenCanvasProps) {
+  const freeformLayout: Layout | null = !layout && screen && screen.elements.length > 0 ? {
+    id: 'FREEFORM',
+    name: 'Freeform screen',
+    purpose: 'Author-positioned blank screen elements',
+    catalog: 'pilot',
+    slots: screen.elements.map((element, index) => {
+      const region = element.type === 'title' ? 'header' : element.type === 'footer' ? 'footer' : 'content';
+      const fallback = region === 'header'
+        ? { x: 90, y: 60, width: 1740, height: 150 }
+        : region === 'footer'
+          ? { x: 90, y: 950, width: 1740, height: 90 }
+          : { x: 180 + (index % 2) * 800, y: 260, width: 760, height: 420 };
+      return {
+        id: element.slotId || `free-${element.id}`,
+        label: element.type,
+        region,
+        allowed: [element.type as ObjectType],
+        bounds: elementBounds(element.position) ?? fallback,
+      };
+    }),
+  } : null;
+  const renderLayout = layout ?? freeformLayout;
+  const slide: Slide | null = screen && renderLayout ? {
     title: screen.title,
     creationMode: 'layout',
     objects: screen.elements.map((element) => ({
@@ -68,6 +132,7 @@ export default function BlankScreenCanvas({ screen, loading, layout = null, sele
       slotId: element.slotId || '',
       type: element.type as Slide['objects'][number]['type'],
       text: elementText(element.content),
+      position: elementBounds(element.position),
       url: typeof element.content.url === 'string' ? element.content.url : undefined,
       altText: typeof element.content.altText === 'string' ? element.content.altText : undefined,
       caption: typeof element.content.caption === 'string' ? element.content.caption : undefined,
@@ -84,18 +149,19 @@ export default function BlankScreenCanvas({ screen, loading, layout = null, sele
     />;
   }
 
-  return <section aria-label="Studio canvas" className="flex h-full min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+  return <section aria-label={previewMode ? 'Flattened screen preview' : 'Studio canvas'} className={`flex h-full min-h-0 min-w-0 flex-col bg-white ${previewMode ? '' : 'rounded-2xl border border-slate-200 p-2 shadow-sm'}`}>
+    {!previewMode && <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
       <h2 className="min-w-0 truncate text-lg font-semibold text-slate-900">{screen ? `${screen.title || 'Untitled Screen'} · Screen ${screen.screen_number} · Revision ${screen.revision_no}` : (loading ? 'Loading Screen...' : 'Blank canvas · Select or create a Screen to begin.')}</h2>
       {screen ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{screen.creation_mode === 'blank' ? 'Blank Screen' : 'Layout Screen'}</span> : null}
-    </div>
+    </div>}
 
-    <div className="min-h-0 flex-1">{slide && layout && !loading ? <SlideCanvas
-      layout={layout}
+    <div className="min-h-0 flex-1">{slide && renderLayout && !loading ? <SlideCanvas
+      layout={renderLayout}
       slide={slide}
       showGuides={showGuides}
       selectedObjectId={selectedElementId}
       onSelectObject={onSelectElement}
+      onChangeObjectBounds={onChangeElementBounds}
       objectOverlays={objectOverlays}
     /> : <div className="flex h-full min-h-0 items-center justify-center rounded-xl bg-slate-200 p-3">
       <div className="relative h-full min-h-0 w-full max-w-5xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-xl" data-testid="studio-canvas">
