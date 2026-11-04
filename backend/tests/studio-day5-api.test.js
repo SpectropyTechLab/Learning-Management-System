@@ -123,6 +123,77 @@ test('screen save persists editable drawing data and Resource bindings in one tr
   assert.ok(calls.some(({ sql }) => sql === 'commit'));
 });
 
+test('a stale concurrent Screen save returns conflict without overwriting the newer revision', async (t) => {
+  const calls = [];
+  const client = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      calls.push(sql);
+      if (['begin', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('from screens s join sessions se') && sql.includes('for update')) {
+        return { rows: [{
+          id: 31, session_id: 21, client_id: 12, title: 'Newer author save', layout_id: null,
+          revision_no: 5, screen_settings_json: {}, session_status: 'draft', session_revision_no: 7,
+        }] };
+      }
+      throw new Error(`A stale save must stop before this query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  await assert.rejects(
+    saveScreen({
+      screenId: 31,
+      user: author,
+      body: { revision_no: 4, title: 'Older author draft', elements: [], tags: [] },
+    }),
+    (error) => error?.status === 409 && /stale/i.test(error.message),
+  );
+  assert.ok(calls.includes('rollback'));
+  assert.equal(calls.some((sql) => sql.startsWith('update screens')), false);
+  assert.equal(calls.some((sql) => sql.startsWith('delete from screen_elements')), false);
+});
+
+test('Screen save rejects element geometry outside the master canvas', async (t) => {
+  const client = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      if (['begin', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('from screens s join sessions se') && sql.includes('for update')) {
+        return { rows: [{
+          id: 31, session_id: 21, client_id: 12, title: 'Draft', layout_id: null,
+          revision_no: 5, screen_settings_json: {}, session_status: 'draft', session_revision_no: 7,
+        }] };
+      }
+      throw new Error(`Invalid geometry must stop before this query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  await assert.rejects(
+    saveScreen({
+      screenId: 31,
+      user: author,
+      body: {
+        revision_no: 5,
+        title: 'Draft',
+        tags: [],
+        elements: [{
+          id: 'text-1', type: 'text', slotId: 'free-text-1', content: { text: 'Outside' },
+          position: { x: 1800, y: 100, width: 300, height: 120 },
+        }],
+      },
+    }),
+    (error) => error?.status === 422 && /right canvas edge/i.test(error.message),
+  );
+});
+
 test('missing required documents prevent the validated state', async (t) => {
   const client = {
     async query(text) {

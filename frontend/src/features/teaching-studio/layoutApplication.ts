@@ -6,20 +6,15 @@ export interface LayoutRemapResult {
   removed: StudioElement[];
 }
 
-export const remapElementsToLayout = (
-  elements: StudioElement[],
-  layout: Layout,
-): LayoutRemapResult => {
+export const remapElementsToLayout = (elements: StudioElement[], layout: Layout): LayoutRemapResult => {
   const usedSlots = new Set<string>();
   const kept: StudioElement[] = [];
   const removed: StudioElement[] = [];
 
   for (const element of elements) {
     const type = element.type as ObjectType;
-    const currentSlot = layout.slots.find((slot) =>
-      slot.id === element.slotId && slot.allowed.includes(type) && !usedSlots.has(slot.id));
-    const destination = currentSlot || layout.slots.find((slot) =>
-      slot.allowed.includes(type) && !usedSlots.has(slot.id));
+    const currentSlot = layout.slots.find((slot) => slot.id === element.slotId && slot.allowed.includes(type) && !usedSlots.has(slot.id));
+    const destination = currentSlot || layout.slots.find((slot) => slot.allowed.includes(type) && !usedSlots.has(slot.id));
     if (!destination) {
       removed.push(element);
       continue;
@@ -28,13 +23,19 @@ export const remapElementsToLayout = (
     kept.push({
       ...element,
       slotId: destination.id,
-      position: { ...destination.bounds },
-      ...(element.resource ? {
-        resource: {
-          ...element.resource,
-          usage: { ...element.resource.usage, slot_id: destination.id },
-        },
-      } : {}),
+      position: {
+        ...destination.bounds,
+        ...(element.position.zIndex !== undefined ? { zIndex: element.position.zIndex } : {}),
+        ...(element.position.locked !== undefined ? { locked: element.position.locked } : {}),
+      },
+      ...(element.resource
+        ? {
+            resource: {
+              ...element.resource,
+              usage: { ...element.resource.usage, slot_id: destination.id },
+            },
+          }
+        : {}),
     });
   }
 

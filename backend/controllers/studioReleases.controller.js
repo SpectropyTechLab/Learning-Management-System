@@ -1,4 +1,5 @@
 import * as releases from '../services/studioReleases.service.js';
+import { createRuntimeLaunch, getRuntimePreview } from '../services/studioResourceRuntime.service.js';
 import { handleServiceError } from '../utils/errors.js';
 
 const sendError = (res, error) => {
@@ -20,6 +21,67 @@ export const publishSessionRelease = async (req, res) => {
 export const listPublishedChapters = async (req, res) => {
   try {
     return res.json({ data: await releases.listPublishedChapters({ user: req.user }) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const listPublishedSessions = async (req, res) => {
+  try {
+    return res.json({ data: await releases.listPublishedSessions({ user: req.user }) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const getCurrentPublishedRelease = async (req, res) => {
+  try {
+    const release = await releases.getCurrentPublishedRelease({
+      sessionId: req.params.sessionId,
+      user: req.user,
+    });
+    return res.json({ release });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const getPublishedReleaseByNumber = async (req, res) => {
+  try {
+    const release = await releases.getPublishedReleaseByNumber({
+      sessionId: req.params.sessionId,
+      releaseNumber: req.params.releaseNumber,
+      user: req.user,
+    });
+    return res.json({ release });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const launchPublishedResource = async (req, res) => {
+  try {
+    const { versionId } = await releases.assertPinnedPublishedResourceAccess({
+      releaseId: req.params.releaseId,
+      versionId: req.params.versionId,
+      user: req.user,
+    });
+    const data = await createRuntimeLaunch({ versionId, user: req.user, allowAuthorizedReader: true });
+    return res.json({ data });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const previewPublishedResource = async (req, res) => {
+  try {
+    const { versionId } = await releases.assertPinnedPublishedResourceAccess({
+      releaseId: req.params.releaseId,
+      versionId: req.params.versionId,
+      user: req.user,
+    });
+    const data = await getRuntimePreview({ versionId, user: req.user, allowAuthorizedReader: true });
+    return res.json({ data });
   } catch (error) {
     return sendError(res, error);
   }

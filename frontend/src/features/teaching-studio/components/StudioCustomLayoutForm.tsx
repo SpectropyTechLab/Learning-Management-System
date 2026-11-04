@@ -124,15 +124,18 @@ export default function StudioCustomLayoutForm({ layout, onSaved, onCancel }: {
   };
 
   return <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h3 className="font-semibold text-slate-900">{editing ? `Create revision ${Number(layout?.version_no || 0) + 1}` : 'Create custom layout'}</h3><p className="mt-1 text-sm text-slate-600">The canvas is fixed at 1920 × 1080. Saving an edit creates a new immutable layout revision; existing Screens and published releases stay pinned to their current revision.</p></div>
-      <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Cancel</button>
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <h3 className="min-w-0 truncate font-semibold text-slate-900">{editing ? `Create revision ${Number(layout?.version_no || 0) + 1}` : 'Create custom layout'}</h3>
+      <button type="button" onClick={onCancel} className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Cancel</button>
     </div>
     <div className="mt-4 grid min-w-0 grid-cols-1 gap-3">
       <label className="text-sm font-semibold text-slate-700">Layout key<input value={layoutKey} disabled={editing} onChange={(event) => setLayoutKey(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal disabled:bg-slate-100" /></label>
-      <label className="text-sm font-semibold text-slate-700">Name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
-      <label className="text-sm font-semibold text-slate-700 md:col-span-2">Description<input value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
-      <label className="text-sm font-semibold text-slate-700">Safe margin<input type="number" min="0" value={safeMargin} onChange={(event) => setSafeMargin(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
+      <label className="text-sm font-semibold text-slate-700">Layout name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
+      <label className="text-sm font-semibold text-slate-700">Description<input value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
+      <label className="text-sm font-semibold text-slate-700">Safe margin
+        <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">Keeps content away from the canvas edges so it remains clearly visible on different screens.</span>
+        <input type="number" min="0" value={safeMargin} onChange={(event) => setSafeMargin(Number(event.target.value))} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+      </label>
     </div>
     <div className="mt-5 grid min-w-0 grid-cols-1 gap-5">
       <div className="min-w-0 space-y-3">

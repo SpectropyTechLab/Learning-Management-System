@@ -329,6 +329,190 @@ export const publishSessionRelease = async ({ sessionId: rawSessionId, user }) =
 
 const releaseColumns = `id, client_id, session_id, release_number, manifest_json,
   authorization_id, validation_id, published_by, published_at`;
+
+const PUBLISHED_READER_ROLES = new Set([
+  'super_admin',
+  'content_authorizer',
+  'client_admin',
+  'school_owner',
+  'teacher',
+]);
+
+const assertPublishedReader = (user) => {
+  if (!PUBLISHED_READER_ROLES.has(user?.role)) throw new AppError('Published Studio access denied', 403);
+  const platformAuthor = user.role === 'content_authorizer' && !user.client_id;
+  const clientId = Number(user?.client_id);
+  if (user.role !== 'super_admin' && !platformAuthor && (!Number.isInteger(clientId) || clientId <= 0)) {
+    throw new AppError('Published Studio access denied', 403);
+  }
+};
+
+const publishedTenantId = (user) => (
+  user?.role === 'super_admin' || (user?.role === 'content_authorizer' && !user?.client_id)
+    ? null
+    : parseId(user.client_id, 'Client ID')
+);
+
+const readerSchoolIds = async (user) => {
+  if (!['school_owner', 'teacher'].includes(user.role)) return [];
+  const roleScopes = user.role === 'teacher' ? ['teacher'] : ['school_owner', 'admin'];
+  const result = await dbQuery(
+    `SELECT DISTINCT school_id FROM school_memberships
+     WHERE user_id = $1 AND status = 'active' AND role_scope = ANY($2::text[])`,
+    [user.id, roleScopes]
+  );
+  return result.rows.map((row) => Number(row.school_id)).filter(Number.isInteger);
+};
+
+const assignedProgramIds = async (schoolIds) => {
+  if (schoolIds.length === 0) return new Set();
+  const result = await dbQuery(
+    `SELECT DISTINCT program_id FROM question_bank_school_assignments
+     WHERE school_id = ANY($1::int[])`,
+    [schoolIds]
+  );
+  return new Set(result.rows.map((row) => Number(row.program_id)).filter(Number.isInteger));
+};
+
+const canReadPublishedRelease = (release, user, schoolIds, programIds) => {
+  if (['super_admin', 'content_authorizer', 'client_admin'].includes(user.role)) return true;
+  const session = release.manifest_json?.session || {};
+  const schoolId = Number(session.program_school_id);
+  const programId = Number(session.program_id);
+  return (Number.isInteger(schoolId) && schoolIds.includes(schoolId)) ||
+    (Number.isInteger(programId) && programIds.has(programId));
+};
+
+const publishedAccessContext = async (user) => {
+  assertPublishedReader(user);
+  const schoolIds = await readerSchoolIds(user);
+  return { schoolIds, programIds: await assignedProgramIds(schoolIds) };
+};
+
+const assertPublishedReleaseAccess = async (release, user) => {
+  const { schoolIds, programIds } = await publishedAccessContext(user);
+  if (!canReadPublishedRelease(release, user, schoolIds, programIds)) {
+    throw new AppError('Access denied', 403);
+  }
+};
+
+const serializePublishedRelease = (row) => {
+  const manifest = row.manifest_json || {};
+  return {
+    id: Number(row.id),
+    client_id: row.client_id === null ? null : Number(row.client_id),
+    session_id: Number(row.session_id),
+    release_number: Number(row.release_number),
+    published_at: row.published_at,
+    // Viewer responses deliberately omit Session Plan, Screen Script and
+    // workflow authorization data. Only frozen presentation content is sent.
+    manifest: {
+      manifest_version: manifest.manifest_version,
+      release_number: Number(row.release_number),
+      session: manifest.session || null,
+      screens: Array.isArray(manifest.screens) ? manifest.screens : [],
+    },
+  };
+};
+
+export const listPublishedSessions = async ({ user }) => {
+  assertPublishedReader(user);
+  const tenantId = publishedTenantId(user);
+  const result = await dbQuery(
+    `WITH latest AS (
+       SELECT DISTINCT ON (sr.session_id)
+              sr.id, sr.client_id, sr.session_id, sr.release_number,
+              sr.manifest_json, sr.published_at
+       FROM session_releases sr
+       WHERE ($1::int IS NULL OR sr.client_id = $1)
+       ORDER BY sr.session_id, sr.release_number DESC
+     )
+     SELECT latest.*, p.id AS program_id, p.name AS program_name,
+            g.grade_number, su.id AS subject_id, su.name AS subject_name,
+            ch.id AS chapter_id, ch.name AS chapter_name, ch.chapter_number,
+            t.id AS topic_id, t.name AS topic_name,
+            st.id AS subtopic_id, st.name AS subtopic_name
+     FROM latest
+     JOIN sessions se ON se.id = latest.session_id
+     JOIN subtopics st ON st.id = se.subtopic_id
+     JOIN topics t ON t.id = st.topic_id
+     JOIN chapters ch ON ch.id = t.chapter_id
+     JOIN subjects su ON su.id = ch.subject_id
+     JOIN grades g ON g.id = su.grade_id
+     JOIN programs p ON p.id = g.program_id
+     ORDER BY latest.published_at DESC, latest.session_id`,
+    [tenantId]
+  );
+  const { schoolIds, programIds } = await publishedAccessContext(user);
+  return result.rows
+    .filter((row) => canReadPublishedRelease(row, user, schoolIds, programIds))
+    .map((row) => ({
+      release_id: Number(row.id),
+      release_number: Number(row.release_number),
+      published_at: row.published_at,
+      session_id: Number(row.session_id),
+      session_title: row.manifest_json?.session?.title || `Session ${row.session_id}`,
+      program_id: Number(row.program_id),
+      program_name: row.program_name,
+      grade_number: Number(row.grade_number),
+      subject_id: Number(row.subject_id),
+      subject_name: row.subject_name,
+      chapter_id: Number(row.chapter_id),
+      chapter_name: row.chapter_name,
+      chapter_number: Number(row.chapter_number),
+      topic_id: Number(row.topic_id),
+      topic_name: row.topic_name,
+      subtopic_id: Number(row.subtopic_id),
+      subtopic_name: row.subtopic_name,
+      screen_count: Array.isArray(row.manifest_json?.screens) ? row.manifest_json.screens.length : 0,
+    }));
+};
+
+const getPublishedRelease = async ({ sessionId: rawSessionId, releaseNumber: rawReleaseNumber, user }) => {
+  assertPublishedReader(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const releaseNumber = rawReleaseNumber === undefined || rawReleaseNumber === null
+    ? null
+    : parseId(rawReleaseNumber, 'Release number');
+  const tenantId = publishedTenantId(user);
+  const result = await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE session_id = $1 AND ($2::int IS NULL OR client_id = $2)
+       AND ($3::int IS NULL OR release_number = $3)
+     ORDER BY release_number DESC LIMIT 1`,
+    [sessionId, tenantId, releaseNumber]
+  );
+  const release = result.rows[0];
+  if (!release) throw new AppError('Published Session release not found', 404);
+  await assertPublishedReleaseAccess(release, user);
+  return serializePublishedRelease(release);
+};
+
+export const getCurrentPublishedRelease = ({ sessionId, user }) =>
+  getPublishedRelease({ sessionId, user });
+
+export const getPublishedReleaseByNumber = ({ sessionId, releaseNumber, user }) =>
+  getPublishedRelease({ sessionId, releaseNumber, user });
+
+export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleaseId, versionId: rawVersionId, user }) => {
+  assertPublishedReader(user);
+  const releaseId = parseId(rawReleaseId, 'Release ID');
+  const versionId = parseId(rawVersionId, 'Resource version ID');
+  const tenantId = publishedTenantId(user);
+  const release = (await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE id = $1 AND ($2::int IS NULL OR client_id = $2) LIMIT 1`,
+    [releaseId, tenantId]
+  )).rows[0];
+  if (!release) throw new AppError('Published Session release not found', 404);
+  await assertPublishedReleaseAccess(release, user);
+  const pinned = (release.manifest_json?.screens || []).some((screen) =>
+    (screen.elements || []).some((element) =>
+      Number(element.resource_mapping?.resource_version_id) === versionId));
+  if (!pinned) throw new AppError('Resource version is not part of this published release', 403);
+  return { release, versionId };
+};
+
 const assertTeacherReleaseAccess = async (release, user) => {
   const programId = Number(release.manifest_json?.session?.program_id);
   const programSchoolId = Number(release.manifest_json?.session?.program_school_id);
