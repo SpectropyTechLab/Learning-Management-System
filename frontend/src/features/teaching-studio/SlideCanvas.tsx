@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Rect, Slide, Slot } from './layouts';
+import type { AuthorDrawingStroke } from './types';
 
 const colors: Record<string, { fill: string; stroke: string; ink: string }> = {
   title: { fill: '#eaf2fd', stroke: '#c9ddf6', ink: '#173b65' },
@@ -42,7 +43,7 @@ type GeometryInteraction = {
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.min(Math.max(value, minimum), maximum);
 
-export default function SlideCanvas({ layout, slide, showGuides = false, selectedObjectId, onSelectObject, onChangeObjectBounds, objectOverlays = {} }: {
+export default function SlideCanvas({ layout, slide, showGuides = false, selectedObjectId, onSelectObject, onChangeObjectBounds, objectOverlays = {}, drawingStrokes = [], drawingEnabled = false, drawingTool = 'pen', drawingColor = '#ef4444', drawingWidth = 6, onDrawingChange }: {
   layout: Layout | null;
   slide: Slide;
   showGuides?: boolean;
@@ -50,10 +51,18 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
   onSelectObject?: (objectId: string) => void;
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
   objectOverlays?: Record<string, ReactNode>;
+  drawingStrokes?: AuthorDrawingStroke[];
+  drawingEnabled?: boolean;
+  drawingTool?: 'pen' | 'eraser';
+  drawingColor?: string;
+  drawingWidth?: number;
+  onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [interaction, setInteraction] = useState<GeometryInteraction | null>(null);
+  const [currentStroke, setCurrentStroke] = useState<AuthorDrawingStroke | null>(null);
+  const [drawingPointerActive, setDrawingPointerActive] = useState(false);
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
@@ -106,6 +115,45 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
     setInteraction({ objectId, mode, startClientX: event.clientX, startClientY: event.clientY, startBounds: bounds, currentBounds: bounds });
   };
 
+  const drawingPoint = (event: React.PointerEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      x: Math.round(((event.clientX - rect.left) / rect.width) * MASTER.width),
+      y: Math.round(((event.clientY - rect.top) / rect.height) * MASTER.height),
+    };
+  };
+
+  const eraseAt = (point: { x: number; y: number }) => {
+    const radius = Math.max(24, drawingWidth * 3);
+    const next = drawingStrokes.filter((stroke) => !stroke.points.some((candidate) => Math.hypot(candidate.x - point.x, candidate.y - point.y) <= radius));
+    if (next.length !== drawingStrokes.length) onDrawingChange?.(next);
+  };
+
+  const beginDrawing = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingEnabled) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = drawingPoint(event);
+    setDrawingPointerActive(true);
+    if (drawingTool === 'eraser') eraseAt(point);
+    else setCurrentStroke({ id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`, color: drawingColor, width: drawingWidth, points: [point] });
+  };
+
+  const continueDrawing = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingPointerActive) return;
+    const point = drawingPoint(event);
+    if (drawingTool === 'eraser') eraseAt(point);
+    else setCurrentStroke((stroke) => stroke ? { ...stroke, points: [...stroke.points, point] } : null);
+  };
+
+  const finishDrawing = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingPointerActive) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (currentStroke?.points.length) onDrawingChange?.([...drawingStrokes, currentStroke]);
+    setCurrentStroke(null);
+    setDrawingPointerActive(false);
+  };
+
   return <div ref={containerRef} className="flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-200 p-2" data-testid="slide-viewport">
     {scale > 0 && <div className="relative shrink-0 overflow-hidden bg-white shadow-xl" style={{ width: MASTER.width * scale, height: MASTER.height * scale }}>
       <svg role="img" aria-label={layout ? `${layout.name} teaching slide preview` : 'Blank teaching screen'} viewBox={`0 0 ${MASTER.width} ${MASTER.height}`} width="100%" height="100%" className="absolute inset-0" data-scale={scale}>
@@ -151,7 +199,18 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
           {overlay}
         </div>;
       })}
-      {onChangeObjectBounds && (layout?.slots ?? []).map((slot) => {
+      <svg
+        viewBox={`0 0 ${MASTER.width} ${MASTER.height}`}
+        className={`absolute inset-0 z-10 h-full w-full touch-none ${drawingEnabled ? 'cursor-crosshair' : 'pointer-events-none'}`}
+        onPointerDown={beginDrawing}
+        onPointerMove={continueDrawing}
+        onPointerUp={finishDrawing}
+        onPointerCancel={finishDrawing}
+        aria-label="Authored drawing layer"
+      >
+        {[...drawingStrokes, ...(currentStroke ? [currentStroke] : [])].map((stroke) => <polyline key={stroke.id} points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}
+      </svg>
+      {!drawingEnabled && onChangeObjectBounds && (layout?.slots ?? []).map((slot) => {
         const object = slide.objects.find((item) => item.slotId === slot.id);
         if (!object || object.id !== selectedObjectId) return null;
         const bounds = boundsFor(object, slot);
