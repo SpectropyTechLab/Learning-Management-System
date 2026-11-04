@@ -73,6 +73,38 @@ const normalizeTags = (tags) => {
   return [...new Set(normalized)];
 };
 
+const normalizePosition = (value, label) => {
+  const position = value === undefined ? {} : assertObject(value, label);
+  const normalized = { ...position };
+  for (const key of ['x', 'y', 'width', 'height']) {
+    if (position[key] === undefined) continue;
+    const number = Number(position[key]);
+    if (!Number.isFinite(number)) throw new AppError(`${label} ${key} must be a number`, 422);
+    normalized[key] = number;
+  }
+  if (normalized.x !== undefined && (normalized.x < 0 || normalized.x > 1920))
+    throw new AppError(`${label} x must be inside the 1920 pixel canvas`, 422);
+  if (normalized.y !== undefined && (normalized.y < 0 || normalized.y > 1080))
+    throw new AppError(`${label} y must be inside the 1080 pixel canvas`, 422);
+  if (normalized.width !== undefined && (normalized.width < 80 || normalized.width > 1920))
+    throw new AppError(`${label} width must be between 80 and 1920`, 422);
+  if (normalized.height !== undefined && (normalized.height < 60 || normalized.height > 1080))
+    throw new AppError(`${label} height must be between 60 and 1080`, 422);
+  if (normalized.x !== undefined && normalized.width !== undefined && normalized.x + normalized.width > 1920)
+    throw new AppError(`${label} extends beyond the right canvas edge`, 422);
+  if (normalized.y !== undefined && normalized.height !== undefined && normalized.y + normalized.height > 1080)
+    throw new AppError(`${label} extends beyond the bottom canvas edge`, 422);
+  if (position.zIndex !== undefined) {
+    const zIndex = Number(position.zIndex);
+    if (!Number.isInteger(zIndex) || zIndex < 0 || zIndex > 100)
+      throw new AppError(`${label} zIndex must be an integer from 0 to 100`, 422);
+    normalized.zIndex = zIndex;
+  }
+  if (position.locked !== undefined && typeof position.locked !== 'boolean')
+    throw new AppError(`${label} locked must be true or false`, 422);
+  return normalized;
+};
+
 const normalizeElements = (elements, layout) => {
   if (!Array.isArray(elements)) throw new AppError('elements must be an array');
   const slots = layout
@@ -98,10 +130,7 @@ const normalizeElements = (elements, layout) => {
     }
     const content =
       element.content === undefined ? {} : assertObject(element.content, `Element ${key} content`);
-    const position =
-      element.position === undefined
-        ? {}
-        : assertObject(element.position, `Element ${key} position`);
+    const position = normalizePosition(element.position, `Element ${key} position`);
     const resourceInput =
       element.resource ||
       (element.resource_id || element.resource_version_id
