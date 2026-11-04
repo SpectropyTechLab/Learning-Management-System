@@ -2,9 +2,14 @@ import { Router } from 'express';
 import { authenticateToken, attachClientContext, requireRole } from '../middleware/auth.js';
 import {
   getCurrentTeacherRelease,
+  getCurrentPublishedRelease,
+  getPublishedReleaseByNumber,
   getTeacherReleaseByNumber,
+  launchPublishedResource,
+  listPublishedSessions,
   listTeacherReleases,
   listPublishedChapters,
+  previewPublishedResource,
   publishSessionRelease,
 } from '../controllers/studioReleases.controller.js';
 
@@ -16,6 +21,32 @@ router.get(
   '/studio/published-chapters',
   requireRole(['super_admin', 'content_authorizer']),
   listPublishedChapters
+);
+
+const publishedReaders = requireRole([
+  'super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher',
+]);
+
+router.get('/studio/published-sessions', publishedReaders, listPublishedSessions);
+router.get(
+  '/studio/published-sessions/:sessionId/releases/current',
+  publishedReaders,
+  getCurrentPublishedRelease
+);
+router.get(
+  '/studio/published-sessions/:sessionId/releases/:releaseNumber',
+  publishedReaders,
+  getPublishedReleaseByNumber
+);
+router.post(
+  '/studio/published-releases/:releaseId/resource-versions/:versionId/launch',
+  publishedReaders,
+  launchPublishedResource
+);
+router.get(
+  '/studio/published-releases/:releaseId/resource-versions/:versionId/preview',
+  publishedReaders,
+  previewPublishedResource
 );
 
 router.post(

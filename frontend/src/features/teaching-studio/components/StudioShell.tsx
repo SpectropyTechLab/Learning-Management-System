@@ -16,6 +16,8 @@ const sections = [
   ['Resource Library', '/studio/resources', Layers3],
 ] as const;
 
+const authorRoles = new Set(['super_admin', 'content_authorizer']);
+
 const SIDEBAR_STORAGE_KEY = 'digital-studio-sidebar-open';
 
 export default function StudioShell({ title, subtitle, actions, scrollContent = true, wrapContent = true, children }: {
@@ -34,15 +36,22 @@ export default function StudioShell({ title, subtitle, actions, scrollContent = 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarOpen));
   }, [sidebarOpen]);
-  const homePath = user?.role === 'super_admin' ? '/superadmin/dashboard' : '/content-authorizer/dashboard';
-  const navItems = useMemo(() => sections.map(([label, path, Icon]) => ({
+  const homePath = ({
+    super_admin: '/superadmin/dashboard',
+    content_authorizer: '/content-authorizer/dashboard',
+    client_admin: '/admin/dashboard',
+    school_owner: '/school-owner/dashboard',
+    teacher: '/teacher/dashboard',
+  } as Record<string, string>)[user?.role || ''] || '/';
+  const visibleSections = authorRoles.has(user?.role || '') ? sections : sections.slice(0, 1);
+  const navItems = useMemo(() => visibleSections.map(([label, path, Icon]) => ({
     key: path, label, icon: <Icon size={18} />,
     active: path === '/studio' ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`),
     onClick: () => {
       navigate(path);
       if (window.matchMedia('(max-width: 767px)').matches) setSidebarOpen(false);
     },
-  })), [location.pathname, navigate]);
+  })), [location.pathname, navigate, visibleSections]);
   const handleLogout = async () => { await logout(); navigate('/login', { replace: true }); };
 
   return <DashboardLayout
@@ -50,8 +59,8 @@ export default function StudioShell({ title, subtitle, actions, scrollContent = 
     sidebarOpen={sidebarOpen} onSidebarClose={() => setSidebarOpen(false)} contentClassName="p-0" contentScrollable={scrollContent}
     sidebar={<SidebarNav brandLogo="/logo.png" brandName="Spectropy" title="Digital Studio"
       topAction={<button type="button" onClick={() => navigate(homePath)} className="inline-flex items-center gap-2 px-2 py-1 text-sm font-medium text-slate-700 transition hover:text-blue-900"><Home size={17} /><span>Home</span></button>}
-      navItems={navItems} userInfo={{ name: user?.full_name || 'Content Authorizer', email: user?.email || '' }}
-      onProfileClick={user?.role === 'content_authorizer' ? () => navigate('/content-authorizer/profile') : undefined} onLogout={handleLogout}
+      navItems={navItems} userInfo={{ name: user?.full_name || 'Studio user', email: user?.email || '' }}
+      onProfileClick={user?.role === 'content_authorizer' ? () => navigate('/content-authorizer/profile') : user?.role === 'teacher' ? () => navigate('/teacher/profile') : user?.role === 'school_owner' ? () => navigate('/school-owner/profile') : user?.role === 'client_admin' ? () => navigate('/admin/profile') : undefined} onLogout={handleLogout}
       sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} theme={theme} collapsibleOnDesktop closeOnNavigate={false} compactOnDesktop />}
     header={<div className={`${theme.headerClass} !py-3 lg:!py-3`}><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><button type="button" onClick={() => setSidebarOpen((open) => !open)} className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 ${theme.secondaryBorderClass}`} aria-label={sidebarOpen ? 'Hide Digital Studio menu' : 'Show Digital Studio menu'} aria-expanded={sidebarOpen}>{sidebarOpen ? <PanelLeftClose size={18} /> : <Menu size={18} />}<span className="hidden sm:inline">Menu</span></button><div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><h1 className="shrink-0 text-lg font-bold text-slate-900 md:text-xl">{title}</h1>{subtitle && <span className="truncate text-sm text-slate-600">{subtitle}</span>}</div></div>{actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}</div></div>}
   >{wrapContent ? <div className={`bg-gray-50 p-6 text-slate-900 ${scrollContent ? '' : 'h-full min-h-0 overflow-hidden'}`}>{children}</div> : children}</DashboardLayout>;

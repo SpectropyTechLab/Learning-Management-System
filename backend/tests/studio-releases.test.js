@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import pool from '../config/db.js';
 import {
+  assertPinnedPublishedResourceAccess,
+  getPublishedReleaseByNumber,
   getCurrentTeacherRelease,
+  listPublishedSessions,
   publishSessionRelease,
 } from '../services/studioReleases.service.js';
 
@@ -213,6 +216,106 @@ test('teacher current-release read comes only from session_releases and is tenan
   assert.equal(release.release_number, 1);
   assert.match(executedSql, /from session_releases/);
   assert.doesNotMatch(executedSql, /from sessions\b/);
+});
+
+test('client admin lists the latest tenant releases and receives frozen Screen counts', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async (text, params) => {
+    const sql = normalizeSql(text);
+    assert.match(sql, /distinct on \(sr\.session_id\)/);
+    assert.deepEqual(params, [7]);
+    return { rows: [{
+      id: 101,
+      client_id: 7,
+      session_id: 25,
+      release_number: 2,
+      published_at: '2026-11-04T10:00:00.000Z',
+      manifest_json: {
+        session: { title: 'Published Motion', program_id: 4, program_school_id: 9 },
+        screens: [{ screen_id: 40 }, { screen_id: 41 }],
+      },
+      program_id: 4,
+      program_name: 'Foundation',
+      grade_number: 8,
+      subject_id: 6,
+      subject_name: 'Physics',
+      chapter_id: 11,
+      chapter_name: 'Motion',
+      chapter_number: 2,
+      topic_id: 12,
+      topic_name: 'Speed',
+      subtopic_id: 13,
+      subtopic_name: 'Uniform motion',
+    }] };
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const sessions = await listPublishedSessions({
+    user: { id: 30, role: 'client_admin', client_id: 7 },
+  });
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0].session_title, 'Published Motion');
+  assert.equal(sessions[0].screen_count, 2);
+});
+
+test('published viewer response excludes Plan, Screen Script and workflow metadata', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async (text, params) => {
+    const sql = normalizeSql(text);
+    assert.match(sql, /from session_releases/);
+    assert.deepEqual(params, [25, 7, 2]);
+    return { rows: [{
+      id: 101,
+      client_id: 7,
+      session_id: 25,
+      release_number: 2,
+      published_at: '2026-11-04T10:00:00.000Z',
+      manifest_json: {
+        session: { session_id: 25, title: 'Published Motion', program_id: 4 },
+        documents: { session_plan: { document_id: 1 }, screen_script: { document_id: 2 } },
+        screen_scripts: [{ script_revision_id: 3, content: { private: true } }],
+        authorization: { authorization_id: 4 },
+        screens: [{ screen_id: 40, title: 'Motion' }],
+      },
+    }] };
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const release = await getPublishedReleaseByNumber({
+    sessionId: 25,
+    releaseNumber: 2,
+    user: { id: 30, role: 'client_admin', client_id: 7 },
+  });
+  assert.equal(release.manifest.screens.length, 1);
+  assert.equal('documents' in release.manifest, false);
+  assert.equal('screen_scripts' in release.manifest, false);
+  assert.equal('authorization' in release.manifest, false);
+});
+
+test('published Resource access is limited to versions pinned in the authorized release', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async () => ({ rows: [{
+    id: 101,
+    client_id: 7,
+    session_id: 25,
+    release_number: 2,
+    manifest_json: {
+      session: { session_id: 25, title: 'Published Motion', program_id: 4 },
+      screens: [{
+        screen_id: 40,
+        elements: [{ resource_mapping: { resource_version_id: 82 } }],
+      }],
+    },
+  }] });
+  t.after(() => { pool.query = originalQuery; });
+  const user = { id: 30, role: 'client_admin', client_id: 7 };
+
+  const allowed = await assertPinnedPublishedResourceAccess({ releaseId: 101, versionId: 82, user });
+  assert.equal(allowed.versionId, 82);
+  await assert.rejects(
+    assertPinnedPublishedResourceAccess({ releaseId: 101, versionId: 83, user }),
+    (error) => error.status === 403,
+  );
 });
 
 test('publication rejects a Session that is not approved', async (t) => {
