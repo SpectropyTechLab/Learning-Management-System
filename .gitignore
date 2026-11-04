@@ -6,6 +6,7 @@
 .env.test
 .env.*
 .supabase-db-password.txt
+.login-test-password.txt
 !**/.env.local.example
 /backend/.env
 /frontend/.env
