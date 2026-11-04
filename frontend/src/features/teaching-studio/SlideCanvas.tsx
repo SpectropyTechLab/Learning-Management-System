@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Slide, Slot } from './layouts';
 
@@ -30,12 +31,13 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
   </text>;
 }
 
-export default function SlideCanvas({ layout, slide, showGuides = false, selectedObjectId, onSelectObject }: {
+export default function SlideCanvas({ layout, slide, showGuides = false, selectedObjectId, onSelectObject, objectOverlays = {} }: {
   layout: Layout | null;
   slide: Slide;
   showGuides?: boolean;
   selectedObjectId?: string | null;
   onSelectObject?: (objectId: string) => void;
+  objectOverlays?: Record<string, ReactNode>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
@@ -48,8 +50,9 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
   }, []);
   const scale = fitScale(available.width, available.height);
   const errors = validateSlide(layout, slide);
-  return <div ref={containerRef} className="flex h-[min(70vh,760px)] min-h-[240px] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-200 p-2" data-testid="slide-viewport">
-    {scale > 0 && <svg role="img" aria-label={layout ? `${layout.name} teaching slide preview` : 'Blank teaching screen'} viewBox={`0 0 ${MASTER.width} ${MASTER.height}`} width={MASTER.width * scale} height={MASTER.height * scale} className="shrink-0 shadow-xl" data-scale={scale}>
+  return <div ref={containerRef} className="flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-200 p-2" data-testid="slide-viewport">
+    {scale > 0 && <div className="relative shrink-0 overflow-hidden bg-white shadow-xl" style={{ width: MASTER.width * scale, height: MASTER.height * scale }}>
+      <svg role="img" aria-label={layout ? `${layout.name} teaching slide preview` : 'Blank teaching screen'} viewBox={`0 0 ${MASTER.width} ${MASTER.height}`} width="100%" height="100%" className="absolute inset-0" data-scale={scale}>
       <rect width={MASTER.width} height={MASTER.height} fill="#ffffff" />
       <rect x="45" y="30" width="1830" height="1020" rx="24" fill="#f9fcff" stroke="#d6e3f0" strokeWidth="3" />
       {showGuides && <>
@@ -71,6 +74,24 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
         </g>;
       })}
       {errors.length > 0 && <text x="90" y="1060" fill="#b91c1c" fontSize="22">Layout validation: {errors.join('; ')}</text>}
-    </svg>}
+      </svg>
+      {(layout?.slots ?? []).map((slot) => {
+        const object = slide.objects.find((item) => item.slotId === slot.id);
+        const overlay = object ? objectOverlays[object.id] : null;
+        if (!object || !overlay) return null;
+        return <div
+          key={`overlay-${object.id}`}
+          className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : 'border-transparent'}`}
+          style={{
+            left: `${(slot.bounds.x / MASTER.width) * 100}%`,
+            top: `${(slot.bounds.y / MASTER.height) * 100}%`,
+            width: `${(slot.bounds.width / MASTER.width) * 100}%`,
+            height: `${(slot.bounds.height / MASTER.height) * 100}%`,
+          }}
+        >
+          {overlay}
+        </div>;
+      })}
+    </div>}
   </div>;
 }

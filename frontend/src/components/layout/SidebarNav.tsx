@@ -31,6 +31,9 @@ interface SidebarNavProps {
   sidebarOpen: boolean;
   onClose: () => void;
   theme: DashboardTheme;
+  collapsibleOnDesktop?: boolean;
+  closeOnNavigate?: boolean;
+  compactOnDesktop?: boolean;
 }
 
 export default function SidebarNav({
@@ -50,6 +53,9 @@ export default function SidebarNav({
   sidebarOpen,
   onClose,
   theme,
+  collapsibleOnDesktop = false,
+  closeOnNavigate = true,
+  compactOnDesktop = false,
 }: SidebarNavProps) {
   return (
     <div
@@ -57,16 +63,18 @@ export default function SidebarNav({
         fixed md:static
         inset-y-0 left-0
         z-50
-        w-[78vw] max-w-[16rem] lg:w-64 xl:w-72 lg:max-w-none
+        w-[78vw] max-w-[16rem] ${compactOnDesktop ? "md:w-52 md:max-w-52" : "lg:w-64 xl:w-72 lg:max-w-none"}
         ${theme.sidebarThemeClass}
         border-r
         flex h-full min-h-0 flex-col overflow-hidden
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-        md:translate-x-0
+        ${collapsibleOnDesktop
+          ? (sidebarOpen ? "md:flex md:translate-x-0" : "md:hidden")
+          : "md:translate-x-0"}
       `}
     >
-      <div className={`shrink-0 px-4 py-4 lg:px-5 lg:py-5 border-b ${theme.sidebarHeaderBorder}`}>
+      <div className={`shrink-0 px-4 py-4 lg:px-5 lg:py-5 border-b ${theme.sidebarHeaderBorder} ${compactOnDesktop ? "md:px-4" : ""}`}>
         <div className="flex items-center space-x-2 cursor-pointer">
           <img
             src={brandLogo}
@@ -79,7 +87,7 @@ export default function SidebarNav({
       </div>
 
       {topAction ? (
-        <div className="shrink-0 px-3 py-2.5 lg:px-4 lg:py-3">
+        <div className={`shrink-0 px-3 py-2.5 lg:px-4 lg:py-3 ${compactOnDesktop ? "md:px-3" : ""}`}>
           {topAction}
         </div>
       ) : null}
@@ -90,19 +98,22 @@ export default function SidebarNav({
             key={item.key}
             onClick={() => {
               item.onClick();
-              onClose();
+              if (closeOnNavigate) onClose();
             }}
-            className={`w-full flex items-center px-3 py-2.5 lg:px-4 lg:py-3 text-sm font-medium ${theme.navRadiusClass} transition-colors ${
+            className={`group relative w-full flex items-center px-3 py-2.5 lg:px-4 lg:py-3 text-sm font-medium ${compactOnDesktop ? "md:px-3" : ""} ${theme.navRadiusClass} transition-colors ${
               item.active ? theme.navActiveClass : theme.navInactiveClass
             }`}
           >
             <span className={theme.navIconClass}>{item.icon}</span>
-            {item.label}
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>
 
-      {showUserInfo &&
+      {showUserInfo && compactOnDesktop ? <>
+        <div className="md:hidden">{onProfileClick ? <button type="button" onClick={onProfileClick} className="w-full text-left"><UserInfoCard name={userInfo.name} email={userInfo.email} meta={userInfo.meta} wrapperClassName={theme.userInfoWrapperClass} innerClassName={theme.userInfoInnerClass} avatarClassName={theme.avatarClassName} avatarTextClassName={theme.avatarTextClassName} /></button> : <UserInfoCard name={userInfo.name} email={userInfo.email} meta={userInfo.meta} wrapperClassName={theme.userInfoWrapperClass} innerClassName={theme.userInfoInnerClass} avatarClassName={theme.avatarClassName} avatarTextClassName={theme.avatarTextClassName} />}</div>
+        <button type="button" onClick={onProfileClick} className="group relative mx-auto mb-3 hidden h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-lg font-semibold text-blue-900 md:flex" aria-label={`Profile: ${userInfo.name}`}><span>{userInfo.name.trim().charAt(0).toUpperCase() || 'U'}</span><span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-48 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-3 text-left text-slate-900 shadow-xl group-hover:block group-focus-visible:block"><span className="block truncate text-sm font-semibold">{userInfo.name}</span><span className="mt-1 block truncate text-xs font-normal text-slate-600">{userInfo.email}</span></span></button>
+      </> : showUserInfo &&
         (onProfileClick ? (
           <button
             type="button"
@@ -160,7 +171,7 @@ export default function SidebarNav({
                 />
               </svg>
             )}
-            {logoutLabel}
+            <span>{logoutLabel}</span>
           </button>
         </div>
       )}

@@ -28,7 +28,8 @@ export interface StudioResourceSummary {
   };
 }
 
-const dataOf = <T>(payload: { data: T } | T) => (payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload) as T;
+const dataOf = <T>(payload: { data: T } | T) =>
+  (payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload) as T;
 
 export interface StudioLayoutWriteInput {
   layout_key: string;

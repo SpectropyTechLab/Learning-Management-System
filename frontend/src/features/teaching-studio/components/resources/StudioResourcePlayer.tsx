@@ -21,7 +21,7 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
     setLoading(true); setError(''); setSource('');
     const resolveSource = async () => {
       if (version.external_url) return version.external_url;
-      if (['html', 'zip', 'scorm'].includes(resourceType)) {
+      if (['html', 'zip', 'scorm', 'simulation'].includes(resourceType)) {
         const launch = await launchStudioResourceVersion(version.id);
         if (!launch.launchable || !launch.launch_url) throw new Error(launch.message || 'This package cannot be previewed.');
         return launch.launch_url;

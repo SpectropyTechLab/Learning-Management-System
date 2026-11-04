@@ -30,6 +30,7 @@ test('Day 8 frontend integration route surface is stable', () => {
     'GET /studio/sessions/:sessionId/screens',
     'GET /studio/screens/:screenId',
     'PATCH /studio/screens/:screenId',
+    'DELETE /studio/screens/:screenId',
     'PATCH /studio/sessions/:sessionId/screens/reorder',
   ]);
   assert.ok(routes(branchRouter).includes('POST /studio/branch-runs/:runId/return'));

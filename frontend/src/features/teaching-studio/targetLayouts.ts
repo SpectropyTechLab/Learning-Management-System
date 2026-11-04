@@ -5,7 +5,7 @@ import type { Layout, ObjectType, Slot } from './layouts';
 const content = (id: string, label: string, x: number, y: number, width: number, height: number, allowed: ObjectType[]): Slot =>
   ({ id, label, bounds: { x, y, width, height }, allowed, region: 'content' });
 const header: Slot = { id: 'title', label: 'Lesson title', bounds: { x: 90, y: 60, width: 1740, height: 150 }, allowed: ['title'], region: 'header' };
-const footer: Slot = { id: 'footer', label: 'Teaching cue', bounds: { x: 90, y: 980, width: 1740, height: 50 }, allowed: ['footer'], region: 'footer' };
+const footer: Slot = { id: 'footer', label: 'Teaching cue', bounds: { x: 90, y: 950, width: 1740, height: 90 }, allowed: ['footer'], region: 'footer' };
 
 type Target = Omit<Layout, 'catalog'>;
 const target = ({ slots, ...details }: Target): Layout => ({

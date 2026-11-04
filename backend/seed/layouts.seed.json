@@ -1,0 +1,157 @@
+{
+  "layouts": [
+    {
+      "layout_key": "LYT-001", "version_no": 1, "name": "Hook / observation", "description": "Notice a pattern and make a prediction before formal explanation.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "visual", "label": "Visual / image / diagram", "bounds": { "x": 90, "y": 250, "width": 1080, "height": 680 }, "allowed": ["visual"], "region": "content" },
+        { "id": "prompt", "label": "Prompt / question", "bounds": { "x": 1200, "y": 250, "width": 630, "height": 310 }, "allowed": ["question"], "region": "content" },
+        { "id": "response", "label": "Short response", "bounds": { "x": 1200, "y": 590, "width": 630, "height": 340 }, "allowed": ["response"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-002", "version_no": 1, "name": "Objective + prerequisite", "description": "Show the learning goal and a prerequisite check.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "goal", "label": "Goal / objective", "bounds": { "x": 90, "y": 250, "width": 1030, "height": 280 }, "allowed": ["text"], "region": "content" },
+        { "id": "prerequisite", "label": "Prerequisite / diagnostic", "bounds": { "x": 1150, "y": 250, "width": 680, "height": 500 }, "allowed": ["question"], "region": "content" },
+        { "id": "success", "label": "Success evidence", "bounds": { "x": 90, "y": 560, "width": 1030, "height": 370 }, "allowed": ["text"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-003", "version_no": 1, "name": "Model + explanation", "description": "Connect a model to short reasoning steps.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "model", "label": "Model / diagram / simulation", "bounds": { "x": 90, "y": 250, "width": 980, "height": 680 }, "allowed": ["visual", "simulation"], "region": "content" },
+        { "id": "steps", "label": "Explanation steps", "bounds": { "x": 1100, "y": 250, "width": 730, "height": 430 }, "allowed": ["steps", "text"], "region": "content" },
+        { "id": "check", "label": "Evidence question", "bounds": { "x": 1100, "y": 710, "width": 730, "height": 220 }, "allowed": ["question"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-004", "version_no": 1, "name": "Worked example", "description": "Show each operation and the reason for it.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "working", "label": "Step-by-step mathematics", "bounds": { "x": 90, "y": 250, "width": 1150, "height": 680 }, "allowed": ["steps"], "region": "content" },
+        { "id": "reason", "label": "Reason / method / condition", "bounds": { "x": 1270, "y": 250, "width": 560, "height": 380 }, "allowed": ["text"], "region": "content" },
+        { "id": "verify", "label": "Verification", "bounds": { "x": 1270, "y": 660, "width": 560, "height": 270 }, "allowed": ["response"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-005", "version_no": 1, "name": "Compare representations", "description": "Compare two representations under the same conditions.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "representation_a", "label": "First representation", "bounds": { "x": 90, "y": 250, "width": 850, "height": 510 }, "allowed": ["visual", "graph", "data"], "region": "content" },
+        { "id": "representation_b", "label": "Second representation", "bounds": { "x": 980, "y": 250, "width": 850, "height": 510 }, "allowed": ["visual", "graph", "data"], "region": "content" },
+        { "id": "connection", "label": "Shared relationship", "bounds": { "x": 90, "y": 800, "width": 1740, "height": 130 }, "allowed": ["text"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-006", "version_no": 1, "name": "Predict–explore–explain", "description": "Predict, vary a parameter, inspect evidence and explain.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "simulation", "label": "Interactive simulation", "bounds": { "x": 90, "y": 250, "width": 1140, "height": 680 }, "allowed": ["simulation"], "region": "content" },
+        { "id": "prediction", "label": "Prediction", "bounds": { "x": 1260, "y": 250, "width": 570, "height": 180 }, "allowed": ["response"], "region": "content" },
+        { "id": "controls", "label": "Parameters / units", "bounds": { "x": 1260, "y": 460, "width": 570, "height": 210 }, "allowed": ["activity"], "region": "content" },
+        { "id": "evidence", "label": "Observation + explanation", "bounds": { "x": 1260, "y": 700, "width": 570, "height": 230 }, "allowed": ["response"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-007", "version_no": 1, "name": "Question + evidence", "description": "Keep the question, reasoning and options distinct.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "question", "label": "Question stem", "bounds": { "x": 90, "y": 250, "width": 1740, "height": 190 }, "allowed": ["question"], "region": "content" },
+        { "id": "evidence", "label": "Reasoning", "bounds": { "x": 90, "y": 470, "width": 610, "height": 460 }, "allowed": ["response"], "region": "content" },
+        { "id": "options", "label": "Answer choices", "bounds": { "x": 730, "y": 470, "width": 1100, "height": 460 }, "allowed": ["options"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-008", "version_no": 1, "name": "Independent practice", "description": "Provide working space without an early answer reveal.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "task", "label": "Practice task", "bounds": { "x": 90, "y": 250, "width": 1740, "height": 160 }, "allowed": ["question"], "region": "content" },
+        { "id": "workspace", "label": "Student work", "bounds": { "x": 90, "y": 440, "width": 1140, "height": 490 }, "allowed": ["workspace", "response"], "region": "content" },
+        { "id": "conditions", "label": "Conditions / hints", "bounds": { "x": 1260, "y": 440, "width": 570, "height": 240 }, "allowed": ["text"], "region": "content" },
+        { "id": "checklist", "label": "Self-check", "bounds": { "x": 1260, "y": 710, "width": 570, "height": 220 }, "allowed": ["text"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-009", "version_no": 1, "name": "Misconception repair", "description": "Identify a broken assumption, repair it and retest.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "claim", "label": "Student claim", "bounds": { "x": 90, "y": 250, "width": 760, "height": 330 }, "allowed": ["text"], "region": "content" },
+        { "id": "repair", "label": "Alternate model", "bounds": { "x": 890, "y": 250, "width": 940, "height": 680 }, "allowed": ["visual"], "region": "content" },
+        { "id": "return_check", "label": "Transfer check", "bounds": { "x": 90, "y": 610, "width": 760, "height": 320 }, "allowed": ["question"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-010", "version_no": 1, "name": "Collaborative activity", "description": "Show group task, materials, success criterion and evidence.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "instructions", "label": "Task + materials", "bounds": { "x": 90, "y": 250, "width": 500, "height": 680 }, "allowed": ["text"], "region": "content" },
+        { "id": "activity", "label": "Interaction board", "bounds": { "x": 620, "y": 250, "width": 1210, "height": 450 }, "allowed": ["activity"], "region": "content" },
+        { "id": "evidence", "label": "Group evidence", "bounds": { "x": 620, "y": 730, "width": 1210, "height": 200 }, "allowed": ["response"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-011", "version_no": 1, "name": "Watch / observe / explain", "description": "Use media to answer a defined observation question.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "media", "label": "Video / animation", "bounds": { "x": 90, "y": 250, "width": 1140, "height": 680 }, "allowed": ["media"], "region": "content" },
+        { "id": "focus", "label": "Watch question", "bounds": { "x": 1260, "y": 250, "width": 570, "height": 220 }, "allowed": ["question"], "region": "content" },
+        { "id": "task", "label": "Record observations", "bounds": { "x": 1260, "y": 500, "width": 570, "height": 220 }, "allowed": ["response"], "region": "content" },
+        { "id": "debrief", "label": "Explain / verify", "bounds": { "x": 1260, "y": 750, "width": 570, "height": 180 }, "allowed": ["text"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-012", "version_no": 1, "name": "Data / graph inquiry", "description": "Connect observations, graph scales and a claim.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "graph", "label": "Graph / exact plot", "bounds": { "x": 90, "y": 250, "width": 1080, "height": 680 }, "allowed": ["graph"], "region": "content" },
+        { "id": "data", "label": "Table / measurements", "bounds": { "x": 1200, "y": 250, "width": 630, "height": 380 }, "allowed": ["data"], "region": "content" },
+        { "id": "claim", "label": "Claim + evidence", "bounds": { "x": 1200, "y": 660, "width": 630, "height": 270 }, "allowed": ["response"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-013", "version_no": 1, "name": "Reflection / exit evidence", "description": "Collect a rule, explanation, doubt and next step.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "prompt", "label": "Reflection questions", "bounds": { "x": 90, "y": 250, "width": 760, "height": 680 }, "allowed": ["question"], "region": "content" },
+        { "id": "response", "label": "Student responses", "bounds": { "x": 890, "y": 250, "width": 940, "height": 480 }, "allowed": ["response"], "region": "content" },
+        { "id": "next_step", "label": "Next action", "bounds": { "x": 890, "y": 760, "width": 940, "height": 170 }, "allowed": ["text"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    },
+    {
+      "layout_key": "LYT-014", "version_no": 1, "name": "Summary / transfer", "description": "Connect the rule, conditions, representations and a fresh application.",
+      "layout_data_json": { "slots": [
+        { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
+        { "id": "map", "label": "Concept / method map", "bounds": { "x": 90, "y": 250, "width": 1120, "height": 680 }, "allowed": ["visual"], "region": "content" },
+        { "id": "conditions", "label": "Conditions", "bounds": { "x": 1240, "y": 250, "width": 590, "height": 250 }, "allowed": ["text"], "region": "content" },
+        { "id": "transfer", "label": "New context", "bounds": { "x": 1240, "y": 530, "width": 590, "height": 400 }, "allowed": ["question"], "region": "content" },
+        { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }
+      ] }
+    }
+  ],
+  "defaults": {
+    "client_id": null,
+    "thumbnail_url": null,
+    "is_default": true,
+    "is_active": true,
+    "created_by": null,
+    "canvas_width": 1920,
+    "canvas_height": 1080,
+    "safe_margin": 90
+  }
+}

@@ -80,7 +80,7 @@ export const createRuntimeLaunch = async ({
     throw new AppError('Resource version not found', 404);
   }
   if (!version.is_active) throw new AppError('Inactive Resources cannot be launched', 409);
-  if (!['html', 'zip', 'scorm'].includes(version.resource_type)) {
+  if (!['html', 'zip', 'scorm', 'simulation'].includes(version.resource_type)) {
     throw new AppError('This Resource type is not executable by the package runtime', 422);
   }
 

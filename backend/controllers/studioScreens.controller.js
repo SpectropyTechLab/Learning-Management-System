@@ -12,4 +12,5 @@ const respond = (action) => async (req, res) => {
 export const listSessionScreens = respond((req) => screens.listSessionScreens({ sessionId: req.params.sessionId, user: req.user }));
 export const getScreen = respond((req) => screens.getScreen({ screenId: req.params.screenId, user: req.user }));
 export const saveScreen = respond((req) => screens.saveScreen({ screenId: req.params.screenId, body: req.body, user: req.user }));
+export const deleteScreen = respond((req) => screens.deleteScreen({ screenId: req.params.screenId, user: req.user }));
 export const reorderScreens = respond((req) => screens.reorderScreens({ sessionId: req.params.sessionId, body: req.body, user: req.user }));

@@ -3,6 +3,11 @@ import { AppError } from '../utils/errors.js';
 import { returnSessionToDraft } from './studioSessionWorkflow.service.js';
 
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
+const RESOURCE_TYPES_BY_ELEMENT = new Map([
+  ['visual', new Set(['image', 'animation'])],
+  ['media', new Set(['image', 'video', 'animation', 'external_link'])],
+  ['simulation', new Set(['simulation', 'html', 'zip', 'scorm', 'external_link'])],
+]);
 const ELEMENT_TYPES = new Set([
   'title',
   'text',
@@ -222,7 +227,7 @@ export const listSessionScreens = async ({ sessionId: rawSessionId, user }) => {
 const validateResourceBindings = async (db, elements, clientId) => {
   for (const element of elements.filter((candidate) => candidate.resource)) {
     const result = await db.query(
-      `SELECT r.id
+      `SELECT r.id, r.resource_type
        FROM resources r
        JOIN resource_versions rv ON rv.resource_id = r.id
        WHERE r.id = $1 AND rv.id = $2 AND r.is_active = TRUE
@@ -232,6 +237,11 @@ const validateResourceBindings = async (db, elements, clientId) => {
     if (!result.rows[0]) {
       throw new AppError(`Element ${element.key} references an unavailable Resource version`, 422);
     }
+    const resourceType = result.rows[0].resource_type;
+    if (!RESOURCE_TYPES_BY_ELEMENT.get(element.type)?.has(resourceType)) {
+      throw new AppError(`Element ${element.key} does not support ${resourceType} Resources`, 422);
+    }
+    element.resource.resourceType = resourceType;
   }
 };
 
@@ -316,7 +326,11 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
             element.resource.resourceVersionId,
             screen.id,
             element.key,
-            JSON.stringify(element.resource.usage),
+            JSON.stringify({
+              ...element.resource.usage,
+              slot_id: element.slotId,
+              resource_type: element.resource.resourceType,
+            }),
             user?.id || null,
           ],
         );
@@ -335,6 +349,33 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     const hydrated = await hydrateScreen(client, updateResult.rows[0]);
     await client.query('COMMIT');
     return { ...hydrated, session_revision_no: Number(session.revision_no) };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteScreen = async ({ screenId: rawScreenId, user }) => {
+  assertAuthor(user);
+  const screenId = parseId(rawScreenId, 'Screen ID');
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const screen = await loadScreenRow(client, screenId, user, { lock: true });
+    const references = await client.query(
+      `SELECT COUNT(*)::integer AS count FROM screen_branches
+       WHERE destination_screen_id = $1 OR return_screen_id = $1`,
+      [screen.id],
+    );
+    if (Number(references.rows[0].count) > 0) {
+      throw new AppError('Remove branches that point to this Screen before deleting it', 409);
+    }
+    await client.query('DELETE FROM screens WHERE id = $1', [screen.id]);
+    const session = await returnSessionToDraft(screen.session_id, client);
+    await client.query('COMMIT');
+    return { id: screen.id, session_revision_no: Number(session.revision_no) };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
