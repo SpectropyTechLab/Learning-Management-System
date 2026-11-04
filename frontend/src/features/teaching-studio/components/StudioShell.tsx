@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { BookOpen, FileText, Home, Layers3, LayoutDashboard, Menu, MonitorPlay, PanelLeftClose, ScrollText } from 'lucide-react';
+import { BookOpen, CheckSquare, FileText, FolderOpen, Home, Layers3, LayoutDashboard, Menu, MonitorPlay, PanelLeftClose, ScrollText } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
@@ -9,6 +9,8 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 
 const sections = [
   ['Dashboard', '/studio', LayoutDashboard],
+  ['Session Library', '/studio/sessions', FolderOpen],
+  ['Review & Publish', '/studio/review', CheckSquare],
   ['Curriculum', '/studio/curriculum', BookOpen],
   ['Session Plan', '/studio/session-plans', FileText],
   ['Screen Scripts', '/studio/screen-scripts', ScrollText],

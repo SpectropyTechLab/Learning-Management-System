@@ -2,6 +2,7 @@ import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
 
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
+const SESSION_STATUSES = new Set(['draft', 'submitted', 'approved', 'rejected', 'published']);
 
 const parseId = (value, label) => {
   const id = Number(value);
@@ -110,6 +111,52 @@ export const listSubtopicSessions = async ({ subtopicId: rawSubtopicId, user, db
 // Compatibility name used by the Day 9 session-setup acceptance suite.
 // Both names intentionally share the same permission and parent-chain checks.
 export const listStudioSessions = listSubtopicSessions;
+
+export const listAllStudioSessions = async ({ status, user, db = { query: dbQuery } }) => {
+  const normalizedStatus = String(status ?? '').trim().toLowerCase();
+  if (normalizedStatus && !SESSION_STATUSES.has(normalizedStatus)) {
+    throw new AppError('status must be draft, submitted, approved, rejected, or published', 400, 'INVALID_STATUS');
+  }
+  const tenantId = user?.role === 'super_admin' || (user?.role === 'content_authorizer' && !user?.client_id)
+    ? null
+    : Number(user?.client_id);
+  const result = await db.query(
+    `SELECT s.id, s.client_id, s.subtopic_id, s.session_number, s.title, s.description,
+            s.status, s.revision_no, s.created_by, s.created_at, s.updated_at,
+            s.submitted_by, s.submitted_at, s.approved_by, s.approved_at,
+            s.approval_comment, s.published_at,
+            b.id AS board_id, b.name AS board_name,
+            p.id AS program_id, p.name AS program_name,
+            g.id AS grade_id, g.grade_number,
+            su.id AS subject_id, su.name AS subject_name,
+            ch.id AS chapter_id, ch.chapter_number, ch.name AS chapter_name,
+            t.id AS topic_id, t.name AS topic_name,
+            st.name AS subtopic_name,
+            (SELECT COUNT(*)::int FROM screens sc WHERE sc.session_id = s.id) AS screen_count,
+            (SELECT sr.release_number
+             FROM session_releases sr
+             WHERE sr.session_id = s.id
+             ORDER BY sr.release_number DESC
+             LIMIT 1) AS latest_release_number,
+            EXISTS (
+              SELECT 1 FROM session_documents sd
+              WHERE sd.session_id = s.id AND sd.document_type = 'session_plan' AND sd.is_current = TRUE
+            ) AS has_session_plan
+     FROM sessions s
+     JOIN subtopics st ON st.id = s.subtopic_id
+     JOIN topics t ON t.id = st.topic_id
+     JOIN chapters ch ON ch.id = t.chapter_id
+     JOIN subjects su ON su.id = ch.subject_id
+     JOIN grades g ON g.id = su.grade_id
+     JOIN programs p ON p.id = g.program_id
+     JOIN boards b ON b.id = p.board_id
+     WHERE ($1::bigint IS NULL OR s.client_id = $1)
+       AND ($2::text IS NULL OR s.status = $2)
+     ORDER BY s.updated_at DESC, s.id DESC`,
+    [tenantId, normalizedStatus || null],
+  );
+  return { sessions: result.rows };
+};
 
 export const getStudioSession = async ({ sessionId: rawSessionId, user, db = { query: dbQuery } }) =>
   loadSession(db, parseId(rawSessionId, 'Session ID'), user);
