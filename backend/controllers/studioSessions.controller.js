@@ -11,6 +11,8 @@ const respond = (action, status = 200) => async (req, res) => {
 
 export const listSubtopicSessions = respond((req) =>
   sessions.listSubtopicSessions({ subtopicId: req.params.subtopicId, user: req.user }));
+export const listAllStudioSessions = respond((req) =>
+  sessions.listAllStudioSessions({ status: req.query.status, user: req.user }));
 export const getStudioSession = respond((req) =>
   sessions.getStudioSession({ sessionId: req.params.sessionId, user: req.user }));
 export const createStudioSession = respond((req) =>

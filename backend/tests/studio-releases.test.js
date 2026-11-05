@@ -6,6 +6,7 @@ import {
   assertPinnedPublishedResourceAccess,
   getPublishedReleaseByNumber,
   getCurrentTeacherRelease,
+  listPublishedSessionReleases,
   listPublishedSessions,
   publishSessionRelease,
 } from '../services/studioReleases.service.js';
@@ -256,6 +257,28 @@ test('client admin lists the latest tenant releases and receives frozen Screen c
   assert.equal(sessions.length, 1);
   assert.equal(sessions[0].session_title, 'Published Motion');
   assert.equal(sessions[0].screen_count, 2);
+});
+
+test('published Session history returns immutable releases newest first', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async (text, params) => {
+    const sql = normalizeSql(text);
+    assert.match(sql, /from session_releases/);
+    assert.match(sql, /order by release_number desc/);
+    assert.deepEqual(params, [25, 7]);
+    return { rows: [
+      { id: 102, client_id: 7, session_id: 25, release_number: 2, manifest_json: { screens: [{}, {}] }, published_by: 21, published_at: '2026-11-05T10:00:00Z' },
+      { id: 101, client_id: 7, session_id: 25, release_number: 1, manifest_json: { screens: [{}] }, published_by: 20, published_at: '2026-11-04T10:00:00Z' },
+    ] };
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const releases = await listPublishedSessionReleases({
+    sessionId: 25,
+    user: { id: 30, role: 'client_admin', client_id: 7 },
+  });
+  assert.deepEqual(releases.map((release) => release.release_number), [2, 1]);
+  assert.deepEqual(releases.map((release) => release.screen_count), [2, 1]);
 });
 
 test('published viewer response excludes Plan, Screen Script and workflow metadata', async (t) => {

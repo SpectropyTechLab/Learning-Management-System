@@ -6,7 +6,7 @@ import { getApiErrorDetails } from '@/lib/api';
 import { deleteStudioResource, getStudioResource, listStudioResources, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
 import StudioResourcePlayer from './StudioResourcePlayer';
-import { formatResourceDate, RESOURCE_TYPE_STYLES } from './resourcePresentation';
+import { DEFAULT_RESOURCE_TYPE_STYLE, RESOURCE_TYPE_STYLES } from './resourcePresentation';
 
 type ResourceView = 'grid' | 'list';
 type ResourceSort = 'recently_updated' | 'name_asc' | 'name_desc' | 'newest' | 'type';
@@ -24,7 +24,7 @@ const formatDuration = (seconds?: number | null) => {
 };
 
 function ResourcePreview({ resource }: { resource: StudioResourceSummary }) {
-  const style = RESOURCE_TYPE_STYLES[resource.resource_type];
+  const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
   const Icon = style.icon;
   const duration = formatDuration(resource.latest_version?.duration_seconds);
   return (
@@ -138,7 +138,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
 
   const sorted = useMemo(
     () =>
-      resources
+      [...resources]
         .filter((resource) => !allowedTypes || allowedTypes.includes(resource.resource_type))
         .sort((left, right) => {
           if (sort === 'name_asc') return left.name.localeCompare(right.name);
@@ -293,7 +293,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
         ) : view === 'grid' ? (
           <div className={`grid gap-4 ${mode === 'picker' ? 'grid-cols-1' : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
             {sorted.map((resource) => {
-              const style = RESOURCE_TYPE_STYLES[resource.resource_type];
+              const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
               return (
                 <article key={resource.id} className="relative overflow-visible rounded-xl border border-gray-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md">
                   <button type="button" onClick={() => openResource(resource)} className="block w-full overflow-hidden rounded-xl text-left">
@@ -319,12 +319,13 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
         ) : (
           <div className="rounded-xl border border-gray-200">
             {sorted.map((resource) => {
-              const Icon = RESOURCE_TYPE_STYLES[resource.resource_type].icon;
+              const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
+              const Icon = style.icon;
               return (
                 <div key={resource.id} className="relative flex border-t border-gray-100 first:border-t-0 hover:bg-slate-50">
                   <button type="button" onClick={() => openResource(resource)} className="min-w-0 flex-1 px-3 py-3 text-left [&>span.text-sm]:hidden">
                     <span className="flex min-w-0 items-center gap-3">
-                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${RESOURCE_TYPE_STYLES[resource.resource_type].preview}`}>
+                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${style.preview}`}>
                         <Icon size={20} />
                       </span>
                       <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
