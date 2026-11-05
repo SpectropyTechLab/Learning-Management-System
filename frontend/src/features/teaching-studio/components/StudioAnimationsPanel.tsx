@@ -1,0 +1,10 @@
+import type { StudioElement, StudioScreen } from '../types';
+const effects = ['none', 'appear', 'fade', 'fly-in', 'wipe', 'zoom', 'bounce', 'pulse', 'spin', 'grow', 'fade-out', 'fly-out', 'zoom-out'] as const;
+interface Props { screen: StudioScreen | null; selectedElementId: string | null; onUpdate: (element: StudioElement) => void; }
+export default function StudioAnimationsPanel({ screen, selectedElementId, onUpdate }: Props) {
+  const selected = screen?.elements.find((element) => element.id === selectedElementId) ?? null;
+  const animation = selected?.content.animation && typeof selected.content.animation === 'object' ? selected.content.animation as Record<string, unknown> : {};
+  const update = (changes: Record<string, unknown>) => selected && onUpdate({ ...selected, content: { ...selected.content, animation: { ...animation, ...changes } } });
+  if (!selected) return <p className="text-sm text-slate-500">Select an element on the Screen to add an animation.</p>;
+  return <div><h2 className="font-semibold text-slate-900">Animations</h2><p className="mt-1 text-xs text-slate-500">Choose an effect for the selected element.</p><div className="mt-3 grid grid-cols-2 gap-2">{effects.map((effect) => <button key={effect} type="button" onClick={() => update({ effect })} className={`rounded-lg border px-2 py-2 text-xs font-semibold capitalize ${String(animation.effect || 'none') === effect ? 'border-blue-800 bg-blue-50 text-blue-900' : ''}`}>{effect.replace('-', ' ')}</button>)}</div><div className="mt-4 grid grid-cols-2 gap-3"><label className="text-xs font-semibold">Duration (s)<input type="number" min="0.1" max="20" step="0.1" value={Number(animation.duration) || 0.8} onChange={(event) => update({ duration: Number(event.target.value) })} className="mt-1 w-full rounded border px-2 py-2" /></label><label className="text-xs font-semibold">Delay (s)<input type="number" min="0" max="20" step="0.1" value={Number(animation.delay) || 0} onChange={(event) => update({ delay: Number(event.target.value) })} className="mt-1 w-full rounded border px-2 py-2" /></label></div></div>;
+}

@@ -80,3 +80,9 @@ export const updateStudioScreen = async (
 
 export const deleteStudioScreen = async (screenId: number) =>
   unwrap<{ id: number; session_revision_no: number }>(await api.delete(`/studio/screens/${screenId}`));
+
+export const reorderStudioScreens = async (sessionId: number, sessionRevisionNo: number, screenIds: number[]) =>
+  unwrap<{ session_id: number; session_revision_no: number; screen_ids: number[] }>(await api.patch(
+    `/studio/sessions/${sessionId}/screens/reorder`,
+    { session_revision_no: sessionRevisionNo, screen_ids: screenIds },
+  ));

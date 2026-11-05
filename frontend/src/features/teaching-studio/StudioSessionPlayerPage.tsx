@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, CornerUpLeft, Download, Eraser, ExternalLink, FileText, Maximize2, MousePointer2, PenLine, Presentation, RotateCcw, Trash2, X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { ArrowLeft, ChevronLeft, ChevronRight, CornerUpLeft, Download, Eraser, FileText, Maximize2, MousePointer2, PenLine, Presentation, RotateCcw, Trash2, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -11,6 +12,11 @@ import { abandonBranchRun, completeBranchRun, createBranchRun, downloadPublished
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
 import Model3DViewer from './components/resources/Model3DViewer';
+import { ExecutableResourceFrame, ExternalLinkFrame } from './components/resources/StudioResourceFrames';
+import StudioAnimatedElement from './components/StudioAnimatedElement';
+import StudioCanvasTextElement from './components/StudioCanvasTextElement';
+import StudioMathElement from './components/StudioMathElement';
+import StudioShapeElement from './components/StudioShapeElement';
 import type { PublishedBranch, PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
 import type { AuthorDrawingStroke } from './types';
 
@@ -117,16 +123,8 @@ function PublishedResource({ releaseId, mapping }: { releaseId: number; mapping:
         </div>
       </div>
     );
-  return (
-    <div className="relative h-full w-full bg-white">
-      <iframe src={source} title={mapping.name} className="h-full w-full border-0" sandbox="allow-scripts allow-forms allow-popups allow-pointer-lock" allowFullScreen />
-      {mapping.resource_type === 'external_link' && (
-        <a href={source} target="_blank" rel="noreferrer" className="absolute right-2 top-2 rounded bg-white px-2 py-1 text-xs font-semibold text-blue-900 shadow">
-          <ExternalLink size={13} className="inline" /> Open
-        </a>
-      )}
-    </div>
-  );
+  if (mapping.resource_type === 'external_link') return <ExternalLinkFrame source={source} title={mapping.name} className="h-full w-full" openLinkLabel="Open" width={mapping.width} height={mapping.height} />;
+  return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} />;
 }
 
 function PublishedCanvas({ releaseId, screen, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange }: { releaseId: number; screen: PublishedScreen; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: 'pointer' | 'pen' | 'eraser'; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void }) {
@@ -143,9 +141,23 @@ function PublishedCanvas({ releaseId, screen, teacherAnnotations, annotationTool
       url: typeof element.content_json?.url === 'string' ? element.content_json.url : undefined,
       altText: typeof element.content_json?.altText === 'string' ? element.content_json.altText : undefined,
       caption: typeof element.content_json?.caption === 'string' ? element.content_json.caption : undefined,
+      animation: element.content_json?.animation && typeof element.content_json.animation === 'object' ? element.content_json.animation as Record<string, unknown> : undefined,
+      color: typeof element.content_json?.color === 'string' ? element.content_json.color : undefined,
+      zIndex: typeof element.position_json?.zIndex === 'number' ? element.position_json.zIndex : undefined,
     })),
   };
-  const overlays = Object.fromEntries(screen.elements.filter((element) => element.resource_mapping).map((element) => [element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping!} />]));
+  const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
+    if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
+    if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} />]];
+    const text = textFrom(element.content_json || {});
+    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} text={text} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
+    return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} />]] : [];
+  }));
+  for (const element of screen.elements) {
+    const overlay = overlays[element.element_key];
+    const animation = element.content_json?.animation && typeof element.content_json.animation === 'object' ? element.content_json.animation as Record<string, unknown> : undefined;
+    if (overlay && animation && animation.effect !== 'none') overlays[element.element_key] = <StudioAnimatedElement animation={animation}>{overlay}</StudioAnimatedElement>;
+  }
 
   return <SlideCanvas layout={layout} slide={slide} objectOverlays={overlays} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={annotationTool !== 'pointer'} drawingTool={annotationTool === 'eraser' ? 'eraser' : 'pen'} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
 }
