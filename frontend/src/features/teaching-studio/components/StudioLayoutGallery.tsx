@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import type { StudioLayoutSummary } from '../api/studioEditorApi';
 import { targetLayouts } from '../targetLayouts';
@@ -11,6 +11,7 @@ interface Props {
   applying: boolean;
   onApply: (row: StudioLayoutSummary, layout: Layout) => void;
   onLayoutsChanged: () => Promise<void>;
+  editRequest?: { layoutId: number; requestId: number } | null;
 }
 
 const LayoutThumbnail = ({ layout }: { layout: Layout }) => (
@@ -43,10 +44,32 @@ const customLayout = (row: StudioLayoutSummary): Layout => ({
   slots: row.layout_data_json?.slots || [],
 });
 
-export default function StudioLayoutGallery({ layouts, selectedLayoutId, applying, onApply, onLayoutsChanged }: Props) {
+export default function StudioLayoutGallery({ layouts, selectedLayoutId, applying, onApply, onLayoutsChanged, editRequest }: Props) {
   const byKey = new Map(layouts.map((row) => [row.layout_key.toUpperCase(), row]));
   const customRows = layouts.filter((row) => !row.is_default);
+  const defaultKeys = layouts.filter((row) => row.is_default).map((row) => row.layout_key.toUpperCase());
+  const derivedBaseKey = (row: StudioLayoutSummary) => defaultKeys.find((key) => row.layout_key.toUpperCase().startsWith(`${key}-CUSTOM`)) ?? null;
+  const visibleCustomRows = [...customRows.reduce((groups, row) => {
+    const groupKey = derivedBaseKey(row) ?? row.layout_key.toUpperCase();
+    const current = groups.get(groupKey);
+    if (!current || row.version_no > current.version_no || (row.version_no === current.version_no && row.id > current.id)) groups.set(groupKey, row);
+    return groups;
+  }, new Map<string, StudioLayoutSummary>()).values()];
   const [formLayout, setFormLayout] = useState<StudioLayoutSummary | null | undefined>(undefined);
+  useEffect(() => {
+    if (!editRequest) return;
+    const requested = layouts.find((row) => row.id === editRequest.layoutId);
+    if (!requested) return;
+    if (!requested.is_default) {
+      setFormLayout(requested);
+      return;
+    }
+    const prefix = `${requested.layout_key.toUpperCase()}-CUSTOM`;
+    const existingCopy = customRows
+      .filter((row) => row.layout_key.toUpperCase().startsWith(prefix))
+      .sort((left, right) => right.version_no - left.version_no || right.id - left.id)[0];
+    setFormLayout(existingCopy ?? requested);
+  }, [editRequest, layouts]);
   return (
     <>
       <div className="grid grid-cols-1 gap-3">
@@ -81,9 +104,9 @@ export default function StudioLayoutGallery({ layouts, selectedLayoutId, applyin
           <div><h2 className="font-semibold text-slate-900">Custom layouts</h2><p className="text-sm text-slate-500">Create reusable slot geometry or revise an existing custom layout. Default LYT templates are protected.</p></div>
           <button type="button" onClick={() => setFormLayout(null)} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white"><Plus size={16} />Create custom layout</button>
         </div>
-        {formLayout !== undefined && <StudioCustomLayoutForm layout={formLayout} onCancel={() => setFormLayout(undefined)} onSaved={async () => { await onLayoutsChanged(); setFormLayout(undefined); }} />}
-        {formLayout === undefined && (customRows.length > 0 ? <div className="grid grid-cols-1 gap-3">
-          {customRows.map((row) => {
+        {formLayout !== undefined && <StudioCustomLayoutForm key={formLayout?.id ?? 'new'} layout={formLayout} onCancel={() => setFormLayout(undefined)} onSaved={async () => { await onLayoutsChanged(); setFormLayout(undefined); }} />}
+        {formLayout === undefined && (visibleCustomRows.length > 0 ? <div className="grid grid-cols-1 gap-3">
+          {visibleCustomRows.map((row) => {
             const layout = customLayout(row);
             const selected = selectedLayoutId === row.id;
             return <article key={row.id} className={`rounded-xl border p-3 ${selected ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>

@@ -9,7 +9,7 @@ import {
 } from '../../api/studioResourcesApi';
 
 const MAX_FILE_SIZE = 250 * 1024 * 1024;
-const FILE_ONLY_TYPES = new Set<StudioResourceType>(['html', 'zip', 'scorm']);
+const FILE_ONLY_TYPES = new Set<StudioResourceType>(['html', 'zip', 'scorm', 'presentation']);
 
 interface ResourceUploadModalProps {
   open: boolean;
@@ -78,6 +78,7 @@ export default function ResourceUploadModal({
     html: '.html,.htm,text/html',
     zip: '.zip,application/zip',
     scorm: '.zip,application/zip',
+    presentation: '.ppsx,application/vnd.openxmlformats-officedocument.presentationml.slideshow',
   }[effectiveType]), [effectiveType]);
 
   if (!open) return null;
@@ -88,6 +89,9 @@ export default function ResourceUploadModal({
     if (mode === 'create' && !name.trim()) return 'Resource name is required.';
     if (effectiveSourceMode === 'file' && !file) return 'Choose a Resource file.';
     if (file && file.size > MAX_FILE_SIZE) return 'The file must be 250 MB or smaller.';
+    if (effectiveType === 'presentation' && file && !file.name.toLowerCase().endsWith('.ppsx')) {
+      return 'PowerPoint Show Resources require a .ppsx file.';
+    }
     if (effectiveSourceMode === 'url') {
       if (!externalUrl.trim()) return 'External URL is required.';
       try {

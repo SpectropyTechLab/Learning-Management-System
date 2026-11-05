@@ -66,14 +66,14 @@ test('a genuinely blank screen has no layout, title, or preset objects', () => {
 
 test('changing layouts keeps compatible elements, remaps slots and reports removals', () => {
   const elements = [
-    { id: 'visual-1', slotId: 'old-visual', type: 'visual', content: { text: 'Mirror' }, position: {}, resource: { resource_id: 4, resource_version_id: 9, usage: { slot_id: 'old-visual', resource_type: 'image' } } },
+    { id: 'visual-1', slotId: 'old-visual', type: 'visual', content: { text: 'Mirror' }, position: { zIndex: 2, locked: true }, resource: { resource_id: 4, resource_version_id: 9, usage: { slot_id: 'old-visual', resource_type: 'image' } } },
     { id: 'question-1', slotId: 'prompt', type: 'question', content: { text: 'Predict' }, position: {} },
     { id: 'question-2', slotId: 'old-question', type: 'question', content: { text: 'Explain' }, position: {} },
   ];
   const result = remapElementsToLayout(elements, layouts[0]);
   assert.deepEqual(result.elements.map((element) => element.slotId), ['visual', 'prompt']);
   assert.deepEqual(result.elements[0].content, { text: 'Mirror' });
-  assert.deepEqual(result.elements[0].position, layouts[0].slots.find((slot) => slot.id === 'visual').bounds);
+  assert.deepEqual(result.elements[0].position, { ...layouts[0].slots.find((slot) => slot.id === 'visual').bounds, zIndex: 2, locked: true });
   assert.equal(result.elements[0].resource.resource_version_id, 9);
   assert.equal(result.elements[0].resource.usage.slot_id, 'visual');
   assert.deepEqual(result.removed.map((element) => element.id), ['question-2']);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, CornerUpLeft, ExternalLink, Maximize2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, CornerUpLeft, Download, ExternalLink, Maximize2, Presentation } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -69,6 +69,7 @@ function PublishedResource({ releaseId, mapping }: { releaseId: number; mapping:
   if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
   if (mapping.resource_type === 'image') return <img src={source} alt={mapping.name} className="h-full w-full object-contain" />;
   if (mapping.resource_type === 'video' || mapping.mime_type?.startsWith('video/')) return <video src={source} controls className="h-full w-full" />;
+  if (mapping.resource_type === 'presentation') return <div className="grid h-full place-items-center bg-gradient-to-br from-orange-50 to-amber-100 p-4 text-center"><div><Presentation className="mx-auto text-orange-700" size={42} /><p className="mt-2 font-semibold text-slate-900">{mapping.name}</p><p className="mt-1 text-xs text-slate-600">Open this PPSX file in Microsoft PowerPoint or another compatible app.</p><a href={source} download className="mt-3 inline-flex items-center gap-1 rounded-lg bg-orange-700 px-3 py-2 text-xs font-semibold text-white"><Download size={14} />Download and open</a></div></div>;
   return <div className="relative h-full w-full bg-white"><iframe src={source} title={mapping.name} className="h-full w-full border-0" sandbox="allow-scripts allow-forms allow-popups allow-pointer-lock" allowFullScreen />{mapping.resource_type === 'external_link' && <a href={source} target="_blank" rel="noreferrer" className="absolute right-2 top-2 rounded bg-white px-2 py-1 text-xs font-semibold text-blue-900 shadow"><ExternalLink size={13} className="inline" /> Open</a>}</div>;
 }
 

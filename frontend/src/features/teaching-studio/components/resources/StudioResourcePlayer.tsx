@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Loader2, PackageOpen, RefreshCw } from 'lucide-react';
+import { Download, ExternalLink, Loader2, PackageOpen, Presentation, RefreshCw } from 'lucide-react';
 import { getApiErrorDetails } from '@/lib/api';
-import { getStudioResourcePreview, launchStudioResourceVersion, type StudioResourceType, type StudioResourceVersion } from '../../api/studioResourcesApi';
+import { getStudioResourceDownload, getStudioResourcePreview, launchStudioResourceVersion, type StudioResourceType, type StudioResourceVersion } from '../../api/studioResourcesApi';
 
 interface StudioResourcePlayerProps {
   resourceType: StudioResourceType;
@@ -21,6 +21,7 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
     setLoading(true); setError(''); setSource('');
     const resolveSource = async () => {
       if (version.external_url) return version.external_url;
+      if (resourceType === 'presentation') return (await getStudioResourceDownload(version.id)).url;
       if (['html', 'zip', 'scorm', 'simulation'].includes(resourceType)) {
         const launch = await launchStudioResourceVersion(version.id);
         if (!launch.launchable || !launch.launch_url) throw new Error(launch.message || 'This package cannot be previewed.');
@@ -43,6 +44,7 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
   if (resourceType === 'image') return <div className={`grid place-items-center overflow-hidden bg-slate-950 ${className}`}><img src={source} alt={commonTitle} onError={mediaPreviewFailed} className="max-h-full max-w-full object-contain" /></div>;
   if (resourceType === 'video' || (resourceType === 'animation' && version.mime_type?.startsWith('video/'))) return <div className={`grid place-items-center overflow-hidden bg-black ${className}`}><video src={source} controls playsInline onError={mediaPreviewFailed} className="max-h-full max-w-full" /></div>;
   if (resourceType === 'animation' && version.mime_type?.startsWith('image/')) return <div className={`grid place-items-center overflow-hidden bg-slate-950 ${className}`}><img src={source} alt={commonTitle} onError={mediaPreviewFailed} className="max-h-full max-w-full object-contain" /></div>;
+  if (resourceType === 'presentation') return <div className={`grid place-items-center bg-gradient-to-br from-orange-50 to-amber-100 p-5 text-center ${className}`}><div><Presentation className="mx-auto text-orange-700" size={48} /><p className="mt-3 font-bold text-slate-900">{version.original_file_name || 'PowerPoint Show'}</p><p className="mt-1 max-w-sm text-sm text-slate-600">PPSX playback is handled by Microsoft PowerPoint or another compatible presentation application.</p><a href={source} download={version.original_file_name || undefined} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-700 px-4 py-2 text-sm font-semibold text-white"><Download size={16} />Download and open</a></div></div>;
   if (resourceType === 'external_link') return <div className={`relative overflow-hidden bg-white ${className}`}><iframe key={source} src={source} title={commonTitle} className="h-full w-full border-0" sandbox="allow-scripts allow-forms allow-popups allow-same-origin" /><a href={source} target="_blank" rel="noreferrer" className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-xs font-bold text-blue-900 shadow"><ExternalLink size={14} />Open in new tab</a></div>;
   return <iframe key={`${source}-${mode}`} src={source} title={commonTitle} className={`border-0 bg-white ${className}`} sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock" allow="fullscreen" allowFullScreen />;
 }

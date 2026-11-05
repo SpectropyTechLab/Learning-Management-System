@@ -5,7 +5,7 @@ import { getStudioResource } from '../api/studioResourcesApi';
 import type { StudioResourceDetails, StudioResourceVersion } from '../api/studioResourcesApi';
 import type { Layout, ObjectType, Rect, Slide } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
-import type { StudioElement, StudioScreen } from '../types';
+import type { AuthorDrawingStroke, StudioElement, StudioScreen } from '../types';
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
 
 interface BlankScreenCanvasProps {
@@ -17,6 +17,12 @@ interface BlankScreenCanvasProps {
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   showGuides?: boolean;
   previewMode?: boolean;
+  drawingStrokes?: AuthorDrawingStroke[];
+  drawingEnabled?: boolean;
+  drawingTool?: 'pen' | 'eraser';
+  drawingColor?: string;
+  drawingWidth?: number;
+  onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
 }
 
 const elementText = (content: Record<string, unknown>) => {
@@ -101,8 +107,9 @@ const elementBounds = (position: Record<string, unknown>): Rect | undefined => {
     : undefined;
 };
 
-export default function BlankScreenCanvas({ screen, loading, layout = null, selectedElementId, onSelectElement, onChangeElementBounds, showGuides = true, previewMode = false }: BlankScreenCanvasProps) {
-  const freeformLayout: Layout | null = !layout && screen && screen.elements.length > 0 ? {
+export default function BlankScreenCanvas({ screen, loading, layout = null, selectedElementId, onSelectElement, onChangeElementBounds, showGuides = true, previewMode = false, drawingStrokes, drawingEnabled = false, drawingTool = 'pen', drawingColor = '#ef4444', drawingWidth = 6, onDrawingChange }: BlankScreenCanvasProps) {
+  const authoredStrokes = drawingStrokes ?? screen?.screen_settings_json?.author_drawings?.strokes ?? [];
+  const freeformLayout: Layout | null = !layout && screen && (screen.elements.length > 0 || drawingEnabled || authoredStrokes.length > 0) ? {
     id: 'FREEFORM',
     name: 'Freeform screen',
     purpose: 'Author-positioned blank screen elements',
@@ -133,6 +140,9 @@ export default function BlankScreenCanvas({ screen, loading, layout = null, sele
       type: element.type as Slide['objects'][number]['type'],
       text: elementText(element.content),
       position: elementBounds(element.position),
+      color: typeof element.content.color === 'string' ? element.content.color : undefined,
+      locked: element.position.locked === true,
+      zIndex: typeof element.position.zIndex === 'number' ? element.position.zIndex : undefined,
       url: typeof element.content.url === 'string' ? element.content.url : undefined,
       altText: typeof element.content.altText === 'string' ? element.content.altText : undefined,
       caption: typeof element.content.caption === 'string' ? element.content.caption : undefined,
@@ -163,6 +173,12 @@ export default function BlankScreenCanvas({ screen, loading, layout = null, sele
       onSelectObject={onSelectElement}
       onChangeObjectBounds={onChangeElementBounds}
       objectOverlays={objectOverlays}
+      drawingStrokes={authoredStrokes}
+      drawingEnabled={drawingEnabled}
+      drawingTool={drawingTool}
+      drawingColor={drawingColor}
+      drawingWidth={drawingWidth}
+      onDrawingChange={onDrawingChange}
     /> : <div className="flex h-full min-h-0 items-center justify-center rounded-xl bg-slate-200 p-3">
       <div className="relative h-full min-h-0 w-full max-w-5xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-xl" data-testid="studio-canvas">
         <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-slate-500" role={loading ? 'status' : undefined}>
