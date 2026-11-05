@@ -6,6 +6,7 @@ import {
   getPublishedReleaseByNumber,
   getTeacherReleaseByNumber,
   getPublishedTeachingMaterials,
+  downloadPublishedSessionPlan,
   launchPublishedResource,
   listPublishedSessions,
   listTeacherReleases,
@@ -53,6 +54,11 @@ router.get(
   '/studio/published-releases/:releaseId/teaching-materials',
   publishedReaders,
   getPublishedTeachingMaterials,
+);
+router.get(
+  '/studio/published-releases/:releaseId/session-plan/download',
+  publishedReaders,
+  downloadPublishedSessionPlan,
 );
 
 router.post(

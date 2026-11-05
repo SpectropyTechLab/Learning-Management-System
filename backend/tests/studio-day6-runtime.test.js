@@ -153,6 +153,17 @@ test('ZIP Resource creation stores the original and immutable runtime assets', a
   assert.equal(metadata.runtime.dependencies[0], 'style.css');
 });
 
+test('3D Model Resources reject loose GLTF files that can lose dependent assets', async () => {
+  await assert.rejects(
+    createResource({
+      user: { id: 8, role: 'content_authorizer', client_id: 12 },
+      body: { name: 'Unsafe loose model', resource_type: 'model_3d' },
+      file: { buffer: Buffer.from('{}'), originalname: 'model.gltf', mimetype: 'model/gltf+json' },
+    }),
+    (error) => error?.status === 400 && /self-contained \.glb/i.test(error.message),
+  );
+});
+
 test('teachers cannot use the author preview launch endpoint', async () => {
   await assert.rejects(
     createRuntimeLaunch({

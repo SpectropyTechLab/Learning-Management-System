@@ -108,9 +108,12 @@ const assertDownloadAccess = async (session, user) => {
   }
 };
 
-const assertOriginalDownloadAccess = async (session, user) => {
-  if (!ORIGINAL_DOWNLOAD_ROLES.has(user?.role)) {
-    throw new AppError('Teachers can view published Studio documents but cannot download original files', 403);
+const assertOriginalDownloadAccess = async (session, user, documentType) => {
+  if (user?.role === 'teacher' && documentType !== 'session_plan') {
+    throw new AppError('Teachers cannot download Screen Script files', 403);
+  }
+  if (user?.role !== 'teacher' && !ORIGINAL_DOWNLOAD_ROLES.has(user?.role)) {
+    throw new AppError('Access denied', 403);
   }
   await assertDownloadAccess(session, user);
 };
@@ -423,7 +426,7 @@ export const downloadDocument = async ({ sessionId: rawSessionId, documentType: 
   const sessionId = parseId(rawSessionId, 'Session ID');
   const documentType = validateDocumentType(rawType);
   const session = await getSession({ query: dbQuery }, sessionId);
-  await assertOriginalDownloadAccess(session, user);
+  await assertOriginalDownloadAccess(session, user, documentType);
   const document = await getCurrentDocument({ query: dbQuery }, session.id, documentType);
   if (!document || document.source_mode !== 'upload') {
     throw new AppError('No uploaded original is available for this Studio document', 404);

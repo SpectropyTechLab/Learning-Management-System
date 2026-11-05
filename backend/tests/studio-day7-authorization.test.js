@@ -14,6 +14,7 @@ const { default: documentRouter } = await import('../routes/studioDocuments.rout
 const {
   uploadSessionPlan,
   downloadSessionPlan,
+  downloadScreenScript,
 } = await import('../services/studioDocuments.service.js');
 const { createScreen } = await import('../services/studioLayouts.service.js');
 const { saveScreen, reorderScreens } = await import('../services/studioScreens.service.js');
@@ -195,7 +196,7 @@ test('protected documents reject draft readers and cross-tenant authors before S
   assert.equal(storageAccessed, false);
 });
 
-test('assigned teacher can view published guidance but cannot download its original attachment', async (t) => {
+test('assigned teacher cannot download a Screen Script original attachment', async (t) => {
   const originalQuery = pool.query;
   const originalFrom = supabase.storage.from;
   let storageAccessed = false;
@@ -216,8 +217,8 @@ test('assigned teacher can view published guidance but cannot download its origi
   });
 
   await assert.rejects(
-    downloadSessionPlan({ sessionId: 41, user: teacher }),
-    (error) => error?.status === 403 && /cannot download original files/i.test(error.message),
+    downloadScreenScript({ sessionId: 41, user: teacher }),
+    (error) => error?.status === 403 && /cannot download Screen Script files/i.test(error.message),
   );
   assert.equal(storageAccessed, false);
 });

@@ -89,24 +89,43 @@ export const launchPublishedResource = async (releaseId: number, versionId: numb
 export interface PublishedTeachingMaterials {
   release_id: number;
   release_number: number;
+  curriculum: null | {
+    chapter_id: number;
+    document_id: number | null;
+    revision_no: number | null;
+    original_file_name: string | null;
+    content_type: string | null;
+    size_bytes: number | null;
+  };
   session_plan: null | {
     revision_no: number;
     source_mode: 'upload' | 'manual';
+    original_file_name: string | null;
     content: Record<string, unknown> | null;
   };
-  screen_scripts: Array<{
-    screen_id: number;
-    screen_number: number;
-    screen_title: string;
-    revision_no: number;
-    content: Record<string, unknown>;
-  }>;
 }
 
 export const getPublishedTeachingMaterials = async (releaseId: number) =>
   dataOf<PublishedTeachingMaterials>((await api.get(
     `/studio/published-releases/${releaseId}/teaching-materials`,
   )).data);
+
+const downloadFile = async (url: string, fallback: string) => {
+  const response = await api.get(url, { responseType: 'blob' });
+  const disposition = String(response.headers['content-disposition'] || '');
+  const utf8Name = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const basicName = disposition.match(/filename="([^"]+)"/i)?.[1];
+  const fileName = utf8Name ? decodeURIComponent(utf8Name) : basicName || fallback;
+  const objectUrl = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(objectUrl);
+};
+
+export const downloadPublishedSessionPlan = (releaseId: number) =>
+  downloadFile(`/studio/published-releases/${releaseId}/session-plan/download`, 'session-plan.docx');
 
 export interface BranchOriginState {
   session_id: number;

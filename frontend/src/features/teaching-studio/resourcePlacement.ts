@@ -2,8 +2,8 @@ import type { StudioResourceType } from './api/studioResourcesApi';
 import type { ObjectType } from './layouts';
 
 const RESOURCE_TYPES_BY_OBJECT: Partial<Record<ObjectType, readonly StudioResourceType[]>> = {
-  visual: ['image', 'animation'],
-  media: ['image', 'video', 'animation', 'external_link', 'presentation'],
+  visual: ['image', 'animation', 'model_3d'],
+  media: ['image', 'video', 'animation', 'external_link', 'presentation', 'model_3d'],
   simulation: ['simulation', 'html', 'zip', 'scorm', 'external_link'],
 };
 

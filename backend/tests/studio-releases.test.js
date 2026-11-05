@@ -322,7 +322,7 @@ test('published Resource access is limited to versions pinned in the authorized 
   );
 });
 
-test('published teaching materials expose pinned content for viewing without original-file metadata', async (t) => {
+test('published teaching materials expose Curriculum and a pinned Session Plan without Screen Scripts', async (t) => {
   const originalQuery = pool.query;
 
   pool.query = async (text, params) => {
@@ -335,6 +335,17 @@ test('published teaching materials expose pinned content for viewing without ori
       assert.deepEqual(params, [[9]]);
       return { rows: [{ program_id: 4 }] };
     }
+    if (sql.includes('from subtopics st')) {
+      assert.deepEqual(params, [6]);
+      return { rows: [{
+        chapter_id: 14,
+        document_id: 71,
+        revision_no: 2,
+        original_file_name: 'Chapter Curriculum.docx',
+        content_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        size_bytes: 2048,
+      }] };
+    }
     assert.match(sql, /from session_releases/);
     assert.deepEqual(params, [101, 7]);
     return { rows: [{
@@ -343,7 +354,7 @@ test('published teaching materials expose pinned content for viewing without ori
       session_id: 25,
       release_number: 2,
       manifest_json: {
-        session: { session_id: 25, program_id: 4 },
+        session: { session_id: 25, program_id: 4, subtopic_id: 6 },
         documents: {
           session_plan: {
             document_id: 91,
@@ -372,10 +383,11 @@ test('published teaching materials expose pinned content for viewing without ori
 
   assert.equal(materials.session_plan.revision_no, 3);
   assert.equal(materials.session_plan.content.rows[0].pedagogy, 'Inquiry');
-  assert.equal(materials.screen_scripts[0].screen_title, 'Mirror Mystery');
-  assert.equal(materials.screen_scripts[0].content.teacher_narration, 'Ask learners to predict.');
+  assert.equal(materials.curriculum.chapter_id, 14);
+  assert.equal(materials.curriculum.original_file_name, 'Chapter Curriculum.docx');
+  assert.equal('screen_scripts' in materials, false);
   assert.equal('storage_key' in materials.session_plan, false);
-  assert.equal('original_file_name' in materials.session_plan, false);
+  assert.equal(materials.session_plan.original_file_name, 'Approved Session Plan.docx');
 });
 
 test('publication rejects a Session that is not approved', async (t) => {
