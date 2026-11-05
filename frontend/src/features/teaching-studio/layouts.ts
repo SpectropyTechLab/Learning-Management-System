@@ -9,7 +9,7 @@ export const MASTER = {
   footerY: 950,
 } as const;
 
-export type ObjectType = 'title' | 'text' | 'visual' | 'question' | 'response' | 'steps' | 'workspace' | 'footer' | 'simulation' | 'activity' | 'media' | 'graph' | 'data' | 'options';
+export type ObjectType = 'title' | 'text' | 'visual' | 'question' | 'response' | 'steps' | 'workspace' | 'footer' | 'simulation' | 'activity' | 'media' | 'graph' | 'data' | 'options' | 'math' | 'shape';
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Slot = {
   id: string;
@@ -124,6 +124,7 @@ export type SlideObject = {
   url?: string;
   altText?: string;
   caption?: string;
+  animation?: Record<string, unknown>;
 };
 export type Slide = { title: string; creationMode: 'blank' | 'layout'; objects: SlideObject[] };
 
@@ -144,7 +145,7 @@ export function validateSlide(layout: Layout | null, slide: Slide): string[] {
   for (const field of layout.slots) {
     const { x, y, width, height } = field.bounds;
     const region = field.region === 'header' ? MASTER.header : field.region === 'content' ? MASTER.content : rect(90, 950, 1740, 90);
-    if (layout.id !== 'FREEFORM' && (x < region.x || y < region.y || x + width > region.x + region.width || y + height > region.y + region.height || width <= 0 || height <= 0)) errors.push(`${field.id} is outside its ${field.region} region`);
+    if (layout.id !== 'FREEFORM' && !field.id.startsWith('free-') && (x < region.x || y < region.y || x + width > region.x + region.width || y + height > region.y + region.height || width <= 0 || height <= 0)) errors.push(`${field.id} is outside its ${field.region} region`);
   }
   for (const object of slide.objects) {
     const field = layout.slots.find((item) => item.id === object.slotId);

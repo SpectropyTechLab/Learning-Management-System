@@ -126,3 +126,15 @@
 .question-render .math-fraction__denominator {
   padding-top: 0.08em;
 }
+@keyframes studio-appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes studio-fly-in { from { opacity: 0; transform: translateX(-35%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes studio-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+@keyframes studio-zoom { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes studio-bounce { 0% { transform: translateY(-25%); opacity: 0; } 60% { transform: translateY(8%); opacity: 1; } 100% { transform: translateY(0); } }
+@keyframes studio-pulse { 50% { transform: scale(1.08); } }
+@keyframes studio-spin { to { transform: rotate(360deg); } }
+@keyframes studio-grow { 50% { transform: scale(1.2); } }
+@keyframes studio-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes studio-fly-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(35%); } }
+@keyframes studio-zoom-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.5); } }
+.studio-animate-appear,.studio-animate-fade{animation-name:studio-appear}.studio-animate-fly-in{animation-name:studio-fly-in}.studio-animate-wipe{animation-name:studio-wipe}.studio-animate-zoom{animation-name:studio-zoom}.studio-animate-bounce{animation-name:studio-bounce}.studio-animate-pulse{animation-name:studio-pulse}.studio-animate-spin{animation-name:studio-spin}.studio-animate-grow{animation-name:studio-grow}.studio-animate-fade-out{animation-name:studio-fade-out}.studio-animate-fly-out{animation-name:studio-fly-out}.studio-animate-zoom-out{animation-name:studio-zoom-out}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Boxes, ChevronDown, ChevronUp, Eraser, Eye, FileText, LayoutTemplate, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, PencilLine, PenLine, Plus, Redo2, Save, Trash2, Type, Undo2, Unlink, Upload } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Boxes, ChevronDown, ChevronUp, Eraser, Eye, FileText, LayoutTemplate, ListOrdered, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, PencilLine, PenLine, Plus, Redo2, Save, Shapes, Sigma, Sparkles, Trash2, Type, Undo2, Unlink, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   createBlankStudioScreen,
@@ -8,6 +8,7 @@ import {
   getStudioErrorMessage,
   getStudioScreen,
   listStudioScreens,
+  reorderStudioScreens,
   updateStudioScreen,
 } from './api/studioScreensApi';
 import BlankScreenCanvas from './components/BlankScreenCanvas';
@@ -16,6 +17,9 @@ import StudioShell from './components/StudioShell';
 import StudioLayoutGallery from './components/StudioLayoutGallery';
 import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
+import StudioAnimationsPanel from './components/StudioAnimationsPanel';
+import StudioMathPanel from './components/StudioMathPanel';
+import StudioShapesPanel from './components/StudioShapesPanel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
@@ -66,7 +70,7 @@ export default function TeachingStudioPage() {
   const [creating, setCreating] = useState(false);
   const [screenRequestVersion, setScreenRequestVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<'layouts' | 'script' | 'resources' | 'elements' | 'drawing' | null>('elements');
+  const [panel, setPanel] = useState<'layouts' | 'script' | 'resources' | 'elements' | 'math' | 'shapes' | 'animations' | 'drawing' | null>('elements');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
@@ -98,6 +102,9 @@ export default function TeachingStudioPage() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTitle, setRenameTitle] = useState('');
   const [renamingScreen, setRenamingScreen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
+  const [reorderIds, setReorderIds] = useState<number[]>([]);
+  const [reorderingScreens, setReorderingScreens] = useState(false);
   const [drawingTool, setDrawingTool] = useState<'pen' | 'eraser'>('pen');
   const [drawingColor, setDrawingColor] = useState('#ef4444');
   const [drawingWidth, setDrawingWidth] = useState(6);
@@ -428,7 +435,7 @@ export default function TeachingStudioPage() {
   };
 
   const addBlankElement = (type: ObjectType, region: Slot['region']) => {
-    if (!selectedScreen || selectedScreen.layout_id) return;
+    if (!selectedScreen || selectedScreen.layout_id || editorReadOnly) return;
     const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `element-${token}`;
     const position = region === 'header'
@@ -447,9 +454,47 @@ export default function TeachingStudioPage() {
     toast.success(`${region === 'content' ? 'Centre content' : region} element added. Edit and position it, then Save.`);
   };
 
+  const addMathElement = (latex: string) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+    const id = `math-${token}`;
+    const element: StudioElement = {
+      id,
+      slotId: `free-${id}`,
+      type: 'math',
+      content: { text: latex, latex, color: '#0f2747', fontSize: 42, alignment: 'center' },
+      position: { x: 420, y: 360, width: 1080, height: 260, zIndex: selectedScreen.elements.length + 1 },
+    };
+    commitElements([...selectedScreen.elements, element], element.id);
+    toast.success('Equation added. Move or resize it on the canvas, then Save.');
+  };
+
+  const addShapeElement = (kind: string) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+    const id = `shape-${token}`;
+    const element: StudioElement = {
+      id,
+      slotId: `free-${id}`,
+      type: 'shape',
+      content: { kind, fill: '#dbeafe', stroke: '#1d4ed8', strokeWidth: 4, opacity: 1 },
+      position: { x: 560, y: 380, width: 800, height: 320, zIndex: selectedScreen.elements.length + 1 },
+    };
+    commitElements([...selectedScreen.elements, element], element.id);
+    setPanel('shapes');
+    toast.success('Shape added. Move or resize it on the Screen, then Save.');
+  };
+
   const updateElement = (updated: StudioElement) => {
-    if (!selectedScreen) return;
+    if (!selectedScreen || editorReadOnly) return;
     commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+  };
+
+  const changeElementContent = (elementId: string, changes: Record<string, unknown>) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const element = selectedScreen.elements.find((candidate) => candidate.id === elementId);
+    if (!element) return;
+    updateElement({ ...element, content: { ...element.content, ...changes } });
   };
 
   const changeElementBounds = (elementId: string, bounds: { x: number; y: number; width: number; height: number }) => {
@@ -466,9 +511,10 @@ export default function TeachingStudioPage() {
   };
 
   const duplicateElement = (elementId: string) => {
-    if (!selectedScreen || selectedScreen.layout_id) return;
+    if (!selectedScreen || editorReadOnly) return;
     const source = selectedScreen.elements.find((element) => element.id === elementId);
     if (!source) return;
+    if (selectedScreen.layout_id && source.type !== 'math' && source.type !== 'shape') return;
     const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `element-${token}`;
     const x = Number(source.position.x) || 0;
@@ -685,6 +731,43 @@ export default function TeachingStudioPage() {
     }
   };
 
+  const openScreenReorder = () => {
+    if (editorReadOnly) return;
+    setReorderIds(screenList.screens.map((screen) => screen.id));
+    setReorderOpen(true);
+  };
+
+  const moveReorderedScreen = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= reorderIds.length) return;
+    setReorderIds((current) => {
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
+  const saveScreenOrder = async () => {
+    if (!sessionId || editorReadOnly || reorderingScreens || reorderIds.length === 0) return;
+    setReorderingScreens(true);
+    setError(null);
+    try {
+      const result = await reorderStudioScreens(sessionId, screenList.session_revision_no, reorderIds);
+      const byId = new Map(screenList.screens.map((screen) => [screen.id, screen]));
+      const ordered = result.screen_ids.map((id, index) => ({ ...byId.get(id)!, display_order: index }));
+      setScreenList({ session_revision_no: result.session_revision_no, screens: ordered });
+      setReorderOpen(false);
+      toast.success('Screens reordered successfully.');
+      await loadWorkflow();
+    } catch (requestError) {
+      const response = getStudioErrorMessage(requestError);
+      setError(response);
+      toast.error(response);
+    } finally {
+      setReorderingScreens(false);
+    }
+  };
+
   const selectedElement = selectedScreen?.elements.find((element) => element.id === selectedElementId) ?? null;
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
 
@@ -746,6 +829,7 @@ export default function TeachingStudioPage() {
             {workflowStatus?.can_submit && <button type="button" onClick={() => void runWorkflowAction('submit')} className="rounded-lg bg-blue-900 px-2.5 py-1.5 text-xs font-semibold text-white">Submit</button>}
             <button type="button" disabled={editorReadOnly || !hasUnsavedChanges || savingScreen} onClick={() => void saveScreenDraft()} className="inline-flex items-center gap-1 rounded-lg border border-blue-900 px-2.5 py-1.5 text-xs font-semibold text-blue-900 disabled:opacity-40"><Save size={14} />Save</button>
             <button type="button" disabled={!selectedScreen} onClick={() => setPreviewOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-blue-900 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"><Eye size={14} />Preview</button>
+            <button type="button" disabled={editorReadOnly || screenList.screens.length < 2} onClick={openScreenReorder} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-40"><ListOrdered size={14} />Reorder</button>
             <button type="button" disabled={editorReadOnly || !selectedScreen} onClick={openRenameScreen} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-40"><Type size={14} />Rename screen</button>
             <button type="button" disabled={editorReadOnly || !selectedScreen?.layout_id} onClick={() => { if (!selectedScreen?.layout_id || editorReadOnly) return; setRightPanelOpen(true); setPanel('layouts'); setLayoutEditRequest({ layoutId: selectedScreen.layout_id, requestId: Date.now() }); }} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-40"><Pencil size={14} />Edit layout</button>
             {selectedScreen?.layout_id && <button type="button" disabled={editorReadOnly} onClick={() => requestScreenAction('remove-layout')} className="inline-flex items-center gap-1 rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-40"><Unlink size={14} />Remove layout</button>}
@@ -760,10 +844,10 @@ export default function TeachingStudioPage() {
           {leftPanelOpen && <aside className="min-h-0 overflow-hidden">
             <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm"><h2 className="shrink-0 font-semibold">Screen Script</h2>{(() => { const entries = screenScriptEntries(scripts.find((row) => row.screen_id === selectedScreenId)?.content_json); return entries.length > 0 ? <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">{entries.map(([key, value]) => <div key={key} className="rounded-lg bg-slate-50 p-2"><p className="text-[10px] font-bold uppercase text-slate-500">{key.replaceAll('_', ' ')}</p><p className="mt-1 whitespace-pre-wrap text-xs">{value || '—'}</p></div>)}</div> : <p className="mt-2 min-h-0 flex-1 overflow-y-auto text-xs text-slate-500">No saved script for this Screen.</p>; })()}</section>
           </aside>}
-          <main className="flex min-h-0 flex-col gap-1 overflow-hidden"><div className="min-h-0 flex-1"><BlankScreenCanvas screen={selectedScreen} loading={loadingScreen} layout={selectedLayout} selectedElementId={selectedElementId} onSelectElement={(elementId) => { setSelectedElementId(elementId); if (!editorReadOnly) setPanel('elements'); }} onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds} drawingStrokes={authoredDrawingStrokes(selectedScreen)} drawingEnabled={!editorReadOnly && panel === 'drawing'} drawingTool={drawingTool} drawingColor={drawingColor} drawingWidth={drawingWidth} onDrawingChange={editorReadOnly ? undefined : setAuthoredDrawings} /></div>{!editorReadOnly && <button type="button" onClick={() => void createBlankScreen()} disabled={creating || loadingScreens} className="inline-flex w-44 shrink-0 self-center items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"><Plus size={16} />{creating ? 'Adding Screen…' : 'Add Screen'}</button>}</main>
+          <main className="flex min-h-0 flex-col gap-1 overflow-hidden"><div className="min-h-0 flex-1"><BlankScreenCanvas screen={selectedScreen} loading={loadingScreen} layout={selectedLayout} selectedElementId={selectedElementId} onSelectElement={(elementId) => { setSelectedElementId(elementId); if (!editorReadOnly) setPanel('elements'); }} onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds} onChangeElementContent={editorReadOnly ? undefined : changeElementContent} onOpenTool={editorReadOnly ? undefined : setPanel} drawingStrokes={authoredDrawingStrokes(selectedScreen)} drawingEnabled={!editorReadOnly && panel === 'drawing'} drawingTool={drawingTool} drawingColor={drawingColor} drawingWidth={drawingWidth} onDrawingChange={editorReadOnly ? undefined : setAuthoredDrawings} /></div>{!editorReadOnly && <button type="button" onClick={() => void createBlankScreen()} disabled={creating || loadingScreens} className="inline-flex w-44 shrink-0 self-center items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"><Plus size={16} />{creating ? 'Adding Screen…' : 'Add Screen'}</button>}</main>
           {toolPanelOpen && <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="grid shrink-0 grid-cols-4 gap-1 border-b p-2"><button onClick={() => setPanel('layouts')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'layouts' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><LayoutTemplate size={14} />Layouts</button><button onClick={() => setPanel('resources')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'resources' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Upload size={14} />Resources</button><button onClick={() => setPanel('elements')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'elements' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Boxes size={14} />Elements</button><button onClick={() => setPanel('drawing')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'drawing' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Paintbrush size={14} />Drawing</button></div>
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">{panel === 'layouts' && <StudioLayoutGallery layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} onApply={requestLayoutApplication} onLayoutsChanged={loadLayouts} editRequest={layoutEditRequest} />}{panel === 'resources' && <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />}{panel === 'elements' && <StudioElementPanel layout={selectedLayout} screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addElement} onAddBlank={addBlankElement} onUpdate={updateElement} onDuplicate={duplicateElement} onRemove={removeElement} />}{panel === 'drawing' && <div><h2 className="font-semibold text-slate-900">Author drawing</h2><p className="mt-1 text-xs text-slate-500">Saved with this Screen revision. Teacher run annotations remain separate.</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setDrawingTool('pen')} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${drawingTool === 'pen' ? 'border-blue-900 bg-blue-900 text-white' : 'border-slate-300'}`}><PenLine size={16} />Pen</button><button type="button" onClick={() => setDrawingTool('eraser')} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${drawingTool === 'eraser' ? 'border-blue-900 bg-blue-900 text-white' : 'border-slate-300'}`}><Eraser size={16} />Eraser</button></div><label className="mt-4 block text-sm font-semibold text-slate-700">Color<input type="color" value={drawingColor} onChange={(event) => setDrawingColor(event.target.value)} className="mt-1 h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white p-1" /></label><label className="mt-4 block text-sm font-semibold text-slate-700">Stroke width: {drawingWidth}<input type="range" min="2" max="24" value={drawingWidth} onChange={(event) => setDrawingWidth(Number(event.target.value))} className="mt-2 w-full" /></label><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" disabled={drawingPast.length === 0} onClick={undoDrawing} className="inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-40"><Undo2 size={15} />Undo</button><button type="button" disabled={drawingFuture.length === 0} onClick={redoDrawing} className="inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-40"><Redo2 size={15} />Redo</button></div><button type="button" disabled={authoredDrawingStrokes(selectedScreen).length === 0} onClick={() => setAuthoredDrawings([])} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"><Trash2 size={15} />Clear authored drawing</button></div>}</div>
+            <div className="grid shrink-0 grid-cols-4 gap-1 border-b p-2 xl:grid-cols-7"><button onClick={() => setPanel('layouts')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'layouts' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><LayoutTemplate size={14} />Layouts</button><button onClick={() => setPanel('resources')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'resources' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Upload size={14} />Resources</button><button onClick={() => setPanel('elements')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'elements' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Boxes size={14} />Elements</button><button onClick={() => setPanel('math')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'math' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Sigma size={14} />Math</button><button onClick={() => setPanel('shapes')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'shapes' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Shapes size={14} />Shapes</button><button onClick={() => setPanel('animations')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'animations' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Sparkles size={14} />Animate</button><button onClick={() => setPanel('drawing')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${panel === 'drawing' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Paintbrush size={14} />Drawing</button></div>
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">{panel === 'layouts' && <StudioLayoutGallery layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} onApply={requestLayoutApplication} onLayoutsChanged={loadLayouts} editRequest={layoutEditRequest} />}{panel === 'resources' && <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />}{panel === 'elements' && <StudioElementPanel layout={selectedLayout} screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addElement} onAddBlank={addBlankElement} onUpdate={updateElement} onDuplicate={duplicateElement} onRemove={removeElement} />}{panel === 'math' && <StudioMathPanel screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addMathElement} onUpdate={updateElement} onDuplicate={duplicateElement} onRemove={removeElement} />}{panel === 'shapes' && <StudioShapesPanel screen={selectedScreen} selectedElementId={selectedElementId} onAdd={addShapeElement} onUpdate={updateElement} onDuplicate={duplicateElement} onRemove={removeElement} />}{panel === 'animations' && <StudioAnimationsPanel screen={selectedScreen} selectedElementId={selectedElementId} onUpdate={updateElement} />}{panel === 'drawing' && <div><h2 className="font-semibold text-slate-900">Author drawing</h2><p className="mt-1 text-xs text-slate-500">Saved with this Screen revision. Teacher run annotations remain separate.</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setDrawingTool('pen')} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${drawingTool === 'pen' ? 'border-blue-900 bg-blue-900 text-white' : 'border-slate-300'}`}><PenLine size={16} />Pen</button><button type="button" onClick={() => setDrawingTool('eraser')} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${drawingTool === 'eraser' ? 'border-blue-900 bg-blue-900 text-white' : 'border-slate-300'}`}><Eraser size={16} />Eraser</button></div><label className="mt-4 block text-sm font-semibold text-slate-700">Color<input type="color" value={drawingColor} onChange={(event) => setDrawingColor(event.target.value)} className="mt-1 h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white p-1" /></label><label className="mt-4 block text-sm font-semibold text-slate-700">Stroke width: {drawingWidth}<input type="range" min="2" max="24" value={drawingWidth} onChange={(event) => setDrawingWidth(Number(event.target.value))} className="mt-2 w-full" /></label><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" disabled={drawingPast.length === 0} onClick={undoDrawing} className="inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-40"><Undo2 size={15} />Undo</button><button type="button" disabled={drawingFuture.length === 0} onClick={redoDrawing} className="inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-40"><Redo2 size={15} />Redo</button></div><button type="button" disabled={authoredDrawingStrokes(selectedScreen).length === 0} onClick={() => setAuthoredDrawings([])} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"><Trash2 size={15} />Clear authored drawing</button></div>}</div>
           </aside>}
         </div>
       </div>
@@ -827,6 +911,14 @@ export default function TeachingStudioPage() {
         <BlankScreenCanvas screen={selectedScreen} loading={loadingScreen} layout={selectedLayout} selectedElementId={selectedElementId} onSelectElement={(elementId) => { setSelectedElementId(elementId); setPanel('elements'); }} />
       </div>
       </>}
+      {reorderOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Reorder screens">
+        <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <h2 className="text-lg font-semibold text-slate-900">Reorder Screens</h2>
+          <p className="mt-1 text-sm text-slate-600">Move Screens into the required teaching order. Saving creates the next Session revision.</p>
+          <div className="mt-4 max-h-[55dvh] space-y-2 overflow-y-auto pr-1">{reorderIds.map((screenId, index) => { const screen = screenList.screens.find((candidate) => candidate.id === screenId); return <div key={screenId} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-900">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900">{screen?.title || `Screen ${screenId}`}</p><p className="text-xs text-slate-500">Current Screen {screen?.screen_number ?? '—'}</p></div><button type="button" disabled={index === 0} onClick={() => moveReorderedScreen(index, -1)} title="Move up" aria-label={`Move ${screen?.title || 'Screen'} up`} className="rounded-lg border bg-white p-2 disabled:opacity-30"><ArrowUp size={15} /></button><button type="button" disabled={index === reorderIds.length - 1} onClick={() => moveReorderedScreen(index, 1)} title="Move down" aria-label={`Move ${screen?.title || 'Screen'} down`} className="rounded-lg border bg-white p-2 disabled:opacity-30"><ArrowDown size={15} /></button></div>; })}</div>
+          <div className="mt-6 flex justify-end gap-2"><button type="button" disabled={reorderingScreens} onClick={() => setReorderOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">Cancel</button><button type="button" disabled={reorderingScreens} onClick={() => void saveScreenOrder()} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{reorderingScreens ? 'Saving…' : 'Save order'}</button></div>
+        </div>
+      </div>}
       {renameOpen && selectedScreen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Rename screen">
         <form onSubmit={(event) => { event.preventDefault(); void renameScreen(); }} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <h2 className="text-lg font-semibold text-slate-900">Rename Screen</h2>
