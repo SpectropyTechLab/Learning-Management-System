@@ -8,6 +8,8 @@ export interface PublishedResourceMapping {
   resource_type: string;
   external_url: string | null;
   mime_type: string | null;
+  width: number | null;
+  height: number | null;
 }
 
 export interface PublishedScreenElement {
