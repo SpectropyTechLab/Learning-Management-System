@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import pool from '../config/db.js';
-import { submitSession } from '../services/studioSessionWorkflow.service.js';
+import { startSessionRevision, submitSession } from '../services/studioSessionWorkflow.service.js';
 
 const normalizedSql = (value) => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -120,4 +120,39 @@ test('submitSession rejects access to a session from another tenant', async (t) 
 
   assert.ok(calls.includes('rollback'));
   assert.ok(!calls.includes('commit'));
+});
+
+test('startSessionRevision preserves a published release while creating a new draft revision', async (t) => {
+  const calls = [];
+  const client = {
+    async query(text, params = []) {
+      const sql = normalizedSql(text);
+      calls.push({ sql, params });
+      if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
+      if (sql.includes('from sessions') && sql.includes('for update')) {
+        return { rows: [{ id: 41, client_id: 12, status: 'published', revision_no: 7 }] };
+      }
+      if (sql.startsWith("update sessions set status = 'draft'")) {
+        assert.deepEqual(params, [41, 'published']);
+        return { rows: [{ session_id: 41, status: 'draft', revision_no: 8 }] };
+      }
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  const result = await startSessionRevision({
+    sessionId: 41,
+    user: { id: 8, role: 'content_authorizer', client_id: 12 },
+  });
+
+  assert.equal(result.status, 'draft');
+  assert.equal(result.revision_no, 8);
+  assert.equal(result.previous_status, 'published');
+  assert.equal(result.creates_new_release, true);
+  assert.ok(calls.some(({ sql }) => sql === 'commit'));
+  assert.ok(calls.every(({ sql }) => !sql.includes('session_releases')));
 });

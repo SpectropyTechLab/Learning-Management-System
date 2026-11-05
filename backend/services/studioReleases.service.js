@@ -494,6 +494,31 @@ export const getCurrentPublishedRelease = ({ sessionId, user }) =>
 export const getPublishedReleaseByNumber = ({ sessionId, releaseNumber, user }) =>
   getPublishedRelease({ sessionId, releaseNumber, user });
 
+export const listPublishedSessionReleases = async ({ sessionId: rawSessionId, user }) => {
+  assertPublishedReader(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const tenantId = publishedTenantId(user);
+  const result = await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE session_id = $1 AND ($2::int IS NULL OR client_id = $2)
+     ORDER BY release_number DESC`,
+    [sessionId, tenantId],
+  );
+  const releases = [];
+  for (const row of result.rows) {
+    await assertPublishedReleaseAccess(row, user);
+    releases.push({
+      id: Number(row.id),
+      session_id: Number(row.session_id),
+      release_number: Number(row.release_number),
+      published_at: row.published_at,
+      published_by: row.published_by === null ? null : Number(row.published_by),
+      screen_count: Array.isArray(row.manifest_json?.screens) ? row.manifest_json.screens.length : 0,
+    });
+  }
+  return releases;
+};
+
 export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleaseId, versionId: rawVersionId, user }) => {
   assertPublishedReader(user);
   const releaseId = parseId(rawReleaseId, 'Release ID');

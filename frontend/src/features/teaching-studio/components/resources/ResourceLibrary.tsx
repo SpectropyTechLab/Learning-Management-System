@@ -23,7 +23,7 @@ import {
   type StudioResourceType,
 } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
-import { formatResourceDate, RESOURCE_TYPE_STYLES } from './resourcePresentation';
+import { DEFAULT_RESOURCE_TYPE_STYLE, RESOURCE_TYPE_STYLES } from './resourcePresentation';
 
 type ResourceView = 'grid' | 'list';
 type ResourceSort = 'recently_updated' | 'name_asc' | 'name_desc' | 'newest' | 'type';
@@ -41,7 +41,7 @@ const formatDuration = (seconds?: number | null) => {
 };
 
 function ResourcePreview({ resource }: { resource: StudioResourceSummary }) {
-  const style = RESOURCE_TYPE_STYLES[resource.resource_type];
+  const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
   const Icon = style.icon;
   const duration = formatDuration(resource.latest_version?.duration_seconds);
   return (
@@ -194,7 +194,7 @@ export default function ResourceLibrary({
 
   const sorted = useMemo(
     () =>
-      resources
+      [...resources]
         .filter((resource) => !allowedTypes || allowedTypes.includes(resource.resource_type))
         .sort((left, right) => {
           if (sort === 'name_asc') return left.name.localeCompare(right.name);
@@ -375,7 +375,7 @@ export default function ResourceLibrary({
         ) : view === 'grid' ? (
           <div className={`grid gap-4 ${mode === 'picker' ? 'grid-cols-1' : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
             {sorted.map((resource) => {
-              const style = RESOURCE_TYPE_STYLES[resource.resource_type];
+              const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
               return (
                 <article
                   key={resource.id}
@@ -428,7 +428,8 @@ export default function ResourceLibrary({
         ) : (
           <div className="rounded-xl border border-gray-200">
             {sorted.map((resource) => {
-              const Icon = RESOURCE_TYPE_STYLES[resource.resource_type].icon;
+              const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
+              const Icon = style.icon;
               return (
                 <div
                   key={resource.id}
@@ -441,7 +442,7 @@ export default function ResourceLibrary({
                   >
                     <span className="flex min-w-0 items-center gap-3">
                       <span
-                        className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${RESOURCE_TYPE_STYLES[resource.resource_type].preview}`}
+                        className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${style.preview}`}
                       >
                         <Icon size={20} />
                       </span>

@@ -13,6 +13,12 @@ export const RESOURCE_TYPE_STYLES: Record<StudioResourceType, { icon: LucideIcon
   scorm: { icon: Package, badge: 'bg-cyan-100 text-cyan-800', preview: 'from-cyan-50 to-blue-100 text-cyan-700' },
 };
 
+export const DEFAULT_RESOURCE_TYPE_STYLE = {
+  icon: Package,
+  badge: 'bg-slate-100 text-slate-700',
+  preview: 'from-slate-50 to-slate-200 text-slate-700',
+};
+
 export const formatResourceDate = (value?: string) => {
   const date = value ? new Date(value) : null;
   return !date || Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(date);

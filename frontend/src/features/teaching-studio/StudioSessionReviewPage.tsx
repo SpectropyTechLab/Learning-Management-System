@@ -67,7 +67,7 @@ export default function StudioSessionReviewPage() {
     finally { setAction(null); }
   };
 
-  return <StudioShell title="Review Session" subtitle={session ? `${session.subject_name} · ${session.title}` : 'Read-only content review'} actions={<button type="button" onClick={() => navigate('/studio/review')} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold"><ArrowLeft size={16} />Queue</button>}>
+  return <StudioShell title="Review Session" subtitle={session ? `${session.subject_name} · ${session.title}` : 'Read-only content review'} actions={<button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold"><ArrowLeft size={16} />Back</button>}>
     {loading && <div className="rounded-xl border bg-white p-10 text-center text-sm text-slate-500">Loading Session review…</div>}
     {!loading && error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {!loading && !error && session && workflow && <>

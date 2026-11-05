@@ -68,3 +68,12 @@ export const reviewStudioSession = async (
 
 export const publishStudioSession = async (sessionId: number) =>
   unwrap<unknown>(await api.post(`/studio/sessions/${sessionId}/publish`));
+
+export const startStudioSessionRevision = async (sessionId: number) =>
+  unwrap<{
+    session_id: number;
+    status: 'draft';
+    revision_no: number;
+    previous_status: string;
+    creates_new_release: boolean;
+  }>(await api.post(`/studio/sessions/${sessionId}/revise`));

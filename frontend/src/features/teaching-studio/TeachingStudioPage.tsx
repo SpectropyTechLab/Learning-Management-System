@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Boxes, ChevronDown, ChevronUp, Eye, FileText, LayoutTemplate, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Redo2, Save, Undo2, Upload } from 'lucide-react';
+import { ArrowLeft, Boxes, ChevronDown, ChevronUp, Eye, FileText, LayoutTemplate, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PencilLine, Plus, Redo2, Save, Undo2, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   createBlankStudioScreen,
@@ -24,6 +24,7 @@ import {
   approveStudioSession,
   getStudioWorkflowStatus,
   publishStudioSession,
+  startStudioSessionRevision,
   submitStudioSession,
   workflowError,
 } from './api/studioWorkflowApi';
@@ -81,6 +82,12 @@ export default function TeachingStudioPage() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [contextBarOpen, setContextBarOpen] = useState(true);
+  const [revisionPromptOpen, setRevisionPromptOpen] = useState(false);
+  const [startingRevision, setStartingRevision] = useState(false);
+  const editorReadOnly = !workflowStatus || !['draft', 'rejected'].includes(workflowStatus.status);
+  const canStartRevision = Boolean(workflowStatus && ['submitted', 'approved', 'published'].includes(workflowStatus.status));
+  const toolPanelOpen = rightPanelOpen && !editorReadOnly;
+  const showLegacyEditor = false;
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -227,7 +234,7 @@ export default function TeachingStudioPage() {
   };
 
   const createBlankScreen = async () => {
-    if (!sessionId || creating) return;
+    if (!sessionId || creating || editorReadOnly) return;
     if (hasUnsavedChanges) {
       toast.error('Save or undo the current Screen changes before creating another Screen.');
       return;
@@ -270,8 +277,27 @@ export default function TeachingStudioPage() {
     }
   };
 
+  const startRevision = async () => {
+    if (!sessionId || startingRevision) return;
+    setStartingRevision(true);
+    try {
+      const result = await startStudioSessionRevision(sessionId);
+      setRevisionPromptOpen(false);
+      setRightPanelOpen(true);
+      toast.success(result.creates_new_release
+        ? 'New draft started. Publishing it later will create a new release version.'
+        : 'Session returned to Draft for updating.');
+      await Promise.all([loadWorkflow(), loadScreens()]);
+    } catch (requestError) {
+      toast.error(workflowError(requestError).message);
+      await loadWorkflow();
+    } finally {
+      setStartingRevision(false);
+    }
+  };
+
   const saveAppliedLayout = async (row: StudioLayoutSummary, layout: Layout) => {
-    if (!selectedScreen || applyingLayout) return;
+    if (!selectedScreen || applyingLayout || editorReadOnly) return;
     setApplyingLayout(true);
     setError(null);
     const remapped = remapElementsToLayout(selectedScreen.elements, layout);
@@ -306,6 +332,10 @@ export default function TeachingStudioPage() {
   };
 
   const requestLayoutApplication = (row: StudioLayoutSummary, layout: Layout) => {
+    if (editorReadOnly) {
+      toast.error('Start an update before changing this Session.');
+      return;
+    }
     if (!selectedScreen) {
       toast.error('Select or create a Screen before applying a layout.');
       return;
@@ -478,7 +508,7 @@ export default function TeachingStudioPage() {
   };
 
   const saveScreenDraft = async () => {
-    if (!selectedScreen || !hasUnsavedChanges || savingScreen) return;
+    if (!selectedScreen || !hasUnsavedChanges || savingScreen || editorReadOnly) return;
     setSavingScreen(true);
     try {
       const saved = await updateStudioScreen(selectedScreen.id, {
@@ -541,14 +571,11 @@ export default function TeachingStudioPage() {
       scrollContent={false}
       wrapContent={false}
       actions={(
-        <button
-          type="button"
-          onClick={() => void refreshScreens()}
-          disabled={loadingScreens}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loadingScreens ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><ArrowLeft size={16} />Back</button>
+          {canStartRevision && <button type="button" onClick={() => setRevisionPromptOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><PencilLine size={16} />{workflowStatus?.status === 'published' ? 'New version' : 'Update'}</button>}
+          <button type="button" onClick={() => void refreshScreens()} disabled={loadingScreens} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">{loadingScreens ? 'Refreshing...' : 'Refresh'}</button>
+        </div>
       )}
     >
       <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden bg-slate-100 p-2">
@@ -558,36 +585,37 @@ export default function TeachingStudioPage() {
             <span className="min-w-0 flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs"><b>Topic:</b> {sessionContext?.topic_name || '—'}</span>
             <span className="min-w-0 flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs"><b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}</span>
             <button type="button" onClick={() => setLeftPanelOpen((open) => !open)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold" aria-expanded={leftPanelOpen}>{leftPanelOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}{leftPanelOpen ? 'Close script' : 'Open script'}</button>
-            <button type="button" onClick={() => setRightPanelOpen((open) => !open)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold" aria-expanded={rightPanelOpen}>{rightPanelOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}{rightPanelOpen ? 'Close tools' : 'Open tools'}</button>
+            {!editorReadOnly && <button type="button" onClick={() => setRightPanelOpen((open) => !open)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold" aria-expanded={rightPanelOpen}>{rightPanelOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}{rightPanelOpen ? 'Close tools' : 'Open tools'}</button>}
             {workflowStatus && <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>Publication: {workflowStatus.validation.valid ? 'Ready' : 'Action required'}</span>}
           </div>
           <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
             <label className="flex min-w-0 items-center text-xs font-semibold text-slate-600">Session <select value={sessionId} onChange={(event) => navigate(`/studio/editor/${event.target.value}`)} className="ml-1 min-w-0 max-w-md rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900">{sessionOptions.map((session) => <option key={session.id} value={session.id}>Session {session.session_number}: {session.title}</option>)}</select></label>
             <label className="flex min-w-0 items-center text-xs font-semibold text-slate-600">Screen <select value={selectedScreenId || ''} onChange={(event) => selectScreen(Number(event.target.value))} className="ml-1 min-w-0 max-w-48 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900">{screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screen.title}</option>)}</select></label>
             <div className="ml-auto flex shrink-0 items-center gap-2">
-            <button type="button" disabled={elementPast.length === 0} onClick={undoElementChange} title="Undo the latest element change" className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"><Undo2 size={14} />Undo</button>
-            <button type="button" disabled={elementFuture.length === 0} onClick={redoElementChange} title="Redo the latest element change" className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"><Redo2 size={14} />Redo</button>
+            <button type="button" disabled={editorReadOnly || elementPast.length === 0} onClick={undoElementChange} title="Undo the latest element change" className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"><Undo2 size={14} />Undo</button>
+            <button type="button" disabled={editorReadOnly || elementFuture.length === 0} onClick={redoElementChange} title="Redo the latest element change" className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"><Redo2 size={14} />Redo</button>
             <button type="button" onClick={() => void loadWorkflow(true)} disabled={loadingWorkflow} className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold">Check</button>
             {workflowStatus?.can_submit && <button type="button" onClick={() => void runWorkflowAction('submit')} className="rounded-lg bg-blue-900 px-2.5 py-1.5 text-xs font-semibold text-white">Submit</button>}
-            <button type="button" disabled={!hasUnsavedChanges || savingScreen} onClick={() => void saveScreenDraft()} className="inline-flex items-center gap-1 rounded-lg border border-blue-900 px-2.5 py-1.5 text-xs font-semibold text-blue-900 disabled:opacity-40"><Save size={14} />Save</button>
+            <button type="button" disabled={editorReadOnly || !hasUnsavedChanges || savingScreen} onClick={() => void saveScreenDraft()} className="inline-flex items-center gap-1 rounded-lg border border-blue-900 px-2.5 py-1.5 text-xs font-semibold text-blue-900 disabled:opacity-40"><Save size={14} />Save</button>
             <button type="button" disabled={!selectedScreen} onClick={() => setPreviewOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-blue-900 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"><Eye size={14} />Preview</button>
             <button type="button" onClick={() => setContextBarOpen(false)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold" aria-label="Hide context controls"><ChevronUp size={15} />Hide</button>
             </div>
           </div>
         </section> : <button type="button" onClick={() => setContextBarOpen(true)} className="inline-flex w-fit shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm"><ChevronDown size={15} />Show context and actions</button>}
+        {workflowStatus && editorReadOnly && <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900"><span><strong className="capitalize">{workflowStatus.status}</strong> Sessions are view-only. Start an update to edit this working Session.</span>{canStartRevision && <button type="button" onClick={() => setRevisionPromptOpen(true)} className="rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white">{workflowStatus.status === 'published' ? 'Create new version' : 'Update Session'}</button>}</div>}
         {error && <div className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
-        <div className="grid min-h-0 flex-1 gap-2 overflow-x-auto" style={{ gridTemplateColumns: `${leftPanelOpen ? 'minmax(220px, 260px)' : ''} minmax(560px, 1fr) ${rightPanelOpen ? 'minmax(280px, 340px)' : ''}`.trim() }}>
+        <div className="grid min-h-0 flex-1 gap-2 overflow-x-auto" style={{ gridTemplateColumns: `${leftPanelOpen ? 'minmax(220px, 260px)' : ''} minmax(560px, 1fr) ${toolPanelOpen ? 'minmax(280px, 340px)' : ''}`.trim() }}>
           {leftPanelOpen && <aside className="min-h-0 overflow-hidden">
             <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm"><h2 className="shrink-0 font-semibold">Screen Script</h2>{(() => { const entries = screenScriptEntries(scripts.find((row) => row.screen_id === selectedScreenId)?.content_json); return entries.length > 0 ? <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">{entries.map(([key, value]) => <div key={key} className="rounded-lg bg-slate-50 p-2"><p className="text-[10px] font-bold uppercase text-slate-500">{key.replaceAll('_', ' ')}</p><p className="mt-1 whitespace-pre-wrap text-xs">{value || '—'}</p></div>)}</div> : <p className="mt-2 min-h-0 flex-1 overflow-y-auto text-xs text-slate-500">No saved script for this Screen.</p>; })()}</section>
           </aside>}
-          <main className="flex min-h-0 flex-col gap-1 overflow-hidden"><div className="min-h-0 flex-1"><BlankScreenCanvas screen={selectedScreen} loading={loadingScreen} layout={selectedLayout} selectedElementId={selectedElementId} onSelectElement={(elementId) => { setSelectedElementId(elementId); setPanel('elements'); }} onChangeElementBounds={changeElementBounds} /></div><button type="button" onClick={() => void createBlankScreen()} disabled={creating || loadingScreens} className="inline-flex w-44 shrink-0 self-center items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"><Plus size={16} />{creating ? 'Adding Screen…' : 'Add Screen'}</button></main>
-          {rightPanelOpen && <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <main className="flex min-h-0 flex-col gap-1 overflow-hidden"><div className="min-h-0 flex-1"><BlankScreenCanvas screen={selectedScreen} loading={loadingScreen} layout={selectedLayout} selectedElementId={selectedElementId} onSelectElement={(elementId) => { setSelectedElementId(elementId); if (!editorReadOnly) setPanel('elements'); }} onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds} /></div>{!editorReadOnly && <button type="button" onClick={() => void createBlankScreen()} disabled={creating || loadingScreens} className="inline-flex w-44 shrink-0 self-center items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"><Plus size={16} />{creating ? 'Adding Screen…' : 'Add Screen'}</button>}</main>
+          {toolPanelOpen && <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="grid shrink-0 grid-cols-3 gap-1 border-b p-2"><button onClick={() => setPanel('layouts')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold ${panel === 'layouts' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><LayoutTemplate size={15} />Layouts</button><button onClick={() => setPanel('resources')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold ${panel === 'resources' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Upload size={15} />Resources</button><button onClick={() => setPanel('elements')} className={`inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold ${panel === 'elements' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Boxes size={15} />Elements</button></div>
             <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">{panel === 'layouts' && <StudioLayoutGallery layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} onApply={requestLayoutApplication} onLayoutsChanged={loadLayouts} />}{panel === 'resources' && <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />}{panel === 'elements' && <StudioElementPanel layout={selectedLayout} screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addElement} onAddBlank={addBlankElement} onUpdate={updateElement} onDuplicate={duplicateElement} onRemove={removeElement} />}</div>
           </aside>}
         </div>
       </div>
-      {false && <>
+      {showLegacyEditor && <>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
         <button type="button" onClick={() => setPanel(panel === 'layouts' ? null : 'layouts')} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"><LayoutTemplate size={17} />Layouts</button>
         <button type="button" onClick={() => setPanel(panel === 'script' ? null : 'script')} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"><FileText size={17} />Script View</button>
@@ -620,7 +648,7 @@ export default function TeachingStudioPage() {
               onLayoutsChanged={loadLayouts}
             />
           )}
-          {panel === 'resources' && <><div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Resources</h2><p className="mt-1 text-sm text-slate-500">Select a visual, media, or simulation element, then attach a compatible immutable Resource version.</p></div><a href="/studio/resources" className="rounded-lg border border-blue-800 px-3 py-2 text-sm font-semibold text-blue-900">Manage Resource library</a></div>{supportsResourcePlacement(selectedElement?.type) ? <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} allowedTypes={allowedResourceTypes} /> : <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">Select a visual, media, or simulation element to see compatible Resources.</p>}</>}
+          {panel === 'resources' && <><div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Resources</h2><p className="mt-1 text-sm text-slate-500">Select a visual, media, or simulation element, then attach a compatible immutable Resource version.</p></div><button type="button" onClick={() => navigate('/studio/resources')} className="rounded-lg border border-blue-800 px-3 py-2 text-sm font-semibold text-blue-900">Manage Resource library</button></div>{supportsResourcePlacement(selectedElement?.type) ? <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} allowedTypes={allowedResourceTypes} /> : <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">Select a visual, media, or simulation element to see compatible Resources.</p>}</>}
           {panel === 'script' && <><h2 className="font-semibold">Screen Script</h2>{(() => { const entries = screenScriptEntries(scripts.find((row) => row.screen_id === selectedScreenId)?.content_json); return entries.length > 0 ? <div className="mt-3 grid gap-3 md:grid-cols-2">{entries.map(([key, value]) => <div key={key} className="rounded-lg bg-gray-50 p-3"><p className="text-xs font-semibold uppercase text-slate-500">{key.replaceAll('_', ' ')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{value || '—'}</p></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No saved script exists for the selected Screen.</p>; })()}</>}
           {panel === 'elements' && <StudioElementPanel layout={selectedLayout} screen={selectedScreen} selectedElementId={selectedElementId} onSelect={setSelectedElementId} onAdd={addElement} onAddBlank={addBlankElement} onUpdate={updateElement} onDuplicate={duplicateElement} onRemove={removeElement} />}
         </section>
@@ -651,6 +679,7 @@ export default function TeachingStudioPage() {
         const result = remapElementsToLayout(selectedScreen.elements, pendingLayout.layout);
         return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Confirm layout change"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-semibold text-slate-900">Apply {pendingLayout.layout.id}?</h2><p className="mt-2 text-sm text-slate-600">Existing elements are never changed silently. {result.elements.length} compatible element{result.elements.length === 1 ? '' : 's'} will be kept and remapped. {result.removed.length} incompatible element{result.removed.length === 1 ? '' : 's'} will be removed.</p>{result.removed.length > 0 && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Removed: {result.removed.map((element) => element.id).join(', ')}</p>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setPendingLayout(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="button" disabled={applyingLayout} onClick={() => void saveAppliedLayout(pendingLayout.row, pendingLayout.layout)} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{applyingLayout ? 'Applying...' : 'Keep compatible and apply'}</button></div></div></div>;
       })()}
+      {revisionPromptOpen && workflowStatus && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Start Session update"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-semibold text-slate-900">{workflowStatus.status === 'published' ? 'Create a new Session version?' : 'Update this Session?'}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{workflowStatus.status === 'published' ? 'The published release will remain unchanged and available to viewers. This action creates a new editable Draft; after review and approval, publishing it will create the next immutable release.' : `This Session is currently ${workflowStatus.status}. Updating it will return it to Draft and clear the current review or approval so it can be submitted again.`}</p><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={startingRevision} onClick={() => setRevisionPromptOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="button" disabled={startingRevision} onClick={() => void startRevision()} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{startingRevision ? 'Preparing…' : workflowStatus.status === 'published' ? 'Create new Draft' : 'Return to Draft'}</button></div></div></div>}
       {previewOpen && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Screen Preview"><div className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]"><div className="flex flex-none items-center justify-between border-b border-gray-200 px-4 py-3"><div><h2 className="font-semibold">Flattened Screen Preview</h2><p className="text-xs text-slate-500">Read-only output without editor guides or controls.</p></div><button type="button" autoFocus onClick={() => setPreviewOpen(false)} className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-gray-50">Close</button></div><div className="min-h-0 flex-1 overflow-hidden p-2 sm:p-4"><BlankScreenCanvas screen={selectedScreen} loading={false} layout={selectedLayout} showGuides={false} previewMode /></div></div></div>}
     </StudioShell>
   );

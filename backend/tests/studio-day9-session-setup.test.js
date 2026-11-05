@@ -49,6 +49,7 @@ test('the Session Library is tenant scoped and can filter workflow status', asyn
   assert.equal(result.sessions[0].subject_name, 'Mathematics');
   assert.deepEqual(calls[0][1], [7, 'submitted']);
   assert.match(calls[0][0], /JOIN programs p/);
+  assert.match(calls[0][0], /published_release/);
   assert.match(calls[0][0], /ORDER BY s\.updated_at DESC/);
 });
 

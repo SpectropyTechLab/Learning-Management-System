@@ -151,7 +151,13 @@ export const listAllStudioSessions = async ({ status, user, db = { query: dbQuer
      JOIN programs p ON p.id = g.program_id
      JOIN boards b ON b.id = p.board_id
      WHERE ($1::bigint IS NULL OR s.client_id = $1)
-       AND ($2::text IS NULL OR s.status = $2)
+       AND (
+         $2::text IS NULL
+         OR ($2 = 'published' AND EXISTS (
+           SELECT 1 FROM session_releases published_release WHERE published_release.session_id = s.id
+         ))
+         OR ($2 <> 'published' AND s.status = $2)
+       )
      ORDER BY s.updated_at DESC, s.id DESC`,
     [tenantId, normalizedStatus || null],
   );
