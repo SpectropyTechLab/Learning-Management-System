@@ -7,7 +7,7 @@ import { inspectRuntimePackage } from './studioPackageInspection.service.js';
 const BUCKET = process.env.STUDIO_RESOURCES_BUCKET || 'studio-resources';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const RESOURCE_TYPES = new Set([
-  'image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm',
+  'image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm', 'presentation',
 ]);
 
 const parseId = (value, label) => {
@@ -89,8 +89,18 @@ const normalizeVersionInput = (body, file, resourceType) => {
   if (resourceType === 'external_link' && !externalUrl) {
     throw new AppError('external_link resources require external_url');
   }
-  if (['html', 'zip', 'scorm'].includes(resourceType) && !file) {
+  if (['html', 'zip', 'scorm', 'presentation'].includes(resourceType) && !file) {
     throw new AppError(`${resourceType} resources require a file`);
+  }
+  if (resourceType === 'presentation' && file) {
+    const fileName = String(file.originalname || '').toLowerCase();
+    const acceptedMimeTypes = new Set([
+      'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+      'application/octet-stream',
+    ]);
+    if (!fileName.endsWith('.ppsx') || !acceptedMimeTypes.has(String(file.mimetype || '').toLowerCase())) {
+      throw new AppError('PowerPoint Show resources require a valid .ppsx file', 400);
+    }
   }
   const metadata = parseJsonObject(body.metadata_json, 'metadata_json');
   return {

@@ -5,7 +5,7 @@ import { returnSessionToDraft } from './studioSessionWorkflow.service.js';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const RESOURCE_TYPES_BY_ELEMENT = new Map([
   ['visual', new Set(['image', 'animation'])],
-  ['media', new Set(['image', 'video', 'animation', 'external_link'])],
+  ['media', new Set(['image', 'video', 'animation', 'external_link', 'presentation'])],
   ['simulation', new Set(['simulation', 'html', 'zip', 'scorm', 'external_link'])],
 ]);
 const ELEMENT_TYPES = new Set([
