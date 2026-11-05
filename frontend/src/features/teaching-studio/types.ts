@@ -11,6 +11,19 @@ export interface StudioElement {
   };
 }
 
+export interface AuthorDrawingStroke {
+  id: string;
+  color: string;
+  width: number;
+  points: Array<{ x: number; y: number }>;
+}
+
+export interface StudioScreenSettings extends Record<string, unknown> {
+  author_drawings?: {
+    strokes: AuthorDrawingStroke[];
+  };
+}
+
 export interface StudioScreen {
   id: number;
   session_id: number;
@@ -20,6 +33,7 @@ export interface StudioScreen {
   creation_mode: 'blank' | 'layout';
   layout_id: number | null;
   revision_no: number;
+  screen_settings_json: StudioScreenSettings | null;
   elements: StudioElement[];
   tags: string[];
   branches: unknown[];

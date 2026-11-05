@@ -9,6 +9,7 @@ export const STUDIO_RESOURCE_TYPES = [
   'html',
   'zip',
   'scorm',
+  'presentation',
 ] as const;
 
 export type StudioResourceType = (typeof STUDIO_RESOURCE_TYPES)[number];
@@ -22,6 +23,7 @@ export const studioResourceTypeLabel = (type: StudioResourceType) => ({
   html: 'HTML',
   zip: 'ZIP package',
   scorm: 'SCORM package',
+  presentation: 'PowerPoint Show',
 }[type]);
 
 export interface StudioResourceVersion {
