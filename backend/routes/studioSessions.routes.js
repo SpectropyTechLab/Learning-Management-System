@@ -9,6 +9,7 @@ import {
 import {
   createStudioSession,
   getStudioSession,
+  listAllStudioSessions,
   listSubtopicSessions,
   updateStudioSession,
 } from '../controllers/studioSessions.controller.js';
@@ -20,6 +21,7 @@ const authors = requireRole(['super_admin', 'content_authorizer']);
 // These checks execute for direct API requests. Frontend navigation visibility
 // is only a convenience and is never the authorization boundary.
 router.use(authenticateToken, attachClientContext, readers, loadPermissions);
+router.get('/studio/sessions', checkPermission('curriculum.read'), listAllStudioSessions);
 router.get('/studio/subtopics/:subtopicId/sessions', checkPermission('curriculum.read'), listSubtopicSessions);
 router.post('/studio/subtopics/:subtopicId/sessions', authors, checkPermission('curriculum.create'), createStudioSession);
 router.get('/studio/sessions/:sessionId', checkPermission('curriculum.read'), getStudioSession);

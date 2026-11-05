@@ -65,6 +65,15 @@ export interface PublishedRelease {
   };
 }
 
+export interface PublishedReleaseHistoryItem {
+  id: number;
+  session_id: number;
+  release_number: number;
+  published_at: string;
+  published_by: number | null;
+  screen_count: number;
+}
+
 const dataOf = <T>(payload: { data: T } | T) => (
   payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload
 ) as T;
@@ -73,6 +82,11 @@ export const getPublishedRelease = async (sessionId: number, releaseNumber?: num
   const suffix = releaseNumber ? `/releases/${releaseNumber}` : '/releases/current';
   const response = await api.get<{ release: PublishedRelease }>(`/studio/published-sessions/${sessionId}${suffix}`);
   return response.data.release;
+};
+
+export const listPublishedReleaseHistory = async (sessionId: number) => {
+  const response = await api.get<{ releases: PublishedReleaseHistoryItem[] }>(`/studio/published-sessions/${sessionId}/releases`);
+  return response.data.releases;
 };
 
 export const previewPublishedResource = async (releaseId: number, versionId: number) =>

@@ -34,3 +34,8 @@ export const getSessionStatus = handle((req) => workflow.getSessionStatus({
   sessionId: req.params.sessionId,
   user: req.user,
 }));
+
+export const startSessionRevision = handle((req) => workflow.startSessionRevision({
+  sessionId: req.params.sessionId,
+  user: req.user,
+}));

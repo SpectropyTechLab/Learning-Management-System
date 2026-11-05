@@ -61,6 +61,18 @@ export const getPublishedReleaseByNumber = async (req, res) => {
   }
 };
 
+export const listPublishedSessionReleases = async (req, res) => {
+  try {
+    const releaseList = await releases.listPublishedSessionReleases({
+      sessionId: req.params.sessionId,
+      user: req.user,
+    });
+    return res.json({ releases: releaseList });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 export const launchPublishedResource = async (req, res) => {
   try {
     const { versionId } = await releases.assertPinnedPublishedResourceAccess({

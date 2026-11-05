@@ -310,7 +310,7 @@ export default function StudioSessionPlayerPage() {
         /* Navigation should not be blocked by audit cleanup. */
       }
     }
-    navigate('/studio');
+    navigate(-1);
   };
 
   const inBranch = branchDepth > 0 || localBranchStack.length > 0;

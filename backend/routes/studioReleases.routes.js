@@ -9,6 +9,7 @@ import {
   downloadPublishedSessionPlan,
   launchPublishedResource,
   listPublishedSessions,
+  listPublishedSessionReleases,
   listTeacherReleases,
   listPublishedChapters,
   previewPublishedResource,
@@ -34,6 +35,11 @@ router.get(
   '/studio/published-sessions/:sessionId/releases/current',
   publishedReaders,
   getCurrentPublishedRelease
+);
+router.get(
+  '/studio/published-sessions/:sessionId/releases',
+  publishedReaders,
+  listPublishedSessionReleases
 );
 router.get(
   '/studio/published-sessions/:sessionId/releases/:releaseNumber',

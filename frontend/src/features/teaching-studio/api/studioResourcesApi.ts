@@ -26,7 +26,7 @@ export const studioResourceTypeLabel = (type: StudioResourceType) => ({
   scorm: 'SCORM package',
   presentation: 'PowerPoint Show',
   model_3d: '3D Model',
-}[type]);
+}[type] || 'Resource');
 
 export interface StudioResourceVersion {
   id: number;
@@ -138,7 +138,11 @@ export const listStudioResources = async (filters: StudioResourceFilters = {}) =
       resource_type: filters.resourceType || undefined,
     },
   });
-  return dataOf<StudioResourceSummary[]>(response.data);
+  const resources = dataOf<unknown>(response.data);
+  if (!Array.isArray(resources)) {
+    throw new Error('The Resource Library returned an invalid response.');
+  }
+  return resources as StudioResourceSummary[];
 };
 
 export const getStudioResource = async (resourceId: number) =>
