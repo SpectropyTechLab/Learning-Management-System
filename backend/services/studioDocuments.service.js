@@ -7,7 +7,8 @@ import { parseScreenScriptDocx, parseSessionPlanDocx } from './studioDocumentPar
 
 const BUCKET = process.env.STUDIO_DOCUMENTS_BUCKET || 'sessions-scripts-plans';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
-const DOWNLOAD_ROLES = new Set(['super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher']);
+const DOCUMENT_READER_ROLES = new Set(['super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher']);
+const ORIGINAL_DOWNLOAD_ROLES = new Set(['super_admin', 'content_authorizer', 'client_admin', 'school_owner']);
 const DOCUMENT_TYPES = new Set(['session_plan', 'screen_script']);
 const REQUIRED_PLAN_FIELDS = [
   'time_duration', 'screen_mapped', 'learning_objective_evidence', 'pedagogy',
@@ -79,7 +80,7 @@ const assertAuthor = (user) => {
 };
 
 const assertDownloadAccess = async (session, user) => {
-  if (!DOWNLOAD_ROLES.has(user?.role)) throw new AppError('Access denied', 403);
+  if (!DOCUMENT_READER_ROLES.has(user?.role)) throw new AppError('Access denied', 403);
   assertTenant(session, user);
   if (!isAuthor(user) && session.status !== 'published') {
     throw new AppError('Studio documents are available to readers only after publishing', 403);
@@ -105,6 +106,13 @@ const assertDownloadAccess = async (session, user) => {
     }
     if (!ownsProgram && !hasAssignment) throw new AppError('Access denied', 403);
   }
+};
+
+const assertOriginalDownloadAccess = async (session, user) => {
+  if (!ORIGINAL_DOWNLOAD_ROLES.has(user?.role)) {
+    throw new AppError('Teachers can view published Studio documents but cannot download original files', 403);
+  }
+  await assertDownloadAccess(session, user);
 };
 
 const getCurrentDocument = async (db, sessionId, documentType, { lock = false } = {}) => {
@@ -415,7 +423,7 @@ export const downloadDocument = async ({ sessionId: rawSessionId, documentType: 
   const sessionId = parseId(rawSessionId, 'Session ID');
   const documentType = validateDocumentType(rawType);
   const session = await getSession({ query: dbQuery }, sessionId);
-  await assertDownloadAccess(session, user);
+  await assertOriginalDownloadAccess(session, user);
   const document = await getCurrentDocument({ query: dbQuery }, session.id, documentType);
   if (!document || document.source_mode !== 'upload') {
     throw new AppError('No uploaded original is available for this Studio document', 404);

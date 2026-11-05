@@ -121,3 +121,63 @@ test('submitSession rejects access to a session from another tenant', async (t) 
   assert.ok(calls.includes('rollback'));
   assert.ok(!calls.includes('commit'));
 });
+
+test('modern imported Screen Scripts require a current script revision for every Screen', async (t) => {
+  const calls = [];
+  const client = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      calls.push(sql);
+      if (sql === 'begin' || sql === 'rollback') return { rows: [] };
+      if (sql.includes('from sessions') && sql.includes('for update')) {
+        return { rows: [{
+          id: 41, client_id: 12, subtopic_id: 9, title: 'Fractions',
+          status: 'draft', revision_no: 3,
+        }] };
+      }
+      if (sql.includes('from session_documents')) {
+        assert.match(sql, /metadata_json/);
+        return { rows: [
+          { id: 101, document_type: 'session_plan', revision_no: 2, metadata_json: {} },
+          {
+            id: 102,
+            document_type: 'screen_script',
+            revision_no: 4,
+            metadata_json: { parser: { name: 'screen-script-import-v1' } },
+          },
+        ] };
+      }
+      if (sql.includes('from screens')) {
+        return { rows: [
+          { id: 71, screen_number: 1, revision_no: 5 },
+          { id: 72, screen_number: 2, revision_no: 2 },
+        ] };
+      }
+      if (sql.includes('from screen_script_revisions')) {
+        return { rows: [{
+          id: 501, screen_id: 71, revision_no: 1,
+          source_mode: 'upload', source_document_id: 102,
+        }] };
+      }
+      if (sql.startsWith('insert into session_validations')) {
+        return { rows: [{ id: 201, session_id: 41, session_revision_no: 3, is_valid: false }] };
+      }
+      throw new Error(`Incomplete modern scripts must stop before this query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  await assert.rejects(
+    submitSession({
+      sessionId: 41,
+      user: { id: 8, role: 'content_authorizer', client_id: 12 },
+    }),
+    (error) => error?.status === 422 &&
+      error?.details?.some((detail) => detail.code === 'SCREEN_SCRIPT_MISSING' && detail.screen_id === 72),
+  );
+  assert.ok(calls.some((sql) => sql.includes('from screen_script_revisions')));
+  assert.ok(calls.includes('rollback'));
+});

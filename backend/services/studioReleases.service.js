@@ -513,6 +513,38 @@ export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleas
   return { release, versionId };
 };
 
+export const getPublishedTeachingMaterials = async ({ releaseId: rawReleaseId, user }) => {
+  assertPublishedReader(user);
+  const releaseId = parseId(rawReleaseId, 'Release ID');
+  const tenantId = publishedTenantId(user);
+  const release = (await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE id = $1 AND ($2::int IS NULL OR client_id = $2) LIMIT 1`,
+    [releaseId, tenantId],
+  )).rows[0];
+  if (!release) throw new AppError('Published Session release not found', 404);
+  await assertPublishedReleaseAccess(release, user);
+  const manifest = release.manifest_json || {};
+  const plan = manifest.documents?.session_plan;
+  const screensById = new Map((manifest.screens || []).map((screen) => [Number(screen.screen_id), screen]));
+  return {
+    release_id: Number(release.id),
+    release_number: Number(release.release_number),
+    session_plan: plan ? {
+      revision_no: Number(plan.revision_no),
+      source_mode: plan.source_mode,
+      content: plan.structured_content || plan.manual_content || null,
+    } : null,
+    screen_scripts: (manifest.screen_scripts || []).map((script) => ({
+      screen_id: Number(script.screen_id),
+      screen_number: Number(screensById.get(Number(script.screen_id))?.screen_number),
+      screen_title: screensById.get(Number(script.screen_id))?.title || `Screen ${script.screen_id}`,
+      revision_no: Number(script.revision_no),
+      content: script.content || {},
+    })),
+  };
+};
+
 const assertTeacherReleaseAccess = async (release, user) => {
   const programId = Number(release.manifest_json?.session?.program_id);
   const programSchoolId = Number(release.manifest_json?.session?.program_school_id);
@@ -540,7 +572,7 @@ const getTeacherRelease = async ({ sql, params, user }) => {
   const release = (await dbQuery(sql, params)).rows[0];
   if (!release) throw new AppError('Published Session release not found', 404);
   await assertTeacherReleaseAccess(release, user);
-  return serializeRelease(release);
+  return serializePublishedRelease(release);
 };
 export const getCurrentTeacherRelease = ({ sessionId: rawSessionId, user }) => {
   const sessionId = parseId(rawSessionId, 'Session ID');

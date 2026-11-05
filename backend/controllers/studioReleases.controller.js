@@ -87,6 +87,18 @@ export const previewPublishedResource = async (req, res) => {
   }
 };
 
+export const getPublishedTeachingMaterials = async (req, res) => {
+  try {
+    const materials = await releases.getPublishedTeachingMaterials({
+      releaseId: req.params.releaseId,
+      user: req.user,
+    });
+    return res.json({ data: materials });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 export const getCurrentTeacherRelease = async (req, res) => {
   try {
     const release = await releases.getCurrentTeacherRelease({ sessionId: req.params.sessionId, user: req.user });

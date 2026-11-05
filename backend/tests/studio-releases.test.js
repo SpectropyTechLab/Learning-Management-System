@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import pool from '../config/db.js';
 import {
   assertPinnedPublishedResourceAccess,
+  getPublishedTeachingMaterials,
   getPublishedReleaseByNumber,
   getCurrentTeacherRelease,
   listPublishedSessions,
@@ -216,6 +217,9 @@ test('teacher current-release read comes only from session_releases and is tenan
   assert.equal(release.release_number, 1);
   assert.match(executedSql, /from session_releases/);
   assert.doesNotMatch(executedSql, /from sessions\b/);
+  assert.equal('documents' in release.manifest, false);
+  assert.equal('screen_scripts' in release.manifest, false);
+  assert.equal('authorization_id' in release, false);
 });
 
 test('client admin lists the latest tenant releases and receives frozen Screen counts', async (t) => {
@@ -316,6 +320,62 @@ test('published Resource access is limited to versions pinned in the authorized 
     assertPinnedPublishedResourceAccess({ releaseId: 101, versionId: 83, user }),
     (error) => error.status === 403,
   );
+});
+
+test('published teaching materials expose pinned content for viewing without original-file metadata', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params) => {
+    const sql = normalizeSql(text);
+    if (sql.includes('from school_memberships')) {
+      assert.deepEqual(params, [30, ['teacher']]);
+      return { rows: [{ school_id: 9 }] };
+    }
+    if (sql.includes('from question_bank_school_assignments')) {
+      assert.deepEqual(params, [[9]]);
+      return { rows: [{ program_id: 4 }] };
+    }
+    assert.match(sql, /from session_releases/);
+    assert.deepEqual(params, [101, 7]);
+    return { rows: [{
+      id: 101,
+      client_id: 7,
+      session_id: 25,
+      release_number: 2,
+      manifest_json: {
+        session: { session_id: 25, program_id: 4 },
+        documents: {
+          session_plan: {
+            document_id: 91,
+            revision_no: 3,
+            source_mode: 'upload',
+            storage_key: 'sessions/25/session_plan/revision-3.docx',
+            original_file_name: 'Approved Session Plan.docx',
+            structured_content: { rows: [{ screen_mapped: 'Screen 1', pedagogy: 'Inquiry' }] },
+          },
+        },
+        screen_scripts: [{
+          screen_id: 40,
+          revision_no: 5,
+          content: { teacher_narration: 'Ask learners to predict.' },
+        }],
+        screens: [{ screen_id: 40, screen_number: 1, title: 'Mirror Mystery' }],
+      },
+    }] };
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const materials = await getPublishedTeachingMaterials({
+    releaseId: 101,
+    user: { id: 30, role: 'teacher', client_id: 7 },
+  });
+
+  assert.equal(materials.session_plan.revision_no, 3);
+  assert.equal(materials.session_plan.content.rows[0].pedagogy, 'Inquiry');
+  assert.equal(materials.screen_scripts[0].screen_title, 'Mirror Mystery');
+  assert.equal(materials.screen_scripts[0].content.teacher_narration, 'Ask learners to predict.');
+  assert.equal('storage_key' in materials.session_plan, false);
+  assert.equal('original_file_name' in materials.session_plan, false);
 });
 
 test('publication rejects a Session that is not approved', async (t) => {

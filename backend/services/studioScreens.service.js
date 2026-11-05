@@ -105,6 +105,49 @@ const normalizePosition = (value, label) => {
   return normalized;
 };
 
+const normalizeScreenSettings = (value) => {
+  const settings = assertObject(value, 'screen_settings');
+  const drawings = settings.author_drawings;
+  if (drawings === undefined) return settings;
+  assertObject(drawings, 'screen_settings author_drawings');
+  if (!Array.isArray(drawings.strokes)) {
+    throw new AppError('screen_settings author_drawings strokes must be an array', 422);
+  }
+  if (drawings.strokes.length > 500) {
+    throw new AppError('A Screen can contain at most 500 authored drawing strokes', 422);
+  }
+  let totalPoints = 0;
+  const strokes = drawings.strokes.map((rawStroke, strokeIndex) => {
+    const stroke = assertObject(rawStroke, `Drawing stroke ${strokeIndex + 1}`);
+    const id = optionalText(stroke.id, `Drawing stroke ${strokeIndex + 1} id`, 150);
+    if (!id) throw new AppError(`Drawing stroke ${strokeIndex + 1} id is required`, 422);
+    const color = String(stroke.color || '').trim();
+    if (!/^#[0-9a-f]{6}$/i.test(color)) {
+      throw new AppError(`Drawing stroke ${strokeIndex + 1} color must be a six-digit hex colour`, 422);
+    }
+    const width = Number(stroke.width);
+    if (!Number.isFinite(width) || width < 1 || width > 48) {
+      throw new AppError(`Drawing stroke ${strokeIndex + 1} width must be between 1 and 48`, 422);
+    }
+    if (!Array.isArray(stroke.points) || stroke.points.length === 0 || stroke.points.length > 2000) {
+      throw new AppError(`Drawing stroke ${strokeIndex + 1} must contain 1 to 2000 points`, 422);
+    }
+    totalPoints += stroke.points.length;
+    if (totalPoints > 50000) throw new AppError('Authored drawing exceeds the 50000 point Screen limit', 422);
+    const points = stroke.points.map((rawPoint, pointIndex) => {
+      const point = assertObject(rawPoint, `Drawing stroke ${strokeIndex + 1} point ${pointIndex + 1}`);
+      const x = Number(point.x);
+      const y = Number(point.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1920 || y < 0 || y > 1080) {
+        throw new AppError(`Drawing stroke ${strokeIndex + 1} contains a point outside the 1920×1080 canvas`, 422);
+      }
+      return { x, y };
+    });
+    return { id, color: color.toLowerCase(), width, points };
+  });
+  return { ...settings, author_drawings: { ...drawings, strokes } };
+};
+
 const normalizeElements = (elements, layout) => {
   if (!Array.isArray(elements)) throw new AppError('elements must be an array');
   const slots = layout
@@ -305,7 +348,7 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     const settings =
       body.screen_settings === undefined
         ? screen.screen_settings_json
-        : assertObject(body.screen_settings, 'screen_settings');
+        : normalizeScreenSettings(body.screen_settings);
     await validateResourceBindings(client, elements, screen.client_id);
 
     const updateResult = await client.query(

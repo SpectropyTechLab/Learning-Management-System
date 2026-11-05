@@ -197,7 +197,7 @@ test('protected download returns byte-identical content with accurate headers', 
   assert.match(headers.get('Content-Disposition'), /filename\*=UTF-8''Lesson%20Plan%20%C3%BC\.docx/);
 });
 
-test('teacher download requires an active school assignment to the Session program', async (t) => {
+test('teacher original-file download remains denied even for a published Session', async (t) => {
   const originalQuery = pool.query;
   let documentQueryRan = false;
   pool.query = async (text) => {
@@ -211,7 +211,6 @@ test('teacher download requires an active school assignment to the Session progr
         program_school_id: null,
       }] };
     }
-    if (sql.includes('from school_memberships')) return { rows: [] };
     if (sql.includes('from session_documents')) {
       documentQueryRan = true;
       return { rows: [] };
@@ -227,7 +226,7 @@ test('teacher download requires an active school assignment to the Session progr
       sessionId: 41,
       user: { id: 700, role: 'teacher', client_id: 12 },
     }),
-    (error) => error?.status === 403 && error?.message === 'Access denied'
+    (error) => error?.status === 403 && /cannot download original files/i.test(error.message)
   );
   assert.equal(documentQueryRan, false);
 });

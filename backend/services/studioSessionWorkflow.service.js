@@ -42,7 +42,7 @@ const loadSession = async (db, sessionId, { lock = false } = {}) => {
 const validateContent = async (db, session) => {
   const errors = [];
   const documentsResult = await db.query(
-    `SELECT id, document_type, revision_no, source_mode
+    `SELECT id, document_type, revision_no, source_mode, metadata_json
      FROM session_documents
      WHERE session_id = $1 AND is_current = TRUE`,
     [session.id]
