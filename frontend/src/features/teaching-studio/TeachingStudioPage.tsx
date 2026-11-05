@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import {
   createBlankStudioScreen,
   deleteStudioScreen,
+  getStudioErrorDetails,
   getStudioErrorMessage,
   getStudioScreen,
   listStudioScreens,
@@ -110,6 +111,10 @@ export default function TeachingStudioPage() {
   const [drawingWidth, setDrawingWidth] = useState(6);
   const [drawingPast, setDrawingPast] = useState<AuthorDrawingStroke[][]>([]);
   const [drawingFuture, setDrawingFuture] = useState<AuthorDrawingStroke[][]>([]);
+  const [saveConflict, setSaveConflict] = useState<{
+    draft: StudioScreen;
+    latest: StudioScreen;
+  } | null>(null);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -222,6 +227,7 @@ export default function TeachingStudioPage() {
           setDrawingPast([]);
           setDrawingFuture([]);
           setHasUnsavedChanges(false);
+          setSaveConflict(null);
         }
       })
       .catch((requestError) => {
@@ -291,6 +297,21 @@ export default function TeachingStudioPage() {
     }
   };
 
+  const handleScreenSaveFailure = async (requestError: unknown, draft: StudioScreen) => {
+    const details = getStudioErrorDetails(requestError);
+    setError(details.message);
+    toast.error(details.message);
+    if (details.status !== 409) return;
+    try {
+      const latest = await getStudioScreen(draft.id);
+      setSelectedScreen(draft);
+      setHasUnsavedChanges(true);
+      setSaveConflict({ draft, latest });
+    } catch {
+      toast.error('The Screen changed on the server, but its latest revision could not be loaded. Your draft remains open.');
+    }
+  };
+
   const startRevision = async () => {
     if (!sessionId || startingRevision) return;
     setStartingRevision(true);
@@ -315,6 +336,12 @@ export default function TeachingStudioPage() {
     setApplyingLayout(true);
     setError(null);
     const remapped = remapElementsToLayout(selectedScreen.elements, layout);
+    const draft: StudioScreen = {
+      ...selectedScreen,
+      layout_id: row.id,
+      creation_mode: 'layout',
+      elements: remapped.elements,
+    };
     try {
       const saved = await updateStudioScreen(selectedScreen.id, {
         revision_no: selectedScreen.revision_no,
@@ -337,9 +364,7 @@ export default function TeachingStudioPage() {
       toast.success(`${layout.id} applied successfully${remapped.removed.length ? `; ${remapped.removed.length} incompatible element${remapped.removed.length === 1 ? '' : 's'} removed` : ''}.`);
       await loadWorkflow();
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      await handleScreenSaveFailure(requestError, draft);
     } finally {
       setApplyingLayout(false);
     }
@@ -618,9 +643,7 @@ export default function TeachingStudioPage() {
       toast.success(`Screen ${saved.screen_number} saved as revision ${saved.revision_no}.`);
       await loadWorkflow();
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      await handleScreenSaveFailure(requestError, selectedScreen);
     } finally {
       setSavingScreen(false);
     }
@@ -675,9 +698,7 @@ export default function TeachingStudioPage() {
       toast.success(`Screen renamed and saved as revision ${saved.revision_no}.`);
       await loadWorkflow();
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      await handleScreenSaveFailure(requestError, { ...selectedScreen, title });
     } finally {
       setRenamingScreen(false);
     }
@@ -723,9 +744,13 @@ export default function TeachingStudioPage() {
       setScreenAction(null);
       await loadWorkflow();
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      if (screenAction === 'remove-layout') {
+        await handleScreenSaveFailure(requestError, { ...selectedScreen, layout_id: null });
+      } else {
+        const response = getStudioErrorMessage(requestError);
+        setError(response);
+        toast.error(response);
+      }
     } finally {
       setScreenActionBusy(false);
     }
@@ -946,6 +971,35 @@ export default function TeachingStudioPage() {
         const result = remapElementsToLayout(selectedScreen.elements, pendingLayout.layout);
         return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Confirm layout change"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-semibold text-slate-900">Apply {pendingLayout.layout.id}?</h2><p className="mt-2 text-sm text-slate-600">Existing elements are never changed silently. {result.elements.length} compatible element{result.elements.length === 1 ? '' : 's'} will be kept and remapped. {result.removed.length} incompatible element{result.removed.length === 1 ? '' : 's'} will be removed.</p>{result.removed.length > 0 && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Removed: {result.removed.map((element) => element.id).join(', ')}</p>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setPendingLayout(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="button" disabled={applyingLayout} onClick={() => void saveAppliedLayout(pendingLayout.row, pendingLayout.layout)} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{applyingLayout ? 'Applying...' : 'Keep compatible and apply'}</button></div></div></div>;
       })()}
+      {saveConflict && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Screen save conflict">
+        <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+          <h2 className="text-lg font-semibold text-slate-900">A newer Screen revision already exists</h2>
+          <p className="mt-2 text-sm text-slate-600">Your unsaved draft is still safe in this editor. The server is now at revision {saveConflict.latest.revision_no}, while your draft started from revision {saveConflict.draft.revision_no}. Nothing has been overwritten.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><b>Your draft:</b> {saveConflict.draft.elements.length} element{saveConflict.draft.elements.length === 1 ? '' : 's'}</div>
+            <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900"><b>Server revision {saveConflict.latest.revision_no}:</b> {saveConflict.latest.elements.length} element{saveConflict.latest.elements.length === 1 ? '' : 's'}</div>
+          </div>
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => {
+              setSelectedScreen(saveConflict.latest);
+              setScreenList((current) => ({ ...current, screens: current.screens.map((screen) => screen.id === saveConflict.latest.id ? saveConflict.latest : screen) }));
+              setElementPast([]);
+              setElementFuture([]);
+              setDrawingPast([]);
+              setDrawingFuture([]);
+              setHasUnsavedChanges(false);
+              setSaveConflict(null);
+              toast.success(`Loaded server revision ${saveConflict.latest.revision_no}.`);
+            }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Discard draft and load server</button>
+            <button type="button" onClick={() => {
+              setSelectedScreen({ ...saveConflict.draft, revision_no: saveConflict.latest.revision_no });
+              setHasUnsavedChanges(true);
+              setSaveConflict(null);
+              toast.success(`Your draft is ready to save on top of revision ${saveConflict.latest.revision_no}.`);
+            }} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white">Keep draft and retry</button>
+          </div>
+        </div>
+      </div>}
       {revisionPromptOpen && workflowStatus && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Start Session update"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-semibold text-slate-900">{workflowStatus.status === 'published' ? 'Create a new Session version?' : 'Update this Session?'}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{workflowStatus.status === 'published' ? 'The published release will remain unchanged and available to viewers. This action creates a new editable Draft; after review and approval, publishing it will create the next immutable release.' : `This Session is currently ${workflowStatus.status}. Updating it will return it to Draft and clear the current review or approval so it can be submitted again.`}</p><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={startingRevision} onClick={() => setRevisionPromptOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="button" disabled={startingRevision} onClick={() => void startRevision()} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{startingRevision ? 'Preparing…' : workflowStatus.status === 'published' ? 'Create new Draft' : 'Return to Draft'}</button></div></div></div>}
       {previewOpen && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/80 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Screen Preview"><div className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]"><div className="flex flex-none items-center justify-between border-b border-gray-200 px-4 py-3"><div><h2 className="font-semibold">Flattened Screen Preview</h2><p className="text-xs text-slate-500">Read-only output without editor guides or controls.</p></div><button type="button" autoFocus onClick={() => setPreviewOpen(false)} className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-gray-50">Close</button></div><div className="min-h-0 flex-1 overflow-hidden p-2 sm:p-4"><BlankScreenCanvas screen={selectedScreen} loading={false} layout={selectedLayout} showGuides={false} previewMode /></div></div></div>}
     </StudioShell>

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Archive, Blocks, Code2, FileImage, Film, Link2, Package, Presentation, Video } from 'lucide-react';
+import { Archive, Box, Blocks, Code2, FileImage, Film, Link2, Package, Presentation, Video } from 'lucide-react';
 import type { StudioResourceType } from '../../api/studioResourcesApi';
 
 const KNOWN_RESOURCE_TYPE_STYLES: Record<StudioResourceType, { icon: LucideIcon; badge: string; preview: string }> = {
@@ -12,6 +12,7 @@ const KNOWN_RESOURCE_TYPE_STYLES: Record<StudioResourceType, { icon: LucideIcon;
   zip: { icon: Archive, badge: 'bg-purple-100 text-purple-800', preview: 'from-purple-50 to-fuchsia-100 text-purple-700' },
   scorm: { icon: Package, badge: 'bg-cyan-100 text-cyan-800', preview: 'from-cyan-50 to-blue-100 text-cyan-700' },
   presentation: { icon: Presentation, badge: 'bg-orange-100 text-orange-800', preview: 'from-orange-50 to-amber-100 text-orange-700' },
+  model_3d: { icon: Box, badge: 'bg-indigo-100 text-indigo-800', preview: 'from-indigo-50 to-violet-100 text-indigo-700' },
 };
 
 export const DEFAULT_RESOURCE_TYPE_STYLE = {

@@ -194,6 +194,50 @@ test('Screen save rejects element geometry outside the master canvas', async (t)
   );
 });
 
+test('Screen save rejects authored drawing points outside the master canvas', async (t) => {
+  const client = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      if (['begin', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('from screens s join sessions se') && sql.includes('for update')) {
+        return { rows: [{
+          id: 31, session_id: 21, client_id: 12, title: 'Draft', layout_id: null,
+          revision_no: 5, screen_settings_json: {}, session_status: 'draft', session_revision_no: 7,
+        }] };
+      }
+      throw new Error(`Invalid drawing must stop before this query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  await assert.rejects(
+    saveScreen({
+      screenId: 31,
+      user: author,
+      body: {
+        revision_no: 5,
+        title: 'Draft',
+        tags: [],
+        elements: [],
+        screen_settings: {
+          author_drawings: {
+            strokes: [{
+              id: 'stroke-1',
+              color: '#123456',
+              width: 4,
+              points: [{ x: 20, y: 20 }, { x: 1921, y: 200 }],
+            }],
+          },
+        },
+      },
+    }),
+    (error) => error?.status === 422 && /outside the 1920×1080 canvas/i.test(error.message),
+  );
+});
+
 test('missing required documents prevent the validated state', async (t) => {
   const client = {
     async query(text) {

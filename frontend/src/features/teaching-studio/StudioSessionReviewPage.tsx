@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, FileText, MonitorPlay, ScrollText, Send, XCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -31,7 +31,7 @@ export default function StudioSessionReviewPage() {
   const [action, setAction] = useState<'approve' | 'reject' | 'publish' | null>(null);
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!Number.isInteger(sessionId) || sessionId <= 0) { setError('Invalid Session ID.'); setLoading(false); return; }
     setLoading(true); setError('');
     try {
@@ -46,8 +46,8 @@ export default function StudioSessionReviewPage() {
       setComment(workflowStatus.approval_comment || '');
     } catch (requestError) { setError(getApiErrorDetails(requestError).message); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, [sessionId]);
+  }, [sessionId]);
+  useEffect(() => { void load(); }, [load]);
   const selectedScreen = useMemo(() => screens.screens.find((screen) => screen.id === selectedScreenId) || null, [screens.screens, selectedScreenId]);
 
   const review = async (decision: 'approved' | 'rejected') => {

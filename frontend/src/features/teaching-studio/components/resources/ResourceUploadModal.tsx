@@ -117,6 +117,7 @@ export default function ResourceUploadModal({
     zip: '.zip,application/zip',
     scorm: '.zip,application/zip',
     presentation: '.ppsx,application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+    model_3d: '.glb,model/gltf-binary,application/octet-stream',
   }[effectiveType]), [effectiveType]);
 
   if (!open) return null;
@@ -129,6 +130,12 @@ export default function ResourceUploadModal({
     if (file && file.size > MAX_FILE_SIZE) return 'The file must be 250 MB or smaller.';
     if (effectiveType === 'presentation' && file && !file.name.toLowerCase().endsWith('.ppsx')) {
       return 'PowerPoint Show Resources require a .ppsx file.';
+    }
+    if (effectiveType === 'model_3d') {
+      const sourceName = file?.name || externalUrl;
+      if (!sourceName.toLowerCase().split('?')[0].endsWith('.glb')) {
+        return '3D Model Resources require a self-contained .glb file or direct .glb URL.';
+      }
     }
     if (effectiveSourceMode === 'url') {
       if (!externalUrl.trim()) return 'External URL is required.';

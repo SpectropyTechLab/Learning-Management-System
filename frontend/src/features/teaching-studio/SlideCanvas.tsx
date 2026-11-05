@@ -50,7 +50,7 @@ type GeometryInteraction = {
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.min(Math.max(value, minimum), maximum);
 
-export default function SlideCanvas({ layout, slide, showGuides = false, selectedObjectId, onSelectObject, onChangeObjectBounds, objectOverlays = {}, drawingStrokes = [], drawingEnabled = false, drawingTool = 'pen', drawingColor = '#ef4444', drawingWidth = 6, onDrawingChange }: {
+export default function SlideCanvas({ layout, slide, showGuides = false, selectedObjectId, onSelectObject, onChangeObjectBounds, objectOverlays = {}, fixedDrawingStrokes = [], drawingStrokes = [], drawingEnabled = false, drawingTool = 'pen', drawingColor = '#ef4444', drawingWidth = 6, onDrawingChange }: {
   layout: Layout | null;
   slide: Slide;
   showGuides?: boolean;
@@ -58,6 +58,7 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
   onSelectObject?: (objectId: string) => void;
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
   objectOverlays?: Record<string, ReactNode>;
+  fixedDrawingStrokes?: AuthorDrawingStroke[];
   drawingStrokes?: AuthorDrawingStroke[];
   drawingEnabled?: boolean;
   drawingTool?: 'pen' | 'eraser';
@@ -219,6 +220,7 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
         onPointerCancel={finishDrawing}
         aria-label="Authored drawing layer"
       >
+        {fixedDrawingStrokes.map((stroke) => <polyline key={`fixed-${stroke.id}`} points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}
         {[...drawingStrokes, ...(currentStroke ? [currentStroke] : [])].map((stroke) => <polyline key={stroke.id} points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}
       </svg>
       {!drawingEnabled && onChangeObjectBounds && (layout?.slots ?? []).map((slot) => {

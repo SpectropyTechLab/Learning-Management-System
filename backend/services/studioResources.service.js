@@ -7,7 +7,7 @@ import { inspectRuntimePackage } from './studioPackageInspection.service.js';
 const BUCKET = process.env.STUDIO_RESOURCES_BUCKET || 'studio-resources';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const RESOURCE_TYPES = new Set([
-  'image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm', 'presentation',
+  'image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm', 'presentation', 'model_3d',
 ]);
 
 const parseId = (value, label) => {
@@ -100,6 +100,12 @@ const normalizeVersionInput = (body, file, resourceType) => {
     ]);
     if (!fileName.endsWith('.ppsx') || !acceptedMimeTypes.has(String(file.mimetype || '').toLowerCase())) {
       throw new AppError('PowerPoint Show resources require a valid .ppsx file', 400);
+    }
+  }
+  if (resourceType === 'model_3d') {
+    const sourceName = file ? String(file.originalname || '').toLowerCase() : new URL(externalUrl).pathname.toLowerCase();
+    if (!sourceName.endsWith('.glb')) {
+      throw new AppError('3D Model Resources require a self-contained .glb file or direct .glb URL', 400);
     }
   }
   const metadata = parseJsonObject(body.metadata_json, 'metadata_json');
