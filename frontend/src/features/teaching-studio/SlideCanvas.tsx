@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Rect, Slide, Slot } from './layouts';
 import type { AuthorDrawingStroke } from './types';
+import { studioAnimationClass } from './components/StudioAnimatedElement';
 
 const colors: Record<string, { fill: string; stroke: string; ink: string }> = {
   title: { fill: '#eaf2fd', stroke: '#c9ddf6', ink: '#173b65' },
@@ -177,10 +178,12 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
         const renderedField = { ...field, bounds };
         const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
         const isImage = object && ['visual', 'media'].includes(object.type) && object.url;
-        return <g key={field.id} data-slot={field.id} role={object ? 'button' : undefined} tabIndex={object ? 0 : undefined} onClick={() => object && onSelectObject?.(object.id)} onKeyDown={(event) => { if (object && (event.key === 'Enter' || event.key === ' ')) onSelectObject?.(object.id); }} className={object && onSelectObject ? 'cursor-pointer' : undefined}>
+        const animation = object?.animation;
+        const animateSvgObject = object && !objectOverlays[object.id];
+        return <g key={field.id} data-slot={field.id} role={object ? 'button' : undefined} tabIndex={object ? 0 : undefined} onClick={() => object && onSelectObject?.(object.id)} onKeyDown={(event) => { if (object && (event.key === 'Enter' || event.key === ' ')) onSelectObject?.(object.id); }} className={`${object && onSelectObject ? 'cursor-pointer' : ''} ${animateSvgObject ? studioAnimationClass(String(animation?.effect || 'none')) : ''}`} style={animateSvgObject ? { animationDuration: `${Number(animation?.duration) || 0.8}s`, animationDelay: `${Number(animation?.delay) || 0}s`, animationFillMode: 'both' } : undefined}>
           <rect {...bounds} rx={field.region === 'footer' ? 12 : 22} fill={tone.fill} stroke={object?.id === selectedObjectId ? '#1d4ed8' : tone.stroke} strokeWidth={object?.id === selectedObjectId ? 8 : 3} />
           {isImage && <image href={object.url} x={bounds.x + 12} y={bounds.y + 12} width={bounds.width - 24} height={bounds.height - (object.caption ? 70 : 24)} preserveAspectRatio="xMidYMid meet"><title>{object.altText || object.text || field.label}</title></image>}
-          {object && !isImage && <FittedText slot={renderedField} text={object.text || field.label} ink={tone.ink} />}
+          {object && !isImage && !objectOverlays[object.id] && <FittedText slot={renderedField} text={object.text || field.label} ink={tone.ink} />}
           {isImage && object.caption && <text x={bounds.x + 24} y={bounds.y + bounds.height - 22} fontSize="25" fill="#334155">{object.caption}</text>}
           {showGuides && <text x={bounds.x + 14} y={bounds.y + bounds.height - 18} fontSize="20" fill="#64748b">{field.label}</text>}
         </g>;
@@ -200,6 +203,8 @@ export default function SlideCanvas({ layout, slide, showGuides = false, selecte
             top: `${(bounds.y / MASTER.height) * 100}%`,
             width: `${(bounds.width / MASTER.width) * 100}%`,
             height: `${(bounds.height / MASTER.height) * 100}%`,
+            zIndex: object.zIndex,
+            pointerEvents: object.type === 'math' || object.type === 'shape' ? 'none' : undefined,
           }}
         >
           {overlay}

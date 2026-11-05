@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, CornerUpLeft, Download, ExternalLink, Maximize2, Presentation } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
@@ -7,6 +8,10 @@ import type { Layout, ObjectType, Slide } from './layouts';
 import { targetLayouts } from './targetLayouts';
 import SlideCanvas from './SlideCanvas';
 import StudioShell from './components/StudioShell';
+import StudioMathElement from './components/StudioMathElement';
+import StudioCanvasTextElement from './components/StudioCanvasTextElement';
+import StudioShapeElement from './components/StudioShapeElement';
+import StudioAnimatedElement from './components/StudioAnimatedElement';
 import {
   abandonBranchRun,
   completeBranchRun,
@@ -74,25 +79,54 @@ function PublishedResource({ releaseId, mapping }: { releaseId: number; mapping:
 }
 
 function PublishedCanvas({ releaseId, screen }: { releaseId: number; screen: PublishedScreen }) {
-  const layout = layoutFor(screen);
+  const baseLayout = layoutFor(screen);
+  const boundsFor = (position: Record<string, unknown>) => {
+    const x = Number(position.x); const y = Number(position.y); const width = Number(position.width); const height = Number(position.height);
+    return [x, y, width, height].every(Number.isFinite) && width > 0 && height > 0 ? { x, y, width, height } : { x: 420, y: 360, width: 1080, height: 260 };
+  };
+  const layout: Layout = {
+    ...(baseLayout ?? { id: 'FREEFORM', name: 'Freeform screen', purpose: 'Published authored elements', catalog: 'pilot' as const, slots: [] }),
+    slots: [
+      ...(baseLayout?.slots ?? []),
+      ...screen.elements.filter((element) => !(baseLayout?.slots ?? []).some((slot) => slot.id === (element.slot_id || `free-${element.element_key}`))).map((element) => ({
+        id: element.slot_id || `free-${element.element_key}`,
+        label: element.element_type,
+        region: (element.element_type === 'title' ? 'header' : element.element_type === 'footer' ? 'footer' : 'content') as 'header' | 'content' | 'footer',
+        allowed: [element.element_type as ObjectType],
+        bounds: boundsFor(element.position_json || {}),
+      })),
+    ],
+  };
   const slide: Slide = {
     title: screen.title,
     creationMode: layout ? 'layout' : 'blank',
     objects: screen.elements.map((element) => ({
       id: element.element_key,
-      slotId: element.slot_id || '',
+      slotId: element.slot_id || `free-${element.element_key}`,
       type: element.element_type as ObjectType,
       text: textFrom(element.content_json || {}),
       url: typeof element.content_json?.url === 'string' ? element.content_json.url : undefined,
       altText: typeof element.content_json?.altText === 'string' ? element.content_json.altText : undefined,
       caption: typeof element.content_json?.caption === 'string' ? element.content_json.caption : undefined,
+      animation: element.content_json?.animation && typeof element.content_json.animation === 'object' ? element.content_json.animation as Record<string, unknown> : undefined,
+      position: boundsFor(element.position_json || {}),
+      color: typeof element.content_json?.color === 'string' ? element.content_json.color : undefined,
+      zIndex: typeof element.position_json?.zIndex === 'number' ? element.position_json.zIndex : undefined,
     })),
   };
-  const overlays = Object.fromEntries(screen.elements
-    .filter((element) => element.resource_mapping)
-    .map((element) => [element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping!} />]));
+  const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
+    if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
+    if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} />]];
+    const text = textFrom(element.content_json || {});
+    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} text={text} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
+    return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} />]] : [];
+  }));
+  for (const element of screen.elements) {
+    const overlay = overlays[element.element_key];
+    const animation = element.content_json?.animation && typeof element.content_json.animation === 'object' ? element.content_json.animation as Record<string, unknown> : undefined;
+    if (overlay && animation && animation.effect !== 'none') overlays[element.element_key] = <StudioAnimatedElement animation={animation}>{overlay}</StudioAnimatedElement>;
+  }
 
-  if (!layout) return <div className="flex h-full min-h-[360px] flex-col justify-center rounded-xl bg-white p-10 shadow-xl"><h2 className="text-3xl font-bold text-slate-900">{screen.title}</h2><div className="mt-6 space-y-4">{screen.elements.map((element) => <div key={element.element_key} className="rounded-lg border border-slate-200 p-4 text-lg text-slate-700">{textFrom(element.content_json || {}) || element.element_type}</div>)}</div></div>;
   return <SlideCanvas layout={layout} slide={slide} objectOverlays={overlays} />;
 }
 

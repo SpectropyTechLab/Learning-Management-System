@@ -27,7 +27,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
   const selectedSlot = selected
     ? (layout?.slots.find((slot) => slot.id === selected.slotId) ?? {
         id: selected.slotId || selected.id,
-        label: 'Freeform element',
+        label: 'Screen element',
         region: (selected.type === 'title' ? 'header' : selected.type === 'footer' ? 'footer' : 'content') as Slot['region'],
         allowed: blankElementTypes,
         bounds: selected.position as Slot['bounds'],
@@ -45,24 +45,23 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
       ...selected,
       position: { ...selected.position, [key]: value },
     });
-
   return (
     <div className="grid gap-5">
       <div>
-        <h2 className="font-semibold text-slate-900">{layout ? 'Layout slots' : 'Blank screen elements'}</h2>
-        <p className="mt-1 text-sm text-slate-500">{layout ? 'Add one permitted object to a slot, then edit it in the inspector.' : 'Add freeform elements to the header, centre content, or footer.'}</p>
+        <h2 className="font-semibold text-slate-900">{layout ? 'Layout slots' : 'Screen elements'}</h2>
+        <p className="mt-1 text-sm text-slate-500">{layout ? 'Add permitted content to a slot, then edit it directly on the Screen.' : 'Add an element, then edit it directly on the Screen.'}</p>
         {!layout && (
-          <div className="mt-3 grid gap-2">
+          <div className="mt-3 grid min-w-0 gap-2 overflow-hidden pr-1">
             {(
               [
-                ['Header', 'title', 'header'],
-                ['Centre content', 'text', 'content'],
-                ['Footer', 'footer', 'footer'],
+                ['title', 'title', 'header'],
+                ['text', 'text', 'content'],
+                ['footer', 'footer', 'footer'],
               ] as const
             ).map(([label, type, region]) => (
-              <button key={region} type="button" onClick={() => onAddBlank(type, region)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-blue-800 bg-white px-3 py-2 text-xs font-semibold text-blue-900">
-                <Plus size={14} />
-                Add {label}
+              <button key={region} type="button" onClick={() => onAddBlank(type, region)} className="flex w-full min-w-0 items-center justify-center gap-1 overflow-hidden rounded-lg border border-blue-800 bg-white px-2 py-2 text-center text-xs font-semibold text-blue-900">
+                <Plus size={14} className="shrink-0" />
+                <span className="min-w-0 whitespace-normal break-words">Add {label}</span>
               </button>
             ))}
             <label className="text-xs font-semibold text-slate-600">
@@ -87,7 +86,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
             </label>
           </div>
         )}
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 min-w-0 space-y-2 overflow-hidden pr-1">
           {(layout?.slots ?? []).map((slot) => {
             const element = screen.elements.find((candidate) => candidate.slotId === slot.id);
             return (
@@ -113,7 +112,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
           })}
           {!layout &&
             screen.elements.map((element) => (
-              <button key={element.id} type="button" onClick={() => onSelect(element.id)} className={`w-full rounded-lg border p-3 text-left ${element.id === selectedElementId ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+              <button key={element.id} type="button" onClick={() => onSelect(element.id)} className={`block w-full min-w-0 overflow-hidden rounded-lg border p-3 text-left ${element.id === selectedElementId ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                 <span className="block truncate text-sm font-semibold capitalize text-slate-900">{element.type}</span>
                 <span className="block truncate text-xs text-slate-500">{textValue(element) || element.id}</span>
               </button>
@@ -174,10 +173,9 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
             </label>
 
             {textLike.has(selected.type as ObjectType) ? (
-              <label className="mt-4 block text-sm font-semibold text-slate-700">
-                On-screen text
-                <textarea value={textValue(selected)} onChange={(event) => updateContent('text', event.target.value)} rows={5} placeholder={`Enter ${selectedSlot.label.toLowerCase()}`} className="mt-1 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
-              </label>
+              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                Double-click this element on the Screen to edit its text and formatting.
+              </div>
             ) : (
               <>
                 <label className="mt-4 block text-sm font-semibold text-slate-700">
@@ -226,7 +224,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
               <input type="checkbox" checked={selected.position.locked === true} onChange={(event) => updatePosition('locked', event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Lock position and size
             </label>
-            <p className="mt-4 text-xs text-slate-500">{layout ? `Position and size start from the validated ${selectedSlot.id} slot geometry.` : 'Use the canvas Move and resize controls to position this freeform element.'} Save creates the next Screen revision.</p>
+            <p className="mt-4 text-xs text-slate-500">{layout ? `Position and size start from the validated ${selectedSlot.id} slot geometry.` : 'Use the canvas Move and resize controls to position this screen element.'} Save creates the next Screen revision.</p>
           </>
         )}
       </div>
