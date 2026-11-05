@@ -22,7 +22,7 @@ const ELEMENT_TYPES = new Set([
   'media',
   'graph',
   'data',
-  'options',
+  'options', 'math', 'shape',
 ]);
 
 const parseId = (value, label) => {
@@ -121,7 +121,7 @@ const normalizeElements = (elements, layout) => {
     if (!ELEMENT_TYPES.has(type))
       throw new AppError(`Element ${key} has unsupported type: ${type}`);
     const slotId = String(element.slotId || element.slot_id || '').trim() || null;
-    if (slots) {
+    if (slots && type !== 'math' && type !== 'shape') {
       if (!slotId || !slots.has(slotId))
         throw new AppError(`Element ${key} uses an unknown layout slot`);
       if (!slots.get(slotId).allowed.includes(type)) {

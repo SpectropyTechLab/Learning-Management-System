@@ -3,10 +3,10 @@ import { Eye, Grid2X2, Layers3, List, MoreVertical, Play, RefreshCw, Search, Tra
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
-import { deleteStudioResource, getStudioResource, listStudioResources, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
+import { deleteStudioResource, getStudioResource, getStudioResourcePreview, listStudioResources, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
 import StudioResourcePlayer from './StudioResourcePlayer';
-import { DEFAULT_RESOURCE_TYPE_STYLE, RESOURCE_TYPE_STYLES } from './resourcePresentation';
+import { formatResourceTypeLabel, getResourceTypeStyle } from './resourcePresentation';
 
 type ResourceView = 'grid' | 'list';
 type ResourceSort = 'recently_updated' | 'name_asc' | 'name_desc' | 'newest' | 'type';
@@ -24,19 +24,33 @@ const formatDuration = (seconds?: number | null) => {
 };
 
 function ResourcePreview({ resource }: { resource: StudioResourceSummary }) {
-  const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
+  const style = getResourceTypeStyle(resource.resource_type);
   const Icon = style.icon;
   const duration = formatDuration(resource.latest_version?.duration_seconds);
+  const [source, setSource] = useState(resource.latest_version?.external_url || '');
+  const mediaType = resource.latest_version?.mime_type || '';
+  const canShowCover = mediaType.startsWith('image/') || mediaType.startsWith('video/');
+  const isGif = mediaType.toLowerCase() === 'image/gif';
+  const gifCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canShowCover || source || !resource.latest_version?.id) return;
+    let active = true;
+    void getStudioResourcePreview(resource.latest_version.id)
+      .then((preview) => { if (active) setSource(preview.url); })
+      .catch(() => { /* Keep the type icon as the fallback cover. */ });
+    return () => { active = false; };
+  }, [canShowCover, resource.latest_version?.id, source]);
   return (
-    <div className={`relative flex h-36 items-center justify-center overflow-hidden rounded-t-xl bg-gradient-to-br ${style.preview}`}>
-      <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_20%_20%,white_0,transparent_35%),radial-gradient(circle_at_80%_70%,white_0,transparent_30%)]" />
-      <Icon size={48} strokeWidth={1.7} className="relative" />
-      {['video', 'animation', 'simulation'].includes(resource.resource_type) ? (
-        <span className="absolute grid h-11 w-11 place-items-center rounded-full border-2 border-white bg-slate-950/55 text-white">
-          <Play size={20} fill="currentColor" />
-        </span>
-      ) : null}
-      {duration ? <span className="absolute bottom-2 right-2 rounded-md bg-slate-950/80 px-2 py-1 text-xs font-bold text-white">{duration}</span> : null}
+    <div className={`relative flex h-24 w-28 shrink-0 items-center justify-center overflow-hidden rounded-l-xl bg-gradient-to-br ${style.preview}`}>
+      {source && canShowCover ? mediaType.startsWith('video/')
+        ? <video src={source} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+        : isGif
+          ? <><canvas ref={gifCanvasRef} className="h-full w-full object-cover" aria-label={`${resource.name} static cover`} /><img src={source} alt="" className="hidden" onLoad={(event) => { const image = event.currentTarget; const canvas = gifCanvasRef.current; if (!canvas) return; canvas.width = image.naturalWidth || 160; canvas.height = image.naturalHeight || 90; canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height); }} /></>
+          : <img src={source} alt={`${resource.name} cover`} className="h-full w-full object-cover" />
+        : <><div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_20%_20%,white_0,transparent_35%),radial-gradient(circle_at_80%_70%,white_0,transparent_30%)]" /><Icon size={30} strokeWidth={1.7} className="relative" /></>}
+      {!isGif && ['video', 'animation', 'simulation'].includes(resource.resource_type) ? <span className="absolute grid h-7 w-7 place-items-center rounded-full border border-white bg-slate-950/55 text-white"><Play size={13} fill="currentColor" /></span> : null}
+      {duration ? <span className="absolute bottom-1 right-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[10px] font-bold text-white">{duration}</span> : null}
     </div>
   );
 }
@@ -67,10 +81,12 @@ const LoadingCards = () => (
   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
     {Array.from({ length: 8 }, (_, index) => (
       <div key={index} className="animate-pulse overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="h-36 bg-slate-200" />
-        <div className="space-y-3 p-4">
+        <div className="flex h-24">
+          <div className="w-28 bg-slate-200" />
+          <div className="flex-1 space-y-3 p-3">
           <div className="h-4 w-3/4 rounded bg-slate-200" />
           <div className="h-3 w-1/2 rounded bg-slate-100" />
+          </div>
         </div>
       </div>
     ))}
@@ -84,7 +100,11 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   const [searchInput, setSearchInput] = useState(initial.get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState(initial.get('search') || '');
   const initialType = initial.get('type');
-  const [resourceType, setResourceType] = useState<StudioResourceType | ''>(STUDIO_RESOURCE_TYPES.includes(initialType as StudioResourceType) ? (initialType as StudioResourceType) : '');
+  const [resourceType, setResourceType] = useState<StudioResourceType | ''>(
+    STUDIO_RESOURCE_TYPES.includes(initialType as StudioResourceType) && !(mode === 'picker' && initialType === 'html')
+      ? (initialType as StudioResourceType)
+      : '',
+  );
   const [sort, setSort] = useState<ResourceSort>('recently_updated');
   const [view, setView] = useState<ResourceView>('grid');
   const [resources, setResources] = useState<StudioResourceSummary[]>([]);
@@ -100,6 +120,10 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerError, setPickerError] = useState('');
   const requestRef = useRef(0);
+  const visibleResourceTypes = useMemo(
+    () => STUDIO_RESOURCE_TYPES.filter((type) => mode !== 'picker' || type !== 'html'),
+    [mode],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
@@ -225,7 +249,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
             <span className="sr-only">Resource type</span>
             <select value={resourceType} onChange={(event) => setResourceType(event.target.value as StudioResourceType | '')} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
               <option value="">All</option>
-              {STUDIO_RESOURCE_TYPES.filter((type) => !allowedTypes || allowedTypes.includes(type)).map((type) => (
+              {visibleResourceTypes.filter((type) => !allowedTypes || allowedTypes.includes(type)).map((type) => (
                 <option key={type} value={type}>
                   {studioResourceTypeLabel(type)}
                 </option>
@@ -293,18 +317,18 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
         ) : view === 'grid' ? (
           <div className={`grid gap-4 ${mode === 'picker' ? 'grid-cols-1' : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
             {sorted.map((resource) => {
-              const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
+              const style = getResourceTypeStyle(resource.resource_type);
               return (
                 <article key={resource.id} className="relative overflow-visible rounded-xl border border-gray-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md">
-                  <button type="button" onClick={() => openResource(resource)} className="block w-full overflow-hidden rounded-xl text-left">
+                  <button type="button" onClick={() => openResource(resource)} className="flex min-h-24 w-full overflow-hidden rounded-xl text-left">
                     <ResourcePreview resource={resource} />
-                    <div className="p-3.5 pr-12">
+                    <div className="min-w-0 flex-1 p-3 pr-10">
                       <p className="truncate font-bold text-slate-900">{resource.name}</p>
-                      <div className="mt-2 flex gap-2">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style.badge}`}>{studioResourceTypeLabel(resource.resource_type)}</span>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">v{resource.latest_version?.version_number ?? '—'}</span>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${style.badge}`}>{studioResourceTypeLabel(resource.resource_type) ?? formatResourceTypeLabel(resource.resource_type)}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">v{resource.latest_version?.version_number ?? '—'}</span>
                       </div>
-                      {resource.description ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{resource.description}</p> : null}
+                      {resource.description ? <p className="mt-1.5 line-clamp-1 text-xs text-slate-500">{resource.description}</p> : null}
                     </div>
                   </button>
                   {mode === 'manage' ? (
@@ -319,7 +343,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
         ) : (
           <div className="rounded-xl border border-gray-200">
             {sorted.map((resource) => {
-              const style = RESOURCE_TYPE_STYLES[resource.resource_type] || DEFAULT_RESOURCE_TYPE_STYLE;
+              const style = getResourceTypeStyle(resource.resource_type);
               const Icon = style.icon;
               return (
                 <div key={resource.id} className="relative flex border-t border-gray-100 first:border-t-0 hover:bg-slate-50">
