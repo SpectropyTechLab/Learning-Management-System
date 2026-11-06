@@ -196,9 +196,15 @@ export default function StudioAnimationsPanel({ screen, selectedElementId, onUpd
           title="Preview animations"
           aria-label="Preview animations"
           onClick={() => {
-            const target = document.querySelector(`[data-element-id="${selected.id}"]`);
-            target?.classList.remove('studio-animation-replay');
-            requestAnimationFrame(() => target?.classList.add('studio-animation-replay'));
+            const target = document.querySelector<HTMLElement>(
+              `[data-element-id="${selected.id}"]`,
+            );
+            const animated =
+              target?.querySelector<HTMLElement>('[data-studio-animated=true]') ?? target;
+            if (!animated) return;
+            animated.style.animation = 'none';
+            void animated.offsetWidth;
+            animated.style.animation = '';
           }}
           className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 hover:bg-blue-50"
         >

@@ -637,10 +637,10 @@ export default function TeachingStudioPage() {
       type: 'math',
       content: { text: latex, latex, color: '#0f2747', fontSize: 42, alignment: 'center' },
       position: {
-        x: 420,
-        y: 360,
-        width: 1080,
-        height: 260,
+        x: 600,
+        y: 410,
+        width: 720,
+        height: 160,
         zIndex: selectedScreen.elements.length + 1,
       },
     };
@@ -659,10 +659,10 @@ export default function TeachingStudioPage() {
       type: 'shape',
       content: { kind, fill: '#dbeafe', stroke: '#1d4ed8', strokeWidth: 4, opacity: 1 },
       position: {
-        x: 560,
-        y: 380,
-        width: 800,
-        height: 320,
+        x: 760,
+        y: 390,
+        width: 400,
+        height: 300,
         zIndex: selectedScreen.elements.length + 1,
       },
     };
@@ -1544,7 +1544,7 @@ export default function TeachingStudioPage() {
                   <Paintbrush size={17} />
                 </button>
               </div>
-              <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+              <div className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain p-3 [scrollbar-gutter:stable]">
                 {panel === 'layouts' && (
                   <StudioLayoutGallery
                     layouts={layouts}

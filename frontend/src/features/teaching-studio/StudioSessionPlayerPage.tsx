@@ -166,7 +166,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, teacherAnnota
     if (overlay && animation && animation.effect !== 'none') overlays[element.element_key] = <StudioAnimatedElement animation={animation}>{overlay}</StudioAnimatedElement>;
   }
 
-  return <SlideCanvas layout={layout} slide={slide} objectOverlays={overlays} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={annotationTool !== 'pointer'} drawingTool={annotationTool === 'eraser' ? 'eraser' : 'pen'} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
+  return <SlideCanvas layout={layout} slide={slide} objectOverlays={overlays} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={annotationTool !== 'pointer'} drawingTool={annotationTool === 'eraser' ? 'eraser' : 'pen'} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -532,7 +532,7 @@ export default function StudioSessionPlayerPage() {
               <div className="rounded-xl border border-red-400/30 bg-red-950/40 p-6 text-red-100">{error}</div>
             </div>
           )}
-          {!discoveryItem && !loading && release && screen && <PublishedCanvas releaseId={release.id} screen={screen} previewMode={previewMode} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} />}
+          {!discoveryItem && !loading && release && screen && <PublishedCanvas key={screen.screen_id} releaseId={release.id} screen={screen} previewMode={previewMode} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} />}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-300">This release contains no Screens.</div>}
         </main>
         {error && release && <p className="mx-4 mb-2 rounded-lg bg-red-950/70 px-3 py-2 text-sm text-red-100">{error}</p>}
