@@ -1,4 +1,4 @@
-import { Copy, ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { Copy, ImagePlus, Layers3, Plus, Trash2 } from 'lucide-react';
 import type { Layout, ObjectType, Slot } from '../layouts';
 import type { StudioElement, StudioScreen } from '../types';
 import { canPlaceResource } from '../resourcePlacement';
@@ -86,41 +86,51 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
             </label>
           </div>
         )}
-        <div className="mt-3 min-w-0 space-y-2 overflow-hidden pr-1">
-          {(layout?.slots ?? []).map((slot) => {
-            const element = screen.elements.find((candidate) => candidate.slotId === slot.id);
-            return (
-              <div key={slot.id} className={`rounded-lg border p-3 ${element?.id === selectedElementId ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">{slot.label}</p>
-                    <p className="text-xs text-slate-500">{slot.allowed.join(', ')}</p>
+        {layout ? (
+          <div className="mt-3 min-w-0 space-y-2 overflow-hidden pr-1">
+            {layout.slots.map((slot) => {
+              const element = screen.elements.find((candidate) => candidate.slotId === slot.id);
+              return (
+                <div key={slot.id} className={`rounded-lg border p-3 ${element?.id === selectedElementId ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{slot.label}</p>
+                      <p className="text-xs text-slate-500">{slot.allowed.join(', ')}</p>
+                    </div>
+                    {element ? (
+                      <button type="button" onClick={() => onSelect(element.id)} className="rounded-lg border border-blue-800 px-3 py-1.5 text-xs font-semibold text-blue-900">Edit</button>
+                    ) : (
+                      <button type="button" onClick={() => onAdd(slot)} className="inline-flex items-center gap-1 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white"><Plus size={14} />Add</button>
+                    )}
                   </div>
-                  {element ? (
-                    <button type="button" onClick={() => onSelect(element.id)} className="rounded-lg border border-blue-800 px-3 py-1.5 text-xs font-semibold text-blue-900">
-                      Edit
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => onAdd(slot)} className="inline-flex items-center gap-1 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white">
-                      <Plus size={14} />
-                      Add
-                    </button>
-                  )}
                 </div>
-              </div>
-            );
-          })}
-          {!layout &&
-            screen.elements.map((element) => (
-              <button key={element.id} type="button" onClick={() => onSelect(element.id)} className={`block w-full min-w-0 overflow-hidden rounded-lg border p-3 text-left ${element.id === selectedElementId ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>
-                <span className="block truncate text-sm font-semibold capitalize text-slate-900">{element.type}</span>
-                <span className="block truncate text-xs text-slate-500">{textValue(element) || element.id}</span>
-              </button>
-            ))}
-        </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <label className="mt-4 block text-xs font-semibold text-slate-600">
+          <span className="inline-flex items-center gap-2"><Layers3 size={16} className="text-blue-800" />Layers</span>
+          <select
+            value={selectedElementId ?? ''}
+            onChange={(event) => event.target.value && onSelect(event.target.value)}
+            disabled={screen.elements.length === 0}
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            <option value="">{screen.elements.length === 0 ? 'No screen elements' : 'Choose layer...'}</option>
+            {[...screen.elements]
+              .sort((a, b) => (Number(b.position.zIndex) || 0) - (Number(a.position.zIndex) || 0))
+              .map((element) => (
+                <option key={element.id} value={element.id}>
+                  {element.type.replaceAll('_', ' ')}{textValue(element) ? ` - ${textValue(element)}` : ''}
+                </option>
+              ))}
+          </select>
+        </label>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div>
+        <h2 className="mb-2 font-semibold text-slate-900">Screen element</h2>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         {!selected || !selectedSlot ? (
           <div className="flex min-h-48 flex-col items-center justify-center text-center text-slate-500">
             <ImagePlus size={28} />
@@ -227,6 +237,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
             <p className="mt-4 text-xs text-slate-500">{layout ? `Position and size start from the validated ${selectedSlot.id} slot geometry.` : 'Use the canvas Move and resize controls to position this screen element.'} Changes are automatically saved to the working draft.</p>
           </>
         )}
+        </div>
       </div>
     </div>
   );

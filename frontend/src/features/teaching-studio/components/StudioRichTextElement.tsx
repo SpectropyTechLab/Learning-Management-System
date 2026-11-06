@@ -9,12 +9,7 @@ interface Props {
 
 const inlineEquationPattern = /\\\((.+?)\\\)/gs;
 
-export const hasInlineEquation = (text: string) => {
-  inlineEquationPattern.lastIndex = 0;
-  return inlineEquationPattern.test(text);
-};
-
-export default function StudioRichTextElement({ text, color = '#25436b', fontSize = 18 }: Props) {
+export const inlineEquationParts = (text: string) => {
   inlineEquationPattern.lastIndex = 0;
   const parts: Array<{ kind: 'text' | 'math'; value: string }> = [];
   let cursor = 0;
@@ -25,6 +20,16 @@ export default function StudioRichTextElement({ text, color = '#25436b', fontSiz
     cursor = index + match[0].length;
   }
   if (cursor < text.length) parts.push({ kind: 'text', value: text.slice(cursor) });
+  return parts;
+};
+
+export const hasInlineEquation = (text: string) => {
+  inlineEquationPattern.lastIndex = 0;
+  return inlineEquationPattern.test(text);
+};
+
+export default function StudioRichTextElement({ text, color = '#25436b', fontSize = 18 }: Props) {
+  const parts = inlineEquationParts(text);
 
   return <div className="pointer-events-none h-full w-full overflow-hidden p-3 font-medium leading-relaxed" style={{ color, fontSize }}>
     {parts.map((part, index) => part.kind === 'text'

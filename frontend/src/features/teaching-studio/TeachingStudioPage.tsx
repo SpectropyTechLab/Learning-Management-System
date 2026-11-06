@@ -134,6 +134,10 @@ export default function TeachingStudioPage() {
     | 'drawing'
     | null
   >('elements');
+  const [animationPreview, setAnimationPreview] = useState<{
+    elementId: string;
+    token: number;
+  } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
   const [workflowStatus, setWorkflowStatus] = useState<StudioWorkflowStatus | null>(null);
@@ -148,6 +152,7 @@ export default function TeachingStudioPage() {
     layout: Layout;
   } | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
   const [elementPast, setElementPast] = useState<StudioElement[][]>([]);
   const [elementFuture, setElementFuture] = useState<StudioElement[][]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -158,9 +163,9 @@ export default function TeachingStudioPage() {
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const [sessionContext, setSessionContext] = useState<StudioSession | null>(null);
   const [sessionOptions, setSessionOptions] = useState<StudioSession[]>([]);
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [contextBarOpen, setContextBarOpen] = useState(true);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [contextBarOpen, setContextBarOpen] = useState(false);
   const [revisionPromptOpen, setRevisionPromptOpen] = useState(false);
   const [startingRevision, setStartingRevision] = useState(false);
   const editorReadOnly = !workflowStatus || !['draft', 'rejected'].includes(workflowStatus.status);
@@ -626,8 +631,30 @@ export default function TeachingStudioPage() {
     );
   };
 
-  const addMathElement = (latex: string) => {
+  const addMathElement = (latex: string, forceStandalone = false) => {
     if (!selectedScreen || editorReadOnly) return;
+    const inlineTarget = selectedScreen.elements.find(
+      (element) => element.id === selectedElementId && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type),
+    );
+    if (inlineTarget && !forceStandalone) {
+      const text = String(inlineTarget.content.text ?? '');
+      const rememberedCaret = inlineEquationCaretRef.current;
+      const offset = rememberedCaret?.elementId === inlineTarget.id
+        ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
+        : text.length;
+      const token = `\\(${latex}\\)`;
+      const updated = {
+        ...inlineTarget,
+        content: { ...inlineTarget.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` },
+      };
+      inlineEquationCaretRef.current = { elementId: inlineTarget.id, offset: offset + token.length };
+      commitElements(
+        selectedScreen.elements.map((element) => element.id === inlineTarget.id ? updated : element),
+        inlineTarget.id,
+      );
+      toast.success('Equation inserted into the selected text element.');
+      return;
+    }
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `math-${token}`;
@@ -1322,12 +1349,14 @@ export default function TeachingStudioPage() {
             </div>
           </section>
         ) : (
-          <StudioIconButton
-            label="Show context and actions"
-            icon={<ChevronDown size={15} />}
-            onClick={() => setContextBarOpen(true)}
-            className="shadow-sm"
-          />
+          <div className="flex shrink-0 justify-end">
+            <StudioIconButton
+              label="Show context and actions"
+              icon={<ChevronDown size={15} />}
+              onClick={() => setContextBarOpen(true)}
+              className="shadow-sm"
+            />
+          </div>
         )}
         {workflowStatus && editorReadOnly && (
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
@@ -1418,6 +1447,7 @@ export default function TeachingStudioPage() {
                 screen={selectedScreen}
                 loading={loadingScreen}
                 layout={selectedLayout}
+                animationPreview={animationPreview}
                 selectedElementId={selectedElementId}
                 onSelectElement={(elementId) => {
                   setSelectedElementId(elementId);
@@ -1428,8 +1458,14 @@ export default function TeachingStudioPage() {
                     setPanel(type === 'math' ? 'math' : type === 'shape' ? 'shapes' : 'elements');
                   }
                 }}
+                onClearElementSelection={() => setSelectedElementId(null)}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
+                onTextCaretChange={(elementId, offset) => {
+                  inlineEquationCaretRef.current = { elementId, offset };
+                }}
+                onDuplicateElement={editorReadOnly ? undefined : duplicateElement}
+                onRemoveElement={editorReadOnly ? undefined : removeElement}
                 onOpenTool={
                   editorReadOnly
                     ? undefined
@@ -1576,10 +1612,12 @@ export default function TeachingStudioPage() {
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
                     onSelect={setSelectedElementId}
-                    onAdd={addMathElement}
+                    onAddStandalone={(latex) => addMathElement(latex, true)}
+                    onInsertInline={(latex) => addMathElement(latex)}
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
+                    inlineTarget={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
                   />
                 )}
                 {panel === 'shapes' && (
@@ -1597,6 +1635,9 @@ export default function TeachingStudioPage() {
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
                     onUpdate={updateElement}
+                    onPreview={(elementId) =>
+                      setAnimationPreview({ elementId, token: Date.now() })
+                    }
                   />
                 )}
                 {panel === 'transitions' && (

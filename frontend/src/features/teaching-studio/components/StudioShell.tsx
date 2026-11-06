@@ -59,7 +59,12 @@ export default function StudioShell({ title, subtitle, actions, scrollContent = 
     school_owner: '/school-owner/profile',
     client_admin: '/admin/profile',
   } as Record<string, string>)[user?.role || ''];
-  const visibleSections = authorRoles.has(user?.role || '') ? sections : sections.slice(0, 1);
+  const playerOpen = location.pathname.startsWith('/studio/player/');
+  const visibleSections = authorRoles.has(user?.role || '')
+    ? sections
+    : playerOpen
+      ? ([sections[0], ['Screen View', location.pathname, MonitorPlay]] as const)
+      : sections.slice(0, 1);
   const navItems = useMemo(() => visibleSections.map(([label, path, Icon]) => ({
     key: path, label, icon: <Icon size={18} />,
     active: path === '/studio' ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`),
@@ -74,7 +79,7 @@ export default function StudioShell({ title, subtitle, actions, scrollContent = 
     shellClass={`${theme.shellClass} studio-theme-${themePreference}`} layoutClass={theme.layoutClass}
     sidebarOpen={sidebarOpen} onSidebarClose={() => setSidebarOpen(false)} contentClassName="p-0" contentScrollable={scrollContent}
     sidebar={<SidebarNav brandLogo="/logo.png" brandName="Spectropy" title="Digital Studio"
-      topAction={<button type="button" onClick={() => navigate(homePath)} title={!sidebarOpen ? 'LMS Home' : undefined} aria-label="LMS Home" className={`group relative inline-flex w-full items-center rounded-lg py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-blue-900 ${sidebarOpen ? 'gap-2 px-2' : 'justify-center px-0'}`}><Home size={18} /><span className={sidebarOpen ? '' : 'md:hidden'}>LMS Home</span>{!sidebarOpen ? <span role="tooltip" className="pointer-events-none absolute left-full top-1/2 z-[70] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white group-hover:md:block group-focus-visible:md:block">LMS Home</span> : null}</button>}
+      topAction={<button type="button" onClick={() => navigate(homePath)} aria-label="LMS Home" className={`group relative inline-flex w-full items-center rounded-lg py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-blue-900 ${sidebarOpen ? 'gap-2 px-2' : 'justify-center px-0'}`}><Home size={18} /><span className={sidebarOpen ? '' : 'md:hidden'}>LMS Home</span>{!sidebarOpen ? <span role="tooltip" className="pointer-events-none absolute left-full top-1/2 z-[70] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white group-hover:md:block group-focus-visible:md:block">LMS Home</span> : null}</button>}
       navItems={navItems} userInfo={{ name: user?.full_name || 'Studio user', email: user?.email || '' }}
       sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onToggle={() => setSidebarOpen((open) => !open)} theme={theme} closeOnNavigate={false} compactOnDesktop railOnDesktop showUserInfo={false} showLogout={false}
       footerContent={<StudioAccountMenu collapsed={!sidebarOpen} name={user?.full_name || 'Studio user'} email={user?.email || ''} theme={themePreference} onThemeChange={setThemePreference} onHome={() => navigate(homePath)} onProfile={profilePath ? () => navigate(profilePath) : undefined} onLogout={handleLogout} />} />}

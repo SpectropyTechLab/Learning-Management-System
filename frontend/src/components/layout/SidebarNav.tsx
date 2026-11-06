@@ -115,7 +115,6 @@ export default function SidebarNav({
               if (closeOnNavigate) onClose();
             }}
             aria-label={item.label}
-            title={desktopRail ? item.label : undefined}
             className={`group relative w-full flex items-center gap-2 px-3 py-2.5 lg:px-4 lg:py-3 text-sm font-medium ${compactOnDesktop ? "md:px-3" : ""} ${desktopRail ? "md:justify-center md:px-0 lg:px-0" : ""} ${theme.navRadiusClass} transition-colors ${
               item.active ? theme.navActiveClass : theme.navInactiveClass
             }`}
