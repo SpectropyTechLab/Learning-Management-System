@@ -7,6 +7,7 @@ process.env.SUPABASE_SERVICE_KEY ||= 'test-only-service-key';
 
 const { default: screenRouter } = await import('../routes/studioScreens.routes.js');
 const {
+  discoverPublishedContent,
   discoverScreens,
   getBranchDestinations,
 } = await import('../services/studioDiscovery.service.js');
@@ -25,8 +26,61 @@ test('Day 6 routes expose discovery before the parameterized Screen route and st
   const discoveryIndex = routes.indexOf('GET /studio/screens/discovery');
   const screenIndex = routes.indexOf('GET /studio/screens/:screenId');
   assert.ok(discoveryIndex >= 0);
+  assert.ok(routes.includes('GET /studio/discovery'));
   assert.ok(screenIndex > discoveryIndex);
   assert.ok(routes.includes('GET /studio/screens/:screenId/branches'));
+});
+
+test('dynamic discovery filters by Chapter and paginates related published Sessions', async () => {
+  const curriculum = {
+    client_id: 12,
+    board_id: 1, board_name: 'Board', program_id: 2, program_name: 'Program',
+    grade_id: 3, grade_number: 10, subject_id: 4, subject_name: 'Physics',
+    chapter_id: 5, chapter_number: 2, chapter_name: 'Light',
+    topic_id: 6, topic_name: 'Reflection', subtopic_id: 7, subtopic_name: 'Mirrors',
+  };
+  const contextRelease = {
+    ...curriculum, id: 91, session_id: 10, release_number: 2, published_at: '2026-01-02T00:00:00Z',
+    manifest_json: { session: { program_id: 2 }, screens: [{ screen_id: 42 }] },
+  };
+  const releases = [
+    {
+      ...curriculum, id: 91, session_id: 10, release_number: 2,
+      session_title: 'Reflection lesson', session_description: 'Mirror demonstration',
+      published_at: '2026-01-02T00:00:00Z',
+      manifest_json: { screens: [{ screen_id: 42, tags: ['light'], elements: [] }], documents: {}, screen_scripts: [] },
+    },
+    {
+      ...curriculum, id: 90, session_id: 9, release_number: 1,
+      session_title: 'Light introduction', session_description: 'Explore light',
+      published_at: '2026-01-01T00:00:00Z',
+      manifest_json: { screens: [{ screen_id: 40, tags: ['light'], elements: [] }], documents: {}, screen_scripts: [] },
+    },
+  ];
+  const db = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      if (sql.includes('where sr.id = $1')) return { rows: [contextRelease] };
+      if (sql.includes('select distinct on (sr.session_id)')) return { rows: releases };
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+  };
+
+  const first = await discoverPublishedContent({
+    releaseId: 91, screenId: 42, type: 'session', tags: 'light', limit: 1, user: author, db,
+  });
+  assert.equal(first.items.length, 1);
+  assert.equal(first.items[0].title, 'Reflection lesson');
+  assert.equal(first.applied_context.chapter_id, 5);
+  assert.ok(first.next_cursor);
+
+  const second = await discoverPublishedContent({
+    releaseId: 91, screenId: 42, type: 'session', tags: 'light', limit: 1,
+    cursor: first.next_cursor, user: author, db,
+  });
+  assert.equal(second.items.length, 1);
+  assert.equal(second.items[0].title, 'Light introduction');
+  assert.equal(second.next_cursor, null);
 });
 
 test('author discovery normalizes duplicate tags and requires every requested tag', async () => {

@@ -226,6 +226,7 @@ export default function AppRoutes() {
         <Route path="/studio/screen-scripts" element={<StudioScreenScriptsPage />} />
         <Route path="/studio/editor" element={<StudioEditorEntryPage />} />
         <Route path="/studio/editor/:sessionId" element={<TeachingStudioPage />} />
+        <Route path="/studio/player/:sessionId/preview" element={<StudioSessionPlayerPage />} />
         <Route path="/studio/resources" element={<StudioResourceLibraryPage />} />
         <Route path="/studio/resources/:resourceId" element={<StudioResourceDetailsPage />} />
         <Route path="/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
