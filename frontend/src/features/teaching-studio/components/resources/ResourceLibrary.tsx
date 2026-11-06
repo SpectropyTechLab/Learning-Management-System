@@ -163,6 +163,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   const sorted = useMemo(
     () =>
       [...resources]
+        .filter((resource) => mode !== 'picker' || resource.resource_type !== 'html')
         .filter((resource) => !allowedTypes || allowedTypes.includes(resource.resource_type))
         .sort((left, right) => {
           if (sort === 'name_asc') return left.name.localeCompare(right.name);
@@ -171,7 +172,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
           if (sort === 'type') return left.resource_type.localeCompare(right.resource_type) || left.name.localeCompare(right.name);
           return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
         }),
-    [allowedTypes, resources, sort],
+    [allowedTypes, mode, resources, sort],
   );
 
   const openResource = (resource: StudioResourceSummary) => {

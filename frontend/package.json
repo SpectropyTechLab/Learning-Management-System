@@ -32,6 +32,7 @@
     "framer-motion": "^12.24.7",
     "katex": "^0.19.1",
     "lucide-react": "^0.562.0",
+    "mathlive": "^0.111.4",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.1.1",

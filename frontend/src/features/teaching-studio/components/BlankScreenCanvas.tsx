@@ -5,7 +5,7 @@ import { getStudioResource } from '../api/studioResourcesApi';
 import type { StudioResourceDetails, StudioResourceVersion } from '../api/studioResourcesApi';
 import type { Layout, ObjectType, Rect, Slide, Slot } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
-import type { AuthorDrawingStroke, StudioElement, StudioScreen } from '../types';
+import type { AuthorDrawingStroke, StudioDrawingTool, StudioElement, StudioScreen } from '../types';
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
 import StudioMathElement from './StudioMathElement';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
@@ -26,9 +26,10 @@ interface BlankScreenCanvasProps {
   previewMode?: boolean;
   drawingStrokes?: AuthorDrawingStroke[];
   drawingEnabled?: boolean;
-  drawingTool?: 'pen' | 'eraser';
+  drawingTool?: StudioDrawingTool;
   drawingColor?: string;
   drawingWidth?: number;
+  drawingOpacity?: number;
   onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
 }
 
@@ -103,7 +104,7 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
   };
 
   return (
-    <div ref={containerRef} className="relative h-full w-full bg-black" onClick={onSelect}>
+    <div ref={containerRef} className="group relative h-full w-full bg-black" onClick={onSelect}>
       <StudioResourcePlayer
         resourceType={resource.resource_type}
         version={version}
@@ -116,7 +117,7 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
           event.stopPropagation();
           void toggleFullScreen();
         }}
-        className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded bg-white/95 px-2 py-1 text-xs font-semibold text-blue-900 shadow"
+        className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/40 bg-slate-950/70 text-white opacity-0 backdrop-blur transition-opacity hover:bg-slate-950/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
         title={
           fullScreen
             ? 'Exit full screen and return to the editor'
@@ -124,8 +125,7 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
         }
         aria-label={fullScreen ? 'Exit full screen' : 'View resource in full screen'}
       >
-        {fullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        {fullScreen ? 'Exit full screen' : 'Full screen'}
+        {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
       </button>
     </div>
   );
@@ -157,11 +157,16 @@ export default function BlankScreenCanvas({
   drawingTool = 'pen',
   drawingColor = '#ef4444',
   drawingWidth = 6,
+  drawingOpacity = 1,
   onDrawingChange,
 }: BlankScreenCanvasProps) {
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
-  useEffect(() => { setEditingElementId(null); }, [screen?.id]);
-  useEffect(() => { if (editingElementId && selectedElementId !== editingElementId) setEditingElementId(null); }, [editingElementId, selectedElementId]);
+  useEffect(() => {
+    setEditingElementId(null);
+  }, [screen?.id]);
+  useEffect(() => {
+    if (editingElementId && selectedElementId !== editingElementId) setEditingElementId(null);
+  }, [editingElementId, selectedElementId]);
   const authoredStrokes =
     drawingStrokes ?? screen?.screen_settings_json?.author_drawings?.strokes ?? [];
   const freeformLayout: Layout | null =
@@ -276,23 +281,65 @@ export default function BlankScreenCanvas({
       continue;
     }
     if (element.type === 'shape') {
-      objectOverlays[element.id] = <StudioShapeElement kind={String(element.content.kind || 'rectangle')} fill={typeof element.content.fill === 'string' ? element.content.fill : undefined} stroke={typeof element.content.stroke === 'string' ? element.content.stroke : undefined} strokeWidth={Number(element.content.strokeWidth) || undefined} opacity={Number(element.content.opacity) || undefined} />;
+      objectOverlays[element.id] = (
+        <StudioShapeElement
+          kind={String(element.content.kind || 'rectangle')}
+          fill={typeof element.content.fill === 'string' ? element.content.fill : undefined}
+          stroke={typeof element.content.stroke === 'string' ? element.content.stroke : undefined}
+          strokeWidth={Number(element.content.strokeWidth) || undefined}
+          opacity={Number(element.content.opacity) || undefined}
+          strokeDash={
+            typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined
+          }
+        />
+      );
       continue;
     }
     const text = elementText(element.content);
-    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type)) {
-      objectOverlays[element.id] = <StudioCanvasTextElement key={element.id} text={text}
-        color={typeof element.content.color === 'string' ? element.content.color : undefined}
-        fontSize={Number(element.content.fontSize) || undefined}
-        fontFamily={typeof element.content.fontFamily === 'string' ? element.content.fontFamily : undefined}
-        bold={element.content.bold === true} italic={element.content.italic === true}
-        underline={element.content.underline === true}
-        alignment={element.content.alignment === 'center' || element.content.alignment === 'right' || element.content.alignment === 'justify' ? element.content.alignment : 'left'}
-        list={element.content.list === true} editable={!previewMode && Boolean(onChangeElementContent)}
-        selected={selectedElementId === element.id}
-        onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
-        onTextChange={(value) => onChangeElementContent?.(element.id, { text: value })}
-        onEditingChange={(editing) => setEditingElementId(editing ? element.id : (current) => current === element.id ? null : current)} />;
+    if (
+      [
+        'title',
+        'text',
+        'question',
+        'response',
+        'steps',
+        'workspace',
+        'footer',
+        'options',
+        'data',
+      ].includes(element.type)
+    ) {
+      objectOverlays[element.id] = (
+        <StudioCanvasTextElement
+          key={element.id}
+          text={text}
+          color={typeof element.content.color === 'string' ? element.content.color : undefined}
+          fontSize={Number(element.content.fontSize) || undefined}
+          fontFamily={
+            typeof element.content.fontFamily === 'string' ? element.content.fontFamily : undefined
+          }
+          bold={element.content.bold === true}
+          italic={element.content.italic === true}
+          underline={element.content.underline === true}
+          alignment={
+            element.content.alignment === 'center' ||
+            element.content.alignment === 'right' ||
+            element.content.alignment === 'justify'
+              ? element.content.alignment
+              : 'left'
+          }
+          list={element.content.list === true}
+          editable={!previewMode && Boolean(onChangeElementContent)}
+          selected={selectedElementId === element.id}
+          onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+          onTextChange={(value) => onChangeElementContent?.(element.id, { text: value })}
+          onEditingChange={(editing) =>
+            setEditingElementId(
+              editing ? element.id : (current) => (current === element.id ? null : current),
+            )
+          }
+        />
+      );
       continue;
     }
     if (!element.resource) continue;
@@ -306,10 +353,17 @@ export default function BlankScreenCanvas({
   }
   for (const element of screen?.elements ?? []) {
     const overlay = objectOverlays[element.id];
-    const animation = element.content.animation && typeof element.content.animation === 'object' ? element.content.animation as Record<string, unknown> : undefined;
-    if (overlay && animation && animation.effect !== 'none') objectOverlays[element.id] = <StudioAnimatedElement animation={animation}>{overlay}</StudioAnimatedElement>;
+    const animation =
+      element.content.animation && typeof element.content.animation === 'object'
+        ? (element.content.animation as Record<string, unknown>)
+        : undefined;
+    if (overlay && animation && animation.effect !== 'none')
+      objectOverlays[element.id] = (
+        <StudioAnimatedElement animation={animation}>{overlay}</StudioAnimatedElement>
+      );
   }
-  const selectedElement = screen?.elements.find((element) => element.id === selectedElementId) ?? null;
+  const selectedElement =
+    screen?.elements.find((element) => element.id === selectedElementId) ?? null;
 
   return (
     <section
@@ -320,12 +374,26 @@ export default function BlankScreenCanvas({
         <div className="mb-2 flex min-w-0 items-center gap-2">
           <h2 className="min-w-0 truncate text-lg font-semibold text-slate-900">
             {screen
-              ? `${screen.title || 'Untitled Screen'} · Screen ${screen.screen_number} · Revision ${screen.revision_no}`
+              ? `${screen.title || 'Untitled Screen'} · Screen ${screen.screen_number}`
               : loading
                 ? 'Loading Screen...'
                 : 'Blank canvas · Select or create a Screen to begin.'}
           </h2>
-          {screen && editingElementId && selectedElement?.id === editingElementId && onChangeElementContent && onOpenTool ? <StudioElementToolbar element={selectedElement} onChange={(changes) => selectedElement && onChangeElementContent(selectedElement.id, changes)} onOpenMath={() => onOpenTool('math')} onOpenShapes={() => onOpenTool('shapes')} onOpenAnimations={() => onOpenTool('animations')} /> : null}
+          {screen &&
+          editingElementId &&
+          selectedElement?.id === editingElementId &&
+          onChangeElementContent &&
+          onOpenTool ? (
+            <StudioElementToolbar
+              element={selectedElement}
+              onChange={(changes) =>
+                selectedElement && onChangeElementContent(selectedElement.id, changes)
+              }
+              onOpenMath={() => onOpenTool('math')}
+              onOpenShapes={() => onOpenTool('shapes')}
+              onOpenAnimations={() => onOpenTool('animations')}
+            />
+          ) : null}
           {screen ? (
             <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
               {screen.creation_mode === 'blank' ? 'Blank Screen' : 'Layout Screen'}
@@ -349,6 +417,7 @@ export default function BlankScreenCanvas({
             drawingTool={drawingTool}
             drawingColor={drawingColor}
             drawingWidth={drawingWidth}
+            drawingOpacity={drawingOpacity}
             onDrawingChange={onDrawingChange}
           />
         ) : (

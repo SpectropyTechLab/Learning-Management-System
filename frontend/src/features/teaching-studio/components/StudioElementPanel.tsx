@@ -224,7 +224,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
               <input type="checkbox" checked={selected.position.locked === true} onChange={(event) => updatePosition('locked', event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Lock position and size
             </label>
-            <p className="mt-4 text-xs text-slate-500">{layout ? `Position and size start from the validated ${selectedSlot.id} slot geometry.` : 'Use the canvas Move and resize controls to position this screen element.'} Save creates the next Screen revision.</p>
+            <p className="mt-4 text-xs text-slate-500">{layout ? `Position and size start from the validated ${selectedSlot.id} slot geometry.` : 'Use the canvas Move and resize controls to position this screen element.'} Changes are automatically saved to the working draft.</p>
           </>
         )}
       </div>

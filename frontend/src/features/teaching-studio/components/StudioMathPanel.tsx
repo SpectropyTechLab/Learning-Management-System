@@ -1,6 +1,16 @@
-import { Copy, Plus, Trash2 } from 'lucide-react';
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Braces,
+  Copy,
+  Plus,
+  Sigma,
+  Trash2,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { StudioElement, StudioScreen } from '../types';
+import MathLiveEquationEditor from './MathLiveEquationEditor';
 import StudioMathElement from './StudioMathElement';
 
 interface Props {
@@ -13,17 +23,47 @@ interface Props {
   onRemove: (elementId: string) => void;
 }
 
-const templates = [
-  ['Fraction', String.raw`\frac{a}{b}`],
-  ['Root', String.raw`\sqrt{x}`],
-  ['Power', String.raw`x^{2}`],
-  ['Subscript', String.raw`x_{1}`],
-  ['Brackets', String.raw`\left(a+b\right)`],
-  ['Sum', String.raw`\sum_{i=1}^{n} i`],
-  ['Integral', String.raw`\int_{a}^{b} f(x)\,dx`],
-  ['Limit', String.raw`\lim_{x \to 0} f(x)`],
-  ['Matrix', String.raw`\begin{bmatrix}a & b \\ c & d\end{bmatrix}`],
-  ['Symbols', String.raw`\alpha + \beta = \gamma`],
+const groups = [
+  {
+    name: 'Common',
+    items: [
+      ['Fraction', String.raw`\frac{a}{b}`, 'a⁄b'],
+      ['Root', String.raw`\sqrt{x}`, '√x'],
+      ['Power', String.raw`x^{2}`, 'x²'],
+      ['Subscript', String.raw`x_{1}`, 'x₁'],
+      ['Brackets', String.raw`\left(a+b\right)`, '( )'],
+    ],
+  },
+  {
+    name: 'Calculus',
+    items: [
+      ['Sum', String.raw`\sum_{i=1}^{n} i`, '∑'],
+      ['Integral', String.raw`\int_{a}^{b} f(x)\,dx`, '∫'],
+      ['Limit', String.raw`\lim_{x \to 0} f(x)`, 'lim'],
+      ['Derivative', String.raw`\frac{d}{dx}f(x)`, 'd⁄dx'],
+      ['Partial', String.raw`\frac{\partial f}{\partial x}`, '∂'],
+    ],
+  },
+  {
+    name: 'Symbols',
+    items: [
+      ['Greek', String.raw`\alpha + \beta = \gamma`, 'αβ'],
+      ['Infinity', String.raw`x \to \infty`, '∞'],
+      ['Not equal', String.raw`a \ne b`, '≠'],
+      ['Approximate', String.raw`a \approx b`, '≈'],
+      ['Therefore', String.raw`\therefore`, '∴'],
+    ],
+  },
+  {
+    name: 'Structures',
+    items: [
+      ['Matrix', String.raw`\begin{bmatrix}a & b \\ c & d\end{bmatrix}`, '▦'],
+      ['Cases', String.raw`f(x)=\begin{cases}x&x\ge0\\-x&x<0\end{cases}`, '{…'],
+      ['Vector', String.raw`\vec{v}=\langle x,y\rangle`, 'v⃗'],
+      ['Set', String.raw`\left\{x\in\mathbb{R}\mid x>0\right\}`, '{x}'],
+      ['Chemistry', String.raw`\mathrm{H_2O + CO_2}`, 'H₂O'],
+    ],
+  },
 ] as const;
 
 export default function StudioMathPanel({
@@ -43,21 +83,17 @@ export default function StudioMathPanel({
     [screen, selectedElementId],
   );
   const [latex, setLatex] = useState(String.raw`\frac{a}{b}`);
-
+  const [activeGroup, setActiveGroup] = useState(0);
   useEffect(() => {
     if (selected) setLatex(String(selected.content.latex ?? selected.content.text ?? ''));
   }, [selected]);
-
   const update = (changes: Record<string, unknown>) => {
-    if (!selected) return;
-    onUpdate({ ...selected, content: { ...selected.content, ...changes } });
+    if (selected) onUpdate({ ...selected, content: { ...selected.content, ...changes } });
   };
-
-  const chooseTemplate = (value: string) => {
+  const changeEquation = (value: string) => {
     setLatex(value);
-    if (selected) update({ latex: value, text: value });
+    update({ latex: value, text: value });
   };
-
   const color =
     selected && typeof selected.content.color === 'string' ? selected.content.color : '#0f2747';
   const fontSize = selected ? Number(selected.content.fontSize) || 42 : 42;
@@ -68,39 +104,62 @@ export default function StudioMathPanel({
 
   return (
     <div>
-      <h2 className="font-semibold text-slate-900">Math equations</h2>
-      <p className="mt-1 text-xs text-slate-500">
-        Choose a familiar equation type, preview it, and place it anywhere on the Screen.
-      </p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {templates.map(([label, value]) => (
+      <div className="flex items-center gap-2">
+        <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-900">
+          <Sigma size={20} />
+        </span>
+        <div>
+          <h2 className="font-semibold text-slate-900">Equation studio</h2>
+          <p className="text-xs text-slate-500">Visual MathLive editing with a virtual keyboard.</p>
+        </div>
+      </div>
+      <div
+        className="mt-4 flex gap-1 overflow-x-auto pb-1"
+        role="tablist"
+        aria-label="Equation categories"
+      >
+        {groups.map((group, index) => (
           <button
-            key={label}
+            key={group.name}
             type="button"
-            onClick={() => chooseTemplate(value)}
-            className="rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold hover:border-blue-700 hover:bg-blue-50"
+            role="tab"
+            aria-selected={activeGroup === index}
+            onClick={() => setActiveGroup(index)}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${activeGroup === index ? 'bg-blue-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-blue-50'}`}
           >
-            {label}
+            {group.name}
           </button>
         ))}
       </div>
-      <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <summary className="cursor-pointer text-xs font-semibold text-slate-600">Advanced equation code (optional)</summary>
-        <label className="mt-3 block text-sm font-semibold text-slate-700">
-          Equation code
-          <textarea
-            value={latex}
-            onChange={(event) => {
-              const value = event.target.value;
-              setLatex(value);
-              if (selected) update({ latex: value, text: value });
-            }}
-            rows={4}
-            className="mt-1 w-full rounded-lg border border-slate-300 p-2 font-mono text-sm"
-          />
-        </label>
+      <div className="mt-2 grid grid-cols-5 gap-2">
+        {groups[activeGroup].items.map(([label, value, glyph]) => (
+          <button
+            key={label}
+            type="button"
+            title={label}
+            aria-label={label}
+            onClick={() => changeEquation(value)}
+            className="grid aspect-square place-items-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-600 hover:bg-blue-50 hover:text-blue-900"
+          >
+            <span aria-hidden="true">{glyph}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-4">
+        <MathLiveEquationEditor value={latex} onChange={changeEquation} />
+      </div>
+      <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <summary className="cursor-pointer text-xs font-semibold text-slate-600">
+          LaTeX source
+        </summary>
+        <textarea
+          value={latex}
+          onChange={(event) => changeEquation(event.target.value)}
+          rows={3}
+          className="mt-3 w-full rounded-lg border border-slate-300 p-2 font-mono text-sm"
+        />
       </details>
-      <div className="mt-3 min-h-24 rounded-lg border bg-white">
+      <div className="mt-3 min-h-20 rounded-lg border bg-white">
         <StudioMathElement
           latex={latex}
           color={color}
@@ -119,8 +178,8 @@ export default function StudioMathPanel({
         </button>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <label className="text-xs font-semibold text-slate-600">
+          <div className="mt-4 flex items-end gap-2">
+            <label className="flex-1 text-xs font-semibold text-slate-600">
               Color
               <input
                 type="color"
@@ -129,8 +188,8 @@ export default function StudioMathPanel({
                 className="mt-1 h-9 w-full rounded border p-1"
               />
             </label>
-            <label className="text-xs font-semibold text-slate-600">
-              Font size
+            <label className="flex-1 text-xs font-semibold text-slate-600">
+              Size
               <input
                 type="number"
                 min="12"
@@ -141,32 +200,26 @@ export default function StudioMathPanel({
               />
             </label>
           </div>
-          <label className="mt-3 block text-xs font-semibold text-slate-600">
-            Alignment
-            <select
-              value={alignment}
-              onChange={(event) => update({ alignment: event.target.value })}
-              className="mt-1 h-9 w-full rounded border px-2"
-            >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-          </label>
-          <label className="mt-3 block text-xs font-semibold text-slate-600">
-            Layer
-            <input
-              type="number"
-              value={Number(selected.position.zIndex) || 1}
-              onChange={(event) =>
-                onUpdate({
-                  ...selected,
-                  position: { ...selected.position, zIndex: Number(event.target.value) },
-                })
-              }
-              className="mt-1 h-9 w-full rounded border px-2"
-            />
-          </label>
+          <div className="mt-3 flex gap-2" aria-label="Equation alignment">
+            {(
+              [
+                ['left', AlignLeft],
+                ['center', AlignCenter],
+                ['right', AlignRight],
+              ] as const
+            ).map(([value, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                title={`Align ${value}`}
+                aria-label={`Align ${value}`}
+                onClick={() => update({ alignment: value })}
+                className={`grid h-9 flex-1 place-items-center rounded-lg border ${alignment === value ? 'border-blue-800 bg-blue-50 text-blue-900' : 'border-slate-200'}`}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -189,7 +242,9 @@ export default function StudioMathPanel({
       )}
       {(screen?.elements ?? []).some((element) => element.type === 'math') && (
         <div className="mt-5 border-t pt-3">
-          <p className="text-xs font-semibold uppercase text-slate-500">Equations on this Screen</p>
+          <p className="flex items-center gap-1 text-xs font-semibold uppercase text-slate-500">
+            <Braces size={14} /> Equations on screen
+          </p>
           <div className="mt-2 grid gap-2">
             {screen?.elements
               .filter((element) => element.type === 'math')
