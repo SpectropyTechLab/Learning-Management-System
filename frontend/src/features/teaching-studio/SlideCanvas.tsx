@@ -64,6 +64,7 @@ export default function SlideCanvas({
   showGuides = false,
   selectedObjectId,
   onSelectObject,
+  onClearSelection,
   onChangeObjectBounds,
   objectOverlays = {},
   transition,
@@ -81,6 +82,7 @@ export default function SlideCanvas({
   showGuides?: boolean;
   selectedObjectId?: string | null;
   onSelectObject?: (objectId: string) => void;
+  onClearSelection?: () => void;
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
   objectOverlays?: Record<string, ReactNode>;
   transition?: Record<string, unknown>;
@@ -231,6 +233,11 @@ export default function SlideCanvas({
         <div
           data-testid="slide-surface"
           className="relative shrink-0 overflow-hidden bg-white shadow-xl"
+          onClick={(event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest('[data-element-id]')) return;
+            onClearSelection?.();
+          }}
           style={{
             width: MASTER.width * scale,
             height: MASTER.height * scale,
@@ -441,6 +448,7 @@ export default function SlideCanvas({
               return (
                 <div
                   key={`controls-${object.id}`}
+                  data-element-id={object.id}
                   className="pointer-events-none absolute z-20"
                   style={{
                     left: `${(bounds.x / MASTER.width) * 100}%`,

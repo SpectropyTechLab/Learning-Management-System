@@ -9,7 +9,10 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 250 * 1024 * 1024 } });
 const authors = requireRole(['super_admin', 'content_authorizer']);
 
-router.use(authenticateToken, attachClientContext, authors);
+// Keep author authorization inside the Resource route namespace. A global
+// router middleware here would also reject unrelated /api/studio routes that
+// are mounted after this router, including teacher discovery requests.
+router.use('/studio/resources', authenticateToken, attachClientContext, authors);
 router.get('/studio/resources', listResources);
 router.get('/studio/resources/:resourceId', getResource);
 router.get('/studio/resources/:resourceId/usages', getResourceUsages);

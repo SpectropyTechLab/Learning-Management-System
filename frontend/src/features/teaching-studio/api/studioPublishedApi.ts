@@ -56,7 +56,7 @@ export interface PublishedRelease {
   client_id: number | null;
   session_id: number;
   release_number: number;
-  published_at: string;
+  published_at: string | null;
   manifest: {
     session: null | {
       session_id: number;
@@ -64,6 +64,12 @@ export interface PublishedRelease {
       description?: string | null;
     };
     screens: PublishedScreen[];
+    screen_scripts?: Array<{
+      script_revision_id: number;
+      screen_id: number;
+      revision_no: number;
+      content: Record<string, unknown> | null;
+    }>;
   };
 }
 
@@ -83,6 +89,11 @@ const dataOf = <T>(payload: { data: T } | T) => (
 export const getPublishedRelease = async (sessionId: number, releaseNumber?: number) => {
   const suffix = releaseNumber ? `/releases/${releaseNumber}` : '/releases/current';
   const response = await api.get<{ release: PublishedRelease }>(`/studio/published-sessions/${sessionId}${suffix}`);
+  return response.data.release;
+};
+
+export const getSessionPlayerPreview = async (sessionId: number) => {
+  const response = await api.get<{ release: PublishedRelease }>(`/studio/sessions/${sessionId}/player-preview`);
   return response.data.release;
 };
 

@@ -134,8 +134,6 @@ export default function TeachingStudioPage() {
     | 'drawing'
     | null
   >('elements');
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewStartAtEndScreenId, setPreviewStartAtEndScreenId] = useState<number | null>(null);
   const [animationPreview, setAnimationPreview] = useState<{
     elementId: string;
     token: number;
@@ -154,6 +152,7 @@ export default function TeachingStudioPage() {
     layout: Layout;
   } | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
   const [elementPast, setElementPast] = useState<StudioElement[][]>([]);
   const [elementFuture, setElementFuture] = useState<StudioElement[][]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -217,15 +216,6 @@ export default function TeachingStudioPage() {
       window.removeEventListener('offline', goOffline);
     };
   }, []);
-
-  useEffect(() => {
-    if (!previewOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPreviewOpen(false);
-    };
-    document.addEventListener('keydown', closeOnEscape);
-    return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [previewOpen]);
 
   const selectedScreenId = useMemo(() => {
     if (requestedScreenId && screenList.screens.some((screen) => screen.id === requestedScreenId)) {
@@ -368,14 +358,6 @@ export default function TeachingStudioPage() {
     setSearchParams({ screen: String(screenId) });
   };
 
-  const movePreviewScreen = (offset: -1 | 1) => {
-    const currentIndex = screenList.screens.findIndex((screen) => screen.id === selectedScreenId);
-    const target = screenList.screens[currentIndex + offset];
-    if (!target) return;
-    setPreviewStartAtEndScreenId(offset === -1 ? target.id : null);
-    void selectScreen(target.id);
-  };
-
   const createBlankScreen = async () => {
     if (!sessionId || creating || editorReadOnly) return;
     if (hasUnsavedChanges) {
@@ -404,9 +386,9 @@ export default function TeachingStudioPage() {
   };
 
   const openPreview = async () => {
+    if (!sessionId) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    setPreviewStartAtEndScreenId(null);
-    setPreviewOpen(true);
+    navigate(`/studio/player/${sessionId}/preview`);
   };
 
   const runWorkflowAction = async (action: 'submit' | 'approve' | 'publish') => {
@@ -649,8 +631,30 @@ export default function TeachingStudioPage() {
     );
   };
 
-  const addMathElement = (latex: string) => {
+  const addMathElement = (latex: string, forceStandalone = false) => {
     if (!selectedScreen || editorReadOnly) return;
+    const inlineTarget = selectedScreen.elements.find(
+      (element) => element.id === selectedElementId && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type),
+    );
+    if (inlineTarget && !forceStandalone) {
+      const text = String(inlineTarget.content.text ?? '');
+      const rememberedCaret = inlineEquationCaretRef.current;
+      const offset = rememberedCaret?.elementId === inlineTarget.id
+        ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
+        : text.length;
+      const token = `\\(${latex}\\)`;
+      const updated = {
+        ...inlineTarget,
+        content: { ...inlineTarget.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` },
+      };
+      inlineEquationCaretRef.current = { elementId: inlineTarget.id, offset: offset + token.length };
+      commitElements(
+        selectedScreen.elements.map((element) => element.id === inlineTarget.id ? updated : element),
+        inlineTarget.id,
+      );
+      toast.success('Equation inserted into the selected text element.');
+      return;
+    }
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `math-${token}`;
@@ -1211,7 +1215,7 @@ export default function TeachingStudioPage() {
                   onClick={() => void saveScreenDraft('manual')}
                 />
                 <StudioIconButton
-                  label="Preview Screen"
+                  label="Preview Session"
                   icon={<Eye size={15} />}
                   tone="primary"
                   disabled={!selectedScreen}
@@ -1454,8 +1458,14 @@ export default function TeachingStudioPage() {
                     setPanel(type === 'math' ? 'math' : type === 'shape' ? 'shapes' : 'elements');
                   }
                 }}
+                onClearElementSelection={() => setSelectedElementId(null)}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
+                onTextCaretChange={(elementId, offset) => {
+                  inlineEquationCaretRef.current = { elementId, offset };
+                }}
+                onDuplicateElement={editorReadOnly ? undefined : duplicateElement}
+                onRemoveElement={editorReadOnly ? undefined : removeElement}
                 onOpenTool={
                   editorReadOnly
                     ? undefined
@@ -1602,10 +1612,12 @@ export default function TeachingStudioPage() {
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
                     onSelect={setSelectedElementId}
-                    onAdd={addMathElement}
+                    onAddStandalone={(latex) => addMathElement(latex, true)}
+                    onInsertInline={(latex) => addMathElement(latex)}
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
+                    inlineTarget={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
                   />
                 )}
                 {panel === 'shapes' && (
@@ -1747,7 +1759,7 @@ export default function TeachingStudioPage() {
               <button
                 type="button"
                 disabled={!selectedScreen}
-                onClick={() => setPreviewOpen(true)}
+                onClick={() => void openPreview()}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
                 <Eye size={16} />
@@ -2208,44 +2220,6 @@ export default function TeachingStudioPage() {
                     ? 'Create editable Draft'
                     : 'Return to Draft'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {previewOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/80 p-2 sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Screen Preview"
-        >
-          <div className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]">
-            <div className="flex flex-none items-center justify-between border-b border-gray-200 px-4 py-3">
-              <div>
-                <h2 className="font-semibold">Flattened Screen Preview</h2>
-                <p className="text-xs text-slate-500">
-                  Read-only output without editor guides or controls.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden p-2 sm:p-4">
-              <BlankScreenCanvas
-                screen={selectedScreen}
-                loading={false}
-                layout={selectedLayout}
-                showGuides={false}
-                previewMode
-                previewStartAtEnd={previewStartAtEndScreenId === selectedScreenId}
-                onPreviewNext={() => movePreviewScreen(1)}
-                onPreviewPrevious={() => movePreviewScreen(-1)}
-              />
             </div>
           </div>
         </div>
