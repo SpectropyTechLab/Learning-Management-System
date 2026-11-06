@@ -6,6 +6,7 @@ const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const ELEMENT_TYPES = new Set([
   'title', 'text', 'visual', 'question', 'response', 'steps', 'workspace',
   'footer', 'simulation', 'activity', 'media', 'graph', 'data', 'options',
+  'math', 'shape',
 ]);
 const REGIONS = new Set(['header', 'content', 'footer']);
 

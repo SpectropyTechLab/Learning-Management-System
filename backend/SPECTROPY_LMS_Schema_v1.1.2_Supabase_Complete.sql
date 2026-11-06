@@ -2789,7 +2789,8 @@ CREATE TABLE IF NOT EXISTS public.screen_elements (
   slot_id TEXT,
   element_type VARCHAR(30) NOT NULL CHECK (element_type IN (
     'title', 'text', 'visual', 'question', 'response', 'steps', 'workspace',
-    'footer', 'simulation', 'activity', 'media', 'graph', 'data', 'options'
+    'footer', 'simulation', 'activity', 'media', 'graph', 'data', 'options',
+    'math', 'shape'
   )),
   content_json JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(content_json) = 'object'),
   position_json JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(position_json) = 'object'),
