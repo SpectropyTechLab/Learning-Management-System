@@ -1,9 +1,9 @@
 /* src/index.css */
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
-    --color-maincolor: #0b285d;
-    --color-lightmain: #153d8a;
+  --color-maincolor: #0b285d;
+  --color-lightmain: #153d8a;
 }
 
 /* Auto-scroller animation for HappyClientsSlider */
@@ -100,7 +100,7 @@
   justify-content: center;
   vertical-align: middle;
   line-height: 1;
-  font-family: "Cambria Math", "Times New Roman", serif;
+  font-family: 'Cambria Math', 'Times New Roman', serif;
   font-size: 0.95em;
   margin: 0 0.08em;
 }
@@ -125,4 +125,371 @@
 .question-render .question-math-fraction__denominator,
 .question-render .math-fraction__denominator {
   padding-top: 0.08em;
+}
+@keyframes studio-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes studio-fly-in {
+  from {
+    opacity: 0;
+    transform: translateX(-35%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes studio-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@keyframes studio-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes studio-bounce {
+  0% {
+    transform: translateY(-25%);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(8%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes studio-pulse {
+  50% {
+    transform: scale(1.08);
+  }
+}
+@keyframes studio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes studio-grow {
+  50% {
+    transform: scale(1.2);
+  }
+}
+@keyframes studio-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes studio-fly-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(35%);
+  }
+}
+@keyframes studio-zoom-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+@keyframes studio-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(22%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes studio-split {
+  from {
+    opacity: 0;
+    clip-path: inset(50% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+@keyframes studio-random-bars {
+  from {
+    opacity: 0;
+    clip-path: polygon(
+      0 0,
+      15% 0,
+      15% 100%,
+      30% 100%,
+      30% 0,
+      45% 0,
+      45% 100%,
+      60% 100%,
+      60% 0,
+      75% 0,
+      75% 100%,
+      90% 100%,
+      90% 0,
+      100% 0,
+      100% 0,
+      0 0
+    );
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+@keyframes studio-grow-turn {
+  from {
+    opacity: 0;
+    transform: scale(0.25) rotate(-160deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes studio-teeter {
+  25% {
+    transform: rotate(-5deg);
+  }
+  75% {
+    transform: rotate(5deg);
+  }
+}
+@keyframes studio-flash {
+  25%,
+  75% {
+    opacity: 0.2;
+  }
+  50%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes studio-wave {
+  25% {
+    transform: translateY(-8%) rotate(-2deg);
+  }
+  75% {
+    transform: translateY(8%) rotate(2deg);
+  }
+}
+@keyframes studio-color-pulse {
+  50% {
+    filter: saturate(2.4) brightness(1.15);
+  }
+}
+@keyframes studio-underline {
+  50% {
+    box-shadow: inset 0 -5px currentColor;
+  }
+}
+@keyframes studio-wipe-out {
+  from {
+    clip-path: inset(0);
+  }
+  to {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+@keyframes studio-float-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-22%);
+  }
+}
+@keyframes studio-split-out {
+  from {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+  to {
+    opacity: 0;
+    clip-path: inset(50% 0);
+  }
+}
+@keyframes studio-sink {
+  to {
+    opacity: 0;
+    transform: translateY(35%) scale(0.8);
+  }
+}
+@keyframes studio-path-line {
+  to {
+    transform: translateX(35%);
+  }
+}
+@keyframes studio-path-arc {
+  50% {
+    transform: translate(18%, -22%);
+  }
+  100% {
+    transform: translate(35%, 0);
+  }
+}
+@keyframes studio-path-turn {
+  50% {
+    transform: translateX(25%);
+  }
+  100% {
+    transform: translate(25%, 25%);
+  }
+}
+@keyframes studio-path-circle {
+  to {
+    transform: rotate(360deg) translateX(16%) rotate(-360deg);
+  }
+}
+@keyframes studio-path-loop {
+  25% {
+    transform: translate(15%, -15%);
+  }
+  50% {
+    transform: translate(30%, 0);
+  }
+  75% {
+    transform: translate(15%, 15%);
+  }
+}
+@keyframes studio-path-zigzag {
+  25% {
+    transform: translate(10%, -12%);
+  }
+  50% {
+    transform: translate(20%, 12%);
+  }
+  75% {
+    transform: translate(30%, -12%);
+  }
+  100% {
+    transform: translate(40%, 0);
+  }
+}
+.studio-animate-appear,
+.studio-animate-fade {
+  animation-name: studio-appear;
+}
+.studio-animate-fly-in {
+  animation-name: studio-fly-in;
+}
+.studio-animate-wipe {
+  animation-name: studio-wipe;
+}
+.studio-animate-zoom {
+  animation-name: studio-zoom;
+}
+.studio-animate-bounce {
+  animation-name: studio-bounce;
+}
+.studio-animate-pulse {
+  animation-name: studio-pulse;
+}
+.studio-animate-spin {
+  animation-name: studio-spin;
+}
+.studio-animate-grow {
+  animation-name: studio-grow;
+}
+.studio-animate-fade-out {
+  animation-name: studio-fade-out;
+}
+.studio-animate-fly-out {
+  animation-name: studio-fly-out;
+}
+.studio-animate-zoom-out {
+  animation-name: studio-zoom-out;
+}
+
+.studio-effect-tile:hover > span {
+  animation: studio-pulse 0.55s ease-in-out;
+}
+.studio-transition-preview {
+  animation: studio-appear 0.7s ease-in-out both;
+}
+.studio-mathfield {
+  display: block;
+  min-height: 3rem;
+  width: 100%;
+  border: 0;
+  font-size: 1.35rem;
+  outline: none;
+}
+
+/* Digital Studio appearance is scoped so the existing LMS theme remains unchanged. */
+.studio-theme-dark {
+  color-scheme: dark;
+  background: #0f172a;
+}
+
+.studio-theme-dark .bg-white,
+.studio-theme-dark .bg-gray-50,
+.studio-theme-dark .bg-slate-50 {
+  background-color: #111827 !important;
+}
+
+.studio-theme-dark .bg-slate-100,
+.studio-theme-dark .bg-slate-200 {
+  background-color: #1e293b !important;
+}
+
+.studio-theme-dark .text-slate-900,
+.studio-theme-dark .text-slate-800,
+.studio-theme-dark .text-slate-700 {
+  color: #f1f5f9 !important;
+}
+
+.studio-theme-dark .text-slate-600,
+.studio-theme-dark .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+.studio-theme-dark .border-slate-200,
+.studio-theme-dark .border-slate-300,
+.studio-theme-dark .border-gray-200,
+.studio-theme-dark .border-gray-300 {
+  border-color: #334155 !important;
+}
+
+.studio-theme-dark input,
+.studio-theme-dark select,
+.studio-theme-dark textarea {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-theme-dark *,
+  .studio-theme-light * {
+    scroll-behavior: auto !important;
+  }
 }

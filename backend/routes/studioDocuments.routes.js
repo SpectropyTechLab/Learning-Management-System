@@ -6,7 +6,7 @@ import {
   saveSessionPlanContent, saveScreenScriptContent, getSessionPlan, getScreenScriptSource,
   previewSessionPlanImport, importSessionPlan, previewScreenScriptImport,
   importScreenScripts, listScreenScripts, saveScreenScript,
-  getCurriculumDocument, uploadCurriculumDocument, downloadCurriculumDocument,
+  getCurriculumDocument, previewCurriculumDocument, uploadCurriculumDocument, downloadCurriculumDocument,
 } from '../controllers/studioDocuments.controller.js';
 
 const router = Router();
@@ -33,6 +33,7 @@ router.post('/studio/sessions/:sessionId/screen-scripts/import', authors, upload
 router.get('/studio/sessions/:sessionId/screen-scripts', listScreenScripts);
 router.put('/studio/sessions/:sessionId/screens/:screenId/script', authors, saveScreenScript);
 router.get('/studio/chapters/:chapterId/curriculum-document', getCurriculumDocument);
+router.get('/studio/chapters/:chapterId/curriculum-document/preview', previewCurriculumDocument);
 router.post('/studio/chapters/:chapterId/curriculum-document', authors, upload.single('file'), uploadCurriculumDocument);
 router.put('/studio/chapters/:chapterId/curriculum-document', authors, upload.single('file'), uploadCurriculumDocument);
 router.get('/studio/chapters/:chapterId/curriculum-document/download', downloadCurriculumDocument);

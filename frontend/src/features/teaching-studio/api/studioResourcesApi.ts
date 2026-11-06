@@ -9,6 +9,8 @@ export const STUDIO_RESOURCE_TYPES = [
   'html',
   'zip',
   'scorm',
+  'presentation',
+  'model_3d',
 ] as const;
 
 export type StudioResourceType = (typeof STUDIO_RESOURCE_TYPES)[number];
@@ -22,7 +24,9 @@ export const studioResourceTypeLabel = (type: StudioResourceType) => ({
   html: 'HTML',
   zip: 'ZIP package',
   scorm: 'SCORM package',
-}[type]);
+  presentation: 'PowerPoint Show',
+  model_3d: '3D Model',
+}[type] || 'Resource');
 
 export interface StudioResourceVersion {
   id: number;
@@ -134,7 +138,11 @@ export const listStudioResources = async (filters: StudioResourceFilters = {}) =
       resource_type: filters.resourceType || undefined,
     },
   });
-  return dataOf<StudioResourceSummary[]>(response.data);
+  const resources = dataOf<unknown>(response.data);
+  if (!Array.isArray(resources)) {
+    throw new Error('The Resource Library returned an invalid response.');
+  }
+  return resources as StudioResourceSummary[];
 };
 
 export const getStudioResource = async (resourceId: number) =>

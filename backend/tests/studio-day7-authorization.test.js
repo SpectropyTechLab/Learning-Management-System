@@ -14,6 +14,7 @@ const { default: documentRouter } = await import('../routes/studioDocuments.rout
 const {
   uploadSessionPlan,
   downloadSessionPlan,
+  downloadScreenScript,
 } = await import('../services/studioDocuments.service.js');
 const { createScreen } = await import('../services/studioLayouts.service.js');
 const { saveScreen, reorderScreens } = await import('../services/studioScreens.service.js');
@@ -195,43 +196,31 @@ test('protected documents reject draft readers and cross-tenant authors before S
   assert.equal(storageAccessed, false);
 });
 
-test('assigned teacher can download a published attachment with integrity verification', async (t) => {
-  const bytes = Buffer.from('published-plan');
-  const { createHash } = await import('node:crypto');
-  const hash = createHash('sha256').update(bytes).digest('hex');
+test('assigned teacher cannot download a Screen Script original attachment', async (t) => {
   const originalQuery = pool.query;
   const originalFrom = supabase.storage.from;
+  let storageAccessed = false;
   pool.query = async (text) => {
     const sql = normalizeSql(text);
     if (sql.includes('from sessions se')) return { rows: [{
       id: 41, client_id: 12, status: 'published', program_id: 55, program_school_id: 7,
     }] };
-    if (sql.includes('from school_memberships')) return { rows: [{ school_id: 7 }] };
-    if (sql.includes('from session_documents')) return { rows: [{
-      id: 91,
-      session_id: 41,
-      document_type: 'session_plan',
-      revision_no: 2,
-      source_mode: 'upload',
-      storage_key: 'sessions/41/session_plan/plan.docx',
-      original_file_name: 'plan.docx',
-      content_type: 'application/octet-stream',
-      size_bytes: bytes.length,
-      content_sha256: hash,
-    }] };
-    throw new Error(`Unhandled query: ${sql}`);
+    throw new Error(`Teacher download denial must stop before this query: ${sql}`);
   };
-  supabase.storage.from = () => ({
-    download: async () => ({ data: new Blob([bytes]), error: null }),
-  });
+  supabase.storage.from = () => {
+    storageAccessed = true;
+    return { download: async () => ({ data: null, error: new Error('must not run') }) };
+  };
   t.after(() => {
     pool.query = originalQuery;
     supabase.storage.from = originalFrom;
   });
 
-  const document = await downloadSessionPlan({ sessionId: 41, user: teacher });
-  assert.deepEqual(document.bytes, bytes);
-  assert.equal(document.sha256, hash);
+  await assert.rejects(
+    downloadScreenScript({ sessionId: 41, user: teacher }),
+    (error) => error?.status === 403 && /cannot download Screen Script files/i.test(error.message),
+  );
+  assert.equal(storageAccessed, false);
 });
 
 test('runtime bytes reject invalid, expired and unlisted access tokens', async (t) => {

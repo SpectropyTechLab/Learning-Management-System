@@ -70,9 +70,12 @@ export default function StudioCustomLayoutForm({ layout, onSaved, onCancel }: {
   onSaved: (saved: StudioLayoutSummary) => Promise<void> | void;
   onCancel: () => void;
 }) {
-  const editing = Boolean(layout);
-  const [layoutKey, setLayoutKey] = useState(layout?.layout_key || 'CUSTOM-001');
-  const [name, setName] = useState(layout?.name || 'Custom teaching layout');
+  const revising = Boolean(layout && !layout.is_default);
+  const copyingDefault = Boolean(layout?.is_default);
+  const [layoutKey, setLayoutKey] = useState(() => copyingDefault
+    ? `${layout?.layout_key || 'LAYOUT'}-CUSTOM`.slice(0, 40)
+    : layout?.layout_key || 'CUSTOM-001');
+  const [name, setName] = useState(copyingDefault ? `${layout?.name || 'Layout'} custom` : layout?.name || 'Custom teaching layout');
   const [description, setDescription] = useState(layout?.description || '');
   const [safeMargin, setSafeMargin] = useState(layout?.safe_margin ?? 90);
   const [slots, setSlots] = useState<DraftSlot[]>(layout?.layout_data_json?.slots?.map((slot) => ({
@@ -109,11 +112,11 @@ export default function StudioCustomLayoutForm({ layout, onSaved, onCancel }: {
     };
     setSaving(true);
     try {
-      const saved = layout
+      const saved = revising && layout
         ? await reviseStudioLayout(layout.id, input)
         : await createStudioLayout(input);
       await onSaved(saved);
-      toast.success(layout ? `${saved.layout_key} revision ${saved.version_no} created.` : `${saved.layout_key} created successfully.`);
+      toast.success(revising ? `${saved.layout_key} revision ${saved.version_no} created.` : `${saved.layout_key} created successfully.`);
     } catch (requestError) {
       const message = getApiErrorDetails(requestError, 'Unable to save the custom layout.').message;
       setServerError(message);
@@ -125,11 +128,11 @@ export default function StudioCustomLayoutForm({ layout, onSaved, onCancel }: {
 
   return <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3">
     <div className="flex min-w-0 items-center justify-between gap-3">
-      <h3 className="min-w-0 truncate font-semibold text-slate-900">{editing ? `Create revision ${Number(layout?.version_no || 0) + 1}` : 'Create custom layout'}</h3>
+      <h3 className="min-w-0 truncate font-semibold text-slate-900">{revising ? `Create revision ${Number(layout?.version_no || 0) + 1}` : copyingDefault ? 'Edit layout as custom copy' : 'Create custom layout'}</h3>
       <button type="button" onClick={onCancel} className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Cancel</button>
     </div>
     <div className="mt-4 grid min-w-0 grid-cols-1 gap-3">
-      <label className="text-sm font-semibold text-slate-700">Layout key<input value={layoutKey} disabled={editing} onChange={(event) => setLayoutKey(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal disabled:bg-slate-100" /></label>
+      <label className="text-sm font-semibold text-slate-700">Layout key<input value={layoutKey} disabled={revising} onChange={(event) => setLayoutKey(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal disabled:bg-slate-100" /></label>
       <label className="text-sm font-semibold text-slate-700">Layout name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
       <label className="text-sm font-semibold text-slate-700">Description<input value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
       <label className="text-sm font-semibold text-slate-700">Safe margin
@@ -158,7 +161,7 @@ export default function StudioCustomLayoutForm({ layout, onSaved, onCancel }: {
         </div>
         {errors.length > 0 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><p className="font-bold">Fix before saving</p><ul className="mt-1 list-disc space-y-1 pl-4">{errors.map((error) => <li key={error}>{error}</li>)}</ul></div>}
         {serverError && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{serverError}</p>}
-        <button type="button" disabled={saving || errors.length > 0} onClick={() => void submit()} className="mt-4 w-full rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">{saving ? 'Saving...' : editing ? 'Save as new revision' : 'Create custom layout'}</button>
+        <button type="button" disabled={saving || errors.length > 0} onClick={() => void submit()} className="mt-4 w-full rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">{saving ? 'Saving...' : revising ? 'Save as new revision' : copyingDefault ? 'Save custom layout' : 'Create custom layout'}</button>
       </div>
     </div>
   </div>;

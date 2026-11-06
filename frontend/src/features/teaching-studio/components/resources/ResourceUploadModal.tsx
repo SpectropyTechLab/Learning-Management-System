@@ -9,7 +9,57 @@ import {
 } from '../../api/studioResourcesApi';
 
 const MAX_FILE_SIZE = 250 * 1024 * 1024;
-const FILE_ONLY_TYPES = new Set<StudioResourceType>(['html', 'zip', 'scorm']);
+const FILE_ONLY_TYPES = new Set<StudioResourceType>(['html', 'zip', 'scorm', 'presentation']);
+const RESOURCE_FORMATS: Record<StudioResourceType, { short: string; help: string }> = {
+  image: {
+    short: 'PNG, JPG, JPEG, GIF, WebP, SVG',
+    help: 'Upload a PNG, JPG/JPEG, GIF, WebP or SVG image, or provide a direct image URL.',
+  },
+  video: {
+    short: 'MP4, WebM',
+    help: 'For reliable browser playback, upload an MP4 (H.264/AAC) or WebM video.',
+  },
+  animation: {
+    short: 'GIF, MP4, WebM, JSON',
+    help: 'Upload an animated GIF, MP4, WebM or JSON animation file. JSON animation preview support may depend on its format.',
+  },
+  simulation: {
+    short: 'HTML, HTM, ZIP',
+    help: 'Upload a standalone HTML/HTM file or a ZIP browser package containing an HTML entry point.',
+  },
+  external_link: {
+    short: 'HTTP or HTTPS URL',
+    help: 'Enter a public HTTP or HTTPS address. Embedded display depends on the destination website allowing iframes.',
+  },
+  html: {
+    short: 'HTML, HTM',
+    help: 'Upload a standalone .html or .htm file.',
+  },
+  zip: {
+    short: 'ZIP with index.html',
+    help: 'Upload a browser package ZIP containing index.html, or specify its HTML entry point below.',
+  },
+  scorm: {
+    short: 'SCORM 1.2 or 2004 ZIP',
+    help: 'Upload a valid SCORM 1.2 or SCORM 2004 package as a .zip file.',
+  },
+  presentation: {
+    short: 'PPSX',
+    help: 'Upload a Microsoft PowerPoint Show in .ppsx format.',
+  },
+  model_3d: {
+    short: 'GLB',
+    help: 'Upload a self-contained .glb model. Embedded animations are detected and exposed by the 3D viewer.',
+  },
+};
+
+const DEFAULT_RESOURCE_FORMAT = {
+  short: 'Supported Resource file',
+  help: 'Choose a file supported by this Resource type.',
+};
+
+const getResourceFormat = (type: StudioResourceType) =>
+  RESOURCE_FORMATS[type] ?? DEFAULT_RESOURCE_FORMAT;
 
 interface ResourceUploadModalProps {
   open: boolean;
@@ -70,14 +120,16 @@ export default function ResourceUploadModal({
     : `Add a new immutable version of ${resource?.name || 'this Resource'}.`;
 
   const accept = useMemo(() => ({
-    image: 'image/*',
-    video: 'video/*',
-    animation: 'image/*,video/*,.json',
+    image: '.png,.jpg,.jpeg,.gif,.webp,.svg,image/png,image/jpeg,image/gif,image/webp,image/svg+xml',
+    video: '.mp4,.webm,video/mp4,video/webm',
+    animation: '.gif,.mp4,.webm,.json,image/gif,video/mp4,video/webm,application/json',
     simulation: '.zip,.html,.htm,application/zip,text/html',
     external_link: '',
     html: '.html,.htm,text/html',
     zip: '.zip,application/zip',
     scorm: '.zip,application/zip',
+    presentation: '.ppsx,application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+    model_3d: '.glb,model/gltf-binary,application/octet-stream',
   }[effectiveType]), [effectiveType]);
 
   if (!open) return null;
@@ -88,6 +140,15 @@ export default function ResourceUploadModal({
     if (mode === 'create' && !name.trim()) return 'Resource name is required.';
     if (effectiveSourceMode === 'file' && !file) return 'Choose a Resource file.';
     if (file && file.size > MAX_FILE_SIZE) return 'The file must be 250 MB or smaller.';
+    if (effectiveType === 'presentation' && file && !file.name.toLowerCase().endsWith('.ppsx')) {
+      return 'PowerPoint Show Resources require a .ppsx file.';
+    }
+    if (effectiveType === 'model_3d') {
+      const sourceName = file?.name || externalUrl;
+      if (!sourceName.toLowerCase().split('?')[0].endsWith('.glb')) {
+        return '3D Model Resources require a self-contained .glb file or direct .glb URL.';
+      }
+    }
     if (effectiveSourceMode === 'url') {
       if (!externalUrl.trim()) return 'External URL is required.';
       try {
@@ -141,8 +202,9 @@ export default function ResourceUploadModal({
               </label>
               <label className="text-sm font-semibold text-slate-700">Resource type
                 <select value={resourceType} onChange={(event) => { const value = event.target.value as StudioResourceType; setResourceType(value); setSourceMode(value === 'external_link' ? 'url' : 'file'); setFile(null); setExternalUrl(''); }} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100">
-                  {STUDIO_RESOURCE_TYPES.map((type) => <option key={type} value={type}>{studioResourceTypeLabel(type)}</option>)}
+                  {STUDIO_RESOURCE_TYPES.filter((type) => type !== 'html').map((type) => <option key={type} value={type}>{studioResourceTypeLabel(type)} — {getResourceFormat(type).short}</option>)}
                 </select>
+                <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">{getResourceFormat(resourceType).help}</span>
               </label>
               <div className="text-sm font-semibold text-slate-700">Status
                 <div className="mt-1.5 rounded-lg border border-gray-200 bg-slate-50 px-3 py-2.5 font-normal text-slate-600">Active on creation</div>
@@ -172,7 +234,8 @@ export default function ResourceUploadModal({
             <label className="block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/40">
               <UploadCloud className="mx-auto text-blue-800" size={34} />
               <span className="mt-3 block font-semibold text-slate-800">{file ? file.name : 'Choose a Resource file'}</span>
-              <span className="mt-1 block text-sm text-slate-500">Maximum file size: 250 MB</span>
+              <span className="mt-1 block text-sm text-slate-600">Supported: {getResourceFormat(effectiveType).short}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">Maximum file size: 250 MB</span>
               <input type="file" accept={accept} onChange={(event) => setFile(event.target.files?.[0] || null)} className="sr-only" />
             </label>
           ) : (

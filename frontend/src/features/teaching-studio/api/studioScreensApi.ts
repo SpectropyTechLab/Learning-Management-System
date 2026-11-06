@@ -72,5 +72,17 @@ export const updateStudioScreen = async (
     layout_id: number | null;
     elements: StudioScreen['elements'];
     tags: string[];
+    screen_settings?: StudioScreen['screen_settings_json'];
   },
-) => unwrap<StudioScreen & { session_revision_no: number }>(await api.patch(`/studio/screens/${screenId}`, payload));
+) => unwrap<StudioScreen & { session_revision_no: number }>(
+  await api.patch(`/studio/screens/${screenId}`, payload),
+);
+
+export const deleteStudioScreen = async (screenId: number) =>
+  unwrap<{ id: number; session_revision_no: number }>(await api.delete(`/studio/screens/${screenId}`));
+
+export const reorderStudioScreens = async (sessionId: number, sessionRevisionNo: number, screenIds: number[]) =>
+  unwrap<{ session_id: number; session_revision_no: number; screen_ids: number[] }>(await api.patch(
+    `/studio/sessions/${sessionId}/screens/reorder`,
+    { session_revision_no: sessionRevisionNo, screen_ids: screenIds },
+  ));

@@ -106,6 +106,9 @@ import StudioResourceLibraryPage from '@/features/teaching-studio/StudioResource
 import StudioResourceDetailsPage from '@/features/teaching-studio/StudioResourceDetailsPage';
 import StudioEditorEntryPage from '@/features/teaching-studio/StudioEditorEntryPage';
 import StudioSessionPlayerPage from '@/features/teaching-studio/StudioSessionPlayerPage';
+import StudioSessionLibraryPage from '@/features/teaching-studio/StudioSessionLibraryPage';
+import StudioReviewQueuePage from '@/features/teaching-studio/StudioReviewQueuePage';
+import StudioSessionReviewPage from '@/features/teaching-studio/StudioSessionReviewPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -215,6 +218,9 @@ export default function AppRoutes() {
       {/* Digital Studio authoring is shared equally by Super Admin and Content Authorizer. */}
       <Route element={<Protect roles={['super_admin', 'content_authorizer']} />}>
         <Route path="/studio/curriculum" element={<StudioCurriculumPage />} />
+        <Route path="/studio/sessions" element={<StudioSessionLibraryPage />} />
+        <Route path="/studio/review" element={<StudioReviewQueuePage />} />
+        <Route path="/studio/review/:sessionId" element={<StudioSessionReviewPage />} />
         <Route path="/studio/session-setup" element={<StudioSessionSetupPage />} />
         <Route path="/studio/session-plans" element={<StudioSessionPlanPage />} />
         <Route path="/studio/screen-scripts" element={<StudioScreenScriptsPage />} />
@@ -226,6 +232,9 @@ export default function AppRoutes() {
         {/* Compatibility aliases retained for existing Day 9/10 links. */}
         <Route path="/content-authorizer/studio" element={<StudioDashboardPage />} />
         <Route path="/content-authorizer/studio/curriculum" element={<StudioCurriculumPage />} />
+        <Route path="/content-authorizer/studio/sessions" element={<StudioSessionLibraryPage />} />
+        <Route path="/content-authorizer/studio/review" element={<StudioReviewQueuePage />} />
+        <Route path="/content-authorizer/studio/review/:sessionId" element={<StudioSessionReviewPage />} />
         <Route path="/content-authorizer/studio/session-setup" element={<StudioSessionSetupPage />} />
         <Route path="/content-authorizer/studio/session-plans" element={<StudioSessionPlanPage />} />
         <Route path="/content-authorizer/studio/screen-scripts" element={<StudioScreenScriptsPage />} />

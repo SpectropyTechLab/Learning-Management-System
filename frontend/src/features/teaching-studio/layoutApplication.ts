@@ -13,6 +13,10 @@ export const remapElementsToLayout = (elements: StudioElement[], layout: Layout)
 
   for (const element of elements) {
     const type = element.type as ObjectType;
+    if (type === 'math' || type === 'shape') {
+      kept.push(element);
+      continue;
+    }
     const currentSlot = layout.slots.find((slot) => slot.id === element.slotId && slot.allowed.includes(type) && !usedSlots.has(slot.id));
     const destination = currentSlot || layout.slots.find((slot) => slot.allowed.includes(type) && !usedSlots.has(slot.id));
     if (!destination) {

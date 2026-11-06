@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import mammoth from 'mammoth';
 import supabase from '../config/supabaseClient.js';
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
@@ -118,5 +119,25 @@ export const downloadCurriculumDocument = async ({ chapterId: rawChapterId, user
     sha256,
     revisionNo: document.revision_no,
   };
+};
+
+export const previewCurriculumDocument = async ({ chapterId: rawChapterId, user }) => {
+  const downloaded = await downloadCurriculumDocument({ chapterId: rawChapterId, user });
+  const fileName = String(downloaded.fileName || '').toLowerCase();
+  const contentType = String(downloaded.contentType || '').toLowerCase();
+  if (!fileName.endsWith('.docx') && !contentType.includes('wordprocessingml')) {
+    throw new AppError('Inline Curriculum preview currently supports DOCX files; download this original to view it in its native application', 415);
+  }
+  try {
+    const extracted = await mammoth.extractRawText({ buffer: downloaded.bytes });
+    return {
+      file_name: downloaded.fileName,
+      revision_no: downloaded.revisionNo,
+      text: extracted.value.replace(/\r/g, '').trim(),
+      warnings: extracted.messages.map((message) => String(message.message || message)),
+    };
+  } catch (error) {
+    throw new AppError(`Unable to preview the Curriculum DOCX: ${error.message}`, 422);
+  }
 };
 

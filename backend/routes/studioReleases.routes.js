@@ -5,8 +5,11 @@ import {
   getCurrentPublishedRelease,
   getPublishedReleaseByNumber,
   getTeacherReleaseByNumber,
+  getPublishedTeachingMaterials,
+  downloadPublishedSessionPlan,
   launchPublishedResource,
   listPublishedSessions,
+  listPublishedSessionReleases,
   listTeacherReleases,
   listPublishedChapters,
   previewPublishedResource,
@@ -34,6 +37,11 @@ router.get(
   getCurrentPublishedRelease
 );
 router.get(
+  '/studio/published-sessions/:sessionId/releases',
+  publishedReaders,
+  listPublishedSessionReleases
+);
+router.get(
   '/studio/published-sessions/:sessionId/releases/:releaseNumber',
   publishedReaders,
   getPublishedReleaseByNumber
@@ -47,6 +55,16 @@ router.get(
   '/studio/published-releases/:releaseId/resource-versions/:versionId/preview',
   publishedReaders,
   previewPublishedResource
+);
+router.get(
+  '/studio/published-releases/:releaseId/teaching-materials',
+  publishedReaders,
+  getPublishedTeachingMaterials,
+);
+router.get(
+  '/studio/published-releases/:releaseId/session-plan/download',
+  publishedReaders,
+  downloadPublishedSessionPlan,
 );
 
 router.post(

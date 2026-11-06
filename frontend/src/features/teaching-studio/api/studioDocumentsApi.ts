@@ -42,6 +42,13 @@ export interface StudioDocumentRecord {
   created_at: string;
 }
 
+export interface CurriculumDocumentPreview {
+  file_name: string;
+  revision_no: number;
+  text: string;
+  warnings: string[];
+}
+
 export interface SessionPlanPreview {
   kind: 'session_plan';
   rows: SessionPlanRow[];
@@ -116,6 +123,7 @@ export const studioDocumentsApi = {
     unwrap(await api.put(`/studio/sessions/${sessionId}/screens/${screenId}/script`, { content })),
   downloadScreenScriptSource: (sessionId: number) => download(`/studio/sessions/${sessionId}/screen-script/download`, 'screen-script.docx'),
   curriculumDocument: async (chapterId: number) => unwrap<StudioDocumentRecord | null>(await api.get(`/studio/chapters/${chapterId}/curriculum-document`)),
+  previewCurriculumDocument: async (chapterId: number) => unwrap<CurriculumDocumentPreview>(await api.get(`/studio/chapters/${chapterId}/curriculum-document/preview`)),
   uploadCurriculumDocument: async (chapterId: number, file: File, replace = false) =>
     unwrap<StudioDocumentRecord>(await api.request({
       method: replace ? 'put' : 'post',

@@ -2862,7 +2862,7 @@ CREATE TABLE IF NOT EXISTS public.resources (
   name VARCHAR(250) NOT NULL,
   description TEXT,
   resource_type VARCHAR(30) NOT NULL CHECK (resource_type IN
-    ('image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm')),
+    ('image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm', 'presentation', 'model_3d')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
