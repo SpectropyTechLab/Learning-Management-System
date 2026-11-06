@@ -1,0 +1,38 @@
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
+interface StudioIconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+  label: string;
+  icon: ReactNode;
+  tone?: 'default' | 'primary' | 'danger';
+  active?: boolean;
+}
+
+export default function StudioIconButton({
+  label,
+  icon,
+  tone = 'default',
+  active = false,
+  className = '',
+  ...buttonProps
+}: StudioIconButtonProps) {
+  const toneClass = tone === 'primary'
+    ? 'border-blue-900 bg-blue-900 text-white hover:bg-blue-800'
+    : tone === 'danger'
+      ? 'border-red-200 text-red-700 hover:bg-red-50'
+      : active
+        ? 'border-blue-900 bg-blue-50 text-blue-900'
+        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100';
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      {...buttonProps}
+      className={`group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40 ${toneClass} ${className}`}
+    >
+      {icon}
+      <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-[90] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-950 px-2 py-1 text-xs font-medium text-white group-hover:block group-focus-visible:block">{label}</span>
+    </button>
+  );
+}
