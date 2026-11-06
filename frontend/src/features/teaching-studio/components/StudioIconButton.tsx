@@ -27,7 +27,6 @@ export default function StudioIconButton({
     <button
       type="button"
       aria-label={label}
-      title={label}
       {...buttonProps}
       className={`group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40 ${toneClass} ${className}`}
     >

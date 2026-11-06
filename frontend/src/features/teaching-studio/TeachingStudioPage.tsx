@@ -135,6 +135,11 @@ export default function TeachingStudioPage() {
     | null
   >('elements');
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewStartAtEndScreenId, setPreviewStartAtEndScreenId] = useState<number | null>(null);
+  const [animationPreview, setAnimationPreview] = useState<{
+    elementId: string;
+    token: number;
+  } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
   const [workflowStatus, setWorkflowStatus] = useState<StudioWorkflowStatus | null>(null);
@@ -159,9 +164,9 @@ export default function TeachingStudioPage() {
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const [sessionContext, setSessionContext] = useState<StudioSession | null>(null);
   const [sessionOptions, setSessionOptions] = useState<StudioSession[]>([]);
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [contextBarOpen, setContextBarOpen] = useState(true);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [contextBarOpen, setContextBarOpen] = useState(false);
   const [revisionPromptOpen, setRevisionPromptOpen] = useState(false);
   const [startingRevision, setStartingRevision] = useState(false);
   const editorReadOnly = !workflowStatus || !['draft', 'rejected'].includes(workflowStatus.status);
@@ -363,6 +368,14 @@ export default function TeachingStudioPage() {
     setSearchParams({ screen: String(screenId) });
   };
 
+  const movePreviewScreen = (offset: -1 | 1) => {
+    const currentIndex = screenList.screens.findIndex((screen) => screen.id === selectedScreenId);
+    const target = screenList.screens[currentIndex + offset];
+    if (!target) return;
+    setPreviewStartAtEndScreenId(offset === -1 ? target.id : null);
+    void selectScreen(target.id);
+  };
+
   const createBlankScreen = async () => {
     if (!sessionId || creating || editorReadOnly) return;
     if (hasUnsavedChanges) {
@@ -392,6 +405,7 @@ export default function TeachingStudioPage() {
 
   const openPreview = async () => {
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    setPreviewStartAtEndScreenId(null);
     setPreviewOpen(true);
   };
 
@@ -1331,12 +1345,14 @@ export default function TeachingStudioPage() {
             </div>
           </section>
         ) : (
-          <StudioIconButton
-            label="Show context and actions"
-            icon={<ChevronDown size={15} />}
-            onClick={() => setContextBarOpen(true)}
-            className="shadow-sm"
-          />
+          <div className="flex shrink-0 justify-end">
+            <StudioIconButton
+              label="Show context and actions"
+              icon={<ChevronDown size={15} />}
+              onClick={() => setContextBarOpen(true)}
+              className="shadow-sm"
+            />
+          </div>
         )}
         {workflowStatus && editorReadOnly && (
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
@@ -1427,6 +1443,7 @@ export default function TeachingStudioPage() {
                 screen={selectedScreen}
                 loading={loadingScreen}
                 layout={selectedLayout}
+                animationPreview={animationPreview}
                 selectedElementId={selectedElementId}
                 onSelectElement={(elementId) => {
                   setSelectedElementId(elementId);
@@ -1606,6 +1623,9 @@ export default function TeachingStudioPage() {
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
                     onUpdate={updateElement}
+                    onPreview={(elementId) =>
+                      setAnimationPreview({ elementId, token: Date.now() })
+                    }
                   />
                 )}
                 {panel === 'transitions' && (
@@ -2209,7 +2229,6 @@ export default function TeachingStudioPage() {
               </div>
               <button
                 type="button"
-                autoFocus
                 onClick={() => setPreviewOpen(false)}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-gray-50"
               >
@@ -2223,6 +2242,9 @@ export default function TeachingStudioPage() {
                 layout={selectedLayout}
                 showGuides={false}
                 previewMode
+                previewStartAtEnd={previewStartAtEndScreenId === selectedScreenId}
+                onPreviewNext={() => movePreviewScreen(1)}
+                onPreviewPrevious={() => movePreviewScreen(-1)}
               />
             </div>
           </div>

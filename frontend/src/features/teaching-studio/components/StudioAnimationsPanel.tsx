@@ -94,9 +94,15 @@ interface Props {
   screen: StudioScreen | null;
   selectedElementId: string | null;
   onUpdate: (element: StudioElement) => void;
+  onPreview?: (elementId: string) => void;
 }
 
-export default function StudioAnimationsPanel({ screen, selectedElementId, onUpdate }: Props) {
+export default function StudioAnimationsPanel({
+  screen,
+  selectedElementId,
+  onUpdate,
+  onPreview,
+}: Props) {
   const selected = screen?.elements.find((element) => element.id === selectedElementId) ?? null;
   const animation =
     selected?.content.animation && typeof selected.content.animation === 'object'
@@ -195,17 +201,8 @@ export default function StudioAnimationsPanel({ screen, selectedElementId, onUpd
           type="button"
           title="Preview animations"
           aria-label="Preview animations"
-          onClick={() => {
-            const target = document.querySelector<HTMLElement>(
-              `[data-element-id="${selected.id}"]`,
-            );
-            const animated =
-              target?.querySelector<HTMLElement>('[data-studio-animated=true]') ?? target;
-            if (!animated) return;
-            animated.style.animation = 'none';
-            void animated.offsetWidth;
-            animated.style.animation = '';
-          }}
+          onClick={() => onPreview?.(selected.id)}
+          disabled={initial.length === 0}
           className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 hover:bg-blue-50"
         >
           <Play size={16} />
