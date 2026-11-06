@@ -4,6 +4,7 @@ import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Rect, Slide, Slot } from './layouts';
 import type { AuthorDrawingStroke, StudioDrawingTool } from './types';
 import { studioAnimationClass } from './components/studioAnimation';
+import { studioTransitionStyle } from './components/studioTransition';
 
 const colors: Record<string, { fill: string; stroke: string; ink: string }> = {
   title: { fill: '#eaf2fd', stroke: '#c9ddf6', ink: '#173b65' },
@@ -65,6 +66,7 @@ export default function SlideCanvas({
   onSelectObject,
   onChangeObjectBounds,
   objectOverlays = {},
+  transition,
   fixedDrawingStrokes = [],
   drawingStrokes = [],
   drawingEnabled = false,
@@ -81,6 +83,7 @@ export default function SlideCanvas({
   onSelectObject?: (objectId: string) => void;
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
   objectOverlays?: Record<string, ReactNode>;
+  transition?: Record<string, unknown>;
   fixedDrawingStrokes?: AuthorDrawingStroke[];
   drawingStrokes?: AuthorDrawingStroke[];
   drawingEnabled?: boolean;
@@ -226,8 +229,13 @@ export default function SlideCanvas({
     >
       {scale > 0 && (
         <div
+          data-testid="slide-surface"
           className="relative shrink-0 overflow-hidden bg-white shadow-xl"
-          style={{ width: MASTER.width * scale, height: MASTER.height * scale }}
+          style={{
+            width: MASTER.width * scale,
+            height: MASTER.height * scale,
+            ...studioTransitionStyle(transition),
+          }}
         >
           <svg
             role="img"
@@ -290,6 +298,7 @@ export default function SlideCanvas({
                 <g
                   key={field.id}
                   data-slot={field.id}
+                  data-element-id={object?.id}
                   role={object ? 'button' : undefined}
                   tabIndex={object ? 0 : undefined}
                   onClick={() => object && onSelectObject?.(object.id)}
@@ -308,13 +317,15 @@ export default function SlideCanvas({
                       : undefined
                   }
                 >
-                  <rect
-                    {...bounds}
-                    rx={field.region === 'footer' ? 12 : 22}
-                    fill={tone.fill}
-                    stroke={object?.id === selectedObjectId ? '#1d4ed8' : tone.stroke}
-                    strokeWidth={object?.id === selectedObjectId ? 8 : 3}
-                  />
+                  {!objectOverlays[object?.id ?? ''] && (
+                    <rect
+                      {...bounds}
+                      rx={field.region === 'footer' ? 12 : 22}
+                      fill={tone.fill}
+                      stroke={object?.id === selectedObjectId ? '#1d4ed8' : tone.stroke}
+                      strokeWidth={object?.id === selectedObjectId ? 8 : 3}
+                    />
+                  )}
                   {isImage && (
                     <image
                       href={object.url}
@@ -371,6 +382,7 @@ export default function SlideCanvas({
             return (
               <div
                 key={`overlay-${object.id}`}
+                data-element-id={object.id}
                 className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : 'border-transparent'}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
