@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { getStudioResource } from '../api/studioResourcesApi';
@@ -12,6 +12,11 @@ import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
 import StudioAnimatedElement from './StudioAnimatedElement';
+import {
+  buildPresenterAnimationTimeline,
+  clickerNavigationAction,
+  presenterElementState,
+} from './studioClickerRuntime';
 
 interface BlankScreenCanvasProps {
   screen: StudioScreen | null;
@@ -28,6 +33,10 @@ interface BlankScreenCanvasProps {
   onRemoveElement?: (elementId: string) => void;
   showGuides?: boolean;
   previewMode?: boolean;
+  animationPreview?: { elementId: string; token: number } | null;
+  previewStartAtEnd?: boolean;
+  onPreviewNext?: () => void;
+  onPreviewPrevious?: () => void;
   drawingStrokes?: AuthorDrawingStroke[];
   drawingEnabled?: boolean;
   drawingTool?: StudioDrawingTool;
@@ -160,6 +169,10 @@ export default function BlankScreenCanvas({
   onRemoveElement,
   showGuides = true,
   previewMode = false,
+  animationPreview = null,
+  previewStartAtEnd = false,
+  onPreviewNext,
+  onPreviewPrevious,
   drawingStrokes,
   drawingEnabled = false,
   drawingTool = 'pen',
@@ -169,9 +182,48 @@ export default function BlankScreenCanvas({
   onDrawingChange,
 }: BlankScreenCanvasProps) {
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [previewStep, setPreviewStep] = useState(0);
+  const [previewCycle, setPreviewCycle] = useState(0);
+  const [lastClickerAction, setLastClickerAction] = useState<'next' | 'previous' | null>(null);
+  const animationTimeline = useMemo(
+    () =>
+      buildPresenterAnimationTimeline(
+        (screen?.elements ?? []).map((element) => ({
+          element_key: element.id,
+          content_json: element.content,
+        })),
+      ),
+    [screen?.elements],
+  );
   useEffect(() => {
     setEditingElementId(null);
   }, [screen?.id]);
+  useEffect(() => {
+    setPreviewStep(previewStartAtEnd ? animationTimeline.maxStep : 0);
+    setPreviewCycle((current) => current + 1);
+    setLastClickerAction(null);
+  }, [animationTimeline.maxStep, previewMode, previewStartAtEnd, screen?.id]);
+  useEffect(() => {
+    if (!previewMode) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const action = clickerNavigationAction(event);
+      if (action === 'next') {
+        event.preventDefault();
+        if (previewStep < animationTimeline.maxStep) setPreviewStep((current) => current + 1);
+        else onPreviewNext?.();
+        setLastClickerAction('next');
+      } else if (action === 'previous') {
+        event.preventDefault();
+        if (previewStep > 0) {
+          setPreviewStep((current) => current - 1);
+          setPreviewCycle((current) => current + 1);
+        } else onPreviewPrevious?.();
+        setLastClickerAction('previous');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [animationTimeline.maxStep, onPreviewNext, onPreviewPrevious, previewMode, previewStep]);
   useEffect(() => {
     if (editingElementId && selectedElementId !== editingElementId) setEditingElementId(null);
   }, [editingElementId, selectedElementId]);
@@ -262,10 +314,6 @@ export default function BlankScreenCanvas({
               typeof element.content.altText === 'string' ? element.content.altText : undefined,
             caption:
               typeof element.content.caption === 'string' ? element.content.caption : undefined,
-            animation:
-              element.content.animation && typeof element.content.animation === 'object'
-                ? (element.content.animation as Record<string, unknown>)
-                : undefined,
           })),
         }
       : null;
@@ -367,10 +415,34 @@ export default function BlankScreenCanvas({
       element.content.animation && typeof element.content.animation === 'object'
         ? (element.content.animation as Record<string, unknown>)
         : undefined;
-    if (overlay && animation && animation.effect !== 'none')
+    const effects = Array.isArray(animation?.effects) ? animation.effects : [];
+    const hasAnimation =
+      Boolean(animation) && (effects.length > 0 || String(animation?.effect || 'none') !== 'none');
+    if (!overlay || !hasAnimation) continue;
+    if (previewMode) {
+      const state = presenterElementState(animationTimeline, element.id, previewStep);
       objectOverlays[element.id] = (
-        <StudioAnimatedElement animation={animation}>{overlay}</StudioAnimatedElement>
+        <StudioAnimatedElement
+          presenterEffects={state.activeEffects}
+          presenterVisible={state.visible}
+          playbackKey={`${screen?.id ?? 'screen'}-${previewCycle}-${previewStep}-${element.id}`}
+        >
+          {overlay}
+        </StudioAnimatedElement>
       );
+    } else if (animationPreview?.elementId === element.id) {
+      objectOverlays[element.id] = (
+        <StudioAnimatedElement animation={animation} playbackKey={animationPreview.token}>
+          {overlay}
+        </StudioAnimatedElement>
+      );
+    } else {
+      objectOverlays[element.id] = (
+        <StudioAnimatedElement presenterEffects={[]} presenterVisible>
+          {overlay}
+        </StudioAnimatedElement>
+      );
+    }
   }
   const selectedElement =
     screen?.elements.find((element) => element.id === selectedElementId) ?? null;
@@ -408,7 +480,26 @@ export default function BlankScreenCanvas({
         </div>
       )}
 
-      <div className="min-h-0 flex-1">
+      <div
+        className="relative min-h-0 flex-1"
+        onClick={(event) => {
+          if (!previewMode) return;
+          const target = event.target as HTMLElement;
+          if (target.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
+          if (previewStep < animationTimeline.maxStep)
+            setPreviewStep((current) => current + 1);
+          else onPreviewNext?.();
+          setLastClickerAction('next');
+        }}
+      >
+        {previewMode && animationTimeline.maxStep > 0 ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full bg-slate-950/75 px-3 py-1 text-xs font-semibold text-white">
+            Clicker ready · Animation {previewStep}/{animationTimeline.maxStep}
+            {lastClickerAction
+              ? ` · ${lastClickerAction === 'next' ? 'Next' : 'Previous'} received`
+              : ''}
+          </div>
+        ) : null}
         {slide && renderLayout && !loading ? (
           <SlideCanvas
             layout={renderLayout}
