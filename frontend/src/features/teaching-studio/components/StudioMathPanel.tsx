@@ -17,10 +17,12 @@ interface Props {
   screen: StudioScreen | null;
   selectedElementId: string | null;
   onSelect: (elementId: string) => void;
-  onAdd: (latex: string) => void;
+  onAddStandalone: (latex: string) => void;
+  onInsertInline: (latex: string) => void;
   onUpdate: (element: StudioElement) => void;
   onDuplicate: (elementId: string) => void;
   onRemove: (elementId: string) => void;
+  inlineTarget?: boolean;
 }
 
 const groups = [
@@ -70,10 +72,12 @@ export default function StudioMathPanel({
   screen,
   selectedElementId,
   onSelect,
-  onAdd,
+  onAddStandalone,
+  onInsertInline,
   onUpdate,
   onDuplicate,
   onRemove,
+  inlineTarget = false,
 }: Props) {
   const selected = useMemo(
     () =>
@@ -167,16 +171,27 @@ export default function StudioMathPanel({
           alignment={alignment}
         />
       </div>
-      {!selected ? (
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           type="button"
-          onClick={() => onAdd(latex)}
-          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white"
+          onClick={() => onAddStandalone(latex)}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-900 px-3 py-2 text-sm font-semibold text-blue-900"
         >
           <Plus size={16} />
           Add equation
         </button>
-      ) : (
+        <button
+          type="button"
+          disabled={!inlineTarget}
+          onClick={() => onInsertInline(latex)}
+          title={inlineTarget ? 'Insert at the cursor in the selected text element' : 'Select a text element to insert inline'}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus size={16} />
+          Insert inline
+        </button>
+      </div>
+      {selected ? (
         <>
           <div className="mt-4 flex items-end gap-2">
             <label className="flex-1 text-xs font-semibold text-slate-600">
@@ -239,7 +254,7 @@ export default function StudioMathPanel({
             </button>
           </div>
         </>
-      )}
+      ) : null}
       {(screen?.elements ?? []).some((element) => element.type === 'math') && (
         <div className="mt-5 border-t pt-3">
           <p className="flex items-center gap-1 text-xs font-semibold uppercase text-slate-500">

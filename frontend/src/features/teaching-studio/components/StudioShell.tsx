@@ -59,7 +59,12 @@ export default function StudioShell({ title, subtitle, actions, scrollContent = 
     school_owner: '/school-owner/profile',
     client_admin: '/admin/profile',
   } as Record<string, string>)[user?.role || ''];
-  const visibleSections = authorRoles.has(user?.role || '') ? sections : sections.slice(0, 1);
+  const playerOpen = location.pathname.startsWith('/studio/player/');
+  const visibleSections = authorRoles.has(user?.role || '')
+    ? sections
+    : playerOpen
+      ? ([sections[0], ['Screen View', location.pathname, MonitorPlay]] as const)
+      : sections.slice(0, 1);
   const navItems = useMemo(() => visibleSections.map(([label, path, Icon]) => ({
     key: path, label, icon: <Icon size={18} />,
     active: path === '/studio' ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`),

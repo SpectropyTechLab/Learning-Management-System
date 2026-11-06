@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eraser, FileText, GitBranch, Loader2, Maximize2, MousePointer2, PenLine, Presentation, RotateCcw, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eraser, FileText, GitBranch, Loader2, Maximize2, Minimize2, MousePointer2, PenLine, Presentation, RotateCcw, Trash2, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -193,6 +193,7 @@ export default function StudioSessionPlayerPage() {
   const [discoveryScreenId, setDiscoveryScreenId] = useState<number | null>(null);
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const [discoveryError, setDiscoveryError] = useState('');
+  const [fullScreen, setFullScreen] = useState(false);
 
   const sessionId = Number(params.sessionId);
   const releaseNumber = Number(params.releaseNumber);
@@ -227,6 +228,17 @@ export default function StudioSessionPlayerPage() {
   const discoveryScreen = discoveryIndex >= 0 ? discoveryScreens[discoveryIndex] : null;
   const isTrackedBranchUser = user?.role === 'teacher';
   const teacherAnnotations = screenId ? (annotationsByScreen[screenId] ?? []) : [];
+
+  useEffect(() => {
+    const syncFullScreen = () => setFullScreen(document.fullscreenElement === playerRef.current);
+    document.addEventListener('fullscreenchange', syncFullScreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullScreen);
+  }, []);
+
+  const toggleFullScreen = async () => {
+    if (document.fullscreenElement === playerRef.current) await document.exitFullscreen();
+    else await playerRef.current?.requestFullscreen();
+  };
 
   const setTeacherAnnotations = (strokes: AuthorDrawingStroke[]) => {
     if (!screenId) return;
@@ -365,25 +377,22 @@ export default function StudioSessionPlayerPage() {
   };
   return (
     <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} scrollContent={false} wrapContent={false}>
-      <div ref={playerRef} className="relative flex h-full min-h-0 flex-col overflow-hidden bg-slate-900 text-white">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+      <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden ${isTrackedBranchUser ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-white'}`}>
+        <header className={`flex flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5 ${isTrackedBranchUser ? 'border-slate-200 bg-white' : 'border-white/10'}`}>
           <div className="flex items-center gap-3">
-            <button type="button" onClick={exitPlayer} className="rounded-lg p-2 hover:bg-white/10" aria-label="Exit player">
+            <button type="button" onClick={exitPlayer} className={`rounded-lg p-2 ${isTrackedBranchUser ? 'hover:bg-slate-100' : 'hover:bg-white/10'}`} aria-label="Exit player">
               <ArrowLeft size={20} />
             </button>
             <div>
               <h2 className="font-semibold">{discoveryItem ? `Branching · ${discoveryItem.title}` : release?.manifest.session?.title || (previewMode ? 'Session Preview' : 'Published Session')}</h2>
-              <p className="text-xs text-slate-300">{discoveryItem ? `Related ${discoveryItem.type} from ${discoveryItem.curriculum.topic_name}` : screen ? `Screen ${screen.screen_number}: ${screen.title}` : 'Loading presentation'}</p>
+              <p className={`text-xs ${isTrackedBranchUser ? 'text-slate-600' : 'text-slate-300'}`}>{discoveryItem ? `Related ${discoveryItem.type} from ${discoveryItem.curriculum.topic_name}` : screen ? `Screen ${screen.screen_number}: ${screen.title}` : 'Loading presentation'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {discoveryItem && <button type="button" onClick={closeDiscoveredContent} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400"><X size={16} />Close Branching</button>}
-            {!previewMode && <button type="button" disabled={!release || !screen} onClick={() => setDiscoveryPanelOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10 disabled:opacity-40"><GitBranch size={16} />Branching</button>}
-            {!previewMode && <button type="button" onClick={() => void openTeachingMaterials()} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10"><FileText size={16} />View teaching materials</button>}
             {previewMode && <span className="rounded-full bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-200">Unpublished preview</span>}
-            <button type="button" onClick={() => void playerRef.current?.requestFullscreen()} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10">
-              <Maximize2 size={16} />
-              Full screen
+            <button type="button" onClick={() => void toggleFullScreen()} className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border ${isTrackedBranchUser ? 'border-slate-300 hover:bg-slate-100' : 'border-white/20 hover:bg-white/10'}`} title={fullScreen ? 'Exit full screen' : 'Full screen'} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}>
+              {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
             </button>
           </div>
         </header>
@@ -487,41 +496,27 @@ export default function StudioSessionPlayerPage() {
             </section>
           </div>
         )}
-        {isTrackedBranchUser && !discoveryItem && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-slate-950/70 px-4 py-2" aria-label="Teacher annotation tools">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Run annotation</span>
-            <button type="button" onClick={() => setAnnotationTool('pointer')} className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold ${annotationTool === 'pointer' ? 'bg-white text-slate-950' : 'border border-white/20'}`}>
-              <MousePointer2 size={15} />
-              Pointer
-            </button>
-            <button type="button" onClick={() => setAnnotationTool('pen')} className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold ${annotationTool === 'pen' ? 'bg-blue-500 text-white' : 'border border-white/20'}`}>
-              <PenLine size={15} />
-              Pen
-            </button>
-            <button type="button" onClick={() => setAnnotationTool('eraser')} className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold ${annotationTool === 'eraser' ? 'bg-blue-500 text-white' : 'border border-white/20'}`}>
-              <Eraser size={15} />
-              Eraser
-            </button>
-            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300">
-              Colour
-              <input type="color" value={annotationColor} onChange={(event) => setAnnotationColor(event.target.value)} className="h-8 w-9 cursor-pointer rounded border border-white/20 bg-transparent p-0.5" />
-            </label>
-            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300">
-              Width {annotationWidth}
-              <input type="range" min="2" max="24" value={annotationWidth} onChange={(event) => setAnnotationWidth(Number(event.target.value))} className="w-24" />
-            </label>
-            <button type="button" disabled={(annotationHistoryByScreen[screenId || 0] ?? []).length === 0} onClick={undoTeacherAnnotation} className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1.5 text-sm font-semibold disabled:opacity-30">
-              <RotateCcw size={15} />
-              Undo ink
-            </button>
-            <button type="button" disabled={teacherAnnotations.length === 0} onClick={() => setTeacherAnnotations([])} className="inline-flex items-center gap-1 rounded-lg border border-red-300/40 px-3 py-1.5 text-sm font-semibold text-red-100 disabled:opacity-30">
-              <Trash2 size={15} />
-              Clear ink
-            </button>
-            <span className="ml-auto text-xs text-slate-400">Run-local; academic content is unchanged</span>
-          </div>
-        )}
-        <main className="min-h-0 flex-1 p-4">
+        <main className={`grid min-h-0 flex-1 gap-3 p-3 ${isTrackedBranchUser && !discoveryItem ? 'grid-cols-[13rem_minmax(0,1fr)]' : 'grid-cols-1'}`}>
+          {isTrackedBranchUser && !discoveryItem && (
+            <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm" aria-label="Teacher board and drawing controls">
+              <label className="text-xs font-semibold text-slate-700">Screens
+                <select value={screenId ?? ''} onChange={(event) => setScreenId(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+                  {screens.map((item) => <option key={item.screen_id} value={item.screen_id}>Screen {item.screen_number}: {item.title}</option>)}
+                </select>
+              </label>
+              <div className="rounded-lg bg-slate-50 p-3 text-slate-900"><h3 className="text-sm font-bold">Teacher board</h3><p className="mt-1 text-xs text-slate-600">Choose a tool, then draw directly over the teaching screen. Ink remains local to this run.</p></div>
+              <button type="button" onClick={() => setAnnotationTool('pointer')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'pointer' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white'}`}><MousePointer2 size={16} />Pointer</button>
+              <button type="button" onClick={() => setAnnotationTool('pen')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'pen' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}><PenLine size={16} />Pen</button>
+              <button type="button" onClick={() => setAnnotationTool('eraser')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'eraser' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}><Eraser size={16} />Eraser</button>
+              <label className="text-xs font-semibold text-slate-700">Colour<input type="color" value={annotationColor} onChange={(event) => setAnnotationColor(event.target.value)} className="mt-1 h-9 w-full cursor-pointer rounded border border-slate-300 bg-white p-0.5" /></label>
+              <label className="text-xs font-semibold text-slate-700">Width {annotationWidth}<input type="range" min="2" max="24" value={annotationWidth} onChange={(event) => setAnnotationWidth(Number(event.target.value))} className="mt-1 w-full" /></label>
+              <button type="button" disabled={(annotationHistoryByScreen[screenId || 0] ?? []).length === 0} onClick={undoTeacherAnnotation} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-30"><RotateCcw size={15} />Undo ink</button>
+              <button type="button" disabled={teacherAnnotations.length === 0} onClick={() => setTeacherAnnotations([])} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-30"><Trash2 size={15} />Clear ink</button>
+              {!previewMode && <button type="button" disabled={!release || !screen} onClick={() => setDiscoveryPanelOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40"><GitBranch size={16} />Branching</button>}
+              {!previewMode && <button type="button" onClick={() => void openTeachingMaterials()} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50"><FileText size={16} />View teaching materials</button>}
+            </aside>
+          )}
+          <section className="min-h-0 min-w-0">
           {discoveryLoading && <div className="grid h-full place-items-center text-slate-300"><span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={20} />Opening related content…</span></div>}
           {!discoveryLoading && discoveryItem?.type === 'resource' && discoveryItem.resource_mapping && <div className="h-full overflow-hidden rounded-xl bg-black"><PublishedResource releaseId={discoveryItem.release_id} mapping={discoveryItem.resource_mapping} /></div>}
           {!discoveryLoading && discoveryItem && discoveryItem.type !== 'resource' && discoveryRelease && discoveryScreen && <PublishedCanvas releaseId={discoveryRelease.id} screen={discoveryScreen} teacherAnnotations={[]} annotationTool="pointer" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} />}
@@ -534,27 +529,28 @@ export default function StudioSessionPlayerPage() {
           )}
           {!discoveryItem && !loading && release && screen && <PublishedCanvas key={screen.screen_id} releaseId={release.id} screen={screen} previewMode={previewMode} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} />}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-300">This release contains no Screens.</div>}
+          </section>
         </main>
         {error && release && <p className="mx-4 mb-2 rounded-lg bg-red-950/70 px-3 py-2 text-sm text-red-100">{error}</p>}
-        <footer className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
+        <footer className={`flex items-center justify-between gap-3 border-t px-3 py-1.5 ${isTrackedBranchUser ? 'border-slate-200 bg-white' : 'border-white/10'}`}>
           {discoveryItem ? (
             <div className="flex items-center gap-2">
               <button type="button" onClick={closeDiscoveredContent} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 font-semibold text-slate-950"><X size={18} />Close Branching</button>
               <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
             </div>
           ) : (
-            <button type="button" disabled={currentIndex <= 0} onClick={() => setScreenId(screens[currentIndex - 1]?.screen_id)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30">
+            <button type="button" disabled={currentIndex <= 0} onClick={() => setScreenId(screens[currentIndex - 1]?.screen_id)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold disabled:opacity-30 ${isTrackedBranchUser ? 'border-slate-300 bg-white' : 'border-white/20'}`}>
               <ChevronLeft size={18} />
               Previous
             </button>
           )}
-          <span className="text-center text-sm text-slate-300">
+          <span className={`text-center text-sm ${isTrackedBranchUser ? 'text-slate-700' : 'text-slate-300'}`}>
             <span className="block">
               {discoveryItem ? discoveryItem.type === 'session' ? `${discoveryIndex + 1} / ${discoveryScreens.length}` : discoveryItem.type : `${currentIndex + 1} / ${screens.length}`}
             </span>
             <span className="hidden text-[11px] text-slate-500 sm:block">{discoveryItem ? 'Esc closes Branching' : 'Clicker: ←/Page Up · →/Page Down/Space'}</span>
           </span>
-          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : currentIndex < 0 || currentIndex >= screens.length - 1} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : setScreenId(screens[currentIndex + 1]?.screen_id)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30">
+          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : currentIndex < 0 || currentIndex >= screens.length - 1} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : setScreenId(screens[currentIndex + 1]?.screen_id)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold disabled:opacity-30 ${isTrackedBranchUser ? 'border-slate-300 bg-white' : 'border-white/20'}`}>
             Next
             <ChevronRight size={18} />
           </button>

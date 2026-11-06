@@ -19,9 +19,13 @@ interface BlankScreenCanvasProps {
   layout?: Layout | null;
   selectedElementId?: string | null;
   onSelectElement?: (elementId: string) => void;
+  onClearElementSelection?: () => void;
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
+  onTextCaretChange?: (elementId: string, offset: number) => void;
   onOpenTool?: (tool: 'math' | 'shapes' | 'animations') => void;
+  onDuplicateElement?: (elementId: string) => void;
+  onRemoveElement?: (elementId: string) => void;
   showGuides?: boolean;
   previewMode?: boolean;
   drawingStrokes?: AuthorDrawingStroke[];
@@ -147,9 +151,13 @@ export default function BlankScreenCanvas({
   layout = null,
   selectedElementId,
   onSelectElement,
+  onClearElementSelection,
   onChangeElementBounds,
   onChangeElementContent,
+  onTextCaretChange,
   onOpenTool,
+  onDuplicateElement,
+  onRemoveElement,
   showGuides = true,
   previewMode = false,
   drawingStrokes,
@@ -270,6 +278,7 @@ export default function BlankScreenCanvas({
           key={element.id}
           latex={String(element.content.latex ?? element.content.text ?? '')}
           color={typeof element.content.color === 'string' ? element.content.color : undefined}
+          backgroundColor={typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
           fontSize={Number(element.content.fontSize) || undefined}
           alignment={
             element.content.alignment === 'left' || element.content.alignment === 'right'
@@ -333,6 +342,7 @@ export default function BlankScreenCanvas({
           selected={selectedElementId === element.id}
           onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
           onTextChange={(value) => onChangeElementContent?.(element.id, { text: value })}
+          onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
           onEditingChange={(editing) =>
             setEditingElementId(
               editing ? element.id : (current) => (current === element.id ? null : current),
@@ -379,19 +389,15 @@ export default function BlankScreenCanvas({
                 ? 'Loading Screen...'
                 : 'Blank canvas · Select or create a Screen to begin.'}
           </h2>
-          {screen &&
-          editingElementId &&
-          selectedElement?.id === editingElementId &&
-          onChangeElementContent &&
-          onOpenTool ? (
+          {screen && selectedElement && onChangeElementContent && onOpenTool ? (
             <StudioElementToolbar
               element={selectedElement}
-              onChange={(changes) =>
-                selectedElement && onChangeElementContent(selectedElement.id, changes)
-              }
+              onChange={(changes) => onChangeElementContent(selectedElement.id, changes)}
               onOpenMath={() => onOpenTool('math')}
               onOpenShapes={() => onOpenTool('shapes')}
               onOpenAnimations={() => onOpenTool('animations')}
+              onDuplicate={onDuplicateElement ? () => onDuplicateElement(selectedElement.id) : undefined}
+              onRemove={onRemoveElement ? () => onRemoveElement(selectedElement.id) : undefined}
             />
           ) : null}
           {screen ? (
@@ -410,6 +416,7 @@ export default function BlankScreenCanvas({
             showGuides={showGuides}
             selectedObjectId={selectedElementId}
             onSelectObject={onSelectElement}
+            onClearSelection={onClearElementSelection}
             onChangeObjectBounds={onChangeElementBounds}
             objectOverlays={objectOverlays}
             transition={

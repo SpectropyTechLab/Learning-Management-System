@@ -64,6 +64,12 @@ export interface PublishedRelease {
       description?: string | null;
     };
     screens: PublishedScreen[];
+    screen_scripts?: Array<{
+      script_revision_id: number;
+      screen_id: number;
+      revision_no: number;
+      content: Record<string, unknown> | null;
+    }>;
   };
 }
 
