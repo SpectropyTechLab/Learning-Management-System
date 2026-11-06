@@ -9,17 +9,19 @@ import {
 } from '../controllers/studioSessionWorkflow.controller.js';
 
 const router = Router();
-
-router.use(
+const authorAccess = [
   authenticateToken,
   attachClientContext,
-  requireRole(['super_admin', 'content_authorizer'])
-);
+  requireRole(['super_admin', 'content_authorizer']),
+];
 
-router.post('/studio/sessions/:sessionId/submit', submitSession);
-router.post('/studio/sessions/:sessionId/review', reviewSession);
-router.post('/studio/sessions/:sessionId/publish', publishSession);
-router.get('/studio/sessions/:sessionId/status', getSessionStatus);
-router.post('/studio/sessions/:sessionId/revise', startSessionRevision);
+// Apply author access to each workflow endpoint instead of every request that
+// passes through this /api-mounted router. This lets unrelated reader routes
+// continue to their own role checks.
+router.post('/studio/sessions/:sessionId/submit', ...authorAccess, submitSession);
+router.post('/studio/sessions/:sessionId/review', ...authorAccess, reviewSession);
+router.post('/studio/sessions/:sessionId/publish', ...authorAccess, publishSession);
+router.get('/studio/sessions/:sessionId/status', ...authorAccess, getSessionStatus);
+router.post('/studio/sessions/:sessionId/revise', ...authorAccess, startSessionRevision);
 
 export default router;

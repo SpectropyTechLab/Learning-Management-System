@@ -5,6 +5,10 @@ const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const PUBLISHED_READER_ROLES = new Set(['client_admin', 'school_owner', 'teacher']);
 const MAX_TAGS = 20;
 const MAX_TAG_LENGTH = 80;
+const DISCOVERY_TYPES = new Set(['session', 'screen', 'resource']);
+const DEFAULT_DISCOVERY_LIMIT = 20;
+const MAX_DISCOVERY_LIMIT = 50;
+const MAX_DISCOVERY_RELEASES = 500;
 
 const parseId = (value, label, { optional = false } = {}) => {
   if (optional && (value === undefined || value === null || value === '')) return null;
@@ -294,5 +298,293 @@ export const getBranchDestinations = async ({ screenId: rawScreenId, releaseId: 
   return AUTHOR_ROLES.has(user.role)
     ? getCurrentBranchDestinations({ screenId, user, db })
     : getPublishedBranchDestinations({ screenId, releaseId, user, db });
+};
+
+const optionalText = (value, label, maxLength = 120) => {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (text.length > maxLength) throw new AppError(`${label} must be ${maxLength} characters or fewer`, 400);
+  return text;
+};
+
+const discoveryLimit = (value) => {
+  if (value === undefined || value === null || value === '') return DEFAULT_DISCOVERY_LIMIT;
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_DISCOVERY_LIMIT) {
+    throw new AppError(`limit must be between 1 and ${MAX_DISCOVERY_LIMIT}`, 400);
+  }
+  return limit;
+};
+
+const decodeCursor = (value) => {
+  if (!value) return 0;
+  try {
+    const parsed = JSON.parse(Buffer.from(String(value), 'base64url').toString('utf8'));
+    if (!Number.isInteger(parsed.offset) || parsed.offset < 0) throw new Error('Invalid offset');
+    return parsed.offset;
+  } catch {
+    throw new AppError('cursor is invalid', 400);
+  }
+};
+
+const encodeCursor = (offset) => Buffer.from(JSON.stringify({ offset }), 'utf8').toString('base64url');
+
+const normalizeOptionalTags = (value) => {
+  if (value === undefined || value === null || value === '') return [];
+  return normalizeTags(value);
+};
+
+const normalizedArray = (value) => Array.isArray(value)
+  ? value.map((item) => String(item).trim().toLowerCase()).filter(Boolean)
+  : [];
+
+const stringifyContent = (value) => {
+  try { return JSON.stringify(value ?? {}).toLowerCase(); }
+  catch { return ''; }
+};
+
+const scriptContentByScreen = (manifest) => new Map(
+  (Array.isArray(manifest?.screen_scripts) ? manifest.screen_scripts : [])
+    .map((script) => [Number(script.screen_id), stringifyContent(script.content)]),
+);
+
+const metadataMatches = ({ text, tags, requestedTags, pedagogy, bloom, search }) => {
+  const normalizedTags = new Set(normalizedArray(tags));
+  if (requestedTags.some((tag) => !normalizedTags.has(tag))) return false;
+  if (pedagogy && !text.includes(pedagogy)) return false;
+  if (bloom && !text.includes(bloom)) return false;
+  if (search && !text.includes(search)) return false;
+  return true;
+};
+
+const discoveryScore = ({ context, row, tags, requestedTags, text, pedagogy, bloom }) => {
+  let score = 10;
+  if (Number(row.topic_id) === Number(context.topic_id)) score += 20;
+  if (Number(row.subtopic_id) === Number(context.subtopic_id)) score += 30;
+  const normalizedTags = new Set(normalizedArray(tags));
+  score += requestedTags.filter((tag) => normalizedTags.has(tag)).length * 5;
+  if (pedagogy && text.includes(pedagogy)) score += 8;
+  if (bloom && text.includes(bloom)) score += 8;
+  return score;
+};
+
+const assertPublishedDiscoveryAccess = async (release, user, db) => {
+  if (AUTHOR_ROLES.has(user?.role)) {
+    assertAuthorTenant(release.client_id, user);
+    return null;
+  }
+  if (user?.role === 'client_admin') {
+    if (!user?.client_id || Number(release.client_id) !== Number(user.client_id)) {
+      throw new AppError('Access denied', 403);
+    }
+    return null;
+  }
+  const schoolIds = await getReaderSchools(user, db);
+  const assignedProgramIds = await getAssignedProgramIds(schoolIds, db);
+  if (!canReadRelease(release, schoolIds, assignedProgramIds)) {
+    throw new AppError('Access denied', 403);
+  }
+  return { schoolIds, assignedProgramIds };
+};
+
+const loadDiscoveryContext = async ({ releaseId, screenId, user, db }) => {
+  const result = await db.query(
+    `SELECT sr.id, sr.client_id, sr.session_id, sr.release_number, sr.manifest_json, sr.published_at,
+            b.id AS board_id, b.name AS board_name,
+            p.id AS program_id, p.name AS program_name,
+            g.id AS grade_id, g.grade_number,
+            su.id AS subject_id, su.name AS subject_name,
+            ch.id AS chapter_id, ch.chapter_number, ch.name AS chapter_name,
+            t.id AS topic_id, t.name AS topic_name,
+            st.id AS subtopic_id, st.name AS subtopic_name
+     FROM session_releases sr
+     JOIN sessions se ON se.id = sr.session_id
+     JOIN subtopics st ON st.id = se.subtopic_id
+     JOIN topics t ON t.id = st.topic_id
+     JOIN chapters ch ON ch.id = t.chapter_id
+     JOIN subjects su ON su.id = ch.subject_id
+     JOIN grades g ON g.id = su.grade_id
+     JOIN programs p ON p.id = g.program_id
+     JOIN boards b ON b.id = p.board_id
+     WHERE sr.id = $1`,
+    [releaseId],
+  );
+  const context = result.rows[0];
+  if (!context) throw new AppError('Published Session release not found', 404);
+  const access = await assertPublishedDiscoveryAccess(context, user, db);
+  const screens = Array.isArray(context.manifest_json?.screens) ? context.manifest_json.screens : [];
+  if (!screens.some((screen) => Number(screen.screen_id) === screenId)) {
+    throw new AppError('Screen is not part of the requested release', 404);
+  }
+  return { context, access };
+};
+
+const loadChapterReleases = async ({ context, topicId, subtopicId, user, access, db }) => {
+  const result = await db.query(
+    `SELECT * FROM (
+       SELECT DISTINCT ON (sr.session_id)
+              sr.id, sr.client_id, sr.session_id, sr.release_number, sr.manifest_json, sr.published_at,
+              se.title AS session_title, se.description AS session_description,
+              b.id AS board_id, b.name AS board_name,
+              p.id AS program_id, p.name AS program_name,
+              g.id AS grade_id, g.grade_number,
+              su.id AS subject_id, su.name AS subject_name,
+              ch.id AS chapter_id, ch.chapter_number, ch.name AS chapter_name,
+              t.id AS topic_id, t.name AS topic_name,
+              st.id AS subtopic_id, st.name AS subtopic_name
+       FROM session_releases sr
+       JOIN sessions se ON se.id = sr.session_id
+       JOIN subtopics st ON st.id = se.subtopic_id
+       JOIN topics t ON t.id = st.topic_id
+       JOIN chapters ch ON ch.id = t.chapter_id
+       JOIN subjects su ON su.id = ch.subject_id
+       JOIN grades g ON g.id = su.grade_id
+       JOIN programs p ON p.id = g.program_id
+       JOIN boards b ON b.id = p.board_id
+       WHERE sr.client_id IS NOT DISTINCT FROM $1
+         AND ch.id = $2
+         AND ($3::int IS NULL OR t.id = $3)
+         AND ($4::int IS NULL OR st.id = $4)
+       ORDER BY sr.session_id, sr.release_number DESC
+     ) latest
+     ORDER BY published_at DESC, id DESC
+     LIMIT $5`,
+    [context.client_id, context.chapter_id, topicId, subtopicId, MAX_DISCOVERY_RELEASES],
+  );
+  if (AUTHOR_ROLES.has(user?.role) || user?.role === 'client_admin') return result.rows;
+  const { schoolIds, assignedProgramIds } = access || {};
+  return result.rows.filter((release) => canReadRelease(release, schoolIds, assignedProgramIds));
+};
+
+const curriculumView = (row) => ({
+  board_id: Number(row.board_id), board_name: row.board_name,
+  program_id: Number(row.program_id), program_name: row.program_name,
+  grade_id: Number(row.grade_id), grade_number: Number(row.grade_number),
+  subject_id: Number(row.subject_id), subject_name: row.subject_name,
+  chapter_id: Number(row.chapter_id), chapter_number: Number(row.chapter_number), chapter_name: row.chapter_name,
+  topic_id: Number(row.topic_id), topic_name: row.topic_name,
+  subtopic_id: Number(row.subtopic_id), subtopic_name: row.subtopic_name,
+});
+
+const sessionDiscoveryItems = ({ releases, context, filters }) => releases.flatMap((row) => {
+  const manifest = row.manifest_json || {};
+  const screens = Array.isArray(manifest.screens) ? manifest.screens : [];
+  const tags = [...new Set(screens.flatMap((screen) => normalizedArray(screen.tags)))];
+  const text = [row.session_title, row.session_description, row.topic_name, row.subtopic_name, stringifyContent(manifest.documents), stringifyContent(manifest.screen_scripts), ...tags].join(' ').toLowerCase();
+  if (!metadataMatches({ text, tags, ...filters })) return [];
+  return [{
+    key: `session:${row.id}`,
+    type: 'session',
+    title: row.session_title,
+    description: row.session_description,
+    release_id: Number(row.id), release_number: Number(row.release_number),
+    session_id: Number(row.session_id), screen_count: screens.length,
+    tags, curriculum: curriculumView(row),
+    score: discoveryScore({ context, row, tags, text, ...filters }),
+    published_at: row.published_at,
+  }];
+});
+
+const screenDiscoveryItems = ({ releases, context, filters }) => releases.flatMap((row) => {
+  const manifest = row.manifest_json || {};
+  const scripts = scriptContentByScreen(manifest);
+  return (Array.isArray(manifest.screens) ? manifest.screens : []).flatMap((screen) => {
+    const tags = normalizedArray(screen.tags);
+    const text = [screen.title, row.session_title, row.topic_name, row.subtopic_name, scripts.get(Number(screen.screen_id)) || '', ...tags].join(' ').toLowerCase();
+    if (!metadataMatches({ text, tags, ...filters })) return [];
+    return [{
+      key: `screen:${row.id}:${screen.screen_id}`,
+      type: 'screen', title: screen.title, description: row.session_title,
+      release_id: Number(row.id), release_number: Number(row.release_number),
+      session_id: Number(row.session_id), screen_id: Number(screen.screen_id),
+      screen_number: Number(screen.screen_number), tags, curriculum: curriculumView(row),
+      score: discoveryScore({ context, row, tags, text, ...filters }),
+      published_at: row.published_at,
+    }];
+  });
+});
+
+const publishedResourceMappingView = (mapping) => ({
+  resource_id: Number(mapping.resource_id),
+  resource_version_id: Number(mapping.resource_version_id),
+  version_number: Number(mapping.version_number),
+  name: mapping.name,
+  resource_type: mapping.resource_type,
+  external_url: mapping.external_url || null,
+  mime_type: mapping.mime_type || null,
+  width: mapping.width === null || mapping.width === undefined ? null : Number(mapping.width),
+  height: mapping.height === null || mapping.height === undefined ? null : Number(mapping.height),
+});
+
+const resourceDiscoveryItems = ({ releases, context, filters }) => {
+  const items = new Map();
+  for (const row of releases) {
+    const manifest = row.manifest_json || {};
+    const scripts = scriptContentByScreen(manifest);
+    for (const screen of Array.isArray(manifest.screens) ? manifest.screens : []) {
+      const tags = normalizedArray(screen.tags);
+      for (const element of Array.isArray(screen.elements) ? screen.elements : []) {
+        const mapping = element.resource_mapping;
+        if (!mapping?.resource_version_id) continue;
+        const text = [mapping.name, mapping.description, mapping.resource_type, screen.title, row.session_title, scripts.get(Number(screen.screen_id)) || '', ...tags].join(' ').toLowerCase();
+        if (!metadataMatches({ text, tags, ...filters })) continue;
+        const key = `resource:${row.id}:${mapping.resource_version_id}`;
+        const candidate = {
+          key, type: 'resource', title: mapping.name, description: `${row.session_title} · ${screen.title}`,
+          release_id: Number(row.id), release_number: Number(row.release_number),
+          session_id: Number(row.session_id), screen_id: Number(screen.screen_id),
+          resource_id: Number(mapping.resource_id), resource_version_id: Number(mapping.resource_version_id),
+          resource_type: mapping.resource_type, resource_mapping: publishedResourceMappingView(mapping),
+          tags, curriculum: curriculumView(row),
+          score: discoveryScore({ context, row, tags, text, ...filters }),
+          published_at: row.published_at,
+        };
+        const existing = items.get(key);
+        if (!existing || candidate.score > existing.score) items.set(key, candidate);
+      }
+    }
+  }
+  return [...items.values()];
+};
+
+export const discoverPublishedContent = async ({
+  releaseId: rawReleaseId, screenId: rawScreenId, type: rawType,
+  topicId: rawTopicId, subtopicId: rawSubtopicId, tags: rawTags,
+  pedagogy: rawPedagogy, bloom: rawBloom, search: rawSearch,
+  limit: rawLimit, cursor: rawCursor, user, db = { query: dbQuery },
+}) => {
+  assertDiscoveryRole(user);
+  const releaseId = parseId(rawReleaseId, 'Release ID');
+  const screenId = parseId(rawScreenId, 'Screen ID');
+  const type = String(rawType || 'session').trim().toLowerCase();
+  if (!DISCOVERY_TYPES.has(type)) throw new AppError('type must be session, screen, or resource', 400);
+  const topicId = parseId(rawTopicId, 'Topic ID', { optional: true });
+  const subtopicId = parseId(rawSubtopicId, 'Subtopic ID', { optional: true });
+  const requestedTags = normalizeOptionalTags(rawTags);
+  const pedagogy = optionalText(rawPedagogy, 'pedagogy');
+  const bloom = optionalText(rawBloom, 'bloom');
+  const search = optionalText(rawSearch, 'search', 200);
+  const limit = discoveryLimit(rawLimit);
+  const offset = decodeCursor(rawCursor);
+  const { context, access } = await loadDiscoveryContext({ releaseId, screenId, user, db });
+  const releases = await loadChapterReleases({ context, topicId, subtopicId, user, access, db });
+  const filters = { requestedTags, pedagogy, bloom, search };
+  const builders = { session: sessionDiscoveryItems, screen: screenDiscoveryItems, resource: resourceDiscoveryItems };
+  const allItems = builders[type]({ releases, context, filters })
+    .sort((left, right) => right.score - left.score || String(right.published_at).localeCompare(String(left.published_at)) || left.key.localeCompare(right.key));
+  const items = allItems.slice(offset, offset + limit);
+  const nextOffset = offset + items.length;
+  const topics = [...new Map(releases.map((row) => [Number(row.topic_id), { id: Number(row.topic_id), name: row.topic_name }])).values()]
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const subtopics = [...new Map(releases
+    .filter((row) => !topicId || Number(row.topic_id) === topicId)
+    .map((row) => [Number(row.subtopic_id), { id: Number(row.subtopic_id), topic_id: Number(row.topic_id), name: row.subtopic_name }])).values()]
+    .sort((left, right) => left.name.localeCompare(right.name));
+  return {
+    type,
+    items,
+    next_cursor: nextOffset < allItems.length ? encodeCursor(nextOffset) : null,
+    applied_context: curriculumView(context),
+    facets: { topics, subtopics },
+  };
 };
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, CornerUpLeft, Download, Eraser, FileText, Maximize2, MousePointer2, PenLine, Presentation, RotateCcw, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eraser, FileText, GitBranch, Loader2, Maximize2, MousePointer2, PenLine, Presentation, RotateCcw, Trash2, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -8,7 +8,8 @@ import type { Layout, ObjectType, Rect, Slide } from './layouts';
 import { targetLayouts } from './targetLayouts';
 import SlideCanvas from './SlideCanvas';
 import StudioShell from './components/StudioShell';
-import { abandonBranchRun, completeBranchRun, createBranchRun, downloadPublishedSessionPlan, enterBranch, getPublishedTeachingMaterials, getPublishedRelease, launchPublishedResource, previewPublishedResource, returnFromBranch, updateBranchState } from './api/studioPublishedApi';
+import { downloadPublishedSessionPlan, getPublishedTeachingMaterials, getPublishedRelease, getSessionPlayerPreview, launchPublishedResource, previewPublishedResource } from './api/studioPublishedApi';
+import { getStudioResourcePreview, launchStudioResourceVersion } from './api/studioResourcesApi';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
 import Model3DViewer from './components/resources/Model3DViewer';
@@ -17,7 +18,9 @@ import StudioAnimatedElement from './components/StudioAnimatedElement';
 import StudioCanvasTextElement from './components/StudioCanvasTextElement';
 import StudioMathElement from './components/StudioMathElement';
 import StudioShapeElement from './components/StudioShapeElement';
-import type { PublishedBranch, PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
+import StudioBranchDiscoveryPanel from './components/StudioBranchDiscoveryPanel';
+import type { PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
+import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 
 const textFrom = (content: Record<string, unknown>) => {
@@ -79,7 +82,7 @@ const freeformLayoutFor = (screen: PublishedScreen): Layout => ({
   }),
 });
 
-function PublishedResource({ releaseId, mapping }: { releaseId: number; mapping: PublishedResourceMapping }) {
+function PublishedResource({ releaseId, mapping, previewMode = false }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean }) {
   const [source, setSource] = useState(mapping.external_url || '');
   const [error, setError] = useState('');
 
@@ -87,11 +90,15 @@ function PublishedResource({ releaseId, mapping }: { releaseId: number; mapping:
     if (mapping.external_url) return;
     let active = true;
     const request = ['html', 'zip', 'scorm', 'simulation'].includes(mapping.resource_type)
-      ? launchPublishedResource(releaseId, mapping.resource_version_id).then((result) => {
+      ? (previewMode
+          ? launchStudioResourceVersion(mapping.resource_version_id)
+          : launchPublishedResource(releaseId, mapping.resource_version_id)).then((result) => {
           if (!result.launchable || !result.launch_url) throw new Error(result.message || 'Resource cannot be launched.');
           return result.launch_url;
         })
-      : previewPublishedResource(releaseId, mapping.resource_version_id).then((result) => result.url);
+      : (previewMode
+          ? getStudioResourcePreview(mapping.resource_version_id)
+          : previewPublishedResource(releaseId, mapping.resource_version_id)).then((result) => result.url);
     void request
       .then((url) => {
         if (active) setSource(url);
@@ -102,7 +109,7 @@ function PublishedResource({ releaseId, mapping }: { releaseId: number; mapping:
     return () => {
       active = false;
     };
-  }, [mapping.external_url, mapping.resource_type, mapping.resource_version_id, releaseId]);
+  }, [mapping.external_url, mapping.resource_type, mapping.resource_version_id, previewMode, releaseId]);
 
   if (error) return <div className="grid h-full place-items-center bg-slate-950 p-3 text-center text-xs text-white">{error}</div>;
   if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
@@ -127,7 +134,7 @@ function PublishedResource({ releaseId, mapping }: { releaseId: number; mapping:
   return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} />;
 }
 
-function PublishedCanvas({ releaseId, screen, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange }: { releaseId: number; screen: PublishedScreen; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: 'pointer' | 'pen' | 'eraser'; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void }) {
+function PublishedCanvas({ releaseId, screen, previewMode = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: 'pointer' | 'pen' | 'eraser'; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void }) {
   const layout = layoutFor(screen) ?? freeformLayoutFor(screen);
   const slide: Slide = {
     title: screen.title,
@@ -151,7 +158,7 @@ function PublishedCanvas({ releaseId, screen, teacherAnnotations, annotationTool
     if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} />]];
     const text = textFrom(element.content_json || {});
     if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} text={text} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
-    return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} />]] : [];
+    return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} />]] : [];
   }));
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
@@ -171,11 +178,6 @@ export default function StudioSessionPlayerPage() {
   const [screenId, setScreenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [branchRunId, setBranchRunId] = useState<number | null>(null);
-  const [branchDepth, setBranchDepth] = useState(0);
-  const [localBranchStack, setLocalBranchStack] = useState<number[]>([]);
-  const [branchCheckpointStack, setBranchCheckpointStack] = useState<number[]>([]);
-  const [branchBusy, setBranchBusy] = useState(false);
   const [annotationTool, setAnnotationTool] = useState<'pointer' | 'pen' | 'eraser'>('pointer');
   const [annotationColor, setAnnotationColor] = useState('#ef4444');
   const [annotationWidth, setAnnotationWidth] = useState(6);
@@ -185,17 +187,29 @@ export default function StudioSessionPlayerPage() {
   const [materialsOpen, setMaterialsOpen] = useState(false);
   const [materialsBusy, setMaterialsBusy] = useState(false);
   const [curriculumPreview, setCurriculumPreview] = useState<CurriculumDocumentPreview | null>(null);
+  const [discoveryPanelOpen, setDiscoveryPanelOpen] = useState(false);
+  const [discoveryItem, setDiscoveryItem] = useState<StudioDiscoveryItem | null>(null);
+  const [discoveryRelease, setDiscoveryRelease] = useState<PublishedRelease | null>(null);
+  const [discoveryScreenId, setDiscoveryScreenId] = useState<number | null>(null);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState('');
 
   const sessionId = Number(params.sessionId);
   const releaseNumber = Number(params.releaseNumber);
+  const previewMode = params.releaseNumber === undefined;
 
   useEffect(() => {
-    if (!Number.isInteger(sessionId) || !Number.isInteger(releaseNumber)) {
-      setError('Invalid published Session route.');
+    if (!Number.isInteger(sessionId) || (!previewMode && !Number.isInteger(releaseNumber))) {
+      setError('Invalid Session player route.');
       setLoading(false);
       return;
     }
-    void getPublishedRelease(sessionId, releaseNumber)
+    setLoading(true);
+    setError('');
+    const request = previewMode
+      ? getSessionPlayerPreview(sessionId)
+      : getPublishedRelease(sessionId, releaseNumber);
+    void request
       .then((data) => {
         setRelease(data);
         const first = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0];
@@ -203,11 +217,14 @@ export default function StudioSessionPlayerPage() {
       })
       .catch((requestError) => setError(getApiErrorDetails(requestError).message))
       .finally(() => setLoading(false));
-  }, [releaseNumber, sessionId]);
+  }, [previewMode, releaseNumber, sessionId]);
 
   const screens = useMemo(() => [...(release?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [release]);
   const currentIndex = screens.findIndex((screen) => screen.screen_id === screenId);
   const screen = currentIndex >= 0 ? screens[currentIndex] : null;
+  const discoveryScreens = useMemo(() => [...(discoveryRelease?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [discoveryRelease]);
+  const discoveryIndex = discoveryScreens.findIndex((candidate) => candidate.screen_id === discoveryScreenId);
+  const discoveryScreen = discoveryIndex >= 0 ? discoveryScreens[discoveryIndex] : null;
   const isTrackedBranchUser = user?.role === 'teacher';
   const teacherAnnotations = screenId ? (annotationsByScreen[screenId] ?? []) : [];
 
@@ -244,118 +261,79 @@ export default function StudioSessionPlayerPage() {
     }
   };
 
-  const persistActiveBranchAnnotations = async () => {
-    const checkpointId = branchCheckpointStack.at(-1);
-    if (!branchRunId || !checkpointId) return;
-    await updateBranchState(branchRunId, checkpointId, { annotations: teacherAnnotations });
-  };
+  const exitPlayer = () => navigate(-1);
 
-  const openBranch = async (branch: PublishedBranch) => {
-    if (!release || !screen) return;
-    setBranchBusy(true);
-    setError('');
+  const openDiscoveredContent = async (item: StudioDiscoveryItem) => {
+    setDiscoveryPanelOpen(false);
+    setDiscoveryItem(item);
+    setDiscoveryRelease(null);
+    setDiscoveryScreenId(null);
+    setDiscoveryError('');
+    if (item.type === 'resource') return;
+    setDiscoveryLoading(true);
     try {
-      if (isTrackedBranchUser) {
-        await persistActiveBranchAnnotations();
-        let runId = branchRunId;
-        if (!runId) {
-          const run = await createBranchRun(release.id, release.session_id, screen.screen_id);
-          runId = run.id;
-          setBranchRunId(runId);
-        }
-        const result = await enterBranch(runId, branch.branch_key, {
-          session_id: release.session_id,
-          screen_id: screen.screen_id,
-          release_id: release.id,
-          reveal_state: {},
-          annotations: teacherAnnotations,
-          interaction_state: {},
-          focus: {},
-        });
-        setBranchDepth(result.run.current_depth);
-        setBranchCheckpointStack((current) => [...current, result.checkpoint.id]);
-        setScreenId(result.destination.screen_id);
-      } else {
-        setLocalBranchStack((stack) => [...stack, screen.screen_id]);
-        setScreenId(branch.destination_screen_id);
+      const selectedRelease = await getPublishedRelease(item.session_id, item.release_number);
+      const selectedScreens = [...selectedRelease.manifest.screens].sort((left, right) => left.display_order - right.display_order);
+      const selectedScreenId = item.type === 'screen' ? item.screen_id : selectedScreens[0]?.screen_id;
+      if (!selectedScreenId || !selectedScreens.some((candidate) => candidate.screen_id === selectedScreenId)) {
+        throw new Error('The selected published content has no available Screen.');
       }
+      setDiscoveryRelease(selectedRelease);
+      setDiscoveryScreenId(selectedScreenId);
     } catch (requestError) {
-      setError(getApiErrorDetails(requestError).message);
+      setDiscoveryError(getApiErrorDetails(requestError, requestError instanceof Error ? requestError.message : 'Unable to open related content.').message);
     } finally {
-      setBranchBusy(false);
+      setDiscoveryLoading(false);
     }
   };
 
-  const returnToOrigin = async () => {
-    setBranchBusy(true);
-    setError('');
-    try {
-      if (isTrackedBranchUser && branchRunId) {
-        await persistActiveBranchAnnotations();
-        const result = await returnFromBranch(branchRunId);
-        setBranchDepth(result.run.current_depth);
-        setBranchCheckpointStack((current) => current.slice(0, -1));
-        setAnnotationsByScreen((current) => ({
-          ...current,
-          [result.restored_origin.screen_id]: result.restored_origin.annotations,
-        }));
-        setScreenId(result.restored_origin.screen_id);
-      } else {
-        const origin = localBranchStack.at(-1);
-        if (origin) setScreenId(origin);
-        setLocalBranchStack((stack) => stack.slice(0, -1));
-      }
-    } catch (requestError) {
-      setError(getApiErrorDetails(requestError).message);
-    } finally {
-      setBranchBusy(false);
-    }
+  const closeDiscoveredContent = () => {
+    setDiscoveryItem(null);
+    setDiscoveryRelease(null);
+    setDiscoveryScreenId(null);
+    setDiscoveryError('');
+    setDiscoveryLoading(false);
   };
-
-  const exitPlayer = async () => {
-    if (branchRunId) {
-      try {
-        await persistActiveBranchAnnotations();
-        if (branchDepth === 0) await completeBranchRun(branchRunId);
-        else await abandonBranchRun(branchRunId);
-      } catch {
-        /* Navigation should not be blocked by audit cleanup. */
-      }
-    }
-    navigate(-1);
-  };
-
-  const inBranch = branchDepth > 0 || localBranchStack.length > 0;
 
   useEffect(() => {
     const handleClicker = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea, select, button, [contenteditable="true"]')) return;
+      if (event.key === 'Escape' && discoveryPanelOpen) {
+        event.preventDefault();
+        setDiscoveryPanelOpen(false);
+        return;
+      }
+      if (event.key === 'Escape' && discoveryItem) {
+        event.preventDefault();
+        closeDiscoveredContent();
+        return;
+      }
       if (event.key === 'Escape' && materialsOpen) {
         event.preventDefault();
         setMaterialsOpen(false);
         return;
       }
-      if (materialsOpen || branchBusy) return;
+      if (materialsOpen || discoveryItem) return;
       const previousKeys = new Set(['ArrowLeft', 'PageUp', 'Backspace']);
       const nextKeys = new Set(['ArrowRight', 'PageDown', ' ', 'Enter']);
-      if (previousKeys.has(event.key) && !inBranch && currentIndex > 0) {
+      if (previousKeys.has(event.key) && currentIndex > 0) {
         event.preventDefault();
         setScreenId(screens[currentIndex - 1]?.screen_id ?? null);
-      } else if (nextKeys.has(event.key) && !inBranch && currentIndex >= 0 && currentIndex < screens.length - 1) {
+      } else if (nextKeys.has(event.key) && currentIndex >= 0 && currentIndex < screens.length - 1) {
         event.preventDefault();
         setScreenId(screens[currentIndex + 1]?.screen_id ?? null);
-      } else if (event.key === 'Home' && !inBranch && screens.length > 0) {
+      } else if (event.key === 'Home' && screens.length > 0) {
         event.preventDefault();
         setScreenId(screens[0].screen_id);
-      } else if (event.key === 'End' && !inBranch && screens.length > 0) {
+      } else if (event.key === 'End' && screens.length > 0) {
         event.preventDefault();
         setScreenId(screens.at(-1)?.screen_id ?? null);
       }
     };
     window.addEventListener('keydown', handleClicker);
     return () => window.removeEventListener('keydown', handleClicker);
-  }, [branchBusy, currentIndex, inBranch, materialsOpen, screens]);
+  }, [currentIndex, discoveryItem, discoveryPanelOpen, materialsOpen, screens]);
 
   const downloadPlan = async () => {
     if (!release) return;
@@ -386,29 +364,30 @@ export default function StudioSessionPlayerPage() {
     }
   };
   return (
-    <StudioShell title="Session Player" subtitle={release ? `Published Release ${release.release_number}` : undefined} scrollContent={false} wrapContent={false}>
-      <div ref={playerRef} className="flex h-full min-h-0 flex-col bg-slate-900 text-white">
+    <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} scrollContent={false} wrapContent={false}>
+      <div ref={playerRef} className="relative flex h-full min-h-0 flex-col overflow-hidden bg-slate-900 text-white">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => void exitPlayer()} className="rounded-lg p-2 hover:bg-white/10" aria-label="Exit player">
+            <button type="button" onClick={exitPlayer} className="rounded-lg p-2 hover:bg-white/10" aria-label="Exit player">
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h2 className="font-semibold">{release?.manifest.session?.title || 'Published Session'}</h2>
-              <p className="text-xs text-slate-300">{screen ? `Screen ${screen.screen_number}: ${screen.title}` : 'Loading presentation'}</p>
+              <h2 className="font-semibold">{discoveryItem ? `Branching · ${discoveryItem.title}` : release?.manifest.session?.title || (previewMode ? 'Session Preview' : 'Published Session')}</h2>
+              <p className="text-xs text-slate-300">{discoveryItem ? `Related ${discoveryItem.type} from ${discoveryItem.curriculum.topic_name}` : screen ? `Screen ${screen.screen_number}: ${screen.title}` : 'Loading presentation'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => void openTeachingMaterials()} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10">
-              <FileText size={16} />
-              View teaching materials
-            </button>
+            {discoveryItem && <button type="button" onClick={closeDiscoveredContent} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400"><X size={16} />Close Branching</button>}
+            {!previewMode && <button type="button" disabled={!release || !screen} onClick={() => setDiscoveryPanelOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10 disabled:opacity-40"><GitBranch size={16} />Branching</button>}
+            {!previewMode && <button type="button" onClick={() => void openTeachingMaterials()} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10"><FileText size={16} />View teaching materials</button>}
+            {previewMode && <span className="rounded-full bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-200">Unpublished preview</span>}
             <button type="button" onClick={() => void playerRef.current?.requestFullscreen()} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10">
               <Maximize2 size={16} />
               Full screen
             </button>
           </div>
         </header>
+        {!previewMode && release && screen && <StudioBranchDiscoveryPanel open={discoveryPanelOpen} releaseId={release.id} screenId={screen.screen_id} onClose={() => setDiscoveryPanelOpen(false)} onSelect={(item) => void openDiscoveredContent(item)} />}
         {materialsOpen && (
           <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Published teaching materials">
             <section className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900 shadow-2xl">
@@ -508,7 +487,7 @@ export default function StudioSessionPlayerPage() {
             </section>
           </div>
         )}
-        {isTrackedBranchUser && (
+        {isTrackedBranchUser && !discoveryItem && (
           <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-slate-950/70 px-4 py-2" aria-label="Teacher annotation tools">
             <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Run annotation</span>
             <button type="button" onClick={() => setAnnotationTool('pointer')} className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold ${annotationTool === 'pointer' ? 'bg-white text-slate-950' : 'border border-white/20'}`}>
@@ -543,32 +522,26 @@ export default function StudioSessionPlayerPage() {
           </div>
         )}
         <main className="min-h-0 flex-1 p-4">
+          {discoveryLoading && <div className="grid h-full place-items-center text-slate-300"><span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={20} />Opening related content…</span></div>}
+          {!discoveryLoading && discoveryItem?.type === 'resource' && discoveryItem.resource_mapping && <div className="h-full overflow-hidden rounded-xl bg-black"><PublishedResource releaseId={discoveryItem.release_id} mapping={discoveryItem.resource_mapping} /></div>}
+          {!discoveryLoading && discoveryItem && discoveryItem.type !== 'resource' && discoveryRelease && discoveryScreen && <PublishedCanvas releaseId={discoveryRelease.id} screen={discoveryScreen} teacherAnnotations={[]} annotationTool="pointer" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} />}
+          {!discoveryLoading && discoveryItem && discoveryError && <div className="grid h-full place-items-center"><div className="rounded-xl border border-red-400/30 bg-red-950/40 p-6 text-red-100">{discoveryError}</div></div>}
           {loading && <div className="grid h-full place-items-center text-slate-300">Loading published Session…</div>}
-          {!loading && error && !release && (
+          {!discoveryItem && !loading && error && !release && (
             <div className="grid h-full place-items-center">
               <div className="rounded-xl border border-red-400/30 bg-red-950/40 p-6 text-red-100">{error}</div>
             </div>
           )}
-          {!loading && release && screen && <PublishedCanvas key={screen.id} releaseId={release.id} screen={screen} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} />}
-          {!loading && release && !screen && <div className="grid h-full place-items-center text-slate-300">This release contains no Screens.</div>}
+          {!discoveryItem && !loading && release && screen && <PublishedCanvas key={screen.screen_id} releaseId={release.id} screen={screen} previewMode={previewMode} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} />}
+          {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-300">This release contains no Screens.</div>}
         </main>
         {error && release && <p className="mx-4 mb-2 rounded-lg bg-red-950/70 px-3 py-2 text-sm text-red-100">{error}</p>}
-        {screen && screen.branches.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-white/10 px-4 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Branches</span>
-            {screen.branches.map((branch) => (
-              <button key={branch.branch_key} type="button" disabled={branchBusy} onClick={() => void openBranch(branch)} className="rounded-full bg-blue-600 px-3 py-1.5 text-sm font-semibold hover:bg-blue-500 disabled:opacity-50">
-                {branch.branch_key}
-              </button>
-            ))}
-          </div>
-        )}
         <footer className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
-          {inBranch ? (
-            <button type="button" disabled={branchBusy} onClick={() => void returnToOrigin()} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50">
-              <CornerUpLeft size={18} />
-              Return to main Screen
-            </button>
+          {discoveryItem ? (
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={closeDiscoveredContent} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 font-semibold text-slate-950"><X size={18} />Close Branching</button>
+              <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
+            </div>
           ) : (
             <button type="button" disabled={currentIndex <= 0} onClick={() => setScreenId(screens[currentIndex - 1]?.screen_id)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30">
               <ChevronLeft size={18} />
@@ -577,11 +550,11 @@ export default function StudioSessionPlayerPage() {
           )}
           <span className="text-center text-sm text-slate-300">
             <span className="block">
-              {currentIndex + 1} / {screens.length}
+              {discoveryItem ? discoveryItem.type === 'session' ? `${discoveryIndex + 1} / ${discoveryScreens.length}` : discoveryItem.type : `${currentIndex + 1} / ${screens.length}`}
             </span>
-            <span className="hidden text-[11px] text-slate-500 sm:block">Clicker: ←/Page Up · →/Page Down/Space</span>
+            <span className="hidden text-[11px] text-slate-500 sm:block">{discoveryItem ? 'Esc closes Branching' : 'Clicker: ←/Page Up · →/Page Down/Space'}</span>
           </span>
-          <button type="button" disabled={inBranch || currentIndex < 0 || currentIndex >= screens.length - 1} onClick={() => setScreenId(screens[currentIndex + 1]?.screen_id)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30">
+          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : currentIndex < 0 || currentIndex >= screens.length - 1} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : setScreenId(screens[currentIndex + 1]?.screen_id)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30">
             Next
             <ChevronRight size={18} />
           </button>

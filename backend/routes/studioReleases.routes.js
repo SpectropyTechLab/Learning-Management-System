@@ -6,6 +6,7 @@ import {
   getPublishedReleaseByNumber,
   getTeacherReleaseByNumber,
   getPublishedTeachingMaterials,
+  getSessionPlayerPreview,
   downloadPublishedSessionPlan,
   launchPublishedResource,
   listPublishedSessions,
@@ -71,6 +72,12 @@ router.post(
   '/studio/sessions/:sessionId/publish',
   requireRole(['super_admin', 'content_authorizer']),
   publishSessionRelease
+);
+
+router.get(
+  '/studio/sessions/:sessionId/player-preview',
+  requireRole(['super_admin', 'content_authorizer']),
+  getSessionPlayerPreview,
 );
 
 // REST alias retained for clients that model publication as release creation.

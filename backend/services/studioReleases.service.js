@@ -28,7 +28,7 @@ const parseJsonArray = (value) => {
   } catch { return []; }
 };
 
-const loadSessionForPublish = async (db, sessionId) => {
+const loadSessionForPublish = async (db, sessionId, { lock = true } = {}) => {
   const result = await db.query(
     `SELECT se.id, se.client_id, se.subtopic_id, se.title, se.description,
             se.status, se.revision_no, se.approved_by, se.approved_at,
@@ -40,7 +40,7 @@ const loadSessionForPublish = async (db, sessionId) => {
      JOIN subjects su ON su.id = ch.subject_id
      JOIN grades g ON g.id = su.grade_id
      JOIN programs p ON p.id = g.program_id
-     WHERE se.id = $1 FOR UPDATE OF se`, [sessionId]
+     WHERE se.id = $1${lock ? ' FOR UPDATE OF se' : ''}`, [sessionId]
   );
   if (!result.rows[0]) throw new AppError('Studio Session not found', 404);
   return result.rows[0];
@@ -232,6 +232,89 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
       tags: (tagsByScreen.get(Number(screen.id)) || []).map((row) => row.tag),
       branches: branchesByScreen.get(Number(screen.id)) || [],
     })),
+  };
+};
+
+const buildPlayerPreviewManifest = ({ session, screens, content }) => {
+  const elementsByScreen = groupBy(content.elements, 'screen_id');
+  const tagsByScreen = groupBy(content.tags, 'screen_id');
+  const branchesByScreen = groupBy(content.branches, 'source_screen_id');
+  return {
+    manifest_version: 2,
+    release_number: 0,
+    session: {
+      session_id: Number(session.id),
+      revision_no: Number(session.revision_no),
+      client_id: session.client_id,
+      subtopic_id: session.subtopic_id,
+      program_id: Number(session.program_id),
+      program_school_id: session.program_school_id,
+      title: session.title,
+      description: session.description,
+    },
+    screens: screens.map((screen) => ({
+      screen_id: Number(screen.id),
+      revision_no: Number(screen.revision_no),
+      client_id: screen.client_id,
+      title: screen.title,
+      screen_number: Number(screen.screen_number),
+      display_order: Number(screen.display_order),
+      creation_mode: screen.creation_mode,
+      screen_settings_json: screen.screen_settings_json,
+      layout: screen.layout_id ? {
+        layout_id: Number(screen.layout_id),
+        layout_key: screen.layout_key,
+        version_no: Number(screen.layout_version_no),
+        name: screen.layout_name,
+        description: screen.layout_description,
+        layout_data_json: screen.layout_data_json,
+        thumbnail_url: screen.thumbnail_url,
+        is_default: screen.is_default,
+        canvas_width: Number(screen.canvas_width),
+        canvas_height: Number(screen.canvas_height),
+        safe_margin: Number(screen.safe_margin),
+      } : null,
+      elements: (elementsByScreen.get(Number(screen.id)) || []).map((element) => ({
+        screen_element_id: Number(element.screen_element_id),
+        element_key: element.element_key,
+        slot_id: element.slot_id,
+        element_type: element.element_type,
+        content_json: element.content_json,
+        position_json: element.position_json,
+        display_order: Number(element.display_order),
+        resource_mapping: element.mapping_id ? {
+          resource_id: Number(element.resource_id),
+          resource_version_id: Number(element.resource_version_id),
+          version_number: Number(element.version_number),
+          name: element.resource_name,
+          resource_type: element.resource_type,
+          external_url: element.external_url,
+          mime_type: element.mime_type,
+          width: element.width === null ? null : Number(element.width),
+          height: element.height === null ? null : Number(element.height),
+        } : null,
+      })),
+      tags: (tagsByScreen.get(Number(screen.id)) || []).map((row) => row.tag),
+      branches: branchesByScreen.get(Number(screen.id)) || [],
+    })),
+  };
+};
+
+export const getSessionPlayerPreview = async ({ sessionId: rawSessionId, user }) => {
+  assertPublisher(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const db = { query: dbQuery };
+  const session = await loadSessionForPublish(db, sessionId, { lock: false });
+  assertPublisherTenant(session, user);
+  const screens = await loadScreens(db, sessionId);
+  const content = await loadScreenContent(db, screens.map((screen) => Number(screen.id)));
+  return {
+    id: 0,
+    client_id: session.client_id,
+    session_id: sessionId,
+    release_number: 0,
+    published_at: null,
+    manifest: buildPlayerPreviewManifest({ session, screens, content }),
   };
 };
 

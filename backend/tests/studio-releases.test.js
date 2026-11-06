@@ -7,6 +7,7 @@ import {
   getPublishedTeachingMaterials,
   getPublishedReleaseByNumber,
   getCurrentTeacherRelease,
+  getSessionPlayerPreview,
   listPublishedSessionReleases,
   listPublishedSessions,
   publishSessionRelease,
@@ -283,6 +284,47 @@ test('published Session history returns immutable releases newest first', async 
   });
   assert.deepEqual(releases.map((release) => release.release_number), [2, 1]);
   assert.deepEqual(releases.map((release) => release.screen_count), [2, 1]);
+});
+
+test('author player preview returns current draft screens without creating a release', async (t) => {
+  const originalQuery = pool.query;
+  const calls = [];
+  pool.query = async (text) => {
+    const sql = normalizeSql(text);
+    calls.push(sql);
+    if (sql.includes('from sessions se')) return { rows: [{
+      id: 25, client_id: 7, subtopic_id: 8, title: 'Draft Motion', description: null,
+      status: 'draft', revision_no: 7, program_id: 4, program_school_id: 9,
+    }] };
+    if (sql.includes('from screens sc')) return { rows: [{
+      id: 40, client_id: 7, title: 'Current draft Screen', screen_number: 1,
+      display_order: 0, creation_mode: 'blank', revision_no: 5,
+      screen_settings_json: {}, layout_id: null,
+    }] };
+    if (sql.includes('from screen_elements se')) return { rows: [{
+      screen_id: 40, screen_element_id: 60, element_key: 'image-1', slot_id: null,
+      element_type: 'image', content_json: {}, position_json: {}, display_order: 0,
+      mapping_id: 70, resource_id: 80, resource_version_id: 82, version_number: 2,
+      resource_name: 'Motion image', resource_type: 'image', external_url: null,
+      mime_type: 'image/png', width: 1200, height: 800,
+    }] };
+    if (sql.includes('from screen_tags')) return { rows: [{ screen_id: 40, tag: 'motion' }] };
+    if (sql.includes('from screen_branches')) return { rows: [] };
+    throw new Error(`Unhandled query: ${sql}`);
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const preview = await getSessionPlayerPreview({
+    sessionId: 25,
+    user: { id: 21, role: 'content_authorizer', client_id: 7 },
+  });
+
+  assert.equal(preview.release_number, 0);
+  assert.equal(preview.manifest.session.title, 'Draft Motion');
+  assert.equal(preview.manifest.screens[0].title, 'Current draft Screen');
+  assert.equal(preview.manifest.screens[0].elements[0].resource_mapping.resource_version_id, 82);
+  assert.equal(calls.some((sql) => sql.includes('insert into session_releases')), false);
+  assert.equal(calls[0].includes('for update'), false);
 });
 
 test('published viewer response excludes Plan, Screen Script and workflow metadata', async (t) => {

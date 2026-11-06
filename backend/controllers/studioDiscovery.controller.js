@@ -21,3 +21,18 @@ export const getBranchDestinations = respond((req) => discovery.getBranchDestina
   user: req.user,
 }));
 
+export const discoverPublishedContent = respond((req) => discovery.discoverPublishedContent({
+  releaseId: req.query.release_id,
+  screenId: req.query.screen_id,
+  type: req.query.type,
+  topicId: req.query.topic_id,
+  subtopicId: req.query.subtopic_id,
+  tags: req.query.tags,
+  pedagogy: req.query.pedagogy,
+  bloom: req.query.bloom,
+  search: req.query.search,
+  limit: req.query.limit,
+  cursor: req.query.cursor,
+  user: req.user,
+}));
+

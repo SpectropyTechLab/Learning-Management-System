@@ -48,6 +48,18 @@ export const getCurrentPublishedRelease = async (req, res) => {
   }
 };
 
+export const getSessionPlayerPreview = async (req, res) => {
+  try {
+    const release = await releases.getSessionPlayerPreview({
+      sessionId: req.params.sessionId,
+      user: req.user,
+    });
+    return res.json({ release });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 export const getPublishedReleaseByNumber = async (req, res) => {
   try {
     const release = await releases.getPublishedReleaseByNumber({
