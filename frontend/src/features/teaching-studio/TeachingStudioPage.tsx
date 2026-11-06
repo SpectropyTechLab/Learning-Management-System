@@ -1,25 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   Boxes,
+  Check,
   ChevronDown,
   ChevronUp,
-  Eraser,
+  Cloud,
+  CloudOff,
   Eye,
   FileText,
+  GalleryHorizontalEnd,
   LayoutTemplate,
   ListOrdered,
+  LoaderCircle,
   Paintbrush,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Pencil,
-  PenLine,
   Plus,
   Redo2,
+  RefreshCw,
   Save,
   Shapes,
   Sigma,
@@ -34,6 +39,7 @@ import toast from 'react-hot-toast';
 import {
   createBlankStudioScreen,
   deleteStudioScreen,
+  getStudioErrorDetails,
   getStudioErrorMessage,
   getStudioScreen,
   listStudioScreens,
@@ -46,24 +52,34 @@ import StudioShell from './components/StudioShell';
 import StudioLayoutGallery from './components/StudioLayoutGallery';
 import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
+import StudioAnimationsPanel from './components/StudioAnimationsPanel';
 import StudioMathPanel from './components/StudioMathPanel';
 import StudioShapesPanel from './components/StudioShapesPanel';
-import StudioAnimationsPanel from './components/StudioAnimationsPanel';
+import StudioIconButton from './components/StudioIconButton';
+import StudioDrawingPanel from './components/StudioDrawingPanel';
+import StudioTransitionsPanel from './components/StudioTransitionsPanel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
 import type { StudioLayoutSummary } from './api/studioEditorApi';
-import type { StudioResourceSummary } from './api/studioResourcesApi';
+import type { StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
 import {
   approveStudioSession,
   getStudioWorkflowStatus,
   publishStudioSession,
+  startStudioSessionRevision,
   submitStudioSession,
   workflowError,
 } from './api/studioWorkflowApi';
 import type { StudioValidationProblem, StudioWorkflowStatus } from './api/studioWorkflowApi';
 import type { ScreenScriptRow } from './api/studioDocumentsApi';
-import type { AuthorDrawingStroke, StudioElement, StudioScreen, StudioScreenList } from './types';
+import type {
+  AuthorDrawingStroke,
+  StudioDrawingTool,
+  StudioElement,
+  StudioScreen,
+  StudioScreenList,
+} from './types';
 import type { Layout, ObjectType, Slot } from './layouts';
 import { targetLayouts } from './targetLayouts';
 import { remapElementsToLayout } from './layoutApplication';
@@ -107,7 +123,16 @@ export default function TeachingStudioPage() {
   const [screenRequestVersion, setScreenRequestVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<
-    'layouts' | 'script' | 'resources' | 'elements' | 'math' | 'shapes' | 'animations' | 'drawing' | null
+    | 'layouts'
+    | 'script'
+    | 'resources'
+    | 'elements'
+    | 'math'
+    | 'shapes'
+    | 'animations'
+    | 'transitions'
+    | 'drawing'
+    | null
   >('elements');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
@@ -128,11 +153,23 @@ export default function TeachingStudioPage() {
   const [elementFuture, setElementFuture] = useState<StudioElement[][]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [savingScreen, setSavingScreen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<
+    'idle' | 'pending' | 'saving' | 'saved' | 'error' | 'offline'
+  >('idle');
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const [sessionContext, setSessionContext] = useState<StudioSession | null>(null);
   const [sessionOptions, setSessionOptions] = useState<StudioSession[]>([]);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [contextBarOpen, setContextBarOpen] = useState(true);
+  const [revisionPromptOpen, setRevisionPromptOpen] = useState(false);
+  const [startingRevision, setStartingRevision] = useState(false);
+  const editorReadOnly = !workflowStatus || !['draft', 'rejected'].includes(workflowStatus.status);
+  const canStartRevision = Boolean(
+    workflowStatus && ['submitted', 'approved', 'published'].includes(workflowStatus.status),
+  );
+  const toolPanelOpen = rightPanelOpen && !editorReadOnly;
+  const showLegacyEditor = false;
   const [screenAction, setScreenAction] = useState<'remove-layout' | 'delete-screen' | null>(null);
   const [screenActionBusy, setScreenActionBusy] = useState(false);
   const [layoutEditRequest, setLayoutEditRequest] = useState<{
@@ -145,11 +182,36 @@ export default function TeachingStudioPage() {
   const [reorderOpen, setReorderOpen] = useState(false);
   const [reorderIds, setReorderIds] = useState<number[]>([]);
   const [reorderingScreens, setReorderingScreens] = useState(false);
-  const [drawingTool, setDrawingTool] = useState<'pen' | 'eraser'>('pen');
+  const [drawingTool, setDrawingTool] = useState<StudioDrawingTool>('pen');
   const [drawingColor, setDrawingColor] = useState('#ef4444');
   const [drawingWidth, setDrawingWidth] = useState(6);
+  const [drawingOpacity, setDrawingOpacity] = useState(1);
   const [drawingPast, setDrawingPast] = useState<AuthorDrawingStroke[][]>([]);
   const [drawingFuture, setDrawingFuture] = useState<AuthorDrawingStroke[][]>([]);
+  const [saveConflict, setSaveConflict] = useState<{
+    draft: StudioScreen;
+    latest: StudioScreen;
+  } | null>(null);
+  const selectedScreenRef = useRef<StudioScreen | null>(null);
+  const saveInFlightRef = useRef(false);
+  const saveDraftRef = useRef<(source?: 'autosave' | 'manual' | 'navigation') => Promise<boolean>>(
+    async () => true,
+  );
+
+  useEffect(() => {
+    selectedScreenRef.current = selectedScreen;
+  }, [selectedScreen]);
+
+  useEffect(() => {
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -186,10 +248,7 @@ export default function TeachingStudioPage() {
   }, [sessionId]);
 
   const refreshScreens = async () => {
-    if (hasUnsavedChanges) {
-      toast.error('Save or undo the current Screen changes before refreshing.');
-      return;
-    }
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
     const refreshed = await loadScreens();
     if (refreshed) toast.success('Studio Screens refreshed successfully.');
     else toast.error('Unable to refresh Studio Screens.');
@@ -200,21 +259,6 @@ export default function TeachingStudioPage() {
     setSelectedScreen(null);
     if (sessionId) void loadScreens();
   }, [loadScreens, sessionId]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    const controller = new AbortController();
-    void studioSetupApi
-      .session(sessionId, controller.signal)
-      .then(async (session) => {
-        setSessionContext(session);
-        setSessionOptions(await studioSetupApi.sessions(session.subtopic_id, controller.signal));
-      })
-      .catch(() => {
-        /* The editor remains usable if context labels cannot load. */
-      });
-    return () => controller.abort();
-  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -292,6 +336,8 @@ export default function TeachingStudioPage() {
           setDrawingPast([]);
           setDrawingFuture([]);
           setHasUnsavedChanges(false);
+          setSaveStatus('idle');
+          setSaveConflict(null);
         }
       })
       .catch((requestError) => {
@@ -308,20 +354,20 @@ export default function TeachingStudioPage() {
     };
   }, [screenRequestVersion, selectedScreenId]);
 
-  const selectScreen = (screenId: number) => {
+  const selectScreen = async (screenId: number) => {
     if (hasUnsavedChanges) {
-      toast.error('Save or undo the current Screen changes before switching Screens.');
-      return;
+      const saved = await saveDraftRef.current('navigation');
+      if (!saved) return;
     }
     setError(null);
     setSearchParams({ screen: String(screenId) });
   };
 
   const createBlankScreen = async () => {
-    if (!sessionId || creating) return;
+    if (!sessionId || creating || editorReadOnly) return;
     if (hasUnsavedChanges) {
-      toast.error('Save or undo the current Screen changes before creating another Screen.');
-      return;
+      const saved = await saveDraftRef.current('navigation');
+      if (!saved) return;
     }
     setCreating(true);
     setError(null);
@@ -339,8 +385,19 @@ export default function TeachingStudioPage() {
     }
   };
 
+  const leaveEditor = async () => {
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    navigate(-1);
+  };
+
+  const openPreview = async () => {
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    setPreviewOpen(true);
+  };
+
   const runWorkflowAction = async (action: 'submit' | 'approve' | 'publish') => {
     if (!sessionId || workflowAction) return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
     setWorkflowAction(action);
     setWorkflowProblems([]);
     try {
@@ -351,7 +408,7 @@ export default function TeachingStudioPage() {
         action === 'submit'
           ? 'Session submitted for review.'
           : action === 'approve'
-            ? 'Session revision approved.'
+            ? 'Session approved.'
             : 'Session published successfully.',
       );
       await loadWorkflow();
@@ -374,11 +431,56 @@ export default function TeachingStudioPage() {
     }
   };
 
+  const handleScreenSaveFailure = async (requestError: unknown, draft: StudioScreen) => {
+    const details = getStudioErrorDetails(requestError);
+    setError(details.message);
+    setSaveStatus(online ? 'error' : 'offline');
+    toast.error(details.message);
+    if (details.status !== 409) return;
+    try {
+      const latest = await getStudioScreen(draft.id);
+      setSelectedScreen(draft);
+      setHasUnsavedChanges(true);
+      setSaveConflict({ draft, latest });
+    } catch {
+      toast.error(
+        'The Screen changed on the server, but its latest saved state could not be loaded. Your draft remains open.',
+      );
+    }
+  };
+
+  const startRevision = async () => {
+    if (!sessionId || startingRevision) return;
+    setStartingRevision(true);
+    try {
+      const result = await startStudioSessionRevision(sessionId);
+      setRevisionPromptOpen(false);
+      setRightPanelOpen(true);
+      toast.success(
+        result.creates_new_release
+          ? 'Editable draft created. The current published version remains unchanged.'
+          : 'Session returned to Draft for updating.',
+      );
+      await Promise.all([loadWorkflow(), loadScreens()]);
+    } catch (requestError) {
+      toast.error(workflowError(requestError).message);
+      await loadWorkflow();
+    } finally {
+      setStartingRevision(false);
+    }
+  };
+
   const saveAppliedLayout = async (row: StudioLayoutSummary, layout: Layout) => {
-    if (!selectedScreen || applyingLayout) return;
+    if (!selectedScreen || applyingLayout || editorReadOnly) return;
     setApplyingLayout(true);
     setError(null);
     const remapped = remapElementsToLayout(selectedScreen.elements, layout);
+    const draft: StudioScreen = {
+      ...selectedScreen,
+      layout_id: row.id,
+      creation_mode: 'layout',
+      elements: remapped.elements,
+    };
     try {
       const saved = await updateStudioScreen(selectedScreen.id, {
         revision_no: selectedScreen.revision_no,
@@ -403,23 +505,22 @@ export default function TeachingStudioPage() {
       );
       await loadWorkflow();
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      await handleScreenSaveFailure(requestError, draft);
     } finally {
       setApplyingLayout(false);
     }
   };
 
-  const requestLayoutApplication = (row: StudioLayoutSummary, layout: Layout) => {
+  const requestLayoutApplication = async (row: StudioLayoutSummary, layout: Layout) => {
+    if (editorReadOnly) {
+      toast.error('Start an update before changing this Session.');
+      return;
+    }
     if (!selectedScreen) {
       toast.error('Select or create a Screen before applying a layout.');
       return;
     }
-    if (hasUnsavedChanges) {
-      toast.error('Save or undo the current Screen changes before changing its layout.');
-      return;
-    }
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
     if (selectedScreen.elements.length > 0) setPendingLayout({ row, layout });
     else void saveAppliedLayout(row, layout);
   };
@@ -439,7 +540,7 @@ export default function TeachingStudioPage() {
   }, [layouts, selectedScreen?.layout_id]);
 
   const commitElements = (elements: StudioElement[], selectElementId?: string | null) => {
-    if (!selectedScreen) return;
+    if (!selectedScreen || editorReadOnly) return;
     setElementPast((past) => [...past, selectedScreen.elements]);
     setElementFuture([]);
     setSelectedScreen({ ...selectedScreen, elements });
@@ -448,7 +549,7 @@ export default function TeachingStudioPage() {
   };
 
   const setAuthoredDrawings = (strokes: AuthorDrawingStroke[], recordHistory = true) => {
-    if (!selectedScreen) return;
+    if (!selectedScreen || editorReadOnly) return;
     const current = authoredDrawingStrokes(selectedScreen);
     if (recordHistory) {
       setDrawingPast((past) => [...past, current]);
@@ -459,6 +560,18 @@ export default function TeachingStudioPage() {
       screen_settings_json: {
         ...(selectedScreen.screen_settings_json ?? {}),
         author_drawings: { strokes },
+      },
+    });
+    setHasUnsavedChanges(true);
+  };
+
+  const setScreenTransition = (transition: Record<string, unknown>) => {
+    if (!selectedScreen || editorReadOnly) return;
+    setSelectedScreen({
+      ...selectedScreen,
+      screen_settings_json: {
+        ...(selectedScreen.screen_settings_json ?? {}),
+        transition,
       },
     });
     setHasUnsavedChanges(true);
@@ -499,7 +612,7 @@ export default function TeachingStudioPage() {
   };
 
   const addBlankElement = (type: ObjectType, region: Slot['region']) => {
-    if (!selectedScreen || selectedScreen.layout_id) return;
+    if (!selectedScreen || selectedScreen.layout_id || editorReadOnly) return;
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `element-${token}`;
@@ -523,7 +636,7 @@ export default function TeachingStudioPage() {
   };
 
   const addMathElement = (latex: string) => {
-    if (!selectedScreen) return;
+    if (!selectedScreen || editorReadOnly) return;
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `math-${token}`;
@@ -545,15 +658,22 @@ export default function TeachingStudioPage() {
   };
 
   const addShapeElement = (kind: string) => {
-    if (!selectedScreen) return;
-    const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+    if (!selectedScreen || editorReadOnly) return;
+    const token =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `shape-${token}`;
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
       type: 'shape',
       content: { kind, fill: '#dbeafe', stroke: '#1d4ed8', strokeWidth: 4, opacity: 1 },
-      position: { x: 560, y: 380, width: 800, height: 320, zIndex: selectedScreen.elements.length + 1 },
+      position: {
+        x: 560,
+        y: 380,
+        width: 800,
+        height: 320,
+        zIndex: selectedScreen.elements.length + 1,
+      },
     };
     commitElements([...selectedScreen.elements, element], element.id);
     setPanel('shapes');
@@ -561,7 +681,7 @@ export default function TeachingStudioPage() {
   };
 
   const updateElement = (updated: StudioElement) => {
-    if (!selectedScreen) return;
+    if (!selectedScreen || editorReadOnly) return;
     commitElements(
       selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
       updated.id,
@@ -569,7 +689,7 @@ export default function TeachingStudioPage() {
   };
 
   const changeElementContent = (elementId: string, changes: Record<string, unknown>) => {
-    if (!selectedScreen) return;
+    if (!selectedScreen || editorReadOnly) return;
     const element = selectedScreen.elements.find((candidate) => candidate.id === elementId);
     if (!element) return;
     updateElement({ ...element, content: { ...element.content, ...changes } });
@@ -591,11 +711,11 @@ export default function TeachingStudioPage() {
       selectedScreen.elements.filter((element) => element.id !== elementId),
       null,
     );
-    toast.success('Element removed from the draft. Save to persist the change.');
+    toast.success('Element removed. AutoSave will store the updated draft.');
   };
 
   const duplicateElement = (elementId: string) => {
-    if (!selectedScreen) return;
+    if (!selectedScreen || editorReadOnly) return;
     const source = selectedScreen.elements.find((element) => element.id === elementId);
     if (!source) return;
     if (selectedScreen.layout_id && source.type !== 'math' && source.type !== 'shape') return;
@@ -624,7 +744,14 @@ export default function TeachingStudioPage() {
     toast.success('Element duplicated. Move it to the required position, then Save.');
   };
 
-  const bindResourceToSelectedElement = (resource: StudioResourceSummary) => {
+  const bindResourceToSelectedElement = (
+    resource: StudioResourceSummary,
+    selectedVersion?: StudioResourceVersion,
+  ) => {
+    if (editorReadOnly) {
+      toast.error('Start an update before changing this Session.');
+      return;
+    }
     if (!selectedScreen || !selectedElementId) {
       toast.error('Select a visual or media element before choosing a Resource.');
       return;
@@ -637,13 +764,7 @@ export default function TeachingStudioPage() {
       );
       return;
     }
-    if (!canPlaceResource(element.type, resource.resource_type)) {
-      toast.error(
-        `${resource.resource_type} Resources cannot be placed in a ${element.type} element.`,
-      );
-      return;
-    }
-    const version = resource.latest_version;
+    const version = selectedVersion || resource.latest_version;
     if (!version) {
       toast.error('This Resource has no available version.');
       return;
@@ -670,7 +791,9 @@ export default function TeachingStudioPage() {
       updated.id,
     );
     setPanel('elements');
-    toast.success(`${resource.name} linked to the selected element. Save to persist it.`);
+    toast.success(
+      `${resource.name} linked to the selected element. AutoSave will store the change.`,
+    );
   };
 
   const undoElementChange = () => {
@@ -693,60 +816,116 @@ export default function TeachingStudioPage() {
     setHasUnsavedChanges(true);
   };
 
-  const saveScreenDraft = async () => {
-    if (!selectedScreen || !hasUnsavedChanges || savingScreen) return;
+  const saveScreenDraft = async (source: 'autosave' | 'manual' | 'navigation' = 'manual') => {
+    const draft = selectedScreenRef.current;
+    if (!draft || !hasUnsavedChanges || editorReadOnly) return true;
+    if (!online) {
+      setSaveStatus('offline');
+      if (source !== 'autosave')
+        toast.error('You are offline. Reconnect before leaving this Screen.');
+      return false;
+    }
+    if (saveInFlightRef.current) return false;
+    saveInFlightRef.current = true;
     setSavingScreen(true);
+    setSaveStatus('saving');
     try {
-      const saved = await updateStudioScreen(selectedScreen.id, {
-        revision_no: selectedScreen.revision_no,
-        title: selectedScreen.title,
-        layout_id: selectedScreen.layout_id,
-        elements: selectedScreen.elements,
-        tags: selectedScreen.tags,
-        screen_settings: selectedScreen.screen_settings_json ?? {},
+      const saved = await updateStudioScreen(draft.id, {
+        revision_no: draft.revision_no,
+        title: draft.title,
+        layout_id: draft.layout_id,
+        elements: draft.elements,
+        tags: draft.tags,
+        screen_settings: draft.screen_settings_json ?? {},
       });
-      setSelectedScreen(saved);
+      const changedWhileSaving = selectedScreenRef.current !== draft;
+      setSelectedScreen((current) => {
+        if (!current || current.id !== saved.id) return current;
+        return changedWhileSaving ? { ...current, revision_no: saved.revision_no } : saved;
+      });
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
-        screens: current.screens.map((screen) => (screen.id === saved.id ? saved : screen)),
+        screens: current.screens.map((screen) =>
+          screen.id === saved.id
+            ? changedWhileSaving
+              ? { ...screen, revision_no: saved.revision_no }
+              : saved
+            : screen,
+        ),
       }));
-      setElementPast([]);
-      setElementFuture([]);
-      setDrawingPast([]);
-      setDrawingFuture([]);
-      setHasUnsavedChanges(false);
-      toast.success(`Screen ${saved.screen_number} saved as revision ${saved.revision_no}.`);
-      await loadWorkflow();
+      if (!changedWhileSaving) {
+        setElementPast([]);
+        setElementFuture([]);
+        setDrawingPast([]);
+        setDrawingFuture([]);
+        setHasUnsavedChanges(false);
+        setSaveStatus('saved');
+      } else {
+        setSaveStatus('pending');
+      }
+      if (source === 'manual') toast.success('Screen saved.');
+      void loadWorkflow();
+      return !changedWhileSaving;
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      await handleScreenSaveFailure(requestError, draft);
+      return false;
     } finally {
+      saveInFlightRef.current = false;
       setSavingScreen(false);
     }
   };
 
-  const requestScreenAction = (action: 'remove-layout' | 'delete-screen') => {
-    if (!selectedScreen) return;
-    if (hasUnsavedChanges) {
-      toast.error('Save or undo the current Screen changes before continuing.');
+  saveDraftRef.current = saveScreenDraft;
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || editorReadOnly || savingScreen || saveConflict) return;
+    if (!online) {
+      setSaveStatus('offline');
       return;
     }
+    setSaveStatus('pending');
+    const timer = window.setTimeout(() => {
+      void saveDraftRef.current('autosave');
+    }, 1600);
+    return () => window.clearTimeout(timer);
+  }, [editorReadOnly, hasUnsavedChanges, online, saveConflict, savingScreen, selectedScreen]);
+
+  useEffect(() => {
+    const saveNow = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void saveDraftRef.current('manual');
+      }
+    };
+    window.addEventListener('keydown', saveNow);
+    return () => window.removeEventListener('keydown', saveNow);
+  }, []);
+
+  useEffect(() => {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges && !savingScreen) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [hasUnsavedChanges, savingScreen]);
+
+  const requestScreenAction = async (action: 'remove-layout' | 'delete-screen') => {
+    if (!selectedScreen || editorReadOnly) return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
     setScreenAction(action);
   };
 
-  const openRenameScreen = () => {
-    if (!selectedScreen) return;
-    if (hasUnsavedChanges) {
-      toast.error('Save or undo the current Screen changes before renaming it.');
-      return;
-    }
+  const openRenameScreen = async () => {
+    if (!selectedScreen || editorReadOnly) return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
     setRenameTitle(selectedScreen.title);
     setRenameOpen(true);
   };
 
   const renameScreen = async () => {
-    if (!selectedScreen || renamingScreen) return;
+    if (!selectedScreen || renamingScreen || editorReadOnly) return;
     const title = renameTitle.trim();
     if (!title) {
       toast.error('Screen title is required.');
@@ -772,19 +951,18 @@ export default function TeachingStudioPage() {
         screens: current.screens.map((screen) => (screen.id === saved.id ? saved : screen)),
       }));
       setRenameOpen(false);
-      toast.success(`Screen renamed and saved as revision ${saved.revision_no}.`);
+      setSaveStatus('saved');
+      toast.success('Screen renamed.');
       await loadWorkflow();
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      await handleScreenSaveFailure(requestError, { ...selectedScreen, title });
     } finally {
       setRenamingScreen(false);
     }
   };
 
   const confirmScreenAction = async () => {
-    if (!selectedScreen || !screenAction || screenActionBusy) return;
+    if (!selectedScreen || !screenAction || screenActionBusy || editorReadOnly) return;
     setScreenActionBusy(true);
     setError(null);
     try {
@@ -806,7 +984,7 @@ export default function TeachingStudioPage() {
         setElementFuture([]);
         setHasUnsavedChanges(false);
         setPanel('elements');
-        toast.success('Layout removed. Existing elements remain editable on the Screen.');
+        toast.success('Layout removed. Existing elements are preserved as freeform content.');
       } else {
         const deleted = await deleteStudioScreen(selectedScreen.id);
         const remaining = screenList.screens.filter((screen) => screen.id !== selectedScreen.id);
@@ -823,15 +1001,20 @@ export default function TeachingStudioPage() {
       setScreenAction(null);
       await loadWorkflow();
     } catch (requestError) {
-      const response = getStudioErrorMessage(requestError);
-      setError(response);
-      toast.error(response);
+      if (screenAction === 'remove-layout') {
+        await handleScreenSaveFailure(requestError, { ...selectedScreen, layout_id: null });
+      } else {
+        const response = getStudioErrorMessage(requestError);
+        setError(response);
+        toast.error(response);
+      }
     } finally {
       setScreenActionBusy(false);
     }
   };
 
   const openScreenReorder = () => {
+    if (editorReadOnly) return;
     setReorderIds(screenList.screens.map((screen) => screen.id));
     setReorderOpen(true);
   };
@@ -847,7 +1030,7 @@ export default function TeachingStudioPage() {
   };
 
   const saveScreenOrder = async () => {
-    if (!sessionId || reorderingScreens || reorderIds.length === 0) return;
+    if (!sessionId || editorReadOnly || reorderingScreens || reorderIds.length === 0) return;
     setReorderingScreens(true);
     setError(null);
     try {
@@ -906,18 +1089,64 @@ export default function TeachingStudioPage() {
   return (
     <StudioShell
       title="Screen Editor"
-      subtitle={`Session ${sessionId} · Revision ${screenList.session_revision_no || '—'}`}
+      subtitle={`Session ${sessionId}`}
       scrollContent={false}
       wrapContent={false}
       actions={
-        <button
-          type="button"
-          onClick={() => void refreshScreens()}
-          disabled={loadingScreens}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loadingScreens ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-2">
+          <div
+            className="flex min-w-[82px] items-center justify-end gap-1 text-xs font-semibold text-slate-600"
+            aria-live="polite"
+          >
+            {saveStatus === 'saving' && (
+              <>
+                <LoaderCircle size={15} className="animate-spin" />
+                Saving
+              </>
+            )}
+            {saveStatus === 'pending' && (
+              <>
+                <Cloud size={15} />
+                Pending
+              </>
+            )}
+            {saveStatus === 'saved' && (
+              <>
+                <Check size={15} className="text-emerald-600" />
+                Saved
+              </>
+            )}
+            {saveStatus === 'offline' && (
+              <>
+                <CloudOff size={15} className="text-amber-700" />
+                Offline
+              </>
+            )}
+            {saveStatus === 'error' && (
+              <>
+                <CloudOff size={15} className="text-red-700" />
+                Save failed
+              </>
+            )}
+            {saveStatus === 'idle' && (
+              <>
+                <Cloud size={15} />
+                AutoSave
+              </>
+            )}
+          </div>
+          <StudioIconButton
+            label="Back"
+            icon={<ArrowLeft size={17} />}
+            onClick={() => void leaveEditor()}
+          />
+          <StudioIconButton
+            label={loadingScreens ? 'Refreshing Screens' : 'Refresh Screens'}
+            icon={<RefreshCw size={17} className={loadingScreens ? 'animate-spin' : ''} />}
+            onClick={() => void refreshScreens()}
+            disabled={loadingScreens}
+          />
+        </div>
       }
     >
       <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden bg-slate-100 p-2">
@@ -943,68 +1172,69 @@ export default function TeachingStudioPage() {
                 <b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}
               </span>
               <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
-              <button
-                type="button"
-                disabled={elementPast.length === 0}
-                onClick={undoElementChange}
-                title="Undo the latest element change"
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Undo2 size={14} />
-                Undo
-              </button>
-              <button
-                type="button"
-                disabled={elementFuture.length === 0}
-                onClick={redoElementChange}
-                title="Redo the latest element change"
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Redo2 size={14} />
-                Redo
-              </button>
-              <button
-                type="button"
-                disabled={!hasUnsavedChanges || savingScreen}
-                onClick={() => void saveScreenDraft()}
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-blue-900 px-2 py-1.5 text-xs font-semibold text-blue-900 disabled:opacity-40"
-              >
-                <Save size={14} />
-                Save
-              </button>
-              <button
-                type="button"
-                disabled={!selectedScreen}
-                onClick={() => setPreviewOpen(true)}
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-900 px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
-              >
-                <Eye size={14} />
-                Preview
-              </button>
-              <button
-                type="button"
-                onClick={() => void loadWorkflow(true)}
-                disabled={loadingWorkflow}
-                className="shrink-0 rounded-lg border px-2 py-1.5 text-xs font-semibold"
-              >
-                Check
-              </button>
-              {workflowStatus?.can_submit && (
-                <button
-                  type="button"
-                  onClick={() => void runWorkflowAction('submit')}
-                  className="shrink-0 rounded-lg bg-blue-900 px-2 py-1.5 text-xs font-semibold text-white"
-                >
-                  Submit
-                </button>
-              )}
-              {workflowStatus && (
-                <span
-                  className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
-                >
-                  Publication: {workflowStatus.validation.valid ? 'Ready' : 'Action required'}
-                </span>
-              )}
+                <StudioIconButton
+                  label="Undo"
+                  icon={<Undo2 size={15} />}
+                  disabled={editorReadOnly || elementPast.length === 0}
+                  onClick={undoElementChange}
+                />
+                <StudioIconButton
+                  label="Redo"
+                  icon={<Redo2 size={15} />}
+                  disabled={editorReadOnly || elementFuture.length === 0}
+                  onClick={redoElementChange}
+                />
+                <StudioIconButton
+                  label={savingScreen ? 'Saving Screen' : 'Save now'}
+                  icon={
+                    savingScreen ? (
+                      <LoaderCircle size={15} className="animate-spin" />
+                    ) : (
+                      <Save size={15} />
+                    )
+                  }
+                  disabled={editorReadOnly || !hasUnsavedChanges || savingScreen}
+                  onClick={() => void saveScreenDraft('manual')}
+                />
+                <StudioIconButton
+                  label="Preview Screen"
+                  icon={<Eye size={15} />}
+                  tone="primary"
+                  disabled={!selectedScreen}
+                  onClick={() => void openPreview()}
+                />
+                <StudioIconButton
+                  label={
+                    loadingWorkflow
+                      ? 'Checking publication readiness'
+                      : 'Check publication readiness'
+                  }
+                  icon={
+                    loadingWorkflow ? (
+                      <LoaderCircle size={15} className="animate-spin" />
+                    ) : (
+                      <Check size={15} />
+                    )
+                  }
+                  onClick={() => void loadWorkflow(true)}
+                  disabled={loadingWorkflow}
+                />
+                {workflowStatus?.can_submit && (
+                  <button
+                    type="button"
+                    onClick={() => void runWorkflowAction('submit')}
+                    className="shrink-0 rounded-lg bg-blue-900 px-2 py-1.5 text-xs font-semibold text-white"
+                  >
+                    Submit
+                  </button>
+                )}
+                {workflowStatus && (
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
+                  >
+                    Publication: {workflowStatus.validation.valid ? 'Ready' : 'Action required'}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -1037,7 +1267,7 @@ export default function TeachingStudioPage() {
                   <select
                     aria-label="Select Screen"
                     value={selectedScreenId || ''}
-                    onChange={(event) => selectScreen(Number(event.target.value))}
+                    onChange={(event) => void selectScreen(Number(event.target.value))}
                     className="absolute inset-0 h-full w-full cursor-pointer bg-white text-slate-900 opacity-0"
                   >
                     {screenList.screens.map((screen) => (
@@ -1049,11 +1279,12 @@ export default function TeachingStudioPage() {
                 </span>
               </label>
               <div className="ml-auto flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  disabled={!selectedScreen?.layout_id}
+                <StudioIconButton
+                  label="Edit layout"
+                  icon={<Pencil size={15} />}
+                  disabled={editorReadOnly || !selectedScreen?.layout_id}
                   onClick={() => {
-                    if (!selectedScreen?.layout_id) return;
+                    if (!selectedScreen?.layout_id || editorReadOnly) return;
                     setRightPanelOpen(true);
                     setPanel('layouts');
                     setLayoutEditRequest({
@@ -1061,74 +1292,70 @@ export default function TeachingStudioPage() {
                       requestId: Date.now(),
                     });
                   }}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-40"
-                >
-                  <Pencil size={14} />
-                  Edit layout
-                </button>
+                />
                 {selectedScreen?.layout_id && (
-                  <button
-                    type="button"
+                  <StudioIconButton
+                    label="Remove layout"
+                    icon={<Unlink size={15} />}
+                    disabled={editorReadOnly}
                     onClick={() => requestScreenAction('remove-layout')}
-                    className="inline-flex items-center gap-1 rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs font-semibold text-amber-800"
-                  >
-                    <Unlink size={14} />
-                    Remove layout
-                  </button>
+                  />
                 )}
-                <button
-                  type="button"
-                  disabled={!selectedScreen}
+                <StudioIconButton
+                  label="Rename Screen"
+                  icon={<Type size={15} />}
+                  disabled={editorReadOnly || !selectedScreen}
                   onClick={openRenameScreen}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-40"
-                >
-                  <Type size={14} />
-                  Rename screen
-                </button>
-                <button
-                  type="button"
-                  disabled={screenList.screens.length < 2 || hasUnsavedChanges}
-                  onClick={openScreenReorder}
-                  title={
-                    hasUnsavedChanges
-                      ? 'Save the current Screen before reordering'
-                      : 'Reorder Screens'
+                />
+                <StudioIconButton
+                  label={
+                    hasUnsavedChanges ? 'Wait for AutoSave before reordering' : 'Reorder Screens'
                   }
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-40"
-                >
-                  <ListOrdered size={14} />
-                  Reorder screens
-                </button>
-                <button
-                  type="button"
-                  disabled={!selectedScreen}
+                  icon={<ListOrdered size={15} />}
+                  disabled={editorReadOnly || screenList.screens.length < 2 || hasUnsavedChanges}
+                  onClick={openScreenReorder}
+                />
+                <StudioIconButton
+                  label="Delete Screen"
+                  icon={<Trash2 size={15} />}
+                  tone="danger"
+                  disabled={editorReadOnly || !selectedScreen}
                   onClick={() => requestScreenAction('delete-screen')}
-                  className="inline-flex items-center gap-1 rounded-lg border border-red-300 px-2.5 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-40"
-                >
-                  <Trash2 size={14} />
-                  Delete screen
-                </button>
-                <button
-                  type="button"
+                />
+                <StudioIconButton
+                  label="Hide context controls"
+                  icon={<ChevronUp size={15} />}
                   onClick={() => setContextBarOpen(false)}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
-                  aria-label="Hide context controls"
-                >
-                  <ChevronUp size={15} />
-                  Hide
-                </button>
+                />
               </div>
             </div>
           </section>
         ) : (
-          <button
-            type="button"
+          <StudioIconButton
+            label="Show context and actions"
+            icon={<ChevronDown size={15} />}
             onClick={() => setContextBarOpen(true)}
-            className="inline-flex w-fit shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm"
-          >
-            <ChevronDown size={15} />
-            Show context and actions
-          </button>
+            className="shadow-sm"
+          />
+        )}
+        {workflowStatus && editorReadOnly && (
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+            <span>
+              <strong className="capitalize">{workflowStatus.status}</strong> Sessions are
+              view-only. Return this Session to an editable Draft when changes are required.
+            </span>
+            {canStartRevision && (
+              <button
+                type="button"
+                onClick={() => setRevisionPromptOpen(true)}
+                className="rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                {workflowStatus.status === 'published'
+                  ? 'Edit published Session'
+                  : 'Return to Draft'}
+              </button>
+            )}
+          </div>
         )}
         {error && (
           <div className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -1138,7 +1365,8 @@ export default function TeachingStudioPage() {
         <div
           className="grid min-h-0 flex-1 gap-2 overflow-x-auto"
           style={{
-            gridTemplateColumns: `${leftPanelOpen ? 'minmax(220px, 260px)' : '40px'} minmax(560px, 1fr) ${rightPanelOpen ? 'minmax(280px, 340px)' : '40px'}`,
+            gridTemplateColumns:
+              `${leftPanelOpen ? 'minmax(220px, 260px)' : '40px'} minmax(560px, 1fr) ${toolPanelOpen ? 'minmax(280px, 340px)' : editorReadOnly ? '' : '40px'}`.trim(),
           }}
         >
           {leftPanelOpen && (
@@ -1202,39 +1430,47 @@ export default function TeachingStudioPage() {
                 selectedElementId={selectedElementId}
                 onSelectElement={(elementId) => {
                   setSelectedElementId(elementId);
-                  setPanel(
-                    selectedScreen?.elements.find((element) => element.id === elementId)?.type ===
-                      'math'
-                      ? 'math'
-                      : selectedScreen?.elements.find((element) => element.id === elementId)?.type === 'shape'
-                        ? 'shapes'
-                      : 'elements',
-                  );
+                  if (!editorReadOnly) {
+                    const type = selectedScreen?.elements.find(
+                      (element) => element.id === elementId,
+                    )?.type;
+                    setPanel(type === 'math' ? 'math' : type === 'shape' ? 'shapes' : 'elements');
+                  }
                 }}
-                onChangeElementBounds={changeElementBounds}
-                onChangeElementContent={changeElementContent}
-                onOpenTool={(tool) => { setRightPanelOpen(true); setPanel(tool); }}
+                onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
+                onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
+                onOpenTool={
+                  editorReadOnly
+                    ? undefined
+                    : (tool) => {
+                        setRightPanelOpen(true);
+                        setPanel(tool);
+                      }
+                }
                 drawingStrokes={authoredDrawingStrokes(selectedScreen)}
-                drawingEnabled={panel === 'drawing'}
+                drawingEnabled={!editorReadOnly && panel === 'drawing'}
                 drawingTool={drawingTool}
                 drawingColor={drawingColor}
                 drawingWidth={drawingWidth}
-                onDrawingChange={setAuthoredDrawings}
+                drawingOpacity={drawingOpacity}
+                onDrawingChange={editorReadOnly ? undefined : setAuthoredDrawings}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => void createBlankScreen()}
-              disabled={creating || loadingScreens}
-              className="inline-flex w-44 shrink-0 self-center items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              <Plus size={16} />
-              {creating ? 'Adding Screen…' : 'Add Screen'}
-            </button>
+            {!editorReadOnly && (
+              <button
+                type="button"
+                onClick={() => void createBlankScreen()}
+                disabled={creating || loadingScreens}
+                className="inline-flex w-44 shrink-0 self-center items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                <Plus size={16} />
+                {creating ? 'Adding Screen…' : 'Add Screen'}
+              </button>
+            )}
           </main>
-          {rightPanelOpen && (
+          {toolPanelOpen && (
             <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="grid shrink-0 grid-cols-8 gap-1 border-b p-2">
+              <div className="grid shrink-0 grid-cols-9 gap-1 border-b p-2">
                 <button
                   type="button"
                   onClick={() => setRightPanelOpen(false)}
@@ -1288,6 +1524,15 @@ export default function TeachingStudioPage() {
                   className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'math' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
                 >
                   <Sigma size={17} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanel('transitions')}
+                  title="Transitions"
+                  aria-label="Transitions"
+                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'transitions' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
+                >
+                  <GalleryHorizontalEnd size={17} />
                 </button>
                 <button
                   type="button"
@@ -1347,90 +1592,50 @@ export default function TeachingStudioPage() {
                   />
                 )}
                 {panel === 'shapes' && (
-                  <StudioShapesPanel screen={selectedScreen} selectedElementId={selectedElementId} onAdd={addShapeElement} onUpdate={updateElement} onDuplicate={duplicateElement} onRemove={removeElement} />
+                  <StudioShapesPanel
+                    screen={selectedScreen}
+                    selectedElementId={selectedElementId}
+                    onAdd={addShapeElement}
+                    onUpdate={updateElement}
+                    onDuplicate={duplicateElement}
+                    onRemove={removeElement}
+                  />
                 )}
                 {panel === 'animations' && (
-                  <StudioAnimationsPanel screen={selectedScreen} selectedElementId={selectedElementId} onUpdate={updateElement} />
+                  <StudioAnimationsPanel
+                    screen={selectedScreen}
+                    selectedElementId={selectedElementId}
+                    onUpdate={updateElement}
+                  />
+                )}
+                {panel === 'transitions' && (
+                  <StudioTransitionsPanel
+                    settings={selectedScreen?.screen_settings_json ?? null}
+                    onChange={setScreenTransition}
+                  />
                 )}
                 {panel === 'drawing' && (
-                  <div>
-                    <h2 className="font-semibold text-slate-900">Author drawing</h2>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Saved with this Screen revision. Teacher run annotations remain separate.
-                    </p>
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDrawingTool('pen')}
-                        className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${drawingTool === 'pen' ? 'border-blue-900 bg-blue-900 text-white' : 'border-slate-300'}`}
-                      >
-                        <PenLine size={16} />
-                        Pen
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDrawingTool('eraser')}
-                        className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${drawingTool === 'eraser' ? 'border-blue-900 bg-blue-900 text-white' : 'border-slate-300'}`}
-                      >
-                        <Eraser size={16} />
-                        Eraser
-                      </button>
-                    </div>
-                    <label className="mt-4 block text-sm font-semibold text-slate-700">
-                      Color
-                      <input
-                        type="color"
-                        value={drawingColor}
-                        onChange={(event) => setDrawingColor(event.target.value)}
-                        className="mt-1 h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white p-1"
-                      />
-                    </label>
-                    <label className="mt-4 block text-sm font-semibold text-slate-700">
-                      Stroke width: {drawingWidth}
-                      <input
-                        type="range"
-                        min="2"
-                        max="24"
-                        value={drawingWidth}
-                        onChange={(event) => setDrawingWidth(Number(event.target.value))}
-                        className="mt-2 w-full"
-                      />
-                    </label>
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        disabled={drawingPast.length === 0}
-                        onClick={undoDrawing}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-40"
-                      >
-                        <Undo2 size={15} />
-                        Undo
-                      </button>
-                      <button
-                        type="button"
-                        disabled={drawingFuture.length === 0}
-                        onClick={redoDrawing}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-40"
-                      >
-                        <Redo2 size={15} />
-                        Redo
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={authoredDrawingStrokes(selectedScreen).length === 0}
-                      onClick={() => setAuthoredDrawings([])}
-                      className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
-                    >
-                      <Trash2 size={15} />
-                      Clear authored drawing
-                    </button>
-                  </div>
+                  <StudioDrawingPanel
+                    tool={drawingTool}
+                    color={drawingColor}
+                    width={drawingWidth}
+                    opacity={drawingOpacity}
+                    canUndo={drawingPast.length > 0}
+                    canRedo={drawingFuture.length > 0}
+                    hasDrawing={authoredDrawingStrokes(selectedScreen).length > 0}
+                    onToolChange={setDrawingTool}
+                    onColorChange={setDrawingColor}
+                    onWidthChange={setDrawingWidth}
+                    onOpacityChange={setDrawingOpacity}
+                    onUndo={undoDrawing}
+                    onRedo={redoDrawing}
+                    onClear={() => setAuthoredDrawings([])}
+                  />
                 )}
               </div>
             </aside>
           )}
-          {!rightPanelOpen && (
+          {!editorReadOnly && !rightPanelOpen && (
             <aside className="flex min-h-0 items-start justify-center rounded-xl border border-slate-200 bg-white py-2 shadow-sm">
               <button
                 type="button"
@@ -1445,7 +1650,7 @@ export default function TeachingStudioPage() {
           )}
         </div>
       </div>
-      {false && (
+      {showLegacyEditor && (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
             <button
@@ -1561,12 +1766,13 @@ export default function TeachingStudioPage() {
                         immutable Resource version.
                       </p>
                     </div>
-                    <a
-                      href="/studio/resources"
+                    <button
+                      type="button"
+                      onClick={() => navigate('/studio/resources')}
                       className="rounded-lg border border-blue-800 px-3 py-2 text-sm font-semibold text-blue-900"
                     >
                       Manage Resource library
-                    </a>
+                    </button>
                   </div>
                   {supportsResourcePlacement(selectedElement?.type) ? (
                     <ResourceLibrary
@@ -1671,8 +1877,8 @@ export default function TeachingStudioPage() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             <h2 className="text-lg font-semibold text-slate-900">Reorder Screens</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Move Screens into the required teaching order. Saving creates the next Session
-              revision.
+              Move Screens into the required teaching order. The new order is saved to the working
+              draft.
             </p>
             <div className="mt-4 max-h-[55dvh] space-y-2 overflow-y-auto pr-1">
               {reorderIds.map((screenId, index) => {
@@ -1754,7 +1960,7 @@ export default function TeachingStudioPage() {
           >
             <h2 className="text-lg font-semibold text-slate-900">Rename Screen</h2>
             <p className="mt-1 text-sm text-slate-600">
-              The new title will be saved as the next Screen revision.
+              The title is saved immediately, and AutoSave continues for later canvas changes.
             </p>
             <label className="mt-4 block text-sm font-semibold text-slate-700">
               Screen title
@@ -1804,7 +2010,7 @@ export default function TeachingStudioPage() {
             <p className="mt-2 text-sm text-slate-600">
               {screenAction === 'delete-screen'
                 ? 'This removes the complete Screen and its element placements. This action cannot be undone.'
-                : 'The Screen will become blank. Existing elements, positions and exact Resource versions will be preserved.'}
+                : 'The Screen will become blank/freeform. Existing elements, positions and exact Resource versions will be preserved.'}
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <button
@@ -1878,6 +2084,114 @@ export default function TeachingStudioPage() {
             </div>
           );
         })()}
+      {saveConflict && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Screen save conflict"
+        >
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-900">This Screen changed elsewhere</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Your unsaved draft is still safe in this editor, but a newer saved copy is available
+              on the server. Nothing has been overwritten.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                <b>Your draft:</b> {saveConflict.draft.elements.length} element
+                {saveConflict.draft.elements.length === 1 ? '' : 's'}
+              </div>
+              <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+                <b>Latest saved Screen:</b> {saveConflict.latest.elements.length} element
+                {saveConflict.latest.elements.length === 1 ? '' : 's'}
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedScreen(saveConflict.latest);
+                  setScreenList((current) => ({
+                    ...current,
+                    screens: current.screens.map((screen) =>
+                      screen.id === saveConflict.latest.id ? saveConflict.latest : screen,
+                    ),
+                  }));
+                  setElementPast([]);
+                  setElementFuture([]);
+                  setDrawingPast([]);
+                  setDrawingFuture([]);
+                  setHasUnsavedChanges(false);
+                  setSaveConflict(null);
+                  toast.success('Loaded the latest saved Screen.');
+                }}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Discard draft and load server
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedScreen({
+                    ...saveConflict.draft,
+                    revision_no: saveConflict.latest.revision_no,
+                  });
+                  setHasUnsavedChanges(true);
+                  setSaveConflict(null);
+                  toast.success('Your draft is ready to retry against the latest saved Screen.');
+                }}
+                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Keep draft and retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {revisionPromptOpen && workflowStatus && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Start Session update"
+        >
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-900">
+              {workflowStatus.status === 'published'
+                ? 'Edit the published Session?'
+                : 'Return this Session to Draft?'}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {workflowStatus.status === 'published'
+                ? 'The current published release remains unchanged for viewers. An editable Draft will open for your changes; it must pass review and approval before it can replace the published release.'
+                : `This Session is currently ${workflowStatus.status}. Returning it to Draft clears the current review or approval so it can be edited and submitted again.`}
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={startingRevision}
+                onClick={() => setRevisionPromptOpen(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={startingRevision}
+                onClick={() => void startRevision()}
+                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {startingRevision
+                  ? 'Preparing…'
+                  : workflowStatus.status === 'published'
+                    ? 'Create editable Draft'
+                    : 'Return to Draft'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {previewOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/80 p-2 sm:p-4"

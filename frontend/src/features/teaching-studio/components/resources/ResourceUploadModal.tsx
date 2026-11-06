@@ -47,7 +47,19 @@ const RESOURCE_FORMATS: Record<StudioResourceType, { short: string; help: string
     short: 'PPSX',
     help: 'Upload a Microsoft PowerPoint Show in .ppsx format.',
   },
+  model_3d: {
+    short: 'GLB',
+    help: 'Upload a self-contained .glb model. Embedded animations are detected and exposed by the 3D viewer.',
+  },
 };
+
+const DEFAULT_RESOURCE_FORMAT = {
+  short: 'Supported Resource file',
+  help: 'Choose a file supported by this Resource type.',
+};
+
+const getResourceFormat = (type: StudioResourceType) =>
+  RESOURCE_FORMATS[type] ?? DEFAULT_RESOURCE_FORMAT;
 
 interface ResourceUploadModalProps {
   open: boolean;
@@ -117,6 +129,7 @@ export default function ResourceUploadModal({
     zip: '.zip,application/zip',
     scorm: '.zip,application/zip',
     presentation: '.ppsx,application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+    model_3d: '.glb,model/gltf-binary,application/octet-stream',
   }[effectiveType]), [effectiveType]);
 
   if (!open) return null;
@@ -129,6 +142,12 @@ export default function ResourceUploadModal({
     if (file && file.size > MAX_FILE_SIZE) return 'The file must be 250 MB or smaller.';
     if (effectiveType === 'presentation' && file && !file.name.toLowerCase().endsWith('.ppsx')) {
       return 'PowerPoint Show Resources require a .ppsx file.';
+    }
+    if (effectiveType === 'model_3d') {
+      const sourceName = file?.name || externalUrl;
+      if (!sourceName.toLowerCase().split('?')[0].endsWith('.glb')) {
+        return '3D Model Resources require a self-contained .glb file or direct .glb URL.';
+      }
     }
     if (effectiveSourceMode === 'url') {
       if (!externalUrl.trim()) return 'External URL is required.';
@@ -183,9 +202,9 @@ export default function ResourceUploadModal({
               </label>
               <label className="text-sm font-semibold text-slate-700">Resource type
                 <select value={resourceType} onChange={(event) => { const value = event.target.value as StudioResourceType; setResourceType(value); setSourceMode(value === 'external_link' ? 'url' : 'file'); setFile(null); setExternalUrl(''); }} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100">
-                  {STUDIO_RESOURCE_TYPES.filter((type) => type !== 'html').map((type) => <option key={type} value={type}>{studioResourceTypeLabel(type)} — {RESOURCE_FORMATS[type].short}</option>)}
+                  {STUDIO_RESOURCE_TYPES.filter((type) => type !== 'html').map((type) => <option key={type} value={type}>{studioResourceTypeLabel(type)} — {getResourceFormat(type).short}</option>)}
                 </select>
-                <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">{RESOURCE_FORMATS[resourceType].help}</span>
+                <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">{getResourceFormat(resourceType).help}</span>
               </label>
               <div className="text-sm font-semibold text-slate-700">Status
                 <div className="mt-1.5 rounded-lg border border-gray-200 bg-slate-50 px-3 py-2.5 font-normal text-slate-600">Active on creation</div>
@@ -215,7 +234,7 @@ export default function ResourceUploadModal({
             <label className="block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/40">
               <UploadCloud className="mx-auto text-blue-800" size={34} />
               <span className="mt-3 block font-semibold text-slate-800">{file ? file.name : 'Choose a Resource file'}</span>
-              <span className="mt-1 block text-sm text-slate-600">Supported: {RESOURCE_FORMATS[effectiveType].short}</span>
+              <span className="mt-1 block text-sm text-slate-600">Supported: {getResourceFormat(effectiveType).short}</span>
               <span className="mt-0.5 block text-xs text-slate-500">Maximum file size: 250 MB</span>
               <input type="file" accept={accept} onChange={(event) => setFile(event.target.files?.[0] || null)} className="sr-only" />
             </label>

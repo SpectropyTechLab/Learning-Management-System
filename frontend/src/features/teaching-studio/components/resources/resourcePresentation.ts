@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Archive, Blocks, Code2, FileImage, Film, Link2, Package, Presentation, Video } from 'lucide-react';
+import { Archive, Box, Blocks, Code2, FileImage, Film, Link2, Package, Presentation, Video } from 'lucide-react';
 import type { StudioResourceType } from '../../api/studioResourcesApi';
 
 const KNOWN_RESOURCE_TYPE_STYLES: Record<StudioResourceType, { icon: LucideIcon; badge: string; preview: string }> = {
@@ -12,10 +12,11 @@ const KNOWN_RESOURCE_TYPE_STYLES: Record<StudioResourceType, { icon: LucideIcon;
   zip: { icon: Archive, badge: 'bg-purple-100 text-purple-800', preview: 'from-purple-50 to-fuchsia-100 text-purple-700' },
   scorm: { icon: Package, badge: 'bg-cyan-100 text-cyan-800', preview: 'from-cyan-50 to-blue-100 text-cyan-700' },
   presentation: { icon: Presentation, badge: 'bg-orange-100 text-orange-800', preview: 'from-orange-50 to-amber-100 text-orange-700' },
+  model_3d: { icon: Box, badge: 'bg-indigo-100 text-indigo-800', preview: 'from-indigo-50 to-violet-100 text-indigo-700' },
 };
 
-const FALLBACK_RESOURCE_TYPE_STYLE = {
-  icon: Archive,
+export const DEFAULT_RESOURCE_TYPE_STYLE = {
+  icon: Package,
   badge: 'bg-slate-100 text-slate-700',
   preview: 'from-slate-50 to-slate-200 text-slate-700',
 };
@@ -23,12 +24,12 @@ const FALLBACK_RESOURCE_TYPE_STYLE = {
 export const RESOURCE_TYPE_STYLES = new Proxy(KNOWN_RESOURCE_TYPE_STYLES, {
   get: (styles, property: string | symbol) =>
     typeof property === 'string'
-      ? styles[property as StudioResourceType] ?? FALLBACK_RESOURCE_TYPE_STYLE
+      ? styles[property as StudioResourceType] ?? DEFAULT_RESOURCE_TYPE_STYLE
       : Reflect.get(styles, property),
 });
 
 export const getResourceTypeStyle = (type: string | null | undefined) =>
-  RESOURCE_TYPE_STYLES[type as StudioResourceType] ?? FALLBACK_RESOURCE_TYPE_STYLE;
+  RESOURCE_TYPE_STYLES[type as StudioResourceType] ?? DEFAULT_RESOURCE_TYPE_STYLE;
 
 export const formatResourceTypeLabel = (type: string | null | undefined) => {
   if (!type) return 'Resource';

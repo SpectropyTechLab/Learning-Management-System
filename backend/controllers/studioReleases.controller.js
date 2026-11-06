@@ -9,6 +9,8 @@ const sendError = (res, error) => {
   return handleServiceError(res, error, 'Studio release request failed');
 };
 
+const asciiFileName = (value) => String(value || 'document').replace(/[^\x20-\x7E]|["\\]/g, '_');
+
 export const publishSessionRelease = async (req, res) => {
   try {
     const release = await releases.publishSessionRelease({ sessionId: req.params.sessionId, user: req.user });
@@ -59,6 +61,18 @@ export const getPublishedReleaseByNumber = async (req, res) => {
   }
 };
 
+export const listPublishedSessionReleases = async (req, res) => {
+  try {
+    const releaseList = await releases.listPublishedSessionReleases({
+      sessionId: req.params.sessionId,
+      user: req.user,
+    });
+    return res.json({ releases: releaseList });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 export const launchPublishedResource = async (req, res) => {
   try {
     const { versionId } = await releases.assertPinnedPublishedResourceAccess({
@@ -82,6 +96,33 @@ export const previewPublishedResource = async (req, res) => {
     });
     const data = await getRuntimePreview({ versionId, user: req.user, allowAuthorizedReader: true });
     return res.json({ data });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const getPublishedTeachingMaterials = async (req, res) => {
+  try {
+    const materials = await releases.getPublishedTeachingMaterials({
+      releaseId: req.params.releaseId,
+      user: req.user,
+    });
+    return res.json({ data: materials });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const downloadPublishedSessionPlan = async (req, res) => {
+  try {
+    const result = await releases.downloadPublishedSessionPlan({ releaseId: req.params.releaseId, user: req.user });
+    const encodedName = encodeURIComponent(result.fileName);
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Content-Length', String(result.sizeBytes));
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiFileName(result.fileName)}"; filename*=UTF-8''${encodedName}`);
+    res.setHeader('X-Content-SHA256', result.sha256);
+    res.setHeader('X-Studio-Document-Revision', String(result.revisionNo));
+    return res.send(result.bytes);
   } catch (error) {
     return sendError(res, error);
   }

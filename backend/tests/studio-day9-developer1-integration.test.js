@@ -22,6 +22,7 @@ const routes = sessionRouter.stack.filter((layer) => layer.route).flatMap((layer
 
 test('Day 9 exposes separate Studio session create and selection APIs', () => {
   assert.deepEqual(routes, [
+    'GET /studio/sessions',
     'GET /studio/subtopics/:subtopicId/sessions',
     'POST /studio/subtopics/:subtopicId/sessions',
     'GET /studio/sessions/:sessionId',

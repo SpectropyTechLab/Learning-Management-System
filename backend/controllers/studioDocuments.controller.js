@@ -47,5 +47,6 @@ export const saveScreenScript = respond((req) => studioDocuments.saveScreenScrip
   content: req.body.content, user: req.user,
 }));
 export const getCurriculumDocument = respond((req) => curriculumDocuments.getCurriculumDocument({ chapterId: Number(req.params.chapterId), user: req.user }));
+export const previewCurriculumDocument = respond((req) => curriculumDocuments.previewCurriculumDocument({ chapterId: Number(req.params.chapterId), user: req.user }));
 export const uploadCurriculumDocument = respond((req) => curriculumDocuments.uploadCurriculumDocument({ chapterId: Number(req.params.chapterId), file: req.file, user: req.user }));
 export const downloadCurriculumDocument = download((req) => curriculumDocuments.downloadCurriculumDocument({ chapterId: Number(req.params.chapterId), user: req.user }));

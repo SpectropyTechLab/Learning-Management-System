@@ -12,7 +12,7 @@ const { default: studioLayoutsRouter } = await import('../routes/studioLayouts.r
 const { downloadSessionPlan } = await import('../controllers/studioDocuments.controller.js');
 const {
   uploadSessionPlan,
-  downloadSessionPlan: downloadSessionPlanService,
+  downloadScreenScript: downloadScreenScriptService,
 } = await import('../services/studioDocuments.service.js');
 const { validateLayoutDefinition } = await import('../services/studioLayouts.service.js');
 
@@ -197,7 +197,7 @@ test('protected download returns byte-identical content with accurate headers', 
   assert.match(headers.get('Content-Disposition'), /filename\*=UTF-8''Lesson%20Plan%20%C3%BC\.docx/);
 });
 
-test('teacher download requires an active school assignment to the Session program', async (t) => {
+test('teacher Screen Script original-file download remains denied even for a published Session', async (t) => {
   const originalQuery = pool.query;
   let documentQueryRan = false;
   pool.query = async (text) => {
@@ -211,7 +211,6 @@ test('teacher download requires an active school assignment to the Session progr
         program_school_id: null,
       }] };
     }
-    if (sql.includes('from school_memberships')) return { rows: [] };
     if (sql.includes('from session_documents')) {
       documentQueryRan = true;
       return { rows: [] };
@@ -223,11 +222,11 @@ test('teacher download requires an active school assignment to the Session progr
   });
 
   await assert.rejects(
-    downloadSessionPlanService({
+    downloadScreenScriptService({
       sessionId: 41,
       user: { id: 700, role: 'teacher', client_id: 12 },
     }),
-    (error) => error?.status === 403 && error?.message === 'Access denied'
+    (error) => error?.status === 403 && /cannot download Screen Script files/i.test(error.message)
   );
   assert.equal(documentQueryRan, false);
 });

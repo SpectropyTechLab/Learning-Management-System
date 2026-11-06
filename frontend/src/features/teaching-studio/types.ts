@@ -15,13 +15,18 @@ export interface AuthorDrawingStroke {
   id: string;
   color: string;
   width: number;
+  tool?: Exclude<StudioDrawingTool, 'eraser'>;
+  opacity?: number;
   points: Array<{ x: number; y: number }>;
 }
+
+export type StudioDrawingTool = 'pen' | 'pencil' | 'fountain' | 'highlighter' | 'laser' | 'eraser';
 
 export interface StudioScreenSettings extends Record<string, unknown> {
   author_drawings?: {
     strokes: AuthorDrawingStroke[];
   };
+  transition?: Record<string, unknown>;
 }
 
 export interface StudioScreen {
@@ -43,4 +48,3 @@ export interface StudioScreenList {
   session_revision_no: number;
   screens: StudioScreen[];
 }
-

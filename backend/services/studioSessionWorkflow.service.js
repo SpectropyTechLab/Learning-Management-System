@@ -42,7 +42,7 @@ const loadSession = async (db, sessionId, { lock = false } = {}) => {
 const validateContent = async (db, session) => {
   const errors = [];
   const documentsResult = await db.query(
-    `SELECT id, document_type, revision_no, source_mode
+    `SELECT id, document_type, revision_no, source_mode, metadata_json
      FROM session_documents
      WHERE session_id = $1 AND is_current = TRUE`,
     [session.id]
@@ -302,6 +302,35 @@ export const getSessionStatus = async ({ sessionId: rawSessionId, user }) => {
     can_publish: session.status === 'approved' && validation.valid,
     validation,
   };
+};
+
+export const startSessionRevision = async ({ sessionId: rawSessionId, user }) => {
+  assertWorkflowRole(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  return runTransaction(async (db) => {
+    const session = await loadSession(db, sessionId, { lock: true });
+    assertTenantAccess(session, user);
+    if (!['submitted', 'approved', 'published'].includes(session.status)) {
+      throw new AppError('Only submitted, approved, or published Sessions can start a new draft revision', 409);
+    }
+    const result = await db.query(
+      `UPDATE sessions
+       SET status = 'draft', revision_no = revision_no + 1,
+           submitted_by = NULL, submitted_at = NULL,
+           approved_by = NULL, approved_at = NULL, approval_comment = NULL,
+           published_at = NULL, updated_at = NOW()
+       WHERE id = $1 AND status = $2
+       RETURNING id AS session_id, status, revision_no`,
+      [session.id, session.status],
+    );
+    if (!result.rows[0]) throw new AppError('Session status changed; reload before updating', 409);
+    return {
+      ...result.rows[0],
+      previous_status: session.status,
+      workflow_state: 'saved',
+      creates_new_release: session.status === 'published',
+    };
+  });
 };
 
 export const returnSessionToDraft = async (sessionId, db = { query: dbQuery }) => {

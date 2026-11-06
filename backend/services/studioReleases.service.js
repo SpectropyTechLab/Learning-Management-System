@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import supabase from '../config/supabaseClient.js';
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
 
@@ -494,6 +496,31 @@ export const getCurrentPublishedRelease = ({ sessionId, user }) =>
 export const getPublishedReleaseByNumber = ({ sessionId, releaseNumber, user }) =>
   getPublishedRelease({ sessionId, releaseNumber, user });
 
+export const listPublishedSessionReleases = async ({ sessionId: rawSessionId, user }) => {
+  assertPublishedReader(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const tenantId = publishedTenantId(user);
+  const result = await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE session_id = $1 AND ($2::int IS NULL OR client_id = $2)
+     ORDER BY release_number DESC`,
+    [sessionId, tenantId],
+  );
+  const releases = [];
+  for (const row of result.rows) {
+    await assertPublishedReleaseAccess(row, user);
+    releases.push({
+      id: Number(row.id),
+      session_id: Number(row.session_id),
+      release_number: Number(row.release_number),
+      published_at: row.published_at,
+      published_by: row.published_by === null ? null : Number(row.published_by),
+      screen_count: Array.isArray(row.manifest_json?.screens) ? row.manifest_json.screens.length : 0,
+    });
+  }
+  return releases;
+};
+
 export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleaseId, versionId: rawVersionId, user }) => {
   assertPublishedReader(user);
   const releaseId = parseId(rawReleaseId, 'Release ID');
@@ -511,6 +538,79 @@ export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleas
       Number(element.resource_mapping?.resource_version_id) === versionId));
   if (!pinned) throw new AppError('Resource version is not part of this published release', 403);
   return { release, versionId };
+};
+
+export const getPublishedTeachingMaterials = async ({ releaseId: rawReleaseId, user }) => {
+  assertPublishedReader(user);
+  const releaseId = parseId(rawReleaseId, 'Release ID');
+  const tenantId = publishedTenantId(user);
+  const release = (await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE id = $1 AND ($2::int IS NULL OR client_id = $2) LIMIT 1`,
+    [releaseId, tenantId],
+  )).rows[0];
+  if (!release) throw new AppError('Published Session release not found', 404);
+  await assertPublishedReleaseAccess(release, user);
+  const manifest = release.manifest_json || {};
+  const plan = manifest.documents?.session_plan;
+  const subtopicId = Number(manifest.session?.subtopic_id);
+  const curriculum = Number.isInteger(subtopicId) ? (await dbQuery(
+    `SELECT ch.id AS chapter_id, cd.id AS document_id, cd.revision_no,
+            cd.original_file_name, cd.content_type, cd.size_bytes
+     FROM subtopics st
+     JOIN topics t ON t.id = st.topic_id
+     JOIN chapters ch ON ch.id = t.chapter_id
+     LEFT JOIN chapter_curriculum_documents cd
+       ON cd.chapter_id = ch.id AND cd.is_current = TRUE
+     WHERE st.id = $1 LIMIT 1`,
+    [subtopicId],
+  )).rows[0] : null;
+  return {
+    release_id: Number(release.id),
+    release_number: Number(release.release_number),
+    curriculum: curriculum ? {
+      chapter_id: Number(curriculum.chapter_id),
+      document_id: curriculum.document_id ? Number(curriculum.document_id) : null,
+      revision_no: curriculum.revision_no ? Number(curriculum.revision_no) : null,
+      original_file_name: curriculum.original_file_name || null,
+      content_type: curriculum.content_type || null,
+      size_bytes: curriculum.size_bytes === null ? null : Number(curriculum.size_bytes),
+    } : null,
+    session_plan: plan ? {
+      revision_no: Number(plan.revision_no),
+      source_mode: plan.source_mode,
+      original_file_name: plan.original_file_name || null,
+      content: plan.structured_content || plan.manual_content || null,
+    } : null,
+  };
+};
+
+export const downloadPublishedSessionPlan = async ({ releaseId: rawReleaseId, user }) => {
+  const materials = await getPublishedTeachingMaterials({ releaseId: rawReleaseId, user });
+  const release = (await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases WHERE id = $1 LIMIT 1`,
+    [materials.release_id],
+  )).rows[0];
+  const plan = release?.manifest_json?.documents?.session_plan;
+  if (!plan || plan.source_mode !== 'upload' || !plan.storage_key) {
+    throw new AppError('No uploaded Session Plan original is present in this release', 404);
+  }
+  const bucket = process.env.STUDIO_DOCUMENTS_BUCKET || 'sessions-scripts-plans';
+  const { data, error } = await supabase.storage.from(bucket).download(plan.storage_key);
+  if (error || !data) throw new AppError('Unable to download the published Session Plan', 502);
+  const bytes = Buffer.from(await data.arrayBuffer());
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  if (bytes.length !== Number(plan.size_bytes) || sha256 !== plan.content_sha256) {
+    throw new AppError('Published Session Plan failed integrity verification', 502);
+  }
+  return {
+    bytes,
+    fileName: plan.original_file_name || 'session-plan.docx',
+    contentType: plan.content_type || 'application/octet-stream',
+    sizeBytes: bytes.length,
+    sha256,
+    revisionNo: Number(plan.revision_no),
+  };
 };
 
 const assertTeacherReleaseAccess = async (release, user) => {
@@ -540,7 +640,7 @@ const getTeacherRelease = async ({ sql, params, user }) => {
   const release = (await dbQuery(sql, params)).rows[0];
   if (!release) throw new AppError('Published Session release not found', 404);
   await assertTeacherReleaseAccess(release, user);
-  return serializeRelease(release);
+  return serializePublishedRelease(release);
 };
 export const getCurrentTeacherRelease = ({ sessionId: rawSessionId, user }) => {
   const sessionId = parseId(rawSessionId, 'Session ID');

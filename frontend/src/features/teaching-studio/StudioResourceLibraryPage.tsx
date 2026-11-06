@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { Component, useState } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
@@ -6,6 +7,25 @@ import { createStudioResource, type StudioResourceUploadInput } from './api/stud
 import ResourceLibrary from './components/resources/ResourceLibrary';
 import ResourceUploadModal from './components/resources/ResourceUploadModal';
 import StudioShell from './components/StudioShell';
+
+class ResourcePageErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Resource Library render failed', error, info);
+  }
+
+  render() {
+    if (this.state.failed) {
+      return <div className="m-6 rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-800"><p className="font-semibold">The Resource Library could not be displayed.</p><p className="mt-1 text-sm">Refresh after restarting the frontend development server. If this continues, check the first Resource Library error in the browser console.</p><button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white">Reload page</button></div>;
+    }
+    return this.props.children;
+  }
+}
 
 export default function StudioResourceLibraryPage() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -37,8 +57,10 @@ export default function StudioResourceLibraryPage() {
       wrapContent={false}
       actions={<button type="button" onClick={() => { setServerError(''); setCreateOpen(true); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-800"><Plus size={18} />Add Resource</button>}
     >
-      <ResourceLibrary refreshKey={refreshKey} />
-      <ResourceUploadModal open={createOpen} mode="create" submitting={submitting} serverError={serverError} onClose={() => setCreateOpen(false)} onSubmit={createResource} />
+      <ResourcePageErrorBoundary>
+        <ResourceLibrary refreshKey={refreshKey} />
+        <ResourceUploadModal open={createOpen} mode="create" submitting={submitting} serverError={serverError} onClose={() => setCreateOpen(false)} onSubmit={createResource} />
+      </ResourcePageErrorBoundary>
     </StudioShell>
   );
 }

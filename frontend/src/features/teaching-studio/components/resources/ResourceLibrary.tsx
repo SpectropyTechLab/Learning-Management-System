@@ -6,7 +6,7 @@ import { getApiErrorDetails } from '@/lib/api';
 import { deleteStudioResource, getStudioResource, getStudioResourcePreview, listStudioResources, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
 import StudioResourcePlayer from './StudioResourcePlayer';
-import { formatResourceDate, formatResourceTypeLabel, getResourceTypeStyle } from './resourcePresentation';
+import { formatResourceTypeLabel, getResourceTypeStyle } from './resourcePresentation';
 
 type ResourceView = 'grid' | 'list';
 type ResourceSort = 'recently_updated' | 'name_asc' | 'name_desc' | 'newest' | 'type';
@@ -162,7 +162,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
 
   const sorted = useMemo(
     () =>
-      resources
+      [...resources]
         .filter((resource) => mode !== 'picker' || resource.resource_type !== 'html')
         .filter((resource) => !allowedTypes || allowedTypes.includes(resource.resource_type))
         .sort((left, right) => {
