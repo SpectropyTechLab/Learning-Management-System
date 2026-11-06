@@ -1,6 +1,7 @@
 import { Clock3, GalleryHorizontalEnd, MousePointerClick, Play, Volume2 } from 'lucide-react';
 import { useState } from 'react';
 import type { StudioScreenSettings } from '../types';
+import { replayStudioTransition } from './studioTransition';
 
 const groups = [
   {
@@ -83,9 +84,8 @@ export default function StudioTransitionsPanel({ settings, onChange }: Props) {
           title="Preview transition"
           aria-label="Preview transition"
           onClick={() => {
-            const canvas = document.querySelector('[data-testid=slide-viewport]');
-            canvas?.classList.remove('studio-transition-preview');
-            requestAnimationFrame(() => canvas?.classList.add('studio-transition-preview'));
+            const canvas = document.querySelector<HTMLElement>('[data-testid=slide-surface]');
+            replayStudioTransition(canvas, saved);
           }}
           className="grid h-9 w-9 place-items-center rounded-lg border hover:bg-blue-50"
         >

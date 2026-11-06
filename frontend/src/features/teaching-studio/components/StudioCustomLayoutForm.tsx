@@ -15,6 +15,7 @@ const CANVAS_HEIGHT = 1080;
 const ELEMENT_TYPES: ObjectType[] = [
   'title', 'text', 'visual', 'question', 'response', 'steps', 'workspace',
   'footer', 'simulation', 'activity', 'media', 'graph', 'data', 'options',
+  'math', 'shape',
 ];
 
 type DraftSlot = Omit<Slot, 'allowed'> & { allowed: ObjectType[] };

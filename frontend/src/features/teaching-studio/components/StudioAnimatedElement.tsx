@@ -86,7 +86,7 @@ export default function StudioAnimatedElement({
   animation?: Record<string, unknown>;
 }) {
   return (
-    <div className="h-full w-full" style={animationStyle(animation)}>
+    <div data-studio-animated="true" className="h-full w-full" style={animationStyle(animation)}>
       {children}
     </div>
   );

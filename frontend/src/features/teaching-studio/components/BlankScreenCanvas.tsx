@@ -412,6 +412,12 @@ export default function BlankScreenCanvas({
             onSelectObject={onSelectElement}
             onChangeObjectBounds={onChangeElementBounds}
             objectOverlays={objectOverlays}
+            transition={
+              screen.screen_settings_json?.transition &&
+              typeof screen.screen_settings_json.transition === 'object'
+                ? screen.screen_settings_json.transition
+                : undefined
+            }
             drawingStrokes={authoredStrokes}
             drawingEnabled={drawingEnabled}
             drawingTool={drawingTool}

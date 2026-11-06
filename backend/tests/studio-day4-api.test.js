@@ -43,7 +43,7 @@ const validLayout = () => ({
         id: 'content',
         label: 'Content',
         region: 'content',
-        allowed: ['text', 'visual'],
+        allowed: ['text', 'visual', 'math', 'shape'],
         bounds: { x: 90, y: 250, width: 1740, height: 680 },
       },
     ],
