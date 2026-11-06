@@ -25,6 +25,7 @@ test('Day 8 frontend integration route surface is stable', () => {
     'POST /studio/sessions/:sessionId/screens',
   ]);
   assert.deepEqual(routes(screenRouter), [
+    'GET /studio/discovery',
     'GET /studio/screens/discovery',
     'GET /studio/screens/:screenId/branches',
     'GET /studio/sessions/:sessionId/screens',

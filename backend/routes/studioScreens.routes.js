@@ -4,7 +4,7 @@ import {
   listSessionScreens, getScreen, saveScreen, deleteScreen, reorderScreens,
 } from '../controllers/studioScreens.controller.js';
 import {
-  discoverScreens, getBranchDestinations,
+  discoverPublishedContent, discoverScreens, getBranchDestinations,
 } from '../controllers/studioDiscovery.controller.js';
 
 const router = Router();
@@ -15,6 +15,7 @@ const discoveryReaders = requireRole([
 ]);
 
 router.use(authenticateToken, attachClientContext, readers);
+router.get('/studio/discovery', discoveryReaders, discoverPublishedContent);
 router.get('/studio/screens/discovery', discoveryReaders, discoverScreens);
 router.get('/studio/screens/:screenId/branches', discoveryReaders, getBranchDestinations);
 router.get('/studio/sessions/:sessionId/screens', listSessionScreens);

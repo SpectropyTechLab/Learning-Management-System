@@ -134,7 +134,6 @@ export default function TeachingStudioPage() {
     | 'drawing'
     | null
   >('elements');
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
   const [workflowStatus, setWorkflowStatus] = useState<StudioWorkflowStatus | null>(null);
@@ -212,15 +211,6 @@ export default function TeachingStudioPage() {
       window.removeEventListener('offline', goOffline);
     };
   }, []);
-
-  useEffect(() => {
-    if (!previewOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPreviewOpen(false);
-    };
-    document.addEventListener('keydown', closeOnEscape);
-    return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [previewOpen]);
 
   const selectedScreenId = useMemo(() => {
     if (requestedScreenId && screenList.screens.some((screen) => screen.id === requestedScreenId)) {
@@ -391,8 +381,9 @@ export default function TeachingStudioPage() {
   };
 
   const openPreview = async () => {
+    if (!sessionId) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    setPreviewOpen(true);
+    navigate(`/studio/player/${sessionId}/preview`);
   };
 
   const runWorkflowAction = async (action: 'submit' | 'approve' | 'publish') => {
@@ -1197,7 +1188,7 @@ export default function TeachingStudioPage() {
                   onClick={() => void saveScreenDraft('manual')}
                 />
                 <StudioIconButton
-                  label="Preview Screen"
+                  label="Preview Session"
                   icon={<Eye size={15} />}
                   tone="primary"
                   disabled={!selectedScreen}
@@ -1727,7 +1718,7 @@ export default function TeachingStudioPage() {
               <button
                 type="button"
                 disabled={!selectedScreen}
-                onClick={() => setPreviewOpen(true)}
+                onClick={() => void openPreview()}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
                 <Eye size={16} />
@@ -2188,42 +2179,6 @@ export default function TeachingStudioPage() {
                     ? 'Create editable Draft'
                     : 'Return to Draft'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {previewOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/80 p-2 sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Screen Preview"
-        >
-          <div className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]">
-            <div className="flex flex-none items-center justify-between border-b border-gray-200 px-4 py-3">
-              <div>
-                <h2 className="font-semibold">Flattened Screen Preview</h2>
-                <p className="text-xs text-slate-500">
-                  Read-only output without editor guides or controls.
-                </p>
-              </div>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => setPreviewOpen(false)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden p-2 sm:p-4">
-              <BlankScreenCanvas
-                screen={selectedScreen}
-                loading={false}
-                layout={selectedLayout}
-                showGuides={false}
-                previewMode
-              />
             </div>
           </div>
         </div>
