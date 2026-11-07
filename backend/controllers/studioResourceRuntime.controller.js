@@ -1,11 +1,13 @@
 import {
   createRuntimeLaunch,
   getRuntimeDownload,
+  getObjectPreviewDescriptor,
   getRuntimePreview,
   loadRuntimeAsset,
 } from '../services/studioResourceRuntime.service.js';
 import { handleServiceError } from '../utils/errors.js';
 import { studioCdnOrigins } from '../utils/studioCdnOrigins.js';
+import { createHash } from 'node:crypto';
 
 const respond = (action) => async (req, res) => {
   try {
@@ -30,6 +32,11 @@ export const downloadResourceVersion = respond((req) => getRuntimeDownload({
 }));
 
 export const previewResourceVersion = respond((req) => getRuntimePreview({
+  versionId: req.params.versionId,
+  user: req.user,
+}));
+
+export const previewObjectResourceVersion = respond((req) => getObjectPreviewDescriptor({
   versionId: req.params.versionId,
   user: req.user,
 }));
@@ -69,12 +76,46 @@ export const serveRuntimeAsset = async (req, res) => {
       `worker-src 'self' blob: ${cdnSources}; object-src 'none'; ` +
       `base-uri 'none'; form-action 'none'; frame-ancestors ${frameAncestors()}`
     );
+    const bridge = `<script data-spectropy-runtime-bridge>(function(){
+      var parentWindow=window.parent,dispatching=false;
+      function send(type,payload){try{parentWindow.postMessage(Object.assign({source:'spectropy-runtime',type:type},payload||{}),'*')}catch(e){}}
+      window.addEventListener('keydown',function(event){
+        if(dispatching)return;
+        var key=event.key;
+        if(['ArrowRight','ArrowLeft','PageDown','PageUp',' ','Enter','Backspace'].indexOf(key)>=0){
+          send('STUDIO_CLICKER_INPUT',{key:key,shiftKey:event.shiftKey});
+        }
+      },true);
+      window.addEventListener('message',function(event){
+        var data=event.data||{};
+        if(data.source!=='spectropy-player'||data.type!=='STUDIO_RUNTIME_COMMAND')return;
+        var direction=data.direction==='previous'?'previous':'next';
+        dispatching=true;
+        window.dispatchEvent(new CustomEvent('spectropy:'+direction,{detail:data}));
+        document.dispatchEvent(new KeyboardEvent('keydown',{key:direction==='next'?'ArrowRight':'ArrowLeft',bubbles:true}));
+        dispatching=false;
+        setTimeout(function(){
+          var candidates=Array.prototype.slice.call(document.querySelectorAll('[data-action="next"],#nextBtn,.next-btn,button[aria-label*="Next" i]'));
+          if(direction==='next'&&candidates.length&&candidates.every(function(node){return node.disabled||node.getAttribute('aria-disabled')==='true'||node.hidden;}))send('STUDIO_RUNTIME_COMPLETE');
+        },80);
+      });
+      window.addEventListener('spectropy:complete',function(){send('STUDIO_RUNTIME_COMPLETE')});
+      send('STUDIO_RUNTIME_READY',{capabilities:['clicker-forwarding','runtime-command']});
+    })();</script>`;
+    const html = /^text\/html\b/i.test(asset.mimeType);
+    const htmlText = html ? asset.buffer.toString('utf8') : '';
+    const bridgedHtml = !html ? '' : /<\/body>/i.test(htmlText)
+      ? htmlText.replace(/<\/body>/i, `${bridge}</body>`)
+      : /<\/html>/i.test(htmlText)
+        ? htmlText.replace(/<\/html>/i, `${bridge}</html>`)
+        : `${htmlText}${bridge}`;
+    const responseBuffer = html ? Buffer.from(bridgedHtml) : asset.buffer;
     res.setHeader('Content-Type', asset.mimeType);
-    res.setHeader('Content-Length', String(asset.buffer.length));
+    res.setHeader('Content-Length', String(responseBuffer.length));
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('ETag', `"${asset.etag}"`);
-    return res.status(200).send(asset.buffer);
+    res.setHeader('ETag', `"${createHash('sha256').update(responseBuffer).digest('hex')}"`);
+    return res.status(200).send(responseBuffer);
   } catch (error) {
     return handleServiceError(res, error, 'Unable to serve Studio runtime asset');
   }
