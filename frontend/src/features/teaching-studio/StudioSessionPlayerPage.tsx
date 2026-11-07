@@ -30,6 +30,7 @@ import type { PublishedRelease, PublishedResourceMapping, PublishedScreen, Publi
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
+import { playStudioTransitionSound, unlockStudioTransitionAudio } from './components/studioTransition';
 
 const textFrom = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title ?? content.caption;
@@ -172,7 +173,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, teacherAnnota
   const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
     if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
     if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} />]];
-    if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select to explore · returns here</span></span></button>]];
+    if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full touch-manipulation place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.content_json?.zoom_summary_group ? 'Summary Zoom' : element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select once to explore · returns here</span></span></button>]];
     const text = textFrom(element.content_json || {});
     if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} text={text} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
     return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} />]] : [];
@@ -226,6 +227,7 @@ export default function StudioSessionPlayerPage() {
   const [blankMode, setBlankMode] = useState<'black' | 'white' | null>(null);
   const [presentationZoom, setPresentationZoom] = useState(1);
   const [zoomRun, setZoomRun] = useState<null | { originScreenId: number; targetIds: number[]; index: number; returnToZoom: boolean }>(null);
+  const [zoomHubRun, setZoomHubRun] = useState<null | { originScreenId: number; elementKeys: string[]; index: number }>(null);
   const [activeRuntimeElement, setActiveRuntimeElement] = useState<PublishedScreen['elements'][number] | null>(null);
 
   const sessionId = Number(params.sessionId);
@@ -257,11 +259,36 @@ export default function StudioSessionPlayerPage() {
   const currentIndex = screens.findIndex((screen) => screen.screen_id === screenId);
   const screen = currentIndex >= 0 ? screens[currentIndex] : null;
   const animationTimeline = useMemo(() => buildPresenterAnimationTimeline(screen?.elements ?? []), [screen]);
+  const zoomElements = useMemo(() => [...(screen?.elements ?? [])]
+    .filter((element) => element.element_type === 'zoom' && element.zoom)
+    .sort((left, right) => {
+      const leftOrder = Number(left.content_json?.zoom_summary_order);
+      const rightOrder = Number(right.content_json?.zoom_summary_order);
+      if (Number.isFinite(leftOrder) && Number.isFinite(rightOrder)) return leftOrder - rightOrder;
+      return left.display_order - right.display_order;
+    }), [screen]);
   const discoveryScreens = useMemo(() => [...(discoveryRelease?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [discoveryRelease]);
   const discoveryIndex = discoveryScreens.findIndex((candidate) => candidate.screen_id === discoveryScreenId);
   const discoveryScreen = discoveryIndex >= 0 ? discoveryScreens[discoveryIndex] : null;
   const isTrackedBranchUser = user?.role === 'teacher';
   const teacherAnnotations = screenId ? (annotationsByScreen[screenId] ?? []) : [];
+
+  useEffect(() => {
+    const unlock = () => void unlockStudioTransitionAudio();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!screen) return;
+    const transition = screen.screen_settings_json?.transition;
+    if (transition && typeof transition === 'object')
+      void playStudioTransitionSound(transition.sound).catch(() => undefined);
+  }, [screen]);
 
   useEffect(() => {
     setAnimationStep(enterScreenAtEndRef.current ? animationTimeline.maxStep : 0);
@@ -382,9 +409,37 @@ export default function StudioSessionPlayerPage() {
         setZoomRun({ ...zoomRun, index: nextIndex });
         setScreenId(zoomRun.targetIds[nextIndex]);
       } else if (zoomRun.returnToZoom) {
+        enterScreenAtEndRef.current = true;
         setScreenId(zoomRun.originScreenId);
         setZoomRun(null);
       } else setZoomRun(null);
+      return;
+    }
+    if (screen && zoomElements.length > 0) {
+      const orderedKeys = zoomElements.map((element) => element.element_key);
+      const nextIndex = zoomHubRun?.originScreenId === screen.screen_id
+        ? zoomHubRun.index + 1
+        : 0;
+      const nextZoom = zoomElements[nextIndex];
+      if (nextZoom) {
+        setZoomHubRun({ originScreenId: screen.screen_id, elementKeys: orderedKeys, index: nextIndex });
+        openZoom(nextZoom, nextIndex, orderedKeys);
+        return;
+      }
+      const zoomTargetIds = new Set<number>();
+      for (const zoomElement of zoomElements) {
+        if (zoomElement.zoom?.zoom_kind === 'screen' && zoomElement.zoom.target_screen_id)
+          zoomTargetIds.add(zoomElement.zoom.target_screen_id);
+        if (zoomElement.zoom?.zoom_kind === 'section') {
+          const section = release?.manifest.sections?.find((candidate) => candidate.section_id === zoomElement.zoom?.target_section_id);
+          section?.screens.forEach((item) => zoomTargetIds.add(item.screen_id));
+        }
+      }
+      const followingScreen = screens.slice(currentIndex + 1).find((candidate) => !zoomTargetIds.has(candidate.screen_id));
+      if (followingScreen) {
+        setZoomHubRun(null);
+        setScreenId(followingScreen.screen_id);
+      }
       return;
     }
     if (currentIndex >= 0 && currentIndex < screens.length - 1)
@@ -425,7 +480,7 @@ export default function StudioSessionPlayerPage() {
     }
   };
 
-  const openZoom = (element: PublishedScreen['elements'][number]) => {
+  const openZoom = (element: PublishedScreen['elements'][number], queueIndex?: number, queueKeys?: string[]) => {
     if (!screen || !element.zoom) return;
     const targetIds = element.zoom.zoom_kind === 'screen'
       ? [element.zoom.target_screen_id].filter((value): value is number => Number.isInteger(value))
@@ -433,6 +488,13 @@ export default function StudioSessionPlayerPage() {
           .sort((left, right) => left.display_order - right.display_order)
           .map((item) => item.screen_id);
     if (targetIds.length === 0 || !screens.some((item) => item.screen_id === targetIds[0])) return;
+    const hubElements = zoomElements;
+    const resolvedIndex = queueIndex ?? hubElements.findIndex((candidate) => candidate.element_key === element.element_key);
+    if (resolvedIndex >= 0) setZoomHubRun({
+      originScreenId: screen.screen_id,
+      elementKeys: queueKeys ?? hubElements.map((candidate) => candidate.element_key),
+      index: resolvedIndex,
+    });
     setZoomRun({ originScreenId: screen.screen_id, targetIds, index: 0, returnToZoom: element.zoom.return_to_zoom });
     setScreenId(targetIds[0]);
   };

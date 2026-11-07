@@ -721,7 +721,13 @@ export default function TeachingStudioPage() {
       const column = index % 2;
       const row = Math.floor(index / 2);
       return {
-        id, slotId: `free-${id}`, type: 'zoom', content: { text: item.title },
+        id, slotId: `free-${id}`, type: 'zoom', content: {
+          text: item.title,
+          ...(item.summaryGroupId ? {
+            zoom_summary_group: item.summaryGroupId,
+            zoom_summary_order: item.summaryOrder ?? index,
+          } : {}),
+        },
         position: { x: 160 + column * 800, y: 180 + row * 330, width: 700, height: 270, zIndex: selectedScreen.elements.length + index + 1 },
         zoom: {
           kind: item.kind,
