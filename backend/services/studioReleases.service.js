@@ -145,7 +145,7 @@ const loadScreenContent = async (db, screenIds) => {
        ORDER BY source_screen_id, display_order, id`, [screenIds]
     ),
     db.query(
-      `SELECT szl.screen_element_id, szl.zoom_kind, szl.target_screen_id,
+      `SELECT szl.element_id, szl.zoom_kind, szl.target_screen_id,
               szl.target_section_id, szl.return_to_zoom
        FROM screen_zoom_links szl
        WHERE szl.source_screen_id = ANY($1::int[])`, [screenIds]
@@ -155,8 +155,8 @@ const loadScreenContent = async (db, screenIds) => {
               COALESCE(json_agg(json_build_object(
                 'screen_id', ssm.screen_id,
                 'display_order', ssm.display_order
-              ) ORDER BY ssm.display_order, ssm.id)
-              FILTER (WHERE ssm.id IS NOT NULL), '[]'::json) AS screens
+              ) ORDER BY ssm.display_order, ssm.screen_id)
+              FILTER (WHERE ssm.screen_id IS NOT NULL), '[]'::json) AS screens
        FROM screen_sections ss
        LEFT JOIN screen_section_members ssm ON ssm.section_id = ss.id
        WHERE ss.session_id = (SELECT session_id FROM screens WHERE id = $1)
@@ -194,7 +194,7 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
-  const zoomByElement = new Map(content.zoomLinks.map((row) => [Number(row.screen_element_id), row]));
+  const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
   return {
     manifest_version: 3, release_number: releaseNumber,
     session: {
@@ -244,13 +244,13 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
         slot_id: element.slot_id, element_type: element.element_type,
         content_json: element.content_json, position_json: element.position_json,
         display_order: Number(element.display_order),
-        zoom: zoomByElement.has(Number(element.screen_element_id)) ? {
-          zoom_kind: zoomByElement.get(Number(element.screen_element_id)).zoom_kind,
-          target_screen_id: zoomByElement.get(Number(element.screen_element_id)).target_screen_id === null
-            ? null : Number(zoomByElement.get(Number(element.screen_element_id)).target_screen_id),
-          target_section_id: zoomByElement.get(Number(element.screen_element_id)).target_section_id === null
-            ? null : Number(zoomByElement.get(Number(element.screen_element_id)).target_section_id),
-          return_to_zoom: Boolean(zoomByElement.get(Number(element.screen_element_id)).return_to_zoom),
+        zoom: zoomByElement.has(String(element.element_key)) ? {
+          zoom_kind: zoomByElement.get(String(element.element_key)).zoom_kind,
+          target_screen_id: zoomByElement.get(String(element.element_key)).target_screen_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_screen_id),
+          target_section_id: zoomByElement.get(String(element.element_key)).target_section_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_section_id),
+          return_to_zoom: Boolean(zoomByElement.get(String(element.element_key)).return_to_zoom),
         } : null,
         resource_mapping: element.mapping_id ? {
           mapping_id: Number(element.mapping_id), usage_details_json: element.usage_details_json,
@@ -276,7 +276,7 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
-  const zoomByElement = new Map(content.zoomLinks.map((row) => [Number(row.screen_element_id), row]));
+  const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
   return {
     manifest_version: 3,
     release_number: 0,
@@ -327,13 +327,13 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
         content_json: element.content_json,
         position_json: element.position_json,
         display_order: Number(element.display_order),
-        zoom: zoomByElement.has(Number(element.screen_element_id)) ? {
-          zoom_kind: zoomByElement.get(Number(element.screen_element_id)).zoom_kind,
-          target_screen_id: zoomByElement.get(Number(element.screen_element_id)).target_screen_id === null
-            ? null : Number(zoomByElement.get(Number(element.screen_element_id)).target_screen_id),
-          target_section_id: zoomByElement.get(Number(element.screen_element_id)).target_section_id === null
-            ? null : Number(zoomByElement.get(Number(element.screen_element_id)).target_section_id),
-          return_to_zoom: Boolean(zoomByElement.get(Number(element.screen_element_id)).return_to_zoom),
+        zoom: zoomByElement.has(String(element.element_key)) ? {
+          zoom_kind: zoomByElement.get(String(element.element_key)).zoom_kind,
+          target_screen_id: zoomByElement.get(String(element.element_key)).target_screen_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_screen_id),
+          target_section_id: zoomByElement.get(String(element.element_key)).target_section_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_section_id),
+          return_to_zoom: Boolean(zoomByElement.get(String(element.element_key)).return_to_zoom),
         } : null,
         resource_mapping: element.mapping_id ? {
           resource_id: Number(element.resource_id),
