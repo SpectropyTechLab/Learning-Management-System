@@ -21,6 +21,7 @@ export default function FloatingWhiteboards({ sessionId }: { sessionId: number }
   const [width, setWidth] = useState(5);
   const drawing = useRef<{ boardId: string; strokeId: string } | null>(null);
   const dragging = useRef<{ boardId: string; dx: number; dy: number } | null>(null);
+  const resizing = useRef<{ boardId: string; startX: number; startY: number; width: number; height: number } | null>(null);
 
   useEffect(() => { sessionStorage.setItem(storageKey, JSON.stringify(boards)); }, [boards, storageKey]);
   const update = (boardId: string, updater: (board: Board) => Board) =>
@@ -47,6 +48,15 @@ export default function FloatingWhiteboards({ sessionId }: { sessionId: number }
     update(boardId, (board) => ({ ...board, strokes: board.strokes.map((stroke) => stroke.id === drawing.current?.strokeId ? { ...stroke, points: ['line', 'rectangle', 'ellipse'].includes(stroke.kind || '') ? [stroke.points[0], point] : [...stroke.points, point] } : stroke) }));
   };
   const moveBoard = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (resizing.current) {
+      const state = resizing.current;
+      update(state.boardId, (board) => ({
+        ...board,
+        width: Math.max(420, Math.min(window.innerWidth - board.x - 12, state.width + event.clientX - state.startX)),
+        height: Math.max(300, Math.min(window.innerHeight - board.y - 12, state.height + event.clientY - state.startY)),
+      }));
+      return;
+    }
     if (!dragging.current) return;
     const { boardId, dx, dy } = dragging.current;
     update(boardId, (board) => ({ ...board, x: Math.max(0, event.clientX - dx), y: Math.max(0, event.clientY - dy) }));
@@ -56,7 +66,7 @@ export default function FloatingWhiteboards({ sessionId }: { sessionId: number }
     <>
       <button type="button" onClick={() => setBoards((current) => [...current, freshBoard((current.length % 4) * 28)])} className="fixed bottom-20 right-5 z-[70] inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-bold text-blue-950 shadow-xl ring-1 ring-slate-300" title="Add floating whiteboard"><Plus size={18} />Whiteboard</button>
       {boards.map((board) => (
-        <div key={board.id} onPointerMove={moveBoard} onPointerUp={() => { dragging.current = null; drawing.current = null; }} className="fixed z-[80] overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl" style={{ left: board.x, top: board.y, width: board.minimized ? 310 : board.width, height: board.minimized ? 48 : board.height }}>
+        <div key={board.id} onPointerMove={moveBoard} onPointerUp={() => { dragging.current = null; resizing.current = null; drawing.current = null; }} className="fixed z-[80] overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl" style={{ left: board.x, top: board.y, width: board.minimized ? 310 : board.width, height: board.minimized ? 48 : board.height }}>
           <div onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) return; dragging.current = { boardId: board.id, dx: event.clientX - board.x, dy: event.clientY - board.y }; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex h-12 cursor-move items-center gap-2 border-b bg-slate-50 px-3 text-slate-800">
             <GripHorizontal size={17} /><span className="flex-1 text-sm font-bold">{board.title}</span>
             <button type="button" title={board.minimized ? 'Restore whiteboard' : 'Minimize whiteboard'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); update(board.id, (item) => ({ ...item, minimized: !item.minimized })); }} className="rounded-md p-2 hover:bg-slate-200">{board.minimized ? <Plus size={17} /> : <Minus size={17} />}</button>
@@ -84,6 +94,7 @@ export default function FloatingWhiteboards({ sessionId }: { sessionId: number }
                 return <polyline key={stroke.id} points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeLinecap="round" strokeLinejoin="round" />;
               })}
             </svg>
+            <div role="separator" aria-label="Resize whiteboard" title="Drag to resize whiteboard" onPointerDown={(event) => { event.stopPropagation(); resizing.current = { boardId: board.id, startX: event.clientX, startY: event.clientY, width: board.width, height: board.height }; event.currentTarget.setPointerCapture(event.pointerId); }} className="absolute bottom-0 right-0 z-20 h-6 w-6 cursor-nwse-resize rounded-tl-lg bg-blue-900/90 after:absolute after:bottom-1 after:right-1 after:h-2 after:w-2 after:border-b-2 after:border-r-2 after:border-white" />
           </div> : null}
         </div>
       ))}
