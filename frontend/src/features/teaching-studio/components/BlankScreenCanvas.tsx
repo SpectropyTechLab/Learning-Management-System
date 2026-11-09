@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { getStudioResource } from '../api/studioResourcesApi';
 import type { StudioResourceDetails, StudioResourceVersion } from '../api/studioResourcesApi';
@@ -11,7 +11,8 @@ import StudioMathElement from './StudioMathElement';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
-import StudioAnimatedElement from './StudioAnimatedElement';
+import { studioAnimationStyle } from './studioAnimationRuntime';
+import type { InlineShapeData } from './studioInlineShape';
 import {
   buildPresenterAnimationTimeline,
   clickerNavigationAction,
@@ -28,6 +29,7 @@ interface BlankScreenCanvasProps {
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
   onTextCaretChange?: (elementId: string, offset: number) => void;
+  onEditInlineShape?: (elementId: string, shape: InlineShapeData, start: number, end: number) => void;
   onOpenTool?: (tool: 'math' | 'shapes' | 'animations') => void;
   onDuplicateElement?: (elementId: string) => void;
   onRemoveElement?: (elementId: string) => void;
@@ -164,6 +166,7 @@ export default function BlankScreenCanvas({
   onChangeElementBounds,
   onChangeElementContent,
   onTextCaretChange,
+  onEditInlineShape,
   onOpenTool,
   onDuplicateElement,
   onRemoveElement,
@@ -262,6 +265,7 @@ export default function BlankScreenCanvas({
         }
       : null;
   const baseLayout = layout ?? freeformLayout;
+  const displayLayoutGuides = showGuides && Boolean(layout);
   const renderLayout: Layout | null =
     baseLayout && screen
       ? {
@@ -319,6 +323,8 @@ export default function BlankScreenCanvas({
       : null;
 
   const objectOverlays: Record<string, ReactNode> = {};
+  const objectAnimationStyles: Record<string, CSSProperties> = {};
+  const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen?.elements ?? []) {
     if (element.type === 'math') {
       objectOverlays[element.id] = (
@@ -347,6 +353,9 @@ export default function BlankScreenCanvas({
           opacity={Number(element.content.opacity) || undefined}
           strokeDash={
             typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined
+          }
+          customPath={
+            typeof element.content.customPath === 'string' ? element.content.customPath : undefined
           }
         />
       );
@@ -402,6 +411,23 @@ export default function BlankScreenCanvas({
           onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
           onTextChange={(value) => onChangeElementContent?.(element.id, { text: value })}
           onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
+          onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
+          onRequestHeight={(growthRatio) => {
+            if (!onChangeElementBounds) return;
+            const currentBounds =
+              elementBounds(element.position) ??
+              renderLayout?.slots.find(
+                (slot) => slot.id === (element.slotId || `free-${element.id}`),
+              )?.bounds;
+            if (!currentBounds) return;
+            const maximumHeight = 1080 - currentBounds.y;
+            const nextHeight = Math.min(
+              maximumHeight,
+              Math.ceil(currentBounds.height * growthRatio) + 4,
+            );
+            if (nextHeight <= currentBounds.height) return;
+            onChangeElementBounds(element.id, { ...currentBounds, height: nextHeight });
+          }}
           onEditingChange={(editing) =>
             setEditingElementId(
               editing ? element.id : (current) => (current === element.id ? null : current),
@@ -432,27 +458,17 @@ export default function BlankScreenCanvas({
     if (!overlay || !hasAnimation) continue;
     if (previewMode) {
       const state = presenterElementState(animationTimeline, element.id, previewStep);
-      objectOverlays[element.id] = (
-        <StudioAnimatedElement
-          presenterEffects={state.activeEffects}
-          presenterVisible={state.visible}
-          playbackKey={`${screen?.id ?? 'screen'}-${previewCycle}-${previewStep}-${element.id}`}
-        >
-          {overlay}
-        </StudioAnimatedElement>
-      );
+      objectAnimationStyles[element.id] = state.activeEffects.length
+        ? studioAnimationStyle({ effects: state.activeEffects })
+        : state.visible
+          ? {}
+          : { opacity: 0 };
+      objectAnimationKeys[element.id] = `${screen?.id ?? 'screen'}-${previewCycle}-${previewStep}-${element.id}`;
     } else if (animationPreview?.elementId === element.id) {
-      objectOverlays[element.id] = (
-        <StudioAnimatedElement animation={animation} playbackKey={animationPreview.token}>
-          {overlay}
-        </StudioAnimatedElement>
-      );
+      objectAnimationStyles[element.id] = studioAnimationStyle(animation);
+      objectAnimationKeys[element.id] = animationPreview.token;
     } else {
-      objectOverlays[element.id] = (
-        <StudioAnimatedElement presenterEffects={[]} presenterVisible>
-          {overlay}
-        </StudioAnimatedElement>
-      );
+      objectAnimationStyles[element.id] = {};
     }
   }
   const selectedElement =
@@ -515,12 +531,14 @@ export default function BlankScreenCanvas({
           <SlideCanvas
             layout={renderLayout}
             slide={slide}
-            showGuides={showGuides}
+            showGuides={displayLayoutGuides}
             selectedObjectId={selectedElementId}
             onSelectObject={onSelectElement}
             onClearSelection={onClearElementSelection}
             onChangeObjectBounds={onChangeElementBounds}
             objectOverlays={objectOverlays}
+            objectAnimationStyles={objectAnimationStyles}
+            objectAnimationKeys={objectAnimationKeys}
             transition={
               screen.screen_settings_json?.transition &&
               typeof screen.screen_settings_json.transition === 'object'
