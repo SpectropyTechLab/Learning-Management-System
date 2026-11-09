@@ -375,6 +375,22 @@ export const getResource = async ({ resourceId: rawResourceId, user }) => {
   return { ...resource, versions: versions.rows };
 };
 
+export const renameResource = async ({ resourceId: rawResourceId, body = {}, user }) => {
+  assertAuthor(user);
+  const resourceId = parseId(rawResourceId, 'Resource ID');
+  const name = requireText(body.name, 'name', 250);
+  await loadResource({ query: dbQuery }, resourceId, user);
+  const result = await dbQuery(
+    `UPDATE resources
+     SET name = $2, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, client_id, name, description, resource_type, is_active,
+               created_by, created_at, updated_at`,
+    [resourceId, name]
+  );
+  return result.rows[0];
+};
+
 export const getResourceUsages = async ({ resourceId: rawResourceId, user }) => {
   const resourceId = parseId(rawResourceId, 'Resource ID');
   const resource = await loadResource({ query: dbQuery }, resourceId, user);

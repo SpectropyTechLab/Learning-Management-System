@@ -17,6 +17,7 @@
     "supabase": "^2.120.0"
   },
   "dependencies": {
-    "@onlyoffice/document-editor-react": "^2.3.0"
+    "@onlyoffice/document-editor-react": "^2.3.0",
+    "exceljs": "^4.4.0"
   }
 }

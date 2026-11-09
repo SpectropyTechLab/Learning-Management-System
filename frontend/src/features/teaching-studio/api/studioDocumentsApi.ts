@@ -30,7 +30,9 @@ export type ScreenScriptContent = Record<(typeof SCREEN_SCRIPT_FIELDS)[number][0
   time_pedagogy?: string;
 };
 
-interface Envelope<T> { data: T }
+interface Envelope<T> {
+  data: T;
+}
 const unwrap = <T>(response: { data: Envelope<T> }) => response.data.data;
 
 export interface StudioDocumentRecord {
@@ -53,6 +55,15 @@ export interface SessionPlanPreview {
   kind: 'session_plan';
   rows: SessionPlanRow[];
   warnings: string[];
+  validation: Array<{
+    index: number;
+    status: 'valid' | 'error';
+    errors: string[];
+    normalized: { pedagogy: string[]; bloom: string[] };
+    screen: { id: number; screen_number: number; title: string } | null;
+    will_create_screen: boolean;
+  }>;
+  unknown_terms: Array<{ type: 'pedagogy' | 'bloom'; value: string; code: string }>;
 }
 
 export interface ScreenScriptPreviewItem extends ScreenScriptContent {
@@ -93,43 +104,95 @@ const download = async (url: string, fallback: string) => {
   const name = utf8Name ? decodeURIComponent(utf8Name) : basicName || fallback;
   const objectUrl = URL.createObjectURL(response.data);
   const link = document.createElement('a');
-  link.href = objectUrl; link.download = name; link.click();
+  link.href = objectUrl;
+  link.download = name;
+  link.click();
   URL.revokeObjectURL(objectUrl);
 };
 
 export const studioDocumentsApi = {
-  sessionPlan: async (sessionId: number) => unwrap<StudioDocumentRecord | null>(await api.get(`/studio/sessions/${sessionId}/session-plan`)),
-  previewSessionPlan: async (file: File) => unwrap<SessionPlanPreview>(await api.post('/studio/session-plan/import-preview', fileForm(file))),
-  importSessionPlan: async (sessionId: number, file: File, rows: SessionPlanRow[]) => {
-    const form = fileForm(file); form.append('content', JSON.stringify({ rows }));
-    return unwrap<StudioDocumentRecord>(await api.post(`/studio/sessions/${sessionId}/session-plan/import`, form));
+  sessionPlan: async (sessionId: number) =>
+    unwrap<StudioDocumentRecord | null>(
+      await api.get(`/studio/sessions/${sessionId}/session-plan`),
+    ),
+  previewSessionPlan: async (sessionId: number, file: File) =>
+    unwrap<SessionPlanPreview>(
+      await api.post(`/studio/sessions/${sessionId}/session-plan/import-preview`, fileForm(file)),
+    ),
+  importSessionPlan: async (
+    sessionId: number,
+    file: File,
+    rows: SessionPlanRow[],
+    createMissingTaxonomy = false,
+  ) => {
+    const form = fileForm(file);
+    form.append('content', JSON.stringify({ rows }));
+    form.append('create_missing_taxonomy', String(createMissingTaxonomy));
+    return unwrap<StudioDocumentRecord>(
+      await api.post(`/studio/sessions/${sessionId}/session-plan/import`, form),
+    );
   },
-  saveManualSessionPlan: async (sessionId: number, rows: SessionPlanRow[]) =>
-    unwrap<StudioDocumentRecord>(await api.patch(`/studio/sessions/${sessionId}/session-plan/content`, { content: { rows } })),
-  downloadSessionPlan: (sessionId: number) => download(`/studio/sessions/${sessionId}/session-plan/download`, 'session-plan.docx'),
+  saveManualSessionPlan: async (
+    sessionId: number,
+    rows: SessionPlanRow[],
+    createMissingTaxonomy = false,
+  ) =>
+    unwrap<StudioDocumentRecord>(
+      await api.patch(`/studio/sessions/${sessionId}/session-plan/content`, {
+        content: { rows },
+        create_missing_taxonomy: createMissingTaxonomy,
+      }),
+    ),
+  downloadSessionPlan: (sessionId: number) =>
+    download(`/studio/sessions/${sessionId}/session-plan/download`, 'session-plan.docx'),
   previewScreenScripts: async (sessionId: number, file: File) =>
-    unwrap<ScreenScriptPreview>(await api.post(`/studio/sessions/${sessionId}/screen-scripts/import-preview`, fileForm(file))),
-  importScreenScripts: async (sessionId: number, file: File, scripts: ScreenScriptPreviewItem[]) => {
-    const mappings = scripts.filter((script) => script.suggested_screen_id).map((script) => ({
-      screen_id: script.suggested_screen_id,
-      content: Object.fromEntries([...SCREEN_SCRIPT_FIELDS.map(([key]) => [key, script[key]]),
-        ['screen_key', script.screen_key], ['title', script.title], ['time_pedagogy', script.time_pedagogy]]),
-    }));
-    const form = fileForm(file); form.append('mappings', JSON.stringify(mappings));
-    return unwrap<StudioDocumentRecord>(await api.post(`/studio/sessions/${sessionId}/screen-scripts/import`, form));
+    unwrap<ScreenScriptPreview>(
+      await api.post(`/studio/sessions/${sessionId}/screen-scripts/import-preview`, fileForm(file)),
+    ),
+  importScreenScripts: async (
+    sessionId: number,
+    file: File,
+    scripts: ScreenScriptPreviewItem[],
+  ) => {
+    const mappings = scripts
+      .filter((script) => script.suggested_screen_id)
+      .map((script) => ({
+        screen_id: script.suggested_screen_id,
+        content: Object.fromEntries([
+          ...SCREEN_SCRIPT_FIELDS.map(([key]) => [key, script[key]]),
+          ['screen_key', script.screen_key],
+          ['title', script.title],
+          ['time_pedagogy', script.time_pedagogy],
+        ]),
+      }));
+    const form = fileForm(file);
+    form.append('mappings', JSON.stringify(mappings));
+    return unwrap<StudioDocumentRecord>(
+      await api.post(`/studio/sessions/${sessionId}/screen-scripts/import`, form),
+    );
   },
-  screenScripts: async (sessionId: number) => unwrap<ScreenScriptRow[]>(await api.get(`/studio/sessions/${sessionId}/screen-scripts`)),
+  screenScripts: async (sessionId: number) =>
+    unwrap<ScreenScriptRow[]>(await api.get(`/studio/sessions/${sessionId}/screen-scripts`)),
   saveScreenScript: async (sessionId: number, screenId: number, content: ScreenScriptContent) =>
     unwrap(await api.put(`/studio/sessions/${sessionId}/screens/${screenId}/script`, { content })),
-  downloadScreenScriptSource: (sessionId: number) => download(`/studio/sessions/${sessionId}/screen-script/download`, 'screen-script.docx'),
-  curriculumDocument: async (chapterId: number) => unwrap<StudioDocumentRecord | null>(await api.get(`/studio/chapters/${chapterId}/curriculum-document`)),
-  previewCurriculumDocument: async (chapterId: number) => unwrap<CurriculumDocumentPreview>(await api.get(`/studio/chapters/${chapterId}/curriculum-document/preview`)),
+  downloadScreenScriptSource: (sessionId: number) =>
+    download(`/studio/sessions/${sessionId}/screen-script/download`, 'screen-script.docx'),
+  curriculumDocument: async (chapterId: number) =>
+    unwrap<StudioDocumentRecord | null>(
+      await api.get(`/studio/chapters/${chapterId}/curriculum-document`),
+    ),
+  previewCurriculumDocument: async (chapterId: number) =>
+    unwrap<CurriculumDocumentPreview>(
+      await api.get(`/studio/chapters/${chapterId}/curriculum-document/preview`),
+    ),
   uploadCurriculumDocument: async (chapterId: number, file: File, replace = false) =>
-    unwrap<StudioDocumentRecord>(await api.request({
-      method: replace ? 'put' : 'post',
-      url: `/studio/chapters/${chapterId}/curriculum-document`,
-      data: fileForm(file),
-    })),
-  downloadCurriculumDocument: (chapterId: number) => download(`/studio/chapters/${chapterId}/curriculum-document/download`, 'curriculum.docx'),
+    unwrap<StudioDocumentRecord>(
+      await api.request({
+        method: replace ? 'put' : 'post',
+        url: `/studio/chapters/${chapterId}/curriculum-document`,
+        data: fileForm(file),
+      }),
+    ),
+  downloadCurriculumDocument: (chapterId: number) =>
+    download(`/studio/chapters/${chapterId}/curriculum-document/download`, 'curriculum.docx'),
 };
-

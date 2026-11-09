@@ -8,6 +8,31 @@ interface Props {
   ariaLabel?: string;
 }
 
+const MATRIX_ENVIRONMENTS =
+  /\\begin\{(matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|smallmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g;
+
+function restoreEmptyPlaceholders(latex: string) {
+  const withMatrixPlaceholders = latex.replace(
+    MATRIX_ENVIRONMENTS,
+    (_environment, name: string, body: string) => {
+      const rows = body.split(/\\\\/).map((row) =>
+        row
+          .split('&')
+          .map((cell) => (cell.trim() ? cell.trim() : String.raw`\placeholder{}`))
+          .join(' & '),
+      );
+      return `\\begin{${name}}${rows.join(String.raw` \\ `)}\\end{${name}}`;
+    },
+  );
+
+  return withMatrixPlaceholders
+    .replace(
+      /\\(frac|dfrac|tfrac|binom|sqrt|overset|underset)\s*\{\s*\}/g,
+      String.raw`\$1{\placeholder{}}`,
+    )
+    .replace(/([_^])\s*\{\s*\}/g, String.raw`$1{\placeholder{}}`);
+}
+
 export default function MathLiveEquationEditor({
   value,
   onChange,
@@ -33,8 +58,20 @@ export default function MathLiveEquationEditor({
       mathfield.setAttribute('aria-label', ariaLabel);
       mathfield.setAttribute('virtual-keyboard-mode', 'onfocus');
       mathfield.className = 'studio-mathfield';
-      mathfield.value = valueRef.current;
-      handleInput = () => onChangeRef.current(mathfield.getValue('latex'));
+      mathfield.placeholderSymbol = '⬚';
+      mathfield.style.setProperty('--placeholder-color', '#94a3b8');
+      mathfield.style.setProperty('--placeholder-opacity', '1');
+      mathfield.value = restoreEmptyPlaceholders(valueRef.current);
+      handleInput = () => {
+        const latex = mathfield.getValue('latex');
+        const restoredLatex = restoreEmptyPlaceholders(latex);
+        if (restoredLatex !== latex) {
+          const caretPosition = mathfield.position;
+          mathfield.value = restoredLatex;
+          mathfield.position = Math.min(caretPosition, mathfield.lastOffset);
+        }
+        onChangeRef.current(restoredLatex);
+      };
       mathfield.addEventListener('input', handleInput);
       host.appendChild(mathfield);
       mathfieldRef.current = mathfield;
@@ -51,7 +88,13 @@ export default function MathLiveEquationEditor({
   useEffect(() => {
     const mathfield = mathfieldRef.current;
     valueRef.current = value;
-    if (mathfield && mathfield.getValue('latex') !== value) mathfield.value = value;
+    const restoredValue = restoreEmptyPlaceholders(value);
+    if (
+      mathfield &&
+      restoreEmptyPlaceholders(mathfield.getValue('latex')) !== restoredValue
+    ) {
+      mathfield.value = restoredValue;
+    }
   }, [value]);
 
   return (

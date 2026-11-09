@@ -118,8 +118,8 @@ const assertAuthorizedScreens = (screens, authorization) => {
 };
 
 const loadScreenContent = async (db, screenIds) => {
-  if (screenIds.length === 0) return { elements: [], tags: [], branches: [], zoomLinks: [], sections: [] };
-  const [elements, tags, branches, zoomLinks, sections] = await Promise.all([
+  if (screenIds.length === 0) return { elements: [], tags: [], branches: [], zoomLinks: [], sections: [], taxonomy: [] };
+  const [elements, tags, branches, zoomLinks, sections, taxonomy] = await Promise.all([
     db.query(
       `SELECT se.screen_id, se.id AS screen_element_id, se.element_key, se.slot_id,
               se.element_type, se.content_json, se.position_json, se.display_order,
@@ -162,13 +162,28 @@ const loadScreenContent = async (db, screenIds) => {
        WHERE ss.session_id = (SELECT session_id FROM screens WHERE id = $1)
        GROUP BY ss.id ORDER BY ss.display_order, ss.id`, [screenIds[0]]
     ),
+    db.query(
+      `SELECT stt.screen_id, term.taxonomy_type, term.code, term.label, 'screen' AS scope
+       FROM screen_taxonomy_terms stt
+       JOIN studio_taxonomy_terms term ON term.id = stt.term_id AND term.is_active = TRUE
+       WHERE stt.screen_id = ANY($1::int[])
+       UNION ALL
+       SELECT sc.id AS screen_id, term.taxonomy_type, term.code, term.label, 'topic' AS scope
+       FROM screens sc
+       JOIN sessions se ON se.id = sc.session_id
+       JOIN subtopics sub ON sub.id = se.subtopic_id
+       JOIN topic_taxonomy_terms ttt ON ttt.topic_id = sub.topic_id
+       JOIN studio_taxonomy_terms term ON term.id = ttt.term_id AND term.is_active = TRUE
+       WHERE sc.id = ANY($1::int[])
+       ORDER BY screen_id, taxonomy_type, label`, [screenIds]
+    ),
   ]);
   for (const row of elements.rows) {
     if (row.mapping_id && !row.resource_version_id) throw new AppError(`Resource mapping ${row.mapping_id} has no pinned Resource version`, 409);
   }
   return {
     elements: elements.rows, tags: tags.rows, branches: branches.rows,
-    zoomLinks: zoomLinks.rows, sections: sections.rows,
+    zoomLinks: zoomLinks.rows, sections: sections.rows, taxonomy: taxonomy.rows,
   };
 };
 
@@ -190,13 +205,32 @@ const documentManifest = (document) => ({
   metadata_json: document.metadata_json, created_by: document.created_by, created_at: document.created_at,
 });
 
+const taxonomyByScreen = (rows) => {
+  const grouped = new Map();
+  for (const row of rows) {
+    const screenId = Number(row.screen_id);
+    const entry = grouped.get(screenId) || { screen: { pedagogy: [], bloom: [] }, topic: { pedagogy: [], bloom: [], target_exam: [] } };
+    const target = entry[row.scope]?.[row.taxonomy_type];
+    if (target && !target.some((term) => term.code === row.code)) target.push({ code: row.code, label: row.label });
+    grouped.set(screenId, entry);
+  }
+  return grouped;
+};
+
+const effectiveTaxonomy = (entry = { screen: {}, topic: {} }) => ({
+  pedagogy: entry.screen.pedagogy?.length ? entry.screen.pedagogy : (entry.topic.pedagogy || []),
+  bloom: entry.screen.bloom?.length ? entry.screen.bloom : (entry.topic.bloom || []),
+  target_exam: entry.topic.target_exam || [],
+});
+
 const buildManifest = ({ session, authorization, documents, screenScripts, screens, content, releaseNumber }) => {
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
+  const taxonomy = taxonomyByScreen(content.taxonomy);
   const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
   return {
-    manifest_version: 3, release_number: releaseNumber,
+    manifest_version: 4, release_number: releaseNumber,
     session: {
       session_id: Number(session.id), revision_no: Number(session.revision_no),
       client_id: session.client_id, subtopic_id: session.subtopic_id,
@@ -231,6 +265,7 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
       client_id: screen.client_id, title: screen.title,
       screen_number: Number(screen.screen_number), display_order: Number(screen.display_order),
       creation_mode: screen.creation_mode, screen_settings_json: screen.screen_settings_json,
+      taxonomy: effectiveTaxonomy(taxonomy.get(Number(screen.id))),
       layout: screen.layout_id ? {
         layout_id: Number(screen.layout_id), layout_key: screen.layout_key,
         version_no: Number(screen.layout_version_no), name: screen.layout_name,
@@ -276,9 +311,10 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
+  const taxonomy = taxonomyByScreen(content.taxonomy);
   const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
   return {
-    manifest_version: 3,
+    manifest_version: 4,
     release_number: 0,
     session: {
       session_id: Number(session.id),
@@ -306,6 +342,7 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
       display_order: Number(screen.display_order),
       creation_mode: screen.creation_mode,
       screen_settings_json: screen.screen_settings_json,
+      taxonomy: effectiveTaxonomy(taxonomy.get(Number(screen.id))),
       layout: screen.layout_id ? {
         layout_id: Number(screen.layout_id),
         layout_key: screen.layout_key,

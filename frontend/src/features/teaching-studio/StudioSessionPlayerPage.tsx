@@ -14,8 +14,8 @@ import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
 import Model3DViewer from './components/resources/Model3DViewer';
 import { ExecutableResourceFrame, ExternalLinkFrame } from './components/resources/StudioResourceFrames';
+import { studioAnimationStyle } from './components/studioAnimationRuntime';
 import EmbeddedObjectViewer from './components/resources/EmbeddedObjectViewer';
-import StudioAnimatedElement from './components/StudioAnimatedElement';
 import {
   buildPresenterAnimationTimeline,
   clickerNavigationAction,
@@ -30,7 +30,7 @@ import type { PublishedRelease, PublishedResourceMapping, PublishedScreen, Publi
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
-import { playStudioTransitionSound, unlockStudioTransitionAudio } from './components/studioTransition';
+import { playStudioTransitionSound, stopStudioTransitionSound, unlockStudioTransitionAudio } from './components/studioTransition';
 
 const textFrom = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title ?? content.caption;
@@ -152,7 +152,9 @@ function PublishedResource({ releaseId, mapping, previewMode = false }: { releas
   return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} />;
 }
 
-function PublishedCanvas({ releaseId, screen, previewMode = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: 'pointer' | 'pen' | 'eraser'; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number }) {
+type AnnotationTool = 'arrow' | 'pointer' | 'pen' | 'eraser';
+
+function PublishedCanvas({ releaseId, screen, previewMode = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: AnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number }) {
   const layout = layoutFor(screen) ?? freeformLayoutFor(screen);
   const slide: Slide = {
     title: screen.title,
@@ -172,28 +174,27 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, teacherAnnota
   };
   const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
     if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
-    if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} />]];
+    if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} customPath={typeof element.content_json?.customPath === 'string' ? element.content_json.customPath : undefined} />]];
     if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full touch-manipulation place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.content_json?.zoom_summary_group ? 'Summary Zoom' : element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select once to explore · returns here</span></span></button>]];
     const text = textFrom(element.content_json || {});
     if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} text={text} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
     return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} />]] : [];
   }));
+  const objectAnimationStyles: Record<string, React.CSSProperties> = {};
+  const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
     if (!overlay || !animationTimeline || animationStep === undefined) continue;
     const presenterState = presenterElementState(animationTimeline, element.element_key, animationStep);
-    overlays[element.element_key] = (
-      <StudioAnimatedElement
-        presenterEffects={presenterState.activeEffects}
-        presenterVisible={presenterState.visible}
-        playbackKey={`${screen.screen_id}-${playbackCycle ?? 0}-${animationStep}-${element.element_key}`}
-      >
-        {overlay}
-      </StudioAnimatedElement>
-    );
+    objectAnimationStyles[element.element_key] = presenterState.activeEffects.length
+      ? studioAnimationStyle({ effects: presenterState.activeEffects })
+      : presenterState.visible
+        ? {}
+        : { opacity: 0 };
+    objectAnimationKeys[element.element_key] = `${screen.screen_id}-${playbackCycle ?? 0}-${animationStep}-${element.element_key}`;
   }
 
-  return <SlideCanvas layout={layout} slide={slide} objectOverlays={overlays} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={annotationTool !== 'pointer'} drawingTool={annotationTool === 'eraser' ? 'eraser' : 'pen'} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
+  return <SlideCanvas layout={layout} slide={slide} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={annotationTool === 'pen' || annotationTool === 'eraser'} interactionOverlayEnabled={annotationTool === 'pointer'} drawingTool={annotationTool === 'eraser' ? 'eraser' : 'pen'} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -202,11 +203,12 @@ export default function StudioSessionPlayerPage() {
   const { user } = useAuth();
   const playerRef = useRef<HTMLDivElement>(null);
   const enterScreenAtEndRef = useRef(false);
+  const advancePresenterRef = useRef<() => void>(() => undefined);
   const [release, setRelease] = useState<PublishedRelease | null>(null);
   const [screenId, setScreenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [annotationTool, setAnnotationTool] = useState<'pointer' | 'pen' | 'eraser'>('pointer');
+  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('arrow');
   const [annotationColor, setAnnotationColor] = useState('#ef4444');
   const [annotationWidth, setAnnotationWidth] = useState(6);
   const [annotationsByScreen, setAnnotationsByScreen] = useState<Record<number, AuthorDrawingStroke[]>>({});
@@ -226,9 +228,15 @@ export default function StudioSessionPlayerPage() {
   const [playbackCycle, setPlaybackCycle] = useState(0);
   const [blankMode, setBlankMode] = useState<'black' | 'white' | null>(null);
   const [presentationZoom, setPresentationZoom] = useState(1);
+  const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0, visible: false });
   const [zoomRun, setZoomRun] = useState<null | { originScreenId: number; targetIds: number[]; index: number; returnToZoom: boolean }>(null);
   const [zoomHubRun, setZoomHubRun] = useState<null | { originScreenId: number; elementKeys: string[]; index: number }>(null);
   const [activeRuntimeElement, setActiveRuntimeElement] = useState<PublishedScreen['elements'][number] | null>(null);
+
+  const selectAnnotationTool = (tool: AnnotationTool) => {
+    setAnnotationTool(tool);
+    setPointerPosition((position) => ({ ...position, visible: false }));
+  };
 
   const sessionId = Number(params.sessionId);
   const releaseNumber = Number(params.releaseNumber);
@@ -287,8 +295,10 @@ export default function StudioSessionPlayerPage() {
     if (!screen) return;
     const transition = screen.screen_settings_json?.transition;
     if (transition && typeof transition === 'object')
-      void playStudioTransitionSound(transition.sound).catch(() => undefined);
+      void playStudioTransitionSound(transition.sound, { loop: transition.loopSound === true }).catch(() => undefined);
   }, [screen]);
+
+  useEffect(() => () => stopStudioTransitionSound(), []);
 
   useEffect(() => {
     setAnimationStep(enterScreenAtEndRef.current ? animationTimeline.maxStep : 0);
@@ -445,6 +455,16 @@ export default function StudioSessionPlayerPage() {
     if (currentIndex >= 0 && currentIndex < screens.length - 1)
       setScreenId(screens[currentIndex + 1]?.screen_id ?? null);
   };
+  advancePresenterRef.current = advancePresenter;
+
+  useEffect(() => {
+    const transition = screen?.screen_settings_json?.transition;
+    if (!transition || typeof transition !== 'object' || transition.advanceAfterEnabled !== true) return;
+    if (animationStep < animationTimeline.maxStep || activeRuntimeElement || discoveryItem || materialsOpen || blankMode) return;
+    const seconds = Math.max(0.1, Number(transition.advanceAfterSeconds) || 0);
+    const timer = window.setTimeout(() => advancePresenterRef.current(), seconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [activeRuntimeElement, animationStep, animationTimeline.maxStep, blankMode, discoveryItem, materialsOpen, screen]);
 
   const retreatPresenter = () => {
     setBlankMode(null);
@@ -643,21 +663,21 @@ export default function StudioSessionPlayerPage() {
   };
   return (
     <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} scrollContent={false} wrapContent={false}>
-      <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden ${isTrackedBranchUser ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-white'}`}>
-        <header className={`flex flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5 ${isTrackedBranchUser ? 'border-slate-200 bg-white' : 'border-white/10'}`}>
+      <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden text-slate-900 ${isTrackedBranchUser ? 'bg-slate-100' : 'bg-white'}`}>
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-1.5">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={exitPlayer} className={`rounded-lg p-2 ${isTrackedBranchUser ? 'hover:bg-slate-100' : 'hover:bg-white/10'}`} aria-label="Exit player">
+            <button type="button" onClick={exitPlayer} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Exit player">
               <ArrowLeft size={20} />
             </button>
             <div>
               <h2 className="font-semibold">{discoveryItem ? `Branching · ${discoveryItem.title}` : release?.manifest.session?.title || (previewMode ? 'Session Preview' : 'Published Session')}</h2>
-              <p className={`text-xs ${isTrackedBranchUser ? 'text-slate-600' : 'text-slate-300'}`}>{discoveryItem ? `Related ${discoveryItem.type} from ${discoveryItem.curriculum.topic_name}` : screen ? `Screen ${screen.screen_number}: ${screen.title}` : 'Loading presentation'}</p>
+              <p className="text-xs text-slate-600">{discoveryItem ? `Related ${discoveryItem.type} from ${discoveryItem.curriculum.topic_name}` : screen ? `Screen ${screen.screen_number}: ${screen.title}` : 'Loading presentation'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {discoveryItem && <button type="button" onClick={closeDiscoveredContent} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400"><X size={16} />Close Branching</button>}
-            {previewMode && <span className="rounded-full bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-200">Unpublished preview</span>}
-            <button type="button" onClick={() => void toggleFullScreen()} className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border ${isTrackedBranchUser ? 'border-slate-300 hover:bg-slate-100' : 'border-white/20 hover:bg-white/10'}`} title={fullScreen ? 'Exit full screen' : 'Full screen'} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}>
+            {previewMode && <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">Unpublished preview</span>}
+            <button type="button" onClick={() => void toggleFullScreen()} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 hover:bg-slate-100" title={fullScreen ? 'Exit full screen' : 'Full screen'} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}>
               {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
             </button>
           </div>
@@ -774,9 +794,16 @@ export default function StudioSessionPlayerPage() {
                 </select>
               </label>
               <div className="rounded-lg bg-slate-50 p-3 text-slate-900"><h3 className="text-sm font-bold">Teacher board</h3><p className="mt-1 text-xs text-slate-600">Choose a tool, then draw directly over the teaching screen. Ink remains local to this run.</p></div>
-              <button type="button" onClick={() => setAnnotationTool('pointer')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'pointer' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white'}`}><MousePointer2 size={16} />Pointer</button>
-              <button type="button" onClick={() => setAnnotationTool('pen')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'pen' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}><PenLine size={16} />Pen</button>
-              <button type="button" onClick={() => setAnnotationTool('eraser')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'eraser' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}><Eraser size={16} />Eraser</button>
+              <button type="button" onClick={() => selectAnnotationTool('arrow')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'arrow' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white'}`}>
+                <MousePointer2 size={16} />
+                Arrow
+              </button>
+              <button type="button" onClick={() => selectAnnotationTool('pointer')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'pointer' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white'}`}>
+                <span className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_3px_rgba(239,68,68,0.75)]" aria-hidden="true" />
+                Pointer
+              </button>
+              <button type="button" onClick={() => selectAnnotationTool('pen')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'pen' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}><PenLine size={16} />Pen</button>
+              <button type="button" onClick={() => selectAnnotationTool('eraser')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${annotationTool === 'eraser' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}><Eraser size={16} />Eraser</button>
               <label className="text-xs font-semibold text-slate-700">Colour<input type="color" value={annotationColor} onChange={(event) => setAnnotationColor(event.target.value)} className="mt-1 h-9 w-full cursor-pointer rounded border border-slate-300 bg-white p-0.5" /></label>
               <label className="text-xs font-semibold text-slate-700">Width {annotationWidth}<input type="range" min="2" max="24" value={annotationWidth} onChange={(event) => setAnnotationWidth(Number(event.target.value))} className="mt-1 w-full" /></label>
               <button type="button" disabled={(annotationHistoryByScreen[screenId || 0] ?? []).length === 0} onClick={undoTeacherAnnotation} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-30"><RotateCcw size={15} />Undo ink</button>
@@ -786,9 +813,25 @@ export default function StudioSessionPlayerPage() {
             </aside>
           )}
           <section
-            className="min-h-0 min-w-0"
+            className={`relative min-h-0 min-w-0 ${isTrackedBranchUser && annotationTool === 'pointer' && !discoveryItem ? 'cursor-none' : ''}`}
+            onPointerMove={(event) => {
+              if (!isTrackedBranchUser || annotationTool !== 'pointer' || discoveryItem) return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              setPointerPosition({
+                x: event.clientX - bounds.left,
+                y: event.clientY - bounds.top,
+                visible: true,
+              });
+            }}
+            onPointerOverCapture={(event) => {
+              const target = event.target;
+              if (target instanceof HTMLIFrameElement) {
+                setPointerPosition((position) => ({ ...position, visible: false }));
+              }
+            }}
+            onPointerLeave={() => setPointerPosition((position) => ({ ...position, visible: false }))}
             onClick={(event) => {
-              if (discoveryItem || annotationTool !== 'pointer') return;
+              if (discoveryItem || (annotationTool !== 'arrow' && annotationTool !== 'pointer')) return;
               const target = event.target as HTMLElement;
               if (target.closest('button, a, input, select, textarea, video, audio, iframe')) return;
               const transition = screen?.screen_settings_json?.transition;
@@ -796,11 +839,11 @@ export default function StudioSessionPlayerPage() {
                 advancePresenter();
             }}
           >
-          {discoveryLoading && <div className="grid h-full place-items-center text-slate-300"><span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={20} />Opening related content…</span></div>}
+          {discoveryLoading && <div className="grid h-full place-items-center text-slate-600"><span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={20} />Opening related content…</span></div>}
           {!discoveryLoading && discoveryItem?.type === 'resource' && discoveryItem.resource_mapping && <div className="h-full overflow-hidden rounded-xl bg-black"><PublishedResource releaseId={discoveryItem.release_id} mapping={discoveryItem.resource_mapping} /></div>}
-          {!discoveryLoading && discoveryItem && discoveryItem.type !== 'resource' && discoveryRelease && discoveryScreen && <PublishedCanvas releaseId={discoveryRelease.id} screen={discoveryScreen} teacherAnnotations={[]} annotationTool="pointer" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} />}
+          {!discoveryLoading && discoveryItem && discoveryItem.type !== 'resource' && discoveryRelease && discoveryScreen && <PublishedCanvas releaseId={discoveryRelease.id} screen={discoveryScreen} teacherAnnotations={[]} annotationTool="arrow" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} />}
           {!discoveryLoading && discoveryItem && discoveryError && <div className="grid h-full place-items-center"><div className="rounded-xl border border-red-400/30 bg-red-950/40 p-6 text-red-100">{discoveryError}</div></div>}
-          {loading && <div className="grid h-full place-items-center text-slate-300">Loading published Session…</div>}
+          {loading && <div className="grid h-full place-items-center text-slate-600">Loading published Session…</div>}
           {!discoveryItem && !loading && error && !release && (
             <div className="grid h-full place-items-center">
               <div className="rounded-xl border border-red-400/30 bg-red-950/40 p-6 text-red-100">{error}</div>
@@ -808,10 +851,17 @@ export default function StudioSessionPlayerPage() {
           )}
           {!discoveryItem && !loading && release && screen && (
             <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})` }}>
-              <PublishedCanvas key={`${screen.screen_id}-${playbackCycle}`} releaseId={release.id} screen={screen} previewMode={previewMode} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} />
+              <PublishedCanvas key={`${screen.screen_id}-${playbackCycle}`} releaseId={release.id} screen={screen} previewMode={previewMode} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'arrow'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} />
             </div>
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-300">This release contains no Screens.</div>}
+          {isTrackedBranchUser && annotationTool === 'pointer' && !discoveryItem && pointerPosition.visible && (
+            <span
+              className="pointer-events-none absolute z-50 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-200 bg-red-500 shadow-[0_0_6px_2px_rgba(239,68,68,0.95),0_0_18px_8px_rgba(239,68,68,0.55)]"
+              style={{ left: pointerPosition.x, top: pointerPosition.y }}
+              aria-hidden="true"
+            />
+          )}
           </section>
         </main>
         {error && release && <p className="mx-4 mb-2 rounded-lg bg-red-950/70 px-3 py-2 text-sm text-red-100">{error}</p>}
@@ -825,21 +875,21 @@ export default function StudioSessionPlayerPage() {
           {discoveryItem ? (
             <div className="flex items-center gap-2">
               <button type="button" onClick={closeDiscoveredContent} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 font-semibold text-slate-950"><X size={18} />Close Branching</button>
-              <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
+              <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
             </div>
           ) : (
-            <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold disabled:opacity-30 ${isTrackedBranchUser ? 'border-slate-300 bg-white' : 'border-white/20'}`}>
+            <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-30">
               <ChevronLeft size={18} />
               Previous
             </button>
           )}
-          <span className={`text-center text-sm ${isTrackedBranchUser ? 'text-slate-700' : 'text-slate-300'}`}>
+          <span className="text-center text-sm text-slate-700">
             <span className="block">
               {discoveryItem ? discoveryItem.type === 'session' ? `${discoveryIndex + 1} / ${discoveryScreens.length}` : discoveryItem.type : `${currentIndex + 1} / ${screens.length}`}
             </span>
             <span className="hidden text-[11px] text-slate-500 sm:block">{discoveryItem ? 'Esc closes Branching' : `Animation build ${animationStep}/${animationTimeline.maxStep} · Clicker: ← previous · → next`}</span>
           </span>
-          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold disabled:opacity-30 ${isTrackedBranchUser ? 'border-slate-300 bg-white' : 'border-white/20'}`}>
+          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-30">
             Next
             <ChevronRight size={18} />
           </button>

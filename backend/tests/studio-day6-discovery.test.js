@@ -62,6 +62,7 @@ test('dynamic discovery filters by Chapter and paginates related published Sessi
       const sql = normalizedSql(text);
       if (sql.includes('where sr.id = $1')) return { rows: [contextRelease] };
       if (sql.includes('select distinct on (sr.session_id)')) return { rows: releases };
+      if (sql.includes('from studio_taxonomy_terms')) return { rows: [] };
       throw new Error(`Unhandled query: ${sql}`);
     },
   };

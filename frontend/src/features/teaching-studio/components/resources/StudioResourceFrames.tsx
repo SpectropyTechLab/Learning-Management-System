@@ -70,7 +70,7 @@ export function ExternalLinkFrame({
           src={source}
           title={title}
           className="h-full w-full border-0"
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts allow-same-origin X-Frame-Options"
           allow="fullscreen"
           allowFullScreen
         />

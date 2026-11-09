@@ -9,6 +9,8 @@ export interface StudioDiscoveryFilters {
   tags?: string;
   pedagogy?: string;
   bloom?: string;
+  targetExam?: string;
+  resourceType?: string;
   search?: string;
 }
 
@@ -57,6 +59,10 @@ export interface StudioDiscoveryResponse {
   facets: {
     topics: Array<{ id: number; name: string }>;
     subtopics: Array<{ id: number; topic_id: number; name: string }>;
+    pedagogy: Array<{ code: string; label: string }>;
+    bloom: Array<{ code: string; label: string }>;
+    target_exam: Array<{ code: string; label: string }>;
+    resource_types: string[];
   };
 }
 
@@ -77,6 +83,8 @@ export const discoverStudioContent = async (
       tags: filters.tags?.trim() || undefined,
       pedagogy: filters.pedagogy?.trim() || undefined,
       bloom: filters.bloom?.trim() || undefined,
+      target_exam: filters.targetExam?.trim() || undefined,
+      resource_type: type === 'resource' ? filters.resourceType?.trim() || undefined : undefined,
       search: filters.search?.trim() || undefined,
       limit: 20,
       cursor: cursor || undefined,

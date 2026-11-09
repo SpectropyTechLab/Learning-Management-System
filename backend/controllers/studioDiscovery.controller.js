@@ -30,6 +30,8 @@ export const discoverPublishedContent = respond((req) => discovery.discoverPubli
   tags: req.query.tags,
   pedagogy: req.query.pedagogy,
   bloom: req.query.bloom,
+  targetExam: req.query.target_exam,
+  resourceType: req.query.resource_type,
   search: req.query.search,
   limit: req.query.limit,
   cursor: req.query.cursor,

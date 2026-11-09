@@ -1,27 +1,43 @@
 import { useEffect, useRef, useState } from 'react';
 import katex from 'katex';
+import { renderToStaticMarkup } from 'react-dom/server';
 import StudioRichTextElement, { hasInlineEquation, inlineEquationParts } from './StudioRichTextElement';
+import StudioShapeElement from './StudioShapeElement';
+import type { InlineShapeData } from './studioInlineShape';
 
 interface Props {
   text: string; color?: string; backgroundColor?: string; fontSize?: number; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean;
   alignment?: 'left' | 'center' | 'right' | 'justify'; list?: boolean; editable?: boolean; selected?: boolean;
   onSelect?: () => void; onTextChange?: (text: string) => void; onCaretChange?: (offset: number) => void; onEditingChange?: (editing: boolean) => void;
+  onRequestHeight?: (growthRatio: number) => void;
+  onInlineShapeEdit?: (shape: InlineShapeData, start: number, end: number) => void;
 }
 
 const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const editableHtml = (value: string) => inlineEquationParts(value).map((part) => part.kind === 'text'
   ? escapeHtml(part.value).replaceAll('\n', '<br>')
-  : `<span contenteditable="false" data-inline-latex="${encodeURIComponent(part.value)}" class="mx-1 inline-block rounded bg-blue-50 px-1 align-middle">${katex.renderToString(part.value, { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' })}</span>`).join('');
+  : part.kind === 'math'
+    ? `<span contenteditable="false" data-inline-latex="${encodeURIComponent(part.value)}" class="mx-1 inline-block rounded bg-blue-50 px-1 align-middle">${katex.renderToString(part.value, { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' })}</span>`
+    : (() => {
+        try {
+          const shape = JSON.parse(decodeURIComponent(part.value)) as InlineShapeData;
+          const svg = renderToStaticMarkup(<StudioShapeElement {...shape} />);
+          return `<span contenteditable="false" data-inline-shape="${part.value}" class="mx-1 inline-block h-[1.5em] w-[2.5em] cursor-pointer align-middle">${svg}</span>`;
+        } catch {
+          return '';
+        }
+      })()).join('');
 const serializeNodes = (nodes: NodeListOf<ChildNode> | NodeList) => Array.from(nodes).map((node) => {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
   if (!(node instanceof HTMLElement)) return '';
   if (node.dataset.inlineLatex) return `\\(${decodeURIComponent(node.dataset.inlineLatex)}\\)`;
+  if (node.dataset.inlineShape) return `[[shape:${node.dataset.inlineShape}]]`;
   if (node.tagName === 'BR') return '\n';
   const content = serializeNodes(node.childNodes);
   return node.tagName === 'DIV' || node.tagName === 'P' ? `${content}\n` : content;
 }).join('').replace(/\n$/, '');
 
-export default function StudioCanvasTextElement({ text, color = '#25436b', backgroundColor = 'transparent', fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', list = false, editable = false, selected = false, onSelect, onTextChange, onCaretChange, onEditingChange }: Props) {
+export default function StudioCanvasTextElement({ text, color = '#25436b', backgroundColor = 'transparent', fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', list = false, editable = false, selected = false, onSelect, onTextChange, onCaretChange, onEditingChange, onRequestHeight, onInlineShapeEdit }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
@@ -35,6 +51,13 @@ export default function StudioCanvasTextElement({ text, color = '#25436b', backg
     prefix.selectNodeContents(editor);
     prefix.setEnd(range.endContainer, range.endOffset);
     onCaretChange?.(serializeNodes(prefix.cloneContents().childNodes).length);
+  };
+  const requestRequiredHeight = () => {
+    window.requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (!editor || editor.clientHeight <= 0 || editor.scrollHeight <= editor.clientHeight + 1) return;
+      onRequestHeight?.(editor.scrollHeight / editor.clientHeight);
+    });
   };
   useEffect(() => { if (!selected) { setEditing(false); onEditingChange?.(false); } }, [onEditingChange, selected]);
   useEffect(() => {
@@ -50,9 +73,9 @@ export default function StudioCanvasTextElement({ text, color = '#25436b', backg
     document.addEventListener('pointerdown', finishWhenOutside);
     return () => document.removeEventListener('pointerdown', finishWhenOutside);
   }, [editing, onEditingChange, onTextChange]);
-  const beginEditing = () => { setEditing(true); onEditingChange?.(true); requestAnimationFrame(() => editorRef.current?.focus()); };
+  const beginEditing = () => { setEditing(true); onEditingChange?.(true); requestAnimationFrame(() => { editorRef.current?.focus(); requestRequiredHeight(); }); };
   return <div ref={containerRef} className="relative flex h-full w-full flex-col" style={{ backgroundColor }} onClick={(event) => { event.stopPropagation(); onSelect?.(); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
-    {editing ? <div ref={editorRef} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: editableHtml(text) }} className="min-h-0 w-full flex-1 overflow-auto whitespace-pre-wrap p-3 outline-none" style={{ color, fontSize, fontFamily, fontWeight: bold ? 700 : 400, fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: alignment }} onInput={reportCaret} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={(event) => { reportCaret(); const value = serializeNodes(event.currentTarget.childNodes); onTextChange?.(value); window.setTimeout(() => { if (document.activeElement?.closest('[data-studio-element-toolbar]')) return; setEditing(false); onEditingChange?.(false); }, 0); }} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
+    {editing ? <div ref={editorRef} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: editableHtml(text) }} className="min-h-0 w-full flex-1 overflow-hidden whitespace-pre-wrap p-3 outline-none" style={{ color, fontSize, fontFamily, fontWeight: bold ? 700 : 400, fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: alignment }} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-shape]'); if (!target?.dataset.inlineShape || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); requestRequiredHeight(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={(event) => { reportCaret(); const value = serializeNodes(event.currentTarget.childNodes); onTextChange?.(value); window.setTimeout(() => { if (document.activeElement?.closest('[data-studio-element-toolbar]')) return; setEditing(false); onEditingChange?.(false); }, 0); }} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
       : <div className="min-h-0 flex-1 overflow-hidden" style={{ fontFamily, fontWeight: bold ? 700 : 400, fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: alignment }}>{list
         ? <ul className="list-disc space-y-1 p-3 pl-8" style={{ color, fontSize }}>{text.split('\n').filter(Boolean).map((line, index) => <li key={index}>{hasInlineEquation(line) ? <StudioRichTextElement text={line} color={color} fontSize={fontSize} /> : line}</li>)}</ul>
         : hasInlineEquation(text) ? <StudioRichTextElement text={text} color={color} fontSize={fontSize} /> : <div className="whitespace-pre-wrap p-3" style={{ color, fontSize }}>{text}</div>}</div>}

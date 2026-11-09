@@ -18,7 +18,7 @@ const {
 } = await import('../services/studioDocuments.service.js');
 const { createScreen } = await import('../services/studioLayouts.service.js');
 const { saveScreen, reorderScreens } = await import('../services/studioScreens.service.js');
-const { createResource } = await import('../services/studioResources.service.js');
+const { createResource, renameResource } = await import('../services/studioResources.service.js');
 const {
   submitSession,
   reviewSession,
@@ -96,10 +96,57 @@ test('teacher is denied every academic authoring and workflow service', async ()
     file: { buffer: Buffer.from('<h1>Blocked</h1>'), originalname: 'index.html', mimetype: 'text/html' },
     user: teacher,
   }));
+  await expectForbidden(renameResource({
+    resourceId: 91,
+    body: { name: 'Blocked rename' },
+    user: teacher,
+  }));
   await expectForbidden(submitSession({ sessionId: 41, user: teacher }));
   await expectForbidden(reviewSession({ sessionId: 41, decision: 'approved', user: teacher }));
   await expectForbidden(publishSession({ sessionId: 41, user: teacher }));
   await expectForbidden(getRuntimeDownload({ versionId: 15, user: teacher }));
+});
+
+test('resource rename validates the tenant and updates only the Resource name', async (t) => {
+  const originalQuery = pool.query;
+  const calls = [];
+  pool.query = async (text, params) => {
+    const sql = normalizeSql(text);
+    calls.push({ sql, params });
+    if (sql.startsWith('select id, client_id, name')) {
+      return { rows: [{
+        id: 91,
+        client_id: 12,
+        name: 'Old name',
+        description: null,
+        resource_type: 'image',
+        is_active: true,
+      }] };
+    }
+    if (sql.startsWith('update resources')) {
+      return { rows: [{
+        id: 91,
+        client_id: 12,
+        name: params[1],
+        description: null,
+        resource_type: 'image',
+        is_active: true,
+        updated_at: '2026-11-09T10:00:00.000Z',
+      }] };
+    }
+    throw new Error(`Unhandled query: ${sql}`);
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const renamed = await renameResource({
+    resourceId: 91,
+    body: { name: '  Updated diagram  ' },
+    user: { id: 8, role: 'content_authorizer', client_id: 12 },
+  });
+
+  assert.equal(renamed.name, 'Updated diagram');
+  assert.deepEqual(calls[1].params, [91, 'Updated diagram']);
+  assert.match(calls[1].sql, /set name = \$2, updated_at = now\(\)/);
 });
 
 test('returning content to draft advances the revision used by the authorization trigger', async () => {

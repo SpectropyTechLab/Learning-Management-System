@@ -342,28 +342,34 @@ const stringifyContent = (value) => {
   catch { return ''; }
 };
 
+const screenTaxonomy = (screen, type) => (Array.isArray(screen?.taxonomy?.[type]) ? screen.taxonomy[type] : [])
+  .map((term) => String(term?.code || term?.label || '').trim().toLowerCase()).filter(Boolean);
+
 const scriptContentByScreen = (manifest) => new Map(
   (Array.isArray(manifest?.screen_scripts) ? manifest.screen_scripts : [])
     .map((script) => [Number(script.screen_id), stringifyContent(script.content)]),
 );
 
-const metadataMatches = ({ text, tags, requestedTags, pedagogy, bloom, search }) => {
+const metadataMatches = ({ text, tags, taxonomy, requestedTags, pedagogy, bloom, targetExam, resourceType, actualResourceType, search }) => {
   const normalizedTags = new Set(normalizedArray(tags));
   if (requestedTags.some((tag) => !normalizedTags.has(tag))) return false;
-  if (pedagogy && !text.includes(pedagogy)) return false;
-  if (bloom && !text.includes(bloom)) return false;
+  if (pedagogy && !taxonomy.pedagogy.includes(pedagogy)) return false;
+  if (bloom && !taxonomy.bloom.includes(bloom)) return false;
+  if (targetExam && !taxonomy.target_exam.includes(targetExam)) return false;
+  if (resourceType && String(actualResourceType || '').toLowerCase() !== resourceType) return false;
   if (search && !text.includes(search)) return false;
   return true;
 };
 
-const discoveryScore = ({ context, row, tags, requestedTags, text, pedagogy, bloom }) => {
+const discoveryScore = ({ context, row, tags, requestedTags, taxonomy, pedagogy, bloom, targetExam }) => {
   let score = 10;
   if (Number(row.topic_id) === Number(context.topic_id)) score += 20;
   if (Number(row.subtopic_id) === Number(context.subtopic_id)) score += 30;
   const normalizedTags = new Set(normalizedArray(tags));
   score += requestedTags.filter((tag) => normalizedTags.has(tag)).length * 5;
-  if (pedagogy && text.includes(pedagogy)) score += 8;
-  if (bloom && text.includes(bloom)) score += 8;
+  if (pedagogy && taxonomy.pedagogy.includes(pedagogy)) score += 8;
+  if (bloom && taxonomy.bloom.includes(bloom)) score += 8;
+  if (targetExam && taxonomy.target_exam.includes(targetExam)) score += 8;
   return score;
 };
 
@@ -469,8 +475,13 @@ const sessionDiscoveryItems = ({ releases, context, filters }) => releases.flatM
   const manifest = row.manifest_json || {};
   const screens = Array.isArray(manifest.screens) ? manifest.screens : [];
   const tags = [...new Set(screens.flatMap((screen) => normalizedArray(screen.tags)))];
+  const taxonomy = {
+    pedagogy: [...new Set(screens.flatMap((screen) => screenTaxonomy(screen, 'pedagogy')))],
+    bloom: [...new Set(screens.flatMap((screen) => screenTaxonomy(screen, 'bloom')))],
+    target_exam: [...new Set(screens.flatMap((screen) => screenTaxonomy(screen, 'target_exam')))],
+  };
   const text = [row.session_title, row.session_description, row.topic_name, row.subtopic_name, stringifyContent(manifest.documents), stringifyContent(manifest.screen_scripts), ...tags].join(' ').toLowerCase();
-  if (!metadataMatches({ text, tags, ...filters })) return [];
+  if (!metadataMatches({ text, tags, taxonomy, ...filters })) return [];
   return [{
     key: `session:${row.id}`,
     type: 'session',
@@ -479,7 +490,7 @@ const sessionDiscoveryItems = ({ releases, context, filters }) => releases.flatM
     release_id: Number(row.id), release_number: Number(row.release_number),
     session_id: Number(row.session_id), screen_count: screens.length,
     tags, curriculum: curriculumView(row),
-    score: discoveryScore({ context, row, tags, text, ...filters }),
+    score: discoveryScore({ context, row, tags, taxonomy, ...filters }),
     published_at: row.published_at,
   }];
 });
@@ -489,15 +500,19 @@ const screenDiscoveryItems = ({ releases, context, filters }) => releases.flatMa
   const scripts = scriptContentByScreen(manifest);
   return (Array.isArray(manifest.screens) ? manifest.screens : []).flatMap((screen) => {
     const tags = normalizedArray(screen.tags);
+    const taxonomy = {
+      pedagogy: screenTaxonomy(screen, 'pedagogy'), bloom: screenTaxonomy(screen, 'bloom'),
+      target_exam: screenTaxonomy(screen, 'target_exam'),
+    };
     const text = [screen.title, row.session_title, row.topic_name, row.subtopic_name, scripts.get(Number(screen.screen_id)) || '', ...tags].join(' ').toLowerCase();
-    if (!metadataMatches({ text, tags, ...filters })) return [];
+    if (!metadataMatches({ text, tags, taxonomy, ...filters })) return [];
     return [{
       key: `screen:${row.id}:${screen.screen_id}`,
       type: 'screen', title: screen.title, description: row.session_title,
       release_id: Number(row.id), release_number: Number(row.release_number),
       session_id: Number(row.session_id), screen_id: Number(screen.screen_id),
       screen_number: Number(screen.screen_number), tags, curriculum: curriculumView(row),
-      score: discoveryScore({ context, row, tags, text, ...filters }),
+      score: discoveryScore({ context, row, tags, taxonomy, ...filters }),
       published_at: row.published_at,
     }];
   });
@@ -522,11 +537,15 @@ const resourceDiscoveryItems = ({ releases, context, filters }) => {
     const scripts = scriptContentByScreen(manifest);
     for (const screen of Array.isArray(manifest.screens) ? manifest.screens : []) {
       const tags = normalizedArray(screen.tags);
+      const taxonomy = {
+        pedagogy: screenTaxonomy(screen, 'pedagogy'), bloom: screenTaxonomy(screen, 'bloom'),
+        target_exam: screenTaxonomy(screen, 'target_exam'),
+      };
       for (const element of Array.isArray(screen.elements) ? screen.elements : []) {
         const mapping = element.resource_mapping;
         if (!mapping?.resource_version_id) continue;
         const text = [mapping.name, mapping.description, mapping.resource_type, screen.title, row.session_title, scripts.get(Number(screen.screen_id)) || '', ...tags].join(' ').toLowerCase();
-        if (!metadataMatches({ text, tags, ...filters })) continue;
+        if (!metadataMatches({ text, tags, taxonomy, actualResourceType: mapping.resource_type, ...filters })) continue;
         const key = `resource:${row.id}:${mapping.resource_version_id}`;
         const candidate = {
           key, type: 'resource', title: mapping.name, description: `${row.session_title} · ${screen.title}`,
@@ -535,7 +554,7 @@ const resourceDiscoveryItems = ({ releases, context, filters }) => {
           resource_id: Number(mapping.resource_id), resource_version_id: Number(mapping.resource_version_id),
           resource_type: mapping.resource_type, resource_mapping: publishedResourceMappingView(mapping),
           tags, curriculum: curriculumView(row),
-          score: discoveryScore({ context, row, tags, text, ...filters }),
+          score: discoveryScore({ context, row, tags, taxonomy, ...filters }),
           published_at: row.published_at,
         };
         const existing = items.get(key);
@@ -549,7 +568,8 @@ const resourceDiscoveryItems = ({ releases, context, filters }) => {
 export const discoverPublishedContent = async ({
   releaseId: rawReleaseId, screenId: rawScreenId, type: rawType,
   topicId: rawTopicId, subtopicId: rawSubtopicId, tags: rawTags,
-  pedagogy: rawPedagogy, bloom: rawBloom, search: rawSearch,
+  pedagogy: rawPedagogy, bloom: rawBloom, targetExam: rawTargetExam,
+  resourceType: rawResourceType, search: rawSearch,
   limit: rawLimit, cursor: rawCursor, user, db = { query: dbQuery },
 }) => {
   assertDiscoveryRole(user);
@@ -562,12 +582,14 @@ export const discoverPublishedContent = async ({
   const requestedTags = normalizeOptionalTags(rawTags);
   const pedagogy = optionalText(rawPedagogy, 'pedagogy');
   const bloom = optionalText(rawBloom, 'bloom');
+  const targetExam = optionalText(rawTargetExam, 'target exam');
+  const resourceType = type === 'resource' ? optionalText(rawResourceType, 'resource type') : '';
   const search = optionalText(rawSearch, 'search', 200);
   const limit = discoveryLimit(rawLimit);
   const offset = decodeCursor(rawCursor);
   const { context, access } = await loadDiscoveryContext({ releaseId, screenId, user, db });
   const releases = await loadChapterReleases({ context, topicId, subtopicId, user, access, db });
-  const filters = { requestedTags, pedagogy, bloom, search };
+  const filters = { requestedTags, pedagogy, bloom, targetExam, resourceType, search };
   const builders = { session: sessionDiscoveryItems, screen: screenDiscoveryItems, resource: resourceDiscoveryItems };
   const allItems = builders[type]({ releases, context, filters })
     .sort((left, right) => right.score - left.score || String(right.published_at).localeCompare(String(left.published_at)) || left.key.localeCompare(right.key));
@@ -579,12 +601,22 @@ export const discoverPublishedContent = async ({
     .filter((row) => !topicId || Number(row.topic_id) === topicId)
     .map((row) => [Number(row.subtopic_id), { id: Number(row.subtopic_id), topic_id: Number(row.topic_id), name: row.subtopic_name }])).values()]
     .sort((left, right) => left.name.localeCompare(right.name));
+  const taxonomyResult = await db.query(
+    `SELECT taxonomy_type AS type, code, label FROM studio_taxonomy_terms
+     WHERE is_active = TRUE AND (client_id IS NULL OR client_id IS NOT DISTINCT FROM $1)
+     ORDER BY taxonomy_type, label`, [context.client_id],
+  );
+  const taxonomyFacets = { pedagogy: [], bloom: [], target_exam: [] };
+  for (const term of taxonomyResult.rows) taxonomyFacets[term.type]?.push({ code: term.code, label: term.label });
+  const resourceTypes = [...new Set(releases.flatMap((release) => (release.manifest_json?.screens || [])
+    .flatMap((screen) => (screen.elements || []).map((element) => element.resource_mapping?.resource_type).filter(Boolean))))]
+    .sort((left, right) => String(left).localeCompare(String(right)));
   return {
     type,
     items,
     next_cursor: nextOffset < allItems.length ? encodeCursor(nextOffset) : null,
     applied_context: curriculumView(context),
-    facets: { topics, subtopics },
+    facets: { topics, subtopics, ...taxonomyFacets, resource_types: resourceTypes },
   };
 };
 
