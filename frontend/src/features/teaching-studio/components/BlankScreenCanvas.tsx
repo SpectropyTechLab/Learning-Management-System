@@ -503,10 +503,19 @@ export default function BlankScreenCanvas({
           ? {}
           : { opacity: 0 };
       objectAnimationKeys[element.id] = `${screen?.id ?? 'screen'}-${previewCycle}-${previewStep}-${element.id}`;
+      objectAnimationStyles[element.id] = state.activeEffects.length
+        ? studioAnimationStyle({ effects: state.activeEffects })
+        : state.visible
+          ? {}
+          : { opacity: 0 };
+      objectAnimationKeys[element.id] = `${screen?.id ?? 'screen'}-${previewCycle}-${previewStep}-${element.id}`;
     } else if (animationPreview?.elementId === element.id) {
       objectAnimationStyles[element.id] = studioAnimationStyle(animation);
       objectAnimationKeys[element.id] = animationPreview.token;
+      objectAnimationStyles[element.id] = studioAnimationStyle(animation);
+      objectAnimationKeys[element.id] = animationPreview.token;
     } else {
+      objectAnimationStyles[element.id] = {};
       objectAnimationStyles[element.id] = {};
     }
   }

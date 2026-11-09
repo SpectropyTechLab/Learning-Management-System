@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Grid2X2, Layers3, List, MoreVertical, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Eye, Grid2X2, Layers3, List, MoreVertical, Pencil, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
-import { deleteStudioResource, getStudioResource, getStudioResourcePreview, listStudioResources, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
+import { deleteStudioResource, getStudioResource, getStudioResourcePreview, listStudioResources, renameStudioResource, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
 import StudioResourcePlayer from './StudioResourcePlayer';
 import { formatResourceTypeLabel, getResourceTypeStyle } from './resourcePresentation';
@@ -55,7 +55,7 @@ function ResourcePreview({ resource }: { resource: StudioResourceSummary }) {
   );
 }
 
-function ResourceActions({ resource, open, onToggle, onPreview, onDelete }: { resource: StudioResourceSummary; open: boolean; onToggle: () => void; onPreview: () => void; onDelete: () => void }) {
+function ResourceActions({ resource, open, onToggle, onPreview, onRename, onDelete }: { resource: StudioResourceSummary; open: boolean; onToggle: () => void; onPreview: () => void; onRename: () => void; onDelete: () => void }) {
   return (
     <div className="relative" data-resource-menu>
       <button type="button" onClick={onToggle} aria-label={`Actions for ${resource.name}`} aria-expanded={open} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900">
@@ -66,6 +66,10 @@ function ResourceActions({ resource, open, onToggle, onPreview, onDelete }: { re
           <button type="button" onClick={onPreview} className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-slate-700 hover:bg-slate-50">
             <Eye size={16} />
             Preview
+          </button>
+          <button type="button" onClick={onRename} className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-slate-700 hover:bg-slate-50">
+            <Pencil size={16} />
+            Rename
           </button>
           <button type="button" onClick={onDelete} className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-red-700 hover:bg-red-50">
             <Trash2 size={16} />
@@ -111,6 +115,10 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [menuResourceId, setMenuResourceId] = useState<number | null>(null);
+  const [renameTarget, setRenameTarget] = useState<StudioResourceSummary | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<StudioResourceSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -202,6 +210,35 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
     setMenuResourceId(null);
     setDeleteError('');
     setDeleteTarget(resource);
+  };
+
+  const requestRename = (resource: StudioResourceSummary) => {
+    setMenuResourceId(null);
+    setRenameTarget(resource);
+    setRenameName(resource.name);
+    setRenameError('');
+  };
+
+  const renameResource = async () => {
+    if (!renameTarget || !renameName.trim()) return;
+    setRenaming(true);
+    setRenameError('');
+    try {
+      const renamed = await renameStudioResource(renameTarget.id, renameName);
+      setResources((current) => current
+        .map((resource) => (
+          resource.id === renamed.id
+            ? { ...resource, name: renamed.name, updated_at: renamed.updated_at }
+            : resource
+        ))
+        .filter((resource) => !debouncedSearch || resource.name.toLowerCase().includes(debouncedSearch.toLowerCase())));
+      setRenameTarget(null);
+      toast.success('Resource renamed.');
+    } catch (renameFailure) {
+      setRenameError(getApiErrorDetails(renameFailure, 'Unable to rename Resource.').message);
+    } finally {
+      setRenaming(false);
+    }
   };
 
   const permanentlyDelete = async () => {
@@ -334,7 +371,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
                   </button>
                   {mode === 'manage' ? (
                     <div className="absolute bottom-2.5 right-2.5">
-                      <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onDelete={() => requestDelete(resource)} />
+                      <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onRename={() => requestRename(resource)} onDelete={() => requestDelete(resource)} />
                     </div>
                   ) : null}
                 </article>
@@ -362,7 +399,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
                   </button>
                   {mode === 'manage' ? (
                     <div className="flex items-center pr-3">
-                      <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onDelete={() => requestDelete(resource)} />
+                      <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onRename={() => requestRename(resource)} onDelete={() => requestDelete(resource)} />
                     </div>
                   ) : null}
                 </div>
@@ -439,6 +476,47 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
               </button>
             </footer>
           </div>
+        </div>
+      ) : null}
+
+      {renameTarget ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Rename Resource">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void renameResource();
+            }}
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Rename Resource</h2>
+                <p className="mt-1 text-sm text-slate-500">This changes the library name only. Existing versions and placements are not changed.</p>
+              </div>
+              <button type="button" disabled={renaming} onClick={() => setRenameTarget(null)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-40" aria-label="Close rename dialog">
+                <X size={18} />
+              </button>
+            </div>
+            <label className="mt-5 block text-sm font-semibold text-slate-700">
+              Resource name
+              <input
+                autoFocus
+                maxLength={250}
+                value={renameName}
+                onChange={(event) => setRenameName(event.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+            {renameError ? <p className="mt-3 text-sm text-red-700">{renameError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={renaming} onClick={() => setRenameTarget(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40">
+                Cancel
+              </button>
+              <button type="submit" disabled={renaming || !renameName.trim() || renameName.trim() === renameTarget.name} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">
+                {renaming ? 'Renaming…' : 'Save name'}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
 

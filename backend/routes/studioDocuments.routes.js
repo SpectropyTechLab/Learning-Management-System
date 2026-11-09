@@ -21,7 +21,7 @@ router.put('/studio/sessions/:sessionId/session-plan', authors, upload.single('f
 router.patch('/studio/sessions/:sessionId/session-plan/content', authors, saveSessionPlanContent);
 router.get('/studio/sessions/:sessionId/session-plan/download', downloadSessionPlan);
 router.get('/studio/sessions/:sessionId/session-plan', getSessionPlan);
-router.post('/studio/session-plan/import-preview', authors, upload.single('file'), previewSessionPlanImport);
+router.post('/studio/sessions/:sessionId/session-plan/import-preview', authors, upload.single('file'), previewSessionPlanImport);
 router.post('/studio/sessions/:sessionId/session-plan/import', authors, upload.single('file'), importSessionPlan);
 router.post('/studio/sessions/:sessionId/screen-script', authors, upload.single('file'), uploadScreenScript);
 router.put('/studio/sessions/:sessionId/screen-script', authors, upload.single('file'), uploadScreenScript);

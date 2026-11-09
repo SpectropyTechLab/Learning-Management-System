@@ -27,7 +27,7 @@ const editableHtml = (value: string) => inlineEquationParts(value).map((part) =>
           return '';
         }
       })()).join('');
-const serializeNodes = (nodes: NodeListOf<ChildNode> | NodeList) => Array.from(nodes).map((node) => {
+const serializeNodes = (nodes: NodeListOf<ChildNode> | NodeList): string => Array.from(nodes).map((node): string => {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
   if (!(node instanceof HTMLElement)) return '';
   if (node.dataset.inlineLatex) return `\\(${decodeURIComponent(node.dataset.inlineLatex)}\\)`;

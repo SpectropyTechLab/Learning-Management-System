@@ -153,6 +153,12 @@ export const getStudioResource = async (resourceId: number) =>
 export const getStudioResourceUsages = async (resourceId: number) =>
   dataOf<StudioResourceUsageReport>((await api.get(`/studio/resources/${resourceId}/usages`)).data);
 
+export const renameStudioResource = async (resourceId: number, name: string) =>
+  dataOf<Pick<StudioResourceSummary, 'id' | 'name' | 'updated_at'>>((await api.patch(
+    `/studio/resources/${resourceId}`,
+    { name: name.trim() },
+  )).data);
+
 const appendNumber = (formData: FormData, key: string, value?: number | null) => {
   if (value !== undefined && value !== null && Number.isFinite(value)) {
     formData.append(key, String(value));

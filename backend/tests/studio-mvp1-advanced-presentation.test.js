@@ -16,7 +16,7 @@ test('advanced presentation migration keeps Zoom targets relational and same-ses
 
 test('release manifest freezes Sections and Zoom links for teacher playback', () => {
   const service = read('../services/studioReleases.service.js');
-  assert.match(service, /manifest_version: 3/);
+  assert.match(service, /manifest_version: 4/);
   assert.match(service, /sections: content\.sections\.map/);
   assert.match(service, /zoom_kind:/);
   assert.match(service, /usage_details_json/);
@@ -35,4 +35,20 @@ test('embedded object routes protect both author and published preview paths', (
   const releaseRoutes = read('../routes/studioReleases.routes.js');
   assert.match(authorRoutes, /object-preview/);
   assert.match(releaseRoutes, /object-preview/);
+});
+
+test('transition authoring exposes enterprise timing, accessibility and playback contracts', () => {
+  const panel = read('../../frontend/src/features/teaching-studio/components/StudioTransitionsPanel.tsx');
+  const catalog = read('../../frontend/src/features/teaching-studio/components/studioTransitionCatalog.ts');
+  const runtime = read('../../frontend/src/features/teaching-studio/components/studioTransition.ts');
+  const player = read('../../frontend/src/features/teaching-studio/StudioSessionPlayerPage.tsx');
+  assert.match(panel, /Apply to all/);
+  assert.match(panel, /Respect reduced-motion preference/);
+  assert.match(panel, /Advance after/);
+  assert.match(catalog, /fly-through/);
+  assert.match(catalog, /stop.*Stop previous sound/);
+  assert.match(runtime, /prefers-reduced-motion: reduce/);
+  assert.match(runtime, /loop\?: boolean/);
+  assert.match(player, /advanceAfterEnabled/);
+  assert.match(player, /advancePresenterRef\.current/);
 });
