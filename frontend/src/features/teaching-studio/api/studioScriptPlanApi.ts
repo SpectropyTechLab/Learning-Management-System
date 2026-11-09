@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { createClientUuid } from '@/utils/createClientUuid';
 
 export interface StudioLayoutOption {
   id: number;
@@ -23,7 +24,7 @@ export interface ScriptPlanScreen {
 }
 
 export const blankScriptScreen = (position: number): ScriptPlanScreen => ({
-  id: crypto.randomUUID(),
+  id: createClientUuid(),
   screen_key: `S${String(position).padStart(2, '0')}`,
   screen_name: '',
   duration_minutes: '',

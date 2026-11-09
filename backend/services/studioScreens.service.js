@@ -191,6 +191,74 @@ const normalizeScreenSettings = (value) => {
   return { ...settings, author_drawings: { ...drawings, strokes } };
 };
 
+const validateSmartDiagramContent = (content, elementKey) => {
+  if (content.visualType !== 'smart_diagram') return;
+  if (content.schemaVersion !== 1) {
+    throw new AppError(`Element ${elementKey} Smart Diagram schema version is unsupported`, 422);
+  }
+  const categories = new Set(['list', 'process', 'cycle', 'hierarchy', 'relationship', 'matrix', 'pyramid', 'picture', 'timeline', 'comparison', 'cause-effect', 'funnel']);
+  const directions = new Set(['ltr', 'rtl']);
+  const styles = new Set(['flat', 'outline', 'soft', 'polished', 'bevel']);
+  const connectors = new Set(['straight', 'elbow', 'curve', 'none']);
+  const reveals = new Set(['as-one-object', 'all-at-once', 'one-by-one', 'level-at-once', 'level-one-by-one']);
+  if (!categories.has(content.category)) throw new AppError(`Element ${elementKey} Smart Diagram category is invalid`, 422);
+  if (typeof content.layout !== 'string' || !content.layout.trim() || content.layout.length > 100) throw new AppError(`Element ${elementKey} Smart Diagram layout is invalid`, 422);
+  if (!directions.has(content.direction)) throw new AppError(`Element ${elementKey} Smart Diagram direction is invalid`, 422);
+  if (!styles.has(content.styleId)) throw new AppError(`Element ${elementKey} Smart Diagram style is invalid`, 422);
+  if (!connectors.has(content.connectorStyle)) throw new AppError(`Element ${elementKey} Smart Diagram connector style is invalid`, 422);
+  if (!reveals.has(content.revealMode)) throw new AppError(`Element ${elementKey} Smart Diagram animation mode is invalid`, 422);
+  if (!Array.isArray(content.nodes) || content.nodes.length < 1 || content.nodes.length > 50) {
+    throw new AppError(`Element ${elementKey} Smart Diagram must contain 1 to 50 nodes`, 422);
+  }
+  const nodeIds = new Set();
+  for (const [index, rawNode] of content.nodes.entries()) {
+    const node = assertObject(rawNode, `Element ${elementKey} Smart Diagram node ${index + 1}`);
+    const id = optionalText(node.id, `Element ${elementKey} Smart Diagram node ${index + 1} id`, 150);
+    if (!id || nodeIds.has(id)) throw new AppError(`Element ${elementKey} Smart Diagram node IDs must be unique`, 422);
+    nodeIds.add(id);
+    const text = optionalText(node.text, `Element ${elementKey} Smart Diagram node ${index + 1} text`, 240);
+    if (!text) throw new AppError(`Element ${elementKey} Smart Diagram nodes require text`, 422);
+    const level = Number(node.level);
+    if (!Number.isInteger(level) || level < 0 || level > 5) throw new AppError(`Element ${elementKey} Smart Diagram node levels must be 0 to 5`, 422);
+    if (node.role !== undefined && !['normal', 'assistant'].includes(node.role)) throw new AppError(`Element ${elementKey} Smart Diagram node role is invalid`, 422);
+    for (const colourKey of ['fill', 'textColor']) {
+      if (node[colourKey] !== undefined && !/^#[0-9a-f]{6}$/i.test(String(node[colourKey]))) throw new AppError(`Element ${elementKey} Smart Diagram ${colourKey} must be a six-digit hex colour`, 422);
+    }
+  }
+  for (const node of content.nodes) {
+    if (node.parentId !== undefined && node.parentId !== null && !nodeIds.has(String(node.parentId))) {
+      throw new AppError(`Element ${elementKey} Smart Diagram references a missing parent node`, 422);
+    }
+  }
+  if (content.altText !== undefined && String(content.altText).length > 1000) throw new AppError(`Element ${elementKey} Smart Diagram accessibility description is too long`, 422);
+};
+
+const validateElementPresentationContent = (content, elementKey) => {
+  if (content.richTextHtml !== undefined) {
+    const html = String(content.richTextHtml);
+    if (html.length > 50000)
+      throw new AppError(`Element ${elementKey} rich text is too large`, 422);
+    if (/<\s*(?:script|iframe|object|embed|style|form)\b|\son\w+\s*=|javascript\s*:/i.test(html))
+      throw new AppError(`Element ${elementKey} rich text contains unsafe markup`, 422);
+  }
+  if (content.hyperlink === undefined || content.hyperlink === null) return;
+  const hyperlink = assertObject(content.hyperlink, `Element ${elementKey} hyperlink`);
+  const rawUrl = optionalText(hyperlink.url, `Element ${elementKey} hyperlink URL`, 2000);
+  if (!rawUrl) throw new AppError(`Element ${elementKey} hyperlink URL is required`, 422);
+  const url = /^[a-z][a-z\d+.-]*:/i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new AppError(`Element ${elementKey} hyperlink URL is invalid`, 422);
+  }
+  if (!['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol))
+    throw new AppError(`Element ${elementKey} hyperlink protocol is not allowed`, 422);
+  optionalText(hyperlink.tooltip, `Element ${elementKey} hyperlink description`, 240);
+  if (hyperlink.target !== undefined && !['_blank', '_self'].includes(hyperlink.target))
+    throw new AppError(`Element ${elementKey} hyperlink target is invalid`, 422);
+};
+
 const normalizeElements = (elements, layout) => {
   if (!Array.isArray(elements)) throw new AppError('elements must be an array');
   const slots = layout
@@ -216,6 +284,8 @@ const normalizeElements = (elements, layout) => {
     }
     const content =
       element.content === undefined ? {} : assertObject(element.content, `Element ${key} content`);
+    validateSmartDiagramContent(content, key);
+    validateElementPresentationContent(content, key);
     const position = normalizePosition(element.position, `Element ${key} position`);
     const zoom = type === 'zoom' ? normalizeZoom(element.zoom ?? content.zoom, key) : null;
     if (type === 'zoom' && !zoom) throw new AppError(`Element ${key} requires a Zoom destination`, 422);
