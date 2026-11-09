@@ -1237,15 +1237,26 @@ export default function TeachingStudioPage() {
                   onClick={() => void loadWorkflow(true)}
                   disabled={loadingWorkflow}
                 />
-                {workflowStatus?.can_submit && (
-                  <button
-                    type="button"
-                    onClick={() => void runWorkflowAction('submit')}
-                    className="shrink-0 rounded-lg bg-blue-900 px-2 py-1.5 text-xs font-semibold text-white"
-                  >
-                    Submit
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => void runWorkflowAction('submit')}
+                  disabled={
+                    loadingWorkflow ||
+                    workflowAction !== null ||
+                    !workflowStatus?.can_submit
+                  }
+                  title={
+                    workflowStatus?.can_submit
+                      ? 'Submit this Session for review'
+                      : 'Resolve the publication requirements before submitting'
+                  }
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                >
+                  {workflowAction === 'submit' && (
+                    <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+                  )}
+                  {workflowAction === 'submit' ? 'Submitting…' : 'Submit'}
+                </button>
                 {workflowStatus && (
                   <span
                     className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
