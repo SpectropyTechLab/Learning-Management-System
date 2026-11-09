@@ -1,7 +1,7 @@
 import { Clock3, GalleryHorizontalEnd, MousePointerClick, Play, Volume2 } from 'lucide-react';
 import { useState } from 'react';
 import type { StudioScreenSettings } from '../types';
-import { replayStudioTransition } from './studioTransition';
+import { playStudioTransitionSound, replayStudioTransition } from './studioTransition';
 
 const groups = [
   {
@@ -157,7 +157,11 @@ export default function StudioTransitionsPanel({ settings, onChange }: Props) {
         </span>
         <select
           value={String(saved.sound || 'none')}
-          onChange={(event) => update({ sound: event.target.value })}
+          onChange={(event) => {
+            const sound = event.target.value;
+            update({ sound });
+            void playStudioTransitionSound(sound).catch(() => undefined);
+          }}
           className="mt-1 h-9 w-full rounded-lg border px-2"
         >
           <option value="none">No sound</option>

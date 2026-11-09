@@ -7,6 +7,10 @@ const RESOURCE_TYPES_BY_ELEMENT = new Map([
   ['visual', new Set(['image', 'animation', 'model_3d'])],
   ['media', new Set(['image', 'video', 'animation', 'external_link', 'presentation', 'model_3d'])],
   ['simulation', new Set(['simulation', 'html', 'zip', 'scorm', 'external_link'])],
+  ['embedded_object', new Set([
+    'document', 'presentation', 'external_link', 'html', 'zip', 'scorm',
+    'simulation', 'image', 'video', 'animation', 'model_3d',
+  ])],
 ]);
 const ELEMENT_TYPES = new Set([
   'title',
@@ -22,8 +26,47 @@ const ELEMENT_TYPES = new Set([
   'media',
   'graph',
   'data',
-  'options', 'math', 'shape',
+  'options', 'math', 'shape', 'zoom', 'embedded_object',
 ]);
+
+const normalizeZoom = (value, elementKey) => {
+  if (value === undefined || value === null) return null;
+  const zoom = assertObject(value, `Element ${elementKey} zoom`);
+  const kind = String(zoom.kind || zoom.zoom_kind || '').trim();
+  if (!['screen', 'section'].includes(kind)) {
+    throw new AppError(`Element ${elementKey} zoom kind must be screen or section`, 422);
+  }
+  const targetScreenId = kind === 'screen'
+    ? parseId(zoom.target_screen_id, `Element ${elementKey} target_screen_id`)
+    : null;
+  const targetSectionId = kind === 'section'
+    ? parseId(zoom.target_section_id, `Element ${elementKey} target_section_id`)
+    : null;
+  const transitionDuration = zoom.transition_duration_ms === undefined
+    ? 500
+    : Number(zoom.transition_duration_ms);
+  if (!Number.isInteger(transitionDuration) || transitionDuration < 0 || transitionDuration > 10000) {
+    throw new AppError(`Element ${elementKey} zoom transition duration must be 0 to 10000 milliseconds`, 422);
+  }
+  const thumbnailMode = String(zoom.thumbnail_mode || 'auto');
+  if (!['auto', 'custom'].includes(thumbnailMode)) {
+    throw new AppError(`Element ${elementKey} zoom thumbnail mode is invalid`, 422);
+  }
+  const customThumbnailUrl = String(zoom.custom_thumbnail_url || '').trim() || null;
+  if (thumbnailMode === 'custom' && !customThumbnailUrl) {
+    throw new AppError(`Element ${elementKey} custom Zoom thumbnail is required`, 422);
+  }
+  return {
+    kind,
+    targetScreenId,
+    targetSectionId,
+    returnToZoom: zoom.return_to_zoom !== false,
+    transitionEnabled: zoom.transition_enabled !== false,
+    transitionDuration,
+    thumbnailMode,
+    customThumbnailUrl,
+  };
+};
 
 const parseId = (value, label) => {
   const id = Number(value);
@@ -164,7 +207,7 @@ const normalizeElements = (elements, layout) => {
     if (!ELEMENT_TYPES.has(type))
       throw new AppError(`Element ${key} has unsupported type: ${type}`);
     const slotId = String(element.slotId || element.slot_id || '').trim() || null;
-    if (slots && type !== 'math' && type !== 'shape') {
+    if (slots && !['math', 'shape', 'zoom', 'embedded_object'].includes(type)) {
       if (!slotId || !slots.has(slotId))
         throw new AppError(`Element ${key} uses an unknown layout slot`);
       if (!slots.get(slotId).allowed.includes(type)) {
@@ -174,6 +217,8 @@ const normalizeElements = (elements, layout) => {
     const content =
       element.content === undefined ? {} : assertObject(element.content, `Element ${key} content`);
     const position = normalizePosition(element.position, `Element ${key} position`);
+    const zoom = type === 'zoom' ? normalizeZoom(element.zoom ?? content.zoom, key) : null;
+    if (type === 'zoom' && !zoom) throw new AppError(`Element ${key} requires a Zoom destination`, 422);
     const resourceInput =
       element.resource ||
       (element.resource_id || element.resource_version_id
@@ -198,7 +243,7 @@ const normalizeElements = (elements, layout) => {
             : assertObject(resourceInput.usage, `Element ${key} usage`),
       };
     }
-    return { key, type, slotId, content, position, displayOrder: index, resource };
+    return { key, type, slotId, content, position, displayOrder: index, resource, zoom };
   });
 };
 
@@ -234,7 +279,7 @@ const loadScreenRow = async (db, screenId, user, { lock = false } = {}) => {
 };
 
 const hydrateScreen = async (db, screen) => {
-  const [elementsResult, tagsResult, branchesResult] = await Promise.all([
+  const [elementsResult, tagsResult, branchesResult, zoomsResult] = await Promise.all([
     db.query(
       `SELECT se.element_key AS id, se.slot_id, se.element_type AS type,
               se.content_json AS content, se.position_json AS position,
@@ -254,7 +299,24 @@ const hydrateScreen = async (db, screen) => {
        FROM screen_branches WHERE source_screen_id = $1 ORDER BY display_order, id`,
       [screen.id],
     ),
+    db.query(
+      `SELECT element_id, zoom_kind, target_screen_id, target_section_id,
+              return_to_zoom, transition_enabled, transition_duration_ms,
+              thumbnail_mode, custom_thumbnail_url
+       FROM screen_zoom_links WHERE source_screen_id = $1`,
+      [screen.id],
+    ),
   ]);
+  const zooms = new Map(zoomsResult.rows.map((zoom) => [zoom.element_id, {
+    kind: zoom.zoom_kind,
+    target_screen_id: zoom.target_screen_id === null ? null : Number(zoom.target_screen_id),
+    target_section_id: zoom.target_section_id === null ? null : Number(zoom.target_section_id),
+    return_to_zoom: zoom.return_to_zoom,
+    transition_enabled: zoom.transition_enabled,
+    transition_duration_ms: Number(zoom.transition_duration_ms),
+    thumbnail_mode: zoom.thumbnail_mode,
+    custom_thumbnail_url: zoom.custom_thumbnail_url,
+  }]));
   return {
     ...screen,
     revision_no: Number(screen.revision_no),
@@ -264,6 +326,7 @@ const hydrateScreen = async (db, screen) => {
       type: element.type,
       content: element.content,
       position: element.position,
+      ...(zooms.has(element.id) ? { zoom: zooms.get(element.id) } : {}),
       ...(element.resource_id
         ? {
             resource: {
@@ -317,6 +380,28 @@ const validateResourceBindings = async (db, elements, clientId) => {
   }
 };
 
+const validateZoomLinks = async (db, elements, sessionId, sourceScreenId) => {
+  for (const element of elements.filter((candidate) => candidate.zoom)) {
+    const zoom = element.zoom;
+    if (zoom.kind === 'screen') {
+      if (zoom.targetScreenId === sourceScreenId) {
+        throw new AppError(`Element ${element.key} cannot Zoom to its own Screen`, 422);
+      }
+      const target = await db.query(
+        'SELECT id FROM screens WHERE id = $1 AND session_id = $2',
+        [zoom.targetScreenId, sessionId],
+      );
+      if (!target.rows[0]) throw new AppError(`Element ${element.key} Zoom target Screen is unavailable`, 422);
+    } else {
+      const target = await db.query(
+        'SELECT id FROM screen_sections WHERE id = $1 AND session_id = $2',
+        [zoom.targetSectionId, sessionId],
+      );
+      if (!target.rows[0]) throw new AppError(`Element ${element.key} Zoom target Section is unavailable`, 422);
+    }
+  }
+};
+
 export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => {
   assertAuthor(user);
   const screenId = parseId(rawScreenId, 'Screen ID');
@@ -350,6 +435,7 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
         ? screen.screen_settings_json
         : normalizeScreenSettings(body.screen_settings);
     await validateResourceBindings(client, elements, screen.client_id);
+    await validateZoomLinks(client, elements, screen.session_id, screen.id);
 
     const updateResult = await client.query(
       `UPDATE screens
@@ -407,6 +493,23 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
           ],
         );
       }
+      if (element.zoom) {
+        await client.query(
+          `INSERT INTO screen_zoom_links (
+             source_screen_id, element_id, session_id, zoom_kind,
+             target_screen_id, target_section_id, return_to_zoom,
+             transition_enabled, transition_duration_ms, thumbnail_mode,
+             custom_thumbnail_url
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            screen.id, element.key, screen.session_id, element.zoom.kind,
+            element.zoom.targetScreenId, element.zoom.targetSectionId,
+            element.zoom.returnToZoom, element.zoom.transitionEnabled,
+            element.zoom.transitionDuration, element.zoom.thumbnailMode,
+            element.zoom.customThumbnailUrl,
+          ],
+        );
+      }
     }
     if (tags !== undefined) {
       await client.query('DELETE FROM screen_tags WHERE screen_id = $1', [screen.id]);
@@ -437,12 +540,15 @@ export const deleteScreen = async ({ screenId: rawScreenId, user }) => {
     await client.query('BEGIN');
     const screen = await loadScreenRow(client, screenId, user, { lock: true });
     const references = await client.query(
-      `SELECT COUNT(*)::integer AS count FROM screen_branches
-       WHERE destination_screen_id = $1 OR return_screen_id = $1`,
+      `SELECT (
+         (SELECT COUNT(*) FROM screen_branches
+          WHERE destination_screen_id = $1 OR return_screen_id = $1) +
+         (SELECT COUNT(*) FROM screen_zoom_links WHERE target_screen_id = $1)
+       )::integer AS count`,
       [screen.id],
     );
     if (Number(references.rows[0].count) > 0) {
-      throw new AppError('Remove branches that point to this Screen before deleting it', 409);
+      throw new AppError('Remove branches and Zoom links that point to this Screen before deleting it', 409);
     }
     await client.query('DELETE FROM screens WHERE id = $1', [screen.id]);
     const session = await returnSessionToDraft(screen.session_id, client);
@@ -494,6 +600,136 @@ export const reorderScreens = async ({ sessionId: rawSessionId, body = {}, user 
       session_revision_no: Number(draft.revision_no),
       screen_ids: screenIds,
     };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const hydrateSections = async (db, sessionId) => {
+  const result = await db.query(
+    `SELECT ss.id, ss.session_id, ss.name, ss.display_order,
+            COALESCE(jsonb_agg(
+              jsonb_build_object(
+                'screen_id', ssm.screen_id,
+                'display_order', ssm.display_order,
+                'title', sc.title,
+                'screen_number', sc.screen_number
+              ) ORDER BY ssm.display_order
+            ) FILTER (WHERE ssm.screen_id IS NOT NULL), '[]'::jsonb) AS screens
+     FROM screen_sections ss
+     LEFT JOIN screen_section_members ssm ON ssm.section_id = ss.id
+     LEFT JOIN screens sc ON sc.id = ssm.screen_id
+     WHERE ss.session_id = $1
+     GROUP BY ss.id
+     ORDER BY ss.display_order, ss.id`,
+    [sessionId],
+  );
+  return result.rows.map((row) => ({
+    ...row,
+    id: Number(row.id),
+    session_id: Number(row.session_id),
+    display_order: Number(row.display_order),
+    screens: row.screens.map((screen) => ({
+      ...screen,
+      screen_id: Number(screen.screen_id),
+      display_order: Number(screen.display_order),
+      screen_number: Number(screen.screen_number),
+    })),
+  }));
+};
+
+export const listScreenSections = async ({ sessionId: rawSessionId, user }) => {
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  await loadSession({ query: dbQuery }, sessionId, user);
+  return hydrateSections({ query: dbQuery }, sessionId);
+};
+
+export const saveScreenSection = async ({ sessionId: rawSessionId, sectionId: rawSectionId, body = {}, user }) => {
+  assertAuthor(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const sectionId = rawSectionId === undefined || rawSectionId === null
+    ? null
+    : parseId(rawSectionId, 'Section ID');
+  const name = optionalText(body.name, 'name', 160);
+  if (!name) throw new AppError('Section name is required', 422);
+  if (!Array.isArray(body.screen_ids) || body.screen_ids.length === 0) {
+    throw new AppError('A Section requires at least one Screen', 422);
+  }
+  const screenIds = body.screen_ids.map((id) => parseId(id, 'screen_id'));
+  if (new Set(screenIds).size !== screenIds.length) throw new AppError('Section Screens cannot contain duplicates', 422);
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const session = await loadSession(client, sessionId, user, { lock: true });
+    const screens = await client.query(
+      'SELECT id FROM screens WHERE session_id = $1 AND id = ANY($2::int[]) FOR UPDATE',
+      [session.id, screenIds],
+    );
+    if (screens.rows.length !== screenIds.length) throw new AppError('Every Section Screen must belong to the Session', 422);
+    let savedId = sectionId;
+    if (sectionId) {
+      const updated = await client.query(
+        `UPDATE screen_sections SET name = $1, display_order = $2, updated_at = NOW()
+         WHERE id = $3 AND session_id = $4 RETURNING id`,
+        [name, Number(body.display_order) || 0, sectionId, session.id],
+      );
+      if (!updated.rows[0]) throw new AppError('Screen Section not found', 404);
+      await client.query('DELETE FROM screen_section_members WHERE section_id = $1', [sectionId]);
+    } else {
+      const inserted = await client.query(
+        `INSERT INTO screen_sections (session_id, name, display_order, created_by)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [session.id, name, Number(body.display_order) || 0, user?.id || null],
+      );
+      savedId = Number(inserted.rows[0].id);
+    }
+    for (let index = 0; index < screenIds.length; index += 1) {
+      await client.query(
+        `INSERT INTO screen_section_members (section_id, screen_id, display_order)
+         VALUES ($1, $2, $3)`,
+        [savedId, screenIds[index], index],
+      );
+    }
+    const draft = await returnSessionToDraft(session.id, client);
+    const sections = await hydrateSections(client, session.id);
+    await client.query('COMMIT');
+    return { section: sections.find((section) => section.id === Number(savedId)), session_revision_no: Number(draft.revision_no) };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteScreenSection = async ({ sectionId: rawSectionId, user }) => {
+  assertAuthor(user);
+  const sectionId = parseId(rawSectionId, 'Section ID');
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const section = (await client.query(
+      `SELECT ss.id, ss.session_id, se.client_id
+       FROM screen_sections ss JOIN sessions se ON se.id = ss.session_id
+       WHERE ss.id = $1 FOR UPDATE`,
+      [sectionId],
+    )).rows[0];
+    if (!section) throw new AppError('Screen Section not found', 404);
+    assertTenant(section.client_id, user);
+    const references = await client.query(
+      'SELECT COUNT(*)::int AS count FROM screen_zoom_links WHERE target_section_id = $1',
+      [sectionId],
+    );
+    if (Number(references.rows[0].count) > 0) {
+      throw new AppError('Remove Zoom links that point to this Section before deleting it', 409);
+    }
+    await client.query('DELETE FROM screen_sections WHERE id = $1', [sectionId]);
+    const draft = await returnSessionToDraft(section.session_id, client);
+    await client.query('COMMIT');
+    return { id: sectionId, session_revision_no: Number(draft.revision_no) };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

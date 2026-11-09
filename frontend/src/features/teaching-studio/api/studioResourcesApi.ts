@@ -11,6 +11,7 @@ export const STUDIO_RESOURCE_TYPES = [
   'scorm',
   'presentation',
   'model_3d',
+  'document',
 ] as const;
 
 export type StudioResourceType = (typeof STUDIO_RESOURCE_TYPES)[number];
@@ -26,6 +27,7 @@ export const studioResourceTypeLabel = (type: StudioResourceType) => ({
   scorm: 'SCORM package',
   presentation: 'PowerPoint Show',
   model_3d: '3D Model',
+  document: 'Document object',
 }[type] || 'Resource');
 
 export interface StudioResourceVersion {
@@ -195,6 +197,29 @@ export const getStudioResourcePreview = async (versionId: number) =>
     params: { fresh: Date.now() },
     headers: { 'Cache-Control': 'no-cache' },
   })).data);
+
+export interface StudioObjectPreviewDescriptor {
+  resource_id: number;
+  resource_version_id: number;
+  resource_type: string;
+  kind: string;
+  name: string;
+  original_file_name: string | null;
+  mime_type: string | null;
+  capabilities: string[];
+  mode: 'pdf' | 'text' | 'workbook' | 'interactive' | 'download';
+  url?: string;
+  text?: string;
+  truncated?: boolean;
+  sheets?: Array<{ name: string; rows: Array<Array<string | number | boolean | null>> }>;
+  fallback_mode?: string;
+}
+
+export const getStudioObjectPreview = async (versionId: number) =>
+  dataOf<StudioObjectPreviewDescriptor>((await api.get(
+    `/studio/resource-versions/${versionId}/object-preview`,
+    { params: { fresh: Date.now() }, headers: { 'Cache-Control': 'no-cache' } },
+  )).data);
 
 export const deleteStudioResource = async (resourceId: number) =>
   dataOf<{ id: number; deleted: true }>((await api.delete(`/studio/resources/${resourceId}`)).data);

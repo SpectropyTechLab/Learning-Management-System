@@ -9,6 +9,31 @@ export interface StudioElement {
     resource_version_id: number;
     usage: Record<string, unknown>;
   };
+  zoom?: StudioZoomLink;
+}
+
+export interface StudioZoomLink {
+  kind: 'screen' | 'section';
+  target_screen_id: number | null;
+  target_section_id: number | null;
+  return_to_zoom: boolean;
+  transition_enabled: boolean;
+  transition_duration_ms: number;
+  thumbnail_mode: 'auto' | 'custom';
+  custom_thumbnail_url: string | null;
+}
+
+export interface StudioScreenSection {
+  id: number;
+  session_id: number;
+  name: string;
+  display_order: number;
+  screens: Array<{
+    screen_id: number;
+    display_order: number;
+    title: string;
+    screen_number: number;
+  }>;
 }
 
 export interface AuthorDrawingStroke {

@@ -1,6 +1,6 @@
 import { isAxiosError } from 'axios';
 import api from '@/lib/api';
-import type { StudioScreen, StudioScreenList } from '../types';
+import type { StudioScreen, StudioScreenList, StudioScreenSection } from '../types';
 
 interface DataEnvelope<T> {
   data: T;
@@ -86,3 +86,24 @@ export const reorderStudioScreens = async (sessionId: number, sessionRevisionNo:
     `/studio/sessions/${sessionId}/screens/reorder`,
     { session_revision_no: sessionRevisionNo, screen_ids: screenIds },
   ));
+
+export const listStudioScreenSections = async (sessionId: number) =>
+  unwrap<StudioScreenSection[]>(await api.get(`/studio/sessions/${sessionId}/sections`));
+
+export const createStudioScreenSection = async (
+  sessionId: number,
+  payload: { name: string; screen_ids: number[]; display_order?: number },
+) => unwrap<{ section: StudioScreenSection; session_revision_no: number }>(
+  await api.post(`/studio/sessions/${sessionId}/sections`, payload),
+);
+
+export const updateStudioScreenSection = async (
+  sectionId: number,
+  sessionId: number,
+  payload: { name: string; screen_ids: number[]; display_order?: number },
+) => unwrap<{ section: StudioScreenSection; session_revision_no: number }>(
+  await api.patch(`/studio/sections/${sectionId}`, { ...payload, session_id: sessionId }),
+);
+
+export const deleteStudioScreenSection = async (sectionId: number) =>
+  unwrap<{ id: number; session_revision_no: number }>(await api.delete(`/studio/sections/${sectionId}`));

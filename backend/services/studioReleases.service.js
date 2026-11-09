@@ -118,8 +118,8 @@ const assertAuthorizedScreens = (screens, authorization) => {
 };
 
 const loadScreenContent = async (db, screenIds) => {
-  if (screenIds.length === 0) return { elements: [], tags: [], branches: [] };
-  const [elements, tags, branches] = await Promise.all([
+  if (screenIds.length === 0) return { elements: [], tags: [], branches: [], zoomLinks: [], sections: [] };
+  const [elements, tags, branches, zoomLinks, sections] = await Promise.all([
     db.query(
       `SELECT se.screen_id, se.id AS screen_element_id, se.element_key, se.slot_id,
               se.element_type, se.content_json, se.position_json, se.display_order,
@@ -144,11 +144,32 @@ const loadScreenContent = async (db, screenIds) => {
        FROM screen_branches WHERE source_screen_id = ANY($1::int[])
        ORDER BY source_screen_id, display_order, id`, [screenIds]
     ),
+    db.query(
+      `SELECT szl.element_id, szl.zoom_kind, szl.target_screen_id,
+              szl.target_section_id, szl.return_to_zoom
+       FROM screen_zoom_links szl
+       WHERE szl.source_screen_id = ANY($1::int[])`, [screenIds]
+    ),
+    db.query(
+      `SELECT ss.id AS section_id, ss.session_id, ss.name, ss.display_order,
+              COALESCE(json_agg(json_build_object(
+                'screen_id', ssm.screen_id,
+                'display_order', ssm.display_order
+              ) ORDER BY ssm.display_order, ssm.screen_id)
+              FILTER (WHERE ssm.screen_id IS NOT NULL), '[]'::json) AS screens
+       FROM screen_sections ss
+       LEFT JOIN screen_section_members ssm ON ssm.section_id = ss.id
+       WHERE ss.session_id = (SELECT session_id FROM screens WHERE id = $1)
+       GROUP BY ss.id ORDER BY ss.display_order, ss.id`, [screenIds[0]]
+    ),
   ]);
   for (const row of elements.rows) {
     if (row.mapping_id && !row.resource_version_id) throw new AppError(`Resource mapping ${row.mapping_id} has no pinned Resource version`, 409);
   }
-  return { elements: elements.rows, tags: tags.rows, branches: branches.rows };
+  return {
+    elements: elements.rows, tags: tags.rows, branches: branches.rows,
+    zoomLinks: zoomLinks.rows, sections: sections.rows,
+  };
 };
 
 const groupBy = (rows, key) => {
@@ -173,8 +194,9 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
+  const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
   return {
-    manifest_version: 2, release_number: releaseNumber,
+    manifest_version: 3, release_number: releaseNumber,
     session: {
       session_id: Number(session.id), revision_no: Number(session.revision_no),
       client_id: session.client_id, subtopic_id: session.subtopic_id,
@@ -197,6 +219,13 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
       validation_id: Number(authorization.validation_id),
       authorized_by: authorization.authorized_by, authorized_at: authorization.authorized_at,
     },
+    sections: content.sections.map((section) => ({
+      section_id: Number(section.section_id), name: section.name,
+      display_order: Number(section.display_order),
+      screens: parseJsonArray(section.screens).map((item) => ({
+        screen_id: Number(item.screen_id), display_order: Number(item.display_order),
+      })),
+    })),
     screens: screens.map((screen) => ({
       screen_id: Number(screen.id), revision_no: Number(screen.revision_no),
       client_id: screen.client_id, title: screen.title,
@@ -215,6 +244,14 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
         slot_id: element.slot_id, element_type: element.element_type,
         content_json: element.content_json, position_json: element.position_json,
         display_order: Number(element.display_order),
+        zoom: zoomByElement.has(String(element.element_key)) ? {
+          zoom_kind: zoomByElement.get(String(element.element_key)).zoom_kind,
+          target_screen_id: zoomByElement.get(String(element.element_key)).target_screen_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_screen_id),
+          target_section_id: zoomByElement.get(String(element.element_key)).target_section_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_section_id),
+          return_to_zoom: Boolean(zoomByElement.get(String(element.element_key)).return_to_zoom),
+        } : null,
         resource_mapping: element.mapping_id ? {
           mapping_id: Number(element.mapping_id), usage_details_json: element.usage_details_json,
           resource_id: Number(element.resource_id), resource_version_id: Number(element.resource_version_id),
@@ -239,8 +276,9 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
+  const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
   return {
-    manifest_version: 2,
+    manifest_version: 3,
     release_number: 0,
     session: {
       session_id: Number(session.id),
@@ -252,6 +290,13 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
       title: session.title,
       description: session.description,
     },
+    sections: content.sections.map((section) => ({
+      section_id: Number(section.section_id), name: section.name,
+      display_order: Number(section.display_order),
+      screens: parseJsonArray(section.screens).map((item) => ({
+        screen_id: Number(item.screen_id), display_order: Number(item.display_order),
+      })),
+    })),
     screens: screens.map((screen) => ({
       screen_id: Number(screen.id),
       revision_no: Number(screen.revision_no),
@@ -282,10 +327,19 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
         content_json: element.content_json,
         position_json: element.position_json,
         display_order: Number(element.display_order),
+        zoom: zoomByElement.has(String(element.element_key)) ? {
+          zoom_kind: zoomByElement.get(String(element.element_key)).zoom_kind,
+          target_screen_id: zoomByElement.get(String(element.element_key)).target_screen_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_screen_id),
+          target_section_id: zoomByElement.get(String(element.element_key)).target_section_id === null
+            ? null : Number(zoomByElement.get(String(element.element_key)).target_section_id),
+          return_to_zoom: Boolean(zoomByElement.get(String(element.element_key)).return_to_zoom),
+        } : null,
         resource_mapping: element.mapping_id ? {
           resource_id: Number(element.resource_id),
           resource_version_id: Number(element.resource_version_id),
           version_number: Number(element.version_number),
+          usage_details_json: element.usage_details_json,
           name: element.resource_name,
           resource_type: element.resource_type,
           external_url: element.external_url,

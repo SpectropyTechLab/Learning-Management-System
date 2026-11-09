@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken, attachClientContext, requireRole } from '../middleware/auth.js';
 import {
   listSessionScreens, getScreen, saveScreen, deleteScreen, reorderScreens,
+  listScreenSections, createScreenSection, updateScreenSection, deleteScreenSection,
 } from '../controllers/studioScreens.controller.js';
 import {
   discoverPublishedContent, discoverScreens, getBranchDestinations,
@@ -23,5 +24,9 @@ router.get('/studio/screens/:screenId', getScreen);
 router.patch('/studio/screens/:screenId', authors, saveScreen);
 router.delete('/studio/screens/:screenId', authors, deleteScreen);
 router.patch('/studio/sessions/:sessionId/screens/reorder', authors, reorderScreens);
+router.get('/studio/sessions/:sessionId/sections', listScreenSections);
+router.post('/studio/sessions/:sessionId/sections', authors, createScreenSection);
+router.patch('/studio/sections/:sectionId', authors, updateScreenSection);
+router.delete('/studio/sections/:sectionId', authors, deleteScreenSection);
 
 export default router;

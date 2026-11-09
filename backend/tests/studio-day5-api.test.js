@@ -91,6 +91,7 @@ test('screen save persists editable drawing data and Resource bindings in one tr
       }
       if (sql.startsWith('select tag from screen_tags')) return { rows: [{ tag: 'fractions' }] };
       if (sql.includes('from screen_branches')) return { rows: [] };
+      if (sql.includes('from screen_zoom_links')) return { rows: [] };
       throw new Error(`Unhandled query: ${sql}`);
     },
     release() {},

@@ -7,8 +7,31 @@ import { inspectRuntimePackage } from './studioPackageInspection.service.js';
 const BUCKET = process.env.STUDIO_RESOURCES_BUCKET || 'studio-resources';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const RESOURCE_TYPES = new Set([
-  'image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm', 'presentation', 'model_3d',
+  'image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm',
+  'presentation', 'model_3d', 'document',
 ]);
+
+const objectCapabilitiesFor = (resourceType, file, externalUrl) => {
+  const name = String(file?.originalname || externalUrl || '').toLowerCase();
+  if (resourceType === 'document') {
+    const kind = name.endsWith('.pdf') ? 'pdf'
+      : name.endsWith('.docx') ? 'docx'
+        : name.endsWith('.xlsx') ? 'xlsx'
+          : name.endsWith('.csv') ? 'csv'
+            : 'document';
+    return { kind, capabilities: ['preview', 'download'], preferred_mode: 'preview', provider: 'native' };
+  }
+  if (resourceType === 'presentation') {
+    return { kind: name.endsWith('.pptx') ? 'pptx' : 'ppsx', capabilities: ['download', 'open-external'], preferred_mode: 'download', provider: 'native' };
+  }
+  if (resourceType === 'external_link') {
+    return { kind: 'web-app', capabilities: ['interactive', 'open-external'], preferred_mode: 'interactive', provider: 'external' };
+  }
+  if (['html', 'zip', 'scorm', 'simulation'].includes(resourceType)) {
+    return { kind: resourceType, capabilities: ['interactive', 'download'], preferred_mode: 'interactive', provider: 'studio-runtime' };
+  }
+  return null;
+};
 
 const parseId = (value, label) => {
   const id = Number(value);
@@ -89,7 +112,7 @@ const normalizeVersionInput = (body, file, resourceType) => {
   if (resourceType === 'external_link' && !externalUrl) {
     throw new AppError('external_link resources require external_url');
   }
-  if (['html', 'zip', 'scorm', 'presentation'].includes(resourceType) && !file) {
+  if (['html', 'zip', 'scorm', 'presentation', 'document'].includes(resourceType) && !file) {
     throw new AppError(`${resourceType} resources require a file`);
   }
   if (resourceType === 'presentation' && file) {
@@ -98,8 +121,15 @@ const normalizeVersionInput = (body, file, resourceType) => {
       'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
       'application/octet-stream',
     ]);
-    if (!fileName.endsWith('.ppsx') || !acceptedMimeTypes.has(String(file.mimetype || '').toLowerCase())) {
-      throw new AppError('PowerPoint Show resources require a valid .ppsx file', 400);
+    acceptedMimeTypes.add('application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    if ((!fileName.endsWith('.ppsx') && !fileName.endsWith('.pptx')) || !acceptedMimeTypes.has(String(file.mimetype || '').toLowerCase())) {
+      throw new AppError('Presentation resources require a valid .pptx or .ppsx file', 400);
+    }
+  }
+  if (resourceType === 'document' && file) {
+    const fileName = String(file.originalname || '').toLowerCase();
+    if (!['.pdf', '.docx', '.xlsx', '.csv'].some((extension) => fileName.endsWith(extension))) {
+      throw new AppError('Document Resources support PDF, DOCX, XLSX and CSV files in MVP1', 400);
     }
   }
   if (resourceType === 'model_3d') {
@@ -109,13 +139,14 @@ const normalizeVersionInput = (body, file, resourceType) => {
     }
   }
   const metadata = parseJsonObject(body.metadata_json, 'metadata_json');
+  const objectCapabilities = objectCapabilitiesFor(resourceType, file, externalUrl);
   return {
     externalUrl,
     width: optionalPositiveNumber(body.width, 'width'),
     height: optionalPositiveNumber(body.height, 'height'),
     durationSeconds: optionalPositiveNumber(body.duration_seconds, 'duration_seconds'),
     entryPoint: String(body.entry_point || '').trim() || null,
-    metadata,
+    metadata: objectCapabilities ? { ...metadata, object: objectCapabilities } : metadata,
   };
 };
 

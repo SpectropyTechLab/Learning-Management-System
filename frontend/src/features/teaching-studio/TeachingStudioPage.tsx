@@ -11,6 +11,7 @@ import {
   Cloud,
   CloudOff,
   Eye,
+  Focus,
   FileText,
   GalleryHorizontalEnd,
   LayoutTemplate,
@@ -58,6 +59,7 @@ import StudioShapesPanel from './components/StudioShapesPanel';
 import StudioIconButton from './components/StudioIconButton';
 import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionsPanel from './components/StudioTransitionsPanel';
+import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
@@ -132,6 +134,7 @@ export default function TeachingStudioPage() {
     | 'animations'
     | 'transitions'
     | 'drawing'
+    | 'zoom'
     | null
   >('elements');
   const [animationPreview, setAnimationPreview] = useState<{
@@ -609,6 +612,13 @@ export default function TeachingStudioPage() {
 
   const addBlankElement = (type: ObjectType, region: Slot['region']) => {
     if (!selectedScreen || selectedScreen.layout_id || editorReadOnly) return;
+    const firstZoomTarget = type === 'zoom'
+      ? screenList.screens.find((screen) => screen.id !== selectedScreen.id)
+      : null;
+    if (type === 'zoom' && !firstZoomTarget) {
+      toast.error('Create at least one more Screen before adding Screen Zoom.');
+      return;
+    }
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `element-${token}`;
@@ -624,6 +634,11 @@ export default function TeachingStudioPage() {
       type,
       content: { text: '' },
       position,
+      ...(type === 'zoom' ? { zoom: {
+        kind: 'screen' as const, target_screen_id: firstZoomTarget!.id, target_section_id: null,
+        return_to_zoom: true, transition_enabled: true, transition_duration_ms: 500,
+        thumbnail_mode: 'auto' as const, custom_thumbnail_url: null,
+      } } : {}),
     };
     commitElements([...selectedScreen.elements, element], element.id);
     toast.success(
@@ -696,6 +711,35 @@ export default function TeachingStudioPage() {
     commitElements([...selectedScreen.elements, element], element.id);
     setPanel('shapes');
     toast.success('Shape added. Move or resize it on the Screen, then Save.');
+  };
+
+  const addZoomElements = (items: ZoomInsert[]) => {
+    if (!selectedScreen || editorReadOnly || items.length === 0) return;
+    const created = items.map((item, index): StudioElement => {
+      const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${index}`;
+      const id = `zoom-${token}`;
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      return {
+        id, slotId: `free-${id}`, type: 'zoom', content: {
+          text: item.title,
+          ...(item.summaryGroupId ? {
+            zoom_summary_group: item.summaryGroupId,
+            zoom_summary_order: item.summaryOrder ?? index,
+          } : {}),
+        },
+        position: { x: 160 + column * 800, y: 180 + row * 330, width: 700, height: 270, zIndex: selectedScreen.elements.length + index + 1 },
+        zoom: {
+          kind: item.kind,
+          target_screen_id: item.kind === 'screen' ? item.targetId : null,
+          target_section_id: item.kind === 'section' ? item.targetId : null,
+          return_to_zoom: true, transition_enabled: true, transition_duration_ms: 500,
+          thumbnail_mode: 'auto', custom_thumbnail_url: null,
+        },
+      };
+    });
+    commitElements([...selectedScreen.elements, ...created], created.at(-1)?.id ?? null);
+    toast.success(items.length > 1 ? 'Summary Zoom cards added.' : 'Zoom link added.');
   };
 
   const updateElement = (updated: StudioElement) => {
@@ -1497,7 +1541,7 @@ export default function TeachingStudioPage() {
           </main>
           {toolPanelOpen && (
             <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="grid shrink-0 grid-cols-9 gap-1 border-b p-2">
+              <div className="grid shrink-0 grid-cols-10 gap-1 border-b p-2">
                 <button
                   type="button"
                   onClick={() => setRightPanelOpen(false)}
@@ -1579,6 +1623,15 @@ export default function TeachingStudioPage() {
                 >
                   <Paintbrush size={17} />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPanel('zoom')}
+                  title="Zoom navigation"
+                  aria-label="Zoom navigation"
+                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'zoom' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
+                >
+                  <Focus size={17} />
+                </button>
               </div>
               <div className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain p-3 [scrollbar-gutter:stable]">
                 {panel === 'layouts' && (
@@ -1605,8 +1658,12 @@ export default function TeachingStudioPage() {
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
+                    availableScreens={screenList.screens}
                   />
                 )}
+                {panel === 'zoom' && sessionId && selectedScreen ? (
+                  <StudioZoomPanel sessionId={sessionId} screens={screenList.screens} currentScreenId={selectedScreen.id} disabled={editorReadOnly} onInsert={addZoomElements} />
+                ) : null}
                 {panel === 'math' && (
                   <StudioMathPanel
                     screen={selectedScreen}
@@ -1856,6 +1913,7 @@ export default function TeachingStudioPage() {
                   onUpdate={updateElement}
                   onDuplicate={duplicateElement}
                   onRemove={removeElement}
+                  availableScreens={screenList.screens}
                 />
               )}
             </section>

@@ -237,7 +237,11 @@ test('runtime launch serves a prepared package asset with isolation headers', as
   }, response);
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.body.toString(), '<h1>Runtime</h1>');
+  const runtimeHtml = response.body.toString();
+  assert.ok(runtimeHtml.startsWith('<h1>Runtime</h1>'));
+  assert.match(runtimeHtml, /data-spectropy-runtime-bridge/);
+  assert.match(runtimeHtml, /STUDIO_CLICKER_INPUT/);
+  assert.match(runtimeHtml, /STUDIO_RUNTIME_COMPLETE/);
   assert.match(
     headers.get('Content-Security-Policy'),
     /sandbox allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock/,

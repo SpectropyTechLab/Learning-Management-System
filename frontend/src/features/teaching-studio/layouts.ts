@@ -9,7 +9,7 @@ export const MASTER = {
   footerY: 950,
 } as const;
 
-export type ObjectType = 'title' | 'text' | 'visual' | 'question' | 'response' | 'steps' | 'workspace' | 'footer' | 'simulation' | 'activity' | 'media' | 'graph' | 'data' | 'options' | 'math' | 'shape';
+export type ObjectType = 'title' | 'text' | 'visual' | 'question' | 'response' | 'steps' | 'workspace' | 'footer' | 'simulation' | 'activity' | 'media' | 'graph' | 'data' | 'options' | 'math' | 'shape' | 'zoom' | 'embedded_object';
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Slot = {
   id: string;

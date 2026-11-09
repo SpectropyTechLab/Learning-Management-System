@@ -3,6 +3,7 @@ import {
   downloadResourceVersion,
   launchResourceVersion,
   previewResourceVersion,
+  previewObjectResourceVersion,
   serveRuntimeAsset,
 } from '../controllers/studioResourceRuntime.controller.js';
 import { attachClientContext, authenticateToken, requireRole } from '../middleware/auth.js';
@@ -21,5 +22,6 @@ router.get('/studio/runtime/:launchToken/*', serveRuntimeAsset);
 router.post('/studio/resource-versions/:versionId/launch', ...authorAccess, launchResourceVersion);
 router.get('/studio/resource-versions/:versionId/download', ...authorAccess, downloadResourceVersion);
 router.get('/studio/resource-versions/:versionId/preview', ...authorAccess, previewResourceVersion);
+router.get('/studio/resource-versions/:versionId/object-preview', ...authorAccess, previewObjectResourceVersion);
 
 export default router;

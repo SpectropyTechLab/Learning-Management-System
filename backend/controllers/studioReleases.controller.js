@@ -1,5 +1,5 @@
 import * as releases from '../services/studioReleases.service.js';
-import { createRuntimeLaunch, getRuntimePreview } from '../services/studioResourceRuntime.service.js';
+import { createRuntimeLaunch, getObjectPreviewDescriptor, getRuntimePreview } from '../services/studioResourceRuntime.service.js';
 import { handleServiceError } from '../utils/errors.js';
 
 const sendError = (res, error) => {
@@ -107,6 +107,24 @@ export const previewPublishedResource = async (req, res) => {
       user: req.user,
     });
     const data = await getRuntimePreview({ versionId, user: req.user, allowAuthorizedReader: true });
+    return res.json({ data });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+export const previewPublishedObject = async (req, res) => {
+  try {
+    const { versionId } = await releases.assertPinnedPublishedResourceAccess({
+      releaseId: req.params.releaseId,
+      versionId: req.params.versionId,
+      user: req.user,
+    });
+    const data = await getObjectPreviewDescriptor({
+      versionId,
+      user: req.user,
+      allowAuthorizedReader: true,
+    });
     return res.json({ data });
   } catch (error) {
     return sendError(res, error);
