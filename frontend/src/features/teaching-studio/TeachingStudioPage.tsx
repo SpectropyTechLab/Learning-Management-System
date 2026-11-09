@@ -576,6 +576,56 @@ export default function TeachingStudioPage() {
     setHasUnsavedChanges(true);
   };
 
+  const applyTransitionToAllScreens = async (transition: Record<string, unknown>) => {
+    if (!selectedScreen || editorReadOnly || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    setSavingScreen(true);
+    setSaveStatus('saving');
+    try {
+      const sourceScreens = screenList.screens.map((screen) => screen.id === selectedScreen.id
+        ? {
+            ...selectedScreen,
+            screen_settings_json: {
+              ...(selectedScreen.screen_settings_json ?? {}),
+              transition,
+            },
+          }
+        : screen);
+      const savedScreens: StudioScreen[] = [];
+      let sessionRevisionNo = screenList.session_revision_no;
+      for (const screen of sourceScreens) {
+        const saved = await updateStudioScreen(screen.id, {
+          revision_no: screen.revision_no,
+          title: screen.title,
+          layout_id: screen.layout_id,
+          elements: screen.elements,
+          tags: screen.tags,
+          screen_settings: {
+            ...(screen.screen_settings_json ?? {}),
+            transition,
+          },
+        });
+        sessionRevisionNo = saved.session_revision_no;
+        savedScreens.push(saved);
+      }
+      setScreenList({ session_revision_no: sessionRevisionNo, screens: savedScreens });
+      const savedSelected = savedScreens.find((screen) => screen.id === selectedScreen.id) ?? null;
+      setSelectedScreen(savedSelected);
+      selectedScreenRef.current = savedSelected;
+      setHasUnsavedChanges(false);
+      setSaveStatus('saved');
+      toast.success(`Transition applied to all ${savedScreens.length} Screens.`);
+      void loadWorkflow();
+    } catch (error) {
+      setSaveStatus('error');
+      toast.error(getStudioErrorMessage(error));
+      throw error;
+    } finally {
+      saveInFlightRef.current = false;
+      setSavingScreen(false);
+    }
+  };
+
   const undoDrawing = () => {
     if (!selectedScreen || drawingPast.length === 0) return;
     const previous = drawingPast[drawingPast.length - 1];
@@ -1701,6 +1751,8 @@ export default function TeachingStudioPage() {
                   <StudioTransitionsPanel
                     settings={selectedScreen?.screen_settings_json ?? null}
                     onChange={setScreenTransition}
+                    onApplyToAll={applyTransitionToAllScreens}
+                    screenCount={screenList.screens.length}
                   />
                 )}
                 {panel === 'drawing' && (

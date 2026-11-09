@@ -30,7 +30,7 @@ import type { PublishedRelease, PublishedResourceMapping, PublishedScreen, Publi
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
-import { playStudioTransitionSound, unlockStudioTransitionAudio } from './components/studioTransition';
+import { playStudioTransitionSound, stopStudioTransitionSound, unlockStudioTransitionAudio } from './components/studioTransition';
 
 const textFrom = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title ?? content.caption;
@@ -202,6 +202,7 @@ export default function StudioSessionPlayerPage() {
   const { user } = useAuth();
   const playerRef = useRef<HTMLDivElement>(null);
   const enterScreenAtEndRef = useRef(false);
+  const advancePresenterRef = useRef<() => void>(() => undefined);
   const [release, setRelease] = useState<PublishedRelease | null>(null);
   const [screenId, setScreenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -287,8 +288,10 @@ export default function StudioSessionPlayerPage() {
     if (!screen) return;
     const transition = screen.screen_settings_json?.transition;
     if (transition && typeof transition === 'object')
-      void playStudioTransitionSound(transition.sound).catch(() => undefined);
+      void playStudioTransitionSound(transition.sound, { loop: transition.loopSound === true }).catch(() => undefined);
   }, [screen]);
+
+  useEffect(() => () => stopStudioTransitionSound(), []);
 
   useEffect(() => {
     setAnimationStep(enterScreenAtEndRef.current ? animationTimeline.maxStep : 0);
@@ -445,6 +448,16 @@ export default function StudioSessionPlayerPage() {
     if (currentIndex >= 0 && currentIndex < screens.length - 1)
       setScreenId(screens[currentIndex + 1]?.screen_id ?? null);
   };
+  advancePresenterRef.current = advancePresenter;
+
+  useEffect(() => {
+    const transition = screen?.screen_settings_json?.transition;
+    if (!transition || typeof transition !== 'object' || transition.advanceAfterEnabled !== true) return;
+    if (animationStep < animationTimeline.maxStep || activeRuntimeElement || discoveryItem || materialsOpen || blankMode) return;
+    const seconds = Math.max(0.1, Number(transition.advanceAfterSeconds) || 0);
+    const timer = window.setTimeout(() => advancePresenterRef.current(), seconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [activeRuntimeElement, animationStep, animationTimeline.maxStep, blankMode, discoveryItem, materialsOpen, screen]);
 
   const retreatPresenter = () => {
     setBlankMode(null);
