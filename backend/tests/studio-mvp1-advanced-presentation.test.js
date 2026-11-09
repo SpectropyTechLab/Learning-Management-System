@@ -36,3 +36,19 @@ test('embedded object routes protect both author and published preview paths', (
   assert.match(authorRoutes, /object-preview/);
   assert.match(releaseRoutes, /object-preview/);
 });
+
+test('transition authoring exposes enterprise timing, accessibility and playback contracts', () => {
+  const panel = read('../../frontend/src/features/teaching-studio/components/StudioTransitionsPanel.tsx');
+  const catalog = read('../../frontend/src/features/teaching-studio/components/studioTransitionCatalog.ts');
+  const runtime = read('../../frontend/src/features/teaching-studio/components/studioTransition.ts');
+  const player = read('../../frontend/src/features/teaching-studio/StudioSessionPlayerPage.tsx');
+  assert.match(panel, /Apply to all/);
+  assert.match(panel, /Respect reduced-motion preference/);
+  assert.match(panel, /Advance after/);
+  assert.match(catalog, /fly-through/);
+  assert.match(catalog, /stop.*Stop previous sound/);
+  assert.match(runtime, /prefers-reduced-motion: reduce/);
+  assert.match(runtime, /loop\?: boolean/);
+  assert.match(player, /advanceAfterEnabled/);
+  assert.match(player, /advancePresenterRef\.current/);
+});
