@@ -19,12 +19,16 @@ import EmbeddedObjectViewer from './components/resources/EmbeddedObjectViewer';
 import {
   buildPresenterAnimationTimeline,
   clickerNavigationAction,
+  presenterDiagramVisibleNodes,
   presenterElementState,
   type PresenterAnimationTimeline,
 } from './components/studioClickerRuntime';
 import StudioCanvasTextElement from './components/StudioCanvasTextElement';
 import StudioMathElement from './components/StudioMathElement';
 import StudioShapeElement from './components/StudioShapeElement';
+import StudioSmartDiagram from './components/StudioSmartDiagram';
+import StudioHyperlinkOverlay from './components/studioHyperlink';
+import { isSmartDiagramContent } from './components/smartDiagramModel';
 import StudioBranchDiscoveryPanel from './components/StudioBranchDiscoveryPanel';
 import type { PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
@@ -173,13 +177,24 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
     })),
   };
   const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
+    if (element.element_type === 'visual' && isSmartDiagramContent(element.content_json)) {
+      const visibleNodeIds = animationTimeline && animationStep !== undefined
+        ? presenterDiagramVisibleNodes(animationTimeline, element.element_key, animationStep, element.content_json.nodes.map((node) => node.id))
+        : undefined;
+      return [[element.element_key, <StudioSmartDiagram key={element.element_key} content={element.content_json} visibleNodeIds={visibleNodeIds} />]];
+    }
     if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
     if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} customPath={typeof element.content_json?.customPath === 'string' ? element.content_json.customPath : undefined} />]];
     if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full touch-manipulation place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.content_json?.zoom_summary_group ? 'Summary Zoom' : element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select once to explore · returns here</span></span></button>]];
     const text = textFrom(element.content_json || {});
-    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} text={text} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
+    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} elementId={element.element_key} text={text} richTextHtml={typeof element.content_json?.richTextHtml === 'string' ? element.content_json.richTextHtml : undefined} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
     return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} />]] : [];
   }));
+  for (const element of screen.elements) {
+    const overlay = overlays[element.element_key];
+    if (!overlay || !element.content_json?.hyperlink) continue;
+    overlays[element.element_key] = <StudioHyperlinkOverlay hyperlink={element.content_json.hyperlink} active>{overlay}</StudioHyperlinkOverlay>;
+  }
   const objectAnimationStyles: Record<string, React.CSSProperties> = {};
   const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen.elements) {
@@ -811,7 +826,7 @@ export default function StudioSessionPlayerPage() {
         )}
         <main className={`relative grid min-h-0 flex-1 ${fullScreen ? 'grid-cols-1 gap-0 p-0' : `gap-1 py-1 pl-0 pr-1 ${isTrackedBranchUser && !discoveryItem ? 'grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 pl-1'}`}`}>
           {!fullScreen && isTrackedBranchUser && !discoveryItem ? (
-            <aside className="flex min-h-0 min-w-0 flex-col items-center gap-2 overflow-x-hidden overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Teacher drawing controls">
+            <aside className="studio-player-controls flex min-h-0 min-w-0 flex-col items-center gap-2 overflow-x-hidden overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Teacher drawing controls">
               <div className="flex w-full flex-col items-center gap-2">
                 <div className="flex w-full flex-col items-center gap-2">
                 <label className="relative grid h-10 w-10 cursor-pointer place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" title={`Select screen${screen ? `: ${screen.title}` : ''}`} aria-label="Select screen">
@@ -880,12 +895,12 @@ export default function StudioSessionPlayerPage() {
                 <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
               </div>
             ) : (
-              <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-30">
+              <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-30">
                 <ChevronLeft size={18} />
                 Previous
               </button>
             )}
-            <button type="button" onClick={() => void toggleFullScreen()} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 hover:bg-slate-100" title={fullScreen ? 'Exit full screen' : 'Full screen'} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}>
+            <button type="button" onClick={() => void toggleFullScreen()} className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-lg border border-slate-300 hover:bg-slate-100" title={fullScreen ? 'Exit full screen' : 'Full screen'} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}>
               {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
             </button>
           </div>
@@ -895,7 +910,7 @@ export default function StudioSessionPlayerPage() {
             </span>
             <span className="hidden text-[11px] text-slate-500 sm:block">{discoveryItem ? 'Esc closes Branching' : `Animation build ${animationStep}/${animationTimeline.maxStep} · Clicker: ← previous · → next`}</span>
           </span>
-          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-30">
+          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-30 sm:gap-2">
             Next
             <ChevronRight size={18} />
           </button>
