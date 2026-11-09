@@ -13,14 +13,39 @@ interface Props {
   onUpdate: (element: StudioElement) => void;
   onDuplicate: (elementId: string) => void;
   onRemove: (elementId: string) => void;
+  availableScreens?: Array<{ id: number; title: string; screen_number: number }>;
 }
 
 const textValue = (element: StudioElement) => String(element.content.text || '');
+const layerText = (element: StudioElement) => {
+  const value = textValue(element)
+    .replace(/\[\[shape:.+?\]\]/g, ' [inline shape] ')
+    .replace(/\\\(.+?\\\)/g, ' [equation] ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return value.length > 48 ? `${value.slice(0, 45)}…` : value;
+};
 const fieldValue = (element: StudioElement, key: string) => String(element.content[key] || '');
 const textLike = new Set<ObjectType>(['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data']);
 const blankElementTypes: ObjectType[] = ['title', 'text', 'visual', 'media', 'simulation', 'question', 'response', 'steps', 'workspace', 'footer', 'activity', 'graph', 'data', 'options'];
+const elementTypeLabels: Partial<Record<ObjectType, string>> = {
+  title: 'Title — heading text',
+  text: 'Text — formatted text and equations',
+  visual: 'Visual — image, animation, or 3D model',
+  media: 'Media — image, video, audio, link, or presentation',
+  simulation: 'Simulation — HTML, ZIP, SCORM, or external link',
+  question: 'Question — question or prompt text',
+  response: 'Response — answer or explanation text',
+  steps: 'Steps — step-by-step text',
+  workspace: 'Workspace — working-area content',
+  footer: 'Footer — short bottom text',
+  activity: 'Activity — interactive activity content',
+  graph: 'Graph — graph or chart content',
+  data: 'Data — structured or tabular text',
+  options: 'Options — answer-choice text',
+};
 
-export default function StudioElementPanel({ layout, screen, selectedElementId, onSelect, onAdd, onAddBlank, onUpdate, onDuplicate, onRemove }: Props) {
+export default function StudioElementPanel({ layout, screen, selectedElementId, onSelect, onAdd, onAddBlank, onUpdate, onDuplicate, onRemove, availableScreens = [] }: Props) {
   if (!screen) return <p className="text-sm text-slate-500">Select a Screen to edit its content.</p>;
 
   const selected = screen.elements.find((element) => element.id === selectedElementId) || null;
@@ -79,7 +104,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
                 <option value="">Choose element…</option>
                 {blankElementTypes.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {elementTypeLabels[type] ?? type}
                   </option>
                 ))}
               </select>
@@ -121,7 +146,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
               .sort((a, b) => (Number(b.position.zIndex) || 0) - (Number(a.position.zIndex) || 0))
               .map((element) => (
                 <option key={element.id} value={element.id}>
-                  {element.type.replaceAll('_', ' ')}{textValue(element) ? ` - ${textValue(element)}` : ''}
+                  {element.type.replaceAll('_', ' ')}{layerText(element) ? ` - ${layerText(element)}` : ''}
                 </option>
               ))}
           </select>
@@ -182,7 +207,14 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
               </select>
             </label>
 
-            {textLike.has(selected.type as ObjectType) ? (
+            {selected.type === 'zoom' ? (
+              <div className="mt-4 grid gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <label className="text-sm font-semibold text-slate-700">Zoom title<input value={textValue(selected)} onChange={(event) => updateContent('text', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" /></label>
+                <label className="text-sm font-semibold text-slate-700">Destination Screen<select value={selected.zoom?.target_screen_id ?? ''} onChange={(event) => onUpdate({ ...selected, zoom: { kind: 'screen', target_screen_id: Number(event.target.value), target_section_id: null, return_to_zoom: selected.zoom?.return_to_zoom !== false, transition_enabled: true, transition_duration_ms: 500, thumbnail_mode: 'auto', custom_thumbnail_url: null } })} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"><option value="">Choose Screen…</option>{availableScreens.filter((item) => item.id !== screen.id).map((item) => <option key={item.id} value={item.id}>Screen {item.screen_number}: {item.title}</option>)}</select></label>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={selected.zoom?.return_to_zoom !== false} onChange={(event) => selected.zoom && onUpdate({ ...selected, zoom: { ...selected.zoom, return_to_zoom: event.target.checked } })} />Return to this Zoom after the destination</label>
+                <p className="text-xs text-slate-600">Section and Summary Zoom are created from the Sections manager so their ordered Screen membership is preserved.</p>
+              </div>
+            ) : textLike.has(selected.type as ObjectType) ? (
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
                 Double-click this element on the Screen to edit its text and formatting.
               </div>

@@ -68,7 +68,7 @@ export default function StudioAccountMenu({
       {open ? <div role="menu" aria-label="Account and Studio settings" className="absolute bottom-full left-0 z-[80] mb-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-xl md:bottom-0 md:left-full md:mb-0 md:ml-2">
         <div className="border-b border-slate-200 px-4 py-3"><p className="truncate text-sm font-semibold">{name}</p><p className="mt-0.5 truncate text-xs text-slate-500">{email}</p></div>
         <div className="p-2">
-          <button type="button" role="menuitem" onClick={() => { setOpen(false); onHome(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-100"><Home size={17} />LMS Home</button>
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onHome(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-100"><Home size={17} />Home</button>
           {onProfile ? <button type="button" role="menuitem" onClick={() => { setOpen(false); onProfile(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-100"><UserRound size={17} />Profile</button> : null}
         </div>
         <div className="border-y border-slate-200 px-3 py-3">

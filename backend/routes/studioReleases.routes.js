@@ -14,6 +14,7 @@ import {
   listTeacherReleases,
   listPublishedChapters,
   previewPublishedResource,
+  previewPublishedObject,
   publishSessionRelease,
 } from '../controllers/studioReleases.controller.js';
 
@@ -56,6 +57,11 @@ router.get(
   '/studio/published-releases/:releaseId/resource-versions/:versionId/preview',
   publishedReaders,
   previewPublishedResource
+);
+router.get(
+  '/studio/published-releases/:releaseId/resource-versions/:versionId/object-preview',
+  publishedReaders,
+  previewPublishedObject
 );
 router.get(
   '/studio/published-releases/:releaseId/teaching-materials',

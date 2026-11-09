@@ -9,7 +9,7 @@ import {
 } from '../../api/studioResourcesApi';
 
 const MAX_FILE_SIZE = 250 * 1024 * 1024;
-const FILE_ONLY_TYPES = new Set<StudioResourceType>(['html', 'zip', 'scorm', 'presentation']);
+const FILE_ONLY_TYPES = new Set<StudioResourceType>(['html', 'zip', 'scorm', 'presentation', 'document']);
 const RESOURCE_FORMATS: Record<StudioResourceType, { short: string; help: string }> = {
   image: {
     short: 'PNG, JPG, JPEG, GIF, WebP, SVG',
@@ -44,12 +44,16 @@ const RESOURCE_FORMATS: Record<StudioResourceType, { short: string; help: string
     help: 'Upload a valid SCORM 1.2 or SCORM 2004 package as a .zip file.',
   },
   presentation: {
-    short: 'PPSX',
-    help: 'Upload a Microsoft PowerPoint Show in .ppsx format.',
+    short: 'PPTX, PPSX',
+    help: 'Upload a PowerPoint presentation or show. MVP1 preserves the original for protected open/download.',
   },
   model_3d: {
     short: 'GLB',
     help: 'Upload a self-contained .glb model. Embedded animations are detected and exposed by the 3D viewer.',
+  },
+  document: {
+    short: 'PDF, DOCX, XLSX, CSV',
+    help: 'Upload a supported document for a read-only embedded preview and protected original download.',
   },
 };
 
@@ -128,8 +132,9 @@ export default function ResourceUploadModal({
     html: '.html,.htm,text/html',
     zip: '.zip,application/zip',
     scorm: '.zip,application/zip',
-    presentation: '.ppsx,application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+    presentation: '.pptx,.ppsx,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.presentationml.slideshow',
     model_3d: '.glb,model/gltf-binary,application/octet-stream',
+    document: '.pdf,.docx,.xlsx,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv',
   }[effectiveType]), [effectiveType]);
 
   if (!open) return null;
@@ -140,8 +145,11 @@ export default function ResourceUploadModal({
     if (mode === 'create' && !name.trim()) return 'Resource name is required.';
     if (effectiveSourceMode === 'file' && !file) return 'Choose a Resource file.';
     if (file && file.size > MAX_FILE_SIZE) return 'The file must be 250 MB or smaller.';
-    if (effectiveType === 'presentation' && file && !file.name.toLowerCase().endsWith('.ppsx')) {
-      return 'PowerPoint Show Resources require a .ppsx file.';
+    if (effectiveType === 'presentation' && file && !['.pptx', '.ppsx'].some((extension) => file.name.toLowerCase().endsWith(extension))) {
+      return 'Presentation Resources require a .pptx or .ppsx file.';
+    }
+    if (effectiveType === 'document' && file && !['.pdf', '.docx', '.xlsx', '.csv'].some((extension) => file.name.toLowerCase().endsWith(extension))) {
+      return 'Document Resources support PDF, DOCX, XLSX and CSV files.';
     }
     if (effectiveType === 'model_3d') {
       const sourceName = file?.name || externalUrl;

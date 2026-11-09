@@ -4,6 +4,7 @@ import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
 import { returnSessionToDraft } from './studioSessionWorkflow.service.js';
 import { parseScreenScriptDocx, parseSessionPlanDocx } from './studioDocumentParser.service.js';
+import { createTerm, taxonomyCode } from './studioTaxonomy.service.js';
 
 const BUCKET = process.env.STUDIO_DOCUMENTS_BUCKET || 'sessions-scripts-plans';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
@@ -40,6 +41,102 @@ const validateSessionPlanContent = (content) => {
     if (missing.length) throw new AppError(`Session Plan row ${index + 1} is missing: ${missing.join(', ')}`, 422);
   });
   return content;
+};
+
+const splitTaxonomyValues = (value) => [...new Set(String(value ?? '')
+  .split(/\s*,\s*|\s+\/\s+/).map((item) => item.trim()).filter(Boolean))];
+
+const analyzePlanTaxonomy = async ({ db, sessionId, content, user }) => {
+  const termResult = await db.query(
+    `SELECT id, taxonomy_type, code, label
+     FROM studio_taxonomy_terms
+     WHERE is_active = TRUE AND (client_id IS NULL OR client_id IS NOT DISTINCT FROM $1)`,
+    [user?.client_id ? Number(user.client_id) : null],
+  );
+  const termByKey = new Map(termResult.rows.map((term) => [`${term.taxonomy_type}:${term.code}`, term]));
+  const screensResult = await db.query(
+    `SELECT id, screen_number, title, display_order FROM screens
+     WHERE session_id = $1 ORDER BY display_order, screen_number, id`, [sessionId],
+  );
+  const unknown = new Map();
+  const rows = content.rows.map((row, index) => {
+    const pedagogy = splitTaxonomyValues(row.pedagogy);
+    const bloom = splitTaxonomyValues(row.bloom_skills);
+    for (const [type, values] of [['pedagogy', pedagogy], ['bloom', bloom]]) {
+      for (const value of values) {
+        const code = taxonomyCode(value);
+        if (!termByKey.has(`${type}:${code}`)) unknown.set(`${type}:${code}`, { type, value, code });
+      }
+    }
+    const screen = screensResult.rows[index] || null;
+    const missing = REQUIRED_PLAN_FIELDS.filter((field) => !String(row?.[field] || '').trim());
+    return {
+      index,
+      status: missing.length ? 'error' : 'valid',
+      errors: missing.length ? [`Missing required fields: ${missing.join(', ')}`] : [],
+      normalized: { pedagogy, bloom },
+      screen: screen ? { id: Number(screen.id), screen_number: Number(screen.screen_number), title: screen.title } : null,
+      will_create_screen: !screen,
+    };
+  });
+  return { rows, unknown_terms: [...unknown.values()] };
+};
+
+const synchronizePlanScreens = async ({ client, session, content, user, createMissingTaxonomy }) => {
+  const analysis = await analyzePlanTaxonomy({ db: client, sessionId: session.id, content, user });
+  if (analysis.rows.some((row) => row.status === 'error')) throw new AppError('Session Plan contains invalid Screen rows', 422);
+  if (analysis.unknown_terms.length && !createMissingTaxonomy) {
+    const error = new AppError('Confirm or correct new Pedagogy and Bloom values before submitting', 422);
+    error.details = analysis.unknown_terms;
+    throw error;
+  }
+  for (const term of analysis.unknown_terms) {
+    await createTerm({ type: term.type, value: term.value, user, db: client });
+  }
+  const existingResult = await client.query(
+    `SELECT id, screen_number, display_order FROM screens
+     WHERE session_id = $1 ORDER BY display_order, screen_number, id FOR UPDATE`, [session.id],
+  );
+  const screens = [...existingResult.rows];
+  let nextNumber = screens.reduce((max, screen) => Math.max(max, Number(screen.screen_number)), 0) + 1;
+  let nextOrder = screens.reduce((max, screen) => Math.max(max, Number(screen.display_order)), -1) + 1;
+  while (screens.length < content.rows.length) {
+    const inserted = await client.query(
+      `INSERT INTO screens (client_id, session_id, title, screen_number, display_order, creation_mode, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'blank', $6)
+       RETURNING id, screen_number, display_order`,
+      [session.client_id, session.id, `Screen ${nextNumber}`, nextNumber, nextOrder, user?.id || null],
+    );
+    screens.push(inserted.rows[0]); nextNumber += 1; nextOrder += 1;
+  }
+  await client.query(
+    `DELETE FROM screen_taxonomy_terms stt USING screens sc
+     WHERE stt.screen_id = sc.id AND sc.session_id = $1 AND stt.source = 'session_plan'`, [session.id],
+  );
+  const termsResult = await client.query(
+    `SELECT id, taxonomy_type, code FROM studio_taxonomy_terms
+     WHERE is_active = TRUE AND (client_id IS NULL OR client_id IS NOT DISTINCT FROM $1)`, [session.client_id],
+  );
+  const termByKey = new Map(termsResult.rows.map((term) => [`${term.taxonomy_type}:${term.code}`, Number(term.id)]));
+  const mappings = [];
+  for (let index = 0; index < content.rows.length; index += 1) {
+    const screen = screens[index];
+    const row = content.rows[index];
+    const values = [
+      ...splitTaxonomyValues(row.pedagogy).map((value) => ['pedagogy', value]),
+      ...splitTaxonomyValues(row.bloom_skills).map((value) => ['bloom', value]),
+    ];
+    for (const [type, value] of values) {
+      const termId = termByKey.get(`${type}:${taxonomyCode(value)}`);
+      if (!termId) throw new AppError(`Unable to resolve ${type} value: ${value}`, 422);
+      await client.query(
+        `INSERT INTO screen_taxonomy_terms (screen_id, term_id, source)
+         VALUES ($1, $2, 'session_plan') ON CONFLICT (screen_id, term_id) DO NOTHING`, [screen.id, termId],
+      );
+    }
+    mappings.push({ row_index: index, screen_id: Number(screen.id), screen_number: Number(screen.screen_number) });
+  }
+  return { screen_mappings: mappings, created_screen_count: screens.length - existingResult.rows.length };
 };
 
 const validateScreenScriptContent = (content) => {
@@ -229,7 +326,7 @@ export const uploadDocument = async ({ sessionId: rawSessionId, documentType: ra
   }
 };
 
-export const saveDocumentContent = async ({ sessionId: rawSessionId, documentType: rawType, content, user }) => {
+export const saveDocumentContent = async ({ sessionId: rawSessionId, documentType: rawType, content, createMissingTaxonomy = false, user }) => {
   assertAuthor(user);
   const sessionId = parseId(rawSessionId, 'Session ID');
   const documentType = validateDocumentType(rawType);
@@ -237,7 +334,12 @@ export const saveDocumentContent = async ({ sessionId: rawSessionId, documentTyp
     throw new AppError('Studio document content must be a JSON object or array');
   }
   const validated = documentType === 'session_plan' ? validateSessionPlanContent(content) : content;
-  return createRevision({ sessionId, documentType, user, manualContent: validated });
+  return createRevision({
+    sessionId, documentType, user, manualContent: validated,
+    afterInsert: documentType === 'session_plan'
+      ? (client, document, session) => synchronizePlanScreens({ client, document, session, content: validated, user, createMissingTaxonomy })
+      : undefined,
+  });
 };
 
 export const getDocument = async ({ sessionId: rawSessionId, documentType: rawType, user }) => {
@@ -249,12 +351,17 @@ export const getDocument = async ({ sessionId: rawSessionId, documentType: rawTy
   return getCurrentDocument({ query: dbQuery }, session.id, documentType);
 };
 
-export const previewSessionPlanImport = async ({ file, user }) => {
+export const previewSessionPlanImport = async ({ sessionId: rawSessionId, file, user }) => {
   assertAuthor(user);
-  return parseSessionPlanDocx(file);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const session = await getSession({ query: dbQuery }, sessionId);
+  assertTenant(session, user);
+  const parsed = await parseSessionPlanDocx(file);
+  const analysis = await analyzePlanTaxonomy({ db: { query: dbQuery }, sessionId, content: { rows: parsed.rows }, user });
+  return { ...parsed, validation: analysis.rows, unknown_terms: analysis.unknown_terms };
 };
 
-export const importSessionPlan = async ({ sessionId: rawSessionId, file, content, user }) => {
+export const importSessionPlan = async ({ sessionId: rawSessionId, file, content, createMissingTaxonomy = false, user }) => {
   assertAuthor(user);
   const sessionId = parseId(rawSessionId, 'Session ID');
   validateSessionPlanContent(content);
@@ -267,6 +374,7 @@ export const importSessionPlan = async ({ sessionId: rawSessionId, file, content
       upload,
       structuredContent: content,
       metadata: { extracted: true, parser: 'mammoth-day10-v1' },
+      afterInsert: (client, document, session) => synchronizePlanScreens({ client, document, session, content, user, createMissingTaxonomy }),
     });
   } catch (error) {
     await removeFile(upload.storageKey);

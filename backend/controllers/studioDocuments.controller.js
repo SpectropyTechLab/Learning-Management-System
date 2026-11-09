@@ -27,14 +27,14 @@ export const uploadSessionPlan = respond((req) => studioDocuments.uploadSessionP
 export const uploadScreenScript = respond((req) => studioDocuments.uploadScreenScript({ sessionId: Number(req.params.sessionId), file: req.file, user: req.user }));
 export const downloadSessionPlan = download((req) => studioDocuments.downloadSessionPlan({ sessionId: Number(req.params.sessionId), user: req.user }));
 export const downloadScreenScript = download((req) => studioDocuments.downloadScreenScript({ sessionId: Number(req.params.sessionId), user: req.user }));
-export const saveSessionPlanContent = respond((req) => studioDocuments.saveSessionPlanContent({ sessionId: Number(req.params.sessionId), content: req.body.content, user: req.user }));
+export const saveSessionPlanContent = respond((req) => studioDocuments.saveSessionPlanContent({ sessionId: Number(req.params.sessionId), content: req.body.content, createMissingTaxonomy: req.body.create_missing_taxonomy === true, user: req.user }));
 export const saveScreenScriptContent = respond((req) => studioDocuments.saveScreenScriptContent({ sessionId: Number(req.params.sessionId), content: req.body.content, user: req.user }));
 export const getSessionPlan = respond((req) => studioDocuments.getDocument({ sessionId: Number(req.params.sessionId), documentType: 'session_plan', user: req.user }));
 export const getScreenScriptSource = respond((req) => studioDocuments.getDocument({ sessionId: Number(req.params.sessionId), documentType: 'screen_script', user: req.user }));
-export const previewSessionPlanImport = respond((req) => studioDocuments.previewSessionPlanImport({ file: req.file, user: req.user }));
+export const previewSessionPlanImport = respond((req) => studioDocuments.previewSessionPlanImport({ sessionId: Number(req.params.sessionId), file: req.file, user: req.user }));
 export const importSessionPlan = respond((req) => studioDocuments.importSessionPlan({
   sessionId: Number(req.params.sessionId), file: req.file,
-  content: JSON.parse(req.body.content || '{}'), user: req.user,
+  content: JSON.parse(req.body.content || '{}'), createMissingTaxonomy: req.body.create_missing_taxonomy === 'true', user: req.user,
 }));
 export const previewScreenScriptImport = respond((req) => studioDocuments.previewScreenScriptImport({ sessionId: Number(req.params.sessionId), file: req.file, user: req.user }));
 export const importScreenScripts = respond((req) => studioDocuments.importScreenScripts({

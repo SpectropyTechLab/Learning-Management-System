@@ -35,6 +35,7 @@
     "mathlive": "^0.111.4",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "^6.4.299",
+    "perfect-freehand": "^1.2.3",
     "react": "^19.1.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.1.1",
@@ -43,7 +44,8 @@
     "react-redux": "^9.2.0",
     "react-router": "^7.9.4",
     "react-router-dom": "^7.9.4",
-    "redux-persist": "^6.0.0"
+    "redux-persist": "^6.0.0",
+    "simplify-js": "^1.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

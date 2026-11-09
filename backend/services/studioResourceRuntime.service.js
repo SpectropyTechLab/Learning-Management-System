@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import mime from 'mime-types';
+import mammoth from 'mammoth';
+import ExcelJS from 'exceljs';
+import { Readable } from 'node:stream';
 import supabase from '../config/supabaseClient.js';
 import { query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
@@ -36,6 +39,48 @@ const loadVersion = async (versionId) => {
     [versionId]
   );
   return result.rows[0] || null;
+};
+
+const loadStoredBytes = async (version) => {
+  if (!version.storage_key) throw new AppError('This Resource version has no stored file', 404);
+  const { data, error } = await supabase.storage.from(BUCKET).download(version.storage_key);
+  if (error || !data) throw new AppError('Unable to load Resource bytes', 502);
+  return Buffer.from(await data.arrayBuffer());
+};
+
+const cellValue = (cell) => {
+  const value = cell?.value;
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') {
+    if ('result' in value) return String(value.result ?? '');
+    if ('text' in value) return String(value.text ?? '');
+    if ('richText' in value && Array.isArray(value.richText)) {
+      return value.richText.map((part) => String(part?.text || '')).join('');
+    }
+    return JSON.stringify(value);
+  }
+  return String(value);
+};
+
+const workbookPreview = async (bytes, kind) => {
+  const workbook = new ExcelJS.Workbook();
+  if (kind === 'csv') await workbook.csv.read(Readable.from([bytes]));
+  else await workbook.xlsx.load(bytes);
+  const sheets = [];
+  for (const worksheet of workbook.worksheets.slice(0, 12)) {
+    const rows = [];
+    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (rows.length >= 500) return;
+      const values = [];
+      for (let column = 1; column <= Math.min(Math.max(row.cellCount, 1), 100); column += 1) {
+        values.push(cellValue(row.getCell(column)));
+      }
+      rows.push({ row_number: rowNumber, values });
+    });
+    sheets.push({ name: worksheet.name, rows, truncated: worksheet.actualRowCount > rows.length });
+  }
+  return { sheets, truncated: workbook.worksheets.length > sheets.length };
 };
 
 const runtimeMetadata = (version) => {
@@ -177,8 +222,8 @@ export const loadRuntimeAsset = async ({ launchToken, requestedPath }) => {
   };
 };
 
-export const getRuntimeDownload = async ({ versionId: rawVersionId, user }) => {
-  if (!AUTHOR_ROLES.has(user?.role)) throw new AppError('Access denied', 403);
+export const getRuntimeDownload = async ({ versionId: rawVersionId, user, allowAuthorizedReader = false }) => {
+  if (!AUTHOR_ROLES.has(user?.role) && !allowAuthorizedReader) throw new AppError('Access denied', 403);
   const versionId = parseId(rawVersionId, 'Resource version ID');
   const version = await loadVersion(versionId);
   if (!version || !canAccessTenant(version.client_id, user)) {
@@ -214,4 +259,64 @@ export const getRuntimePreview = async ({ versionId: rawVersionId, user, allowAu
     expires_in_seconds: previewSeconds,
     mime_type: version.mime_type,
   };
+};
+
+export const getObjectPreviewDescriptor = async ({
+  versionId: rawVersionId,
+  user,
+  allowAuthorizedReader = false,
+}) => {
+  if (!AUTHOR_ROLES.has(user?.role) && !allowAuthorizedReader) throw new AppError('Access denied', 403);
+  const versionId = parseId(rawVersionId, 'Resource version ID');
+  const version = await loadVersion(versionId);
+  if (!version || !canAccessTenant(version.client_id, user)) {
+    throw new AppError('Resource version not found', 404);
+  }
+  const objectMetadata = version.metadata_json?.object || {};
+  const fileName = String(version.original_file_name || '').toLowerCase();
+  const kind = String(objectMetadata.kind || (
+    fileName.endsWith('.pdf') ? 'pdf'
+      : fileName.endsWith('.docx') ? 'docx'
+        : fileName.endsWith('.xlsx') ? 'xlsx'
+          : fileName.endsWith('.csv') ? 'csv'
+            : version.resource_type
+  ));
+  const base = {
+    resource_id: Number(version.resource_id),
+    resource_version_id: Number(version.id),
+    resource_type: version.resource_type,
+    kind,
+    name: version.resource_name,
+    original_file_name: version.original_file_name,
+    mime_type: version.mime_type,
+    capabilities: Array.isArray(objectMetadata.capabilities)
+      ? objectMetadata.capabilities
+      : ['download'],
+  };
+
+  if (version.external_url) {
+    return { ...base, mode: 'interactive', url: version.external_url, fallback_mode: 'link' };
+  }
+  if (kind === 'pdf') {
+    const preview = await getRuntimePreview({ versionId, user, allowAuthorizedReader });
+    return { ...base, mode: 'pdf', url: preview.url, expires_in_seconds: preview.expires_in_seconds };
+  }
+  if (kind === 'docx') {
+    const bytes = await loadStoredBytes(version);
+    const result = await mammoth.extractRawText({ buffer: bytes });
+    const maxCharacters = 250000;
+    return {
+      ...base,
+      mode: 'text',
+      text: result.value.slice(0, maxCharacters),
+      truncated: result.value.length > maxCharacters,
+      warnings: result.messages.map((message) => message.message).slice(0, 20),
+    };
+  }
+  if (kind === 'xlsx' || kind === 'csv') {
+    const bytes = await loadStoredBytes(version);
+    return { ...base, mode: 'workbook', ...(await workbookPreview(bytes, kind)) };
+  }
+  const download = await getRuntimeDownload({ versionId, user, allowAuthorizedReader });
+  return { ...base, mode: 'download', url: download.url, expires_in_seconds: download.expires_in_seconds };
 };

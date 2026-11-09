@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Rect, Slide, Slot } from './layouts';
 import type { AuthorDrawingStroke, StudioDrawingTool } from './types';
@@ -67,6 +67,8 @@ export default function SlideCanvas({
   onClearSelection,
   onChangeObjectBounds,
   objectOverlays = {},
+  objectAnimationStyles = {},
+  objectAnimationKeys = {},
   transition,
   fixedDrawingStrokes = [],
   drawingStrokes = [],
@@ -86,6 +88,8 @@ export default function SlideCanvas({
   onClearSelection?: () => void;
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
   objectOverlays?: Record<string, ReactNode>;
+  objectAnimationStyles?: Record<string, CSSProperties>;
+  objectAnimationKeys?: Record<string, string | number>;
   transition?: Record<string, unknown>;
   fixedDrawingStrokes?: AuthorDrawingStroke[];
   drawingStrokes?: AuthorDrawingStroke[];
@@ -390,8 +394,12 @@ export default function SlideCanvas({
             const bounds = boundsFor(object, slot);
             return (
               <div
-                key={`overlay-${object.id}`}
+                key={`overlay-${object.id}-${objectAnimationKeys[object.id] ?? 'static'}`}
                 data-element-id={object.id}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelectObject?.(object.id);
+                }}
                 className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : 'border-transparent'}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
@@ -399,8 +407,8 @@ export default function SlideCanvas({
                   width: `${(bounds.width / MASTER.width) * 100}%`,
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
-                  pointerEvents:
-                    object.type === 'math' || object.type === 'shape' ? 'none' : undefined,
+                  pointerEvents: object.type === 'math' ? 'none' : undefined,
+                  ...objectAnimationStyles[object.id],
                 }}
               >
                 {overlay}
