@@ -55,6 +55,7 @@ import StudioElementPanel from './components/StudioElementPanel';
 import StudioAnimationsPanel from './components/StudioAnimationsPanel';
 import StudioMathPanel from './components/StudioMathPanel';
 import StudioShapesPanel from './components/StudioShapesPanel';
+import { inlineShapeToken, type InlineShapeData } from './components/studioInlineShape';
 import StudioIconButton from './components/StudioIconButton';
 import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionsPanel from './components/StudioTransitionsPanel';
@@ -153,6 +154,12 @@ export default function TeachingStudioPage() {
   } | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
+  const [inlineShapeEdit, setInlineShapeEdit] = useState<{
+    elementId: string;
+    shape: InlineShapeData;
+    start: number;
+    end: number;
+  } | null>(null);
   const [elementPast, setElementPast] = useState<StudioElement[][]>([]);
   const [elementFuture, setElementFuture] = useState<StudioElement[][]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -675,7 +682,11 @@ export default function TeachingStudioPage() {
     toast.success('Equation added. Move or resize it on the canvas, then Save.');
   };
 
-  const addShapeElement = (kind: string) => {
+  const addShapeElement = (
+    kind: string,
+    customPath?: string,
+    customStyle?: { fill: string; stroke: string; strokeWidth: number },
+  ) => {
     if (!selectedScreen || editorReadOnly) return;
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
@@ -684,7 +695,14 @@ export default function TeachingStudioPage() {
       id,
       slotId: `free-${id}`,
       type: 'shape',
-      content: { kind, fill: '#dbeafe', stroke: '#1d4ed8', strokeWidth: 4, opacity: 1 },
+      content: {
+        kind,
+        fill: customStyle?.fill ?? (kind === 'custom-drawing' ? 'transparent' : '#dbeafe'),
+        stroke: customStyle?.stroke ?? '#1d4ed8',
+        strokeWidth: customStyle?.strokeWidth ?? 4,
+        opacity: 1,
+        ...(customPath ? { customPath } : {}),
+      },
       position: {
         x: 760,
         y: 390,
@@ -696,6 +714,36 @@ export default function TeachingStudioPage() {
     commitElements([...selectedScreen.elements, element], element.id);
     setPanel('shapes');
     toast.success('Shape added. Move or resize it on the Screen, then Save.');
+  };
+
+  const insertInlineShape = (shape: InlineShapeData) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const target = selectedScreen.elements.find(
+      (element) => element.id === selectedElementId && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type),
+    );
+    if (!target) return;
+    const text = String(target.content.text ?? '');
+    const rememberedCaret = inlineEquationCaretRef.current;
+    const offset = rememberedCaret?.elementId === target.id
+      ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
+      : text.length;
+    const token = inlineShapeToken(shape);
+    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` } };
+    inlineEquationCaretRef.current = { elementId: target.id, offset: offset + token.length };
+    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
+    toast.success('Shape inserted into the selected text element.');
+  };
+
+  const saveInlineShapeEdit = (shape: InlineShapeData) => {
+    if (!selectedScreen || !inlineShapeEdit) return;
+    const target = selectedScreen.elements.find((element) => element.id === inlineShapeEdit.elementId);
+    if (!target) return;
+    const text = String(target.content.text ?? '');
+    const token = inlineShapeToken(shape);
+    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, inlineShapeEdit.start)}${token}${text.slice(inlineShapeEdit.end)}` } };
+    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
+    setInlineShapeEdit(null);
+    toast.success('Inline shape updated.');
   };
 
   const updateElement = (updated: StudioElement) => {
@@ -1429,13 +1477,13 @@ export default function TeachingStudioPage() {
             </aside>
           )}
           {!leftPanelOpen && (
-            <aside className="flex min-h-0 items-start justify-center rounded-xl border border-slate-200 bg-white py-2 shadow-sm">
+            <aside className="flex min-h-0 items-start justify-center pt-2">
               <button
                 type="button"
                 onClick={() => setLeftPanelOpen(true)}
                 title="Open script"
                 aria-label="Open script"
-                className="rounded-lg p-2 text-slate-700 hover:bg-slate-100"
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 shadow-sm hover:bg-slate-100"
               >
                 <PanelLeftOpen size={18} />
               </button>
@@ -1463,6 +1511,12 @@ export default function TeachingStudioPage() {
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
                 onTextCaretChange={(elementId, offset) => {
                   inlineEquationCaretRef.current = { elementId, offset };
+                }}
+                onEditInlineShape={(elementId, shape, start, end) => {
+                  setSelectedElementId(elementId);
+                  setInlineShapeEdit({ elementId, shape, start, end });
+                  setRightPanelOpen(true);
+                  setPanel('shapes');
                 }}
                 onDuplicateElement={editorReadOnly ? undefined : duplicateElement}
                 onRemoveElement={editorReadOnly ? undefined : removeElement}
@@ -1625,6 +1679,9 @@ export default function TeachingStudioPage() {
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
                     onAdd={addShapeElement}
+                    onInsertInline={insertInlineShape}
+                    canInsertInline={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
+                    inlineEditRequest={inlineShapeEdit ? { shape: inlineShapeEdit.shape, onSave: saveInlineShapeEdit, onCancel: () => setInlineShapeEdit(null) } : null}
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
@@ -1668,13 +1725,13 @@ export default function TeachingStudioPage() {
             </aside>
           )}
           {!editorReadOnly && !rightPanelOpen && (
-            <aside className="flex min-h-0 items-start justify-center rounded-xl border border-slate-200 bg-white py-2 shadow-sm">
+            <aside className="flex min-h-0 items-start justify-center pt-2">
               <button
                 type="button"
                 onClick={() => setRightPanelOpen(true)}
                 title="Open tools"
                 aria-label="Open tools"
-                className="rounded-lg p-2 text-slate-700 hover:bg-slate-100"
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 shadow-sm hover:bg-slate-100"
               >
                 <PanelRightOpen size={18} />
               </button>

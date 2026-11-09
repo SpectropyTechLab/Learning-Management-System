@@ -16,9 +16,33 @@ interface Props {
 }
 
 const textValue = (element: StudioElement) => String(element.content.text || '');
+const layerText = (element: StudioElement) => {
+  const value = textValue(element)
+    .replace(/\[\[shape:.+?\]\]/g, ' [inline shape] ')
+    .replace(/\\\(.+?\\\)/g, ' [equation] ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return value.length > 48 ? `${value.slice(0, 45)}…` : value;
+};
 const fieldValue = (element: StudioElement, key: string) => String(element.content[key] || '');
 const textLike = new Set<ObjectType>(['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data']);
 const blankElementTypes: ObjectType[] = ['title', 'text', 'visual', 'media', 'simulation', 'question', 'response', 'steps', 'workspace', 'footer', 'activity', 'graph', 'data', 'options'];
+const elementTypeLabels: Partial<Record<ObjectType, string>> = {
+  title: 'Title — heading text',
+  text: 'Text — formatted text and equations',
+  visual: 'Visual — image, animation, or 3D model',
+  media: 'Media — image, video, audio, link, or presentation',
+  simulation: 'Simulation — HTML, ZIP, SCORM, or external link',
+  question: 'Question — question or prompt text',
+  response: 'Response — answer or explanation text',
+  steps: 'Steps — step-by-step text',
+  workspace: 'Workspace — working-area content',
+  footer: 'Footer — short bottom text',
+  activity: 'Activity — interactive activity content',
+  graph: 'Graph — graph or chart content',
+  data: 'Data — structured or tabular text',
+  options: 'Options — answer-choice text',
+};
 
 export default function StudioElementPanel({ layout, screen, selectedElementId, onSelect, onAdd, onAddBlank, onUpdate, onDuplicate, onRemove }: Props) {
   if (!screen) return <p className="text-sm text-slate-500">Select a Screen to edit its content.</p>;
@@ -79,7 +103,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
                 <option value="">Choose element…</option>
                 {blankElementTypes.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {elementTypeLabels[type] ?? type}
                   </option>
                 ))}
               </select>
@@ -121,7 +145,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
               .sort((a, b) => (Number(b.position.zIndex) || 0) - (Number(a.position.zIndex) || 0))
               .map((element) => (
                 <option key={element.id} value={element.id}>
-                  {element.type.replaceAll('_', ' ')}{textValue(element) ? ` - ${textValue(element)}` : ''}
+                  {element.type.replaceAll('_', ' ')}{layerText(element) ? ` - ${layerText(element)}` : ''}
                 </option>
               ))}
           </select>
