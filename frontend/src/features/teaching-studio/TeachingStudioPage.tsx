@@ -899,6 +899,16 @@ export default function TeachingStudioPage() {
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `shape-${token}`;
+    const lineLikeShape = ['line', 'diagonal-line', 'arrow', 'double-arrow', 'connector', 'curve'].includes(kind);
+    const verticalShape = ['vertical-line', 'up-arrow', 'down-arrow', 'up-down-arrow'].includes(kind);
+    const squareShape = ['circle', 'diamond', 'plus', 'minus', 'multiply', 'divide', 'equal', 'not-equal'].includes(kind);
+    const defaultSize = verticalShape
+      ? { width: 140, height: 400 }
+      : lineLikeShape
+        ? { width: 400, height: 140 }
+        : squareShape
+          ? { width: 320, height: 320 }
+          : { width: 400, height: 300 };
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -914,8 +924,7 @@ export default function TeachingStudioPage() {
       position: {
         x: 760,
         y: 390,
-        width: 400,
-        height: 300,
+        ...defaultSize,
         zIndex: selectedScreen.elements.length + 1,
       },
     };
@@ -927,59 +936,29 @@ export default function TeachingStudioPage() {
   const insertInlineShape = (shape: InlineShapeData) => {
     if (!selectedScreen || editorReadOnly) return;
     const target = selectedScreen.elements.find(
-      (element) =>
-        element.id === selectedElementId &&
-        [
-          'title',
-          'text',
-          'question',
-          'response',
-          'steps',
-          'workspace',
-          'footer',
-          'options',
-          'data',
-        ].includes(element.type),
+      (element) => element.id === selectedElementId && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type),
     );
     if (!target) return;
     const text = String(target.content.text ?? '');
     const rememberedCaret = inlineEquationCaretRef.current;
-    const offset =
-      rememberedCaret?.elementId === target.id
-        ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
-        : text.length;
+    const offset = rememberedCaret?.elementId === target.id
+      ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
+      : text.length;
     const token = inlineShapeToken(shape);
-    const updated = {
-      ...target,
-      content: { ...target.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` },
-    };
+    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` } };
     inlineEquationCaretRef.current = { elementId: target.id, offset: offset + token.length };
-    commitElements(
-      selectedScreen.elements.map((element) => (element.id === target.id ? updated : element)),
-      target.id,
-    );
+    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
     toast.success('Shape inserted into the selected text element.');
   };
 
   const saveInlineShapeEdit = (shape: InlineShapeData) => {
     if (!selectedScreen || !inlineShapeEdit) return;
-    const target = selectedScreen.elements.find(
-      (element) => element.id === inlineShapeEdit.elementId,
-    );
+    const target = selectedScreen.elements.find((element) => element.id === inlineShapeEdit.elementId);
     if (!target) return;
     const text = String(target.content.text ?? '');
     const token = inlineShapeToken(shape);
-    const updated = {
-      ...target,
-      content: {
-        ...target.content,
-        text: `${text.slice(0, inlineShapeEdit.start)}${token}${text.slice(inlineShapeEdit.end)}`,
-      },
-    };
-    commitElements(
-      selectedScreen.elements.map((element) => (element.id === target.id ? updated : element)),
-      target.id,
-    );
+    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, inlineShapeEdit.start)}${token}${text.slice(inlineShapeEdit.end)}` } };
+    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
     setInlineShapeEdit(null);
     toast.success('Inline shape updated.');
   };
@@ -2015,29 +1994,8 @@ export default function TeachingStudioPage() {
                     selectedElementId={selectedElementId}
                     onAdd={addShapeElement}
                     onInsertInline={insertInlineShape}
-                    canInsertInline={Boolean(
-                      selectedElement &&
-                      [
-                        'title',
-                        'text',
-                        'question',
-                        'response',
-                        'steps',
-                        'workspace',
-                        'footer',
-                        'options',
-                        'data',
-                      ].includes(selectedElement.type),
-                    )}
-                    inlineEditRequest={
-                      inlineShapeEdit
-                        ? {
-                            shape: inlineShapeEdit.shape,
-                            onSave: saveInlineShapeEdit,
-                            onCancel: () => setInlineShapeEdit(null),
-                          }
-                        : null
-                    }
+                    canInsertInline={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
+                    inlineEditRequest={inlineShapeEdit ? { shape: inlineShapeEdit.shape, onSave: saveInlineShapeEdit, onCancel: () => setInlineShapeEdit(null) } : null}
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
