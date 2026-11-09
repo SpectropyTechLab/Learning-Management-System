@@ -73,6 +73,7 @@ export default function SlideCanvas({
   fixedDrawingStrokes = [],
   drawingStrokes = [],
   drawingEnabled = false,
+  interactionOverlayEnabled = false,
   drawingTool = 'pen',
   drawingColor = '#ef4444',
   drawingWidth = 6,
@@ -93,6 +94,7 @@ export default function SlideCanvas({
   fixedDrawingStrokes?: AuthorDrawingStroke[];
   drawingStrokes?: AuthorDrawingStroke[];
   drawingEnabled?: boolean;
+  interactionOverlayEnabled?: boolean;
   drawingTool?: StudioDrawingTool;
   drawingColor?: string;
   drawingWidth?: number;
@@ -415,7 +417,7 @@ export default function SlideCanvas({
           })}
           <svg
             viewBox={`0 0 ${MASTER.width} ${MASTER.height}`}
-            className={`absolute inset-0 z-10 h-full w-full touch-none ${drawingEnabled ? 'cursor-crosshair' : 'pointer-events-none'}`}
+            className={`absolute inset-0 z-10 h-full w-full touch-none ${drawingEnabled ? 'cursor-crosshair' : interactionOverlayEnabled ? 'cursor-none' : 'pointer-events-none'}`}
             onPointerDown={beginDrawing}
             onPointerMove={continueDrawing}
             onPointerUp={finishDrawing}

@@ -781,13 +781,21 @@ export const createChapter = async ({ user, params, body }) => {
     throw new AppError('Access denied', 403);
   }
 
-  const result = await curriculumRepo.insertChapter({
-    subjectId,
-    name,
-    chapter_number: chapterNumber,
-    description: body?.description ?? null,
-    is_active: active ?? true,
-  });
+  let result;
+  try {
+    result = await curriculumRepo.insertChapter({
+      subjectId,
+      name,
+      chapter_number: chapterNumber,
+      description: body?.description ?? null,
+      is_active: active ?? true,
+    });
+  } catch (error) {
+    if (error?.code === '23505' && error?.constraint === 'idx_chapters_number') {
+      throw new AppError(`Chapter number ${chapterNumber} already exists for this Subject`, 409);
+    }
+    throw error;
+  }
   return decorateCurriculumItem(result.rows[0], user);
 };
 

@@ -93,6 +93,8 @@ import {
 } from './resourcePlacement';
 import { studioSetupApi } from './api/studioSetupApi';
 import type { StudioSession } from './api/studioSetupApi';
+import { studioTaxonomyApi } from './api/studioTaxonomyApi';
+import type { StudioTaxonomyTerm } from './api/studioTaxonomyApi';
 
 const positiveInteger = (value: string | undefined) => {
   const parsed = Number(value);
@@ -123,6 +125,14 @@ export default function TeachingStudioPage() {
   const [loadingScreens, setLoadingScreens] = useState(false);
   const [loadingScreen, setLoadingScreen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createScreenOpen, setCreateScreenOpen] = useState(false);
+  const [screenMetadataOpen, setScreenMetadataOpen] = useState(false);
+  const [newScreenTitle, setNewScreenTitle] = useState('Untitled Screen');
+  const [newScreenPedagogyId, setNewScreenPedagogyId] = useState('');
+  const [newScreenBloomId, setNewScreenBloomId] = useState('');
+  const [newScreenVisuals, setNewScreenVisuals] = useState('');
+  const [newScreenNarration, setNewScreenNarration] = useState('');
+  const [taxonomyTerms, setTaxonomyTerms] = useState<StudioTaxonomyTerm[]>([]);
   const [screenRequestVersion, setScreenRequestVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<
@@ -374,17 +384,121 @@ export default function TeachingStudioPage() {
       const saved = await saveDraftRef.current('navigation');
       if (!saved) return;
     }
+    setError(null);
+    try {
+      setTaxonomyTerms(await studioTaxonomyApi.list());
+    } catch {
+      setTaxonomyTerms([]);
+    }
+    setCreateScreenOpen(true);
+  };
+
+  const confirmCreateBlankScreen = async () => {
+    if (
+      !sessionId ||
+      creating ||
+      !newScreenPedagogyId ||
+      !newScreenVisuals.trim() ||
+      !newScreenNarration.trim()
+    )
+      return;
     setCreating(true);
     setError(null);
     try {
-      const created = await createBlankStudioScreen(sessionId);
+      const created = await createBlankStudioScreen(
+        sessionId,
+        newScreenTitle.trim() || 'Untitled Screen',
+      );
+      const pedagogy = taxonomyTerms.find((term) => term.id === Number(newScreenPedagogyId));
+      const bloom = taxonomyTerms.find((term) => term.id === Number(newScreenBloomId));
+      await studioTaxonomyApi.saveScreen(created.id, {
+        pedagogy: pedagogy ? [pedagogy] : [],
+        bloom: bloom ? [bloom] : [],
+      });
+      await studioDocumentsApi.saveScreenScript(sessionId, created.id, {
+        visual_animation_interaction_assets: newScreenVisuals.trim(),
+        teacher_narration: newScreenNarration.trim(),
+        adaptive_branch_scripts: '',
+        student_evidence_return_route: '',
+        pyq_examination_extension: '',
+        teacher_presenter_notes_production_checks: '',
+      });
       await loadScreens();
       setSearchParams({ screen: String(created.id) });
-      toast.success('Blank Screen created successfully.');
+      setCreateScreenOpen(false);
+      setNewScreenTitle('Untitled Screen');
+      setNewScreenPedagogyId('');
+      setNewScreenBloomId('');
+      setNewScreenVisuals('');
+      setNewScreenNarration('');
+      toast.success('Blank Screen and metadata created successfully.');
     } catch (requestError) {
       const response = getStudioErrorMessage(requestError);
       setError(response);
       toast.error(response);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const openScreenMetadata = async () => {
+    if (!selectedScreenId || editorReadOnly) return;
+    setCreating(true);
+    try {
+      const [terms, assigned] = await Promise.all([
+        studioTaxonomyApi.list(),
+        studioTaxonomyApi.screen(selectedScreenId),
+      ]);
+      setTaxonomyTerms(terms);
+      setNewScreenPedagogyId(
+        String(assigned.explicit.pedagogy[0]?.id || assigned.effective.pedagogy[0]?.id || ''),
+      );
+      setNewScreenBloomId(String(assigned.explicit.bloom[0]?.id || ''));
+      const script = scripts.find((row) => row.screen_id === selectedScreenId)?.content_json;
+      setNewScreenVisuals(script?.visual_animation_interaction_assets || '');
+      setNewScreenNarration(script?.teacher_narration || '');
+      setScreenMetadataOpen(true);
+    } catch (requestError) {
+      toast.error(getStudioErrorMessage(requestError));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const saveScreenMetadata = async () => {
+    if (
+      !sessionId ||
+      !selectedScreenId ||
+      creating ||
+      !newScreenPedagogyId ||
+      !newScreenVisuals.trim() ||
+      !newScreenNarration.trim()
+    )
+      return;
+    setCreating(true);
+    try {
+      const pedagogy = taxonomyTerms.find((term) => term.id === Number(newScreenPedagogyId));
+      const bloom = taxonomyTerms.find((term) => term.id === Number(newScreenBloomId));
+      await studioTaxonomyApi.saveScreen(selectedScreenId, {
+        pedagogy: pedagogy ? [pedagogy] : [],
+        bloom: bloom ? [bloom] : [],
+      });
+      const currentScript = scripts.find((row) => row.screen_id === selectedScreenId)?.content_json;
+      await studioDocumentsApi.saveScreenScript(sessionId, selectedScreenId, {
+        ...currentScript,
+        visual_animation_interaction_assets: newScreenVisuals.trim(),
+        teacher_narration: newScreenNarration.trim(),
+        adaptive_branch_scripts: currentScript?.adaptive_branch_scripts || '',
+        student_evidence_return_route: currentScript?.student_evidence_return_route || '',
+        pyq_examination_extension: currentScript?.pyq_examination_extension || '',
+        teacher_presenter_notes_production_checks:
+          currentScript?.teacher_presenter_notes_production_checks || '',
+      });
+      setScripts(await studioDocumentsApi.screenScripts(sessionId));
+      setScreenMetadataOpen(false);
+      toast.success('Screen metadata saved.');
+    } catch (requestError) {
+      toast.error(getStudioErrorMessage(requestError));
     } finally {
       setCreating(false);
     }
@@ -669,9 +783,8 @@ export default function TeachingStudioPage() {
 
   const addBlankElement = (type: ObjectType, region: Slot['region']) => {
     if (!selectedScreen || selectedScreen.layout_id || editorReadOnly) return;
-    const firstZoomTarget = type === 'zoom'
-      ? screenList.screens.find((screen) => screen.id !== selectedScreen.id)
-      : null;
+    const firstZoomTarget =
+      type === 'zoom' ? screenList.screens.find((screen) => screen.id !== selectedScreen.id) : null;
     if (type === 'zoom' && !firstZoomTarget) {
       toast.error('Create at least one more Screen before adding Screen Zoom.');
       return;
@@ -691,11 +804,20 @@ export default function TeachingStudioPage() {
       type,
       content: { text: '' },
       position,
-      ...(type === 'zoom' ? { zoom: {
-        kind: 'screen' as const, target_screen_id: firstZoomTarget!.id, target_section_id: null,
-        return_to_zoom: true, transition_enabled: true, transition_duration_ms: 500,
-        thumbnail_mode: 'auto' as const, custom_thumbnail_url: null,
-      } } : {}),
+      ...(type === 'zoom'
+        ? {
+            zoom: {
+              kind: 'screen' as const,
+              target_screen_id: firstZoomTarget!.id,
+              target_section_id: null,
+              return_to_zoom: true,
+              transition_enabled: true,
+              transition_duration_ms: 500,
+              thumbnail_mode: 'auto' as const,
+              custom_thumbnail_url: null,
+            },
+          }
+        : {}),
     };
     commitElements([...selectedScreen.elements, element], element.id);
     toast.success(
@@ -706,22 +828,43 @@ export default function TeachingStudioPage() {
   const addMathElement = (latex: string, forceStandalone = false) => {
     if (!selectedScreen || editorReadOnly) return;
     const inlineTarget = selectedScreen.elements.find(
-      (element) => element.id === selectedElementId && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type),
+      (element) =>
+        element.id === selectedElementId &&
+        [
+          'title',
+          'text',
+          'question',
+          'response',
+          'steps',
+          'workspace',
+          'footer',
+          'options',
+          'data',
+        ].includes(element.type),
     );
     if (inlineTarget && !forceStandalone) {
       const text = String(inlineTarget.content.text ?? '');
       const rememberedCaret = inlineEquationCaretRef.current;
-      const offset = rememberedCaret?.elementId === inlineTarget.id
-        ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
-        : text.length;
+      const offset =
+        rememberedCaret?.elementId === inlineTarget.id
+          ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
+          : text.length;
       const token = `\\(${latex}\\)`;
       const updated = {
         ...inlineTarget,
-        content: { ...inlineTarget.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` },
+        content: {
+          ...inlineTarget.content,
+          text: `${text.slice(0, offset)}${token}${text.slice(offset)}`,
+        },
       };
-      inlineEquationCaretRef.current = { elementId: inlineTarget.id, offset: offset + token.length };
+      inlineEquationCaretRef.current = {
+        elementId: inlineTarget.id,
+        offset: offset + token.length,
+      };
       commitElements(
-        selectedScreen.elements.map((element) => element.id === inlineTarget.id ? updated : element),
+        selectedScreen.elements.map((element) =>
+          element.id === inlineTarget.id ? updated : element,
+        ),
         inlineTarget.id,
       );
       toast.success('Equation inserted into the selected text element.');
@@ -784,29 +927,59 @@ export default function TeachingStudioPage() {
   const insertInlineShape = (shape: InlineShapeData) => {
     if (!selectedScreen || editorReadOnly) return;
     const target = selectedScreen.elements.find(
-      (element) => element.id === selectedElementId && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type),
+      (element) =>
+        element.id === selectedElementId &&
+        [
+          'title',
+          'text',
+          'question',
+          'response',
+          'steps',
+          'workspace',
+          'footer',
+          'options',
+          'data',
+        ].includes(element.type),
     );
     if (!target) return;
     const text = String(target.content.text ?? '');
     const rememberedCaret = inlineEquationCaretRef.current;
-    const offset = rememberedCaret?.elementId === target.id
-      ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
-      : text.length;
+    const offset =
+      rememberedCaret?.elementId === target.id
+        ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
+        : text.length;
     const token = inlineShapeToken(shape);
-    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` } };
+    const updated = {
+      ...target,
+      content: { ...target.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` },
+    };
     inlineEquationCaretRef.current = { elementId: target.id, offset: offset + token.length };
-    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === target.id ? updated : element)),
+      target.id,
+    );
     toast.success('Shape inserted into the selected text element.');
   };
 
   const saveInlineShapeEdit = (shape: InlineShapeData) => {
     if (!selectedScreen || !inlineShapeEdit) return;
-    const target = selectedScreen.elements.find((element) => element.id === inlineShapeEdit.elementId);
+    const target = selectedScreen.elements.find(
+      (element) => element.id === inlineShapeEdit.elementId,
+    );
     if (!target) return;
     const text = String(target.content.text ?? '');
     const token = inlineShapeToken(shape);
-    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, inlineShapeEdit.start)}${token}${text.slice(inlineShapeEdit.end)}` } };
-    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
+    const updated = {
+      ...target,
+      content: {
+        ...target.content,
+        text: `${text.slice(0, inlineShapeEdit.start)}${token}${text.slice(inlineShapeEdit.end)}`,
+      },
+    };
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === target.id ? updated : element)),
+      target.id,
+    );
     setInlineShapeEdit(null);
     toast.success('Inline shape updated.');
   };
@@ -814,25 +987,42 @@ export default function TeachingStudioPage() {
   const addZoomElements = (items: ZoomInsert[]) => {
     if (!selectedScreen || editorReadOnly || items.length === 0) return;
     const created = items.map((item, index): StudioElement => {
-      const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${index}`;
+      const token =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${index}`;
       const id = `zoom-${token}`;
       const column = index % 2;
       const row = Math.floor(index / 2);
       return {
-        id, slotId: `free-${id}`, type: 'zoom', content: {
+        id,
+        slotId: `free-${id}`,
+        type: 'zoom',
+        content: {
           text: item.title,
-          ...(item.summaryGroupId ? {
-            zoom_summary_group: item.summaryGroupId,
-            zoom_summary_order: item.summaryOrder ?? index,
-          } : {}),
+          ...(item.summaryGroupId
+            ? {
+                zoom_summary_group: item.summaryGroupId,
+                zoom_summary_order: item.summaryOrder ?? index,
+              }
+            : {}),
         },
-        position: { x: 160 + column * 800, y: 180 + row * 330, width: 700, height: 270, zIndex: selectedScreen.elements.length + index + 1 },
+        position: {
+          x: 160 + column * 800,
+          y: 180 + row * 330,
+          width: 700,
+          height: 270,
+          zIndex: selectedScreen.elements.length + index + 1,
+        },
         zoom: {
           kind: item.kind,
           target_screen_id: item.kind === 'screen' ? item.targetId : null,
           target_section_id: item.kind === 'section' ? item.targetId : null,
-          return_to_zoom: true, transition_enabled: true, transition_duration_ms: 500,
-          thumbnail_mode: 'auto', custom_thumbnail_url: null,
+          return_to_zoom: true,
+          transition_enabled: true,
+          transition_duration_ms: 500,
+          thumbnail_mode: 'auto',
+          custom_thumbnail_url: null,
         },
       };
     });
@@ -1379,15 +1569,24 @@ export default function TeachingStudioPage() {
                   onClick={() => void loadWorkflow(true)}
                   disabled={loadingWorkflow}
                 />
-                {workflowStatus?.can_submit && (
-                  <button
-                    type="button"
-                    onClick={() => void runWorkflowAction('submit')}
-                    className="shrink-0 rounded-lg bg-blue-900 px-2 py-1.5 text-xs font-semibold text-white"
-                  >
-                    Submit
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => void runWorkflowAction('submit')}
+                  disabled={
+                    loadingWorkflow || workflowAction !== null || !workflowStatus?.can_submit
+                  }
+                  title={
+                    workflowStatus?.can_submit
+                      ? 'Submit this Session for review'
+                      : 'Resolve the publication requirements before submitting'
+                  }
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                >
+                  {workflowAction === 'submit' && (
+                    <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+                  )}
+                  {workflowAction === 'submit' ? 'Submitting…' : 'Submit'}
+                </button>
                 {workflowStatus && (
                   <span
                     className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
@@ -1642,6 +1841,16 @@ export default function TeachingStudioPage() {
                 {creating ? 'Adding Screen…' : 'Add Screen'}
               </button>
             )}
+            {!editorReadOnly && (
+              <button
+                type="button"
+                onClick={() => void openScreenMetadata()}
+                disabled={creating || !selectedScreenId}
+                className="w-44 shrink-0 self-center rounded-lg border border-blue-700 bg-white px-3 py-1.5 text-sm font-semibold text-blue-800 disabled:opacity-40"
+              >
+                Screen metadata
+              </button>
+            )}
           </main>
           {toolPanelOpen && (
             <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1766,7 +1975,13 @@ export default function TeachingStudioPage() {
                   />
                 )}
                 {panel === 'zoom' && sessionId && selectedScreen ? (
-                  <StudioZoomPanel sessionId={sessionId} screens={screenList.screens} currentScreenId={selectedScreen.id} disabled={editorReadOnly} onInsert={addZoomElements} />
+                  <StudioZoomPanel
+                    sessionId={sessionId}
+                    screens={screenList.screens}
+                    currentScreenId={selectedScreen.id}
+                    disabled={editorReadOnly}
+                    onInsert={addZoomElements}
+                  />
                 ) : null}
                 {panel === 'math' && (
                   <StudioMathPanel
@@ -1778,7 +1993,20 @@ export default function TeachingStudioPage() {
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
-                    inlineTarget={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
+                    inlineTarget={Boolean(
+                      selectedElement &&
+                      [
+                        'title',
+                        'text',
+                        'question',
+                        'response',
+                        'steps',
+                        'workspace',
+                        'footer',
+                        'options',
+                        'data',
+                      ].includes(selectedElement.type),
+                    )}
                   />
                 )}
                 {panel === 'shapes' && (
@@ -1787,8 +2015,29 @@ export default function TeachingStudioPage() {
                     selectedElementId={selectedElementId}
                     onAdd={addShapeElement}
                     onInsertInline={insertInlineShape}
-                    canInsertInline={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
-                    inlineEditRequest={inlineShapeEdit ? { shape: inlineShapeEdit.shape, onSave: saveInlineShapeEdit, onCancel: () => setInlineShapeEdit(null) } : null}
+                    canInsertInline={Boolean(
+                      selectedElement &&
+                      [
+                        'title',
+                        'text',
+                        'question',
+                        'response',
+                        'steps',
+                        'workspace',
+                        'footer',
+                        'options',
+                        'data',
+                      ].includes(selectedElement.type),
+                    )}
+                    inlineEditRequest={
+                      inlineShapeEdit
+                        ? {
+                            shape: inlineShapeEdit.shape,
+                            onSave: saveInlineShapeEdit,
+                            onCancel: () => setInlineShapeEdit(null),
+                          }
+                        : null
+                    }
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
@@ -1799,9 +2048,7 @@ export default function TeachingStudioPage() {
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
                     onUpdate={updateElement}
-                    onPreview={(elementId) =>
-                      setAnimationPreview({ elementId, token: Date.now() })
-                    }
+                    onPreview={(elementId) => setAnimationPreview({ elementId, token: Date.now() })}
                   />
                 )}
                 {panel === 'transitions' && (
@@ -2343,6 +2590,200 @@ export default function TeachingStudioPage() {
                 className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white"
               >
                 Keep draft and retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {screenMetadataOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Screen metadata"
+        >
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-900">Screen metadata</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Screen values override optional Topic defaults. Pedagogy and the basic Screen Script
+              are required.
+            </p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold text-slate-700">
+                Pedagogy <span className="text-red-600">*</span>
+                <select
+                  value={newScreenPedagogyId}
+                  onChange={(event) => setNewScreenPedagogyId(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
+                >
+                  <option value="">Select pedagogy</option>
+                  {taxonomyTerms
+                    .filter((term) => term.type === 'pedagogy')
+                    .map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="text-sm font-semibold text-slate-700">
+                Bloom <span className="font-normal text-slate-500">(optional)</span>
+                <select
+                  value={newScreenBloomId}
+                  onChange={(event) => setNewScreenBloomId(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
+                >
+                  <option value="">Use Topic default / none</option>
+                  {taxonomyTerms
+                    .filter((term) => term.type === 'bloom')
+                    .map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                Visual / animation / interaction assets <span className="text-red-600">*</span>
+                <textarea
+                  rows={3}
+                  value={newScreenVisuals}
+                  onChange={(event) => setNewScreenVisuals(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                />
+              </label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                Teacher narration <span className="text-red-600">*</span>
+                <textarea
+                  rows={4}
+                  value={newScreenNarration}
+                  onChange={(event) => setNewScreenNarration(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={creating}
+                onClick={() => setScreenMetadataOpen(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  creating ||
+                  !newScreenPedagogyId ||
+                  !newScreenVisuals.trim() ||
+                  !newScreenNarration.trim()
+                }
+                onClick={() => void saveScreenMetadata()}
+                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {creating ? 'Saving…' : 'Save metadata'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {createScreenOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add Screen details"
+        >
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-900">Add Screen</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Pedagogy and the two basic Screen Script fields are required. Bloom is optional.
+            </p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold text-slate-700">
+                Screen title
+                <input
+                  value={newScreenTitle}
+                  onChange={(event) => setNewScreenTitle(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                />
+              </label>
+              <label className="text-sm font-semibold text-slate-700">
+                Pedagogy <span className="text-red-600">*</span>
+                <select
+                  value={newScreenPedagogyId}
+                  onChange={(event) => setNewScreenPedagogyId(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
+                >
+                  <option value="">Select pedagogy</option>
+                  {taxonomyTerms
+                    .filter((term) => term.type === 'pedagogy')
+                    .map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="text-sm font-semibold text-slate-700">
+                Bloom <span className="font-normal text-slate-500">(optional)</span>
+                <select
+                  value={newScreenBloomId}
+                  onChange={(event) => setNewScreenBloomId(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
+                >
+                  <option value="">No Screen override</option>
+                  {taxonomyTerms
+                    .filter((term) => term.type === 'bloom')
+                    .map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <div className="hidden sm:block" />
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                Visual / animation / interaction assets <span className="text-red-600">*</span>
+                <textarea
+                  rows={3}
+                  value={newScreenVisuals}
+                  onChange={(event) => setNewScreenVisuals(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                />
+              </label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                Teacher narration <span className="text-red-600">*</span>
+                <textarea
+                  rows={4}
+                  value={newScreenNarration}
+                  onChange={(event) => setNewScreenNarration(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={creating}
+                onClick={() => setCreateScreenOpen(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  creating ||
+                  !newScreenPedagogyId ||
+                  !newScreenVisuals.trim() ||
+                  !newScreenNarration.trim()
+                }
+                onClick={() => void confirmCreateBlankScreen()}
+                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {creating ? 'Creating…' : 'Create Screen'}
               </button>
             </div>
           </div>

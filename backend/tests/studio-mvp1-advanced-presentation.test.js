@@ -16,7 +16,7 @@ test('advanced presentation migration keeps Zoom targets relational and same-ses
 
 test('release manifest freezes Sections and Zoom links for teacher playback', () => {
   const service = read('../services/studioReleases.service.js');
-  assert.match(service, /manifest_version: 3/);
+  assert.match(service, /manifest_version: 4/);
   assert.match(service, /sections: content\.sections\.map/);
   assert.match(service, /zoom_kind:/);
   assert.match(service, /usage_details_json/);

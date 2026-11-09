@@ -32,7 +32,7 @@ test('Day 10 migration keeps originals and adds editable/per-Screen/chapter docu
 test('Day 10 routes expose preview, confirm, manual and original-download operations', () => {
   const routes = routePaths();
   const has = (path, method) => routes.some((route) => route.path === path && route.methods.includes(method));
-  assert.equal(has('/studio/session-plan/import-preview', 'post'), true);
+  assert.equal(has('/studio/sessions/:sessionId/session-plan/import-preview', 'post'), true);
   assert.equal(has('/studio/sessions/:sessionId/session-plan/import', 'post'), true);
   assert.equal(has('/studio/sessions/:sessionId/session-plan/content', 'patch'), true);
   assert.equal(has('/studio/sessions/:sessionId/screen-scripts/import-preview', 'post'), true);
