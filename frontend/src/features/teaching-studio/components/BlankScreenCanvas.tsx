@@ -361,6 +361,17 @@ export default function BlankScreenCanvas({
       );
       continue;
     }
+    if (element.type === 'zoom') {
+      const destination = element.zoom?.target_screen_id
+        ? `Screen ${element.zoom.target_screen_id}`
+        : element.zoom?.target_section_id ? `Section ${element.zoom.target_section_id}` : 'Choose destination';
+      objectOverlays[element.id] = (
+        <div className="grid h-full w-full place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-4 text-center text-white shadow-xl">
+          <span><span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-100">{element.content.zoom_summary_group ? 'Summary Zoom' : element.zoom?.kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-lg font-black">{String(element.content.text || 'Linked teaching content')}</span><span className="mt-2 block text-xs text-blue-100">{destination} · {element.zoom?.return_to_zoom === false ? 'continue' : 'return here'}</span></span>
+        </div>
+      );
+      continue;
+    }
     const text = elementText(element.content);
     if (
       [

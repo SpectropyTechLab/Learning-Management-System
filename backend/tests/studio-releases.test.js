@@ -132,6 +132,8 @@ test('publishing pins exact authorized document, screen, layout and Resource rev
       }
       if (sql.includes('from screen_tags')) return { rows: [{ screen_id: 40, tag: 'motion' }] };
       if (sql.includes('from screen_branches')) return { rows: [] };
+      if (sql.includes('from screen_zoom_links')) return { rows: [] };
+      if (sql.includes('from screen_sections')) return { rows: [] };
       if (sql.startsWith('select coalesce(max(release_number)')) {
         return { rows: [{ release_number: 1 }] };
       }
@@ -168,7 +170,7 @@ test('publishing pins exact authorized document, screen, layout and Resource rev
   });
 
   assert.equal(release.release_number, 1);
-  assert.equal(insertedManifest.manifest_version, 2);
+  assert.equal(insertedManifest.manifest_version, 3);
   assert.equal(insertedManifest.session.revision_no, 6);
   assert.equal(insertedManifest.documents.session_plan.document_id, 91);
   assert.equal(insertedManifest.documents.screen_script.revision_no, 3);
@@ -310,6 +312,8 @@ test('author player preview returns current draft screens without creating a rel
     }] };
     if (sql.includes('from screen_tags')) return { rows: [{ screen_id: 40, tag: 'motion' }] };
     if (sql.includes('from screen_branches')) return { rows: [] };
+    if (sql.includes('from screen_zoom_links')) return { rows: [] };
+    if (sql.includes('from screen_sections')) return { rows: [] };
     throw new Error(`Unhandled query: ${sql}`);
   };
   t.after(() => { pool.query = originalQuery; });

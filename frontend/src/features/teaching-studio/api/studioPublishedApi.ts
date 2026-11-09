@@ -11,6 +11,7 @@ export interface PublishedResourceMapping {
   mime_type: string | null;
   width: number | null;
   height: number | null;
+  usage_details_json?: Record<string, unknown> | null;
 }
 
 export interface PublishedScreenElement {
@@ -22,6 +23,12 @@ export interface PublishedScreenElement {
   position_json: Record<string, unknown>;
   display_order: number;
   resource_mapping: PublishedResourceMapping | null;
+  zoom?: {
+    zoom_kind: 'screen' | 'section';
+    target_screen_id: number | null;
+    target_section_id: number | null;
+    return_to_zoom: boolean;
+  } | null;
 }
 
 export interface PublishedBranch {
@@ -64,6 +71,12 @@ export interface PublishedRelease {
       description?: string | null;
     };
     screens: PublishedScreen[];
+    sections?: Array<{
+      section_id: number;
+      name: string;
+      display_order: number;
+      screens: Array<{ screen_id: number; display_order: number }>;
+    }>;
     screen_scripts?: Array<{
       script_revision_id: number;
       screen_id: number;
@@ -111,6 +124,12 @@ export const previewPublishedResource = async (releaseId: number, versionId: num
 export const launchPublishedResource = async (releaseId: number, versionId: number) =>
   dataOf<{ launchable: boolean; launch_url?: string; message?: string }>((await api.post(
     `/studio/published-releases/${releaseId}/resource-versions/${versionId}/launch`,
+  )).data);
+
+export const previewPublishedObject = async (releaseId: number, versionId: number) =>
+  dataOf<import('./studioResourcesApi').StudioObjectPreviewDescriptor>((await api.get(
+    `/studio/published-releases/${releaseId}/resource-versions/${versionId}/object-preview`,
+    { params: { fresh: Date.now() }, headers: { 'Cache-Control': 'no-cache' } },
   )).data);
 
 export interface PublishedTeachingMaterials {
