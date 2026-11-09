@@ -9,7 +9,7 @@ interface Props {
   text: string; color?: string; backgroundColor?: string; fontSize?: number; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean;
   alignment?: 'left' | 'center' | 'right' | 'justify'; list?: boolean; editable?: boolean; selected?: boolean;
   onSelect?: () => void; onTextChange?: (text: string) => void; onCaretChange?: (offset: number) => void; onEditingChange?: (editing: boolean) => void;
-  onRequestHeight?: (growthRatio: number) => void;
+  onRequestHeight?: (requiredRatio: number) => void;
   onInlineShapeEdit?: (shape: InlineShapeData, start: number, end: number) => void;
 }
 
@@ -55,8 +55,26 @@ export default function StudioCanvasTextElement({ text, color = '#25436b', backg
   const requestRequiredHeight = () => {
     window.requestAnimationFrame(() => {
       const editor = editorRef.current;
-      if (!editor || editor.clientHeight <= 0 || editor.scrollHeight <= editor.clientHeight + 1) return;
-      onRequestHeight?.(editor.scrollHeight / editor.clientHeight);
+      if (!editor || editor.clientWidth <= 0 || editor.clientHeight <= 0) return;
+      const measurement = editor.cloneNode(true) as HTMLDivElement;
+      measurement.contentEditable = 'false';
+      Object.assign(measurement.style, {
+        position: 'fixed',
+        left: '-10000px',
+        top: '0',
+        width: `${editor.clientWidth}px`,
+        height: 'auto',
+        minHeight: '0',
+        maxHeight: 'none',
+        flex: 'none',
+        overflow: 'visible',
+        visibility: 'hidden',
+        pointerEvents: 'none',
+      });
+      document.body.appendChild(measurement);
+      const requiredHeight = measurement.scrollHeight;
+      measurement.remove();
+      if (requiredHeight > 0) onRequestHeight?.(requiredHeight / editor.clientHeight);
     });
   };
   useEffect(() => { if (!selected) { setEditing(false); onEditingChange?.(false); } }, [onEditingChange, selected]);

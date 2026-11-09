@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { Move as MoveIcon } from 'lucide-react';
 import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Rect, Slide, Slot } from './layouts';
 import type { AuthorDrawingStroke, StudioDrawingTool } from './types';
@@ -62,6 +63,8 @@ export default function SlideCanvas({
   layout,
   slide,
   showGuides = false,
+  compactViewport = false,
+  immersiveViewport = false,
   selectedObjectId,
   onSelectObject,
   onClearSelection,
@@ -82,6 +85,8 @@ export default function SlideCanvas({
   layout: Layout | null;
   slide: Slide;
   showGuides?: boolean;
+  compactViewport?: boolean;
+  immersiveViewport?: boolean;
   selectedObjectId?: string | null;
   onSelectObject?: (objectId: string) => void;
   onClearSelection?: () => void;
@@ -230,7 +235,7 @@ export default function SlideCanvas({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-200 p-2"
+      className={`flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden ${immersiveViewport ? 'rounded-none bg-black p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
       data-testid="slide-viewport"
     >
       {scale > 0 && (
@@ -405,7 +410,6 @@ export default function SlideCanvas({
                   width: `${(bounds.width / MASTER.width) * 100}%`,
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
-                  pointerEvents: object.type === 'math' ? 'none' : undefined,
                   ...objectAnimationStyles[object.id],
                 }}
               >
@@ -468,10 +472,11 @@ export default function SlideCanvas({
                   <button
                     type="button"
                     onPointerDown={(event) => beginInteraction(event, object.id, 'move', bounds)}
-                    className="pointer-events-auto absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 cursor-move rounded-full bg-blue-700 px-3 py-1 text-xs font-bold text-white shadow"
+                    className="pointer-events-auto absolute left-1/2 top-0 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-move place-items-center rounded-full border-2 border-white bg-blue-700 text-white shadow"
                     title="Drag to move element"
+                    aria-label="Drag to move element"
                   >
-                    Move
+                    <MoveIcon size={14} aria-hidden="true" />
                   </button>
                   <button
                     type="button"

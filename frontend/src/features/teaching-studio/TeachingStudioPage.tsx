@@ -706,6 +706,16 @@ export default function TeachingStudioPage() {
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `shape-${token}`;
+    const lineLikeShape = ['line', 'diagonal-line', 'arrow', 'double-arrow', 'connector', 'curve'].includes(kind);
+    const verticalShape = ['vertical-line', 'up-arrow', 'down-arrow', 'up-down-arrow'].includes(kind);
+    const squareShape = ['circle', 'diamond', 'plus', 'minus', 'multiply', 'divide', 'equal', 'not-equal'].includes(kind);
+    const defaultSize = verticalShape
+      ? { width: 140, height: 400 }
+      : lineLikeShape
+        ? { width: 400, height: 140 }
+        : squareShape
+          ? { width: 320, height: 320 }
+          : { width: 400, height: 300 };
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -721,8 +731,7 @@ export default function TeachingStudioPage() {
       position: {
         x: 760,
         y: 390,
-        width: 400,
-        height: 300,
+        ...defaultSize,
         zIndex: selectedScreen.elements.length + 1,
       },
     };

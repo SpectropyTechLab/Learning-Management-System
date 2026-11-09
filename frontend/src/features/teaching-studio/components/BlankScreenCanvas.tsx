@@ -55,7 +55,7 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, onSelect }: { element: StudioElement; onSelect?: () => void }) {
+function BoundResource({ element, onSelect, onImageAspectRatio }: { element: StudioElement; onSelect?: () => void; onImageAspectRatio?: (aspectRatio: number) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -63,6 +63,8 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
   const [fullScreen, setFullScreen] = useState(false);
   const resourceId = element.resource?.resource_id;
   const versionId = element.resource?.resource_version_id;
+  const imageAspectRatioRef = useRef(onImageAspectRatio);
+  imageAspectRatioRef.current = onImageAspectRatio;
 
   useEffect(() => {
     if (!resourceId || !versionId) return;
@@ -89,6 +91,11 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
       active = false;
     };
   }, [resourceId, versionId]);
+
+  useEffect(() => {
+    if (resource?.resource_type !== 'image' || !version?.width || !version?.height) return;
+    imageAspectRatioRef.current?.(version.width / version.height);
+  }, [resource?.resource_type, version?.height, version?.id, version?.width]);
 
   useEffect(() => {
     const syncFullScreen = () => setFullScreen(document.fullscreenElement === containerRef.current);
@@ -298,6 +305,26 @@ export default function BlankScreenCanvas({
           ],
         }
       : baseLayout;
+  const fitElementToRenderedSize = (
+    element: StudioElement,
+    requiredWidthRatio: number,
+    requiredHeightRatio: number,
+  ) => {
+    if (!onChangeElementBounds || !Number.isFinite(requiredWidthRatio) || !Number.isFinite(requiredHeightRatio)) return;
+    const currentBounds =
+      elementBounds(element.position) ??
+      renderLayout?.slots.find(
+        (slot) => slot.id === (element.slotId || `free-${element.id}`),
+      )?.bounds;
+    if (!currentBounds) return;
+    const nextBounds = {
+      ...currentBounds,
+      width: Math.max(80, Math.min(1920 - currentBounds.x, Math.ceil(currentBounds.width * requiredWidthRatio))),
+      height: Math.max(60, Math.min(1080 - currentBounds.y, Math.ceil(currentBounds.height * requiredHeightRatio))),
+    };
+    if (Math.abs(nextBounds.width - currentBounds.width) < 2 && Math.abs(nextBounds.height - currentBounds.height) < 2) return;
+    onChangeElementBounds(element.id, nextBounds);
+  };
   const slide: Slide | null =
     screen && renderLayout
       ? {
@@ -339,6 +366,7 @@ export default function BlankScreenCanvas({
               ? element.content.alignment
               : 'center'
           }
+          onRequestSize={previewMode ? undefined : (widthRatio, heightRatio) => fitElementToRenderedSize(element, widthRatio, heightRatio)}
         />
       );
       continue;
@@ -412,7 +440,7 @@ export default function BlankScreenCanvas({
           onTextChange={(value) => onChangeElementContent?.(element.id, { text: value })}
           onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
           onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
-          onRequestHeight={(growthRatio) => {
+          onRequestHeight={(requiredRatio) => {
             if (!onChangeElementBounds) return;
             const currentBounds =
               elementBounds(element.position) ??
@@ -420,12 +448,8 @@ export default function BlankScreenCanvas({
                 (slot) => slot.id === (element.slotId || `free-${element.id}`),
               )?.bounds;
             if (!currentBounds) return;
-            const maximumHeight = 1080 - currentBounds.y;
-            const nextHeight = Math.min(
-              maximumHeight,
-              Math.ceil(currentBounds.height * growthRatio) + 4,
-            );
-            if (nextHeight <= currentBounds.height) return;
+            const nextHeight = Math.max(60, Math.min(1080 - currentBounds.y, Math.ceil(currentBounds.height * requiredRatio)));
+            if (Math.abs(nextHeight - currentBounds.height) < 2) return;
             onChangeElementBounds(element.id, { ...currentBounds, height: nextHeight });
           }}
           onEditingChange={(editing) =>
@@ -443,6 +467,21 @@ export default function BlankScreenCanvas({
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+        onImageAspectRatio={previewMode ? undefined : (aspectRatio) => {
+          if (!onChangeElementBounds || !Number.isFinite(aspectRatio) || aspectRatio <= 0) return;
+          const currentBounds = elementBounds(element.position);
+          if (!currentBounds) return;
+          const maximumHeight = 1080 - currentBounds.y;
+          let width = currentBounds.width;
+          let height = width / aspectRatio;
+          if (height > maximumHeight) {
+            height = maximumHeight;
+            width = height * aspectRatio;
+          }
+          const nextBounds = { ...currentBounds, width: Math.max(80, Math.round(width)), height: Math.max(60, Math.round(height)) };
+          if (Math.abs(nextBounds.width - currentBounds.width) < 2 && Math.abs(nextBounds.height - currentBounds.height) < 2) return;
+          onChangeElementBounds(element.id, nextBounds);
+        }}
       />
     );
   }
@@ -527,7 +566,7 @@ export default function BlankScreenCanvas({
               : ''}
           </div>
         ) : null}
-        {slide && renderLayout && !loading ? (
+        {screen && slide && renderLayout && !loading ? (
           <SlideCanvas
             layout={renderLayout}
             slide={slide}
