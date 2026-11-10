@@ -1,27 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   Boxes,
   Check,
   ChevronDown,
-  ChevronUp,
   Cloud,
   CloudOff,
   Eye,
   Focus,
   FileText,
   GalleryHorizontalEnd,
+  GripVertical,
   LayoutTemplate,
   ListOrdered,
   LoaderCircle,
   Paintbrush,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
+  Network,
   Pencil,
   Plus,
   Redo2,
@@ -61,6 +56,13 @@ import StudioIconButton from './components/StudioIconButton';
 import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionsPanel from './components/StudioTransitionsPanel';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
+import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
+import {
+  SMART_DIAGRAM_THEMES,
+  createSmartDiagramContent,
+  isSmartDiagramContent,
+  layoutSmartDiagram,
+} from './components/smartDiagramModel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
@@ -146,6 +148,7 @@ export default function TeachingStudioPage() {
     | 'transitions'
     | 'drawing'
     | 'zoom'
+    | 'diagrams'
     | null
   >('elements');
   const [animationPreview, setAnimationPreview] = useState<{
@@ -184,8 +187,8 @@ export default function TeachingStudioPage() {
   const [sessionContext, setSessionContext] = useState<StudioSession | null>(null);
   const [sessionOptions, setSessionOptions] = useState<StudioSession[]>([]);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
+  const [leftPanelView, setLeftPanelView] = useState<'screens' | 'script'>('screens');
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  const [contextBarOpen, setContextBarOpen] = useState(false);
   const [revisionPromptOpen, setRevisionPromptOpen] = useState(false);
   const [startingRevision, setStartingRevision] = useState(false);
   const editorReadOnly = !workflowStatus || !['draft', 'rejected'].includes(workflowStatus.status);
@@ -203,9 +206,10 @@ export default function TeachingStudioPage() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTitle, setRenameTitle] = useState('');
   const [renamingScreen, setRenamingScreen] = useState(false);
-  const [reorderOpen, setReorderOpen] = useState(false);
   const [reorderIds, setReorderIds] = useState<number[]>([]);
   const [reorderingScreens, setReorderingScreens] = useState(false);
+  const [draggingScreenId, setDraggingScreenId] = useState<number | null>(null);
+  const reorderIdsRef = useRef<number[]>([]);
   const [drawingTool, setDrawingTool] = useState<StudioDrawingTool>('pen');
   const [drawingColor, setDrawingColor] = useState('#ef4444');
   const [drawingWidth, setDrawingWidth] = useState(6);
@@ -661,7 +665,7 @@ export default function TeachingStudioPage() {
 
   const commitElements = (elements: StudioElement[], selectElementId?: string | null) => {
     if (!selectedScreen || editorReadOnly) return;
-    setElementPast((past) => [...past, selectedScreen.elements]);
+    setElementPast((past) => [...past.slice(-99), selectedScreen.elements]);
     setElementFuture([]);
     setSelectedScreen({ ...selectedScreen, elements });
     if (selectElementId !== undefined) setSelectedElementId(selectElementId);
@@ -933,6 +937,58 @@ export default function TeachingStudioPage() {
     toast.success('Shape added. Move or resize it on the Screen, then Save.');
   };
 
+  const addSmartDiagram = (layoutId: string) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+    const id = `diagram-${token}`;
+    const content = createSmartDiagramContent(layoutId);
+    const element: StudioElement = {
+      id,
+      slotId: `free-${id}`,
+      type: 'visual',
+      content,
+      position: { x: 260, y: 210, width: 1400, height: 700, zIndex: selectedScreen.elements.length + 1 },
+    };
+    commitElements([...selectedScreen.elements, element], id);
+    setPanel('diagrams');
+    toast.success('Smart Diagram inserted. Edit its Text Pane or double-click a node on the Screen.');
+  };
+
+  const convertDiagramToShapes = (elementId: string) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const diagram = selectedScreen.elements.find((element) => element.id === elementId);
+    if (!diagram || !isSmartDiagramContent(diagram.content)) return;
+    const geometry = layoutSmartDiagram(diagram.content);
+    const left = Number(diagram.position.x) || 0;
+    const top = Number(diagram.position.y) || 0;
+    const width = Number(diagram.position.width) || 1000;
+    const height = Number(diagram.position.height) || 600;
+    const sx = width / 1000;
+    const sy = height / 600;
+    const theme = SMART_DIAGRAM_THEMES.find((candidate) => candidate.id === diagram.content.themeId) ?? SMART_DIAGRAM_THEMES[0];
+    const boxes = new Map(geometry.boxes.map((box) => [box.id, box]));
+    const converted: StudioElement[] = [];
+    geometry.edges.forEach((edge, index) => {
+      const from = boxes.get(edge.from); const to = boxes.get(edge.to);
+      if (!from || !to || diagram.content.connectorStyle === 'none') return;
+      const x1 = left + (from.x + from.width / 2) * sx; const y1 = top + (from.y + from.height / 2) * sy;
+      const x2 = left + (to.x + to.width / 2) * sx; const y2 = top + (to.y + to.height / 2) * sy;
+      converted.push({ id: `${elementId}-connector-${index}`, slotId: `free-${elementId}-connector-${index}`, type: 'shape', content: { kind: 'line', fill: 'transparent', stroke: '#64748b', strokeWidth: 4 }, position: { x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.max(80, Math.abs(x2 - x1)), height: Math.max(60, Math.abs(y2 - y1)), zIndex: Number(diagram.position.zIndex) || 0 } });
+    });
+    diagram.content.nodes.forEach((node, index) => {
+      const box = boxes.get(node.id); if (!box) return;
+      const x = left + box.x * sx; const y = top + box.y * sy; const nodeWidth = Math.max(80, box.width * sx); const nodeHeight = Math.max(60, box.height * sy);
+      const fill = node.fill || theme.colors[index % theme.colors.length];
+      const shapeId = `${elementId}-shape-${index}`;
+      converted.push({ id: shapeId, slotId: `free-${shapeId}`, type: 'shape', content: { kind: node.shape === 'circle' ? 'ellipse' : node.shape === 'diamond' ? 'diamond' : node.shape === 'rectangle' ? 'rectangle' : 'rounded-rectangle', fill, stroke: '#ffffff', strokeWidth: 3, opacity: 1 }, position: { x, y, width: nodeWidth, height: nodeHeight, zIndex: (Number(diagram.position.zIndex) || 0) + 1 } });
+      const textId = `${elementId}-text-${index}`;
+      converted.push({ id: textId, slotId: `free-${textId}`, type: 'text', content: { text: `${node.icon ? `${node.icon} ` : ''}${node.text}`, color: node.textColor || '#ffffff', fontSize: Math.max(18, Math.min(34, nodeWidth / 7)), bold: true, alignment: 'center' }, position: { x: x + 8, y: y + 8, width: Math.max(80, nodeWidth - 16), height: Math.max(60, nodeHeight - 16), zIndex: (Number(diagram.position.zIndex) || 0) + 2 } });
+    });
+    commitElements([...selectedScreen.elements.filter((element) => element.id !== elementId), ...converted], converted.at(-1)?.id ?? null);
+    setPanel('elements');
+    toast.success('Smart Diagram converted to individual shapes. This conversion is one-way unless you use Undo.');
+  };
+
   const insertInlineShape = (shape: InlineShapeData) => {
     if (!selectedScreen || editorReadOnly) return;
     const target = selectedScreen.elements.find(
@@ -1132,7 +1188,10 @@ export default function TeachingStudioPage() {
     setElementFuture((future) => [selectedScreen.elements, ...future]);
     setSelectedScreen({ ...selectedScreen, elements: previous });
     setSelectedElementId(null);
-    setHasUnsavedChanges(elementPast.length > 1);
+    // Undo changes the current draft even when AutoSave already persisted the
+    // newer state, so the restored state must itself be saved.
+    setHasUnsavedChanges(true);
+    setSaveStatus('pending');
   };
 
   const redoElementChange = () => {
@@ -1143,6 +1202,7 @@ export default function TeachingStudioPage() {
     setSelectedScreen({ ...selectedScreen, elements: next });
     setSelectedElementId(null);
     setHasUnsavedChanges(true);
+    setSaveStatus('pending');
   };
 
   const saveScreenDraft = async (source: 'autosave' | 'manual' | 'navigation' = 'manual') => {
@@ -1183,10 +1243,8 @@ export default function TeachingStudioPage() {
         ),
       }));
       if (!changedWhileSaving) {
-        setElementPast([]);
-        setElementFuture([]);
-        setDrawingPast([]);
-        setDrawingFuture([]);
+        // AutoSave is persistence, not a new editing session. Preserve undo
+        // and redo history until the author changes Screen.
         setHasUnsavedChanges(false);
         setSaveStatus('saved');
       } else {
@@ -1229,6 +1287,24 @@ export default function TeachingStudioPage() {
     window.addEventListener('keydown', saveNow);
     return () => window.removeEventListener('keydown', saveNow);
   }, []);
+
+  useEffect(() => {
+    const historyShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undoElementChange();
+      } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+        event.preventDefault();
+        redoElementChange();
+      }
+    };
+    window.addEventListener('keydown', historyShortcut);
+    return () => window.removeEventListener('keydown', historyShortcut);
+  }, [elementFuture, elementPast, redoElementChange, selectedScreen, undoElementChange]);
 
   useEffect(() => {
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -1343,30 +1419,44 @@ export default function TeachingStudioPage() {
   };
 
   const openScreenReorder = () => {
-    if (editorReadOnly) return;
-    setReorderIds(screenList.screens.map((screen) => screen.id));
-    setReorderOpen(true);
+    if (leftPanelOpen && leftPanelView === 'screens') {
+      setLeftPanelOpen(false);
+      return;
+    }
+    const ids = screenList.screens.map((screen) => screen.id);
+    setReorderIds(ids);
+    reorderIdsRef.current = ids;
+    setRightPanelOpen(false);
+    setLeftPanelView('screens');
+    setLeftPanelOpen(true);
   };
 
-  const moveReorderedScreen = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= reorderIds.length) return;
+  const moveDraggedScreen = (event: React.PointerEvent) => {
+    if (!draggingScreenId) return;
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-reorder-screen-id]');
+    const targetId = Number(target?.dataset.reorderScreenId);
+    if (!Number.isInteger(targetId) || targetId === draggingScreenId) return;
     setReorderIds((current) => {
+      const fromIndex = current.indexOf(draggingScreenId);
+      const targetIndex = current.indexOf(targetId);
+      if (fromIndex < 0 || targetIndex < 0) return current;
       const next = [...current];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      next.splice(fromIndex, 1);
+      next.splice(targetIndex, 0, draggingScreenId);
+      reorderIdsRef.current = next;
       return next;
     });
   };
 
-  const saveScreenOrder = async () => {
-    if (!sessionId || editorReadOnly || reorderingScreens || reorderIds.length === 0) return;
+  const saveScreenOrder = async (orderedIds = reorderIdsRef.current) => {
+    if (!sessionId || editorReadOnly || reorderingScreens || orderedIds.length === 0) return;
     setReorderingScreens(true);
     setError(null);
     try {
       const result = await reorderStudioScreens(
         sessionId,
         screenList.session_revision_no,
-        reorderIds,
+        orderedIds,
       );
       const byId = new Map(screenList.screens.map((screen) => [screen.id, screen]));
       const ordered = result.screen_ids.map((id, index) => ({
@@ -1374,7 +1464,6 @@ export default function TeachingStudioPage() {
         display_order: index,
       }));
       setScreenList({ session_revision_no: result.session_revision_no, screens: ordered });
-      setReorderOpen(false);
       toast.success('Screens reordered successfully.');
       await loadWorkflow();
     } catch (requestError) {
@@ -1386,9 +1475,53 @@ export default function TeachingStudioPage() {
     }
   };
 
+  const finishScreenDrag = () => {
+    if (!draggingScreenId) return;
+    setDraggingScreenId(null);
+    const previousOrder = screenList.screens.map((screen) => screen.id);
+    if (previousOrder.join(',') !== reorderIdsRef.current.join(','))
+      void saveScreenOrder(reorderIdsRef.current);
+  };
+
   const selectedElement =
     selectedScreen?.elements.find((element) => element.id === selectedElementId) ?? null;
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
+  const selectElementAndOpenControls = (elementId: string) => {
+    setSelectedElementId(elementId);
+    if (editorReadOnly) return;
+    const element = selectedScreen?.elements.find((candidate) => candidate.id === elementId);
+    const nextPanel = isSmartDiagramContent(element?.content)
+      ? 'diagrams'
+      : element?.type === 'math'
+        ? 'math'
+        : element?.type === 'shape'
+          ? 'shapes'
+          : 'elements';
+    setLeftPanelOpen(false);
+    setPanel(nextPanel);
+    setRightPanelOpen(true);
+  };
+  const studioTools = [
+    { id: 'layouts', label: 'Layouts', icon: <LayoutTemplate size={17} /> },
+    { id: 'resources', label: 'Resources', icon: <Upload size={17} /> },
+    { id: 'elements', label: 'Elements', icon: <Boxes size={17} /> },
+    { id: 'animations', label: 'Animations', icon: <Sparkles size={17} /> },
+    { id: 'math', label: 'Math equations', icon: <Sigma size={17} /> },
+    { id: 'transitions', label: 'Transitions', icon: <GalleryHorizontalEnd size={17} /> },
+    { id: 'shapes', label: 'Shapes', icon: <Shapes size={17} /> },
+    { id: 'diagrams', label: 'Smart Diagram', icon: <Network size={17} /> },
+    { id: 'drawing', label: 'Drawing', icon: <Paintbrush size={17} /> },
+    { id: 'zoom', label: 'Zoom navigation', icon: <Focus size={17} /> },
+  ] as const;
+  const toggleStudioTool = (tool: (typeof studioTools)[number]['id']) => {
+    if (rightPanelOpen && panel === tool) {
+      setRightPanelOpen(false);
+      return;
+    }
+    setLeftPanelOpen(false);
+    setPanel(tool);
+    setRightPanelOpen(true);
+  };
 
   if (rawSessionId && !sessionId) {
     return (
@@ -1479,9 +1612,8 @@ export default function TeachingStudioPage() {
       }
     >
       <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden bg-slate-100 p-2">
-        {contextBarOpen ? (
-          <section className="grid shrink-0 gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
-            <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden">
+        <section className="studio-context-bar shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+            <div className="studio-context-primary flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto overscroll-contain">
               <span
                 title={sessionContext?.chapter_name || '—'}
                 className="w-44 min-w-0 shrink truncate rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs"
@@ -1500,6 +1632,24 @@ export default function TeachingStudioPage() {
               >
                 <b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}
               </span>
+              <label className="flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
+                Session
+                <span className="relative ml-1 inline-flex h-9 w-9 items-center justify-center rounded-r-lg text-white">
+                  <ChevronDown size={15} aria-hidden="true" />
+                  <select aria-label="Select Session" value={sessionId} onChange={(event) => navigate(`/studio/editor/${event.target.value}`)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0">
+                    {sessionOptions.map((session) => <option key={session.id} value={session.id}>Session {session.session_number}: {session.title}</option>)}
+                  </select>
+                </span>
+              </label>
+              <label className="flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
+                Screen
+                <span className="relative ml-1 inline-flex h-9 w-9 items-center justify-center rounded-r-lg text-white">
+                  <ChevronDown size={15} aria-hidden="true" />
+                  <select aria-label="Select Screen" value={selectedScreenId || ''} onChange={(event) => void selectScreen(Number(event.target.value))} className="absolute inset-0 h-full w-full cursor-pointer opacity-0">
+                    {screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screen.title}</option>)}
+                  </select>
+                </span>
+              </label>
               <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
                 <StudioIconButton
                   label="Undo"
@@ -1575,109 +1725,7 @@ export default function TeachingStudioPage() {
                 )}
               </div>
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
-              <label className="flex h-8 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                Session{' '}
-                <span className="relative ml-1 inline-flex h-8 w-8 items-center justify-center rounded-r-lg bg-blue-900 text-white">
-                  <ChevronDown size={15} aria-hidden="true" />
-                  <select
-                    aria-label="Select Session"
-                    value={sessionId}
-                    onChange={(event) => navigate(`/studio/editor/${event.target.value}`)}
-                    className="absolute inset-0 h-full w-full cursor-pointer bg-white text-slate-900 opacity-0"
-                  >
-                    {sessionOptions.map((session) => (
-                      <option
-                        key={session.id}
-                        value={session.id}
-                        className="bg-white text-slate-900"
-                      >
-                        Session {session.session_number}: {session.title}
-                      </option>
-                    ))}
-                  </select>
-                </span>
-              </label>
-              <label className="flex h-8 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                Screen{' '}
-                <span className="relative ml-1 inline-flex h-8 w-8 items-center justify-center rounded-r-lg bg-blue-900 text-white">
-                  <ChevronDown size={15} aria-hidden="true" />
-                  <select
-                    aria-label="Select Screen"
-                    value={selectedScreenId || ''}
-                    onChange={(event) => void selectScreen(Number(event.target.value))}
-                    className="absolute inset-0 h-full w-full cursor-pointer bg-white text-slate-900 opacity-0"
-                  >
-                    {screenList.screens.map((screen) => (
-                      <option key={screen.id} value={screen.id} className="bg-white text-slate-900">
-                        Screen {screen.screen_number}: {screen.title}
-                      </option>
-                    ))}
-                  </select>
-                </span>
-              </label>
-              <div className="ml-auto flex shrink-0 items-center gap-1">
-                <StudioIconButton
-                  label="Edit layout"
-                  icon={<Pencil size={15} />}
-                  disabled={editorReadOnly || !selectedScreen?.layout_id}
-                  onClick={() => {
-                    if (!selectedScreen?.layout_id || editorReadOnly) return;
-                    setRightPanelOpen(true);
-                    setPanel('layouts');
-                    setLayoutEditRequest({
-                      layoutId: selectedScreen.layout_id,
-                      requestId: Date.now(),
-                    });
-                  }}
-                />
-                {selectedScreen?.layout_id && (
-                  <StudioIconButton
-                    label="Remove layout"
-                    icon={<Unlink size={15} />}
-                    disabled={editorReadOnly}
-                    onClick={() => requestScreenAction('remove-layout')}
-                  />
-                )}
-                <StudioIconButton
-                  label="Rename Screen"
-                  icon={<Type size={15} />}
-                  disabled={editorReadOnly || !selectedScreen}
-                  onClick={openRenameScreen}
-                />
-                <StudioIconButton
-                  label={
-                    hasUnsavedChanges ? 'Wait for AutoSave before reordering' : 'Reorder Screens'
-                  }
-                  icon={<ListOrdered size={15} />}
-                  disabled={editorReadOnly || screenList.screens.length < 2 || hasUnsavedChanges}
-                  onClick={openScreenReorder}
-                />
-                <StudioIconButton
-                  label="Delete Screen"
-                  icon={<Trash2 size={15} />}
-                  tone="danger"
-                  disabled={editorReadOnly || !selectedScreen}
-                  onClick={() => requestScreenAction('delete-screen')}
-                />
-                <StudioIconButton
-                  label="Hide context controls"
-                  icon={<ChevronUp size={15} />}
-                  onClick={() => setContextBarOpen(false)}
-                />
-              </div>
-            </div>
-          </section>
-        ) : (
-          <div className="flex shrink-0 justify-end">
-            <StudioIconButton
-              label="Show context and actions"
-              icon={<ChevronDown size={15} />}
-              onClick={() => setContextBarOpen(true)}
-              className="shadow-sm"
-            />
-          </div>
-        )}
+        </section>
         {workflowStatus && editorReadOnly && (
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
             <span>
@@ -1703,28 +1751,72 @@ export default function TeachingStudioPage() {
           </div>
         )}
         <div
-          className="grid min-h-0 flex-1 gap-2 overflow-x-auto"
+          className="studio-editor-workspace relative grid min-h-0 flex-1 gap-2 overflow-x-auto"
           style={{
             gridTemplateColumns:
-              `${leftPanelOpen ? 'minmax(220px, 260px)' : '40px'} minmax(560px, 1fr) ${toolPanelOpen ? 'minmax(280px, 340px)' : editorReadOnly ? '' : '40px'}`.trim(),
+              `${leftPanelOpen ? 'minmax(264px, 304px)' : '44px'} minmax(560px, 1fr) ${editorReadOnly ? '' : toolPanelOpen ? 'minmax(324px, 384px)' : '44px'}`.trim(),
           }}
         >
-          {leftPanelOpen && (
-            <aside className="min-h-0 overflow-hidden">
-              <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-                <div className="flex shrink-0 items-center justify-between gap-2">
-                  <h2 className="font-semibold">Screen Script</h2>
-                  <button
-                    type="button"
-                    onClick={() => setLeftPanelOpen(false)}
-                    title="Close script"
-                    aria-label="Close script"
-                    className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
-                  >
-                    <PanelLeftClose size={16} />
-                  </button>
-                </div>
-                {(() => {
+          <aside className="studio-editor-left-panel flex min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <nav aria-label="Screen actions" className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-slate-200 p-1">
+              <button
+                type="button"
+                onClick={openScreenReorder}
+                disabled={screenList.screens.length === 0 || (hasUnsavedChanges && !(leftPanelOpen && leftPanelView === 'screens'))}
+                title={hasUnsavedChanges ? 'Wait for AutoSave before reordering' : 'Screens and reorder'}
+                aria-label="Screens and reorder"
+                aria-expanded={leftPanelOpen && leftPanelView === 'screens'}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-lg disabled:opacity-35 ${leftPanelOpen && leftPanelView === 'screens' ? 'bg-blue-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+              >
+                <ListOrdered size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setRightPanelOpen(false); setLeftPanelView('script'); setLeftPanelOpen((open) => leftPanelView !== 'script' || !open); }}
+                title="Screen Script"
+                aria-label="Screen Script"
+                aria-expanded={leftPanelOpen && leftPanelView === 'script'}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${leftPanelOpen && leftPanelView === 'script' ? 'bg-blue-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+              >
+                <FileText size={18} />
+              </button>
+              <span className="my-1 h-px w-7 bg-slate-200" />
+              <button type="button" title="Edit layout" aria-label="Edit layout" disabled={editorReadOnly || !selectedScreen?.layout_id} onClick={() => { if (!selectedScreen?.layout_id || editorReadOnly) return; setRightPanelOpen(true); setPanel('layouts'); setLayoutEditRequest({ layoutId: selectedScreen.layout_id, requestId: Date.now() }); }} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-35"><Pencil size={18} /></button>
+              <button type="button" title="Remove layout" aria-label="Remove layout" disabled={editorReadOnly || !selectedScreen?.layout_id} onClick={() => requestScreenAction('remove-layout')} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-35"><Unlink size={18} /></button>
+              <button type="button" title="Rename Screen" aria-label="Rename Screen" disabled={editorReadOnly || !selectedScreen} onClick={openRenameScreen} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-35"><Type size={18} /></button>
+              <button type="button" title="Delete Screen" aria-label="Delete Screen" disabled={editorReadOnly || !selectedScreen} onClick={() => requestScreenAction('delete-screen')} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-red-700 hover:bg-red-50 disabled:opacity-35"><Trash2 size={18} /></button>
+            </nav>
+            {leftPanelOpen && (
+              <section onPointerMove={leftPanelView === 'screens' ? moveDraggedScreen : undefined} onPointerUp={leftPanelView === 'screens' ? finishScreenDrag : undefined} onPointerCancel={leftPanelView === 'screens' ? finishScreenDrag : undefined} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2">
+                {leftPanelView === 'screens' ? (
+                  <>
+                    <div className="flex shrink-0 items-center justify-between gap-2">
+                      <div><h2 className="font-semibold">Screens</h2><p className="text-[11px] text-slate-500">Select or drag to reorder</p></div>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{screenList.screens.length}</span>
+                    </div>
+                    <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                      {reorderIds.map((screenId, index) => {
+                        const screen = screenList.screens.find((candidate) => candidate.id === screenId);
+                        if (!screen) return null;
+                        const selected = selectedScreenId === screenId;
+                        return (
+                          <div key={screenId} data-reorder-screen-id={screenId} className={`flex items-stretch gap-1 rounded-lg border p-1 transition ${draggingScreenId === screenId ? 'border-blue-700 bg-blue-100 opacity-70' : selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
+                            <button type="button" onClick={() => void selectScreen(screenId)} className="min-w-0 flex-1 text-left" aria-current={selected ? 'page' : undefined}>
+                              <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Screen {index + 1}</span>
+                              <span className="grid aspect-video w-full place-items-center overflow-hidden rounded border border-slate-200 bg-gradient-to-br from-white to-slate-100 px-2 text-center text-xs font-semibold text-slate-700 shadow-sm">
+                                <span><span className="line-clamp-2">{screen.title || `Untitled Screen ${index + 1}`}</span><span className="mt-1 block text-[9px] font-normal text-slate-500">{screen.elements.length} elements</span></span>
+                              </span>
+                            </button>
+                            {!editorReadOnly && <button type="button" title="Drag Screen to reorder" aria-label={`Drag Screen ${index + 1} to reorder`} onPointerDown={(event) => { event.preventDefault(); setDraggingScreenId(screenId); reorderIdsRef.current = reorderIds; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex w-8 touch-none items-center justify-center rounded text-slate-500 hover:bg-slate-100"><GripVertical size={18} /></button>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {reorderingScreens && <p className="mt-2 text-center text-xs font-semibold text-blue-800">Saving Screen order…</p>}
+                  </>
+                ) : <>
+                  <h2 className="shrink-0 font-semibold">Screen Script</h2>
+                  {(() => {
                   const entries = screenScriptEntries(
                     scripts.find((row) => row.screen_id === selectedScreenId)?.content_json,
                   );
@@ -1744,24 +1836,12 @@ export default function TeachingStudioPage() {
                       No saved script for this Screen.
                     </p>
                   );
-                })()}
+                  })()}
+                </>}
               </section>
-            </aside>
-          )}
-          {!leftPanelOpen && (
-            <aside className="flex min-h-0 items-start justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => setLeftPanelOpen(true)}
-                title="Open script"
-                aria-label="Open script"
-                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 shadow-sm hover:bg-slate-100"
-              >
-                <PanelLeftOpen size={18} />
-              </button>
-            </aside>
-          )}
-          <main className="flex min-h-0 flex-col gap-1 overflow-hidden">
+            )}
+          </aside>
+          <main className="studio-editor-canvas flex min-h-0 flex-col gap-1 overflow-hidden">
             <div className="min-h-0 flex-1">
               <BlankScreenCanvas
                 screen={selectedScreen}
@@ -1769,15 +1849,7 @@ export default function TeachingStudioPage() {
                 layout={selectedLayout}
                 animationPreview={animationPreview}
                 selectedElementId={selectedElementId}
-                onSelectElement={(elementId) => {
-                  setSelectedElementId(elementId);
-                  if (!editorReadOnly) {
-                    const type = selectedScreen?.elements.find(
-                      (element) => element.id === elementId,
-                    )?.type;
-                    setPanel(type === 'math' ? 'math' : type === 'shape' ? 'shapes' : 'elements');
-                  }
-                }}
+                onSelectElement={selectElementAndOpenControls}
                 onClearElementSelection={() => setSelectedElementId(null)}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
@@ -1831,101 +1903,24 @@ export default function TeachingStudioPage() {
               </button>
             )}
           </main>
-          {toolPanelOpen && (
-            <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="grid shrink-0 grid-cols-10 gap-1 border-b p-2">
-                <button
-                  type="button"
-                  onClick={() => setRightPanelOpen(false)}
-                  title="Close tools"
-                  aria-label="Close tools"
-                  className="inline-flex items-center justify-center rounded-lg px-1 py-2 text-slate-600 hover:bg-slate-100"
-                >
-                  <PanelRightClose size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('layouts')}
-                  title="Layouts"
-                  aria-label="Layouts"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'layouts' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <LayoutTemplate size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('resources')}
-                  title="Resources"
-                  aria-label="Resources"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'resources' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <Upload size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('elements')}
-                  title="Elements"
-                  aria-label="Elements"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'elements' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <Boxes size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('animations')}
-                  title="Animations"
-                  aria-label="Animations"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'animations' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <Sparkles size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('math')}
-                  title="Math equations"
-                  aria-label="Math equations"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'math' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <Sigma size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('transitions')}
-                  title="Transitions"
-                  aria-label="Transitions"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'transitions' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <GalleryHorizontalEnd size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('shapes')}
-                  title="Shapes"
-                  aria-label="Shapes"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'shapes' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <Shapes size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('drawing')}
-                  title="Drawing"
-                  aria-label="Drawing"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'drawing' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <Paintbrush size={17} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanel('zoom')}
-                  title="Zoom navigation"
-                  aria-label="Zoom navigation"
-                  className={`inline-flex items-center justify-center rounded-lg px-1 py-2 ${panel === 'zoom' ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}
-                >
-                  <Focus size={17} />
-                </button>
-              </div>
-              <div className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain p-3 [scrollbar-gutter:stable]">
+          {!editorReadOnly && (
+            <aside className="studio-editor-tools-panel flex min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <nav aria-label="Studio tools" className="studio-tools-tabs flex w-11 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-slate-200 p-1">
+                {studioTools.map((tool) => (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => toggleStudioTool(tool.id)}
+                    title={tool.label}
+                    aria-label={tool.label}
+                    aria-expanded={rightPanelOpen && panel === tool.id}
+                    className={`inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-lg ${rightPanelOpen && panel === tool.id ? 'bg-blue-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+                  >
+                    {tool.icon}
+                  </button>
+                ))}
+              </nav>
+              <div className={`${toolPanelOpen ? 'block' : 'hidden'} min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain p-3 [scrollbar-gutter:stable]`}>
                 {panel === 'layouts' && (
                   <StudioLayoutGallery
                     layouts={layouts}
@@ -1944,7 +1939,7 @@ export default function TeachingStudioPage() {
                     layout={selectedLayout}
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
-                    onSelect={setSelectedElementId}
+                    onSelect={selectElementAndOpenControls}
                     onAdd={addElement}
                     onAddBlank={addBlankElement}
                     onUpdate={updateElement}
@@ -1966,7 +1961,7 @@ export default function TeachingStudioPage() {
                   <StudioMathPanel
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
-                    onSelect={setSelectedElementId}
+                    onSelect={selectElementAndOpenControls}
                     onAddStandalone={(latex) => addMathElement(latex, true)}
                     onInsertInline={(latex) => addMathElement(latex)}
                     onUpdate={updateElement}
@@ -1999,6 +1994,18 @@ export default function TeachingStudioPage() {
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
+                  />
+                )}
+                {panel === 'diagrams' && (
+                  <StudioSmartDiagramPanel
+                    screen={selectedScreen}
+                    selectedElementId={selectedElementId}
+                    onSelect={selectElementAndOpenControls}
+                    onInsert={addSmartDiagram}
+                    onUpdate={updateElement}
+                    onDuplicate={duplicateElement}
+                    onRemove={removeElement}
+                    onConvertToShapes={convertDiagramToShapes}
                   />
                 )}
                 {panel === 'animations' && (
@@ -2036,19 +2043,6 @@ export default function TeachingStudioPage() {
                   />
                 )}
               </div>
-            </aside>
-          )}
-          {!editorReadOnly && !rightPanelOpen && (
-            <aside className="flex min-h-0 items-start justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => setRightPanelOpen(true)}
-                title="Open tools"
-                aria-label="Open tools"
-                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 shadow-sm hover:bg-slate-100"
-              >
-                <PanelRightOpen size={18} />
-              </button>
             </aside>
           )}
         </div>
@@ -2270,83 +2264,6 @@ export default function TeachingStudioPage() {
             />
           </div>
         </>
-      )}
-      {reorderOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Reorder screens"
-        >
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-slate-900">Reorder Screens</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Move Screens into the required teaching order. The new order is saved to the working
-              draft.
-            </p>
-            <div className="mt-4 max-h-[55dvh] space-y-2 overflow-y-auto pr-1">
-              {reorderIds.map((screenId, index) => {
-                const screen = screenList.screens.find((candidate) => candidate.id === screenId);
-                return (
-                  <div
-                    key={screenId}
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
-                  >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-900">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {screen?.title || `Screen ${screenId}`}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Current Screen {screen?.screen_number ?? '—'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={index === 0}
-                      onClick={() => moveReorderedScreen(index, -1)}
-                      title="Move up"
-                      aria-label={`Move ${screen?.title || 'Screen'} up`}
-                      className="rounded-lg border bg-white p-2 disabled:opacity-30"
-                    >
-                      <ArrowUp size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={index === reorderIds.length - 1}
-                      onClick={() => moveReorderedScreen(index, 1)}
-                      title="Move down"
-                      aria-label={`Move ${screen?.title || 'Screen'} down`}
-                      className="rounded-lg border bg-white p-2 disabled:opacity-30"
-                    >
-                      <ArrowDown size={15} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={reorderingScreens}
-                onClick={() => setReorderOpen(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={reorderingScreens}
-                onClick={() => void saveScreenOrder()}
-                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {reorderingScreens ? 'Saving…' : 'Save order'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
       {renameOpen && selectedScreen && (
         <div

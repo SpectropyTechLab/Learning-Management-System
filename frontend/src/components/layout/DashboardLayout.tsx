@@ -24,7 +24,7 @@ export default function DashboardLayout({
   contentScrollable = true,
 }: DashboardLayoutProps) {
   return (
-    <div className={`${shellClass} h-screen overflow-hidden`}>
+    <div className={`${shellClass} h-screen min-h-[100dvh] overflow-hidden supports-[height:100dvh]:h-[100dvh]`}>
       <div className={`${layoutClass} h-full overflow-hidden`}>
         {sidebarOpen && (
           <div

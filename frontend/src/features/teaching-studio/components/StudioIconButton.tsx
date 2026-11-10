@@ -27,11 +27,11 @@ export default function StudioIconButton({
     <button
       type="button"
       aria-label={label}
+      title={buttonProps.title ?? label}
       {...buttonProps}
-      className={`group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40 ${toneClass} ${className}`}
+      className={`studio-icon-button group relative inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10 ${toneClass} ${className}`}
     >
       {icon}
-      <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-[90] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-950 px-2 py-1 text-xs font-medium text-white group-hover:block group-focus-visible:block">{label}</span>
     </button>
   );
 }

@@ -11,11 +11,15 @@ import StudioMathElement from './StudioMathElement';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
+import StudioSmartDiagram from './StudioSmartDiagram';
+import StudioHyperlinkOverlay from './studioHyperlink';
+import { isSmartDiagramContent } from './smartDiagramModel';
 import { studioAnimationStyle } from './studioAnimationRuntime';
 import type { InlineShapeData } from './studioInlineShape';
 import {
   buildPresenterAnimationTimeline,
   clickerNavigationAction,
+  presenterDiagramVisibleNodes,
   presenterElementState,
 } from './studioClickerRuntime';
 
@@ -139,7 +143,7 @@ function BoundResource({ element, onSelect, onImageAspectRatio }: { element: Stu
           event.stopPropagation();
           void toggleFullScreen();
         }}
-        className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/40 bg-slate-950/70 text-white opacity-0 backdrop-blur transition-opacity hover:bg-slate-950/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
+        className="studio-resource-fullscreen absolute right-2 top-2 z-10 inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-lg border border-white/40 bg-slate-950/70 text-white opacity-0 backdrop-blur transition-opacity hover:bg-slate-950/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
         title={
           fullScreen
             ? 'Exit full screen and return to the editor'
@@ -353,6 +357,32 @@ export default function BlankScreenCanvas({
   const objectAnimationStyles: Record<string, CSSProperties> = {};
   const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen?.elements ?? []) {
+    if (element.type === 'visual' && isSmartDiagramContent(element.content)) {
+      const visibleNodeIds = previewMode
+        ? presenterDiagramVisibleNodes(
+            animationTimeline,
+            element.id,
+            previewStep,
+            element.content.nodes.map((node) => node.id),
+          )
+        : undefined;
+      objectOverlays[element.id] = (
+        <StudioSmartDiagram
+          content={element.content}
+          editable={!previewMode && Boolean(onChangeElementContent)}
+          visibleNodeIds={visibleNodeIds}
+          onSelectNode={() => onSelectElement?.(element.id)}
+          onChangeNodeText={(nodeId, text) =>
+            onChangeElementContent?.(element.id, {
+              nodes: element.content.nodes.map((node) =>
+                node.id === nodeId ? { ...node, text } : node,
+              ),
+            })
+          }
+        />
+      );
+      continue;
+    }
     if (element.type === 'math') {
       objectOverlays[element.id] = (
         <StudioMathElement
@@ -417,7 +447,9 @@ export default function BlankScreenCanvas({
       objectOverlays[element.id] = (
         <StudioCanvasTextElement
           key={element.id}
+          elementId={element.id}
           text={text}
+          richTextHtml={typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : undefined}
           color={typeof element.content.color === 'string' ? element.content.color : undefined}
           fontSize={Number(element.content.fontSize) || undefined}
           fontFamily={
@@ -437,7 +469,7 @@ export default function BlankScreenCanvas({
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
           onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
-          onTextChange={(value) => onChangeElementContent?.(element.id, { text: value })}
+          onTextChange={(value, richText) => onChangeElementContent?.(element.id, { text: value, richTextHtml: richText })}
           onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
           onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
           onRequestHeight={(requiredRatio) => {
@@ -483,6 +515,15 @@ export default function BlankScreenCanvas({
           onChangeElementBounds(element.id, nextBounds);
         }}
       />
+    );
+  }
+  for (const element of screen?.elements ?? []) {
+    const overlay = objectOverlays[element.id];
+    if (!overlay || !element.content.hyperlink) continue;
+    objectOverlays[element.id] = (
+      <StudioHyperlinkOverlay hyperlink={element.content.hyperlink} active={previewMode}>
+        {overlay}
+      </StudioHyperlinkOverlay>
     );
   }
   for (const element of screen?.elements ?? []) {

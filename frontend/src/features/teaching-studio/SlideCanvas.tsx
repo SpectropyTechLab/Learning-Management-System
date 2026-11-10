@@ -153,9 +153,11 @@ export default function SlideCanvas({
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish, { once: true });
+    window.addEventListener('pointercancel', finish, { once: true });
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
     };
   }, [interaction, onChangeObjectBounds, scale]);
 
@@ -167,6 +169,7 @@ export default function SlideCanvas({
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     onSelectObject?.(objectId);
     setInteraction({
       objectId,
@@ -237,7 +240,7 @@ export default function SlideCanvas({
   return (
     <div
       ref={containerRef}
-      className={`flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden ${immersiveViewport ? 'rounded-none bg-black p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
+      className={`flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
       data-testid="slide-viewport"
     >
       {scale > 0 && (
@@ -474,7 +477,7 @@ export default function SlideCanvas({
                   <button
                     type="button"
                     onPointerDown={(event) => beginInteraction(event, object.id, 'move', bounds)}
-                    className="pointer-events-auto absolute left-1/2 top-0 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-move place-items-center rounded-full border-2 border-white bg-blue-700 text-white shadow"
+                    className="pointer-events-auto absolute left-1/2 top-0 flex min-h-11 min-w-11 touch-none select-none items-center justify-center -translate-x-1/2 -translate-y-1/2 cursor-move rounded-full border-2 border-white bg-blue-700 px-3 py-2 text-xs font-bold text-white shadow sm:min-h-10"
                     title="Drag to move element"
                     aria-label="Drag to move element"
                   >
@@ -483,7 +486,7 @@ export default function SlideCanvas({
                   <button
                     type="button"
                     onPointerDown={(event) => beginInteraction(event, object.id, 'resize', bounds)}
-                    className="pointer-events-auto absolute bottom-0 right-0 h-5 w-5 translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-sm border-2 border-white bg-blue-700 shadow"
+                    className="pointer-events-auto absolute bottom-0 right-0 h-11 w-11 touch-none select-none translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-lg border-2 border-white bg-blue-700 shadow sm:h-9 sm:w-9"
                     title="Drag to resize element"
                     aria-label="Resize element"
                   />

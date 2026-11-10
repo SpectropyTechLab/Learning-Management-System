@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChartLine, Circle, Eraser, Grid3X3, GripHorizontal, Highlighter, Minus, PenLine, Pencil, Plus, Redo2, RotateCcw, Slash, Square, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { createClientUuid } from '@/utils/createClientUuid';
 
 type Point = { x: number; y: number };
 type Tool = 'pen' | 'pencil' | 'highlighter' | 'eraser' | 'line' | 'rectangle' | 'ellipse' | 'graph';
@@ -66,11 +67,25 @@ const eraserHitsStroke = (stroke: Stroke, point: Point, eraserWidth: number) => 
 };
 
 const freshBoard = (offset = 0): Board => ({
-  id: crypto.randomUUID(), title: 'Teacher whiteboard', x: 80 + offset, y: 90 + offset,
-  width: 680, height: 480, minimized: false, grid: false, graph: false, strokes: [], redo: [],
+  id: createClientUuid(), title: 'Teacher whiteboard', x: Math.min(80 + offset, Math.max(8, window.innerWidth - 320)), y: Math.min(90 + offset, Math.max(8, window.innerHeight - 260)),
+  width: Math.min(680, Math.max(280, window.innerWidth - 16)), height: Math.min(480, Math.max(260, window.innerHeight - 80)), minimized: false, grid: false, graph: false, strokes: [], redo: [],
 });
 
-export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { sessionId: number; iconOnly?: boolean }) {
+const fitBoardToViewport = (board: Board): Board => {
+  const viewportWidth = Math.max(280, window.innerWidth);
+  const viewportHeight = Math.max(320, window.innerHeight);
+  const width = Math.min(board.width, viewportWidth - 16);
+  const height = Math.min(board.height, viewportHeight - 24);
+  return {
+    ...board,
+    width,
+    height,
+    x: Math.max(8, Math.min(board.x, viewportWidth - (board.minimized ? Math.min(310, viewportWidth - 16) : width) - 8)),
+    y: Math.max(8, Math.min(board.y, viewportHeight - (board.minimized ? 48 : height) - 8)),
+  };
+};
+
+export default function FloatingWhiteboards({ sessionId, iconOnly = false, inlineLauncher = false }: { sessionId: number; iconOnly?: boolean; inlineLauncher?: boolean }) {
   const storageKey = `spectropy:teacher-whiteboards:${sessionId}`;
   const [boards, setBoards] = useState<Board[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(storageKey) || '[]') as Board[]; } catch { return []; }
@@ -93,13 +108,38 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
   const resizing = useRef<{ boardId: string; startX: number; startY: number; width: number; height: number } | null>(null);
 
   useEffect(() => { sessionStorage.setItem(storageKey, JSON.stringify(boards)); }, [boards, storageKey]);
+  useEffect(() => {
+    const keepBoardsVisible = () => setBoards((current) => current.map(fitBoardToViewport));
+    keepBoardsVisible();
+    window.addEventListener('resize', keepBoardsVisible);
+    window.addEventListener('orientationchange', keepBoardsVisible);
+    return () => {
+      window.removeEventListener('resize', keepBoardsVisible);
+      window.removeEventListener('orientationchange', keepBoardsVisible);
+    };
+  }, []);
   const update = (boardId: string, updater: (board: Board) => Board) =>
     setBoards((current) => current.map((board) => board.id === boardId ? updater(board) : board));
   const pointFrom = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
+  const eraseAt = (boardId: string, point: Point) => {
+    update(boardId, (board) => {
+      const removed = board.strokes.filter((stroke) =>
+        eraserHitsStroke(stroke, point, Math.max(16, width * 1.8)),
+      );
+      if (removed.length === 0) return board;
+      const removedIds = new Set(removed.map((stroke) => stroke.id));
+      return {
+        ...board,
+        strokes: board.strokes.filter((stroke) => !removedIds.has(stroke.id)),
+        redo: [...(board.redo || []), ...removed],
+      };
+    });
+  };
   const startInk = (boardId: string, event: React.PointerEvent<SVGSVGElement>) => {
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = pointFrom(event);
     const board = boards.find((item) => item.id === boardId);
@@ -138,11 +178,12 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
       return;
     }
     if (tool === 'eraser') {
-      update(boardId, (board) => ({ ...board, strokes: board.strokes.filter((stroke) => !eraserHitsStroke(stroke, point, width)) }));
+      drawing.current = { boardId, strokeId: '__eraser__' };
+      eraseAt(boardId, point);
       return;
     }
     const inkTool: Exclude<Tool, 'eraser' | 'graph'> = tool;
-    const strokeId = crypto.randomUUID();
+    const strokeId = createClientUuid();
     drawing.current = { boardId, strokeId };
     update(boardId, (board) => ({ ...board, redo: [], strokes: [...board.strokes, { id: strokeId, kind: inkTool, color, width: inkTool === 'highlighter' ? width * 3 : inkTool === 'pencil' ? Math.max(2, width - 2) : width, opacity: inkTool === 'highlighter' ? 0.3 : 1, points: [point, point] }] }));
   };
@@ -180,15 +221,20 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
       }));
       return;
     }
-    if (tool === 'eraser' && event.buttons) return startInk(boardId, event);
     if (drawing.current?.boardId !== boardId) return;
     const point = pointFrom(event);
+    if (drawing.current.strokeId === '__eraser__') {
+      eraseAt(boardId, point);
+      return;
+    }
     update(boardId, (board) => ({ ...board, strokes: board.strokes.map((stroke) => stroke.id === drawing.current?.strokeId ? { ...stroke, points: ['line', 'rectangle', 'ellipse'].includes(stroke.kind || '') ? [stroke.points[0], point] : [...stroke.points, point] } : stroke) }));
   };
-  const finishPointerInteraction = (pointerId: number) => {
-    graphTouchPoints.current.delete(pointerId);
-    if (pinchingGraph.current?.pointerIds.includes(pointerId)) pinchingGraph.current = null;
+  const finishPointerInteraction = (event: React.PointerEvent<Element>) => {
+    graphTouchPoints.current.delete(event.pointerId);
+    if (pinchingGraph.current?.pointerIds.includes(event.pointerId)) pinchingGraph.current = null;
     panningGraph.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
     drawing.current = null;
   };
   const moveBoard = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -196,14 +242,18 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
       const state = resizing.current;
       update(state.boardId, (board) => ({
         ...board,
-        width: Math.max(420, Math.min(window.innerWidth - board.x - 12, state.width + event.clientX - state.startX)),
-        height: Math.max(300, Math.min(window.innerHeight - board.y - 12, state.height + event.clientY - state.startY)),
+        width: Math.max(Math.min(420, window.innerWidth - 16), Math.min(window.innerWidth - board.x - 8, state.width + event.clientX - state.startX)),
+        height: Math.max(Math.min(300, window.innerHeight - 24), Math.min(window.innerHeight - board.y - 8, state.height + event.clientY - state.startY)),
       }));
       return;
     }
     if (!dragging.current) return;
     const { boardId, dx, dy } = dragging.current;
-    update(boardId, (board) => ({ ...board, x: Math.max(0, event.clientX - dx), y: Math.max(0, event.clientY - dy) }));
+    update(boardId, (board) => ({
+      ...board,
+      x: Math.max(8, Math.min(event.clientX - dx, window.innerWidth - (board.minimized ? Math.min(310, window.innerWidth - 16) : board.width) - 8)),
+      y: Math.max(8, Math.min(event.clientY - dy, window.innerHeight - (board.minimized ? 48 : board.height) - 8)),
+    }));
   };
   const zoomGraph = (boardId: string, factor: number) => {
     update(boardId, (board) => ({ ...board, graphScale: Math.max(MIN_GRAPH_SCALE, Math.min(MAX_GRAPH_SCALE, (board.graphScale || 54) * factor)) }));
@@ -211,7 +261,7 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
 
   return (
     <>
-      <button type="button" onClick={() => setBoards((current) => [...current, freshBoard((current.length % 4) * 28)])} className={iconOnly ? 'fixed bottom-4 right-4 z-[110] grid h-11 w-11 place-items-center rounded-full bg-white text-blue-950 shadow-xl ring-1 ring-slate-300 hover:bg-slate-100' : 'fixed bottom-16 right-5 z-[70] inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-bold text-blue-950 shadow-xl ring-1 ring-slate-300'} title="Add floating whiteboard" aria-label="Add floating whiteboard">{iconOnly ? <Plus size={19} /> : <><Plus size={18} />Whiteboard</>}</button>
+      <button type="button" onClick={() => setBoards((current) => [...current, freshBoard((current.length % 4) * 28)])} className={iconOnly ? 'fixed bottom-4 right-4 z-[110] grid h-11 w-11 touch-manipulation place-items-center rounded-full bg-white text-black shadow-xl ring-1 ring-slate-300 hover:bg-slate-100' : inlineLauncher ? 'inline-flex h-9 touch-manipulation items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-blue-950 hover:bg-slate-50' : 'fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-[70] inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full bg-white px-3 py-3 text-sm font-bold text-blue-950 shadow-xl ring-1 ring-slate-300 sm:px-4'} title="Add floating whiteboard" aria-label="Add floating whiteboard">{iconOnly ? <Plus size={19} /> : <><Plus size={inlineLauncher ? 16 : 18} /><span className={inlineLauncher ? 'inline' : 'hidden sm:inline'}>Whiteboard</span></>}</button>
       {boards.map((board) => {
         const graphUnit = Math.max(MIN_GRAPH_SCALE, Math.min(MAX_GRAPH_SCALE, board.graphScale || 54));
         const graphHeight = Math.max(160, board.height - 98);
@@ -225,15 +275,15 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
         const xTicks = Array.from({ length: Math.max(0, Math.round((xTickEnd - xTickStart) / tickStep) + 1) }, (_, index) => xTickStart + index * tickStep);
         const yTicks = Array.from({ length: Math.max(0, Math.round((yTickEnd - yTickStart) / tickStep) + 1) }, (_, index) => yTickStart + index * tickStep);
         return (
-        <div key={board.id} onPointerMove={moveBoard} onPointerUp={(event) => { dragging.current = null; resizing.current = null; finishPointerInteraction(event.pointerId); }} onPointerCancel={(event) => { dragging.current = null; resizing.current = null; finishPointerInteraction(event.pointerId); }} className={`fixed overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl ${iconOnly ? 'z-[110]' : 'z-[80]'}`} style={{ left: board.x, top: board.y, width: board.minimized ? 310 : board.width, height: board.minimized ? 48 : board.height }}>
-          <div onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) return; dragging.current = { boardId: board.id, dx: event.clientX - board.x, dy: event.clientY - board.y }; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex h-12 cursor-move items-center gap-2 border-b bg-slate-50 px-3 text-slate-800">
+        <div key={board.id} onPointerMove={moveBoard} onPointerUp={(event) => { dragging.current = null; resizing.current = null; finishPointerInteraction(event); }} onPointerCancel={(event) => { dragging.current = null; resizing.current = null; finishPointerInteraction(event); }} className={`fixed max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl ${iconOnly ? 'z-[110]' : 'z-[80]'}`} style={{ left: board.x, top: board.y, width: board.minimized ? Math.min(310, window.innerWidth - 16) : board.width, height: board.minimized ? 48 : board.height }}>
+          <div onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) return; dragging.current = { boardId: board.id, dx: event.clientX - board.x, dy: event.clientY - board.y }; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex h-12 touch-none select-none cursor-move items-center gap-2 border-b bg-slate-50 px-2 text-slate-800 sm:px-3">
             <GripHorizontal size={17} /><span className="flex-1 text-sm font-bold">{board.title}</span>
             <button type="button" title={board.minimized ? 'Restore whiteboard' : 'Minimize whiteboard'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); update(board.id, (item) => ({ ...item, minimized: !item.minimized })); }} className="rounded-md p-2 hover:bg-slate-200">{board.minimized ? <Plus size={17} /> : <Minus size={17} />}</button>
             <button type="button" title="Close whiteboard" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setBoards((current) => current.filter((item) => item.id !== board.id)); }} className="rounded-md p-2 hover:bg-red-100 hover:text-red-700"><X size={17} /></button>
           </div>
           {!board.minimized ? <div className="flex h-[calc(100%-3rem)] min-h-0 flex-col">
-            <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1.5 text-slate-700">
-              {([['pen', PenLine], ['pencil', Pencil], ['highlighter', Highlighter], ['line', Slash], ['rectangle', Square], ['ellipse', Circle], ['eraser', Eraser]] as const).map(([name, Icon]) => <button key={name} type="button" title={name} onClick={() => setTool(name)} className={`rounded-md p-2 ${tool === name ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Icon size={16} /></button>)}
+            <div className="studio-whiteboard-toolbar flex flex-nowrap items-center gap-1 overflow-x-auto overscroll-contain border-b px-2 py-1.5 text-slate-700">
+              {([['pen', PenLine], ['pencil', Pencil], ['highlighter', Highlighter], ['line', Slash], ['rectangle', Square], ['ellipse', Circle], ['eraser', Eraser]] as const).map(([name, Icon]) => <button key={name} type="button" title={name} aria-label={name} onClick={() => setTool(name)} className={`grid h-10 w-10 shrink-0 touch-manipulation place-items-center rounded-md ${tool === name ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><Icon size={18} /></button>)}
               <button type="button" title={board.graph ? 'Close coordinate graph' : 'Open coordinate graph'} aria-label={board.graph ? 'Close coordinate graph' : 'Open coordinate graph'} aria-pressed={board.graph === true} onClick={() => {
                 if (board.graph) {
                   update(board.id, (item) => ({ ...item, graph: false, grid: false }));
@@ -242,20 +292,20 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
                   update(board.id, (item) => ({ ...item, graph: true, grid: true }));
                   setTool('graph');
                 }
-              }} className={`rounded-md p-2 ${board.graph ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><ChartLine size={16} /></button>
+              }} className={`grid h-10 w-10 shrink-0 touch-manipulation place-items-center rounded-md ${board.graph ? 'bg-blue-900 text-white' : 'hover:bg-slate-100'}`}><ChartLine size={18} /></button>
               {board.graph ? <>
                 <button type="button" title="Zoom graph out to a larger −n to n range" aria-label="Zoom graph out" onClick={() => zoomGraph(board.id, 1 / 1.5)} disabled={graphUnit <= MIN_GRAPH_SCALE} className="rounded-md p-2 hover:bg-slate-100 disabled:opacity-30"><ZoomOut size={16} /></button>
                 <button type="button" title="Zoom graph in to a smaller −n to n range" aria-label="Zoom graph in" onClick={() => zoomGraph(board.id, 1.5)} disabled={graphUnit >= MAX_GRAPH_SCALE} className="rounded-md p-2 hover:bg-slate-100 disabled:opacity-30"><ZoomIn size={16} /></button>
               </> : null}
               <input type="color" title="Ink colour" value={color} onChange={(event) => setColor(event.target.value)} className="h-8 w-9" />
               <input type="range" title="Ink width" min="2" max="14" value={width} onChange={(event) => setWidth(Number(event.target.value))} className="w-24" />
-              <span className="flex-1" />
+              <span className="min-w-2 flex-1" />
               <button type="button" title="Toggle grid" onClick={() => update(board.id, (item) => ({ ...item, grid: item.grid === false }))} className={`rounded-md p-2 ${board.grid === false ? 'hover:bg-slate-100' : 'bg-slate-200'}`}><Grid3X3 size={16} /></button>
               <button type="button" title="Undo" disabled={!board.strokes.length} onClick={() => update(board.id, (item) => ({ ...item, strokes: item.strokes.slice(0, -1), redo: [...(item.redo || []), item.strokes.at(-1)!] }))} className="rounded-md p-2 hover:bg-slate-100 disabled:opacity-30"><RotateCcw size={16} /></button>
               <button type="button" title="Redo" disabled={!board.redo?.length} onClick={() => update(board.id, (item) => ({ ...item, strokes: [...item.strokes, item.redo!.at(-1)!], redo: item.redo!.slice(0, -1) }))} className="rounded-md p-2 hover:bg-slate-100 disabled:opacity-30"><Redo2 size={16} /></button>
               <button type="button" title="Clear whiteboard" onClick={() => update(board.id, (item) => ({ ...item, redo: [...(item.redo || []), ...item.strokes], strokes: [] }))} className="rounded-md p-2 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
             </div>
-            <svg className={`min-h-0 w-full flex-1 touch-none bg-white ${tool === 'graph' && board.graph ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'}`} viewBox={`0 0 ${board.width} ${graphHeight}`} preserveAspectRatio="none" onPointerDown={(event) => startInk(board.id, event)} onPointerMove={(event) => moveInk(board.id, event)} onPointerUp={(event) => finishPointerInteraction(event.pointerId)} onPointerCancel={(event) => finishPointerInteraction(event.pointerId)} onWheel={(event) => {
+            <svg className={`min-h-0 w-full flex-1 touch-none bg-white ${tool === 'graph' && board.graph ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'}`} viewBox={`0 0 ${board.width} ${graphHeight}`} preserveAspectRatio="none" onPointerDown={(event) => startInk(board.id, event)} onPointerMove={(event) => moveInk(board.id, event)} onPointerUp={finishPointerInteraction} onPointerCancel={finishPointerInteraction} onWheel={(event) => {
               if (!board.graph) return;
               event.preventDefault();
               const rect = event.currentTarget.getBoundingClientRect();
@@ -292,7 +342,7 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
                 return <polyline key={stroke.id} points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeLinecap="round" strokeLinejoin="round" />;
               })}
             </svg>
-            <div role="separator" aria-label="Resize whiteboard" title="Drag to resize whiteboard" onPointerDown={(event) => { event.stopPropagation(); resizing.current = { boardId: board.id, startX: event.clientX, startY: event.clientY, width: board.width, height: board.height }; event.currentTarget.setPointerCapture(event.pointerId); }} className="absolute bottom-0 right-0 z-20 h-6 w-6 cursor-nwse-resize rounded-tl-lg bg-blue-900/90 after:absolute after:bottom-1 after:right-1 after:h-2 after:w-2 after:border-b-2 after:border-r-2 after:border-white" />
+            <div role="separator" aria-label="Resize whiteboard" title="Drag to resize whiteboard" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); resizing.current = { boardId: board.id, startX: event.clientX, startY: event.clientY, width: board.width, height: board.height }; event.currentTarget.setPointerCapture(event.pointerId); }} className="absolute bottom-0 right-0 z-20 h-11 w-11 touch-none cursor-nwse-resize rounded-tl-xl bg-blue-900/90 after:absolute after:bottom-2 after:right-2 after:h-3 after:w-3 after:border-b-2 after:border-r-2 after:border-white" />
           </div> : null}
         </div>
         );
