@@ -37,6 +37,7 @@ export default function StudioShell({
   title,
   subtitle,
   actions,
+  hideHeader = false,
   scrollContent = true,
   wrapContent = true,
   children,
@@ -44,6 +45,7 @@ export default function StudioShell({
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  hideHeader?: boolean;
   scrollContent?: boolean;
   wrapContent?: boolean;
   children: ReactNode;
@@ -168,7 +170,7 @@ export default function StudioShell({
           }
         />
       }
-      header={
+      header={hideHeader ? undefined : (
         <div className={`${theme.headerClass} !px-3 !py-2 sm:!px-6 lg:!py-2`}>
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -192,7 +194,7 @@ export default function StudioShell({
             )}
           </div>
         </div>
-      }
+      )}
     >
       {wrapContent ? (
         <div
