@@ -140,11 +140,11 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
 
   useEffect(() => {
     if (!menuResourceId) return undefined;
-    const closeMenu = (event: MouseEvent) => {
+    const closeMenu = (event: PointerEvent) => {
       if (!(event.target as HTMLElement).closest('[data-resource-menu]')) setMenuResourceId(null);
     };
-    document.addEventListener('mousedown', closeMenu);
-    return () => document.removeEventListener('mousedown', closeMenu);
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
   }, [menuResourceId]);
 
   const load = useCallback(async () => {

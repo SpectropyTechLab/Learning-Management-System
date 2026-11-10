@@ -21,6 +21,7 @@ import type {
 
 interface Props {
   open: boolean;
+  fullScreen?: boolean;
   releaseId: number;
   screenId: number;
   onClose: () => void;
@@ -189,6 +190,7 @@ function SearchableFilter({
 
 export default function StudioBranchDiscoveryPanel({
   open,
+  fullScreen = false,
   releaseId,
   screenId,
   onClose,
@@ -199,7 +201,6 @@ export default function StudioBranchDiscoveryPanel({
   const [draftFilters, setDraftFilters] = useState<StudioDiscoveryFilters>({});
   const [filters, setFilters] = useState<StudioDiscoveryFilters>({});
   const [results, setResults] = useState<Record<StudioDiscoveryType, ResultState>>(emptyResults);
-  const [context, setContext] = useState<StudioDiscoveryResponse['applied_context'] | null>(null);
   const [facets, setFacets] = useState<StudioDiscoveryResponse['facets']>(emptyFacets);
   const requestVersions = useRef<Record<StudioDiscoveryType, number>>({
     session: 0,
@@ -220,7 +221,6 @@ export default function StudioBranchDiscoveryPanel({
   const filterKey = useMemo(() => JSON.stringify(filters), [filters]);
   useEffect(() => {
     setResults(emptyResults());
-    setContext(null);
     requestVersions.current.session += 1;
     requestVersions.current.screen += 1;
     requestVersions.current.resource += 1;
@@ -243,7 +243,6 @@ export default function StudioBranchDiscoveryPanel({
       try {
         const response = await discoverStudioContent(releaseId, screenId, type, filters, cursor);
         if (requestVersions.current[type] !== requestVersion) return;
-        setContext(response.applied_context);
         setFacets((current) => ({
           topics: [
             ...new Map(
@@ -320,32 +319,25 @@ export default function StudioBranchDiscoveryPanel({
 
   return (
     <aside
-      className={`absolute inset-y-0 right-0 z-40 flex w-full max-w-md flex-col bg-white text-slate-900 shadow-2xl transition-transform duration-300 ${open ? 'translate-x-0' : 'pointer-events-none translate-x-full'}`}
+      className={`absolute z-40 flex w-[calc(100%-3rem)] max-w-[20.25rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xl transition-transform duration-300 ${fullScreen ? 'bottom-14 left-0 top-0' : 'bottom-11 left-12 top-12'} ${open ? 'translate-x-0' : 'pointer-events-none -translate-x-[calc(100%+3rem)]'}`}
       aria-hidden={!open}
     >
-      <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-4">
-        <div>
-          <h2 className="font-bold">Branching</h2>
-          <p className="mt-1 text-xs text-slate-500">Find related published teaching content.</p>
+      <header className="flex items-center justify-between gap-1.5 border-b border-slate-200 px-2 py-1">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-bold">Branching</h2>
+          <p className="truncate text-[9px] text-slate-500">Find related published teaching content.</p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-slate-300 p-2 hover:bg-slate-100"
+          className="rounded-md border border-slate-300 p-0.5 hover:bg-slate-100"
           aria-label="Close Branching panel"
         >
-          <X size={18} />
+          <X size={14} />
         </button>
       </header>
 
-      {context && (
-        <div className="border-b border-slate-200 bg-blue-50 px-4 py-3 text-xs text-blue-950">
-          <span className="font-bold">Initial context:</span> Grade {context.grade_number} ·{' '}
-          {context.subject_name} · Chapter {context.chapter_number}: {context.chapter_name}
-        </div>
-      )}
-
-      <div className="border-b border-slate-200 p-4">
+      <div className="border-b border-slate-200 p-2">
         <label className="relative block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
@@ -354,13 +346,13 @@ export default function StudioBranchDiscoveryPanel({
               setDraftFilters((current) => ({ ...current, search: event.target.value }))
             }
             placeholder="Search related content"
-            className="h-10 w-full rounded-lg border border-slate-300 pl-9 pr-3 text-sm outline-none focus:border-blue-700"
+            className="h-9 w-full rounded-lg border border-slate-300 pl-9 pr-2 text-sm outline-none focus:border-blue-700"
           />
         </label>
         <button
           type="button"
           onClick={() => setFiltersOpen((current) => !current)}
-          className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-900"
+          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-900"
         >
           <Filter size={15} />
           Filters
@@ -465,13 +457,13 @@ export default function StudioBranchDiscoveryPanel({
         )}
       </div>
 
-      <div className="grid grid-cols-3 border-b border-slate-200 px-3 pt-2">
+      <div className="grid grid-cols-3 border-b border-slate-200 px-1.5 pt-1">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => setActiveTab(id)}
-            className={`inline-flex items-center justify-center gap-1.5 border-b-2 px-2 py-3 text-xs font-bold ${activeTab === id ? 'border-blue-800 text-blue-900' : 'border-transparent text-slate-500'}`}
+            className={`inline-flex items-center justify-center gap-1 border-b-2 px-1 py-2 text-[11px] font-bold ${activeTab === id ? 'border-blue-800 text-blue-900' : 'border-transparent text-slate-500'}`}
           >
             <Icon size={15} />
             {label}
@@ -479,16 +471,16 @@ export default function StudioBranchDiscoveryPanel({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3" onScroll={handleScroll}>
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5" onScroll={handleScroll}>
         {activeResult.items.map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={() => onSelect(item)}
-            className="mb-3 block w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-blue-400 hover:bg-blue-50"
+            className="mb-2 block w-full rounded-xl border border-slate-200 p-2 text-left transition hover:border-blue-400 hover:bg-blue-50"
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="font-semibold text-slate-900">{item.title}</p>
+              <p className="text-sm font-semibold text-slate-900">{item.title}</p>
               <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
                 {item.type}
               </span>

@@ -11,11 +11,15 @@ import StudioMathElement from './StudioMathElement';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
+import StudioSmartDiagram from './StudioSmartDiagram';
+import StudioHyperlinkOverlay from './studioHyperlink';
+import { isSmartDiagramContent } from './smartDiagramModel';
 import { studioAnimationStyle } from './studioAnimationRuntime';
 import type { InlineShapeData } from './studioInlineShape';
 import {
   buildPresenterAnimationTimeline,
   clickerNavigationAction,
+  presenterDiagramVisibleNodes,
   presenterElementState,
 } from './studioClickerRuntime';
 
@@ -55,7 +59,7 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, onSelect }: { element: StudioElement; onSelect?: () => void }) {
+function BoundResource({ element, onSelect, onImageAspectRatio }: { element: StudioElement; onSelect?: () => void; onImageAspectRatio?: (aspectRatio: number) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -63,6 +67,8 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
   const [fullScreen, setFullScreen] = useState(false);
   const resourceId = element.resource?.resource_id;
   const versionId = element.resource?.resource_version_id;
+  const imageAspectRatioRef = useRef(onImageAspectRatio);
+  imageAspectRatioRef.current = onImageAspectRatio;
 
   useEffect(() => {
     if (!resourceId || !versionId) return;
@@ -89,6 +95,11 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
       active = false;
     };
   }, [resourceId, versionId]);
+
+  useEffect(() => {
+    if (resource?.resource_type !== 'image' || !version?.width || !version?.height) return;
+    imageAspectRatioRef.current?.(version.width / version.height);
+  }, [resource?.resource_type, version?.height, version?.id, version?.width]);
 
   useEffect(() => {
     const syncFullScreen = () => setFullScreen(document.fullscreenElement === containerRef.current);
@@ -132,7 +143,7 @@ function BoundResource({ element, onSelect }: { element: StudioElement; onSelect
           event.stopPropagation();
           void toggleFullScreen();
         }}
-        className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/40 bg-slate-950/70 text-white opacity-0 backdrop-blur transition-opacity hover:bg-slate-950/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
+        className="studio-resource-fullscreen absolute right-2 top-2 z-10 inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-lg border border-white/40 bg-slate-950/70 text-white opacity-0 backdrop-blur transition-opacity hover:bg-slate-950/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
         title={
           fullScreen
             ? 'Exit full screen and return to the editor'
@@ -298,6 +309,26 @@ export default function BlankScreenCanvas({
           ],
         }
       : baseLayout;
+  const fitElementToRenderedSize = (
+    element: StudioElement,
+    requiredWidthRatio: number,
+    requiredHeightRatio: number,
+  ) => {
+    if (!onChangeElementBounds || !Number.isFinite(requiredWidthRatio) || !Number.isFinite(requiredHeightRatio)) return;
+    const currentBounds =
+      elementBounds(element.position) ??
+      renderLayout?.slots.find(
+        (slot) => slot.id === (element.slotId || `free-${element.id}`),
+      )?.bounds;
+    if (!currentBounds) return;
+    const nextBounds = {
+      ...currentBounds,
+      width: Math.max(80, Math.min(1920 - currentBounds.x, Math.ceil(currentBounds.width * requiredWidthRatio))),
+      height: Math.max(60, Math.min(1080 - currentBounds.y, Math.ceil(currentBounds.height * requiredHeightRatio))),
+    };
+    if (Math.abs(nextBounds.width - currentBounds.width) < 2 && Math.abs(nextBounds.height - currentBounds.height) < 2) return;
+    onChangeElementBounds(element.id, nextBounds);
+  };
   const slide: Slide | null =
     screen && renderLayout
       ? {
@@ -326,6 +357,32 @@ export default function BlankScreenCanvas({
   const objectAnimationStyles: Record<string, CSSProperties> = {};
   const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen?.elements ?? []) {
+    if (element.type === 'visual' && isSmartDiagramContent(element.content)) {
+      const visibleNodeIds = previewMode
+        ? presenterDiagramVisibleNodes(
+            animationTimeline,
+            element.id,
+            previewStep,
+            element.content.nodes.map((node) => node.id),
+          )
+        : undefined;
+      objectOverlays[element.id] = (
+        <StudioSmartDiagram
+          content={element.content}
+          editable={!previewMode && Boolean(onChangeElementContent)}
+          visibleNodeIds={visibleNodeIds}
+          onSelectNode={() => onSelectElement?.(element.id)}
+          onChangeNodeText={(nodeId, text) =>
+            onChangeElementContent?.(element.id, {
+              nodes: element.content.nodes.map((node) =>
+                node.id === nodeId ? { ...node, text } : node,
+              ),
+            })
+          }
+        />
+      );
+      continue;
+    }
     if (element.type === 'math') {
       objectOverlays[element.id] = (
         <StudioMathElement
@@ -339,6 +396,7 @@ export default function BlankScreenCanvas({
               ? element.content.alignment
               : 'center'
           }
+          onRequestSize={previewMode ? undefined : (widthRatio, heightRatio) => fitElementToRenderedSize(element, widthRatio, heightRatio)}
         />
       );
       continue;
@@ -389,7 +447,9 @@ export default function BlankScreenCanvas({
       objectOverlays[element.id] = (
         <StudioCanvasTextElement
           key={element.id}
+          elementId={element.id}
           text={text}
+          richTextHtml={typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : undefined}
           color={typeof element.content.color === 'string' ? element.content.color : undefined}
           fontSize={Number(element.content.fontSize) || undefined}
           fontFamily={
@@ -409,10 +469,10 @@ export default function BlankScreenCanvas({
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
           onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
-          onTextChange={(value) => onChangeElementContent?.(element.id, { text: value })}
+          onTextChange={(value, richText) => onChangeElementContent?.(element.id, { text: value, richTextHtml: richText })}
           onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
           onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
-          onRequestHeight={(growthRatio) => {
+          onRequestHeight={(requiredRatio) => {
             if (!onChangeElementBounds) return;
             const currentBounds =
               elementBounds(element.position) ??
@@ -420,12 +480,8 @@ export default function BlankScreenCanvas({
                 (slot) => slot.id === (element.slotId || `free-${element.id}`),
               )?.bounds;
             if (!currentBounds) return;
-            const maximumHeight = 1080 - currentBounds.y;
-            const nextHeight = Math.min(
-              maximumHeight,
-              Math.ceil(currentBounds.height * growthRatio) + 4,
-            );
-            if (nextHeight <= currentBounds.height) return;
+            const nextHeight = Math.max(60, Math.min(1080 - currentBounds.y, Math.ceil(currentBounds.height * requiredRatio)));
+            if (Math.abs(nextHeight - currentBounds.height) < 2) return;
             onChangeElementBounds(element.id, { ...currentBounds, height: nextHeight });
           }}
           onEditingChange={(editing) =>
@@ -443,7 +499,31 @@ export default function BlankScreenCanvas({
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+        onImageAspectRatio={previewMode ? undefined : (aspectRatio) => {
+          if (!onChangeElementBounds || !Number.isFinite(aspectRatio) || aspectRatio <= 0) return;
+          const currentBounds = elementBounds(element.position);
+          if (!currentBounds) return;
+          const maximumHeight = 1080 - currentBounds.y;
+          let width = currentBounds.width;
+          let height = width / aspectRatio;
+          if (height > maximumHeight) {
+            height = maximumHeight;
+            width = height * aspectRatio;
+          }
+          const nextBounds = { ...currentBounds, width: Math.max(80, Math.round(width)), height: Math.max(60, Math.round(height)) };
+          if (Math.abs(nextBounds.width - currentBounds.width) < 2 && Math.abs(nextBounds.height - currentBounds.height) < 2) return;
+          onChangeElementBounds(element.id, nextBounds);
+        }}
       />
+    );
+  }
+  for (const element of screen?.elements ?? []) {
+    const overlay = objectOverlays[element.id];
+    if (!overlay || !element.content.hyperlink) continue;
+    objectOverlays[element.id] = (
+      <StudioHyperlinkOverlay hyperlink={element.content.hyperlink} active={previewMode}>
+        {overlay}
+      </StudioHyperlinkOverlay>
     );
   }
   for (const element of screen?.elements ?? []) {
@@ -464,10 +544,19 @@ export default function BlankScreenCanvas({
           ? {}
           : { opacity: 0 };
       objectAnimationKeys[element.id] = `${screen?.id ?? 'screen'}-${previewCycle}-${previewStep}-${element.id}`;
+      objectAnimationStyles[element.id] = state.activeEffects.length
+        ? studioAnimationStyle({ effects: state.activeEffects })
+        : state.visible
+          ? {}
+          : { opacity: 0 };
+      objectAnimationKeys[element.id] = `${screen?.id ?? 'screen'}-${previewCycle}-${previewStep}-${element.id}`;
     } else if (animationPreview?.elementId === element.id) {
       objectAnimationStyles[element.id] = studioAnimationStyle(animation);
       objectAnimationKeys[element.id] = animationPreview.token;
+      objectAnimationStyles[element.id] = studioAnimationStyle(animation);
+      objectAnimationKeys[element.id] = animationPreview.token;
     } else {
+      objectAnimationStyles[element.id] = {};
       objectAnimationStyles[element.id] = {};
     }
   }
@@ -527,7 +616,7 @@ export default function BlankScreenCanvas({
               : ''}
           </div>
         ) : null}
-        {slide && renderLayout && !loading ? (
+        {screen && slide && renderLayout && !loading ? (
           <SlideCanvas
             layout={renderLayout}
             slide={slide}
