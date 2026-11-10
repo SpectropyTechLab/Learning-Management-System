@@ -9,10 +9,29 @@
     "dev": "nodemon server.js",
     "test": "node --test --test-concurrency=1 --experimental-test-isolation=none",
     "test:ci": "node scripts/run-ci-tests.mjs",
+    "studio:day1:fixtures": "node scripts/build-studio-day1-fixtures.mjs",
+    "studio:day1:verify": "node scripts/verify-studio-day1-baseline.mjs",
+    "studio:day2:verify": "node scripts/verify-studio-day2-gate.mjs",
+    "studio:day3:verify": "node scripts/verify-studio-day3-foundations.mjs",
+    "studio:day4:verify": "node scripts/verify-studio-day4-apis.mjs",
+    "studio:day5:verify": "node scripts/verify-studio-day5-persistence.mjs",
+    "studio:day6:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-releases.test.js tests/studio-day6-runtime.test.js tests/studio-day6-discovery.test.js",
+    "studio:day6:db-verify": "node scripts/verify-studio-day6-discovery.mjs",
+    "studio:day6:integrated-verify": "node scripts/verify-studio-day6-integrated.mjs",
+    "studio:day7:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-day7-authorization.test.js tests/studio-day7-branch-runtime.test.js tests/studio-day7-scorm-runtime.test.js",
+    "studio:day8:developer1:verify": "node scripts/verify-studio-day8-developer1.mjs",
+    "studio:day8:developer2:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-day8-original-downloads.test.js tests/studio-day8-resource-runtime-acceptance.test.js tests/studio-day8-compatibility-record.test.js tests/studio-day7-scorm-runtime.test.js",
+    "studio:day8:developer3:verify": "node scripts/run-studio-day8-developer3-tests.mjs",
+    "studio:day8:verify": "npm run studio:day8:developer1:verify && npm run studio:day8:developer2:verify && npm run studio:day8:developer3:verify",
+    "studio:day9:developer1:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-day9-developer1-integration.test.js",
+    "studio:day9:demo:seed": "node scripts/seed-studio-day9-demo.mjs",
+    "studio:day9:developer2:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-day9-session-setup.test.js",
+    "studio:day10:verify": "node --test --test-concurrency=1 --experimental-test-isolation=none tests/studio-day10-documents.test.js tests/studio-day8-original-downloads.test.js tests/studio-session-workflow.test.js tests/studio-releases.test.js",
     "lint": "eslint .",
     "verify:rls": "node scripts/verify-rls-policies.mjs",
     "seed:permissions": "node scripts/seed-role-permissions.mjs",
     "seed:curriculum": "node scripts/seed-curriculum.mjs",
+    "seed:layouts": "node scripts/seed-layouts.mjs",
     "backfill:comprehension": "node scripts/backfill-comprehensive-questions.mjs"
   },
   "dependencies": {
@@ -24,6 +43,7 @@
     "cors": "^2.8.6",
     "docx": "^9.15.3",
     "dotenv": "^16.3",
+    "exceljs": "4.4.0",
     "express": "^4.22.3",
     "helmet": "^7.0",
     "jsonwebtoken": "^9.0.3",
@@ -32,6 +52,7 @@
     "multer": "^2.5.0",
     "node-fetch": "^3.3.2",
     "pg": "^8.23.1",
+    "uuid": "^13.0.0",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
@@ -41,7 +62,10 @@
   },
   "overrides": {
     "@humanfs/node": "0.16.8",
-    "@xmldom/xmldom": "0.9.12",
+    "@xmldom/xmldom": "0.8.15",
+    "exceljs": {
+      "uuid": "11.1.1"
+    },
     "flatted": "3.4.4",
     "picomatch": "2.3.2",
     "undici": "7.30.1"

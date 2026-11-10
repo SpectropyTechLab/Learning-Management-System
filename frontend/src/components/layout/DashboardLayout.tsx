@@ -9,6 +9,7 @@ interface DashboardLayoutProps {
   header: React.ReactNode;
   children: React.ReactNode;
   contentClassName?: string;
+  contentScrollable?: boolean;
 }
 
 export default function DashboardLayout({
@@ -20,9 +21,10 @@ export default function DashboardLayout({
   header,
   children,
   contentClassName = "p-6",
+  contentScrollable = true,
 }: DashboardLayoutProps) {
   return (
-    <div className={`${shellClass} h-screen overflow-hidden`}>
+    <div className={`${shellClass} h-screen min-h-[100dvh] overflow-hidden supports-[height:100dvh]:h-[100dvh]`}>
       <div className={`${layoutClass} h-full overflow-hidden`}>
         {sidebarOpen && (
           <div
@@ -35,7 +37,7 @@ export default function DashboardLayout({
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {header}
-          <div className={`min-h-0 flex-1 overflow-y-auto ${contentClassName}`}>{children}</div>
+          <div className={`min-h-0 flex-1 ${contentScrollable ? 'overflow-y-auto' : 'overflow-hidden'} ${contentClassName}`}>{children}</div>
         </div>
       </div>
     </div>

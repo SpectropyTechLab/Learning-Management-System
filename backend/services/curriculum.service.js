@@ -188,6 +188,175 @@ const generateProgramCode = (name) =>
     .replace(/^_+|_+$/g, '')
     .slice(0, 20);
 
+const getBoardReadScope = async (user) => {
+  const clientId = resolveScopedClientId(user);
+  const sharedProgramIds = isPlatformCurriculumAdmin(user)
+    ? []
+    : await getReadableSharedProgramIds(clientId);
+  const schoolIds = isSchoolUser(user) ? await fetchUserSchoolIdsByRoleScope(user) : [];
+  const assignedProgramIds = isSchoolUser(user)
+    ? await getAssignedQuestionBankProgramIds(schoolIds)
+    : [];
+
+  return {
+    clientId: isPlatformCurriculumAdmin(user) ? null : clientId,
+    sharedProgramIds,
+    assignedProgramIds,
+    schoolIds,
+  };
+};
+
+const ensureBoardMatchesClient = (board, clientId) => {
+  if (board?.client_id !== null && Number(board?.client_id) !== Number(clientId)) {
+    throw new AppError('Board does not belong to this client', 403);
+  }
+};
+
+export const listBoards = async ({ user }) => {
+  const scope = await getBoardReadScope(user);
+  const result = await curriculumRepo.fetchBoards(scope);
+  return decorateCurriculumItems(result.rows, user);
+};
+
+export const getBoard = async ({ user, params }) => {
+  const id = parseRequiredInt(params?.id, 'id');
+  const scope = await getBoardReadScope(user);
+  const result = await curriculumRepo.fetchBoardById({ id, ...scope });
+  if (result.rows.length === 0) {
+    throw new AppError('Board not found', 404);
+  }
+  return decorateCurriculumItem(result.rows[0], user);
+};
+
+export const createBoard = async ({ user, body }) => {
+  if (isSchoolUser(user) || user?.role === 'student') {
+    throw new AppError('Access denied', 403);
+  }
+
+  const name = requireString(body?.name, 'name');
+  const codeInput = body?.code ? requireString(body?.code, 'code') : null;
+  const code = codeInput || generateProgramCode(name);
+  const clientId = resolveClientId(user, body?.client_id);
+  const isActive = parseBoolean(body?.is_active, 'is_active');
+
+  const result = await curriculumRepo.insertBoard({
+    clientId,
+    name,
+    code,
+    description: body?.description ?? null,
+    is_active: isActive ?? true,
+  });
+  return decorateCurriculumItem(result.rows[0], user);
+};
+
+export const updateBoard = async ({ user, params, body }) => {
+  const id = parseRequiredInt(params?.id, 'id');
+  const updates = {};
+
+  if (body?.name !== undefined) updates.name = requireString(body?.name, 'name');
+  if (body?.code !== undefined) updates.code = requireString(body?.code, 'code');
+  if (body?.description !== undefined) updates.description = body.description ?? null;
+  if (body?.is_active !== undefined) {
+    updates.is_active = parseBoolean(body.is_active, 'is_active');
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new AppError('No updates provided', 400);
+  }
+
+  const context = await curriculumRepo.fetchBoardContext(id);
+  if (context.rows.length === 0) {
+    throw new AppError('Board not found', 404);
+  }
+  if (!(await canManageCurriculumContext(user, context.rows[0]))) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const clientId = isSuperAdmin(user?.role) ? null : context.rows[0].client_id;
+  const result = await curriculumRepo.updateBoard({ id, clientId, updates });
+  if (result.rows.length === 0) {
+    throw new AppError('Board not found', 404);
+  }
+  return decorateCurriculumItem(result.rows[0], user);
+};
+
+export const deleteBoard = async ({ user, params }) => {
+  const id = parseRequiredInt(params?.id, 'id');
+  const context = await curriculumRepo.fetchBoardContext(id);
+  if (context.rows.length === 0) {
+    throw new AppError('Board not found', 404);
+  }
+  if (!(await canManageCurriculumContext(user, context.rows[0]))) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const clientId = isSuperAdmin(user?.role) ? null : context.rows[0].client_id;
+  const result = await curriculumRepo.deleteBoard({ id, clientId });
+  if (result.rows.length === 0) {
+    throw new AppError('Board not found', 404);
+  }
+  return { success: true, id: result.rows[0].id };
+};
+
+export const listProgramsByBoard = async ({ user, params, query }) => {
+  const boardId = parseRequiredInt(params?.boardId, 'boardId');
+  const boardScope = await getBoardReadScope(user);
+  const board = await curriculumRepo.fetchBoardById({ id: boardId, ...boardScope });
+  if (board.rows.length === 0) {
+    throw new AppError('Board not found', 404);
+  }
+
+  const clientId = resolveClientId(user, query?.client_id);
+  const writableOnly = query?.writable === '1' || query?.writable === 'true';
+  const assignedOnly = query?.assigned_only === '1' || query?.assigned_only === 'true';
+  const assignmentOnly = query?.assignment_only === '1' || query?.assignment_only === 'true';
+  const schoolIds = boardScope.schoolIds;
+  const schoolAssignedOnly = isSchoolUser(user) && !writableOnly;
+  const sharedProgramIds = isPlatformCurriculumAdmin(user) || writableOnly || assignmentOnly
+    ? []
+    : await getReadableSharedProgramIds(clientId);
+  const assignedProgramIds = isSchoolUser(user) && !writableOnly
+    ? await getAssignedQuestionBankProgramIds(schoolIds)
+    : [];
+
+  const result = await curriculumRepo.fetchProgramsByBoard({
+    boardId,
+    clientId: isPlatformCurriculumAdmin(user) && !writableOnly ? null : clientId,
+    sharedProgramIds,
+    assignedProgramIds,
+    schoolIds,
+    writableOnly,
+    assignedOnly: ((assignedOnly || assignmentOnly) && isSchoolUser(user)) || schoolAssignedOnly,
+    assignmentOnly: assignmentOnly && isSchoolUser(user),
+  });
+  return decorateCurriculumItems(result.rows, user);
+};
+
+export const createProgramForBoard = async ({ user, params, body }) => {
+  const boardId = parseRequiredInt(params?.boardId, 'boardId');
+  const boardResult = await curriculumRepo.fetchBoardContext(boardId);
+  if (boardResult.rows.length === 0) {
+    throw new AppError('Board not found', 404);
+  }
+
+  const name = requireString(body?.name, 'name');
+  const codeInput = body?.code ? requireString(body?.code, 'code') : null;
+  const code = codeInput || generateProgramCode(name);
+  const clientId = resolveClientId(user, body?.client_id);
+  const schoolId = await resolveOwnedSchoolId(user, body?.school_id);
+  const isActive = parseBoolean(body?.is_active, 'is_active');
+  ensureBoardMatchesClient(boardResult.rows[0], clientId);
+
+  const result = await curriculumRepo.insertProgram({
+    clientId,
+    schoolId,
+    boardId,
+    name,
+    code,
+    is_active: isActive ?? true,
+  });
+  return decorateCurriculumItem(result.rows[0], user);
+};
+
 export const listPrograms = async ({ user, query }) => {
   const clientId = resolveClientId(user, query?.client_id);
   const writableOnly = query?.writable === '1' || query?.writable === 'true';
@@ -244,11 +413,21 @@ export const createProgram = async ({ user, body }) => {
   const code = codeInput || generateProgramCode(name);
   const clientId = resolveClientId(user, body?.client_id);
   const schoolId = await resolveOwnedSchoolId(user, body?.school_id);
+  const boardId = parseNullableInt(body?.board_id, 'board_id');
   const isActive = parseBoolean(body?.is_active, 'is_active');
+
+  if (boardId !== null) {
+    const boardResult = await curriculumRepo.fetchBoardContext(boardId);
+    if (boardResult.rows.length === 0) {
+      throw new AppError('Board not found', 404);
+    }
+    ensureBoardMatchesClient(boardResult.rows[0], clientId);
+  }
 
   const result = await curriculumRepo.insertProgram({
     clientId,
     schoolId,
+    boardId,
     name,
     code,
     is_active: isActive ?? true,
@@ -269,6 +448,9 @@ export const updateProgram = async ({ user, params, body }) => {
   if (body?.is_active !== undefined) {
     updates.is_active = parseBoolean(body?.is_active, 'is_active');
   }
+  if (body?.board_id !== undefined) {
+    updates.board_id = parseNullableInt(body.board_id, 'board_id');
+  }
 
   if (Object.keys(updates).length === 0) {
     throw new AppError('No updates provided', 400);
@@ -281,6 +463,14 @@ export const updateProgram = async ({ user, params, body }) => {
   }
   if (!(await canManageCurriculumContext(user, context.rows[0]))) {
     throw new AppError('Access denied', 403);
+  }
+
+  if (updates.board_id !== undefined && updates.board_id !== null) {
+    const boardResult = await curriculumRepo.fetchBoardContext(updates.board_id);
+    if (boardResult.rows.length === 0) {
+      throw new AppError('Board not found', 404);
+    }
+    ensureBoardMatchesClient(boardResult.rows[0], context.rows[0].client_id);
   }
 
   const result = await curriculumRepo.updateProgram({ id, clientId, updates });
@@ -315,9 +505,18 @@ export const listGrades = async ({ user, params }) => {
   const programId = parseRequiredInt(params?.programId, 'programId');
   const clientId = resolveScopedClientId(user);
   const sharedProgramIds = isPlatformCurriculumAdmin(user) ? [] : await getReadableSharedProgramIds(clientId);
+  const scopedClientId = isPlatformCurriculumAdmin(user) ? null : clientId;
+  const program = await curriculumRepo.fetchProgramById({
+    id: programId,
+    clientId: scopedClientId,
+    sharedProgramIds,
+  });
+  if (program.rows.length === 0) {
+    throw new AppError('Program not found', 404);
+  }
   const result = await curriculumRepo.fetchGradesByProgram({
     programId,
-    clientId: isPlatformCurriculumAdmin(user) ? null : clientId,
+    clientId: scopedClientId,
     sharedProgramIds,
   });
   return decorateCurriculumItems(result.rows, user);
@@ -419,9 +618,18 @@ export const listSubjectsByGrade = async ({ user, params }) => {
   const gradeId = parseRequiredInt(params?.gradeId, 'gradeId');
   const clientId = resolveScopedClientId(user);
   const sharedProgramIds = isPlatformCurriculumAdmin(user) ? [] : await getReadableSharedProgramIds(clientId);
+  const scopedClientId = isPlatformCurriculumAdmin(user) ? null : clientId;
+  const grade = await curriculumRepo.fetchGradeById({
+    id: gradeId,
+    clientId: scopedClientId,
+    sharedProgramIds,
+  });
+  if (grade.rows.length === 0) {
+    throw new AppError('Grade not found', 404);
+  }
   const result = await curriculumRepo.fetchSubjectsByGrade({
     gradeId,
-    clientId: isPlatformCurriculumAdmin(user) ? null : clientId,
+    clientId: scopedClientId,
     sharedProgramIds,
   });
   return decorateCurriculumItems(result.rows, user);
@@ -527,9 +735,18 @@ export const listChapters = async ({ user, params }) => {
   const subjectId = parseRequiredInt(params?.subjectId, 'subjectId');
   const clientId = resolveScopedClientId(user);
   const sharedProgramIds = isPlatformCurriculumAdmin(user) ? [] : await getReadableSharedProgramIds(clientId);
+  const scopedClientId = isPlatformCurriculumAdmin(user) ? null : clientId;
+  const subject = await curriculumRepo.fetchSubjectById(
+    subjectId,
+    scopedClientId,
+    sharedProgramIds
+  );
+  if (subject.rows.length === 0) {
+    throw new AppError('Subject not found', 404);
+  }
   const result = await curriculumRepo.fetchChaptersBySubject({
     subjectId,
-    clientId: isPlatformCurriculumAdmin(user) ? null : clientId,
+    clientId: scopedClientId,
     sharedProgramIds,
   });
   return decorateCurriculumItems(result.rows, user);
@@ -564,13 +781,21 @@ export const createChapter = async ({ user, params, body }) => {
     throw new AppError('Access denied', 403);
   }
 
-  const result = await curriculumRepo.insertChapter({
-    subjectId,
-    name,
-    chapter_number: chapterNumber,
-    description: body?.description ?? null,
-    is_active: active ?? true,
-  });
+  let result;
+  try {
+    result = await curriculumRepo.insertChapter({
+      subjectId,
+      name,
+      chapter_number: chapterNumber,
+      description: body?.description ?? null,
+      is_active: active ?? true,
+    });
+  } catch (error) {
+    if (error?.code === '23505' && error?.constraint === 'idx_chapters_number') {
+      throw new AppError(`Chapter number ${chapterNumber} already exists for this Subject`, 409);
+    }
+    throw error;
+  }
   return decorateCurriculumItem(result.rows[0], user);
 };
 
@@ -624,9 +849,18 @@ export const listTopics = async ({ user, params }) => {
   const chapterId = parseRequiredInt(params?.chapterId, 'chapterId');
   const clientId = resolveScopedClientId(user);
   const sharedProgramIds = isPlatformCurriculumAdmin(user) ? [] : await getReadableSharedProgramIds(clientId);
+  const scopedClientId = isPlatformCurriculumAdmin(user) ? null : clientId;
+  const chapter = await curriculumRepo.fetchChapterById({
+    id: chapterId,
+    clientId: scopedClientId,
+    sharedProgramIds,
+  });
+  if (chapter.rows.length === 0) {
+    throw new AppError('Chapter not found', 404);
+  }
   const result = await curriculumRepo.fetchTopicsByChapter({
     chapterId,
-    clientId: isPlatformCurriculumAdmin(user) ? null : clientId,
+    clientId: scopedClientId,
     sharedProgramIds,
   });
   return decorateCurriculumItems(result.rows, user);
@@ -711,6 +945,123 @@ export const deleteTopic = async ({ user, params }) => {
   const result = await curriculumRepo.deleteTopic(id);
   if (result.rows.length === 0) {
     throw new AppError('Topic not found', 404);
+  }
+  return { success: true, id: result.rows[0].id };
+};
+
+export const listSubtopics = async ({ user, params }) => {
+  const topicId = parseRequiredInt(params?.topicId, 'topicId');
+  const clientId = resolveScopedClientId(user);
+  const sharedProgramIds = isPlatformCurriculumAdmin(user)
+    ? []
+    : await getReadableSharedProgramIds(clientId);
+  const scopedClientId = isPlatformCurriculumAdmin(user) ? null : clientId;
+
+  const topic = await curriculumRepo.fetchTopicById({
+    id: topicId,
+    clientId: scopedClientId,
+    sharedProgramIds,
+  });
+  if (topic.rows.length === 0) {
+    throw new AppError('Topic not found', 404);
+  }
+
+  const result = await curriculumRepo.fetchSubtopicsByTopic({
+    topicId,
+    clientId: scopedClientId,
+    sharedProgramIds,
+  });
+  return decorateCurriculumItems(result.rows, user);
+};
+
+export const getSubtopic = async ({ user, params }) => {
+  const id = parseRequiredInt(params?.id, 'id');
+  const clientId = resolveScopedClientId(user);
+  const sharedProgramIds = isPlatformCurriculumAdmin(user)
+    ? []
+    : await getReadableSharedProgramIds(clientId);
+  const result = await curriculumRepo.fetchSubtopicById({
+    id,
+    clientId: isPlatformCurriculumAdmin(user) ? null : clientId,
+    sharedProgramIds,
+  });
+  if (result.rows.length === 0) {
+    throw new AppError('Subtopic not found', 404);
+  }
+  return decorateCurriculumItem(result.rows[0], user);
+};
+
+export const createSubtopic = async ({ user, params, body }) => {
+  const topicId = parseRequiredInt(params?.topicId, 'topicId');
+  const name = requireString(body?.name, 'name');
+  const displayOrder = parseRequiredInt(body?.display_order ?? 0, 'display_order');
+  const isActive = parseBoolean(body?.is_active, 'is_active');
+
+  const topicContext = await curriculumRepo.fetchTopicContext(topicId);
+  if (topicContext.rows.length === 0) {
+    throw new AppError('Topic not found', 404);
+  }
+  if (!(await canManageCurriculumContext(user, topicContext.rows[0]))) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const result = await curriculumRepo.insertSubtopic({
+    topicId,
+    name,
+    description: body?.description ?? null,
+    display_order: displayOrder,
+    is_active: isActive ?? true,
+  });
+  return decorateCurriculumItem(
+    { ...topicContext.rows[0], ...result.rows[0], topic_id: topicId },
+    user
+  );
+};
+
+export const updateSubtopic = async ({ user, params, body }) => {
+  const id = parseRequiredInt(params?.id, 'id');
+  const updates = {};
+
+  if (body?.name !== undefined) updates.name = requireString(body.name, 'name');
+  if (body?.description !== undefined) updates.description = body.description ?? null;
+  if (body?.display_order !== undefined) {
+    updates.display_order = parseRequiredInt(body.display_order, 'display_order');
+  }
+  if (body?.is_active !== undefined) {
+    updates.is_active = parseBoolean(body.is_active, 'is_active');
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new AppError('No updates provided', 400);
+  }
+
+  const context = await curriculumRepo.fetchSubtopicContext(id);
+  if (context.rows.length === 0) {
+    throw new AppError('Subtopic not found', 404);
+  }
+  if (!(await canManageCurriculumContext(user, context.rows[0]))) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const result = await curriculumRepo.updateSubtopic({ id, updates });
+  if (result.rows.length === 0) {
+    throw new AppError('Subtopic not found', 404);
+  }
+  return decorateCurriculumItem({ ...result.rows[0], ...context.rows[0] }, user);
+};
+
+export const deleteSubtopic = async ({ user, params }) => {
+  const id = parseRequiredInt(params?.id, 'id');
+  const context = await curriculumRepo.fetchSubtopicContext(id);
+  if (context.rows.length === 0) {
+    throw new AppError('Subtopic not found', 404);
+  }
+  if (!(await canManageCurriculumContext(user, context.rows[0]))) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const result = await curriculumRepo.deleteSubtopic(id);
+  if (result.rows.length === 0) {
+    throw new AppError('Subtopic not found', 404);
   }
   return { success: true, id: result.rows[0].id };
 };

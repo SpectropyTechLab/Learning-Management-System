@@ -1,0 +1,183 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const readFrontend = (relativePath) =>
+  fs.readFileSync(
+    new URL(`../../frontend/src/features/teaching-studio/${relativePath}`, import.meta.url),
+    'utf8',
+  );
+const readFrontendAsset = (relativePath) =>
+  fs.readFileSync(new URL(`../../frontend/src/assets/${relativePath}`, import.meta.url), 'utf8');
+
+test('AutoSave preserves Screen undo and redo history', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const saveStart = editor.indexOf('const saveScreenDraft');
+  const saveEnd = editor.indexOf('saveDraftRef.current = saveScreenDraft');
+  const saveImplementation = editor.slice(saveStart, saveEnd);
+  assert.ok(saveStart > 0 && saveEnd > saveStart);
+  assert.doesNotMatch(saveImplementation, /setElementPast\(\[\]\)/);
+  assert.doesNotMatch(saveImplementation, /setElementFuture\(\[\]\)/);
+  assert.match(editor, /setHasUnsavedChanges\(true\);\s*setSaveStatus\('pending'\)/);
+  assert.match(editor, /key === 'y' \|\| \(key === 'z' && event\.shiftKey\)/);
+});
+test('Studio tools and context ribbon use compact toggle controls', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(editor, /studioTools\.map/);
+  assert.match(editor, /toggleStudioTool\(tool\.id\)/);
+  assert.match(editor, /flex w-11 shrink-0 flex-col/);
+  assert.match(editor, /leftPanelView !== 'script' \|\| !open/);
+  assert.match(editor, /studio-context-bar shrink-0/);
+  assert.doesNotMatch(editor, /Hide context controls|Show context and actions|contextBarOpen/);
+});
+
+test('Cursor-aware lists and element hyperlinks reach authoring and playback', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const canvasText = readFrontend('components/StudioCanvasTextElement.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(toolbar, /Bullet and numbering styles/);
+  assert.match(toolbar, /dispatchStudioTextCommand/);
+  assert.match(canvasText, /insertUnorderedList/);
+  assert.match(canvasText, /insertOrderedList/);
+  assert.match(canvasText, /sanitizeStudioRichText/);
+  assert.match(canvas, /StudioHyperlinkOverlay/);
+  assert.match(player, /StudioHyperlinkOverlay/);
+});
+
+test('Studio editor uses one stable tooltip and converts every selected line into a list item', () => {
+  const iconButton = readFrontend('components/StudioIconButton.tsx');
+  const canvasText = readFrontend('components/StudioCanvasTextElement.tsx');
+  assert.match(iconButton, /title=\{buttonProps\.title \?\? label\}/);
+  assert.doesNotMatch(iconButton, /role="tooltip"/);
+  assert.match(canvasText, /selectedLines\.forEach/);
+  assert.match(canvasText, /document\.createElement\('li'\)/);
+  assert.match(canvasText, /selectedRange\.insertNode\(list\)/);
+});
+
+test('Screen navigation is a PowerPoint-style thumbnail rail with pointer reordering', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(editor, /data-reorder-screen-id=\{screenId\}/);
+  assert.match(editor, /setPointerCapture\(event\.pointerId\)/);
+  assert.match(editor, /onPointerMove=\{leftPanelView === 'screens' \? moveDraggedScreen/);
+  assert.match(editor, /void selectScreen\(screenId\)/);
+  assert.match(editor, /void saveScreenOrder\(reorderIdsRef\.current\)/);
+  assert.doesNotMatch(editor, /reorderOpen/);
+  assert.doesNotMatch(editor, /studio-context-secondary/);
+});
+
+test('Reorder toggles closed and selected objects automatically open their applicable inspector', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(editor, /leftPanelOpen && leftPanelView === 'screens'/);
+  assert.match(editor, /setLeftPanelOpen\(false\);\s*return;/);
+  assert.match(editor, /const selectElementAndOpenControls/);
+  assert.match(editor, /isSmartDiagramContent\(element\?\.content\)/);
+  assert.match(editor, /element\?\.type === 'math'/);
+  assert.match(editor, /element\?\.type === 'shape'/);
+  assert.match(editor, /setPanel\(nextPanel\);\s*setRightPanelOpen\(true\)/);
+  assert.match(editor, /onSelectElement=\{selectElementAndOpenControls\}/);
+});
+
+test('Editor screen actions use the compact requested order and header owns rename and delete', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const actions = [
+    'aria-label="Screens and reorder"',
+    'aria-label="Screen Script"',
+    'aria-label="Add Screen"',
+    'aria-label="Screen metadata"',
+    'aria-label="Edit layout"',
+    'aria-label="Remove layout"',
+  ].map((label) => editor.indexOf(label));
+  assert.ok(actions.every((index) => index > 0));
+  assert.deepEqual(actions, [...actions].sort((left, right) => left - right));
+  assert.doesNotMatch(editor, /w-44 shrink-0 self-center/);
+  assert.match(editor, /label="Rename Screen"/);
+  assert.match(editor, /label="Delete Screen"/);
+  assert.doesNotMatch(canvas, /Screen actions/);
+  assert.doesNotMatch(canvas, /absolute left-16 top-16/);
+});
+
+test('Editor fullscreen keeps the live autosaving workspace and floating controls', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const css = readFrontendAsset('index.css');
+  const shell = readFrontend('components/StudioShell.tsx');
+  assert.match(editor, /editorViewportRef/);
+  assert.match(editor, /viewport\.requestFullscreen\(\)/);
+  assert.match(editor, /document\.exitFullscreen\(\)/);
+  assert.match(editor, /hideHeader/);
+  assert.match(editor, /Editor Fullscreen/);
+  assert.match(editor, /studio-editor-focus-mode/);
+  assert.match(css, /\.studio-editor-viewport \.studio-editor-left-panel/);
+  assert.match(css, /backdrop-filter: blur\(14px\)/);
+  assert.match(css, /\.studio-editor-viewport \.studio-context-bar/);
+  assert.match(shell, /header=\{hideHeader \? undefined/);
+});
+
+test('Normal editor overlays chrome inside the navy stage instead of reserving canvas columns', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const css = readFrontendAsset('index.css');
+  assert.doesNotMatch(editor, /gridTemplateColumns:/);
+  assert.match(editor, /studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden/);
+  assert.match(css, /\.studio-editor-viewport \.studio-editor-tools-panel/);
+  assert.match(css, /position: absolute/);
+  assert.match(css, /\.studio-editor-slide-frame/);
+  assert.match(canvas, /studio-editor-canvas-stage/);
+  assert.match(css, /\.studio-editor-left-panel > nav > button/);
+  assert.match(css, /background: transparent/);
+  assert.match(canvas, /studio-editor-slide-frame absolute inset-3/);
+  assert.match(css, /\.studio-editor-viewport \.studio-context-bar \{\s*position: relative/);
+  assert.doesNotMatch(css, /\.studio-editor-viewport \.studio-context-bar \{[^}]*position: absolute/s);
+});
+
+test('Editor keeps both inspectors open without an appearance mode control', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const shell = readFrontend('components/StudioShell.tsx');
+  const account = readFrontend('components/StudioAccountMenu.tsx');
+  assert.doesNotMatch(editor, /setRightPanelOpen\(false\);\s*setLeftPanelView\('screens'\)/);
+  assert.doesNotMatch(editor, /setLeftPanelOpen\(false\);\s*setPanel\(nextPanel\)/);
+  assert.doesNotMatch(editor, /setLeftPanelOpen\(false\);\s*setPanel\(tool\)/);
+  assert.doesNotMatch(editor, /aria-label="Editor appearance"/);
+  assert.doesNotMatch(shell, /prefers-color-scheme: dark/);
+  assert.doesNotMatch(account, /Studio appearance/);
+});
+
+test('Session and Screen selectors force readable native option colours', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const css = readFrontendAsset('index.css');
+  assert.match(editor, /studio-context-select/);
+  assert.match(css, /\.studio-context-select option/);
+  assert.match(css, /background: #ffffff/);
+  assert.match(css, /color: #0f172a/);
+});
+
+test('Editor commands, direct canvas authoring and canvas-only zoom share one workflow', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(editor, /editorClipboardRef/);
+  assert.match(editor, /key === 'd'/);
+  assert.match(editor, /key === 'x'/);
+  assert.match(editor, /addDroppedFiles/);
+  assert.match(editor, /onCreateTextAt/);
+  assert.match(canvas, /canvasZoom/);
+  assert.match(canvas, /event\.ctrlKey/);
+  assert.match(canvas, /zoomPointersRef/);
+  assert.match(slide, /onCanvasDoubleClick/);
+  assert.match(canvas, /mimeType\.startsWith\('video\/'\)/);
+  assert.match(canvas, /mimeType\.startsWith\('audio\/'\)/);
+  assert.match(canvas, /mimeType === 'application\/pdf'/);
+});
+
+test('Present opens a clean audience window controlled from the editor', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  const shell = readFrontend('components/StudioShell.tsx');
+  assert.match(editor, /openPresentation/);
+  assert.match(editor, /BroadcastChannel/);
+  assert.match(editor, /Audience presentation controls/);
+  assert.match(player, /audienceMode/);
+  assert.match(player, /presentationChannel/);
+  assert.match(shell, /presentationMode/);
+});
