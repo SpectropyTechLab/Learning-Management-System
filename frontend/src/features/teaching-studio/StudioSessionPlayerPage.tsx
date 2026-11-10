@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, MousePointer2, Music, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, Music, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -403,7 +403,14 @@ export default function StudioSessionPlayerPage() {
   };
 
   const openTeachingMaterials = async () => {
+    if (materialsOpen || curriculumPreview) {
+      setMaterialsOpen(false);
+      setCurriculumPreview(null);
+      return;
+    }
     if (!release || materialsBusy) return;
+    setDiscoveryPanelOpen(false);
+    setCurriculumPreview(null);
     setMaterialsOpen(true);
     if (materials) return;
     setMaterialsBusy(true);
@@ -759,9 +766,9 @@ export default function StudioSessionPlayerPage() {
     }
   };
   return (
-    <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} scrollContent={false} wrapContent={false} presentationMode={audienceMode}>
-      <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden text-slate-900 ${isTrackedBranchUser ? 'bg-slate-100' : 'bg-white'}`}>
-        {!fullScreen && !audienceMode ? <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-1.5">
+    <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} hideHeader scrollContent={false} wrapContent={false} presentationMode={audienceMode}>
+      <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden text-slate-900 ${fullScreen || audienceMode ? 'bg-blue-50' : isTrackedBranchUser ? 'bg-slate-100' : 'bg-white'}`}>
+        {!fullScreen && !audienceMode ? <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-0.5">
           <div className="flex items-center gap-3">
             <button type="button" onClick={exitPlayer} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Exit player">
               <ArrowLeft size={20} />
@@ -776,7 +783,7 @@ export default function StudioSessionPlayerPage() {
             {previewMode && <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">Unpublished preview</span>}
           </div>
         </header> : null}
-        {!previewMode && release && screen && <StudioBranchDiscoveryPanel open={discoveryPanelOpen} releaseId={release.id} screenId={screen.screen_id} onClose={() => setDiscoveryPanelOpen(false)} onSelect={(item) => void openDiscoveredContent(item)} />}
+        {!previewMode && release && screen && <StudioBranchDiscoveryPanel open={discoveryPanelOpen} fullScreen={fullScreen} releaseId={release.id} screenId={screen.screen_id} onClose={() => setDiscoveryPanelOpen(false)} onSelect={(item) => void openDiscoveredContent(item)} />}
         {blankMode && (
           <button type="button" onClick={() => setBlankMode(null)} className={`absolute inset-0 z-[70] ${blankMode === 'black' ? 'bg-black' : 'bg-white'}`} aria-label={`Restore presentation from ${blankMode} Screen`} />
         )}
@@ -789,39 +796,38 @@ export default function StudioSessionPlayerPage() {
           </div>
         ) : null}
         {materialsOpen && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Published teaching materials">
-            <section className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900 shadow-2xl">
-              <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
-                <div>
-                  <h2 className="text-xl font-bold">Published teaching materials</h2>
-                  <p className="mt-1 text-sm text-slate-600">View the Curriculum and the Session Plan used for Release {release?.release_number}.</p>
+          <aside className={`absolute z-40 flex w-[calc(100%-3rem)] max-w-[20.25rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xl ${fullScreen ? 'bottom-14 left-0 top-0' : 'bottom-11 left-12 top-12'}`} role="dialog" aria-label="Published teaching materials">
+              <header className="flex items-center justify-between gap-1.5 border-b border-slate-200 px-2 py-1">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm font-bold">Teaching materials</h2>
+                  <p className="truncate text-[9px] text-slate-600">Curriculum and Session Plan for Release {release?.release_number}.</p>
                 </div>
-                <button type="button" onClick={() => setMaterialsOpen(false)} className="rounded-lg border border-slate-300 p-2 hover:bg-slate-100" aria-label="Close teaching materials">
-                  <X size={20} />
+                <button type="button" onClick={() => setMaterialsOpen(false)} className="rounded-md border border-slate-300 p-0.5 hover:bg-slate-100" aria-label="Close teaching materials">
+                  <X size={14} />
                 </button>
               </header>
-              <div className="min-h-0 flex-1 overflow-y-auto p-5">
-                {materialsBusy && <p className="rounded-lg bg-slate-100 p-4 text-sm">Loading published materials…</p>}
+              <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+                {materialsBusy && <p className="rounded-lg bg-slate-100 p-2 text-sm">Loading published materials…</p>}
                 {!materialsBusy && materials && (
-                  <div className="space-y-6">
-                    <section className="rounded-xl border border-slate-200 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-2">
+                    <section className="rounded-xl border border-slate-200 p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <FileText size={18} className="text-blue-800" />
-                            <h3 className="font-bold">Chapter Curriculum</h3>
+                            <FileText size={16} className="text-blue-800" />
+                            <h3 className="text-sm font-bold">Chapter Curriculum</h3>
                           </div>
-                          <p className="mt-1 break-all text-sm text-slate-600">{materials.curriculum?.original_file_name || 'No Curriculum document is available for this Chapter.'}</p>
+                          <p className="mt-1 break-all text-xs text-slate-600">{materials.curriculum?.original_file_name || 'No Curriculum document is available for this Chapter.'}</p>
                           {materials.curriculum?.revision_no && <p className="text-xs text-slate-500">Revision {materials.curriculum.revision_no}</p>}
                         </div>
                         {materials.curriculum?.document_id && (
                           <div className="flex flex-wrap gap-2">
-                            <button type="button" onClick={() => void viewCurriculum()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">
-                              <FileText size={16} />
+                            <button type="button" onClick={() => void viewCurriculum()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                              <FileText size={15} />
                               View Curriculum
                             </button>
-                            <button type="button" onClick={() => void downloadCurriculum()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">
-                              <Download size={16} />
+                            <button type="button" onClick={() => void downloadCurriculum()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                              <Download size={15} />
                               Download Curriculum
                             </button>
                           </div>
@@ -829,11 +835,11 @@ export default function StudioSessionPlayerPage() {
                       </div>
                     </section>
                     <section>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <FileText size={18} className="text-blue-800" />
-                            <h3 className="font-bold">Session Plan</h3>
+                            <FileText size={16} className="text-blue-800" />
+                            <h3 className="text-sm font-bold">Session Plan</h3>
                           </div>
                           <p className="mt-1 text-xs text-slate-500">Revision {materials.session_plan?.revision_no ?? '—'}</p>
                         </div>
@@ -844,11 +850,11 @@ export default function StudioSessionPlayerPage() {
                           </button>
                         )}
                       </div>
-                      <div className="mt-3 space-y-3">
+                      <div className="mt-2 space-y-2">
                         {materialRows(materials.session_plan?.content).map((row, index) => (
-                          <article key={index} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                            <p className="mb-3 text-xs font-bold uppercase text-blue-900">Plan row {index + 1}</p>
-                            <dl className="grid gap-3 sm:grid-cols-2">
+                          <article key={index} className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                            <p className="mb-2 text-[11px] font-bold uppercase text-blue-900">Plan row {index + 1}</p>
+                            <dl className="grid gap-2">
                               {Object.entries(row).map(([key, value]) => (
                                 <div key={key}>
                                   <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{key.replaceAll('_', ' ')}</dt>
@@ -864,30 +870,27 @@ export default function StudioSessionPlayerPage() {
                   </div>
                 )}
               </div>
-            </section>
-          </div>
+          </aside>
         )}
         {curriculumPreview && (
-          <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Curriculum preview">
-            <section className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900 shadow-2xl">
-              <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+          <aside className={`absolute z-50 flex w-[calc(100%-3rem)] max-w-[20.25rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xl ${fullScreen ? 'bottom-14 left-0 top-0' : 'bottom-11 left-12 top-12'}`} role="dialog" aria-label="Curriculum preview">
+              <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-3">
                 <div className="min-w-0">
-                  <h2 className="font-bold">Chapter Curriculum</h2>
-                  <p className="truncate text-sm text-slate-600" title={curriculumPreview.file_name}>
+                  <h2 className="text-sm font-bold">Chapter Curriculum</h2>
+                  <p className="truncate text-[11px] text-slate-600" title={curriculumPreview.file_name}>
                     {curriculumPreview.file_name} · Revision {curriculumPreview.revision_no}
                   </p>
                 </div>
-                <button type="button" onClick={() => setCurriculumPreview(null)} className="rounded-lg border border-slate-300 p-2" aria-label="Close Curriculum preview">
-                  <X size={19} />
+                <button type="button" onClick={() => setCurriculumPreview(null)} className="rounded-lg border border-slate-300 p-1.5" aria-label="Close Curriculum preview">
+                  <X size={16} />
                 </button>
               </header>
-              <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 <pre className="whitespace-pre-wrap font-sans text-sm leading-6">{curriculumPreview.text || 'The document contains no extractable text.'}</pre>
               </div>
-            </section>
-          </div>
+          </aside>
         )}
-        <main className={`relative grid min-h-0 flex-1 ${fullScreen || audienceMode ? 'grid-cols-1 gap-0 p-0' : `gap-1 py-1 pl-0 pr-1 ${isTrackedBranchUser && !discoveryItem ? 'grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 pl-1'}`}`}>
+        <main className={`relative grid min-h-0 flex-1 ${audienceMode ? 'grid-cols-1 gap-0 p-0' : fullScreen ? 'grid-cols-1 gap-0 px-0 pb-14 pt-0' : `gap-1 py-1 pl-0 pr-1 ${isTrackedBranchUser && !discoveryItem ? 'grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 pl-1'}`}`}>
           {!fullScreen && !audienceMode && isTrackedBranchUser && !discoveryItem ? (
             <aside className="studio-player-controls flex min-h-0 min-w-0 flex-col items-center gap-2 overflow-x-hidden overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Teacher drawing controls">
               <div className="flex w-full flex-col items-center gap-2">
@@ -900,21 +903,22 @@ export default function StudioSessionPlayerPage() {
                 </label>
                 </div>
                 <div className="flex w-full flex-col items-center gap-2" aria-label="Drawing tools">
-                <button type="button" onClick={() => setAnnotationTool('pointer')} className={`grid h-10 w-10 place-items-center rounded-lg ${annotationTool === 'pointer' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} title="Pointer" aria-label="Pointer"><MousePointer2 size={17} /></button>
+                <button type="button" onClick={() => setAnnotationTool((tool) => tool === 'laser' ? 'pointer' : 'laser')} className={`grid h-10 w-10 place-items-center rounded-lg ${annotationTool === 'laser' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} title={annotationTool === 'laser' ? 'Turn off laser pointer' : 'Laser pointer'} aria-label={annotationTool === 'laser' ? 'Turn off laser pointer' : 'Laser pointer'} aria-pressed={annotationTool === 'laser'}><Crosshair size={17} /></button>
                 <button type="button" onClick={() => setAnnotationTool('pen')} className={`grid h-10 w-10 place-items-center rounded-lg ${annotationTool === 'pen' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} title="Pen" aria-label="Pen"><PenLine size={17} /></button>
                 <button type="button" onClick={() => setAnnotationTool('eraser')} className={`grid h-10 w-10 place-items-center rounded-lg ${annotationTool === 'eraser' ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} title="Eraser" aria-label="Eraser"><Eraser size={17} /></button>
                 <label className="relative grid h-10 w-10 cursor-pointer place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" title="Ink colour" aria-label="Ink colour"><Palette size={17} /><span className="absolute bottom-1 h-1 w-5 rounded-full" style={{ backgroundColor: annotationColor }} /><input type="color" value={annotationColor} onChange={(event) => setAnnotationColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" /></label>
                 <button type="button" disabled={(annotationHistoryByScreen[screenId || 0] ?? []).length === 0} onClick={undoTeacherAnnotation} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-30" title="Undo ink" aria-label="Undo ink"><RotateCcw size={17} /></button>
                 <button type="button" disabled={teacherAnnotations.length === 0} onClick={() => setTeacherAnnotations([])} className="grid h-10 w-10 place-items-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-30" title="Clear ink" aria-label="Clear ink"><Trash2 size={17} /></button>
-                {!previewMode && <button type="button" disabled={!release || !screen} onClick={() => setDiscoveryPanelOpen(true)} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40" title="Branching" aria-label="Branching"><GitBranch size={17} /></button>}
-                {!previewMode && <button type="button" onClick={() => void openTeachingMaterials()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" title="View teaching materials" aria-label="View teaching materials"><FileText size={17} /></button>}
+                {!previewMode && <button type="button" disabled={!release || !screen} onClick={() => { const open = !discoveryPanelOpen; setMaterialsOpen(false); setCurriculumPreview(null); setDiscoveryPanelOpen(open); }} className={`grid h-10 w-10 place-items-center rounded-lg ${discoveryPanelOpen ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'} disabled:opacity-40`} title={discoveryPanelOpen ? 'Close Branching' : 'Branching'} aria-label={discoveryPanelOpen ? 'Close Branching' : 'Branching'} aria-pressed={discoveryPanelOpen}><GitBranch size={17} /></button>}
+                {!previewMode && <button type="button" onClick={() => void openTeachingMaterials()} className={`grid h-10 w-10 place-items-center rounded-lg ${materialsOpen || curriculumPreview ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} title={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'View teaching materials'} aria-label={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'View teaching materials'} aria-pressed={materialsOpen || Boolean(curriculumPreview)}><FileText size={17} /></button>}
                 </div>
                 <label className="relative grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700" title="Ink width"><SlidersHorizontal size={15} className="pointer-events-none absolute left-1 top-1" aria-hidden="true" /><input type="number" min="2" max="24" value={annotationWidth} onChange={(event) => setAnnotationWidth(Math.min(24, Math.max(2, Number(event.target.value) || 2)))} className="h-full w-full rounded-lg bg-transparent pt-2 text-center text-xs font-bold outline-none" aria-label="Ink width" /></label>
               </div>
             </aside>
           ) : null}
           <section
-            className="relative min-h-0 min-w-0"
+            className="relative min-h-0 min-w-0 transition-[margin] duration-300"
+            style={isTrackedBranchUser && !discoveryItem && (discoveryPanelOpen || materialsOpen || curriculumPreview) ? { marginLeft: 'min(20.25rem, calc(100vw - 7rem))' } : undefined}
             onClick={(event) => {
               if (discoveryItem || annotationTool !== 'pointer') return;
               const target = event.target as HTMLElement;
@@ -940,6 +944,7 @@ export default function StudioSessionPlayerPage() {
             </div>
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-600">This release contains no Screens.</div>}
+          {annotationTool === 'laser' ? <div className="absolute inset-0 z-[60] cursor-crosshair" onPointerMove={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); setLaserPoint({ x: event.clientX - bounds.left, y: event.clientY - bounds.top }); }} onPointerLeave={() => setLaserPoint(null)} aria-label="Laser pointer surface">{laserPoint ? <span className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-[0_0_18px_6px_rgba(239,68,68,0.75)]" style={{ left: laserPoint.x, top: laserPoint.y }} aria-hidden="true" /> : null}</div> : null}
           </section>
         </main>
         {error && release && <p className="mx-4 mb-2 rounded-lg bg-red-950/70 px-3 py-2 text-sm text-red-100">{error}</p>}
@@ -949,8 +954,7 @@ export default function StudioSessionPlayerPage() {
             <div className="min-h-0 flex-1"><PublishedResource releaseId={release?.id || 0} mapping={activeRuntimeElement.resource_mapping} previewMode={previewMode} /></div>
           </div>
         ) : null}
-        {fullScreen && annotationTool === 'laser' ? <div className="absolute inset-0 z-[95] cursor-crosshair" onPointerMove={(event) => { const bounds = playerRef.current?.getBoundingClientRect(); if (bounds) setLaserPoint({ x: event.clientX - bounds.left, y: event.clientY - bounds.top }); }} onPointerLeave={() => setLaserPoint(null)} aria-label="Laser pointer surface">{laserPoint ? <span className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-[0_0_18px_6px_rgba(239,68,68,0.75)]" style={{ left: laserPoint.x, top: laserPoint.y }} aria-hidden="true" /> : null}</div> : null}
-        {!fullScreen && !audienceMode ? <footer className={`flex items-center justify-between gap-3 border-t px-3 py-1.5 ${isTrackedBranchUser ? 'border-slate-200 bg-white' : 'border-white/10'}`}>
+        {!fullScreen && !audienceMode ? <footer className={`flex items-center justify-between gap-3 border-t px-3 py-0.5 ${isTrackedBranchUser ? 'border-slate-200 bg-white' : 'border-white/10'}`}>
           <div className="flex items-center gap-2">
             {discoveryItem ? (
               <div className="flex items-center gap-2">
@@ -958,25 +962,28 @@ export default function StudioSessionPlayerPage() {
                 <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
               </div>
             ) : (
-              <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-30">
-                <ChevronLeft size={18} />
+                <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30">
+                <ChevronLeft size={16} />
                 Previous
               </button>
             )}
-            <button type="button" onClick={() => void toggleFullScreen()} className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-lg border border-slate-300 hover:bg-slate-100" title={fullScreen ? 'Exit full screen' : 'Full screen'} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}>
-              {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+            <button type="button" onClick={() => void toggleFullScreen()} className="inline-flex h-9 w-9 touch-manipulation items-center justify-center rounded-lg border border-slate-300 hover:bg-slate-100" title={fullScreen ? 'Exit full screen' : 'Full screen'} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'}>
+              {fullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
           </div>
-          <span className="text-center text-sm text-slate-700">
+          <span className="text-center text-xs text-slate-700">
             <span className="block">
               {discoveryItem ? discoveryItem.type === 'session' ? `${discoveryIndex + 1} / ${discoveryScreens.length}` : discoveryItem.type : `${currentIndex + 1} / ${screens.length}`}
             </span>
-            <span className="hidden text-[11px] text-slate-500 sm:block">{discoveryItem ? 'Esc closes Branching' : `Animation build ${animationStep}/${animationTimeline.maxStep} · Clicker: ← previous · → next`}</span>
+            <span className="hidden text-[10px] text-slate-500 sm:block">{discoveryItem ? 'Esc closes Branching' : `Animation build ${animationStep}/${animationTimeline.maxStep} · Clicker: ← previous · → next`}</span>
           </span>
-          <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-30 sm:gap-2">
-            Next
-            <ChevronRight size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {isTrackedBranchUser ? <FloatingWhiteboards sessionId={sessionId} inlineLauncher /> : null}
+              <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30 sm:gap-1.5">
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </footer> : null}
         {fullScreen ? (
           <>
@@ -996,16 +1003,20 @@ export default function StudioSessionPlayerPage() {
                 </div>
               </div>
             ) : null}
-            <div className="absolute bottom-3 left-3 z-[100] flex items-center gap-1 rounded-xl border border-white/25 bg-slate-950/80 p-1.5 text-white shadow-xl backdrop-blur" role="toolbar" aria-label="Fullscreen presentation controls">
-              <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/15 disabled:opacity-30" title="Previous" aria-label="Previous"><ChevronLeft size={20} /></button>
-              <button type="button" onClick={() => { setFullscreenSlidesOpen(false); if (fullscreenDrawOpen || annotationTool !== 'pointer') { setFullscreenDrawOpen(false); setAnnotationTool('pointer'); } else setFullscreenDrawOpen(true); }} className={`grid h-10 w-10 place-items-center rounded-lg ${fullscreenDrawOpen || annotationTool !== 'pointer' ? 'bg-blue-600' : 'hover:bg-white/15'}`} title={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-label={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-expanded={fullscreenDrawOpen} aria-pressed={annotationTool !== 'pointer'}><PenLine size={19} /></button>
-              <button type="button" onClick={() => { setFullscreenSlidesOpen((open) => !open); setFullscreenDrawOpen(false); }} className={`grid h-10 w-10 place-items-center rounded-lg ${fullscreenSlidesOpen ? 'bg-blue-600' : 'hover:bg-white/15'}`} title="All slides" aria-label="All slides" aria-expanded={fullscreenSlidesOpen}><Grid3X3 size={19} /></button>
-              <button type="button" disabled={animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={advancePresenter} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/15 disabled:opacity-30" title="Next" aria-label="Next"><ChevronRight size={20} /></button>
-              <button type="button" onClick={() => void toggleFullScreen()} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/15" title="Exit full screen" aria-label="Exit full screen"><Minimize2 size={19} /></button>
+            <div className="absolute bottom-2 left-3 z-[100] flex items-center gap-2">
+              <div className="flex items-center gap-1.5" role="toolbar" aria-label="Fullscreen presentation controls">
+                <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex <= 0 : animationStep <= 0 && currentIndex <= 0} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null) : retreatPresenter()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100 disabled:opacity-30" title="Previous" aria-label="Previous"><ChevronLeft size={20} /></button>
+                <button type="button" onClick={() => { setFullscreenSlidesOpen(false); if (fullscreenDrawOpen || annotationTool !== 'pointer') { setFullscreenDrawOpen(false); setAnnotationTool('pointer'); } else setFullscreenDrawOpen(true); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${fullscreenDrawOpen || annotationTool !== 'pointer' ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-label={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-expanded={fullscreenDrawOpen} aria-pressed={annotationTool !== 'pointer'}><PenLine size={19} /></button>
+                <button type="button" onClick={() => { setFullscreenSlidesOpen((open) => !open); setFullscreenDrawOpen(false); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${fullscreenSlidesOpen ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title="All slides" aria-label="All slides" aria-expanded={fullscreenSlidesOpen}><Grid3X3 size={19} /></button>
+                {!previewMode ? <button type="button" disabled={!release || !screen} onClick={() => { if (discoveryItem) closeDiscoveredContent(); else { const open = !discoveryPanelOpen; setMaterialsOpen(false); setCurriculumPreview(null); setDiscoveryPanelOpen(open); } setFullscreenDrawOpen(false); setFullscreenSlidesOpen(false); setAnnotationTool('pointer'); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${discoveryPanelOpen || discoveryItem ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'} disabled:opacity-30`} title={discoveryPanelOpen || discoveryItem ? 'Close Branching' : 'Branching'} aria-label={discoveryPanelOpen || discoveryItem ? 'Close Branching' : 'Branching'} aria-pressed={discoveryPanelOpen || Boolean(discoveryItem)}>{discoveryPanelOpen || discoveryItem ? <X size={18} /> : <GitBranch size={18} />}</button> : null}
+                {!previewMode ? <button type="button" onClick={() => { setFullscreenDrawOpen(false); setFullscreenSlidesOpen(false); setAnnotationTool('pointer'); void openTeachingMaterials(); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${materialsOpen || curriculumPreview ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'Teaching materials'} aria-label={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'Teaching materials'} aria-pressed={materialsOpen || Boolean(curriculumPreview)}><FileText size={18} /></button> : null}
+                <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100 disabled:opacity-30" title="Next" aria-label="Next"><ChevronRight size={20} /></button>
+                <button type="button" onClick={() => void toggleFullScreen()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100" title="Exit full screen" aria-label="Exit full screen"><Minimize2 size={19} /></button>
+              </div>
             </div>
           </>
         ) : null}
-        {isTrackedBranchUser ? <FloatingWhiteboards sessionId={sessionId} iconOnly={fullScreen} /> : null}
+        {isTrackedBranchUser && fullScreen ? <FloatingWhiteboards sessionId={sessionId} iconOnly /> : null}
       </div>
     </StudioShell>
   );

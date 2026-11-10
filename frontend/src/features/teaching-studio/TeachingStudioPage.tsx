@@ -138,8 +138,6 @@ export default function TeachingStudioPage() {
   const [newScreenTitle, setNewScreenTitle] = useState('Untitled Screen');
   const [newScreenPedagogyId, setNewScreenPedagogyId] = useState('');
   const [newScreenBloomId, setNewScreenBloomId] = useState('');
-  const [newScreenVisuals, setNewScreenVisuals] = useState('');
-  const [newScreenNarration, setNewScreenNarration] = useState('');
   const [taxonomyTerms, setTaxonomyTerms] = useState<StudioTaxonomyTerm[]>([]);
   const [screenRequestVersion, setScreenRequestVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -424,6 +422,15 @@ export default function TeachingStudioPage() {
     setSearchParams({ screen: String(screenId) });
   };
 
+  const editSelectedScreenScript = async () => {
+    if (!sessionId || !selectedScreenId) return;
+    if (hasUnsavedChanges) {
+      const saved = await saveDraftRef.current('navigation');
+      if (!saved) return;
+    }
+    navigate(`/studio/sessions/${sessionId}/scripts?screen=${selectedScreenId}&returnTo=editor`);
+  };
+
   const createBlankScreen = async () => {
     if (!sessionId || creating || editorReadOnly) return;
     if (hasUnsavedChanges) {
@@ -440,14 +447,7 @@ export default function TeachingStudioPage() {
   };
 
   const confirmCreateBlankScreen = async () => {
-    if (
-      !sessionId ||
-      creating ||
-      !newScreenPedagogyId ||
-      !newScreenVisuals.trim() ||
-      !newScreenNarration.trim()
-    )
-      return;
+    if (!sessionId || creating || !newScreenPedagogyId) return;
     setCreating(true);
     setError(null);
     try {
@@ -461,23 +461,13 @@ export default function TeachingStudioPage() {
         pedagogy: pedagogy ? [pedagogy] : [],
         bloom: bloom ? [bloom] : [],
       });
-      await studioDocumentsApi.saveScreenScript(sessionId, created.id, {
-        visual_animation_interaction_assets: newScreenVisuals.trim(),
-        teacher_narration: newScreenNarration.trim(),
-        adaptive_branch_scripts: '',
-        student_evidence_return_route: '',
-        pyq_examination_extension: '',
-        teacher_presenter_notes_production_checks: '',
-      });
       await loadScreens();
       setSearchParams({ screen: String(created.id) });
       setCreateScreenOpen(false);
       setNewScreenTitle('Untitled Screen');
       setNewScreenPedagogyId('');
       setNewScreenBloomId('');
-      setNewScreenVisuals('');
-      setNewScreenNarration('');
-      toast.success('Blank Screen and metadata created successfully.');
+      toast.success('Blank Screen created. Its optional Screen Script is empty.');
     } catch (requestError) {
       const response = getStudioErrorMessage(requestError);
       setError(response);
@@ -500,9 +490,6 @@ export default function TeachingStudioPage() {
         String(assigned.explicit.pedagogy[0]?.id || assigned.effective.pedagogy[0]?.id || ''),
       );
       setNewScreenBloomId(String(assigned.explicit.bloom[0]?.id || ''));
-      const script = scripts.find((row) => row.screen_id === selectedScreenId)?.content_json;
-      setNewScreenVisuals(script?.visual_animation_interaction_assets || '');
-      setNewScreenNarration(script?.teacher_narration || '');
       setScreenMetadataOpen(true);
     } catch (requestError) {
       toast.error(getStudioErrorMessage(requestError));
@@ -512,15 +499,7 @@ export default function TeachingStudioPage() {
   };
 
   const saveScreenMetadata = async () => {
-    if (
-      !sessionId ||
-      !selectedScreenId ||
-      creating ||
-      !newScreenPedagogyId ||
-      !newScreenVisuals.trim() ||
-      !newScreenNarration.trim()
-    )
-      return;
+    if (!sessionId || !selectedScreenId || creating || !newScreenPedagogyId) return;
     setCreating(true);
     try {
       const pedagogy = taxonomyTerms.find((term) => term.id === Number(newScreenPedagogyId));
@@ -529,18 +508,6 @@ export default function TeachingStudioPage() {
         pedagogy: pedagogy ? [pedagogy] : [],
         bloom: bloom ? [bloom] : [],
       });
-      const currentScript = scripts.find((row) => row.screen_id === selectedScreenId)?.content_json;
-      await studioDocumentsApi.saveScreenScript(sessionId, selectedScreenId, {
-        ...currentScript,
-        visual_animation_interaction_assets: newScreenVisuals.trim(),
-        teacher_narration: newScreenNarration.trim(),
-        adaptive_branch_scripts: currentScript?.adaptive_branch_scripts || '',
-        student_evidence_return_route: currentScript?.student_evidence_return_route || '',
-        pyq_examination_extension: currentScript?.pyq_examination_extension || '',
-        teacher_presenter_notes_production_checks:
-          currentScript?.teacher_presenter_notes_production_checks || '',
-      });
-      setScripts(await studioDocumentsApi.screenScripts(sessionId));
       setScreenMetadataOpen(false);
       toast.success('Screen metadata saved.');
     } catch (requestError) {
@@ -2425,7 +2392,19 @@ export default function TeachingStudioPage() {
               )}
               {panel === 'script' && (
                 <>
-                  <h2 className="font-semibold">Screen Script</h2>
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-semibold">Screen Script</h2>
+                    {!editorReadOnly ? (
+                      <button
+                        type="button"
+                        disabled={!selectedScreenId}
+                        onClick={() => void editSelectedScreenScript()}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Pencil size={12} /> Edit
+                      </button>
+                    ) : null}
+                  </div>
                   {(() => {
                     const entries = screenScriptEntries(
                       scripts.find((row) => row.screen_id === selectedScreenId)?.content_json,
@@ -2719,8 +2698,7 @@ export default function TeachingStudioPage() {
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <h2 className="text-lg font-semibold text-slate-900">Screen metadata</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Screen values override optional Topic defaults. Pedagogy and the basic Screen Script
-              are required.
+              Screen values override optional Topic defaults. Screen Scripts remain optional.
             </p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-semibold text-slate-700">
@@ -2757,24 +2735,6 @@ export default function TeachingStudioPage() {
                     ))}
                 </select>
               </label>
-              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
-                Visual / animation / interaction assets <span className="text-red-600">*</span>
-                <textarea
-                  rows={3}
-                  value={newScreenVisuals}
-                  onChange={(event) => setNewScreenVisuals(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
-                />
-              </label>
-              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
-                Teacher narration <span className="text-red-600">*</span>
-                <textarea
-                  rows={4}
-                  value={newScreenNarration}
-                  onChange={(event) => setNewScreenNarration(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
-                />
-              </label>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button
@@ -2787,12 +2747,7 @@ export default function TeachingStudioPage() {
               </button>
               <button
                 type="button"
-                disabled={
-                  creating ||
-                  !newScreenPedagogyId ||
-                  !newScreenVisuals.trim() ||
-                  !newScreenNarration.trim()
-                }
+                disabled={creating || !newScreenPedagogyId}
                 onClick={() => void saveScreenMetadata()}
                 className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
@@ -2812,7 +2767,7 @@ export default function TeachingStudioPage() {
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <h2 className="text-lg font-semibold text-slate-900">Add Screen</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Pedagogy and the two basic Screen Script fields are required. Bloom is optional.
+              Pedagogy is required and Bloom is optional. The Screen Script starts blank.
             </p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-semibold text-slate-700">
@@ -2858,24 +2813,6 @@ export default function TeachingStudioPage() {
                 </select>
               </label>
               <div className="hidden sm:block" />
-              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
-                Visual / animation / interaction assets <span className="text-red-600">*</span>
-                <textarea
-                  rows={3}
-                  value={newScreenVisuals}
-                  onChange={(event) => setNewScreenVisuals(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
-                />
-              </label>
-              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
-                Teacher narration <span className="text-red-600">*</span>
-                <textarea
-                  rows={4}
-                  value={newScreenNarration}
-                  onChange={(event) => setNewScreenNarration(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
-                />
-              </label>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button
@@ -2888,12 +2825,7 @@ export default function TeachingStudioPage() {
               </button>
               <button
                 type="button"
-                disabled={
-                  creating ||
-                  !newScreenPedagogyId ||
-                  !newScreenVisuals.trim() ||
-                  !newScreenNarration.trim()
-                }
+                disabled={creating || !newScreenPedagogyId}
                 onClick={() => void confirmCreateBlankScreen()}
                 className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >

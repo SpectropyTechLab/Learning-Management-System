@@ -85,7 +85,7 @@ const fitBoardToViewport = (board: Board): Board => {
   };
 };
 
-export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { sessionId: number; iconOnly?: boolean }) {
+export default function FloatingWhiteboards({ sessionId, iconOnly = false, inlineLauncher = false }: { sessionId: number; iconOnly?: boolean; inlineLauncher?: boolean }) {
   const storageKey = `spectropy:teacher-whiteboards:${sessionId}`;
   const [boards, setBoards] = useState<Board[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(storageKey) || '[]') as Board[]; } catch { return []; }
@@ -261,7 +261,7 @@ export default function FloatingWhiteboards({ sessionId, iconOnly = false }: { s
 
   return (
     <>
-      <button type="button" onClick={() => setBoards((current) => [...current, freshBoard((current.length % 4) * 28)])} className={iconOnly ? 'fixed bottom-4 right-4 z-[110] grid h-11 w-11 touch-manipulation place-items-center rounded-full bg-white text-blue-950 shadow-xl ring-1 ring-slate-300 hover:bg-slate-100' : 'fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-[70] inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full bg-white px-3 py-3 text-sm font-bold text-blue-950 shadow-xl ring-1 ring-slate-300 sm:px-4'} title="Add floating whiteboard" aria-label="Add floating whiteboard">{iconOnly ? <Plus size={19} /> : <><Plus size={18} /><span className="hidden sm:inline">Whiteboard</span></>}</button>
+      <button type="button" onClick={() => setBoards((current) => [...current, freshBoard((current.length % 4) * 28)])} className={iconOnly ? 'fixed bottom-4 right-4 z-[110] grid h-11 w-11 touch-manipulation place-items-center rounded-full bg-white text-black shadow-xl ring-1 ring-slate-300 hover:bg-slate-100' : inlineLauncher ? 'inline-flex h-9 touch-manipulation items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-blue-950 hover:bg-slate-50' : 'fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-[70] inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full bg-white px-3 py-3 text-sm font-bold text-blue-950 shadow-xl ring-1 ring-slate-300 sm:px-4'} title="Add floating whiteboard" aria-label="Add floating whiteboard">{iconOnly ? <Plus size={19} /> : <><Plus size={inlineLauncher ? 16 : 18} /><span className={inlineLauncher ? 'inline' : 'hidden sm:inline'}>Whiteboard</span></>}</button>
       {boards.map((board) => {
         const graphUnit = Math.max(MIN_GRAPH_SCALE, Math.min(MAX_GRAPH_SCALE, board.graphScale || 54));
         const graphHeight = Math.max(160, board.height - 98);

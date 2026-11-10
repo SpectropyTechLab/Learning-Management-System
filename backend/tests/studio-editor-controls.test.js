@@ -111,7 +111,7 @@ test('Editor fullscreen keeps the live autosaving workspace and floating control
   assert.match(css, /\.studio-editor-viewport \.studio-editor-left-panel/);
   assert.match(css, /backdrop-filter: blur\(14px\)/);
   assert.match(css, /\.studio-editor-viewport \.studio-context-bar/);
-  assert.match(shell, /header=\{hideHeader \? null/);
+  assert.match(shell, /header=\{hideHeader \? undefined/);
 });
 
 test('Normal editor overlays chrome inside the navy stage instead of reserving canvas columns', () => {

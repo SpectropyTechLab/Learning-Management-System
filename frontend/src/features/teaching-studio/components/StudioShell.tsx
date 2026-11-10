@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   Menu,
   MonitorPlay,
-  ScrollText,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -23,8 +22,6 @@ const sections = [
   ['Session Library', '/studio/sessions', FolderOpen],
   ['Review & Publish', '/studio/review', CheckSquare],
   ['Curriculum', '/studio/curriculum', BookOpen],
-  ['Screen Scripts', '/studio/screen-scripts', ScrollText],
-  ['Screen Editor', '/studio/editor', MonitorPlay],
   ['Resource Library', '/studio/resources', Layers3],
 ] as const;
 
@@ -36,18 +33,18 @@ export default function StudioShell({
   title,
   subtitle,
   actions,
+  hideHeader = false,
   scrollContent = true,
   wrapContent = true,
-  hideHeader = false,
   presentationMode = false,
   children,
 }: {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  hideHeader?: boolean;
   scrollContent?: boolean;
   wrapContent?: boolean;
-  hideHeader?: boolean;
   presentationMode?: boolean;
   children: ReactNode;
 }) {
@@ -164,7 +161,7 @@ export default function StudioShell({
           }
         />
       }
-      header={hideHeader ? null : (
+      header={hideHeader ? undefined : (
         <div className={`${theme.headerClass} !px-3 !py-2 sm:!px-6 lg:!py-2`}>
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
