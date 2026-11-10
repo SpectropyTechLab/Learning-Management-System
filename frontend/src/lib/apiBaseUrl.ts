@@ -13,6 +13,13 @@ export const resolveApiBaseUrl = () => {
     const configuredUrl = new URL(configuredBaseUrl);
     const currentHostname = window.location.hostname;
 
+    // When the development UI is opened from another device on the same LAN,
+    // `localhost` would incorrectly point at that device. Reuse the host that
+    // served the UI while retaining the configured backend port.
+    if (!isLocalHostname(currentHostname) && isLocalHostname(configuredUrl.hostname)) {
+      return `${configuredUrl.protocol}//${currentHostname}${configuredUrl.port ? `:${configuredUrl.port}` : ''}`;
+    }
+
     if (isLocalHostname(currentHostname) && !isLocalHostname(configuredUrl.hostname)) {
       return `${configuredUrl.protocol}//localhost${configuredUrl.port ? `:${configuredUrl.port}` : ''}`;
     }

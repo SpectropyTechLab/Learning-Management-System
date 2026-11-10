@@ -9,6 +9,13 @@ export type PresenterAnimationTimeline = {
   maxStep: number;
 };
 
+type SmartDiagramLike = {
+  visualType?: unknown;
+  nodes?: unknown;
+  revealMode?: unknown;
+  reverseAnimation?: unknown;
+};
+
 type ClickerElement = {
   element_key: string;
   content_json?: Record<string, unknown> | null;
@@ -103,13 +110,32 @@ const effectsFor = (element: ClickerElement): Array<Record<string, unknown>> => 
   ];
 };
 
+const diagramEffectsFor = (element: ClickerElement): Array<Record<string, unknown>> => {
+  const content = element.content_json as SmartDiagramLike | undefined;
+  if (content?.visualType !== 'smart_diagram' || !Array.isArray(content.nodes)) return [];
+  const nodes = content.nodes.filter((node): node is Record<string, unknown> => Boolean(node) && typeof node === 'object' && !Array.isArray(node));
+  const ordered = content.reverseAnimation === true ? [...nodes].reverse() : nodes;
+  const orderedByLevel = [...ordered].sort((left, right) => (Number(left.level) || 0) - (Number(right.level) || 0));
+  const mode = String(content.revealMode || 'as-one-object');
+  const groups = mode === 'as-one-object' || mode === 'all-at-once'
+    ? [ordered]
+    : mode === 'level-at-once'
+    ? [...new Set(ordered.map((node) => Number(node.level) || 0))].sort((a, b) => a - b).map((level) => ordered.filter((node) => (Number(node.level) || 0) === level))
+    : (mode === 'level-one-by-one' ? orderedByLevel : ordered).map((node) => [node]);
+  return groups.map((group) => ({
+    effect: 'appear', start: 'on-click', duration: 0.25, delay: 0,
+    diagramNodeIds: group.map((node) => String(node.id || '')).filter(Boolean),
+    diagramReveal: true,
+  }));
+};
+
 export const buildPresenterAnimationTimeline = (
   elements: ClickerElement[],
 ): PresenterAnimationTimeline => {
   let currentStep = 0;
   const cues: PresenterAnimationCue[] = [];
   for (const element of elements) {
-    const effects = effectsFor(element);
+    const effects = [...effectsFor(element), ...diagramEffectsFor(element)];
     effects.forEach((effect, index) => {
       const start = String(effect.start || (index === 0 ? 'on-click' : 'after-previous'));
       if (start === 'on-click') currentStep += 1;
@@ -119,15 +145,27 @@ export const buildPresenterAnimationTimeline = (
   return { cues, maxStep: currentStep };
 };
 
+export const presenterDiagramVisibleNodes = (
+  timeline: PresenterAnimationTimeline,
+  elementKey: string,
+  step: number,
+  allNodeIds: string[],
+) => {
+  const diagramCues = timeline.cues.filter((cue) => cue.elementKey === elementKey && cue.effect.diagramReveal === true);
+  if (diagramCues.length === 0) return new Set(allNodeIds);
+  return new Set(diagramCues.filter((cue) => cue.step <= step).flatMap((cue) => Array.isArray(cue.effect.diagramNodeIds) ? cue.effect.diagramNodeIds.map(String) : []));
+};
+
 export const presenterElementState = (
   timeline: PresenterAnimationTimeline,
   elementKey: string,
   step: number,
 ) => {
   const cues = timeline.cues.filter((cue) => cue.elementKey === elementKey);
-  const activeEffects = cues.filter((cue) => cue.step === step).map((cue) => cue.effect);
-  const entrances = cues.filter((cue) => entranceEffects.has(String(cue.effect.effect || '')));
-  const exits = cues.filter((cue) => exitEffects.has(String(cue.effect.effect || '')));
+  const objectCues = cues.filter((cue) => cue.effect.diagramReveal !== true);
+  const activeEffects = objectCues.filter((cue) => cue.step === step).map((cue) => cue.effect);
+  const entrances = objectCues.filter((cue) => entranceEffects.has(String(cue.effect.effect || '')));
+  const exits = objectCues.filter((cue) => exitEffects.has(String(cue.effect.effect || '')));
   const visibleAfterEntrance = entrances.length === 0 || entrances.some((cue) => cue.step <= step);
   const hiddenAfterExit = exits.some((cue) => cue.step < step);
   return {

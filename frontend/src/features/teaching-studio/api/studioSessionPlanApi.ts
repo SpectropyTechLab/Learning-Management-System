@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { createClientUuid } from '@/utils/createClientUuid';
 
 export interface SessionPlanRow {
   id: string;
@@ -16,7 +17,7 @@ export interface SessionPlanRow {
 }
 
 export const blankSessionPlanRow = (): SessionPlanRow => ({
-  id: crypto.randomUUID(),
+  id: createClientUuid(),
   duration: '',
   screen_mapped: '',
   learning_objective_evidence: '',

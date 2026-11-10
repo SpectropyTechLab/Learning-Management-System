@@ -169,30 +169,34 @@ export default function StudioShell({
         />
       }
       header={
-        <div className={`${theme.headerClass} !py-2 lg:!py-2`}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+        <div className={`${theme.headerClass} !px-3 !py-2 sm:!px-6 lg:!py-2`}>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-slate-700 hover:bg-slate-50 md:hidden ${theme.secondaryBorderClass}`}
+                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border text-slate-700 hover:bg-slate-50 md:hidden ${theme.secondaryBorderClass}`}
                 aria-label="Open Digital Studio menu"
               >
-                <Menu size={18} />
+                <Menu size={20} />
               </button>
-              <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
-                <h1 className="shrink-0 text-lg font-bold text-slate-900 md:text-xl">{title}</h1>
-                {subtitle && <span className="truncate text-sm text-slate-600">{subtitle}</span>}
+              <div className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg md:text-xl">{title}</h1>
+                {subtitle && <span className="truncate text-xs text-slate-600 sm:text-sm">{subtitle}</span>}
               </div>
             </div>
-            {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+            {actions && (
+              <div className="studio-header-actions flex max-w-full shrink-0 items-center gap-2 overflow-x-auto">
+                {actions}
+              </div>
+            )}
           </div>
         </div>
       }
     >
       {wrapContent ? (
         <div
-          className={`bg-gray-50 p-6 text-slate-900 ${scrollContent ? '' : 'h-full min-h-0 overflow-hidden'}`}
+          className={`bg-gray-50 p-3 text-slate-900 sm:p-6 ${scrollContent ? '' : 'h-full min-h-0 overflow-hidden'}`}
         >
           {children}
         </div>
