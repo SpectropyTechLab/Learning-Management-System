@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   Menu,
   MonitorPlay,
-  ScrollText,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -23,8 +22,6 @@ const sections = [
   ['Session Library', '/studio/sessions', FolderOpen],
   ['Review & Publish', '/studio/review', CheckSquare],
   ['Curriculum', '/studio/curriculum', BookOpen],
-  ['Screen Scripts', '/studio/screen-scripts', ScrollText],
-  ['Screen Editor', '/studio/editor', MonitorPlay],
   ['Resource Library', '/studio/resources', Layers3],
 ] as const;
 
