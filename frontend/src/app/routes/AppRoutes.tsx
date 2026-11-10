@@ -101,7 +101,7 @@ import StudioSessionSetupPage from '@/features/teaching-studio/setup/StudioSessi
 import StudioDashboardPage from '@/features/teaching-studio/StudioDashboardPage';
 import StudioCurriculumPage from '@/features/teaching-studio/StudioCurriculumPage';
 import StudioSessionPlanPage from '@/features/teaching-studio/StudioSessionPlanPage';
-import StudioScreenScriptsPage from '@/features/teaching-studio/StudioScreenScriptsPage';
+import StudioSessionScriptsPage from '@/features/teaching-studio/StudioSessionScriptsPage';
 import StudioResourceLibraryPage from '@/features/teaching-studio/StudioResourceLibraryPage';
 import StudioResourceDetailsPage from '@/features/teaching-studio/StudioResourceDetailsPage';
 import StudioEditorEntryPage from '@/features/teaching-studio/StudioEditorEntryPage';
@@ -252,7 +252,7 @@ export default function AppRoutes() {
         <Route path="/studio/session-setup" element={<StudioSessionSetupPage />} />
         <Route path="/studio/session-plans" element={<StudioSessionPlanPage />} />
         <Route path="/studio/sessions/:sessionId/plan" element={<StudioSessionPlanPage />} />
-        <Route path="/studio/screen-scripts" element={<StudioScreenScriptsPage />} />
+        <Route path="/studio/sessions/:sessionId/scripts" element={<StudioSessionScriptsPage />} />
         <Route path="/studio/editor" element={<StudioEditorEntryPage />} />
         <Route path="/studio/editor/:sessionId" element={<TeachingStudioPage />} />
         <Route path="/studio/player/:sessionId/preview" element={<StudioSessionPlayerPage />} />
@@ -281,8 +281,8 @@ export default function AppRoutes() {
           element={<StudioSessionPlanPage />}
         />
         <Route
-          path="/content-authorizer/studio/screen-scripts"
-          element={<StudioScreenScriptsPage />}
+          path="/content-authorizer/studio/sessions/:sessionId/scripts"
+          element={<StudioSessionScriptsPage />}
         />
         <Route path="/content-authorizer/studio/editor" element={<StudioEditorEntryPage />} />
         <Route

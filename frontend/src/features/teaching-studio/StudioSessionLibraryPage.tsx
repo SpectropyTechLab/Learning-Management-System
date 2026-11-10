@@ -25,7 +25,6 @@ import { submitStudioSession, workflowError } from './api/studioWorkflowApi';
 import { listPublishedReleaseHistory } from './api/studioPublishedApi';
 import type { PublishedReleaseHistoryItem } from './api/studioPublishedApi';
 import StudioShell from './components/StudioShell';
-import { selectionPath } from './setup/selectionState';
 
 const statuses: Array<'all' | StudioSessionStatus> = [
   'all',
@@ -42,17 +41,6 @@ const statusStyle: Record<StudioSessionStatus, string> = {
   rejected: 'bg-red-100 text-red-800',
   published: 'bg-emerald-100 text-emerald-800',
 };
-
-const selectionFor = (session: StudioLibrarySession) => ({
-  boardId: session.board_id,
-  programId: session.program_id,
-  gradeId: session.grade_id,
-  subjectId: session.subject_id,
-  chapterId: session.chapter_id,
-  topicId: session.topic_id,
-  subtopicId: session.subtopic_id,
-  sessionId: session.id,
-});
 
 type CurriculumFilterKey =
   'boardId' | 'programId' | 'gradeId' | 'subjectId' | 'chapterId' | 'topicId' | 'subtopicId';
@@ -412,7 +400,6 @@ export default function StudioSessionLibraryPage() {
       {!loading && !error && viewMode === 'card' && (
         <div className="mt-5 grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((session) => {
-            const selection = selectionFor(session);
             const editable = session.status === 'draft' || session.status === 'rejected';
             const hasPublishedRelease = Boolean(session.latest_release_number);
             const displayedStatus: StudioSessionStatus = hasPublishedRelease
@@ -612,7 +599,7 @@ export default function StudioSessionLibraryPage() {
                           disabled={!editable}
                           onClick={() => {
                             setOpenMenuId(null);
-                            navigate(selectionPath('/studio/screen-scripts', selection));
+                            navigate(`/studio/sessions/${session.id}/scripts`);
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
@@ -672,7 +659,6 @@ export default function StudioSessionLibraryPage() {
           </div>
           <div className="divide-y divide-slate-200">
             {filtered.map((session) => {
-              const selection = selectionFor(session);
               const editable = session.status === 'draft' || session.status === 'rejected';
               const hasPublishedRelease = Boolean(session.latest_release_number);
               const displayedStatus: StudioSessionStatus = hasPublishedRelease
@@ -850,7 +836,7 @@ export default function StudioSessionLibraryPage() {
                           disabled={!editable}
                           onClick={() => {
                             setOpenMenuId(null);
-                            navigate(selectionPath('/studio/screen-scripts', selection));
+                            navigate(`/studio/sessions/${session.id}/scripts`);
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
