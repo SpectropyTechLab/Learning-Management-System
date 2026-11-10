@@ -16,7 +16,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import StudioAccountMenu, { type StudioThemePreference } from './StudioAccountMenu';
+import StudioAccountMenu from './StudioAccountMenu';
 
 const sections = [
   ['Dashboard', '/studio', LayoutDashboard],
@@ -31,7 +31,6 @@ const sections = [
 const authorRoles = new Set(['super_admin', 'content_authorizer']);
 
 const SIDEBAR_STORAGE_KEY = 'digital-studio-sidebar-expanded-v2';
-const THEME_STORAGE_KEY = 'digital-studio-theme';
 
 export default function StudioShell({
   title,
@@ -39,6 +38,8 @@ export default function StudioShell({
   actions,
   scrollContent = true,
   wrapContent = true,
+  hideHeader = false,
+  presentationMode = false,
   children,
 }: {
   title: string;
@@ -46,6 +47,8 @@ export default function StudioShell({
   actions?: ReactNode;
   scrollContent?: boolean;
   wrapContent?: boolean;
+  hideHeader?: boolean;
+  presentationMode?: boolean;
   children: ReactNode;
 }) {
   const { user, logout } = useAuth();
@@ -56,17 +59,9 @@ export default function StudioShell({
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
   });
-  const [themePreference, setThemePreference] = useState<StudioThemePreference>(() => {
-    if (typeof window === 'undefined') return 'light';
-    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return saved === 'dark' ? 'dark' : 'light';
-  });
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarOpen));
   }, [sidebarOpen]);
-  useEffect(() => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
-  }, [themePreference]);
   const homePath =
     (
       {
@@ -111,9 +106,12 @@ export default function StudioShell({
     navigate('/login', { replace: true });
   };
 
+  if (presentationMode)
+    return <div className="h-dvh w-dvw overflow-hidden bg-black">{children}</div>;
+
   return (
     <DashboardLayout
-      shellClass={`${theme.shellClass} studio-theme-${themePreference}`}
+      shellClass={`${theme.shellClass} studio-theme-light`}
       layoutClass={theme.layoutClass}
       sidebarOpen={sidebarOpen}
       onSidebarClose={() => setSidebarOpen(false)}
@@ -159,8 +157,6 @@ export default function StudioShell({
               collapsed={!sidebarOpen}
               name={user?.full_name || 'Studio user'}
               email={user?.email || ''}
-              theme={themePreference}
-              onThemeChange={setThemePreference}
               onHome={() => navigate(homePath)}
               onProfile={profilePath ? () => navigate(profilePath) : undefined}
               onLogout={handleLogout}
@@ -168,7 +164,7 @@ export default function StudioShell({
           }
         />
       }
-      header={
+      header={hideHeader ? null : (
         <div className={`${theme.headerClass} !px-3 !py-2 sm:!px-6 lg:!py-2`}>
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -192,7 +188,7 @@ export default function StudioShell({
             )}
           </div>
         </div>
-      }
+      )}
     >
       {wrapContent ? (
         <div
