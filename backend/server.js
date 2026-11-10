@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import './config/loadEnv.js';
 import superadminRoutes from './routes/superadmin.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import schoolOwnerRoutes from './routes/schoolOwner.routes.js';
@@ -27,9 +28,21 @@ import teachingSessionsRoutes from './routes/teachingSessions.routes.js';
 import communityRoutes from './routes/community.routes.js';
 import questionBankEntitlementsRoutes from './routes/questionBankEntitlements.routes.js';
 import examEntitlementsRoutes from './routes/examEntitlements.routes.js';
+import studioReleasesRoutes from './routes/studioReleases.routes.js';
+import studioDocumentsRoutes from './routes/studioDocuments.routes.js';
+import studioSessionWorkflowRoutes from './routes/studioSessionWorkflow.routes.js';
+import studioLayoutsRoutes from './routes/studioLayouts.routes.js';
+import studioResourcesRoutes from './routes/studioResources.routes.js';
+import studioScreensRoutes from './routes/studioScreens.routes.js';
+import studioResourceRuntimeRoutes from './routes/studioResourceRuntime.routes.js';
+import studioBranchRuntimeRoutes from './routes/studioBranchRuntime.routes.js';
+import studioSessionsRoutes from './routes/studioSessions.routes.js';
+import studioScormRuntimeRoutes from './routes/studioScormRuntime.routes.js';
+import studioTaxonomyRoutes from './routes/studioTaxonomy.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
 import { startAttemptExpiryCron } from './services/student.service.js';
+import { query as dbQuery } from './repositories/db.repository.js';
 
 
 dotenv.config();
@@ -42,21 +55,33 @@ const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '50mb';
 
 app.use(helmet());
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5100,http://localhost:5173,http://192.168.0.151:5100')
+const isProduction = process.env.NODE_ENV === 'production';
+const defaultDevelopmentOrigins = 'http://localhost:5100,http://localhost:5173,http://192.168.0.151:5100';
+const allowedOrigins = (process.env.CORS_ORIGIN || (isProduction ? '' : defaultDevelopmentOrigins))
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
-const isProduction = process.env.NODE_ENV === 'production';
-const selfOrigins = new Set([
-  `http://localhost:${PORT}`,
-  `http://127.0.0.1:${PORT}`,
-]);
-const originPatterns = [
-  /^https:\/\/.*\.vercel\.app$/,
-  /^https:\/\/.*\.onrender\.com$/,
+const allowPreviewOrigins = process.env.ALLOW_PREVIEW_ORIGINS === 'true';
+const selfOrigins = new Set(
+  isProduction
+    ? []
+    : [
+        `http://localhost:${PORT}`,
+        `http://127.0.0.1:${PORT}`,
+      ]
+);
+const localOriginPatterns = [
   /^http:\/\/localhost(?::\d+)?$/,
   /^http:\/\/127\.0\.0\.1(?::\d+)?$/,
   /^http:\/\/192\.168\.\d+\.\d+(?::\d+)?$/,
+];
+const previewOriginPatterns = [
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/.*\.onrender\.com$/,
+];
+const originPatterns = [
+  ...(!isProduction ? localOriginPatterns : []),
+  ...(allowPreviewOrigins ? previewOriginPatterns : []),
 ];
 const isPatternAllowedOrigin = (origin) => originPatterns.some((pattern) => pattern.test(origin));
 const isAllowedOrigin = (origin) =>
@@ -118,8 +143,8 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Refresh-Token'],
-    exposedHeaders: ['Content-Disposition'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Refresh-Token','Cache-Control'],
+    exposedHeaders: ['Content-Disposition', 'Content-Length', 'X-Content-SHA256', 'X-Studio-Document-Revision'],
   })
 );
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
@@ -128,14 +153,13 @@ app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 app.get('/health', async (req, res) => {
   const startedAt = Date.now();
   try {
-    const { error } = await supabase
-      .from('users')
-      .select('id', { head: true, count: 'exact' })
-      .limit(1);
+    await dbQuery('SELECT 1');
+    const { error } = await supabase.storage.listBuckets();
 
     if (error) {
       return res.status(503).json({
         status: 'degraded',
+        database: 'ok',
         supabase: 'down',
         error: error.message,
         responseTimeMs: Date.now() - startedAt
@@ -144,12 +168,14 @@ app.get('/health', async (req, res) => {
 
     return res.json({
       status: 'ok',
+      database: 'ok',
       supabase: 'ok',
       responseTimeMs: Date.now() - startedAt
     });
   } catch (err) {
     return res.status(503).json({
       status: 'degraded',
+      database: 'down',
       supabase: 'down',
       error: err instanceof Error ? err.message : 'Unknown error',
       responseTimeMs: Date.now() - startedAt
@@ -173,6 +199,12 @@ app.get(
   authenticateToken,
   viewScormFile
 );
+
+// Tokenized Studio runtime assets must be reachable without the normal LMS
+// access cookie. The short-lived token in the URL authorizes only one immutable
+// Resource version. Mount this router before authenticated /api routers so
+// sandboxed iframe dependency requests cannot be intercepted by their guards.
+app.use('/api', studioResourceRuntimeRoutes);
 
 // ------------------------------
 // ⬇️ STATIC FILE SERVING FOR UPLOADS
@@ -205,6 +237,18 @@ app.use('/api', questionsRoutes);
 app.use('/api', examsRoutes);
 app.use('/api', packBuilderRoutes);
 app.use('/api', teachingSessionsRoutes);
+app.use('/api', studioReleasesRoutes);
+app.use('/api', studioDocumentsRoutes);
+app.use('/api', studioTaxonomyRoutes);
+app.use('/api', studioSessionWorkflowRoutes);
+app.use('/api', studioLayoutsRoutes);
+app.use('/api', studioResourcesRoutes);
+app.use('/api', studioScreensRoutes);
+// Session setup must be reached by Content Authorizers before the later
+// teacher-only branch runtime router evaluates its role boundary.
+app.use('/api', studioSessionsRoutes);
+app.use('/api', studioBranchRuntimeRoutes);
+app.use('/api', studioScormRuntimeRoutes);
 
 
 

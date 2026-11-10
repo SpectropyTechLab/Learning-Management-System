@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="SPECTROPY-SCORM12-MULTI"
+  xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"
+  xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2">
+  <metadata><schema>ADL SCORM</schema><schemaversion>1.2</schemaversion></metadata>
+  <organizations default="ORG-1">
+    <organization identifier="ORG-1"><title>SCORM 1.2 multi SCO</title><item identifier="ITEM-1" identifierref="RES-1"><title>SCO 1</title></item><item identifier="ITEM-2" identifierref="RES-2"><title>SCO 2</title></item></organization>
+  </organizations>
+  <resources>
+    <resource identifier="RES-1" type="webcontent" adlcp:scormtype="sco" href="sco1.html"><file href="sco1.html"/></resource>
+    <resource identifier="RES-2" type="webcontent" adlcp:scormtype="sco" href="sco2.html"><file href="sco2.html"/></resource>
+  </resources>
+</manifest>

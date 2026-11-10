@@ -12,5 +12,12 @@
     "install:frontend": "cd frontend && npm install",
     "install:backend": "cd backend && npm install",
     "install:all": "npm run install:frontend && npm run install:backend"
+  },
+  "devDependencies": {
+    "supabase": "^2.120.0"
+  },
+  "dependencies": {
+    "@onlyoffice/document-editor-react": "^2.3.0",
+    "exceljs": "^4.4.0"
   }
 }
