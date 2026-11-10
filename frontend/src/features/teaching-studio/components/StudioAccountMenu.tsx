@@ -1,30 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Home, LogOut, Moon, Settings, Sun, UserRound } from 'lucide-react';
-
-export type StudioThemePreference = 'light' | 'dark';
+import { ChevronDown, Home, LogOut, UserRound } from 'lucide-react';
 
 interface StudioAccountMenuProps {
   collapsed: boolean;
   name: string;
   email: string;
-  theme: StudioThemePreference;
-  onThemeChange: (theme: StudioThemePreference) => void;
   onHome: () => void;
   onProfile?: () => void;
   onLogout: () => void | Promise<void>;
 }
 
-const themeOptions = [
-  { value: 'light' as const, label: 'Light', icon: Sun },
-  { value: 'dark' as const, label: 'Dark', icon: Moon },
-];
-
 export default function StudioAccountMenu({
   collapsed,
   name,
   email,
-  theme,
-  onThemeChange,
   onHome,
   onProfile,
   onLogout,
@@ -70,12 +59,6 @@ export default function StudioAccountMenu({
         <div className="p-2">
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onHome(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-100"><Home size={17} />Home</button>
           {onProfile ? <button type="button" role="menuitem" onClick={() => { setOpen(false); onProfile(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-100"><UserRound size={17} />Profile</button> : null}
-        </div>
-        <div className="border-y border-slate-200 px-3 py-3">
-          <div className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500"><Settings size={14} />Appearance</div>
-          <div className="grid grid-cols-2 gap-1" role="group" aria-label="Studio appearance">
-            {themeOptions.map(({ value, label, icon: Icon }) => <button key={value} type="button" onClick={() => onThemeChange(value)} className={`flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-xs font-medium ${theme === value ? 'bg-blue-900 text-white' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}`} aria-pressed={theme === value}><Icon size={16} />{label}</button>)}
-          </div>
         </div>
         <div className="p-2"><button type="button" role="menuitem" onClick={() => { setOpen(false); void onLogout(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"><LogOut size={17} />Logout</button></div>
       </div> : null}

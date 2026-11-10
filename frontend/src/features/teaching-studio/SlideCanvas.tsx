@@ -82,6 +82,8 @@ export default function SlideCanvas({
   drawingWidth = 6,
   drawingOpacity = 1,
   onDrawingChange,
+  zoom = 1,
+  onCanvasDoubleClick,
 }: {
   layout: Layout | null;
   slide: Slide;
@@ -105,6 +107,8 @@ export default function SlideCanvas({
   drawingWidth?: number;
   drawingOpacity?: number;
   onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
+  zoom?: number;
+  onCanvasDoubleClick?: (point: { x: number; y: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
@@ -120,7 +124,7 @@ export default function SlideCanvas({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  const scale = fitScale(available.width, available.height);
+  const scale = fitScale(available.width, available.height) * Math.max(0.25, zoom);
   const errors = validateSlide(layout, slide);
   const boundsFor = (object: Slide['objects'][number] | undefined, slot: Slot): Rect => {
     if (interaction && object?.id === interaction.objectId) return interaction.currentBounds;
@@ -240,7 +244,7 @@ export default function SlideCanvas({
   return (
     <div
       ref={containerRef}
-      className={`flex h-full min-h-[240px] w-full items-center justify-center overflow-hidden ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
+      className={`flex h-full min-h-[240px] w-full items-center justify-center ${zoom > 1 ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
       data-testid="slide-viewport"
     >
       {scale > 0 && (
@@ -251,6 +255,15 @@ export default function SlideCanvas({
             const target = event.target;
             if (target instanceof Element && target.closest('[data-element-id]')) return;
             onClearSelection?.();
+          }}
+          onDoubleClick={(event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest('[data-element-id]')) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            onCanvasDoubleClick?.({
+              x: Math.round(((event.clientX - rect.left) / rect.width) * MASTER.width),
+              y: Math.round(((event.clientY - rect.top) / rect.height) * MASTER.height),
+            });
           }}
           style={{
             width: MASTER.width * scale,

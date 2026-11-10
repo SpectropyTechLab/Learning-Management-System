@@ -55,9 +55,10 @@ export type SmartDiagramLayoutDefinition = {
   description: string;
   supportsLevels?: boolean;
   maximumRecommendedNodes?: number;
+  variant?: number;
 };
 
-export const SMART_DIAGRAM_LAYOUTS: SmartDiagramLayoutDefinition[] = [
+const CORE_SMART_DIAGRAM_LAYOUTS: SmartDiagramLayoutDefinition[] = [
   { id: 'basic-list', name: 'Basic List', category: 'list', description: 'Equal ideas without a required order.' },
   { id: 'vertical-box-list', name: 'Vertical Box List', category: 'list', description: 'Stacked ideas with supporting levels.', supportsLevels: true },
   { id: 'horizontal-bullet-list', name: 'Horizontal Bullet List', category: 'list', description: 'Compact left-to-right ideas.' },
@@ -84,6 +85,35 @@ export const SMART_DIAGRAM_LAYOUTS: SmartDiagramLayoutDefinition[] = [
   { id: 'balance-comparison', name: 'Balance Comparison', category: 'comparison', description: 'Balanced advantages, evidence or viewpoints.' },
   { id: 'fishbone', name: 'Cause and Effect', category: 'cause-effect', description: 'Causes leading to one result.', supportsLevels: true },
   { id: 'basic-funnel', name: 'Basic Funnel', category: 'funnel', description: 'Filtering from broad input to a focused outcome.' },
+];
+
+const EXPANDED_LAYOUT_NAMES: Record<SmartDiagramCategory, string[]> = {
+  list: ['Alternating Card List', 'Grouped Block List', 'Stacked Accent List', 'Nested List', 'Tabbed List', 'Picture Accent List', 'Segmented List', 'Compact Grid List', 'Diagonal List', 'Radial List'],
+  process: ['Step-up Process', 'Step-down Process', 'Alternating Process', 'Staggered Process', 'Converging Process', 'Diverging Process', 'Arrow Ribbon Process', 'Milestone Process', 'Picture Process', 'Continuous Block Process'],
+  cycle: ['Segmented Cycle', 'Text Cycle', 'Gear Cycle', 'Multi-direction Cycle', 'Nested Cycle', 'Hexagon Cycle', 'Block Cycle', 'Alternating Cycle', 'Picture Cycle', 'Converging Cycle'],
+  hierarchy: ['Name and Title Chart', 'Table Hierarchy', 'L-shaped Hierarchy', 'Horizontal Multi-level Hierarchy', 'Picture Organization Chart', 'Circle Hierarchy', 'Grouped Hierarchy', 'Alternating Hierarchy', 'Pyramid Hierarchy', 'Radial Hierarchy'],
+  relationship: ['Converging Radial', 'Diverging Radial', 'Interconnected Rings', 'Venn Relationship', 'Target Relationship', 'Balance Relationship', 'Equation Relationship', 'Hexagon Cluster', 'Opposing Arrows', 'Nested Relationship'],
+  matrix: ['Grid Matrix', 'Cycle Matrix', 'Quadrant Matrix', 'Nested Matrix', 'Picture Matrix', 'Accent Matrix', 'Tabbed Matrix', 'Segmented Matrix', 'Radial Matrix', 'Hierarchy Matrix'],
+  pyramid: ['Segmented Pyramid', 'Pyramid List', 'Pyramid Process', 'Pyramid Accent', 'Picture Pyramid', 'Layered Pyramid', 'Stepped Pyramid', 'Nested Pyramid', 'Radial Pyramid', 'Balance Pyramid'],
+  picture: ['Circular Picture List', 'Alternating Picture Blocks', 'Picture Accent Process', 'Picture Strips', 'Picture Timeline', 'Picture Hierarchy', 'Picture Cluster', 'Picture Grid with Captions', 'Framed Picture List', 'Radial Picture List'],
+  timeline: ['Circle Accent Timeline', 'Descending Timeline', 'Ascending Timeline', 'Picture Timeline', 'Milestone Timeline', 'Process Timeline', 'Vertical Timeline', 'Curved Timeline', 'Grouped Timeline', 'Segmented Timeline'],
+  comparison: ['Opposing Comparison', 'Stacked Comparison', 'Table Comparison', 'Venn Comparison', 'Balance Comparison with Labels', 'Picture Comparison', 'Matrix Comparison', 'Arrow Comparison', 'Radial Comparison', 'Scorecard Comparison'],
+  'cause-effect': ['Classic Fishbone', 'Alternating Fishbone', 'Radial Cause Map', 'Root Cause Tree', 'Cause Chain', 'Multi-effect Diagram', 'Problem Solution Map', 'Converging Causes', 'Evidence Map', 'Impact Path'],
+  funnel: ['Segmented Funnel', 'Inverted Funnel', 'Funnel List', 'Picture Funnel', 'Converging Funnel', 'Filtering Process', 'Layered Funnel', 'Alternating Funnel', 'Radial Funnel', 'Outcome Funnel'],
+};
+
+export const SMART_DIAGRAM_LAYOUTS: SmartDiagramLayoutDefinition[] = [
+  ...CORE_SMART_DIAGRAM_LAYOUTS,
+  ...Object.entries(EXPANDED_LAYOUT_NAMES).flatMap(([category, names]) =>
+    names.map((name, index) => ({
+      id: `${category}-variant-${index + 1}`,
+      name,
+      category: category as SmartDiagramCategory,
+      description: `${name} arrangement for clear classroom explanation.`,
+      supportsLevels: category === 'list' || category === 'hierarchy' || category === 'cause-effect',
+      variant: index + 1,
+    })),
+  ),
 ];
 
 export const SMART_DIAGRAM_THEMES = [
@@ -168,6 +198,8 @@ const hierarchyEdges = (nodes: SmartDiagramNode[]): DiagramEdge[] =>
   nodes.flatMap((node) => node.parentId ? [{ from: node.parentId, to: node.id }] : []);
 
 export const layoutSmartDiagram = (content: SmartDiagramContent): DiagramGeometry => {
+  const definition = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === content.layout);
+  const variant = definition?.variant ?? 0;
   const nodes = rebuildDiagramParents(content.nodes);
   const ordered = content.direction === 'rtl' ? [...nodes].reverse() : nodes;
   const count = Math.max(ordered.length, 1);
@@ -239,6 +271,23 @@ export const layoutSmartDiagram = (content: SmartDiagramContent): DiagramGeometr
     const positions = evenlySpaced(count, 90 + width / 2, 910 - width / 2);
     ordered.forEach((node, index) => boxes.push({ id: node.id, x: positions[index] - width / 2, y: 205 + node.level * 105, width, height: 150, level: node.level }));
     edges = content.category === 'process' ? sequentialEdges(ordered) : [];
+  }
+  if (variant > 0 && boxes.length > 0) {
+    const transformed = boxes.map((box, index) => {
+      const row = Math.floor(index / 3);
+      const column = index % 3;
+      if (variant === 1) return { ...box, y: Math.max(35, Math.min(520, box.y + (index % 2 ? 65 : -35))) };
+      if (variant === 2) return { ...box, x: 110 + column * 300, y: 70 + row * 170, width: 230, height: 110 };
+      if (variant === 3) return { ...box, x: 100 + index * Math.min(135, 760 / Math.max(boxes.length - 1, 1)), y: 70 + index * Math.min(70, 350 / Math.max(boxes.length - 1, 1)), width: 180, height: 90 };
+      if (variant === 4) return { ...box, x: index % 2 ? 560 : 170, y: 65 + Math.floor(index / 2) * 150, width: 270, height: 105 };
+      if (variant === 5) { const angle = -Math.PI * 0.85 + (Math.PI * 0.7 * index) / Math.max(boxes.length - 1, 1); return { ...box, x: 500 + Math.cos(angle) * 300 - 95, y: 330 + Math.sin(angle) * 230 - 45, width: 190, height: 90 }; }
+      if (variant === 6) return index === 0 ? { ...box, x: 375, y: 235, width: 250, height: 130 } : { ...box, x: 90 + ((index - 1) % 3) * 310, y: index % 2 ? 70 : 430, width: 200, height: 90 };
+      if (variant === 7) return { ...box, x: 130 + column * 270 + (row % 2 ? 110 : 0), y: 75 + row * 155, width: 220, height: 105 };
+      if (variant === 8) return { ...box, x: index % 2 ? 525 : 130, y: 55 + index * Math.min(100, 450 / Math.max(boxes.length - 1, 1)), width: 300, height: 82 };
+      if (variant === 9) { const angle = -Math.PI / 2 + (Math.PI * 2 * index) / boxes.length; return { ...box, x: 500 + Math.cos(angle) * 260 - 90, y: 300 + Math.sin(angle) * 210 - 45, width: 180, height: 90 }; }
+      return { ...box, x: 75 + index * Math.min(155, 820 / Math.max(boxes.length, 1)), y: index % 2 ? 315 : 155, width: 190, height: 110 };
+    });
+    return { boxes: transformed, edges };
   }
   return { boxes, edges };
 };
