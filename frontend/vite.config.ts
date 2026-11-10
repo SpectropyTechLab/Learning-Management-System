@@ -35,7 +35,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 3000000,
+        // The production bundle is slightly above 3 MB. Keep the ceiling
+        // explicit and bounded while still allowing Workbox to precache it.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],

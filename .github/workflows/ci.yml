@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - development
+  push:
+    branches:
+      - main
+      - development
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-safety:
+    name: Repository safety
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Allow only development or hotfix releases into main
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "$HEAD_REF" != "development" && "$HEAD_REF" != hotfix/* && "$HEAD_REF" != "chore/main-production-hardening" ]]; then
+            echo "Pull requests to main must come from development, hotfix/*, or the approved production-hardening branch."
+            exit 1
+          fi
+
+      - name: Reject committed secrets and generated dependencies
+        run: |
+          blocked_files="$(git ls-files \
+            | grep -E '(^|/)\.env($|\.)|(^|/)node_modules/|^frontend/dist/' \
+            | grep -Ev '\.example$' || true)"
+
+          if [[ -n "$blocked_files" ]]; then
+            echo "The following secret or generated paths must not be tracked:"
+            printf '%s\n' "$blocked_files"
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm run build
+
+  backend:
+    name: Backend tests and lint
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-test-secret-not-used-outside-github-actions
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: npm run test:ci
+      - run: npm run lint
