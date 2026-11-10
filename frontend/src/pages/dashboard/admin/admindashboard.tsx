@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
 import spectropyLogo from "/logo.png";
-import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line, RiSlideshowLine } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
 import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
 import DashboardHome from './Home';
@@ -87,12 +87,6 @@ export default function CourseStudents() {
       : []),
     ...(user?.role === 'client_admin'
       ? [{
-          key: 'digital-studio',
-          label: 'Digital Studio',
-          icon: <RiSlideshowLine />,
-          active: false,
-          onClick: () => navigate('/studio'),
-        }, {
           key: 'teaching-sessions',
           label: 'Teacher Session Tracker',
           icon: <RiCalendarCheckLine />,

@@ -259,24 +259,7 @@ export const attachClientContext = (req, res, next) => {
   const claimClientId = req.auth?.clientId ?? req.auth?.client_id;
   const userClientId = req.user?.client_id ?? null;
 
-  if (
-    claimClientId !== null &&
-    claimClientId !== undefined &&
-    userClientId !== null &&
-    userClientId !== undefined &&
-    Number(claimClientId) !== Number(userClientId)
-  ) {
-    return res.status(403).json({
-      error: {
-        code: 'CLIENT_CONTEXT_MISMATCH',
-        message: 'Your client access changed. Sign in again before continuing.',
-      },
-    });
-  }
-
-  // The current database user is authoritative. The token claim is used only
-  // for platform users that intentionally operate without a stored client.
-  req.clientId = userClientId ?? claimClientId ?? null;
+  req.clientId = claimClientId ?? userClientId ?? null;
   next();
 };
 

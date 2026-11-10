@@ -31,8 +31,9 @@ export default function TeachingSessionsShell({
   const role = user?.role;
   const organizationLabel = getOrganizationLabel(user);
 
+  const isActive = (path: string) => location.pathname.startsWith(path);
+
   const navItems = useMemo(() => {
-    const isActive = (path: string) => location.pathname.startsWith(path);
     const items = [
       {
         key: 'back',
@@ -153,7 +154,7 @@ export default function TeachingSessionsShell({
     }
 
     return items;
-  }, [location.pathname, navigate, role]);
+  }, [isActive, navigate, role, location.pathname]);
 
   const handleLogout = async () => {
     await logout();

@@ -94,22 +94,17 @@ export const register = async (req, res) => {
 
 // ✅ Login (supports all roles)
 export const login = async (req, res) => {
-  const { email, user_id: userId, password } = req.body;
+  const { email, password } = req.body;
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-  const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
 
-  if ((!normalizedEmail && !normalizedUserId) || typeof password !== 'string' || password.length === 0) {
-    return res.status(400).json({ error: 'Email or user ID and password are required' });
+  if (!normalizedEmail || typeof password !== 'string' || password.length === 0) {
+    return res.status(400).json({ error: 'Email and password are required' });
   }
 
   try {
-    const identifierColumn = normalizedEmail ? 'email' : 'user_id';
-    const identifierValue = normalizedEmail || normalizedUserId;
     const userQueryResult = await dbQuery(
-      `SELECT id, email, full_name, role, client_id, user_id, password_hash
-       FROM users
-       WHERE ${identifierColumn} = $1`,
-      [identifierValue]
+      'SELECT id, email, full_name, role, client_id, user_id, password_hash FROM users WHERE email = $1',
+      [normalizedEmail]
     );
 
     if (userQueryResult.rows.length === 0) {

@@ -1,2 +1,0 @@
--- Intentionally empty baseline seed.
--- Add deterministic, non-sensitive local development fixtures here when approved.

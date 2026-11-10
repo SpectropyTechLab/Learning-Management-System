@@ -4,16 +4,8 @@
 .env.production
 .env.development
 .env.test
-.env.*
-.supabase-db-password.txt
-.login-test-password.txt
-!**/.env.local.example
+.env.* 
 /backend/.env
 /frontend/.env
 /backend/node_modules
 /frontend/node_modules
-/frontend/dist
-/node_modules
-
-# Local runtime output
-*.log
