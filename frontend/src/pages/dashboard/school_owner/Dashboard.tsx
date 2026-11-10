@@ -5,7 +5,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import SidebarNav from "@/components/layout/SidebarNav";
 import { getDashboardTheme } from "@/components/layout/dashboardTheme";
-import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line, RiSlideshowLine } from "react-icons/ri";
+import { RiCalendarCheckLine, RiHome2Line, RiFileList3Line } from "react-icons/ri";
 import { BiBookOpen } from "react-icons/bi";
 import { getCoursePermissions } from "@/features/courses/utils/coursePermissions";
 import { getQuestionPermissions } from "@/features/question-bank/utils/questionPermissions";
@@ -46,12 +46,6 @@ export default function SchoolOwnerDashboard() {
       title: "Exams",
       desc: "Manage school assessments, schedules, and exam readiness.",
       enabled: canShowExams,
-      badge: "Live",
-    },
-    {
-      title: "Digital Studio",
-      desc: "Open published interactive Sessions available to your school.",
-      enabled: true,
       badge: "Live",
     },
     {
@@ -97,13 +91,6 @@ export default function SchoolOwnerDashboard() {
           onClick: () => navigate("/exams"),
         }]
       : []),
-    {
-      key: "digital-studio",
-      label: "Digital Studio",
-      icon: <RiSlideshowLine />,
-      active: false,
-      onClick: () => navigate("/studio"),
-    },
     {
       key: "teaching-sessions",
       label: "Teacher Session Tracker",

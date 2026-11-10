@@ -11,11 +11,6 @@
     "courses.publish",
     "courses.read",
     "courses.update",
-    "curriculum.authorize",
-    "curriculum.create",
-    "curriculum.delete",
-    "curriculum.read",
-    "curriculum.update",
     "enrollments.enroll",
     "enrollments.remove",
     "exams.assign",
@@ -36,7 +31,6 @@
     "schools.delete",
     "schools.read",
     "schools.update",
-    "studio.access",
     "teaching_sessions.analytics_client",
     "teaching_sessions.analytics_own",
     "teaching_sessions.analytics_school",
@@ -55,31 +49,6 @@
     "users.update"
   ],
   "platform_permissions": [
-    {
-      "role": "super_admin",
-      "permission": "curriculum.read",
-      "granted": true
-    },
-    {
-      "role": "super_admin",
-      "permission": "curriculum.create",
-      "granted": true
-    },
-    {
-      "role": "super_admin",
-      "permission": "curriculum.update",
-      "granted": true
-    },
-    {
-      "role": "super_admin",
-      "permission": "curriculum.delete",
-      "granted": true
-    },
-    {
-      "role": "super_admin",
-      "permission": "curriculum.authorize",
-      "granted": true
-    },
     {
       "role": "content_authorizer",
       "permission": "questions.read",
@@ -103,31 +72,6 @@
     {
       "role": "content_authorizer",
       "permission": "questions.delete",
-      "granted": true
-    },
-    {
-      "role": "content_authorizer",
-      "permission": "curriculum.read",
-      "granted": true
-    },
-    {
-      "role": "content_authorizer",
-      "permission": "curriculum.create",
-      "granted": true
-    },
-    {
-      "role": "content_authorizer",
-      "permission": "curriculum.update",
-      "granted": true
-    },
-    {
-      "role": "content_authorizer",
-      "permission": "curriculum.delete",
-      "granted": true
-    },
-    {
-      "role": "content_authorizer",
-      "permission": "curriculum.authorize",
       "granted": true
     },
     {
@@ -219,31 +163,6 @@
     },
     {
       "role": "client_admin",
-      "permission": "curriculum.read",
-      "granted": true
-    },
-    {
-      "role": "client_admin",
-      "permission": "curriculum.create",
-      "granted": false
-    },
-    {
-      "role": "client_admin",
-      "permission": "curriculum.update",
-      "granted": false
-    },
-    {
-      "role": "client_admin",
-      "permission": "curriculum.delete",
-      "granted": false
-    },
-    {
-      "role": "client_admin",
-      "permission": "curriculum.authorize",
-      "granted": false
-    },
-    {
-      "role": "client_admin",
       "permission": "exams.read",
       "granted": true
     },
@@ -319,31 +238,6 @@
     },
     {
       "role": "school_owner",
-      "permission": "curriculum.read",
-      "granted": true
-    },
-    {
-      "role": "school_owner",
-      "permission": "curriculum.create",
-      "granted": false
-    },
-    {
-      "role": "school_owner",
-      "permission": "curriculum.update",
-      "granted": false
-    },
-    {
-      "role": "school_owner",
-      "permission": "curriculum.delete",
-      "granted": false
-    },
-    {
-      "role": "school_owner",
-      "permission": "curriculum.authorize",
-      "granted": false
-    },
-    {
-      "role": "school_owner",
       "permission": "exams.read",
       "granted": true
     },
@@ -389,31 +283,6 @@
     },
     {
       "role": "teacher",
-      "permission": "curriculum.read",
-      "granted": true
-    },
-    {
-      "role": "teacher",
-      "permission": "curriculum.create",
-      "granted": false
-    },
-    {
-      "role": "teacher",
-      "permission": "curriculum.update",
-      "granted": false
-    },
-    {
-      "role": "teacher",
-      "permission": "curriculum.delete",
-      "granted": false
-    },
-    {
-      "role": "teacher",
-      "permission": "curriculum.authorize",
-      "granted": false
-    },
-    {
-      "role": "teacher",
       "permission": "exams.read",
       "granted": true
     },
@@ -446,31 +315,6 @@
       "role": "teacher",
       "permission": "teaching_sessions.analytics_own",
       "granted": true
-    },
-    {
-      "role": "student",
-      "permission": "curriculum.read",
-      "granted": true
-    },
-    {
-      "role": "student",
-      "permission": "curriculum.create",
-      "granted": false
-    },
-    {
-      "role": "student",
-      "permission": "curriculum.update",
-      "granted": false
-    },
-    {
-      "role": "student",
-      "permission": "curriculum.delete",
-      "granted": false
-    },
-    {
-      "role": "student",
-      "permission": "curriculum.authorize",
-      "granted": false
     }
   ]
 }

@@ -1,115 +1,91 @@
 import axios from "axios";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 
-export interface ScormData { [key: string]: string }
-export type ScormCommitEvent = "commit" | "suspend" | "terminate";
-
-interface StudioAttemptOptions {
-  attemptId?: number;
-  scoIdentifier?: string;
-  initialData?: ScormData;
-  baseUrl?: string;
-  onCommitError?: (error: unknown) => void;
+interface ScormData {
+    [key: string]: string;
 }
 
-class RuntimeDataModel {
-  protected data: ScormData;
-  protected initialized = false;
-  protected lastError = "0";
-  private pendingCommit: Promise<unknown> = Promise.resolve();
+class ScormAPI {
+    private data: ScormData = {};
+    private initialized = false;
+    private userId: number;
+    private contentId: number;
 
-  constructor(protected userId: number, protected contentId: number, protected options: StudioAttemptOptions = {}) {
-    this.data = { ...(options.initialData || {}) };
-  }
+    constructor(userId: number, contentId: number) {
+        this.userId = userId;
+        this.contentId = contentId;
+    }
 
-  protected initialize() {
-    if (this.initialized) return this.fail("103");
-    this.initialized = true;
-    this.lastError = "0";
-    return "true";
-  }
+    // --- SCORM 1.2 Required Methods ---
 
-  protected getValue(name: string) {
-    if (!this.initialized) return this.fail("123", "");
-    this.lastError = "0";
-    return this.data[name] || "";
-  }
+    LMSInitialize() {
+        if (this.initialized) return "true";
+        this.initialized = true;
+        console.log("✅ SCORM Initialized");
+        return "true";
+    }
 
-  protected setValue(name: string, value: string) {
-    if (!this.initialized) return this.fail("132");
-    this.data[name] = String(value);
-    this.lastError = "0";
-    return "true";
-  }
+    LMSSetValue(name: string, value: string) {
+        if (!this.initialized) {
+            console.warn("⚠️ SCORM not initialized");
+            return "false";
+        }
+        console.log(`📥 SetValue: ${name} = ${value}`);
+        this.data[name] = value;
+        return "true";
+    }
 
-  // SCORM calls are synchronous. Network persistence is queued in the
-  // background, so Commit returns a SCORM boolean string immediately.
-  protected commit(event: ScormCommitEvent = "commit") {
-    if (!this.initialized) return this.fail("142");
-    const baseUrl = this.options.baseUrl || resolveApiBaseUrl();
-    const token = localStorage.getItem("token");
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-    const url = this.options.attemptId
-      ? `${baseUrl}/api/studio/scorm/attempts/${this.options.attemptId}/commit`
-      : `${baseUrl}/api/scorm/commit`;
-    const payload = this.options.attemptId
-      ? { sco_identifier: this.options.scoIdentifier, data: { ...this.data }, event }
-      : { userId: this.userId, contentId: this.contentId, data: { ...this.data }, attemptNo: 1 };
-    this.pendingCommit = this.pendingCommit
-      .catch(() => undefined)
-      .then(() => axios.post(url, payload, { headers }))
-      .catch((error) => this.options.onCommitError?.(error));
-    this.lastError = "0";
-    return "true";
-  }
+    LMSGetValue(name: string) {
+        const value = this.data[name] || "";
+        console.log(`📤 GetValue: ${name} = ${value}`);
+        return value;
+    }
 
-  protected finish(event: ScormCommitEvent = "terminate") {
-    if (!this.initialized) return this.fail("301");
-    this.commit(event);
-    this.initialized = false;
-    return "true";
-  }
+    LMSCommit(baseUrl?: string) {
+        if (!this.initialized) return "false";
+        console.log("💾 Committing SCORM Data:", this.data);
 
-  protected fail(code: string, value = "false") {
-    this.lastError = code;
-    return value;
-  }
+        const resolvedBaseUrl =
+            baseUrl ||
+            resolveApiBaseUrl();
+        const token = localStorage.getItem("token");
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-  protected errorString(code: string) { return code === "0" ? "No error" : "SCORM runtime error"; }
+        return axios
+            .post(`${resolvedBaseUrl}/api/scorm/commit`, {
+                userId: this.userId,
+                contentId: this.contentId,
+                data: this.data,
+                attemptNo: 1,
+            }, { headers })
+            .then(() => {
+                console.log("✅ SCORM data committed successfully");
+                return "true";
+            })
+            .catch((error) => {
+                console.error("❌ Failed to commit SCORM data:", error);
+                return "false";
+            });
+    }
+
+    LMSFinish() {
+        console.log("🏁 SCORM Session Finished");
+        this.LMSCommit();
+        this.initialized = false;
+        return "true";
+    }
+
+    LMSGetLastError() {
+        return "0";
+    }
+
+    LMSGetErrorString() {
+        return "No error";
+    }
+
+    LMSGetDiagnostic() {
+        return "No diagnostic information available";
+    }
 }
-
-/** SCORM 1.2 browser API, installed by the player as window.API. */
-class ScormAPI extends RuntimeDataModel {
-  LMSInitialize(_parameter = "") { return this.initialize(); }
-  LMSGetValue(name: string) { return this.getValue(name); }
-  LMSSetValue(name: string, value: string) { return this.setValue(name, value); }
-  LMSCommit(_parameter = "") { return this.commit("commit"); }
-  LMSFinish(_parameter = "") {
-    return this.finish(this.data["cmi.core.exit"] === "suspend" ? "suspend" : "terminate");
-  }
-  LMSGetLastError() { return this.lastError; }
-  LMSGetErrorString(code: string) { return this.errorString(code); }
-  LMSGetDiagnostic(code = this.lastError) { return this.errorString(code); }
-}
-
-/** SCORM 2004 browser API, installed by the player as window.API_1484_11. */
-export class Scorm2004API extends RuntimeDataModel {
-  Initialize(_parameter = "") { return this.initialize(); }
-  GetValue(name: string) { return this.getValue(name); }
-  SetValue(name: string, value: string) { return this.setValue(name, value); }
-  Commit(_parameter = "") { return this.commit("commit"); }
-  Terminate(_parameter = "") {
-    return this.finish(this.data["cmi.exit"] === "suspend" ? "suspend" : "terminate");
-  }
-  GetLastError() { return this.lastError; }
-  GetErrorString(code: string) { return this.errorString(code); }
-  GetDiagnostic(code = this.lastError) { return this.errorString(code); }
-}
-
-export const createStudioScormApi = (
-  edition: "1.2" | "2004", userId: number, contentId: number, options: StudioAttemptOptions,
-) => edition === "1.2"
-  ? { API: new ScormAPI(userId, contentId, options) }
-  : { API_1484_11: new Scorm2004API(userId, contentId, options) };
 
 export default ScormAPI;

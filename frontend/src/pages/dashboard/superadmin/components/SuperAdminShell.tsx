@@ -1,12 +1,11 @@
 ﻿import { ReactNode, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useCallback } from 'react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SidebarNav from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
 import spectropyLogo from '/logo.png';
-import { RiHome2Line, RiFileList3Line, RiLayoutGridLine } from 'react-icons/ri';
+import { RiHome2Line, RiFileList3Line } from 'react-icons/ri';
 import { BiBookOpen } from 'react-icons/bi';
 import { PiUsersBold, PiChatsCircleBold } from 'react-icons/pi';
 import { HiOutlineBuildingOffice2 } from 'react-icons/hi2';
@@ -33,10 +32,10 @@ export default function SuperAdminShell({
   const userFullName = user?.full_name || user?.name || 'Super Admin';
   const userEmail = user?.email || 'superadmin@lms.com';
 
-  const isActive = useCallback((path: string) => {
+  const isActive = (path: string) => {
     if (path === '/superadmin/dashboard') return location.pathname === path;
     return location.pathname.startsWith(path);
-  }, [location.pathname]);
+  };
 
   const navItems = useMemo(
     () => [
@@ -103,15 +102,8 @@ export default function SuperAdminShell({
         active: isActive('/superadmin/permissions'),
         onClick: () => navigate('/superadmin/permissions'),
       },
-      {
-        key: 'digital-studio',
-        label: 'Digital Studio',
-        icon: <RiLayoutGridLine />,
-        active: isActive('/studio'),
-        onClick: () => navigate('/studio'),
-      },
     ],
-    [isActive, navigate],
+    [location.pathname, navigate],
   );
 
   const handleLogout = async () => {
