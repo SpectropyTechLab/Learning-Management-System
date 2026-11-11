@@ -582,7 +582,7 @@ export default function StudioSessionLibraryPage() {
                           onClick={() => {
                             setOpenMenuId(null);
                             navigate(
-                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit' : ''}`,
+                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit&returnTo=library' : '?returnTo=library'}`,
                             );
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50"
@@ -599,7 +599,7 @@ export default function StudioSessionLibraryPage() {
                           disabled={!editable}
                           onClick={() => {
                             setOpenMenuId(null);
-                            navigate(`/studio/sessions/${session.id}/scripts`);
+                            navigate(`/studio/sessions/${session.id}/scripts?returnTo=library`);
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
@@ -819,7 +819,7 @@ export default function StudioSessionLibraryPage() {
                           onClick={() => {
                             setOpenMenuId(null);
                             navigate(
-                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit' : ''}`,
+                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit&returnTo=library' : '?returnTo=library'}`,
                             );
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50"
@@ -836,7 +836,7 @@ export default function StudioSessionLibraryPage() {
                           disabled={!editable}
                           onClick={() => {
                             setOpenMenuId(null);
-                            navigate(`/studio/sessions/${session.id}/scripts`);
+                            navigate(`/studio/sessions/${session.id}/scripts?returnTo=library`);
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >

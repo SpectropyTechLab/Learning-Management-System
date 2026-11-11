@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, FileUp, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, FileUp, Save, X } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
@@ -31,6 +31,8 @@ export default function StudioSessionScriptsPage() {
   const sessionId = positiveId(routeSessionId) || positiveId(searchParams.get('sessionId'));
   const requestedScreenId = positiveId(searchParams.get('screen'));
   const returnToEditor = searchParams.get('returnTo') === 'editor';
+  const returnToLibrary = searchParams.get('returnTo') === 'library';
+  const isCreatePipeline = searchParams.get('flow') === 'create';
   const [session, setSession] = useState<StudioSession | null>(null);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
   const [selectedScreenId, setSelectedScreenId] = useState<number | null>(requestedScreenId);
@@ -125,6 +127,7 @@ export default function StudioSessionScriptsPage() {
       setSourceFile(null);
       await loadScripts(sessionId, selectedScreenId);
       toast.success('Mapped Screen Scripts imported. Unmapped items were skipped.');
+      if (returnToLibrary) navigate('/studio/sessions');
     } catch (requestError) {
       const message = getApiErrorDetails(requestError).message;
       setError(message);
@@ -132,6 +135,13 @@ export default function StudioSessionScriptsPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const closeImportPreview = () => {
+    if (busy) return;
+    setPreview([]);
+    setWarnings([]);
+    setSourceFile(null);
   };
 
   const saveScript = async () => {
@@ -142,7 +152,9 @@ export default function StudioSessionScriptsPage() {
       await studioDocumentsApi.saveScreenScript(sessionId, selectedScreenId, content);
       await loadScripts(sessionId, selectedScreenId);
       toast.success('Optional Screen Script saved.');
-      if (returnToEditor) {
+      if (returnToLibrary) {
+        navigate('/studio/sessions');
+      } else if (returnToEditor) {
         navigate(`/studio/editor/${sessionId}?screen=${selectedScreenId}`);
       }
     } catch (requestError) {
@@ -183,10 +195,12 @@ export default function StudioSessionScriptsPage() {
       actions={
         <button
           type="button"
-          onClick={() => navigate(`/studio/sessions/${sessionId}/plan`)}
+          onClick={() =>
+            navigate(returnToLibrary ? '/studio/sessions' : `/studio/sessions/${sessionId}/plan`)
+          }
           className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-blue-900"
         >
-          <ArrowLeft size={16} /> Session Plan
+          <ArrowLeft size={16} /> {returnToLibrary ? 'Session Library' : 'Session Plan'}
         </button>
       }
     >
@@ -219,12 +233,20 @@ export default function StudioSessionScriptsPage() {
                 type="button"
                 onClick={() =>
                   navigate(
-                    `/studio/editor/${sessionId}${selectedScreenId ? `?screen=${selectedScreenId}` : ''}`,
+                    returnToLibrary
+                      ? '/studio/sessions'
+                      : `/studio/editor/${sessionId}${selectedScreenId ? `?screen=${selectedScreenId}` : ''}`,
                   )
                 }
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white"
               >
-                {returnToEditor ? 'Back to Editor' : 'Skip or continue to Editor'}{' '}
+                {returnToLibrary
+                  ? 'Back to Session Library'
+                  : returnToEditor
+                    ? 'Back to Editor'
+                    : isCreatePipeline
+                      ? 'Continue to Screen Editor'
+                      : ' Continue'}{' '}
                 <ArrowRight size={16} />
               </button>
             </header>
@@ -255,91 +277,6 @@ export default function StudioSessionScriptsPage() {
               </span>
               <span className="text-xs text-slate-500">Blank Scripts do not block the Editor.</span>
             </div>
-
-            {preview.length ? (
-              <section className="flex max-h-[min(34vh,320px)] shrink-0 flex-col overflow-hidden border-b border-slate-200 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="font-semibold">Import mapping</h2>
-                    <p className="text-sm text-slate-500">
-                      Map to existing Screens only. Unmapped scripts will be skipped.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={busy || !mappedCount}
-                    onClick={() => void importMapped()}
-                    className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-                  >
-                    {busy ? 'Importing…' : `Import ${mappedCount} mapped`}
-                  </button>
-                </div>
-                {unmatchedCount > 0 ? (
-                  <div
-                    role="alert"
-                    className="mt-3 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-                  >
-                    <p className="font-semibold">
-                      {excessScriptCount > 0
-                        ? `The uploaded file contains ${preview.length} scripts, but this Session has only ${scripts.length} Screens.`
-                        : `${unmatchedCount} of ${preview.length} uploaded scripts are not mapped to a Session Screen.`}
-                    </p>
-                    <p className="mt-1 text-amber-800">
-                      {excessScriptCount > 0
-                        ? `At least ${excessScriptCount} scripts cannot be imported. Add the missing Screens in the Session Plan or Editor, then upload the file again.`
-                        : `${unmatchedCount} scripts will be skipped unless you map them below.`}
-                    </p>
-                  </div>
-                ) : null}
-                {warnings.map((warning) => (
-                  <p key={warning} className="mt-2 text-sm text-amber-800">
-                    {warning}
-                  </p>
-                ))}
-                <div className="mt-3 min-h-0 overflow-y-auto border-y">
-                  {preview.map((item, index) => (
-                    <div
-                      key={`${item.screen_key}-${index}`}
-                      className="grid items-center gap-3 border-b py-3 last:border-b-0 md:grid-cols-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">
-                          {item.screen_key} · {item.title}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Imported Screen {item.screen_number}
-                        </p>
-                      </div>
-                      <select
-                        value={item.suggested_screen_id ?? ''}
-                        onChange={(event) =>
-                          setPreview((current) =>
-                            current.map((script, itemIndex) =>
-                              itemIndex === index
-                                ? {
-                                    ...script,
-                                    suggested_screen_id: event.target.value
-                                      ? Number(event.target.value)
-                                      : null,
-                                  }
-                                : script,
-                            ),
-                          )
-                        }
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      >
-                        <option value="">Skip this script</option>
-                        {scripts.map((screen) => (
-                          <option key={screen.screen_id} value={screen.screen_id}>
-                            Screen {screen.screen_number}: {screen.title}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
 
             {scripts.length === 0 ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center border-b border-dashed py-16 text-center">
@@ -402,7 +339,11 @@ export default function StudioSessionScriptsPage() {
                           className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                         >
                           <Save size={15} />
-                          {busy ? 'Saving…' : returnToEditor ? 'Save and return' : 'Save Script'}
+                          {busy
+                            ? 'Saving…'
+                            : returnToEditor || returnToLibrary
+                              ? 'Save and return'
+                              : 'Save Script'}
                         </button>
                       ) : null}
                     </div>
@@ -437,6 +378,143 @@ export default function StudioSessionScriptsPage() {
           </div>
         ) : null}
       </div>
+      {preview.length ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="screen-script-import-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeImportPreview();
+          }}
+        >
+          <section className="flex max-h-[min(90vh,760px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <h2 id="screen-script-import-title" className="text-lg font-bold text-slate-950">
+                  Select Screen Scripts to import
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Map each uploaded script to an existing Screen, or select Skip this script.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeImportPreview}
+                disabled={busy}
+                aria-label="Close import preview"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40"
+              >
+                <X size={19} />
+              </button>
+            </header>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="mb-4 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-700">
+                  {preview.length} uploaded
+                </span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-800">
+                  {mappedCount} selected
+                </span>
+                {unmatchedCount > 0 ? (
+                  <span className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-800">
+                    {unmatchedCount} skipped
+                  </span>
+                ) : null}
+              </div>
+
+              {unmatchedCount > 0 ? (
+                <div
+                  role="alert"
+                  className="mb-4 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+                >
+                  <p className="font-semibold">
+                    {excessScriptCount > 0
+                      ? `The uploaded file contains ${preview.length} scripts, but this Session has only ${scripts.length} Screens.`
+                      : `${unmatchedCount} of ${preview.length} uploaded scripts are not mapped to a Session Screen.`}
+                  </p>
+                  <p className="mt-1 text-amber-800">
+                    {excessScriptCount > 0
+                      ? `At least ${excessScriptCount} scripts cannot be imported. Add the missing Screens in the Session Plan or Editor, then upload the file again.`
+                      : `${unmatchedCount} scripts will be skipped unless you map them below.`}
+                  </p>
+                </div>
+              ) : null}
+
+              {warnings.map((warning) => (
+                <p key={warning} className="mb-2 text-sm text-amber-800">
+                  {warning}
+                </p>
+              ))}
+
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                {preview.map((item, index) => (
+                  <div
+                    key={`${item.screen_key}-${index}`}
+                    className="grid items-center gap-3 border-b border-slate-200 p-4 last:border-b-0 md:grid-cols-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">
+                        {item.screen_key} · {item.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Uploaded Screen {item.screen_number}
+                      </p>
+                    </div>
+                    <select
+                      aria-label={`Import destination for ${item.title}`}
+                      value={item.suggested_screen_id ?? ''}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setPreview((current) =>
+                          current.map((script, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...script,
+                                  suggested_screen_id: event.target.value
+                                    ? Number(event.target.value)
+                                    : null,
+                                }
+                              : script,
+                          ),
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                    >
+                      <option value="">Skip this script</option>
+                      {scripts.map((screen) => (
+                        <option key={screen.screen_id} value={screen.screen_id}>
+                          Screen {screen.screen_number}: {screen.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <footer className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-slate-200 p-5">
+              <button
+                type="button"
+                onClick={closeImportPreview}
+                disabled={busy}
+                className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy || !mappedCount}
+                onClick={() => void importMapped()}
+                className="rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busy ? 'Importing…' : `Import ${mappedCount} selected`}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </StudioShell>
   );
 }
