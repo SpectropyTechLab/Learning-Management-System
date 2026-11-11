@@ -92,6 +92,8 @@ export default function StudioSessionPlanPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const requestedMode = searchParams.get('mode');
+  const isCreatePipeline = searchParams.get('flow') === 'create';
+  const returnToLibrary = searchParams.get('returnTo') === 'library';
   const mode: 'view' | 'edit' = requestedMode === 'edit' ? 'edit' : document ? 'view' : 'edit';
   const editable = !session || session.status === 'draft' || session.status === 'rejected';
 
@@ -228,6 +230,11 @@ export default function StudioSessionPlanPage() {
       setMode('view');
       setTaxonomyTerms(await studioTaxonomyApi.list());
       toast.success('Session Plan saved as a new revision.');
+      if (returnToLibrary) {
+        navigate('/studio/sessions');
+      } else if (isCreatePipeline) {
+        navigate(`/studio/sessions/${sessionId}/scripts?flow=create`);
+      }
     } catch (requestError) {
       const message = getApiErrorDetails(requestError).message;
       setError(message);
@@ -428,10 +435,17 @@ export default function StudioSessionPlanPage() {
                   <button
                     type="button"
                     disabled={!document}
-                    onClick={() => navigate(`/studio/sessions/${sessionId}/scripts`)}
+                    onClick={() =>
+                      navigate(
+                        returnToLibrary
+                          ? '/studio/sessions'
+                          : `/studio/sessions/${sessionId}/scripts${isCreatePipeline ? '?flow=create' : ''}`,
+                      )
+                    }
                     className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-blue-900 disabled:opacity-40"
                   >
-                    Continue <ArrowRight size={16} />
+                    {returnToLibrary ? 'Back to Session Library' : 'Continue'}{' '}
+                    <ArrowRight size={16} />
                   </button>
                 </div>
               </div>
@@ -511,10 +525,17 @@ export default function StudioSessionPlanPage() {
               <div className="flex justify-end py-5">
                 <button
                   type="button"
-                  onClick={() => navigate(`/studio/editor/${sessionId}`)}
+                  onClick={() =>
+                    navigate(
+                      returnToLibrary
+                        ? '/studio/sessions'
+                        : `/studio/sessions/${sessionId}/scripts${isCreatePipeline ? '?flow=create' : ''}`,
+                    )
+                  }
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white"
                 >
-                  Open Screen Editor <ArrowRight size={16} />
+                  {returnToLibrary ? 'Back to Session Library' : 'Continue to Screen Scripts'}{' '}
+                  <ArrowRight size={16} />
                 </button>
               </div>
             )}

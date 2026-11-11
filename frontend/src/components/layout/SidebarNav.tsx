@@ -74,7 +74,7 @@ export default function SidebarNav({
         w-[78vw] max-w-[16rem] ${desktopRail ? "md:w-16 md:max-w-16" : compactOnDesktop ? "md:w-52 md:max-w-52" : "lg:w-64 xl:w-72 lg:max-w-none"}
         ${theme.sidebarThemeClass}
         border-r
-        flex h-full min-h-0 flex-col overflow-hidden
+        flex h-full min-h-0 flex-col overflow-visible
         transform transition-[transform,width] duration-200 ease-out motion-reduce:transition-none
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         ${railOnDesktop
@@ -129,7 +129,7 @@ export default function SidebarNav({
       {footerContent ? <div className={`relative shrink-0 border-t border-gray-200 p-3 ${desktopRail ? "md:px-2" : ""}`}>{footerContent}</div> : null}
 
       {!footerContent && showUserInfo && compactOnDesktop ? <>
-        <div className="md:hidden">{onProfileClick ? <button type="button" onClick={onProfileClick} className="w-full text-left"><UserInfoCard name={userInfo.name} email={userInfo.email} meta={userInfo.meta} wrapperClassName={theme.userInfoWrapperClass} innerClassName={theme.userInfoInnerClass} avatarClassName={theme.avatarClassName} avatarTextClassName={theme.avatarTextClassName} /></button> : <UserInfoCard name={userInfo.name} email={userInfo.email} meta={userInfo.meta} wrapperClassName={theme.userInfoWrapperClass} innerClassName={theme.userInfoInnerClass} avatarClassName={theme.avatarClassName} avatarTextClassName={theme.avatarTextClassName} />}</div>
+        <div className="md:hidden">{onProfileClick ? <button type="button" onClick={onProfileClick} className="w-full text-left"><UserInfoCard name={userInfo.name} email={userInfo.email} meta={userInfo.meta} wrapperClassName={theme.userInfoWrapperClass} innerClassName={theme.userInfoInnerClass} avatarClassName={theme.avatarClass} avatarTextClassName={theme.avatarTextClass} /></button> : <UserInfoCard name={userInfo.name} email={userInfo.email} meta={userInfo.meta} wrapperClassName={theme.userInfoWrapperClass} innerClassName={theme.userInfoInnerClass} avatarClassName={theme.avatarClass} avatarTextClassName={theme.avatarTextClass} />}</div>
         <button type="button" onClick={onProfileClick} className="group relative mx-auto mb-3 hidden h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-lg font-semibold text-blue-900 md:flex" aria-label={`Profile: ${userInfo.name}`}><span>{userInfo.name.trim().charAt(0).toUpperCase() || 'U'}</span><span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-48 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-3 text-left text-slate-900 shadow-xl group-hover:block group-focus-visible:block"><span className="block truncate text-sm font-semibold">{userInfo.name}</span><span className="mt-1 block truncate text-xs font-normal text-slate-600">{userInfo.email}</span></span></button>
       </> : showUserInfo &&
         (onProfileClick ? (

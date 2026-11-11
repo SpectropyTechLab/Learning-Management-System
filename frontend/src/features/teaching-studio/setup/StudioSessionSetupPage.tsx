@@ -222,7 +222,7 @@ export default function StudioSessionSetupPage() {
       setShowCreate(false);
       setTitle('');
       setDescription('');
-      navigate(`/studio/sessions/${created.id}/plan?mode=edit`);
+      navigate(`/studio/sessions/${created.id}/plan?mode=edit&flow=create`);
       toast.success(`Studio Session “${created.title}” created successfully.`);
     } catch (error) {
       const response = setupErrorMessage(error);

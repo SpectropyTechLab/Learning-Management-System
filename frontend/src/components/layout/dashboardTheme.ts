@@ -55,7 +55,7 @@ export const getDashboardTheme = (isGvjbClient: boolean): DashboardTheme => {
     navActiveClass: "bg-blue-50 text-blue-900 border-l-4 border-blue-900",
     navInactiveClass: "text-gray-700 hover:bg-gray-100",
     navRadiusClass: "rounded-lg",
-    navIconClass: "text-lg text-black mr-2.5",
+    navIconClass: "text-lg text-black mr-2",
     userInfoWrapperClass: "mb-2.5 flex items-center px-2.5",
     userInfoInnerClass:
       "flex w-full items-center rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition hover:bg-gray-50",
