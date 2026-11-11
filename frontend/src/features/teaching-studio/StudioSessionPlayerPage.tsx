@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Loader2, Maximize2, Minimize2, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, Music, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -18,6 +18,7 @@ import { studioAnimationStyle } from './components/studioAnimationRuntime';
 import EmbeddedObjectViewer from './components/resources/EmbeddedObjectViewer';
 import {
   buildPresenterAnimationTimeline,
+  CLICKER_SHORTCUT_GROUPS,
   clickerNavigationAction,
   presenterDiagramVisibleNodes,
   presenterElementState,
@@ -173,21 +174,34 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
       altText: typeof element.content_json?.altText === 'string' ? element.content_json.altText : undefined,
       caption: typeof element.content_json?.caption === 'string' ? element.content_json.caption : undefined,
       color: typeof element.content_json?.color === 'string' ? element.content_json.color : undefined,
+      backgroundColor: typeof element.content_json?.backgroundColor === 'string'
+        ? element.content_json.backgroundColor
+        : typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined,
       zIndex: typeof element.position_json?.zIndex === 'number' ? element.position_json.zIndex : undefined,
     })),
   };
   const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
-    if (element.element_type === 'visual' && isSmartDiagramContent(element.content_json)) {
+    if (isSmartDiagramContent(element.content_json)) {
       const visibleNodeIds = animationTimeline && animationStep !== undefined
         ? presenterDiagramVisibleNodes(animationTimeline, element.element_key, animationStep, element.content_json.nodes.map((node) => node.id))
         : undefined;
       return [[element.element_key, <StudioSmartDiagram key={element.element_key} content={element.content_json} visibleNodeIds={visibleNodeIds} />]];
     }
-    if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
+    if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
     if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} customPath={typeof element.content_json?.customPath === 'string' ? element.content_json.customPath : undefined} />]];
     if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full touch-manipulation place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.content_json?.zoom_summary_group ? 'Summary Zoom' : element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select once to explore · returns here</span></span></button>]];
+    const droppedUrl = typeof element.content_json?.url === 'string' ? element.content_json.url : '';
+    const droppedMime = typeof element.content_json?.mimeType === 'string' ? element.content_json.mimeType : '';
+    if (droppedUrl && element.content_json?.source === 'drag-drop') {
+      const name = textFrom(element.content_json || {}) || 'Dropped file';
+      if (element.element_type === 'visual' || droppedMime.startsWith('image/')) return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-slate-100"><img src={droppedUrl} alt={String(element.content_json?.altText || name)} className="h-full w-full object-contain"/><span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span></div>]];
+      if (droppedMime.startsWith('video/')) return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-black"><video src={droppedUrl} controls className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>]];
+      if (droppedMime.startsWith('audio/')) return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white"><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls className="mt-4 w-full"/></div></div>]];
+      if (droppedMime === 'application/pdf') return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-slate-200"><iframe src={droppedUrl} title={name} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>]];
+      return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center"><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{droppedMime || 'Document'}</p><a href={droppedUrl} download={name} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>]];
+    }
     const text = textFrom(element.content_json || {});
-    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} elementId={element.element_key} text={text} richTextHtml={typeof element.content_json?.richTextHtml === 'string' ? element.content_json.richTextHtml : undefined} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
+    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} elementId={element.element_key} text={text} richTextHtml={typeof element.content_json?.richTextHtml === 'string' ? element.content_json.richTextHtml : undefined} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
     return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} />]] : [];
   }));
   for (const element of screen.elements) {
@@ -211,7 +225,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
 
   const drawingEnabled = annotationTool === 'pen' || annotationTool === 'highlighter' || annotationTool === 'eraser';
   const drawingTool = annotationTool === 'eraser' ? 'eraser' : annotationTool === 'highlighter' ? 'highlighter' : 'pen';
-  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
+  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -253,10 +267,13 @@ export default function StudioSessionPlayerPage() {
   const [zoomRun, setZoomRun] = useState<null | { originScreenId: number; targetIds: number[]; index: number; returnToZoom: boolean }>(null);
   const [zoomHubRun, setZoomHubRun] = useState<null | { originScreenId: number; elementKeys: string[]; index: number }>(null);
   const [activeRuntimeElement, setActiveRuntimeElement] = useState<PublishedScreen['elements'][number] | null>(null);
+  const [shortcutGuideOpen, setShortcutGuideOpen] = useState(false);
 
   const sessionId = Number(params.sessionId);
   const releaseNumber = Number(params.releaseNumber);
   const previewMode = params.releaseNumber === undefined;
+  const presentationChannel = new URLSearchParams(window.location.search).get('channel');
+  const audienceMode = new URLSearchParams(window.location.search).get('mode') === 'audience';
 
   useEffect(() => {
     if (!Number.isInteger(sessionId) || (!previewMode && !Number.isInteger(releaseNumber))) {
@@ -549,6 +566,18 @@ export default function StudioSessionPlayerPage() {
     }
   };
 
+  useEffect(() => {
+    if (!presentationChannel || typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(presentationChannel);
+    channel.onmessage = (event: MessageEvent<{ command?: string }>) => {
+      if (event.data?.command === 'next') advancePresenterRef.current();
+      if (event.data?.command === 'previous') retreatPresenter();
+      if (event.data?.command === 'fullscreen') void toggleFullScreen();
+      if (event.data?.command === 'close') window.close();
+    };
+    return () => channel.close();
+  }, [presentationChannel, retreatPresenter]);
+
   const openZoom = (element: PublishedScreen['elements'][number], queueIndex?: number, queueKeys?: string[]) => {
     if (!screen || !element.zoom) return;
     const targetIds = element.zoom.zoom_kind === 'screen'
@@ -622,6 +651,11 @@ export default function StudioSessionPlayerPage() {
         setBlankMode(null);
         return;
       }
+      if (event.key === 'Escape' && shortcutGuideOpen) {
+        event.preventDefault();
+        setShortcutGuideOpen(false);
+        return;
+      }
       if (materialsOpen) return;
       const navigationAction = clickerNavigationAction(event);
       if (discoveryItem?.type === 'session') {
@@ -676,11 +710,35 @@ export default function StudioSessionPlayerPage() {
       } else if (event.key.toLowerCase() === 'm' && !previewMode) {
         event.preventDefault();
         void openTeachingMaterials();
+      } else if (/^[1-9]$/.test(event.key) && zoomElements[Number(event.key) - 1]) {
+        event.preventDefault();
+        openZoom(zoomElements[Number(event.key) - 1], Number(event.key) - 1);
+      } else if (event.key.toLowerCase() === 'v' && isTrackedBranchUser) {
+        event.preventDefault();
+        setAnnotationTool('pointer');
+      } else if (event.key.toLowerCase() === 'l' && isTrackedBranchUser) {
+        event.preventDefault();
+        setAnnotationTool('laser');
+      } else if (event.key.toLowerCase() === 'p' && isTrackedBranchUser) {
+        event.preventDefault();
+        setAnnotationTool('pen');
+      } else if (event.key.toLowerCase() === 'e' && isTrackedBranchUser) {
+        event.preventDefault();
+        setAnnotationTool('eraser');
+      } else if (event.key.toLowerCase() === 'z' && isTrackedBranchUser) {
+        event.preventDefault();
+        undoTeacherAnnotation();
+      } else if (event.key.toLowerCase() === 'c' && isTrackedBranchUser) {
+        event.preventDefault();
+        if (teacherAnnotations.length) setTeacherAnnotations([]);
+      } else if (event.key.toLowerCase() === 'h' || event.key === '?') {
+        event.preventDefault();
+        setShortcutGuideOpen((open) => !open);
       }
     };
     window.addEventListener('keydown', handleClicker);
     return () => window.removeEventListener('keydown', handleClicker);
-  }, [animationStep, animationTimeline.maxStep, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, previewMode, screens]);
+  }, [animationStep, animationTimeline.maxStep, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, previewMode, screens, shortcutGuideOpen, teacherAnnotations.length, zoomElements]);
 
   const downloadPlan = async () => {
     if (!release) return;
@@ -711,9 +769,9 @@ export default function StudioSessionPlayerPage() {
     }
   };
   return (
-    <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} hideHeader scrollContent={false} wrapContent={false}>
-      <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden text-slate-900 ${fullScreen ? 'bg-blue-50' : isTrackedBranchUser ? 'bg-slate-100' : 'bg-white'}`}>
-        {!fullScreen ? <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-0.5">
+    <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} hideHeader scrollContent={false} wrapContent={false} presentationMode={audienceMode}>
+      <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden text-slate-900 ${fullScreen || audienceMode ? 'bg-blue-50' : isTrackedBranchUser ? 'bg-slate-100' : 'bg-white'}`}>
+        {!fullScreen && !audienceMode ? <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-0.5">
           <div className="flex items-center gap-3">
             <button type="button" onClick={exitPlayer} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Exit player">
               <ArrowLeft size={20} />
@@ -732,6 +790,14 @@ export default function StudioSessionPlayerPage() {
         {blankMode && (
           <button type="button" onClick={() => setBlankMode(null)} className={`absolute inset-0 z-[70] ${blankMode === 'black' ? 'bg-black' : 'bg-white'}`} aria-label={`Restore presentation from ${blankMode} Screen`} />
         )}
+        {shortcutGuideOpen ? (
+          <div className="absolute inset-0 z-[110] grid place-items-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Clicker shortcut guide">
+            <section className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+              <div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Clicker shortcuts</h2><p className="text-sm text-slate-500">These keys work in Preview and Presentation mode.</p></div><button type="button" onClick={() => setShortcutGuideOpen(false)} className="rounded-lg border p-2 hover:bg-slate-50" aria-label="Close shortcut guide"><X size={19}/></button></div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">{CLICKER_SHORTCUT_GROUPS.map((group) => <article key={group.title} className="rounded-xl border border-slate-200 p-3"><h3 className="font-bold text-blue-950">{group.title}</h3><dl className="mt-2 space-y-2">{group.shortcuts.map(([label, keys]) => <div key={label} className="rounded-lg bg-slate-50 p-2"><dt className="text-xs font-semibold text-slate-800">{label}</dt><dd className="mt-1 font-mono text-[11px] text-blue-800">{keys}</dd></div>)}</dl></article>)}</div>
+            </section>
+          </div>
+        ) : null}
         {materialsOpen && (
           <aside className={`absolute z-40 flex w-[calc(100%-3rem)] max-w-[20.25rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xl ${fullScreen ? 'bottom-14 left-0 top-0' : 'bottom-11 left-12 top-12'}`} role="dialog" aria-label="Published teaching materials">
               <header className="flex items-center justify-between gap-1.5 border-b border-slate-200 px-2 py-1">
@@ -827,8 +893,8 @@ export default function StudioSessionPlayerPage() {
               </div>
           </aside>
         )}
-        <main className={`relative grid min-h-0 flex-1 ${fullScreen ? 'grid-cols-1 gap-0 px-0 pb-14 pt-0' : `gap-1 py-1 pl-0 pr-1 ${isTrackedBranchUser && !discoveryItem ? 'grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 pl-1'}`}`}>
-          {!fullScreen && isTrackedBranchUser && !discoveryItem ? (
+        <main className={`relative grid min-h-0 flex-1 ${audienceMode ? 'grid-cols-1 gap-0 p-0' : fullScreen ? 'grid-cols-1 gap-0 px-0 pb-14 pt-0' : `gap-1 py-1 pl-0 pr-1 ${isTrackedBranchUser && !discoveryItem ? 'grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 pl-1'}`}`}>
+          {!fullScreen && !audienceMode && isTrackedBranchUser && !discoveryItem ? (
             <aside className="studio-player-controls flex min-h-0 min-w-0 flex-col items-center gap-2 overflow-x-hidden overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Teacher drawing controls">
               <div className="flex w-full flex-col items-center gap-2">
                 <div className="flex w-full flex-col items-center gap-2">
@@ -877,7 +943,7 @@ export default function StudioSessionPlayerPage() {
           )}
           {!discoveryItem && !loading && release && screen && (
             <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})` }}>
-              <PublishedCanvas key={`${screen.screen_id}-${playbackCycle}`} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen} teacherAnnotations={teacherAnnotations} annotationTool={isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} />
+              <PublishedCanvas key={`${screen.screen_id}-${playbackCycle}`} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} />
             </div>
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-600">This release contains no Screens.</div>}
@@ -891,7 +957,7 @@ export default function StudioSessionPlayerPage() {
             <div className="min-h-0 flex-1"><PublishedResource releaseId={release?.id || 0} mapping={activeRuntimeElement.resource_mapping} previewMode={previewMode} /></div>
           </div>
         ) : null}
-        {!fullScreen ? <footer className={`flex items-center justify-between gap-3 border-t px-3 py-0.5 ${isTrackedBranchUser ? 'border-slate-200 bg-white' : 'border-white/10'}`}>
+        {!fullScreen && !audienceMode ? <footer className={`flex items-center justify-between gap-3 border-t px-3 py-0.5 ${isTrackedBranchUser ? 'border-slate-200 bg-white' : 'border-white/10'}`}>
           <div className="flex items-center gap-2">
             {discoveryItem ? (
               <div className="flex items-center gap-2">
@@ -899,7 +965,7 @@ export default function StudioSessionPlayerPage() {
                 <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
               </div>
             ) : (
-              <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex h-9 touch-manipulation items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30">
+                <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30">
                 <ChevronLeft size={16} />
                 Previous
               </button>
@@ -916,7 +982,7 @@ export default function StudioSessionPlayerPage() {
           </span>
           <div className="flex items-center gap-2">
             {isTrackedBranchUser ? <FloatingWhiteboards sessionId={sessionId} inlineLauncher /> : null}
-            <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex h-9 touch-manipulation items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30 sm:gap-1.5">
+              <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30 sm:gap-1.5">
               Next
               <ChevronRight size={16} />
             </button>

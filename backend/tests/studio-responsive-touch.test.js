@@ -65,7 +65,7 @@ test('Session Player uses responsive teacher controls and touch-sized navigation
 
   assert.match(player, /studio-player-controls/);
   assert.match(player, /grid-cols-\[3rem_minmax\(0,1fr\)\]/);
-  assert.match(player, /fullScreen \? 'grid-cols-1 gap-0 p-0'/);
+  assert.match(player, /audienceMode \? 'grid-cols-1 gap-0 p-0' : fullScreen \? 'grid-cols-1 gap-0 px-0 pb-14 pt-0'/);
   assert.match(player, /min-h-11 touch-manipulation/);
   assert.match(layout, /100dvh/);
 });

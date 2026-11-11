@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   SMART_DIAGRAM_THEMES,
   isSmartDiagramContent,
@@ -33,6 +33,7 @@ export default function StudioSmartDiagram({
   visibleNodeIds,
   onSelectNode,
   onChangeNodeText,
+  onAspectRatioChange,
 }: {
   content: Record<string, unknown>;
   editable?: boolean;
@@ -40,15 +41,29 @@ export default function StudioSmartDiagram({
   visibleNodeIds?: ReadonlySet<string>;
   onSelectNode?: (nodeId: string) => void;
   onChangeNodeText?: (nodeId: string, text: string) => void;
+  onAspectRatioChange?: (aspectRatio: number) => void;
 }) {
   const content = isSmartDiagramContent(rawContent) ? rawContent : null;
   const geometry = useMemo(() => content ? layoutSmartDiagram(content) : { boxes: [], edges: [] }, [content]);
+  const boxes = new Map(geometry.boxes.map((box) => [box.id, box]));
+  const fittedViewBox = useMemo(() => {
+    if (geometry.boxes.length === 0) return { x: 0, y: 0, width: 1000, height: 600 };
+    const padding = 42;
+    const left = Math.max(0, Math.min(...geometry.boxes.map((box) => box.x)) - padding);
+    const top = Math.max(0, Math.min(...geometry.boxes.map((box) => box.y)) - padding);
+    const right = Math.min(1000, Math.max(...geometry.boxes.map((box) => box.x + box.width)) + padding);
+    const bottom = Math.min(600, Math.max(...geometry.boxes.map((box) => box.y + box.height)) + padding);
+    return { x: left, y: top, width: right - left, height: bottom - top };
+  }, [geometry.boxes]);
+  useEffect(() => {
+    if (fittedViewBox.width > 0 && fittedViewBox.height > 0)
+      onAspectRatioChange?.(fittedViewBox.width / fittedViewBox.height);
+  }, [fittedViewBox.height, fittedViewBox.width, onAspectRatioChange]);
   if (!content) return <div className="grid h-full place-items-center text-sm text-slate-500">Invalid Smart Diagram</div>;
   const theme = SMART_DIAGRAM_THEMES.find((candidate) => candidate.id === content.themeId) ?? SMART_DIAGRAM_THEMES[0];
-  const boxes = new Map(geometry.boxes.map((box) => [box.id, box]));
   const visible = (id: string) => !visibleNodeIds || visibleNodeIds.has(id);
   return (
-    <svg viewBox="0 0 1000 600" className="h-full w-full overflow-visible" role="img" aria-label={content.altText || 'Smart Diagram'}>
+    <svg viewBox={`${fittedViewBox.x} ${fittedViewBox.y} ${fittedViewBox.width} ${fittedViewBox.height}`} className="h-full w-full overflow-visible" role="img" aria-label={content.altText || 'Smart Diagram'}>
       <defs>
         <filter id="smart-diagram-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="5" stdDeviation="6" floodColor="#0f172a" floodOpacity="0.2" /></filter>
         <linearGradient id="smart-diagram-polished" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffffff" stopOpacity="0.42" /><stop offset="0.5" stopColor="#ffffff" stopOpacity="0" /><stop offset="1" stopColor="#020617" stopOpacity="0.18" /></linearGradient>

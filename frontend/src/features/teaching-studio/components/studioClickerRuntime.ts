@@ -182,7 +182,7 @@ export const CLICKER_SHORTCUT_GROUPS = [
       ['Previous build / Screen', '←, Page Up, Backspace'],
       ['First / last Screen', 'Home / End'],
       ['Replay current Screen', 'R'],
-      ['Choose branch', '1–9'],
+      ['Open Zoom choice', '1–9'],
     ],
   },
   {
