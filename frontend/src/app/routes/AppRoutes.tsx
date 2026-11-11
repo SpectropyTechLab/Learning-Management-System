@@ -96,6 +96,19 @@ import TeachingSessionsListPage from '@/pages/teaching-sessions/TeachingSessions
 import MyTeachingSessionsPage from '@/pages/teaching-sessions/MyTeachingSessionsPage';
 import TeachingSessionDetailPage from '@/pages/teaching-sessions/TeachingSessionDetailPage';
 import TeachingSessionAnalyticsPage from '@/pages/teaching-sessions/TeachingSessionAnalyticsPage';
+import TeachingStudioPage from '@/features/teaching-studio/TeachingStudioPage';
+import StudioSessionSetupPage from '@/features/teaching-studio/setup/StudioSessionSetupPage';
+import StudioDashboardPage from '@/features/teaching-studio/StudioDashboardPage';
+import StudioCurriculumPage from '@/features/teaching-studio/StudioCurriculumPage';
+import StudioSessionPlanPage from '@/features/teaching-studio/StudioSessionPlanPage';
+import StudioSessionScriptsPage from '@/features/teaching-studio/StudioSessionScriptsPage';
+import StudioResourceLibraryPage from '@/features/teaching-studio/StudioResourceLibraryPage';
+import StudioResourceDetailsPage from '@/features/teaching-studio/StudioResourceDetailsPage';
+import StudioEditorEntryPage from '@/features/teaching-studio/StudioEditorEntryPage';
+import StudioSessionPlayerPage from '@/features/teaching-studio/StudioSessionPlayerPage';
+import StudioSessionLibraryPage from '@/features/teaching-studio/StudioSessionLibraryPage';
+import StudioReviewQueuePage from '@/features/teaching-studio/StudioReviewQueuePage';
+import StudioSessionReviewPage from '@/features/teaching-studio/StudioSessionReviewPage';
 
 export default function AppRoutes() {
   const { loading } = useAuth();
@@ -103,13 +116,7 @@ export default function AppRoutes() {
   if (loading) return <Spinner />;
 
   // Helper to group protected routes and reduce repetition
-  const Protect = ({
-    roles,
-    permissions,
-  }: {
-    roles: Role[];
-    permissions?: string[];
-  }) => (
+  const Protect = ({ roles, permissions }: { roles: Role[]; permissions?: string[] }) => (
     <ProtectedRoute allowedRoles={roles} requiredPermissions={permissions}>
       <Outlet />
     </ProtectedRoute>
@@ -130,9 +137,15 @@ export default function AppRoutes() {
         <Route path="/superadmin/packs" element={<PacksPage />} />
         <Route path="/superadmin/packs/:packId" element={<PackManagePage />} />
         <Route path="/superadmin/entitlements" element={<EntitlementsPage />} />
-        <Route path="/superadmin/question-bank/entitlements" element={<QuestionBankEntitlementsPage />} />
+        <Route
+          path="/superadmin/question-bank/entitlements"
+          element={<QuestionBankEntitlementsPage />}
+        />
         <Route path="/superadmin/exams/entitlements" element={<ExamEntitlementsPage />} />
-        <Route path="/superadmin/teaching-sessions/entitlements" element={<ClientEntitlementsPage />} />
+        <Route
+          path="/superadmin/teaching-sessions/entitlements"
+          element={<ClientEntitlementsPage />}
+        />
         <Route path="/superadmin/users" element={<UsersPage />} />
         <Route path="/superadmin/permissions" element={<PermissionsPage />} />
         <Route path="/superadmin/register" element={<RegisterAdmin />} />
@@ -147,7 +160,11 @@ export default function AppRoutes() {
       </Route>*/}
 
       {/* Admin */}
-      <Route element={<Protect roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner']} />}>
+      <Route
+        element={
+          <Protect roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner']} />
+        }
+      >
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/profile" element={<AdminProfile />} />
       </Route>
@@ -187,23 +204,123 @@ export default function AppRoutes() {
         <Route path="/content-authorizer/dashboard" element={<ContentAuthorizerDashboard />} />
         <Route path="/content-authorizer/courses" element={<ContentAuthorizerCourses />} />
         <Route path="/content-authorizer/packs" element={<ContentAuthorizerPacksPage />} />
-        <Route path="/content-authorizer/packs/:packId" element={<ContentAuthorizerPackManagePage />} />
+        <Route
+          path="/content-authorizer/packs/:packId"
+          element={<ContentAuthorizerPackManagePage />}
+        />
         <Route path="/content-authorizer/community" element={<ContentAuthorizerCommunity />} />
-        <Route path="/content-authorizer/courses/:courseId/content" element={<ContentAuthorizerCourseContent />} />
+        <Route
+          path="/content-authorizer/courses/:courseId/content"
+          element={<ContentAuthorizerCourseContent />}
+        />
         <Route path="/content-authorizer/profile" element={<ContentAuthorizerProfile />} />
-        <Route path="/content-authorizer/teaching-sessions/micro-schedules" element={<ProgramMicroScheduleUploadPage />} />
-        <Route path="/content-authorizer/teaching-sessions/lesson-planners" element={<ProgramLessonPlannerUploadPage />} />
-        <Route path="/content-authorizer/teaching-sessions/templates" element={<ProgramTemplateMappingPage />} />
+        <Route
+          path="/content-authorizer/teaching-sessions/micro-schedules"
+          element={<ProgramMicroScheduleUploadPage />}
+        />
+        <Route
+          path="/content-authorizer/teaching-sessions/lesson-planners"
+          element={<ProgramLessonPlannerUploadPage />}
+        />
+        <Route
+          path="/content-authorizer/teaching-sessions/templates"
+          element={<ProgramTemplateMappingPage />}
+        />
+      </Route>
+
+      {/* Published Digital Studio viewing is shared by all staff roles. */}
+      <Route
+        element={
+          <Protect
+            roles={['super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher']}
+          />
+        }
+      >
+        <Route path="/studio" element={<StudioDashboardPage />} />
+        <Route
+          path="/studio/player/:sessionId/releases/:releaseNumber"
+          element={<StudioSessionPlayerPage />}
+        />
+      </Route>
+
+      {/* Digital Studio authoring is shared equally by Super Admin and Content Authorizer. */}
+      <Route element={<Protect roles={['super_admin', 'content_authorizer']} />}>
+        <Route path="/studio/curriculum" element={<StudioCurriculumPage />} />
+        <Route path="/studio/sessions" element={<StudioSessionLibraryPage />} />
+        <Route path="/studio/review" element={<StudioReviewQueuePage />} />
+        <Route path="/studio/review/:sessionId" element={<StudioSessionReviewPage />} />
+        <Route path="/studio/session-setup" element={<StudioSessionSetupPage />} />
+        <Route path="/studio/session-plans" element={<StudioSessionPlanPage />} />
+        <Route path="/studio/sessions/:sessionId/plan" element={<StudioSessionPlanPage />} />
+        <Route path="/studio/sessions/:sessionId/scripts" element={<StudioSessionScriptsPage />} />
+        <Route path="/studio/editor" element={<StudioEditorEntryPage />} />
+        <Route path="/studio/editor/:sessionId" element={<TeachingStudioPage />} />
+        <Route path="/studio/player/:sessionId/preview" element={<StudioSessionPlayerPage />} />
+        <Route path="/studio/resources" element={<StudioResourceLibraryPage />} />
+        <Route path="/studio/resources/:resourceId" element={<StudioResourceDetailsPage />} />
+        <Route path="/studio/sessions/:sessionId" element={<TeachingStudioPage />} />
+        {/* Compatibility aliases retained for existing Day 9/10 links. */}
+        <Route path="/content-authorizer/studio" element={<StudioDashboardPage />} />
+        <Route path="/content-authorizer/studio/curriculum" element={<StudioCurriculumPage />} />
+        <Route path="/content-authorizer/studio/sessions" element={<StudioSessionLibraryPage />} />
+        <Route path="/content-authorizer/studio/review" element={<StudioReviewQueuePage />} />
+        <Route
+          path="/content-authorizer/studio/review/:sessionId"
+          element={<StudioSessionReviewPage />}
+        />
+        <Route
+          path="/content-authorizer/studio/session-setup"
+          element={<StudioSessionSetupPage />}
+        />
+        <Route
+          path="/content-authorizer/studio/session-plans"
+          element={<StudioSessionPlanPage />}
+        />
+        <Route
+          path="/content-authorizer/studio/sessions/:sessionId/plan"
+          element={<StudioSessionPlanPage />}
+        />
+        <Route
+          path="/content-authorizer/studio/sessions/:sessionId/scripts"
+          element={<StudioSessionScriptsPage />}
+        />
+        <Route path="/content-authorizer/studio/editor" element={<StudioEditorEntryPage />} />
+        <Route
+          path="/content-authorizer/studio/editor/:sessionId"
+          element={<TeachingStudioPage />}
+        />
+        <Route
+          path="/content-authorizer/studio/resources"
+          element={<StudioResourceLibraryPage />}
+        />
+        <Route
+          path="/content-authorizer/studio/resources/:resourceId"
+          element={<StudioResourceDetailsPage />}
+        />
+        <Route
+          path="/content-authorizer/studio/sessions/:sessionId"
+          element={<TeachingStudioPage />}
+        />
       </Route>
 
       {/* School Owner */}
       <Route element={<Protect roles={['school_owner', 'client_admin', 'super_admin']} />}>
         <Route path="/school-owner/dashboard" element={<SchoolOwnerDashboard />} />
         <Route path="/school-owner/profile" element={<SchoolOwnerProfile />} />
-        <Route path="/school-owner/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
+        <Route
+          path="/school-owner/teaching-sessions/analytics"
+          element={<TeachingSessionAnalyticsPage />}
+        />
       </Route>
 
-      <Route element={<Protect roles={['school_owner', 'client_admin', 'super_admin']} permissions={['courses.read']} />}>
+      <Route
+        element={
+          <Protect
+            roles={['school_owner', 'client_admin', 'super_admin']}
+            permissions={['courses.read']}
+          />
+        }
+      >
         <Route path="/school-owner/courses" element={<SchoolOwnerCourses />} />
       </Route>
 
@@ -215,7 +332,10 @@ export default function AppRoutes() {
           />
         }
       >
-        <Route path="/school-owner/courses/:courseId/content" element={<SchoolOwnerCourseContent />} />
+        <Route
+          path="/school-owner/courses/:courseId/content"
+          element={<SchoolOwnerCourseContent />}
+        />
       </Route>
 
       <Route
@@ -229,25 +349,47 @@ export default function AppRoutes() {
         <Route path="/school-owner/courses/:courseId/enroll" element={<SchoolOwnerEnrollUsers />} />
       </Route>
 
+      {/* Teaching Studio authoring */}
+      <Route element={<Protect roles={['super_admin', 'content_authorizer']} />}>
+        <Route path="/teaching-studio" element={<TeachingStudioPage />} />
+        <Route path="/teaching-studio/sessions/:sessionId" element={<TeachingStudioPage />} />
+      </Route>
       {/* Teacher */}
-      <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} />}>
-
+      <Route
+        element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} />}
+      >
         <Route path="/teacher" element={<TeacherHome />} />
         <Route path="/teacher/dashboard" element={<TeacherHome />} />
         <Route path="/teacher/profile" element={<TeacherProfile />} />
         <Route path="/teacher/teaching-sessions" element={<MyTeachingSessionsPage />} />
         <Route path="/teacher/teaching-sessions/:id" element={<TeachingSessionDetailPage />} />
-        <Route path="/teacher/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
+        <Route
+          path="/teacher/teaching-sessions/analytics"
+          element={<TeachingSessionAnalyticsPage />}
+        />
       </Route>
 
       <Route element={<Protect roles={['client_admin']} />}>
         <Route path="/admin/teaching-sessions/setup" element={<TeachingSessionSetupPage />} />
-        <Route path="/admin/teaching-sessions/permissions" element={<TeacherTrackerPermissionsPage />} />
+        <Route
+          path="/admin/teaching-sessions/permissions"
+          element={<TeacherTrackerPermissionsPage />}
+        />
         <Route path="/admin/teaching-sessions/sessions" element={<TeachingSessionsListPage />} />
-        <Route path="/admin/teaching-sessions/analytics" element={<TeachingSessionAnalyticsPage />} />
+        <Route
+          path="/admin/teaching-sessions/analytics"
+          element={<TeachingSessionAnalyticsPage />}
+        />
       </Route>
 
-      <Route element={<Protect roles={['super_admin', 'client_admin', 'school_owner', 'teacher']} permissions={['courses.read']} />}>
+      <Route
+        element={
+          <Protect
+            roles={['super_admin', 'client_admin', 'school_owner', 'teacher']}
+            permissions={['courses.read']}
+          />
+        }
+      >
         <Route path="/teacher/courses" element={<TeacherDashboard />} />
       </Route>
 
@@ -265,10 +407,18 @@ export default function AppRoutes() {
       {/* Student */}
       <Route element={<Protect roles={['student']} />}>
         <Route path="/student/dashboard" element={<StudentDashboard />} />
-        <Route path="/student/exams/:examId/result" element={<StudentExamResultPlaceholderPage />} />
+        <Route
+          path="/student/exams/:examId/result"
+          element={<StudentExamResultPlaceholderPage />}
+        />
         <Route path="/student/exams/attempt/:attemptId" element={<StudentExamRuntimePage />} />
         <Route path="/student/course/:courseId" element={<StudentCourseView />}>
-          <Route index element={<div className="p-6 text-gray-500">Select a topic from the left to view content.</div>} />
+          <Route
+            index
+            element={
+              <div className="p-6 text-gray-500">Select a topic from the left to view content.</div>
+            }
+          />
           <Route path="content/:contentId" element={<ContentViewer />} />
         </Route>
       </Route>
@@ -277,13 +427,7 @@ export default function AppRoutes() {
       <Route
         element={
           <Protect
-            roles={[
-              'super_admin',
-              'client_admin',
-              'content_authorizer',
-              'school_owner',
-              'teacher',
-            ]}
+            roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']}
             permissions={['questions.read']}
           />
         }
@@ -295,20 +439,17 @@ export default function AppRoutes() {
         <Route path="/question-bank/chapters" element={<QuestionChaptersPage />} />
         <Route path="/question-bank/topics" element={<QuestionTopicsPage />} />
         <Route path="/question-bank/folders" element={<Navigate to="/question-bank" replace />} />
-        <Route path="/question-bank/folders/:id" element={<Navigate to="/question-bank" replace />} />
+        <Route
+          path="/question-bank/folders/:id"
+          element={<Navigate to="/question-bank" replace />}
+        />
         <Route path="/question-bank/passages" element={<QuestionPassagesPage />} />
       </Route>
 
       <Route
         element={
           <Protect
-            roles={[
-              'super_admin',
-              'client_admin',
-              'content_authorizer',
-              'school_owner',
-              'teacher',
-            ]}
+            roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']}
             permissions={['questions.create']}
           />
         }
@@ -327,8 +468,14 @@ export default function AppRoutes() {
         <Route path="/question-bank/chapters/:id/edit" element={<QuestionChapterEditPage />} />
         <Route path="/question-bank/topics/new" element={<QuestionTopicCreatePage />} />
         <Route path="/question-bank/topics/:id/edit" element={<QuestionTopicEditPage />} />
-        <Route path="/question-bank/folders/new" element={<Navigate to="/question-bank" replace />} />
-        <Route path="/question-bank/folders/:id/edit" element={<Navigate to="/question-bank" replace />} />
+        <Route
+          path="/question-bank/folders/new"
+          element={<Navigate to="/question-bank" replace />}
+        />
+        <Route
+          path="/question-bank/folders/:id/edit"
+          element={<Navigate to="/question-bank" replace />}
+        />
         <Route path="/question-bank/passages/new" element={<QuestionPassageCreatePage />} />
         <Route path="/question-bank/passages/:id/edit" element={<QuestionPassageEditPage />} />
       </Route>
@@ -336,13 +483,7 @@ export default function AppRoutes() {
       <Route
         element={
           <Protect
-            roles={[
-              'super_admin',
-              'client_admin',
-              'content_authorizer',
-              'school_owner',
-              'teacher',
-            ]}
+            roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']}
             permissions={['questions.delete']}
           />
         }
@@ -354,13 +495,7 @@ export default function AppRoutes() {
       <Route
         element={
           <Protect
-            roles={[
-              'super_admin',
-              'client_admin',
-              'content_authorizer',
-              'school_owner',
-              'teacher',
-            ]}
+            roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']}
             permissions={['exams.read']}
           />
         }
@@ -373,13 +508,7 @@ export default function AppRoutes() {
       <Route
         element={
           <Protect
-            roles={[
-              'super_admin',
-              'client_admin',
-              'content_authorizer',
-              'school_owner',
-              'teacher',
-            ]}
+            roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']}
             permissions={['exams.create']}
           />
         }
@@ -390,24 +519,20 @@ export default function AppRoutes() {
       <Route
         element={
           <Protect
-            roles={[
-              'super_admin',
-              'client_admin',
-              'content_authorizer',
-              'school_owner',
-              'teacher',
-            ]}
+            roles={['super_admin', 'client_admin', 'content_authorizer', 'school_owner', 'teacher']}
             permissions={['exams.update']}
           />
         }
       >
         <Route path="/exams/:id/builder" element={<ExamBuilderPage />} />
-        <Route path="/exams/:id/sections/:sectionId/questions" element={<ExamSectionQuestionsPage />} />
+        <Route
+          path="/exams/:id/sections/:sectionId/questions"
+          element={<ExamSectionQuestionsPage />}
+        />
       </Route>
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/login" replace />} />
-
     </Routes>
   );
 }

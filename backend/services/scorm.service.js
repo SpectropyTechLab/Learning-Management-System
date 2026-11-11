@@ -7,7 +7,6 @@ import * as fs from "fs";
 import AdmZip from "adm-zip";
 import { parseStringPromise } from "xml2js";
 import mime from "mime-types"; // ✅ Add this at the top with your imports
-import fsy from "fsy";
 import { url } from "inspector";
 import fetch from "node-fetch"; // add at top if not already
 import { contentIsLinkedIntoCourse, userCanAccessContentItem } from "./clientContent.service.js";
