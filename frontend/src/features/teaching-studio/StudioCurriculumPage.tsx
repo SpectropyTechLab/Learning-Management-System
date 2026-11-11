@@ -14,6 +14,7 @@ import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview, StudioDocumentRecord } from './api/studioDocumentsApi';
 import StudioContextPicker from './components/StudioContextPicker';
 import StudioShell from './components/StudioShell';
+import StudioCurriculumBulkImport from './components/StudioCurriculumBulkImport';
 import { setupErrorMessage, studioSetupApi } from './api/studioSetupApi';
 import type { CurriculumLevel } from './api/studioSetupApi';
 import { splitTaxonomyValues, studioTaxonomyApi, taxonomyValueCode } from './api/studioTaxonomyApi';
@@ -234,14 +235,17 @@ export default function StudioCurriculumPage() {
       title="Curriculum"
       subtitle="Select the hierarchy and manage the one Curriculum document attached to its Chapter."
       actions={
-        <button
-          type="button"
-          onClick={() => setShowCreate((open) => !open)}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus size={17} />
-          {showCreate ? 'Close hierarchy form' : 'Create hierarchy entry'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <StudioCurriculumBulkImport onImported={() => { setPickerKey((key) => key + 1); setSelection(emptyStudioSelection()); }} />
+          <button
+            type="button"
+            onClick={() => setShowCreate((open) => !open)}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus size={17} />
+            {showCreate ? 'Close hierarchy form' : 'Create hierarchy entry'}
+          </button>
+        </div>
       }
     >
       {showCreate && (

@@ -1,5 +1,6 @@
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
+import { removeStoredSessionDocuments } from './studioDocuments.service.js';
 
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const SESSION_STATUSES = new Set(['draft', 'submitted', 'approved', 'rejected', 'published']);
@@ -244,4 +245,84 @@ export const updateStudioSession = async ({ sessionId: rawSessionId, body = {}, 
   } finally {
     client.release();
   }
+};
+
+export const deleteStudioSession = async ({
+  sessionId: rawSessionId,
+  user,
+  getDbClient = getClient,
+  removeFiles = removeStoredSessionDocuments,
+}) => {
+  assertAuthor(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const client = await getDbClient();
+  let storageKeys = [];
+  let deleted;
+  try {
+    await client.query('BEGIN');
+    const session = await loadSession(client, sessionId, user, { lock: true });
+    if (!['draft', 'rejected'].includes(session.status)) {
+      throw new AppError(
+        'Only draft or rejected Sessions can be deleted',
+        409,
+        'SESSION_DELETE_NOT_ALLOWED',
+      );
+    }
+    const release = await client.query(
+      'SELECT 1 FROM session_releases WHERE session_id = $1 LIMIT 1',
+      [sessionId],
+    );
+    if (release.rows[0]) {
+      throw new AppError(
+        'Published Sessions cannot be deleted because their releases are immutable',
+        409,
+        'PUBLISHED_SESSION_DELETE_FORBIDDEN',
+      );
+    }
+    const documents = await client.query(
+      `SELECT storage_key FROM session_documents
+       WHERE session_id = $1 AND storage_key IS NOT NULL`,
+      [sessionId],
+    );
+    storageKeys = documents.rows.map((row) => row.storage_key).filter(Boolean);
+
+    // These rows point to immutable document revisions with RESTRICT constraints.
+    await client.query('DELETE FROM session_authorizations WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM session_validations WHERE session_id = $1', [sessionId]);
+    // The live schema keeps restrictive references from Zoom links, branches and
+    // Screen Script revisions to Screens. Remove those rows explicitly first.
+    await client.query('DELETE FROM screen_zoom_links WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM screen_branches WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM screen_script_revisions WHERE session_id = $1', [sessionId]);
+    // Remaining Screen-owned editor content and resource mappings cascade here.
+    await client.query('DELETE FROM screens WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM session_documents WHERE session_id = $1', [sessionId]);
+    const result = await client.query(
+      `DELETE FROM sessions WHERE id = $1
+       RETURNING id, title, subtopic_id, session_number`,
+      [sessionId],
+    );
+    deleted = result.rows[0];
+    if (!deleted) throw new AppError('Studio session not found', 404, 'SESSION_NOT_FOUND');
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error?.code === '23503') {
+      throw new AppError(
+        'This Session still has related Studio activity and cannot be deleted',
+        409,
+        'SESSION_DELETE_DEPENDENCY_CONFLICT',
+      );
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const storageCleanupComplete = await removeFiles(storageKeys);
+  return {
+    ...deleted,
+    deleted_document_count: storageKeys.length,
+    storage_cleanup_complete: storageCleanupComplete,
+  };
 };

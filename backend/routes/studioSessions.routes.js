@@ -8,6 +8,7 @@ import {
 } from '../middleware/auth.js';
 import {
   createStudioSession,
+  deleteStudioSession,
   getStudioSession,
   listAllStudioSessions,
   listSubtopicSessions,
@@ -26,5 +27,6 @@ router.get('/studio/subtopics/:subtopicId/sessions', checkPermission('curriculum
 router.post('/studio/subtopics/:subtopicId/sessions', authors, checkPermission('curriculum.create'), createStudioSession);
 router.get('/studio/sessions/:sessionId', checkPermission('curriculum.read'), getStudioSession);
 router.patch('/studio/sessions/:sessionId', authors, checkPermission('curriculum.update'), updateStudioSession);
+router.delete('/studio/sessions/:sessionId', authors, checkPermission('curriculum.delete'), deleteStudioSession);
 
 export default router;
