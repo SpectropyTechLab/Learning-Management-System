@@ -13,6 +13,7 @@ import {
   Focus,
   FileText,
   GalleryHorizontalEnd,
+  Grid3X3,
   GripVertical,
   LayoutTemplate,
   ListOrdered,
@@ -173,6 +174,7 @@ export default function TeachingStudioPage() {
     layout: Layout;
   } | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [selectedLayoutSlotId, setSelectedLayoutSlotId] = useState<string | null>(null);
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
   const editorClipboardRef = useRef<StudioElement[]>([]);
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
@@ -197,6 +199,7 @@ export default function TeachingStudioPage() {
   const [leftPanelView, setLeftPanelView] = useState<'screens' | 'script'>('screens');
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [editorFocusMode, setEditorFocusMode] = useState(false);
+  const [showCanvasGuides, setShowCanvasGuides] = useState(false);
   const editorViewportRef = useRef<HTMLDivElement>(null);
   const [revisionPromptOpen, setRevisionPromptOpen] = useState(false);
   const [startingRevision, setStartingRevision] = useState(false);
@@ -809,22 +812,43 @@ export default function TeachingStudioPage() {
     setAuthoredDrawings(next, false);
   };
 
-  const addElement = (slot: Slot) => {
+  const addElement = (slot: Slot, requestedType: ObjectType = slot.allowed[0]) => {
     if (!selectedScreen) return;
     const existing = selectedScreen.elements.find((element) => element.slotId === slot.id);
     if (existing) {
       setSelectedElementId(existing.id);
-      return;
+      return existing.id;
     }
     const element: StudioElement = {
       id: `${slot.id}-${Date.now()}`,
       slotId: slot.id,
-      type: slot.allowed[0],
+      type: requestedType,
       content: { text: '' },
       position: { ...slot.bounds },
     };
     commitElements([...selectedScreen.elements, element], element.id);
     toast.success(`${slot.label} content added. Edit it, then Save.`);
+    return element.id;
+  };
+
+  const changeSlotType = (slot: Slot, type: ObjectType) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const existing = selectedScreen.elements.find((element) => element.slotId === slot.id);
+    if (existing?.type === type) {
+      setSelectedElementId(existing.id);
+    } else if (existing) {
+      const hasContent = Boolean(existing.resource) || Object.values(existing.content).some((value) =>
+        typeof value === 'string' ? value.trim().length > 0 : value !== null && value !== undefined,
+      );
+      if (hasContent && !window.confirm(`Replace the existing ${existing.type} content with ${type} content?`)) return;
+      updateElement({ ...existing, type, content: { text: '' }, resource: undefined });
+    } else {
+      addElement(slot, type);
+    }
+    if (['visual', 'media', 'simulation'].includes(type)) {
+      setPanel('resources');
+      setRightPanelOpen(true);
+    }
   };
 
   const addBlankElement = (
@@ -937,10 +961,12 @@ export default function TeachingStudioPage() {
           ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
           : text.length;
       const token = `\\(${latex}\\)`;
+      const nextContent = { ...inlineTarget.content };
+      delete nextContent.richTextHtml;
       const updated = {
         ...inlineTarget,
         content: {
-          ...inlineTarget.content,
+          ...nextContent,
           text: `${text.slice(0, offset)}${token}${text.slice(offset)}`,
         },
       };
@@ -949,9 +975,7 @@ export default function TeachingStudioPage() {
         offset: offset + token.length,
       };
       commitElements(
-        selectedScreen.elements.map((element) =>
-          element.id === inlineTarget.id ? updated : element,
-        ),
+        selectedScreen.elements.map((element) => element.id === inlineTarget.id ? updated : element),
         inlineTarget.id,
       );
       toast.success('Equation inserted into the selected text element.');
@@ -1025,6 +1049,34 @@ export default function TeachingStudioPage() {
     const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `diagram-${token}`;
     const content = createSmartDiagramContent(layoutId);
+    if (selectedLayout) {
+      const selectedElement = selectedScreen.elements.find((element) => element.id === selectedElementId);
+      const targetSlotId = selectedElement?.slotId || selectedLayoutSlotId;
+      const targetSlot = selectedLayout.slots.find((slot) => slot.id === targetSlotId);
+      if (!targetSlot) {
+        toast.error('Select the layout slot where the Smart Diagram should be inserted.');
+        return;
+      }
+      const existing = selectedScreen.elements.find((element) => element.slotId === targetSlot.id);
+      if (existing && !window.confirm(`Replace the existing content in ${targetSlot.label} with this Smart Diagram?`)) return;
+      const element: StudioElement = {
+        id: existing?.id ?? id,
+        slotId: targetSlot.id,
+        type: existing && targetSlot.allowed.includes(existing.type as ObjectType) ? existing.type : targetSlot.allowed[0],
+        content,
+        position: { ...targetSlot.bounds, zIndex: Number(existing?.position.zIndex) || selectedScreen.elements.length + 1 },
+      };
+      commitElements(
+        existing
+          ? selectedScreen.elements.map((candidate) => candidate.id === existing.id ? element : candidate)
+          : [...selectedScreen.elements, element],
+        element.id,
+      );
+      setSelectedLayoutSlotId(targetSlot.id);
+      setPanel('diagrams');
+      toast.success(`Smart Diagram inserted into ${targetSlot.label}.`);
+      return;
+    }
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -1675,11 +1727,28 @@ export default function TeachingStudioPage() {
 
   const selectedElement =
     selectedScreen?.elements.find((element) => element.id === selectedElementId) ?? null;
+  const contextualFillColor = selectedElement
+    ? String(selectedElement.content[selectedElement.type === 'shape' ? 'fill' : 'backgroundColor'] || '#ffffff')
+    : String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff');
+  const setContextualFillColor = (color: string) => {
+    if (!selectedScreen || editorReadOnly) return;
+    if (selectedElement) {
+      const key = selectedElement.type === 'shape' ? 'fill' : 'backgroundColor';
+      updateElement({ ...selectedElement, content: { ...selectedElement.content, [key]: color } });
+      return;
+    }
+    setSelectedScreen({
+      ...selectedScreen,
+      screen_settings_json: { ...(selectedScreen.screen_settings_json ?? {}), backgroundColor: color },
+    });
+    setHasUnsavedChanges(true);
+  };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string) => {
     setSelectedElementId(elementId);
     if (editorReadOnly) return;
     const element = selectedScreen?.elements.find((candidate) => candidate.id === elementId);
+    setSelectedLayoutSlotId(element?.slotId ?? null);
     const nextPanel = isSmartDiagramContent(element?.content)
       ? 'diagrams'
       : element?.type === 'math'
@@ -1895,6 +1964,17 @@ export default function TeachingStudioPage() {
                   onClick={() => void openPresentation()}
                 />
                 <StudioIconButton
+                  label={showCanvasGuides ? 'Hide layout guides' : 'Show layout guides'}
+                  icon={<Grid3X3 size={15} />}
+                  active={showCanvasGuides}
+                  disabled={!selectedLayout}
+                  onClick={() => setShowCanvasGuides((visible) => !visible)}
+                />
+                <label className="relative inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50" title={selectedElement ? 'Element fill colour' : 'Screen fill colour'}>
+                  <span className="h-5 w-5 rounded border border-slate-400" style={{ backgroundColor: contextualFillColor }} />
+                  <input type="color" value={contextualFillColor} disabled={editorReadOnly || !selectedScreen} onChange={(event) => setContextualFillColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" aria-label={selectedElement ? 'Element fill colour' : 'Screen fill colour'} />
+                </label>
+                <StudioIconButton
                   label={editorFocusMode ? 'Exit Editor Fullscreen' : 'Editor Fullscreen'}
                   icon={editorFocusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                   active={editorFocusMode}
@@ -2059,10 +2139,13 @@ export default function TeachingStudioPage() {
                 screen={selectedScreen}
                 loading={loadingScreen}
                 layout={selectedLayout}
+                showGuides={showCanvasGuides}
                 animationPreview={animationPreview}
                 selectedElementId={selectedElementId}
+                selectedSlotId={selectedLayoutSlotId}
                 onSelectElement={selectElementAndOpenControls}
-                onClearElementSelection={() => setSelectedElementId(null)}
+                onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedLayoutSlotId(slotId); }}
+                onClearElementSelection={() => { setSelectedElementId(null); setSelectedLayoutSlotId(null); }}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
                 onTextCaretChange={(elementId, offset) => {
@@ -2095,6 +2178,17 @@ export default function TeachingStudioPage() {
                   editorReadOnly
                     ? undefined
                     : (point) => addBlankElement('text', 'content', point, { text: 'Type here' })
+                }
+                onActivateSlotAt={
+                  editorReadOnly || !selectedLayout
+                    ? undefined
+                    : (point) => {
+                        const slot = selectedLayout.slots.find(({ bounds }) =>
+                          point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
+                          point.y >= bounds.y && point.y <= bounds.y + bounds.height,
+                        );
+                        return slot ? addElement(slot) : undefined;
+                      }
                 }
                 onDropFiles={editorReadOnly ? undefined : addDroppedFiles}
               />
@@ -2147,6 +2241,7 @@ export default function TeachingStudioPage() {
                     selectedElementId={selectedElementId}
                     onSelect={selectElementAndOpenControls}
                     onAdd={addElement}
+                    onChangeSlotType={changeSlotType}
                     onAddBlank={addBlankElement}
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
@@ -2435,6 +2530,7 @@ export default function TeachingStudioPage() {
                   selectedElementId={selectedElementId}
                   onSelect={setSelectedElementId}
                   onAdd={addElement}
+                  onChangeSlotType={changeSlotType}
                   onAddBlank={addBlankElement}
                   onUpdate={updateElement}
                   onDuplicate={duplicateElement}
@@ -2474,6 +2570,7 @@ export default function TeachingStudioPage() {
               screen={selectedScreen}
               loading={loadingScreen}
               layout={selectedLayout}
+              showGuides={showCanvasGuides}
               selectedElementId={selectedElementId}
               onSelectElement={(elementId) => {
                 setSelectedElementId(elementId);

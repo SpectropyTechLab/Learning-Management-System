@@ -66,7 +66,9 @@ export default function SlideCanvas({
   compactViewport = false,
   immersiveViewport = false,
   selectedObjectId,
+  selectedSlotId,
   onSelectObject,
+  onSelectSlot,
   onClearSelection,
   onChangeObjectBounds,
   objectOverlays = {},
@@ -83,6 +85,7 @@ export default function SlideCanvas({
   drawingOpacity = 1,
   onDrawingChange,
   zoom = 1,
+  backgroundColor = '#f9fcff',
   onCanvasDoubleClick,
 }: {
   layout: Layout | null;
@@ -91,7 +94,9 @@ export default function SlideCanvas({
   compactViewport?: boolean;
   immersiveViewport?: boolean;
   selectedObjectId?: string | null;
+  selectedSlotId?: string | null;
   onSelectObject?: (objectId: string) => void;
+  onSelectSlot?: (slotId: string) => void;
   onClearSelection?: () => void;
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
   objectOverlays?: Record<string, ReactNode>;
@@ -108,6 +113,7 @@ export default function SlideCanvas({
   drawingOpacity?: number;
   onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
   zoom?: number;
+  backgroundColor?: string;
   onCanvasDoubleClick?: (point: { x: number; y: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -280,14 +286,14 @@ export default function SlideCanvas({
             className="absolute inset-0"
             data-scale={scale}
           >
-            <rect width={MASTER.width} height={MASTER.height} fill="#ffffff" />
+            <rect width={MASTER.width} height={MASTER.height} fill={backgroundColor} />
             <rect
               x="45"
               y="30"
               width="1830"
               height="1020"
               rx="24"
-              fill="#f9fcff"
+              fill={backgroundColor}
               stroke="#d6e3f0"
               strokeWidth="3"
             />
@@ -321,7 +327,8 @@ export default function SlideCanvas({
             )}
             {(layout?.slots ?? []).map((field) => {
               const object = slide.objects.find((item) => item.slotId === field.id);
-              if (!showGuides && !object) return null;
+              const selectedEmptySlot = !object && field.id === selectedSlotId;
+              if (!showGuides && !object && !onSelectSlot) return null;
               const bounds = boundsFor(object, field);
               const renderedField = { ...field, bounds };
               const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
@@ -335,12 +342,16 @@ export default function SlideCanvas({
                   data-element-id={object?.id}
                   role={object ? 'button' : undefined}
                   tabIndex={object ? 0 : undefined}
-                  onClick={() => object && onSelectObject?.(object.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (object) onSelectObject?.(object.id);
+                    else onSelectSlot?.(field.id);
+                  }}
                   onKeyDown={(event) => {
                     if (object && (event.key === 'Enter' || event.key === ' '))
                       onSelectObject?.(object.id);
                   }}
-                  className={`${object && onSelectObject ? 'cursor-pointer' : ''} ${animateSvgObject ? studioAnimationClass(String(animation?.effect || 'none')) : ''}`}
+                  className={`${(object && onSelectObject) || (!object && onSelectSlot) ? 'cursor-pointer' : ''} ${animateSvgObject ? studioAnimationClass(String(animation?.effect || 'none')) : ''}`}
                   style={
                     animateSvgObject
                       ? {
@@ -355,9 +366,9 @@ export default function SlideCanvas({
                     <rect
                       {...bounds}
                       rx={field.region === 'footer' ? 12 : 22}
-                      fill={tone.fill}
-                      stroke={object?.id === selectedObjectId ? '#1d4ed8' : tone.stroke}
-                      strokeWidth={object?.id === selectedObjectId ? 8 : 3}
+                      fill={!object && !showGuides ? selectedEmptySlot ? '#dbeafe55' : 'transparent' : object?.backgroundColor ?? tone.fill}
+                      stroke={selectedEmptySlot ? '#2563eb' : !object && !showGuides ? 'transparent' : object?.id === selectedObjectId ? '#1d4ed8' : tone.stroke}
+                      strokeWidth={object?.id === selectedObjectId || selectedEmptySlot ? 8 : 3}
                     />
                   )}
                   {isImage && (
@@ -372,10 +383,10 @@ export default function SlideCanvas({
                       <title>{object.altText || object.text || field.label}</title>
                     </image>
                   )}
-                  {object && !isImage && !objectOverlays[object.id] && (
+                  {object && Boolean(object.text) && !isImage && !objectOverlays[object.id] && (
                     <FittedText
                       slot={renderedField}
-                      text={object.text || field.label}
+                      text={object.text}
                       ink={tone.ink}
                     />
                   )}
@@ -389,7 +400,7 @@ export default function SlideCanvas({
                       {object.caption}
                     </text>
                   )}
-                  {showGuides && (
+                  {showGuides && !object && (
                     <text
                       x={bounds.x + 14}
                       y={bounds.y + bounds.height - 18}
@@ -428,6 +439,7 @@ export default function SlideCanvas({
                   width: `${(bounds.width / MASTER.width) * 100}%`,
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
+                  backgroundColor: object.backgroundColor,
                   ...objectAnimationStyles[object.id],
                 }}
               >

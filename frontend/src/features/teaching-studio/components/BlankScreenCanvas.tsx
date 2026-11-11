@@ -28,7 +28,9 @@ interface BlankScreenCanvasProps {
   loading: boolean;
   layout?: Layout | null;
   selectedElementId?: string | null;
+  selectedSlotId?: string | null;
   onSelectElement?: (elementId: string) => void;
+  onSelectSlot?: (slotId: string) => void;
   onClearElementSelection?: () => void;
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
@@ -51,6 +53,7 @@ interface BlankScreenCanvasProps {
   drawingOpacity?: number;
   onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
   onCreateTextAt?: (point: { x: number; y: number }) => string | void;
+  onActivateSlotAt?: (point: { x: number; y: number }) => string | void;
   onDropFiles?: (files: File[], point: { x: number; y: number }) => void;
 }
 
@@ -174,7 +177,9 @@ export default function BlankScreenCanvas({
   loading,
   layout = null,
   selectedElementId,
+  selectedSlotId,
   onSelectElement,
+  onSelectSlot,
   onClearElementSelection,
   onChangeElementBounds,
   onChangeElementContent,
@@ -183,7 +188,7 @@ export default function BlankScreenCanvas({
   onOpenTool,
   onDuplicateElement,
   onRemoveElement,
-  showGuides = true,
+  showGuides = false,
   previewMode = false,
   animationPreview = null,
   previewStartAtEnd = false,
@@ -197,6 +202,7 @@ export default function BlankScreenCanvas({
   drawingOpacity = 1,
   onDrawingChange,
   onCreateTextAt,
+  onActivateSlotAt,
   onDropFiles,
 }: BlankScreenCanvasProps) {
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
@@ -204,6 +210,10 @@ export default function BlankScreenCanvas({
   const [previewCycle, setPreviewCycle] = useState(0);
   const [lastClickerAction, setLastClickerAction] = useState<'next' | 'previous' | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
+  const toolbarBoundsRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
+  const toolbarDragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
   const zoomPointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | null>(null);
   const animationTimeline = useMemo(
@@ -348,6 +358,9 @@ export default function BlankScreenCanvas({
             text: elementText(element.content),
             position: elementBounds(element.position),
             color: typeof element.content.color === 'string' ? element.content.color : undefined,
+            backgroundColor: typeof element.content.backgroundColor === 'string'
+              ? element.content.backgroundColor
+              : typeof element.content.fill === 'string' ? element.content.fill : undefined,
             locked: element.position.locked === true,
             zIndex:
               typeof element.position.zIndex === 'number' ? element.position.zIndex : undefined,
@@ -364,7 +377,7 @@ export default function BlankScreenCanvas({
   const objectAnimationStyles: Record<string, CSSProperties> = {};
   const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen?.elements ?? []) {
-    if (element.type === 'visual' && isSmartDiagramContent(element.content)) {
+    if (isSmartDiagramContent(element.content)) {
       const visibleNodeIds = previewMode
         ? presenterDiagramVisibleNodes(
             animationTimeline,
@@ -378,6 +391,21 @@ export default function BlankScreenCanvas({
           content={element.content}
           editable={!previewMode && Boolean(onChangeElementContent)}
           visibleNodeIds={visibleNodeIds}
+            onAspectRatioChange={!previewMode && onChangeElementBounds ? (aspectRatio) => {
+              const currentBounds = elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === element.slotId)?.bounds;
+              if (!currentBounds || !Number.isFinite(aspectRatio) || aspectRatio <= 0) return;
+              const maximumWidth = 1920 - currentBounds.x;
+              const maximumHeight = 1080 - currentBounds.y;
+              let width = Math.min(currentBounds.width, maximumWidth);
+              let height = width / aspectRatio;
+              if (height > maximumHeight) {
+                height = maximumHeight;
+                width = height * aspectRatio;
+              }
+              const nextBounds = { ...currentBounds, width: Math.max(80, Math.round(width)), height: Math.max(60, Math.round(height)) };
+              if (Math.abs(nextBounds.width - currentBounds.width) < 2 && Math.abs(nextBounds.height - currentBounds.height) < 2) return;
+              onChangeElementBounds(element.id, nextBounds);
+            } : undefined}
           onSelectNode={() => onSelectElement?.(element.id)}
           onChangeNodeText={(nodeId, text) =>
             onChangeElementContent?.(element.id, {
@@ -475,6 +503,7 @@ export default function BlankScreenCanvas({
           list={element.content.list === true}
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
+          startEditing={editingElementId === element.id}
           onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
           onTextChange={(value, richText) => onChangeElementContent?.(element.id, { text: value, richTextHtml: richText })}
           onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
@@ -592,12 +621,26 @@ export default function BlankScreenCanvas({
   const selectedElement =
     screen?.elements.find((element) => element.id === selectedElementId) ?? null;
 
+  const moveToolbar = (clientX: number, clientY: number) => {
+    const bounds = toolbarBoundsRef.current?.getBoundingClientRect();
+    const toolbar = toolbarRef.current?.getBoundingClientRect();
+    const drag = toolbarDragRef.current;
+    if (!bounds || !toolbar || !drag) return;
+    const maximumX = Math.max(0, bounds.width - toolbar.width);
+    const maximumY = Math.max(0, bounds.height - toolbar.height);
+    setToolbarPosition({
+      x: Math.min(maximumX, Math.max(0, clientX - bounds.left - drag.offsetX)),
+      y: Math.min(maximumY, Math.max(0, clientY - bounds.top - drag.offsetY)),
+    });
+  };
+
   return (
     <section
       aria-label={previewMode ? 'Flattened screen preview' : 'Studio canvas'}
       className={`relative flex h-full min-h-0 min-w-0 flex-col ${previewMode ? 'bg-white' : 'studio-editor-canvas-stage overflow-hidden rounded-2xl border border-slate-300 bg-slate-200 shadow-sm'}`}
     >
       <div
+        ref={toolbarBoundsRef}
         className="relative min-h-0 flex-1"
         onClick={(event) => {
           if (!previewMode) return;
@@ -612,7 +655,11 @@ export default function BlankScreenCanvas({
         {!previewMode ? (
           <>
             {screen && selectedElement && onChangeElementContent && onOpenTool ? (
-              <div className="absolute left-1/2 top-16 z-40 max-w-[52%] -translate-x-1/2 rounded-xl border border-white/70 bg-white/82 shadow-lg backdrop-blur-md">
+              <div
+                ref={toolbarRef}
+                className={`absolute z-40 max-w-[calc(100%-1rem)] rounded-xl border border-white/70 bg-white/82 shadow-lg backdrop-blur-md ${toolbarPosition ? '' : 'left-1/2 top-16 -translate-x-1/2'}`}
+                style={toolbarPosition ? { left: toolbarPosition.x, top: toolbarPosition.y } : undefined}
+              >
                 <StudioElementToolbar
                   element={selectedElement}
                   onChange={(changes) => onChangeElementContent(selectedElement.id, changes)}
@@ -621,6 +668,28 @@ export default function BlankScreenCanvas({
                   onOpenAnimations={() => onOpenTool('animations')}
                   onDuplicate={onDuplicateElement ? () => onDuplicateElement(selectedElement.id) : undefined}
                   onRemove={onRemoveElement ? () => onRemoveElement(selectedElement.id) : undefined}
+                  onDragPointerDown={(event) => {
+                    const bounds = toolbarBoundsRef.current?.getBoundingClientRect();
+                    const toolbar = toolbarRef.current?.getBoundingClientRect();
+                    if (!bounds || !toolbar) return;
+                    event.preventDefault();
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    toolbarDragRef.current = {
+                      pointerId: event.pointerId,
+                      offsetX: event.clientX - toolbar.left,
+                      offsetY: event.clientY - toolbar.top,
+                    };
+                    setToolbarPosition({ x: toolbar.left - bounds.left, y: toolbar.top - bounds.top });
+                  }}
+                  onDragPointerMove={(event) => {
+                    if (toolbarDragRef.current?.pointerId === event.pointerId) moveToolbar(event.clientX, event.clientY);
+                  }}
+                  onDragPointerEnd={(event) => {
+                    if (toolbarDragRef.current?.pointerId !== event.pointerId) return;
+                    moveToolbar(event.clientX, event.clientY);
+                    toolbarDragRef.current = null;
+                    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                  }}
                 />
               </div>
             ) : null}
@@ -690,7 +759,9 @@ export default function BlankScreenCanvas({
             slide={slide}
             showGuides={displayLayoutGuides}
             selectedObjectId={selectedElementId}
+            selectedSlotId={selectedSlotId}
             onSelectObject={onSelectElement}
+            onSelectSlot={onSelectSlot}
             onClearSelection={onClearElementSelection}
             onChangeObjectBounds={onChangeElementBounds}
             objectOverlays={objectOverlays}
@@ -710,8 +781,9 @@ export default function BlankScreenCanvas({
             drawingOpacity={drawingOpacity}
             onDrawingChange={onDrawingChange}
             zoom={previewMode ? 1 : canvasZoom}
-            onCanvasDoubleClick={!previewMode && onCreateTextAt ? (point) => {
-              const createdId = onCreateTextAt(point);
+            backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'}
+            onCanvasDoubleClick={!previewMode && (onActivateSlotAt || onCreateTextAt) ? (point) => {
+              const createdId = onActivateSlotAt?.(point) ?? onCreateTextAt?.(point);
               if (createdId) setEditingElementId(createdId);
             } : undefined}
           />
@@ -728,6 +800,7 @@ export default function BlankScreenCanvas({
           <div className="flex h-full min-h-0 items-center justify-center rounded-xl bg-slate-200 p-3">
             <div
               className="relative h-full min-h-0 w-full max-w-5xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-xl"
+              style={{ backgroundColor: typeof screen?.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff' }}
               data-testid="studio-canvas"
             >
               <p
