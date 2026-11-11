@@ -108,3 +108,25 @@ test('Smart Diagram is integrated in authoring, preview, clicker and teacher pla
   assert.match(clicker, /level-one-by-one/);
   for (const category of ['list', 'process', 'cycle', 'hierarchy', 'relationship', 'matrix', 'pyramid', 'picture']) assert.match(catalog, new RegExp(`'${category}'`));
 });
+
+test('Smart Diagram chooser provides visual thumbnails and a selected layout preview', () => {
+  const panel = fs.readFileSync(new URL('../../frontend/src/features/teaching-studio/components/StudioSmartDiagramPanel.tsx', import.meta.url), 'utf8');
+  const thumbnails = fs.readFileSync(new URL('../../frontend/src/features/teaching-studio/components/StudioDiagramThumbnail.tsx', import.meta.url), 'utf8');
+  assert.match(panel, /DiagramThumbnail/);
+  assert.match(panel, /Insert this diagram/);
+  assert.match(panel, /previewLayoutId/);
+  assert.match(panel, /onMouseEnter/);
+  for (const layout of ['chevron-process', 'vertical-process', 'radial-cycle', 'horizontal-hierarchy', 'inverted-pyramid', 'alternating-timeline', 'balance-comparison', 'fishbone', 'basic-funnel'])
+    assert.match(thumbnails, new RegExp(`'${layout}'`));
+});
+
+test('Smart Diagram catalog provides PowerPoint-depth layout choices per category', () => {
+  const catalog = fs.readFileSync(new URL('../../frontend/src/features/teaching-studio/components/smartDiagramModel.ts', import.meta.url), 'utf8');
+  for (const category of ['list', 'process', 'cycle', 'hierarchy', 'relationship', 'matrix', 'pyramid', 'picture', 'timeline', 'comparison', "'cause-effect'", 'funnel']) {
+    const match = catalog.match(new RegExp(`\\n\\s*${category}: \\[(.*?)\\],`));
+    assert.ok(match, `missing expanded ${category} catalog`);
+    assert.ok((match[1].match(/'/g) || []).length / 2 >= 10, `${category} must add at least ten layouts`);
+  }
+  assert.match(catalog, /variant: index \+ 1/);
+  assert.match(catalog, /const variant = definition\?\.variant/);
+});

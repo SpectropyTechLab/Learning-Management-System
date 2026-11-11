@@ -15,7 +15,6 @@ const REQUIRED_PLAN_FIELDS = [
   'time_duration', 'screen_mapped', 'learning_objective_evidence', 'pedagogy',
   'teacher_action_todo', 'narration_dialogue_cue', 'student_action_reflection',
 ];
-const REQUIRED_SCRIPT_FIELDS = ['visual_animation_interaction_assets', 'teacher_narration'];
 
 const isAuthor = (user) => AUTHOR_ROLES.has(user?.role);
 const safePathName = (value) => String(value || 'document').replace(/[^a-zA-Z0-9._-]+/g, '_');
@@ -141,8 +140,6 @@ const synchronizePlanScreens = async ({ client, session, content, user, createMi
 
 const validateScreenScriptContent = (content) => {
   if (!content || typeof content !== 'object' || Array.isArray(content)) throw new AppError('Screen Script content must be an object', 422);
-  const missing = REQUIRED_SCRIPT_FIELDS.filter((field) => !String(content[field] || '').trim());
-  if (missing.length) throw new AppError(`Screen Script is missing: ${missing.join(', ')}`, 422);
   return content;
 };
 

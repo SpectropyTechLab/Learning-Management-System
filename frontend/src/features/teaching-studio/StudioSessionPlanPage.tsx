@@ -428,7 +428,7 @@ export default function StudioSessionPlanPage() {
                   <button
                     type="button"
                     disabled={!document}
-                    onClick={() => navigate(`/studio/screen-scripts?sessionId=${sessionId}`)}
+                    onClick={() => navigate(`/studio/sessions/${sessionId}/scripts`)}
                     className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-blue-900 disabled:opacity-40"
                   >
                     Continue <ArrowRight size={16} />

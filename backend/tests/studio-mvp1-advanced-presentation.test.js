@@ -52,3 +52,20 @@ test('transition authoring exposes enterprise timing, accessibility and playback
   assert.match(player, /advanceAfterEnabled/);
   assert.match(player, /advancePresenterRef\.current/);
 });
+
+test('clicker handles navigation, Zoom choices, media and every advertised teacher tool', () => {
+  const player = read('../../frontend/src/features/teaching-studio/StudioSessionPlayerPage.tsx');
+  const runtime = read('../../frontend/src/features/teaching-studio/components/studioClickerRuntime.ts');
+  for (const key of ['ArrowRight', 'PageDown', 'MediaTrackNext', 'ArrowLeft', 'PageUp', 'MediaTrackPrevious'])
+    assert.match(runtime, new RegExp(key));
+  assert.match(player, /toggleMediaPlayback/);
+  assert.match(player, /zoomElements\[Number\(event\.key\) - 1\]/);
+  for (const tool of ["'pointer'", "'laser'", "'pen'", "'eraser'"])
+    assert.match(player, new RegExp(`setAnnotationTool\\(${tool}\\)`));
+  assert.match(player, /undoTeacherAnnotation\(\)/);
+  assert.match(player, /setTeacherAnnotations\(\[\]\)/);
+  assert.match(player, /CLICKER_SHORTCUT_GROUPS/);
+  assert.match(player, /droppedMime\.startsWith\('video\/'\)/);
+  assert.match(player, /droppedMime\.startsWith\('audio\/'\)/);
+  assert.match(player, /droppedMime === 'application\/pdf'/);
+});

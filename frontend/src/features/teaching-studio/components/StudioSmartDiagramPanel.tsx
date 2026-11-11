@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Copy, ListTree, Plus, RotateCcw, Shapes, Trash2 } from 'lucide-react';
 import type { StudioElement, StudioScreen } from '../types';
+import StudioDiagramThumbnail from './StudioDiagramThumbnail';
 import {
   SMART_DIAGRAM_LAYOUTS,
   SMART_DIAGRAM_THEMES,
@@ -50,6 +51,7 @@ export default function StudioSmartDiagramPanel({
   const selected = diagrams.find((element) => element.id === selectedElementId) ?? null;
   const content = selected && isSmartDiagramContent(selected.content) ? selected.content : null;
   const [category, setCategory] = useState<SmartDiagramCategory>('process');
+  const [previewLayoutId, setPreviewLayoutId] = useState('basic-process');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [outlineDraft, setOutlineDraft] = useState('');
   const [outlineDiagramId, setOutlineDiagramId] = useState<string | null>(null);
@@ -80,8 +82,9 @@ export default function StudioSmartDiagramPanel({
       {!content ? (
         <>
           {diagrams.length > 0 && <label className="block text-xs font-semibold text-slate-600">Existing diagrams<select defaultValue="" onChange={(event) => event.target.value && onSelect(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"><option value="">Choose diagram…</option>{diagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{String(diagram.content.text || 'Smart Diagram')}</option>)}</select></label>}
-          <div className="grid grid-cols-2 gap-2">{categories.map((item) => <button key={item.id} type="button" onClick={() => setCategory(item.id)} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${category === item.id ? 'border-blue-800 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{item.label}</button>)}</div>
-          <div className="space-y-2">{layouts.map((layout) => <button key={layout.id} type="button" onClick={() => onInsert(layout.id)} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-blue-400 hover:bg-blue-50"><span className="block text-sm font-semibold text-slate-900">{layout.name}</span><span className="mt-1 block text-xs text-slate-500">{layout.description}</span></button>)}</div>
+          <div className="grid grid-cols-2 gap-2">{categories.map((item) => { const sample = SMART_DIAGRAM_LAYOUTS.find((layout) => layout.category === item.id)!; return <button key={item.id} type="button" onClick={() => { setCategory(item.id); if (sample) setPreviewLayoutId(sample.id); }} className={`group overflow-hidden rounded-xl border text-xs font-semibold transition ${category === item.id ? 'border-blue-800 bg-blue-50 text-blue-900 shadow-sm ring-2 ring-blue-100' : 'border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md'}`}><span className="block h-16 bg-slate-50 p-1 transition group-hover:bg-blue-50">{sample ? <StudioDiagramThumbnail layout={sample} /> : null}</span><span className="block border-t border-slate-100 px-2 py-2">{item.label}</span></button>; })}</div>
+          {(() => { const preview = SMART_DIAGRAM_LAYOUTS.find((item) => item.id === previewLayoutId) ?? layouts[0]; return preview ? <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-3"><div className="h-36 rounded-xl bg-white shadow-inner"><StudioDiagramThumbnail layout={preview} /></div><h3 className="mt-3 text-sm font-bold text-slate-900">{preview.name}</h3><p className="mt-1 text-xs leading-5 text-slate-600">{preview.description}</p><button type="button" onClick={() => onInsert(preview.id)} className="mt-3 w-full rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800">Insert this diagram</button></div> : null; })()}
+          <div className="grid grid-cols-2 gap-2">{layouts.map((layout) => <button key={layout.id} type="button" onMouseEnter={() => setPreviewLayoutId(layout.id)} onFocus={() => setPreviewLayoutId(layout.id)} onClick={() => setPreviewLayoutId(layout.id)} className={`overflow-hidden rounded-xl border bg-white text-left transition hover:-translate-y-0.5 hover:shadow-md ${previewLayoutId === layout.id ? 'border-blue-700 ring-2 ring-blue-100' : 'border-slate-200 hover:border-blue-400'}`}><span className="block h-20 bg-slate-50"><StudioDiagramThumbnail layout={layout} /></span><span className="block px-2 py-2 text-xs font-semibold text-slate-800">{layout.name}</span></button>)}</div>
         </>
       ) : (
         <>
