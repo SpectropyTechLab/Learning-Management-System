@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Grid2X2, Layers3, List, MoreVertical, Pencil, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Eye, Grid2X2, List, MoreVertical, Pencil, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
@@ -365,7 +365,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
           <div className="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
             <Layers3 className="mx-auto text-slate-400" size={40} />
             <h3 className="mt-3 font-semibold text-slate-800">{filtersActive ? 'No Resources match your filters' : 'No Resources available'}</h3>
-            <p className="mt-1 text-sm text-slate-500">{filtersActive ? 'Try another search term or clear the Resource type filter.' : 'Use Add Resource above to create the first library item.'}</p>
+            <p className="mt-1 text-sm text-slate-500">{filtersActive ? 'Try another search term or clear the Resource type filter.' : 'Use Add Resource above to create the first curriculum-aligned library item.'}</p>
           </div>
         ) : view === 'grid' ? (
           <div className={`grid gap-4 ${mode === 'picker' ? 'grid-cols-1' : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
