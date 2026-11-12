@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ChevronDown, Circle, Copy, GripVertical, IndentDecrease, IndentIncrease, Italic, Link2, List, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Ban, Bold, ChevronDown, Circle, Copy, GripVertical, IndentDecrease, IndentIncrease, Italic, Link2, List, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
 import type { StudioElement } from '../types';
 import { normalizeStudioHyperlink } from './studioHyperlinkModel';
 import { dispatchStudioTextCommand } from './studioTextCommands';
@@ -28,6 +28,11 @@ export default function StudioElementToolbar({ element, onChange, onOpenMath, on
   const [linkError, setLinkError] = useState('');
   const textElement = Boolean(element && textTypes.includes(element.type));
   const content = element?.content ?? {};
+  const shapeElement = element?.type === 'shape';
+  const fillValue = shapeElement ? content.fill : content.backgroundColor;
+  const borderValue = shapeElement ? content.stroke : content.borderColor;
+  const borderWidthValue = Number(shapeElement ? content.strokeWidth : content.borderWidth);
+  const borderWidth = Number.isFinite(borderWidthValue) ? Math.max(0, Math.min(8, borderWidthValue)) : 1;
   const alignment = String(content.alignment || 'left');
   const hasRichList = typeof content.richTextHtml === 'string' && /<(?:ul|ol)\b/i.test(content.richTextHtml);
   const storedLink = normalizeStudioHyperlink(content.hyperlink);
@@ -59,7 +64,13 @@ export default function StudioElementToolbar({ element, onChange, onOpenMath, on
       <select disabled={!textElement} value={String(content.fontFamily || 'Arial')} onChange={(event) => onChange({ fontFamily: event.target.value })} aria-label="Font family" className="h-7 w-24 shrink-0 rounded border px-1 text-xs disabled:opacity-35"><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option></select>
       <input disabled={!textElement} type="number" min="10" max="160" value={Number(content.fontSize) || 18} onChange={(event) => onChange({ fontSize: Number(event.target.value) })} aria-label="Font size" className="h-7 w-12 shrink-0 rounded border px-1 text-xs disabled:opacity-35" />
       <input disabled={!textElement} type="color" value={typeof content.color === 'string' ? content.color : '#25436b'} onChange={(event) => onChange({ color: event.target.value })} aria-label="Text colour" className="h-7 w-8 shrink-0 rounded border p-0.5 disabled:opacity-35" />
-      <input disabled={!textElement} type="color" value={typeof content.backgroundColor === 'string' ? content.backgroundColor : '#ffffff'} onChange={(event) => onChange({ backgroundColor: event.target.value })} aria-label="Background colour" title="Background colour" className="h-7 w-8 shrink-0 rounded border p-0.5 disabled:opacity-35" />
+      <input type="color" value={typeof fillValue === 'string' && fillValue !== 'transparent' ? fillValue : '#ffffff'} onChange={(event) => onChange(shapeElement ? { fill: event.target.value } : { backgroundColor: event.target.value })} aria-label="Fill colour" title="Fill colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
+      <button type="button" title="No fill" aria-label="No fill" onClick={() => onChange(shapeElement ? { fill: 'transparent' } : { backgroundColor: 'transparent' })} className={button(fillValue === 'transparent')}><Ban size={14} /></button>
+      <input type="color" value={typeof borderValue === 'string' && borderValue !== 'transparent' ? borderValue : '#64748b'} onChange={(event) => onChange(shapeElement ? { stroke: event.target.value, strokeWidth: borderWidth || 1 } : { borderColor: event.target.value, borderWidth: borderWidth || 1 })} aria-label="Border colour" title="Border colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
+      <select value={borderWidth} onChange={(event) => { const width = Number(event.target.value); onChange(shapeElement ? { strokeWidth: width } : { borderWidth: width }); }} aria-label="Border size" title="Border size" className="h-7 w-14 shrink-0 rounded border px-1 text-xs">
+        {[0, 1, 2, 3, 4, 5, 6, 8].map((width) => <option key={width} value={width}>{width}px</option>)}
+      </select>
+      <button type="button" title="No border" aria-label="No border" onClick={() => onChange(shapeElement ? { stroke: 'transparent', strokeWidth: 0 } : { borderColor: 'transparent', borderWidth: 0 })} className={button(borderValue === 'transparent' || borderWidth === 0)}><Ban size={14} /></button>
       <button disabled={!textElement} type="button" title="Bold" onClick={() => onChange({ bold: content.bold !== true })} className={button(content.bold === true)}><Bold size={14} /></button>
       <button disabled={!textElement} type="button" title="Italic" onClick={() => onChange({ italic: content.italic !== true })} className={button(content.italic === true)}><Italic size={14} /></button>
       <button disabled={!textElement} type="button" title="Underline" onClick={() => onChange({ underline: content.underline !== true })} className={button(content.underline === true)}><Underline size={14} /></button>
