@@ -604,7 +604,7 @@ export default function QuestionRenderer({
         <div className="mt-4 space-y-2 text-sm text-slate-700">
           {question.options.map((option, index) => (
             <div
-              key={option.id ?? Math.random().toString(36)}
+              key={option.id ?? `option-${index}`}
               className="rounded-lg border border-slate-200 px-3 py-2"
             >
               <div className="flex items-start gap-3">
@@ -691,8 +691,8 @@ export default function QuestionRenderer({
           <div>
             <div className="text-xs font-semibold text-slate-500">Sub-Questions</div>
             <div className="mt-2 space-y-2">
-              {question.comprehension_questions.map((sub) => (
-                <div key={sub.id ?? Math.random().toString(36)} className="rounded-lg border border-slate-200 px-3 py-2">
+              {question.comprehension_questions.map((sub, index) => (
+                <div key={sub.id ?? `sub-question-${index}`} className="rounded-lg border border-slate-200 px-3 py-2">
                   <QuestionRenderer
                     question={{
                       question_type: sub.question_type,

@@ -21,7 +21,8 @@ import {
   CLICKER_SHORTCUT_GROUPS,
   clickerNavigationAction,
   presenterDiagramVisibleNodes,
-  presenterElementState,
+  presenterElementPlaybackState,
+  type PresenterAnimationNavigation,
   type PresenterAnimationTimeline,
 } from './components/studioClickerRuntime';
 import StudioCanvasTextElement from './components/StudioCanvasTextElement';
@@ -159,7 +160,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false }: { releas
   return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} />;
 }
 
-function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number }) {
+function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null }) {
   const layout = layoutFor(screen) ?? freeformLayoutFor(screen);
   const slide: Slide = {
     title: screen.title,
@@ -211,13 +212,31 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
     if (!overlay || !animationTimeline || animationStep === undefined) continue;
-    const presenterState = presenterElementState(animationTimeline, element.element_key, animationStep);
-    objectAnimationStyles[element.element_key] = presenterState.activeEffects.length
-      ? studioAnimationStyle({ effects: presenterState.activeEffects })
-      : presenterState.visible
+    const playbackState = presenterElementPlaybackState(
+      animationTimeline,
+      element.element_key,
+      animationStep,
+      playbackCycle ?? 0,
+      animationNavigation,
+    );
+    const activeStyle = playbackState.activeEffects.length
+      ? studioAnimationStyle({ effects: playbackState.activeEffects })
+      : null;
+    objectAnimationStyles[element.element_key] = activeStyle
+      ? {
+          ...activeStyle,
+          ...(playbackState.reverse
+            ? {
+                animationDirection: playbackState.activeEffects
+                  .map(() => 'reverse')
+                  .join(', '),
+              }
+            : {}),
+        }
+      : playbackState.visible
         ? {}
         : { opacity: 0 };
-    objectAnimationKeys[element.element_key] = `${screen.screen_id}-${playbackCycle ?? 0}-${animationStep}-${element.element_key}`;
+    objectAnimationKeys[element.element_key] = `${screen.screen_id}-${playbackState.identity}`;
   }
 
   const drawingEnabled = annotationTool === 'pen' || annotationTool === 'highlighter' || annotationTool === 'eraser';
@@ -259,6 +278,7 @@ export default function StudioSessionPlayerPage() {
   const [fullScreen, setFullScreen] = useState(false);
   const [animationStep, setAnimationStep] = useState(0);
   const [playbackCycle, setPlaybackCycle] = useState(0);
+  const [animationNavigation, setAnimationNavigation] = useState<PresenterAnimationNavigation | null>(null);
   const [blankMode, setBlankMode] = useState<'black' | 'white' | null>(null);
   const [presentationZoom, setPresentationZoom] = useState(1);
   const [zoomRun, setZoomRun] = useState<null | { originScreenId: number; targetIds: number[]; index: number; returnToZoom: boolean }>(null);
@@ -333,6 +353,7 @@ export default function StudioSessionPlayerPage() {
   useEffect(() => {
     setAnimationStep(enterScreenAtEndRef.current ? animationTimeline.maxStep : 0);
     enterScreenAtEndRef.current = false;
+    setAnimationNavigation(null);
     setPlaybackCycle((value) => value + 1);
     setBlankMode(null);
     setPresentationZoom(1);
@@ -470,6 +491,11 @@ export default function StudioSessionPlayerPage() {
     }
     if (animationStep < animationTimeline.maxStep) {
       const nextStep = animationStep + 1;
+      setAnimationNavigation({
+        direction: 'forward',
+        fromStep: animationStep,
+        toStep: nextStep,
+      });
       setAnimationStep(nextStep);
       const cueKeys = new Set(animationTimeline.cues.filter((cue) => cue.step === nextStep).map((cue) => cue.elementKey));
       const runtime = screen?.elements.find((element) => cueKeys.has(element.element_key) && element.resource_mapping && ['simulation', 'html', 'zip', 'scorm'].includes(element.resource_mapping.resource_type));
@@ -541,8 +567,13 @@ export default function StudioSessionPlayerPage() {
       return;
     }
     if (animationStep > 0) {
-      setAnimationStep((step) => Math.max(0, step - 1));
-      setPlaybackCycle((value) => value + 1);
+      const previousStep = Math.max(0, animationStep - 1);
+      setAnimationNavigation({
+        direction: 'backward',
+        fromStep: animationStep,
+        toStep: previousStep,
+      });
+      setAnimationStep(previousStep);
       return;
     }
     if (zoomRun) {
@@ -613,6 +644,7 @@ export default function StudioSessionPlayerPage() {
 
   const replayScreen = () => {
     setAnimationStep(0);
+    setAnimationNavigation(null);
     setPlaybackCycle((value) => value + 1);
     setBlankMode(null);
   };
@@ -940,7 +972,7 @@ export default function StudioSessionPlayerPage() {
           )}
           {!discoveryItem && !loading && release && screen && (
             <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})` }}>
-              <PublishedCanvas key={`${screen.screen_id}-${playbackCycle}`} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} />
+              <PublishedCanvas key={screen.screen_id} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} />
             </div>
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-600">This release contains no Screens.</div>}

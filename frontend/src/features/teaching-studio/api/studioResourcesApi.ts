@@ -129,6 +129,33 @@ export interface StudioResourceUploadInput {
   entryPoint?: string;
 }
 
+export interface StudioTeachingResource {
+  id: string;
+  provider: 'pubchem' | 'rcsb' | 'curated';
+  provider_label: string;
+  title: string;
+  subject: 'physics' | 'chemistry' | 'mathematics' | 'biology';
+  resource_kind: string;
+  description: string;
+  learning_objective: string;
+  teaching_use: string;
+  concepts: string[];
+  grades: string[];
+  exam_tracks: string[];
+  interaction: string;
+  thumbnail_url: string;
+  source_url: string;
+  resource_type: 'image' | 'external_link';
+  licence: string;
+  importable: boolean;
+}
+
+export interface StudioTeachingResourceSearchResult {
+  query: string;
+  results: StudioTeachingResource[];
+  unavailable_providers: string[];
+}
+
 const dataOf = <T>(payload: { data: T } | T) => (
   payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload
 ) as T;
@@ -146,6 +173,21 @@ export const listStudioResources = async (filters: StudioResourceFilters = {}) =
   }
   return resources as StudioResourceSummary[];
 };
+
+export const searchStudioTeachingResources = async (filters: {
+  search?: string;
+  subject?: string;
+  provider?: string;
+}) => dataOf<StudioTeachingResourceSearchResult>((await api.get('/studio/teaching-resources/search', {
+  params: {
+    q: filters.search?.trim() || undefined,
+    subject: filters.subject || undefined,
+    provider: filters.provider || 'all',
+  },
+})).data);
+
+export const importStudioTeachingResource = async (resource: StudioTeachingResource) =>
+  dataOf<StudioResourceSummary>((await api.post('/studio/teaching-resources/import', resource)).data);
 
 export const getStudioResource = async (resourceId: number) =>
   dataOf<StudioResourceDetails>((await api.get(`/studio/resources/${resourceId}`)).data);
