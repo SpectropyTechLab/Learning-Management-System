@@ -226,13 +226,30 @@ export const updateStudioSession = async ({ sessionId: rawSessionId, body = {}, 
     const description = body.description === undefined
       ? session.description
       : optionalText(body.description, 'description', 5000);
+    let subtopicId = session.subtopic_id;
+    let sessionNumber = session.session_number;
+    if (body.subtopic_id !== undefined) {
+      const destinationId = parseId(body.subtopic_id, 'subtopic_id');
+      if (destinationId !== Number(session.subtopic_id)) {
+        const destination = await loadSubtopicContext(client, destinationId, user, { lock: true });
+        if (Number(destination.client_id) !== Number(session.client_id)) {
+          throw new AppError('The destination Subtopic is outside this curriculum scope', 403, 'CLIENT_ACCESS_DENIED');
+        }
+        subtopicId = destinationId;
+        sessionNumber = Number((await client.query(
+          'SELECT COALESCE(MAX(session_number), 0) + 1 AS value FROM sessions WHERE subtopic_id = $1',
+          [destinationId],
+        )).rows[0].value);
+      }
+    }
     const result = await client.query(
       `UPDATE sessions
-       SET title = $1, description = $2, revision_no = revision_no + 1, updated_at = NOW()
-       WHERE id = $3 AND revision_no = $4
+       SET title = $1, description = $2, subtopic_id = $3, session_number = $4,
+           revision_no = revision_no + 1, updated_at = NOW()
+       WHERE id = $5 AND revision_no = $6
        RETURNING id, client_id, subtopic_id, session_number, title, description,
                  status, revision_no, created_by, created_at, updated_at`,
-      [title, description, sessionId, expectedRevision],
+      [title, description, subtopicId, sessionNumber, sessionId, expectedRevision],
     );
     if (!result.rows[0]) {
       throw new AppError('Session revision is stale; reload before saving', 409, 'STALE_SESSION_REVISION');

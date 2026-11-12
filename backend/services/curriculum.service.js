@@ -8,7 +8,8 @@ import {
 } from '../schemas/curriculum.schema.js';
 import * as curriculumRepo from '../repositories/curriculum.repository.js';
 import { getEnabledProgramIdsIfFeatureEnabled } from './moduleEntitlements.service.js';
-import { query as dbQuery } from '../repositories/db.repository.js';
+import { getClient, query as dbQuery } from '../repositories/db.repository.js';
+import { removeStoredSessionDocuments } from './studioDocuments.service.js';
 
 const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
@@ -100,7 +101,8 @@ const isSchoolOwnedByUser = async (record, user) => {
 };
 
 const canManageCurriculumContext = async (user, context) => {
-  if (isPlatformCurriculumAdmin(user)) {
+  if (isSuperAdmin(user?.role)) return true;
+  if (isContentAuthorizer(user?.role) || isPlatformTenantClientAdmin(user)) {
     return isPlatformOwned(context);
   }
   if (isClientOwnedByUser(context, user)) return true;
@@ -565,6 +567,9 @@ export const updateGrade = async ({ user, params, body }) => {
   if (body?.grade_number !== undefined) {
     updates.grade_number = parseRequiredInt(body?.grade_number, 'grade_number');
   }
+  if (body?.program_id !== undefined) {
+    updates.program_id = parseRequiredInt(body?.program_id, 'program_id');
+  }
   if (body?.is_active !== undefined) {
     updates.is_active = parseBoolean(body?.is_active, 'is_active');
   }
@@ -579,6 +584,16 @@ export const updateGrade = async ({ user, params, body }) => {
   }
   if (!(await canManageCurriculumContext(user, gradeContext.rows[0]))) {
     throw new AppError('Access denied', 403);
+  }
+  if (updates.program_id !== undefined && Number(updates.program_id) !== Number(gradeContext.rows[0].program_id)) {
+    const destination = await curriculumRepo.fetchProgramContext(updates.program_id);
+    if (!destination.rows[0]) throw new AppError('Destination Program not found', 404);
+    if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(gradeContext.rows[0].client_id)) {
+      throw new AppError('The destination Program is outside this curriculum scope', 403);
+    }
+    const gradeNumber = updates.grade_number ?? (await dbQuery('SELECT grade_number FROM grades WHERE id = $1', [id])).rows[0].grade_number;
+    const duplicate = await dbQuery('SELECT 1 FROM grades WHERE program_id = $1 AND grade_number = $2 AND id <> $3', [updates.program_id, gradeNumber, id]);
+    if (duplicate.rows[0]) throw new AppError(`Grade ${gradeNumber} already exists in the destination Program`, 409);
   }
 
   const result = await curriculumRepo.updateGrade({ id, updates });
@@ -807,6 +822,7 @@ export const updateChapter = async ({ user, params, body }) => {
   if (body?.chapter_number !== undefined) {
     updates.chapter_number = parseRequiredInt(body?.chapter_number, 'chapter_number');
   }
+  if (body?.subject_id !== undefined) updates.subject_id = parseRequiredInt(body.subject_id, 'subject_id');
   if (body?.description !== undefined) updates.description = body?.description ?? null;
   if (body?.is_active !== undefined) {
     updates.is_active = parseBoolean(body?.is_active, 'is_active');
@@ -822,6 +838,15 @@ export const updateChapter = async ({ user, params, body }) => {
   }
   if (!(await canManageCurriculumContext(user, chapterContext.rows[0]))) {
     throw new AppError('Access denied', 403);
+  }
+  if (updates.subject_id !== undefined) {
+    const current = await dbQuery('SELECT subject_id FROM chapters WHERE id = $1', [id]);
+    if (Number(updates.subject_id) !== Number(current.rows[0]?.subject_id)) {
+      const destination = await curriculumRepo.fetchSubjectContext(updates.subject_id);
+      if (!destination.rows[0]) throw new AppError('Destination Subject not found', 404);
+      if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(chapterContext.rows[0].client_id)) throw new AppError('The destination Subject is outside this curriculum scope', 403);
+      updates.chapter_number = Number((await dbQuery('SELECT COALESCE(MAX(chapter_number), 0) + 1 AS value FROM chapters WHERE subject_id = $1', [updates.subject_id])).rows[0].value);
+    }
   }
 
   const result = await curriculumRepo.updateChapter({ id, updates });
@@ -912,6 +937,7 @@ export const updateTopic = async ({ user, params, body }) => {
   if (body?.topic_number !== undefined) {
     updates.topic_number = parseRequiredInt(body?.topic_number, 'topic_number');
   }
+  if (body?.chapter_id !== undefined) updates.chapter_id = parseRequiredInt(body.chapter_id, 'chapter_id');
   if (body?.is_active !== undefined) {
     updates.is_active = parseBoolean(body?.is_active, 'is_active');
   }
@@ -926,6 +952,15 @@ export const updateTopic = async ({ user, params, body }) => {
   }
   if (!(await canManageCurriculumContext(user, topicContext.rows[0]))) {
     throw new AppError('Access denied', 403);
+  }
+  if (updates.chapter_id !== undefined) {
+    const current = await dbQuery('SELECT chapter_id FROM topics WHERE id = $1', [id]);
+    if (Number(updates.chapter_id) !== Number(current.rows[0]?.chapter_id)) {
+      const destination = await curriculumRepo.fetchChapterContext(updates.chapter_id);
+      if (!destination.rows[0]) throw new AppError('Destination Chapter not found', 404);
+      if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(topicContext.rows[0].client_id)) throw new AppError('The destination Chapter is outside this curriculum scope', 403);
+      updates.topic_number = Number((await dbQuery('SELECT COALESCE(MAX(topic_number), 0) + 1 AS value FROM topics WHERE chapter_id = $1', [updates.chapter_id])).rows[0].value);
+    }
   }
 
   const result = await curriculumRepo.updateTopic({ id, updates });
@@ -1027,6 +1062,7 @@ export const updateSubtopic = async ({ user, params, body }) => {
   if (body?.display_order !== undefined) {
     updates.display_order = parseRequiredInt(body.display_order, 'display_order');
   }
+  if (body?.topic_id !== undefined) updates.topic_id = parseRequiredInt(body.topic_id, 'topic_id');
   if (body?.is_active !== undefined) {
     updates.is_active = parseBoolean(body.is_active, 'is_active');
   }
@@ -1041,15 +1077,26 @@ export const updateSubtopic = async ({ user, params, body }) => {
   if (!(await canManageCurriculumContext(user, context.rows[0]))) {
     throw new AppError('Access denied', 403);
   }
+  if (updates.topic_id !== undefined && Number(updates.topic_id) !== Number(context.rows[0].topic_id)) {
+    const destination = await curriculumRepo.fetchTopicContext(updates.topic_id);
+    if (!destination.rows[0]) throw new AppError('Destination Topic not found', 404);
+    if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(context.rows[0].client_id)) throw new AppError('The destination Topic is outside this curriculum scope', 403);
+    updates.display_order = Number((await dbQuery('SELECT COALESCE(MAX(display_order), 0) + 1 AS value FROM subtopics WHERE topic_id = $1', [updates.topic_id])).rows[0].value);
+  }
 
   const result = await curriculumRepo.updateSubtopic({ id, updates });
   if (result.rows.length === 0) {
     throw new AppError('Subtopic not found', 404);
   }
-  return decorateCurriculumItem({ ...result.rows[0], ...context.rows[0] }, user);
+  return decorateCurriculumItem({ ...context.rows[0], ...result.rows[0] }, user);
 };
 
-export const deleteSubtopic = async ({ user, params }) => {
+export const deleteSubtopic = async ({
+  user,
+  params,
+  getDbClient = getClient,
+  removeFiles = removeStoredSessionDocuments,
+}) => {
   const id = parseRequiredInt(params?.id, 'id');
   const context = await curriculumRepo.fetchSubtopicContext(id);
   if (context.rows.length === 0) {
@@ -1059,11 +1106,84 @@ export const deleteSubtopic = async ({ user, params }) => {
     throw new AppError('Access denied', 403);
   }
 
-  const result = await curriculumRepo.deleteSubtopic(id);
-  if (result.rows.length === 0) {
-    throw new AppError('Subtopic not found', 404);
+  const client = await getDbClient();
+  let storageKeys = [];
+  let deletedSessionCount = 0;
+  try {
+    await client.query('BEGIN');
+    const lockedSubtopic = await client.query(
+      'SELECT id FROM subtopics WHERE id = $1 FOR UPDATE',
+      [id],
+    );
+    if (!lockedSubtopic.rows[0]) throw new AppError('Subtopic not found', 404);
+
+    const sessions = await client.query(
+      'SELECT id, status FROM sessions WHERE subtopic_id = $1 FOR UPDATE',
+      [id],
+    );
+    const published = sessions.rows.find((session) => session.status === 'published');
+    if (published) {
+      throw new AppError(
+        'This Subtopic contains a published Session. Published Sessions must be unpublished before deleting the Subtopic.',
+        409,
+        'SUBTOPIC_HAS_PUBLISHED_SESSION',
+      );
+    }
+
+    const sessionIds = sessions.rows.map((session) => Number(session.id));
+    deletedSessionCount = sessionIds.length;
+    if (sessionIds.length > 0) {
+      const releases = await client.query(
+        'SELECT 1 FROM session_releases WHERE session_id = ANY($1::int[]) LIMIT 1',
+        [sessionIds],
+      );
+      if (releases.rows[0]) {
+        throw new AppError(
+          'This Subtopic contains a Session with a published release. Published releases are immutable.',
+          409,
+          'SUBTOPIC_HAS_PUBLISHED_RELEASE',
+        );
+      }
+      const documents = await client.query(
+        `SELECT storage_key FROM session_documents
+         WHERE session_id = ANY($1::int[]) AND storage_key IS NOT NULL`,
+        [sessionIds],
+      );
+      storageKeys = documents.rows.map((row) => row.storage_key).filter(Boolean);
+
+      await client.query('DELETE FROM session_authorizations WHERE session_id = ANY($1::int[])', [sessionIds]);
+      await client.query('DELETE FROM session_validations WHERE session_id = ANY($1::int[])', [sessionIds]);
+      await client.query('DELETE FROM screen_zoom_links WHERE session_id = ANY($1::int[])', [sessionIds]);
+      await client.query('DELETE FROM screen_branches WHERE session_id = ANY($1::int[])', [sessionIds]);
+      await client.query('DELETE FROM screen_script_revisions WHERE session_id = ANY($1::int[])', [sessionIds]);
+      await client.query('DELETE FROM screens WHERE session_id = ANY($1::int[])', [sessionIds]);
+      await client.query('DELETE FROM session_documents WHERE session_id = ANY($1::int[])', [sessionIds]);
+      await client.query('DELETE FROM sessions WHERE id = ANY($1::int[])', [sessionIds]);
+    }
+
+    const result = await client.query('DELETE FROM subtopics WHERE id = $1 RETURNING id', [id]);
+    if (!result.rows[0]) throw new AppError('Subtopic not found', 404);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error?.code === '23503') {
+      throw new AppError(
+        'This Subtopic still has related activity and cannot be deleted',
+        409,
+        'SUBTOPIC_DELETE_DEPENDENCY_CONFLICT',
+      );
+    }
+    throw error;
+  } finally {
+    client.release();
   }
-  return { success: true, id: result.rows[0].id };
+
+  const storageCleanupComplete = await removeFiles(storageKeys);
+  return {
+    success: true,
+    id,
+    deleted_session_count: deletedSessionCount,
+    deleted_document_count: storageKeys.length,
+    storage_cleanup_complete: storageCleanupComplete,
+  };
 };
-
-
