@@ -64,6 +64,7 @@ import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionsPanel from './components/StudioTransitionsPanel';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
+import { clickerNavigationAction } from './components/studioClickerRuntime';
 import {
   SMART_DIAGRAM_THEMES,
   createSmartDiagramContent,
@@ -119,6 +120,40 @@ const screenScriptEntries = (
 
 const authoredDrawingStrokes = (screen: StudioScreen | null): AuthorDrawingStroke[] =>
   screen?.screen_settings_json?.author_drawings?.strokes ?? [];
+
+type ManagedScreen = Screen & {
+  availLeft?: number;
+  availTop?: number;
+  isExtended?: boolean;
+  isInternal?: boolean;
+  isPrimary?: boolean;
+  label?: string;
+  left?: number;
+  top?: number;
+};
+
+type ManagedScreenDetails = {
+  currentScreen: ManagedScreen;
+  screens: ManagedScreen[];
+};
+
+type WindowWithScreenManagement = Window & {
+  getScreenDetails?: () => Promise<ManagedScreenDetails>;
+};
+
+const sameManagedScreen = (left: ManagedScreen, right: ManagedScreen) =>
+  (left.left ?? 0) === (right.left ?? 0) &&
+  (left.top ?? 0) === (right.top ?? 0) &&
+  left.width === right.width &&
+  left.height === right.height;
+
+const presentationWindowFeatures = (target: ManagedScreen) => {
+  const left = Math.round(target.availLeft ?? target.left ?? 0);
+  const top = Math.round(target.availTop ?? target.top ?? 0);
+  const width = Math.max(640, Math.round(target.availWidth || target.width || 1440));
+  const height = Math.max(480, Math.round(target.availHeight || target.height || 900));
+  return `popup=yes,left=${left},top=${top},width=${width},height=${height}`;
+};
 
 export default function TeachingStudioPage() {
   const navigate = useNavigate();
@@ -178,7 +213,10 @@ export default function TeachingStudioPage() {
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
   const editorClipboardRef = useRef<StudioElement[]>([]);
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
+  const presentationWindowRef = useRef<Window | null>(null);
+  const presentationWindowWatchRef = useRef<number | null>(null);
   const [presentationActive, setPresentationActive] = useState(false);
+  const [presentationDisplayName, setPresentationDisplayName] = useState('current display');
   const [inlineShapeEdit, setInlineShapeEdit] = useState<{
     elementId: string;
     shape: InlineShapeData;
@@ -534,6 +572,40 @@ export default function TeachingStudioPage() {
   const openPresentation = async () => {
     if (!sessionId) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+
+    if (presentationWindowWatchRef.current !== null) {
+      window.clearInterval(presentationWindowWatchRef.current);
+      presentationWindowWatchRef.current = null;
+    }
+    if (presentationWindowRef.current && !presentationWindowRef.current.closed) {
+      presentationWindowRef.current.close();
+    }
+
+    const browserWindow = window as WindowWithScreenManagement;
+    const currentBrowserScreen = window.screen as ManagedScreen;
+    let targetScreen = currentBrowserScreen;
+    let externalDisplay = false;
+    let screenPermissionUnavailable = false;
+
+    if (currentBrowserScreen.isExtended && browserWindow.getScreenDetails) {
+      try {
+        const details = await browserWindow.getScreenDetails();
+        const otherScreens = details.screens.filter(
+          (candidate) => !sameManagedScreen(candidate, details.currentScreen),
+        );
+        const preferredExternal =
+          otherScreens.find((candidate) => candidate.isInternal === false) ??
+          otherScreens.find((candidate) => candidate.isPrimary === false) ??
+          otherScreens[0];
+        if (preferredExternal) {
+          targetScreen = preferredExternal;
+          externalDisplay = true;
+        }
+      } catch {
+        screenPermissionUnavailable = true;
+      }
+    }
+
     const channelName = `spectropy-present-${sessionId}-${Date.now()}`;
     presentationChannelRef.current?.close();
     presentationChannelRef.current =
@@ -541,28 +613,99 @@ export default function TeachingStudioPage() {
     const audience = window.open(
       `/studio/player/${sessionId}/preview?mode=audience&channel=${encodeURIComponent(channelName)}`,
       `spectropy-presentation-${sessionId}`,
-      'popup=yes,width=1440,height=900',
+      presentationWindowFeatures(targetScreen),
     );
     if (!audience) {
+      presentationChannelRef.current?.close();
+      presentationChannelRef.current = null;
       toast.error('Allow pop-ups for this site, then choose Present again.');
       return;
     }
+
+    presentationWindowRef.current = audience;
+    try {
+      audience.moveTo(
+        Math.round(targetScreen.availLeft ?? targetScreen.left ?? 0),
+        Math.round(targetScreen.availTop ?? targetScreen.top ?? 0),
+      );
+      audience.resizeTo(
+        Math.round(targetScreen.availWidth || targetScreen.width || 1440),
+        Math.round(targetScreen.availHeight || targetScreen.height || 900),
+      );
+    } catch {
+      /* The requested bounds are already supplied to window.open. */
+    }
     audience.focus();
     setPresentationActive(true);
-    toast.success('Audience presentation opened. Move that window to the classroom display.');
+    const displayName = externalDisplay
+      ? targetScreen.label?.trim() || 'external display'
+      : 'current display';
+    setPresentationDisplayName(displayName);
+    presentationWindowWatchRef.current = window.setInterval(() => {
+      if (!presentationWindowRef.current?.closed) return;
+      if (presentationWindowWatchRef.current !== null) {
+        window.clearInterval(presentationWindowWatchRef.current);
+        presentationWindowWatchRef.current = null;
+      }
+      presentationWindowRef.current = null;
+      presentationChannelRef.current?.close();
+      presentationChannelRef.current = null;
+      setPresentationActive(false);
+    }, 750);
+
+    if (externalDisplay) {
+      toast.success(`Audience presentation opened on ${displayName}.`);
+    } else if (screenPermissionUnavailable) {
+      toast.error(
+        'Multi-screen permission was not granted. Presentation opened on this display; allow Window management and try again.',
+      );
+    } else if (currentBrowserScreen.isExtended && !browserWindow.getScreenDetails) {
+      toast('This browser cannot automatically place windows on another display.');
+    } else {
+      toast.success('Audience presentation opened on this display.');
+    }
   };
 
   const sendPresentationCommand = (command: 'previous' | 'next' | 'fullscreen') =>
     presentationChannelRef.current?.postMessage({ command });
 
+  useEffect(() => {
+    if (!presentationActive) return;
+    const forwardLaptopClicker = (event: KeyboardEvent) => {
+      const action = clickerNavigationAction(event);
+      if (!action) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      presentationChannelRef.current?.postMessage({ command: action });
+    };
+    window.addEventListener('keydown', forwardLaptopClicker, true);
+    return () => window.removeEventListener('keydown', forwardLaptopClicker, true);
+  }, [presentationActive]);
+
   const closePresentationControls = () => {
     presentationChannelRef.current?.postMessage({ command: 'close' });
+    presentationWindowRef.current?.close();
+    presentationWindowRef.current = null;
+    if (presentationWindowWatchRef.current !== null) {
+      window.clearInterval(presentationWindowWatchRef.current);
+      presentationWindowWatchRef.current = null;
+    }
     presentationChannelRef.current?.close();
     presentationChannelRef.current = null;
     setPresentationActive(false);
   };
 
-  useEffect(() => () => presentationChannelRef.current?.close(), []);
+  useEffect(
+    () => () => {
+      if (presentationWindowWatchRef.current !== null) {
+        window.clearInterval(presentationWindowWatchRef.current);
+      }
+      presentationChannelRef.current?.postMessage({ command: 'close' });
+      presentationChannelRef.current?.close();
+      presentationWindowRef.current?.close();
+    },
+    [],
+  );
 
   const runWorkflowAction = async (action: 'submit' | 'approve' | 'publish') => {
     if (!sessionId || workflowAction) return;
@@ -1869,7 +2012,7 @@ export default function TeachingStudioPage() {
         </div>
       }
     >
-      <div ref={editorViewportRef} className={`studio-editor-viewport relative flex h-full min-h-0 flex-col gap-2 overflow-hidden bg-slate-100 p-2 ${editorFocusMode ? 'studio-editor-focus-mode' : ''}`}>
+      <div ref={editorViewportRef} className={`studio-editor-viewport relative flex h-full min-h-0 flex-col gap-1 overflow-hidden bg-slate-100 p-1.5 ${editorFocusMode ? 'studio-editor-focus-mode' : ''}`}>
         <section className="studio-context-bar shrink-0 rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur-md">
             <div className="studio-context-primary flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto overscroll-contain">
               <span className="shrink-0 rounded-lg bg-slate-900 px-2.5 py-2 text-xs font-bold text-white" title={`Screen Editor · Session ${sessionId}`}>
@@ -2195,7 +2338,7 @@ export default function TeachingStudioPage() {
             </div>
             {presentationActive ? (
               <div className="absolute bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-blue-200 bg-slate-950/92 p-2 text-white shadow-2xl backdrop-blur" role="toolbar" aria-label="Audience presentation controls">
-                <span className="px-2 text-xs font-bold">Presenting</span>
+                <span className="px-2 text-xs font-bold">Presenting · {presentationDisplayName}</span>
                 <button type="button" onClick={() => sendPresentationCommand('previous')} className="rounded-lg p-2 hover:bg-white/15" title="Previous"><ChevronLeft size={19} /></button>
                 <button type="button" onClick={() => sendPresentationCommand('next')} className="rounded-lg p-2 hover:bg-white/15" title="Next"><ChevronRight size={19} /></button>
                 <button type="button" onClick={() => sendPresentationCommand('fullscreen')} className="rounded-lg p-2 hover:bg-white/15" title="Audience fullscreen"><Maximize2 size={17} /></button>
