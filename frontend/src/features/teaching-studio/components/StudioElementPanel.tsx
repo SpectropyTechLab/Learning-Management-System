@@ -9,6 +9,7 @@ interface Props {
   selectedElementId: string | null;
   onSelect: (elementId: string) => void;
   onAdd: (slot: Slot) => void;
+  onChangeSlotType: (slot: Slot, type: ObjectType) => void;
   onAddBlank: (type: ObjectType, region: Slot['region']) => void;
   onUpdate: (element: StudioElement) => void;
   onDuplicate: (elementId: string) => void;
@@ -44,8 +45,11 @@ const elementTypeLabels: Partial<Record<ObjectType, string>> = {
   data: 'Data — structured or tabular text',
   options: 'Options — answer-choice text',
 };
+const slotTypesFor = (slot: Slot): ObjectType[] => slot.id === 'visual'
+  ? Array.from(new Set<ObjectType>([...slot.allowed, 'visual', 'media', 'simulation']))
+  : slot.allowed;
 
-export default function StudioElementPanel({ layout, screen, selectedElementId, onSelect, onAdd, onAddBlank, onUpdate, onDuplicate, onRemove, availableScreens = [] }: Props) {
+export default function StudioElementPanel({ layout, screen, selectedElementId, onSelect, onAdd, onChangeSlotType, onAddBlank, onUpdate, onDuplicate, onRemove, availableScreens = [] }: Props) {
   if (!screen) return <p className="text-sm text-slate-500">Select a Screen to edit its content.</p>;
 
   const selected = screen.elements.find((element) => element.id === selectedElementId) || null;
@@ -57,6 +61,10 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
         allowed: blankElementTypes,
         bounds: selected.position as Slot['bounds'],
       })
+    : null;
+  const configurableContentSlot = layout?.slots.find((slot) => slot.id === 'visual') ?? null;
+  const configurableContentElement = configurableContentSlot
+    ? screen.elements.find((element) => element.slotId === configurableContentSlot.id) ?? null
     : null;
   const updateContent = (key: string, value: string) =>
     selected &&
@@ -133,6 +141,19 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
             })}
           </div>
         ) : null}
+        {configurableContentSlot ? (
+          <label className="mt-4 block text-xs font-semibold text-slate-600">
+            Content type
+            <select
+              value={configurableContentElement?.type ?? ''}
+              onChange={(event) => event.target.value && onChangeSlotType(configurableContentSlot, event.target.value as ObjectType)}
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal text-slate-900"
+            >
+              <option value="">Choose content type...</option>
+              {slotTypesFor(configurableContentSlot).map((type) => <option key={type} value={type}>{elementTypeLabels[type] ?? type}</option>)}
+            </select>
+          </label>
+        ) : null}
         <label className="mt-4 block text-xs font-semibold text-slate-600">
           <span className="inline-flex items-center gap-2"><Layers3 size={16} className="text-blue-800" />Layers</span>
           <select
@@ -199,7 +220,7 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
                 }}
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
               >
-                {selectedSlot.allowed.map((type) => (
+                {slotTypesFor(selectedSlot).map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>

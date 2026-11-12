@@ -14,7 +14,7 @@ const target = ({ slots, ...details }: Target): Layout => ({
 
 export const targetLayouts: Layout[] = [
   target({ id: 'LYT-001', name: 'Hook / observation', purpose: 'Notice a pattern and make a prediction before formal explanation.', compatibility: 'Any introduction; Mathematics, Physics, Chemistry, Biology, Geography.', interaction: 'Show the image, then the focus question; retain the prediction.', evidence: 'Observation and prediction.', productionChecks: 'Relevant visual, alt text, neutral caption.', slots: [
-    content('visual', 'Visual / image / diagram', 90, 250, 1080, 680, ['visual']),
+    content('visual', 'Visual / image / diagram', 90, 250, 1080, 680, ['visual', 'media', 'simulation']),
     content('prompt', 'Prompt / question', 1200, 250, 630, 310, ['question']),
     content('response', 'Short response', 1200, 590, 630, 340, ['response']),
   ] }),

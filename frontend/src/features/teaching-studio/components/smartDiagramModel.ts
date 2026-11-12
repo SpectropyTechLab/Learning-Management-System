@@ -234,10 +234,20 @@ export const layoutSmartDiagram = (content: SmartDiagramContent): DiagramGeometr
     });
     edges = hierarchyEdges(nodes);
   } else if (['cycle', 'relationship'].includes(content.category)) {
-    const radius = count <= 5 ? 205 : 235;
+    const nodeWidth = count <= 3 ? 250 : count <= 5 ? 205 : count <= 8 ? 170 : 145;
+    const nodeHeight = count <= 3 ? 140 : count <= 5 ? 116 : count <= 8 ? 96 : 82;
+    const radiusX = count <= 3 ? 280 : count <= 5 ? 255 : count <= 8 ? 275 : 300;
+    const radiusY = count <= 3 ? 205 : count <= 5 ? 210 : count <= 8 ? 225 : 235;
     ordered.forEach((node, index) => {
       const angle = -Math.PI / 2 + (Math.PI * 2 * index) / count;
-      boxes.push({ id: node.id, x: 500 + Math.cos(angle) * radius - 82, y: 300 + Math.sin(angle) * radius - 48, width: 164, height: 96, level: node.level });
+      boxes.push({
+        id: node.id,
+        x: 500 + Math.cos(angle) * radiusX - nodeWidth / 2,
+        y: 300 + Math.sin(angle) * radiusY - nodeHeight / 2,
+        width: nodeWidth,
+        height: nodeHeight,
+        level: node.level,
+      });
     });
     edges = content.category === 'cycle' ? [...sequentialEdges(ordered), ...(ordered.length > 2 ? [{ from: ordered.at(-1)!.id, to: ordered[0].id }] : [])] : ordered.slice(1).map((node) => ({ from: ordered[0].id, to: node.id }));
   } else if (content.category === 'matrix') {

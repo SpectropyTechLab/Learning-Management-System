@@ -737,7 +737,12 @@
 
 .studio-editor-slide-frame {
   min-height: 0;
+  inset: 0.35rem 0.75rem !important;
   animation: studio-canvas-settle 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-editor-status-bar {
+  box-shadow: 0 -1px 0 rgb(148 163 184 / 16%);
 }
 
 @keyframes studio-canvas-settle {

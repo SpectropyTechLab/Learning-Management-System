@@ -4,7 +4,7 @@
       "layout_key": "LYT-001", "version_no": 1, "name": "Hook / observation", "description": "Notice a pattern and make a prediction before formal explanation.",
       "layout_data_json": { "slots": [
         { "id": "title", "label": "Lesson title", "bounds": { "x": 90, "y": 60, "width": 1740, "height": 150 }, "allowed": ["title"], "region": "header" },
-        { "id": "visual", "label": "Visual / image / diagram", "bounds": { "x": 90, "y": 250, "width": 1080, "height": 680 }, "allowed": ["visual"], "region": "content" },
+        { "id": "visual", "label": "Visual / image / diagram", "bounds": { "x": 90, "y": 250, "width": 1080, "height": 680 }, "allowed": ["visual", "media", "simulation"], "region": "content" },
         { "id": "prompt", "label": "Prompt / question", "bounds": { "x": 1200, "y": 250, "width": 630, "height": 310 }, "allowed": ["question"], "region": "content" },
         { "id": "response", "label": "Short response", "bounds": { "x": 1200, "y": 590, "width": 630, "height": 340 }, "allowed": ["response"], "region": "content" },
         { "id": "footer", "label": "Teaching cue", "bounds": { "x": 90, "y": 950, "width": 1740, "height": 90 }, "allowed": ["footer"], "region": "footer" }

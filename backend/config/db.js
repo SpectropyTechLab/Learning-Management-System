@@ -20,7 +20,9 @@ const parseBoolean = (value, fallback = false) => {
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.LOCAL_DEV === 'true' ? false : { rejectUnauthorized: false },
-  max: parseInteger(process.env.PG_POOL_MAX, 10),
+  // Keep each application process well below the hosted pooler's 15-client
+  // session-mode ceiling. Deployments with a larger database can override it.
+  max: parseInteger(process.env.PG_POOL_MAX, 5),
   min: parseInteger(process.env.PG_POOL_MIN, 0),
   idleTimeoutMillis: parseInteger(process.env.PG_IDLE_TIMEOUT_MS, 10000),
   connectionTimeoutMillis: parseInteger(process.env.PG_CONNECTION_TIMEOUT_MS, 15000),

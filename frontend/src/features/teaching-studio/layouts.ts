@@ -119,6 +119,7 @@ export type SlideObject = {
   text: string;
   position?: Rect;
   color?: string;
+  backgroundColor?: string;
   locked?: boolean;
   zIndex?: number;
   url?: string;
@@ -150,7 +151,7 @@ export function validateSlide(layout: Layout | null, slide: Slide): string[] {
   for (const object of slide.objects) {
     const field = layout.slots.find((item) => item.id === object.slotId);
     if (!field) errors.push(`${object.id} uses an unknown slot`);
-    else if (!field.allowed.includes(object.type)) errors.push(`${object.id} has an unsupported type for ${field.id}`);
+    else if (!field.allowed.includes(object.type) && !(field.id === 'visual' && ['visual', 'media', 'simulation'].includes(object.type))) errors.push(`${object.id} has an unsupported type for ${field.id}`);
   }
   return errors;
 }

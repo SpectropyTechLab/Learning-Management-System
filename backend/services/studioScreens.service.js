@@ -278,7 +278,7 @@ const normalizeElements = (elements, layout) => {
     if (slots && !['math', 'shape', 'zoom', 'embedded_object'].includes(type)) {
       if (!slotId || !slots.has(slotId))
         throw new AppError(`Element ${key} uses an unknown layout slot`);
-      if (!slots.get(slotId).allowed.includes(type)) {
+      if (!slots.get(slotId).allowed.includes(type) && !(slotId === 'visual' && ['visual', 'media', 'simulation'].includes(type))) {
         throw new AppError(`Element ${key} has an unsupported type for slot ${slotId}`);
       }
     }
@@ -349,8 +349,10 @@ const loadScreenRow = async (db, screenId, user, { lock = false } = {}) => {
 };
 
 const hydrateScreen = async (db, screen) => {
-  const [elementsResult, tagsResult, branchesResult, zoomsResult] = await Promise.all([
-    db.query(
+  // Hydration used to open four queries at once for every request. With a
+  // session-mode pooler that creates avoidable connection spikes, especially
+  // when the editor autosaves while preview and screen-list requests overlap.
+  const elementsResult = await db.query(
       `SELECT se.element_key AS id, se.slot_id, se.element_type AS type,
               se.content_json AS content, se.position_json AS position,
               se.display_order, rm.resource_id, rm.resource_version_id,
@@ -360,23 +362,22 @@ const hydrateScreen = async (db, screen) => {
          ON rm.screen_id = se.screen_id AND rm.element_id = se.element_key
        WHERE se.screen_id = $1 ORDER BY se.display_order, se.id`,
       [screen.id],
-    ),
-    db.query('SELECT tag FROM screen_tags WHERE screen_id = $1 ORDER BY tag', [screen.id]),
-    db.query(
+    );
+  const tagsResult = await db.query('SELECT tag FROM screen_tags WHERE screen_id = $1 ORDER BY tag', [screen.id]);
+  const branchesResult = await db.query(
       `SELECT branch_key AS id, destination_screen_id, trigger_kind,
               trigger_config_json AS trigger, return_screen_id,
               restore_screen_state, restore_session_state, display_order
        FROM screen_branches WHERE source_screen_id = $1 ORDER BY display_order, id`,
       [screen.id],
-    ),
-    db.query(
+    );
+  const zoomsResult = await db.query(
       `SELECT element_id, zoom_kind, target_screen_id, target_section_id,
               return_to_zoom, transition_enabled, transition_duration_ms,
               thumbnail_mode, custom_thumbnail_url
        FROM screen_zoom_links WHERE source_screen_id = $1`,
       [screen.id],
-    ),
-  ]);
+    );
   const zooms = new Map(zoomsResult.rows.map((zoom) => [zoom.element_id, {
     kind: zoom.zoom_kind,
     target_screen_id: zoom.target_screen_id === null ? null : Number(zoom.target_screen_id),

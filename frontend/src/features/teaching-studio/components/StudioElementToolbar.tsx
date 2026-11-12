@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ChevronDown, Circle, Copy, IndentDecrease, IndentIncrease, Italic, Link2, List, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ChevronDown, Circle, Copy, GripVertical, IndentDecrease, IndentIncrease, Italic, Link2, List, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
 import type { StudioElement } from '../types';
 import { normalizeStudioHyperlink } from './studioHyperlinkModel';
 import { dispatchStudioTextCommand } from './studioTextCommands';
@@ -12,11 +13,14 @@ interface Props {
   onOpenAnimations: () => void;
   onDuplicate?: () => void;
   onRemove?: () => void;
+  onDragPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onDragPointerMove?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onDragPointerEnd?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }
 
 const textTypes = ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'];
 
-export default function StudioElementToolbar({ element, onChange, onOpenMath, onOpenShapes, onOpenAnimations, onDuplicate, onRemove }: Props) {
+export default function StudioElementToolbar({ element, onChange, onOpenMath, onOpenShapes, onOpenAnimations, onDuplicate, onRemove, onDragPointerDown, onDragPointerMove, onDragPointerEnd }: Props) {
   const [listMenuOpen, setListMenuOpen] = useState(false);
   const [linkMenuOpen, setLinkMenuOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -50,6 +54,7 @@ export default function StudioElementToolbar({ element, onChange, onOpenMath, on
   };
 
   return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm" aria-label="Selected element formatting toolbar">
+    {onDragPointerDown ? <button type="button" onPointerDown={onDragPointerDown} onPointerMove={onDragPointerMove} onPointerUp={onDragPointerEnd} onPointerCancel={onDragPointerEnd} className="flex h-7 w-6 shrink-0 touch-none cursor-grab items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing" title="Drag formatting toolbar" aria-label="Drag formatting toolbar"><GripVertical size={15} /></button> : null}
     <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
       <select disabled={!textElement} value={String(content.fontFamily || 'Arial')} onChange={(event) => onChange({ fontFamily: event.target.value })} aria-label="Font family" className="h-7 w-24 shrink-0 rounded border px-1 text-xs disabled:opacity-35"><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option></select>
       <input disabled={!textElement} type="number" min="10" max="160" value={Number(content.fontSize) || 18} onChange={(event) => onChange({ fontSize: Number(event.target.value) })} aria-label="Font size" className="h-7 w-12 shrink-0 rounded border px-1 text-xs disabled:opacity-35" />
