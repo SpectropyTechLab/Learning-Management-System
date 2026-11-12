@@ -279,7 +279,7 @@ const validateScreenElements = (elements, layout) => {
     const slot = slots.get(slotId);
     if (!slot) throw new AppError(`Element ${key} uses an unknown layout slot`);
     const type = String(element.type || '').trim();
-    if (!slot.allowed.includes(type)) throw new AppError(`Element ${key} has an unsupported type for slot ${slotId}`);
+    if (!slot.allowed.includes(type) && !(slotId === 'visual' && ['visual', 'media', 'simulation'].includes(type))) throw new AppError(`Element ${key} has an unsupported type for slot ${slotId}`);
     return { key, slotId, type, content: element.content || {}, position: element.position || {}, displayOrder: index };
   });
 };

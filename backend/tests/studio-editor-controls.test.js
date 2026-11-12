@@ -168,6 +168,10 @@ test('Editor commands, direct canvas authoring and canvas-only zoom share one wo
   assert.match(canvas, /mimeType\.startsWith\('video\/'\)/);
   assert.match(canvas, /mimeType\.startsWith\('audio\/'\)/);
   assert.match(canvas, /mimeType === 'application\/pdf'/);
+  assert.match(canvas, /studio-editor-status-bar/);
+  assert.match(canvas, /aria-label="Canvas zoom percentage"/);
+  assert.match(canvas, /aria-label="Fit slide"/);
+  assert.doesNotMatch(canvas, /absolute bottom-3 left-1\/2/);
 });
 
 test('Present opens a clean audience window controlled from the editor', () => {
@@ -176,8 +180,32 @@ test('Present opens a clean audience window controlled from the editor', () => {
   const shell = readFrontend('components/StudioShell.tsx');
   assert.match(editor, /openPresentation/);
   assert.match(editor, /BroadcastChannel/);
+  assert.match(editor, /getScreenDetails/);
+  assert.match(editor, /isExtended/);
+  assert.match(editor, /presentationWindowFeatures/);
+  assert.match(editor, /preferredExternal/);
+  assert.match(editor, /forwardLaptopClicker/);
+  assert.match(editor, /clickerNavigationAction/);
   assert.match(editor, /Audience presentation controls/);
   assert.match(player, /audienceMode/);
   assert.match(player, /presentationChannel/);
   assert.match(shell, /presentationMode/);
+});
+
+test('Backward animation preserves the slide tree and remounts only changed elements', () => {
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const runtime = readFrontend('components/studioClickerRuntime.ts');
+  const retreatStart = player.indexOf('const retreatPresenter');
+  const retreatEnd = player.indexOf('useEffect(() => {', retreatStart);
+  const retreatImplementation = player.slice(retreatStart, retreatEnd);
+  assert.match(player, /<PublishedCanvas key=\{screen\.screen_id\}/);
+  assert.doesNotMatch(player, /<PublishedCanvas key=\{`\$\{screen\.screen_id\}-\$\{playbackCycle\}`\}/);
+  assert.doesNotMatch(retreatImplementation, /setPlaybackCycle/);
+  assert.match(runtime, /presenterElementPlaybackState/);
+  assert.match(runtime, /reachedCueIndex/);
+  assert.match(runtime, /navigation\?\.direction === 'backward'/);
+  assert.match(player, /animationDirection/);
+  assert.match(canvas, /presenterElementPlaybackState/);
+  assert.doesNotMatch(canvas, /setPreviewCycle\(\(current\) => current \+ 1\);\s*}\s*else onPreviewPrevious/);
 });

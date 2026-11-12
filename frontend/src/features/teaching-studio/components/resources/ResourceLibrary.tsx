@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Grid2X2, Layers3, List, MoreVertical, Pencil, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Eye, Grid2X2, List, MoreVertical, Pencil, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
@@ -268,6 +268,21 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
 
   const filtersActive = Boolean(searchInput || resourceType);
   const pickerVersion = pickerDetails?.versions.find((version) => version.id === pickerVersionId) ?? null;
+  const renderPlacementCard = (resource: StudioResourceSummary) => pickerResource?.id === resource.id ? (
+    <div className="m-3 rounded-xl border border-blue-200 bg-blue-50/70 p-3 shadow-sm" role="dialog" aria-label={`Place ${resource.name}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0"><h3 className="truncate text-sm font-bold text-slate-900">Place {resource.name}</h3><p className="mt-0.5 text-xs text-slate-500">Choose the exact immutable version.</p></div>
+        <button type="button" onClick={() => setPickerResource(null)} className="shrink-0 rounded-md border border-slate-300 bg-white p-1.5 text-slate-600" aria-label="Close Resource version chooser"><X size={15} /></button>
+      </div>
+      <div className="mt-3">
+        {pickerLoading ? <p className="rounded-lg bg-white p-3 text-center text-xs text-slate-600">Loading versions...</p>
+          : pickerError ? <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{pickerError}</p>
+            : pickerDetails && pickerVersion ? <><label className="block text-xs font-semibold text-slate-700">Exact version<select value={pickerVersionId ?? ''} onChange={(event) => setPickerVersionId(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">{pickerDetails.versions.map((version) => <option key={version.id} value={version.id}>Version {version.version_number}</option>)}</select></label><div className="mt-2 rounded-lg bg-white p-2 text-xs text-slate-600"><span className="font-semibold">File:</span> <span className="break-words">{pickerVersion.original_file_name || 'External URL'}</span><span className="ml-2 text-slate-400">ID {pickerVersion.id}</span></div></>
+              : <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">No version is available for placement.</p>}
+      </div>
+      <div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setPickerResource(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Cancel</button><button type="button" disabled={!pickerVersion || pickerLoading} onClick={() => { if (!pickerVersion) return; onPick?.(resource, pickerVersion); setPickerResource(null); }} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Place version {pickerVersion?.version_number ?? ''}</button></div>
+    </div>
+  ) : null;
 
   return (
     <section className="border-b border-gray-200 bg-white">
@@ -350,7 +365,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
           <div className="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
             <Layers3 className="mx-auto text-slate-400" size={40} />
             <h3 className="mt-3 font-semibold text-slate-800">{filtersActive ? 'No Resources match your filters' : 'No Resources available'}</h3>
-            <p className="mt-1 text-sm text-slate-500">{filtersActive ? 'Try another search term or clear the Resource type filter.' : 'Use Add Resource above to create the first library item.'}</p>
+            <p className="mt-1 text-sm text-slate-500">{filtersActive ? 'Try another search term or clear the Resource type filter.' : 'Use Add Resource above to create the first curriculum-aligned library item.'}</p>
           </div>
         ) : view === 'grid' ? (
           <div className={`grid gap-4 ${mode === 'picker' ? 'grid-cols-1' : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
@@ -374,6 +389,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
                       <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onRename={() => requestRename(resource)} onDelete={() => requestDelete(resource)} />
                     </div>
                   ) : null}
+                  {renderPlacementCard(resource)}
                 </article>
               );
             })}
@@ -384,7 +400,8 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
               const style = getResourceTypeStyle(resource.resource_type);
               const Icon = style.icon;
               return (
-                <div key={resource.id} className="relative flex border-t border-gray-100 first:border-t-0 hover:bg-slate-50">
+                <div key={resource.id} className="border-t border-gray-100 first:border-t-0">
+                  <div className="relative flex hover:bg-slate-50">
                   <button type="button" onClick={() => openResource(resource)} className="min-w-0 flex-1 px-3 py-3 text-left [&>span.text-sm]:hidden">
                     <span className="flex min-w-0 items-center gap-3">
                       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${style.preview}`}>
@@ -402,6 +419,8 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
                       <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onRename={() => requestRename(resource)} onDelete={() => requestDelete(resource)} />
                     </div>
                   ) : null}
+                  </div>
+                  {renderPlacementCard(resource)}
                 </div>
               );
             })}
@@ -409,7 +428,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
         )}
       </div>
 
-      {pickerResource ? (
+      {mode === 'manage' && pickerResource ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Choose Resource version">
           <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">

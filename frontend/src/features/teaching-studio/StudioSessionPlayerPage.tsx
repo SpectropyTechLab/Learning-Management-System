@@ -21,7 +21,8 @@ import {
   CLICKER_SHORTCUT_GROUPS,
   clickerNavigationAction,
   presenterDiagramVisibleNodes,
-  presenterElementState,
+  presenterElementPlaybackState,
+  type PresenterAnimationNavigation,
   type PresenterAnimationTimeline,
 } from './components/studioClickerRuntime';
 import StudioCanvasTextElement from './components/StudioCanvasTextElement';
@@ -159,7 +160,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false }: { releas
   return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} />;
 }
 
-function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number }) {
+function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null }) {
   const layout = layoutFor(screen) ?? freeformLayoutFor(screen);
   const slide: Slide = {
     title: screen.title,
@@ -174,17 +175,20 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
       altText: typeof element.content_json?.altText === 'string' ? element.content_json.altText : undefined,
       caption: typeof element.content_json?.caption === 'string' ? element.content_json.caption : undefined,
       color: typeof element.content_json?.color === 'string' ? element.content_json.color : undefined,
+      backgroundColor: typeof element.content_json?.backgroundColor === 'string'
+        ? element.content_json.backgroundColor
+        : typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined,
       zIndex: typeof element.position_json?.zIndex === 'number' ? element.position_json.zIndex : undefined,
     })),
   };
   const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
-    if (element.element_type === 'visual' && isSmartDiagramContent(element.content_json)) {
+    if (isSmartDiagramContent(element.content_json)) {
       const visibleNodeIds = animationTimeline && animationStep !== undefined
         ? presenterDiagramVisibleNodes(animationTimeline, element.element_key, animationStep, element.content_json.nodes.map((node) => node.id))
         : undefined;
       return [[element.element_key, <StudioSmartDiagram key={element.element_key} content={element.content_json} visibleNodeIds={visibleNodeIds} />]];
     }
-    if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
+    if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
     if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} customPath={typeof element.content_json?.customPath === 'string' ? element.content_json.customPath : undefined} />]];
     if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full touch-manipulation place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.content_json?.zoom_summary_group ? 'Summary Zoom' : element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select once to explore · returns here</span></span></button>]];
     const droppedUrl = typeof element.content_json?.url === 'string' ? element.content_json.url : '';
@@ -198,7 +202,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
       return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center"><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{droppedMime || 'Document'}</p><a href={droppedUrl} download={name} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>]];
     }
     const text = textFrom(element.content_json || {});
-    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} elementId={element.element_key} text={text} richTextHtml={typeof element.content_json?.richTextHtml === 'string' ? element.content_json.richTextHtml : undefined} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
+    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} elementId={element.element_key} text={text} richTextHtml={typeof element.content_json?.richTextHtml === 'string' ? element.content_json.richTextHtml : undefined} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} />]];
     return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} />]] : [];
   }));
   for (const element of screen.elements) {
@@ -211,18 +215,36 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
     if (!overlay || !animationTimeline || animationStep === undefined) continue;
-    const presenterState = presenterElementState(animationTimeline, element.element_key, animationStep);
-    objectAnimationStyles[element.element_key] = presenterState.activeEffects.length
-      ? studioAnimationStyle({ effects: presenterState.activeEffects })
-      : presenterState.visible
+    const playbackState = presenterElementPlaybackState(
+      animationTimeline,
+      element.element_key,
+      animationStep,
+      playbackCycle ?? 0,
+      animationNavigation,
+    );
+    const activeStyle = playbackState.activeEffects.length
+      ? studioAnimationStyle({ effects: playbackState.activeEffects })
+      : null;
+    objectAnimationStyles[element.element_key] = activeStyle
+      ? {
+          ...activeStyle,
+          ...(playbackState.reverse
+            ? {
+                animationDirection: playbackState.activeEffects
+                  .map(() => 'reverse')
+                  .join(', '),
+              }
+            : {}),
+        }
+      : playbackState.visible
         ? {}
         : { opacity: 0 };
-    objectAnimationKeys[element.element_key] = `${screen.screen_id}-${playbackCycle ?? 0}-${animationStep}-${element.element_key}`;
+    objectAnimationKeys[element.element_key] = `${screen.screen_id}-${playbackState.identity}`;
   }
 
   const drawingEnabled = annotationTool === 'pen' || annotationTool === 'highlighter' || annotationTool === 'eraser';
   const drawingTool = annotationTool === 'eraser' ? 'eraser' : annotationTool === 'highlighter' ? 'highlighter' : 'pen';
-  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
+  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -259,6 +281,7 @@ export default function StudioSessionPlayerPage() {
   const [fullScreen, setFullScreen] = useState(false);
   const [animationStep, setAnimationStep] = useState(0);
   const [playbackCycle, setPlaybackCycle] = useState(0);
+  const [animationNavigation, setAnimationNavigation] = useState<PresenterAnimationNavigation | null>(null);
   const [blankMode, setBlankMode] = useState<'black' | 'white' | null>(null);
   const [presentationZoom, setPresentationZoom] = useState(1);
   const [zoomRun, setZoomRun] = useState<null | { originScreenId: number; targetIds: number[]; index: number; returnToZoom: boolean }>(null);
@@ -333,6 +356,7 @@ export default function StudioSessionPlayerPage() {
   useEffect(() => {
     setAnimationStep(enterScreenAtEndRef.current ? animationTimeline.maxStep : 0);
     enterScreenAtEndRef.current = false;
+    setAnimationNavigation(null);
     setPlaybackCycle((value) => value + 1);
     setBlankMode(null);
     setPresentationZoom(1);
@@ -470,6 +494,11 @@ export default function StudioSessionPlayerPage() {
     }
     if (animationStep < animationTimeline.maxStep) {
       const nextStep = animationStep + 1;
+      setAnimationNavigation({
+        direction: 'forward',
+        fromStep: animationStep,
+        toStep: nextStep,
+      });
       setAnimationStep(nextStep);
       const cueKeys = new Set(animationTimeline.cues.filter((cue) => cue.step === nextStep).map((cue) => cue.elementKey));
       const runtime = screen?.elements.find((element) => cueKeys.has(element.element_key) && element.resource_mapping && ['simulation', 'html', 'zip', 'scorm'].includes(element.resource_mapping.resource_type));
@@ -541,8 +570,13 @@ export default function StudioSessionPlayerPage() {
       return;
     }
     if (animationStep > 0) {
-      setAnimationStep((step) => Math.max(0, step - 1));
-      setPlaybackCycle((value) => value + 1);
+      const previousStep = Math.max(0, animationStep - 1);
+      setAnimationNavigation({
+        direction: 'backward',
+        fromStep: animationStep,
+        toStep: previousStep,
+      });
+      setAnimationStep(previousStep);
       return;
     }
     if (zoomRun) {
@@ -613,6 +647,7 @@ export default function StudioSessionPlayerPage() {
 
   const replayScreen = () => {
     setAnimationStep(0);
+    setAnimationNavigation(null);
     setPlaybackCycle((value) => value + 1);
     setBlankMode(null);
   };
@@ -940,7 +975,7 @@ export default function StudioSessionPlayerPage() {
           )}
           {!discoveryItem && !loading && release && screen && (
             <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})` }}>
-              <PublishedCanvas key={`${screen.screen_id}-${playbackCycle}`} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} />
+              <PublishedCanvas key={screen.screen_id} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} />
             </div>
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-600">This release contains no Screens.</div>}
