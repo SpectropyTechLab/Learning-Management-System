@@ -12,6 +12,7 @@ import type {
 import { studioSetupApi } from './api/studioSetupApi';
 import type { StudioSession } from './api/studioSetupApi';
 import StudioShell from './components/StudioShell';
+import StructuredScreenScriptEditor from './components/StructuredScreenScriptEditor';
 
 const blankScript = (): ScreenScriptContent =>
   Object.fromEntries(SCREEN_SCRIPT_FIELDS.map(([key]) => [key, ''])) as ScreenScriptContent;
@@ -22,7 +23,7 @@ const positiveId = (value: string | null | undefined) => {
 };
 
 const hasContent = (content: ScreenScriptContent | null | undefined) =>
-  SCREEN_SCRIPT_FIELDS.some(([key]) => Boolean(content?.[key]?.trim()));
+  Boolean(content?.sections?.length) || SCREEN_SCRIPT_FIELDS.some(([key]) => Boolean(content?.[key]?.trim()));
 
 export default function StudioSessionScriptsPage() {
   const navigate = useNavigate();
@@ -48,8 +49,9 @@ export default function StudioSessionScriptsPage() {
     [scripts, selectedScreenId],
   );
   const completedCount = scripts.filter((script) => hasContent(script.content_json)).length;
-  const mappedCount = preview.filter((script) => script.suggested_screen_id).length;
-  const unmatchedCount = preview.length - mappedCount;
+  const mappedCount = preview.filter((script) => script.suggested_screen_id && script.validation?.status !== 'error').length;
+  const invalidCount = preview.filter((script) => script.validation?.status === 'error').length;
+  const unmatchedCount = preview.filter((script) => !script.suggested_screen_id).length;
   const excessScriptCount = Math.max(preview.length - scripts.length, 0);
   const uploadedTitleByScreenNumber = useMemo(
     () => new Map(preview.map((script) => [script.screen_number, script.title.trim()])),
@@ -336,7 +338,7 @@ export default function StudioSessionScriptsPage() {
                       ) : null}
                     </div>
                     <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
-                      <div className="grid gap-5 xl:grid-cols-2">
+                      {content.schema_version === 2 && content.sections?.length ? <StructuredScreenScriptEditor content={content} editable={editable} onChange={setContent} /> : <div className="grid gap-5 xl:grid-cols-2">
                         {SCREEN_SCRIPT_FIELDS.map(([key, label]) => (
                           <label
                             key={key}
@@ -357,7 +359,7 @@ export default function StudioSessionScriptsPage() {
                             />
                           </label>
                         ))}
-                      </div>
+                      </div>}
                     </div>
                   </section>
                 ) : null}
@@ -410,6 +412,7 @@ export default function StudioSessionScriptsPage() {
                     {unmatchedCount} skipped
                   </span>
                 ) : null}
+                {invalidCount > 0 ? <span className="rounded-full bg-red-50 px-3 py-1.5 text-red-800">{invalidCount} invalid</span> : null}
               </div>
 
               {unmatchedCount > 0 ? (
@@ -449,11 +452,12 @@ export default function StudioSessionScriptsPage() {
                       <p className="mt-0.5 text-xs text-slate-500">
                         Uploaded Screen {item.screen_number}
                       </p>
+                      {item.validation?.errors.map((validationError) => <p key={validationError} className="mt-1 text-xs font-semibold text-red-700">{validationError}</p>)}
                     </div>
                     <select
                       aria-label={`Import destination for ${item.title}`}
                       value={item.suggested_screen_id ?? ''}
-                      disabled={busy}
+                      disabled={busy || item.validation?.status === 'error'}
                       onChange={(event) =>
                         setPreview((current) =>
                           current.map((script, itemIndex) =>

@@ -66,7 +66,7 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, onSelect, onImageAspectRatio }: { element: StudioElement; onSelect?: () => void; onImageAspectRatio?: (aspectRatio: number) => void }) {
+function BoundResource({ element, selected = false, onSelect }: { element: StudioElement; selected?: boolean; onSelect?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -74,8 +74,6 @@ function BoundResource({ element, onSelect, onImageAspectRatio }: { element: Stu
   const [fullScreen, setFullScreen] = useState(false);
   const resourceId = element.resource?.resource_id;
   const versionId = element.resource?.resource_version_id;
-  const imageAspectRatioRef = useRef(onImageAspectRatio);
-  imageAspectRatioRef.current = onImageAspectRatio;
 
   useEffect(() => {
     if (!resourceId || !versionId) return;
@@ -102,11 +100,6 @@ function BoundResource({ element, onSelect, onImageAspectRatio }: { element: Stu
       active = false;
     };
   }, [resourceId, versionId]);
-
-  useEffect(() => {
-    if (resource?.resource_type !== 'image' || !version?.width || !version?.height) return;
-    imageAspectRatioRef.current?.(version.width / version.height);
-  }, [resource?.resource_type, version?.height, version?.id, version?.width]);
 
   useEffect(() => {
     const syncFullScreen = () => setFullScreen(document.fullscreenElement === containerRef.current);
@@ -137,11 +130,17 @@ function BoundResource({ element, onSelect, onImageAspectRatio }: { element: Stu
   };
 
   return (
-    <div ref={containerRef} className="group relative h-full w-full bg-black" onClick={onSelect}>
+    <div ref={containerRef} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={onSelect}>
       <StudioResourcePlayer
         resourceType={resource.resource_type}
         version={version}
         mode="canvas"
+        selected={selected}
+        mediaTransform={
+          element.content.mediaTransform && typeof element.content.mediaTransform === 'object'
+            ? element.content.mediaTransform as { fit?: 'contain' | 'cover'; scale?: number; x?: number; y?: number }
+            : undefined
+        }
         className="h-full w-full"
       />
       <button
@@ -581,22 +580,8 @@ export default function BlankScreenCanvas({
       <BoundResource
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
+        selected={selectedElementId === element.id}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
-        onImageAspectRatio={previewMode ? undefined : (aspectRatio) => {
-          if (!onChangeElementBounds || !Number.isFinite(aspectRatio) || aspectRatio <= 0) return;
-          const currentBounds = elementBounds(element.position);
-          if (!currentBounds) return;
-          const maximumHeight = 1080 - currentBounds.y;
-          let width = currentBounds.width;
-          let height = width / aspectRatio;
-          if (height > maximumHeight) {
-            height = maximumHeight;
-            width = height * aspectRatio;
-          }
-          const nextBounds = { ...currentBounds, width: Math.max(80, Math.round(width)), height: Math.max(60, Math.round(height)) };
-          if (Math.abs(nextBounds.width - currentBounds.width) < 2 && Math.abs(nextBounds.height - currentBounds.height) < 2) return;
-          onChangeElementBounds(element.id, nextBounds);
-        }}
       />
     );
   }
