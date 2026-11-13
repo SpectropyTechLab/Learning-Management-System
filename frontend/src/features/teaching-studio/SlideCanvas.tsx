@@ -367,8 +367,8 @@ export default function SlideCanvas({
                       {...bounds}
                       rx={field.region === 'footer' ? 12 : 22}
                       fill={!object && !showGuides ? selectedEmptySlot ? '#dbeafe55' : 'transparent' : object?.backgroundColor ?? tone.fill}
-                      stroke={selectedEmptySlot ? '#2563eb' : !object && !showGuides ? 'transparent' : object?.id === selectedObjectId ? '#1d4ed8' : tone.stroke}
-                      strokeWidth={object?.id === selectedObjectId || selectedEmptySlot ? 8 : 3}
+                      stroke={selectedEmptySlot ? '#2563eb' : !object && !showGuides ? 'transparent' : object?.id === selectedObjectId ? '#1d4ed8' : object?.borderColor ?? tone.stroke}
+                      strokeWidth={object?.id === selectedObjectId || selectedEmptySlot ? 8 : Math.max(0, object?.borderWidth ?? 1) * 3}
                     />
                   )}
                   {isImage && (
@@ -432,7 +432,7 @@ export default function SlideCanvas({
                   event.stopPropagation();
                   onSelectObject?.(object.id);
                 }}
-                className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : 'border-transparent'}`}
+                className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -440,6 +440,8 @@ export default function SlideCanvas({
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
                   backgroundColor: object.backgroundColor,
+                  borderColor: object.id === selectedObjectId ? undefined : object.borderColor ?? 'transparent',
+                  borderWidth: object.id === selectedObjectId ? 2 : Math.max(0, object.borderWidth ?? 1),
                   ...objectAnimationStyles[object.id],
                 }}
               >
