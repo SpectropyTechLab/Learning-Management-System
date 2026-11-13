@@ -15,11 +15,12 @@ import {
   RotateCcw,
   Search,
   ScrollText,
+  Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
-import { listStudioLibrarySessions } from './api/studioSessionLibraryApi';
+import { deleteStudioLibrarySession, listStudioLibrarySessions } from './api/studioSessionLibraryApi';
 import type { StudioLibrarySession, StudioSessionStatus } from './api/studioSessionLibraryApi';
 import { submitStudioSession, workflowError } from './api/studioWorkflowApi';
 import { listPublishedReleaseHistory } from './api/studioPublishedApi';
@@ -90,6 +91,8 @@ export default function StudioSessionLibraryPage() {
   const [releaseHistory, setReleaseHistory] = useState<PublishedReleaseHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [deleteSession, setDeleteSession] = useState<StudioLibrarySession | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -233,6 +236,25 @@ export default function StudioSessionLibraryPage() {
       setHistoryError(getApiErrorDetails(requestError).message);
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteSession || deletingId) return;
+    setDeletingId(deleteSession.id);
+    try {
+      const result = await deleteStudioLibrarySession(deleteSession.id);
+      setSessions((current) => current.filter((session) => session.id !== deleteSession.id));
+      setDeleteSession(null);
+      if (result.storage_cleanup_complete) {
+        toast.success(`Session “${result.title}” and its content were deleted.`);
+      } else {
+        toast.error('Session deleted, but stored document cleanup needs administrator attention.');
+      }
+    } catch (requestError) {
+      toast.error(getApiErrorDetails(requestError).message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -402,6 +424,7 @@ export default function StudioSessionLibraryPage() {
           {filtered.map((session) => {
             const editable = session.status === 'draft' || session.status === 'rejected';
             const hasPublishedRelease = Boolean(session.latest_release_number);
+            const deletable = editable && !hasPublishedRelease;
             const displayedStatus: StudioSessionStatus = hasPublishedRelease
               ? 'published'
               : session.status;
@@ -582,7 +605,7 @@ export default function StudioSessionLibraryPage() {
                           onClick={() => {
                             setOpenMenuId(null);
                             navigate(
-                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit' : ''}`,
+                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit&returnTo=library' : '?returnTo=library'}`,
                             );
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50"
@@ -599,7 +622,7 @@ export default function StudioSessionLibraryPage() {
                           disabled={!editable}
                           onClick={() => {
                             setOpenMenuId(null);
-                            navigate(`/studio/sessions/${session.id}/scripts`);
+                            navigate(`/studio/sessions/${session.id}/scripts?returnTo=library`);
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
@@ -625,6 +648,19 @@ export default function StudioSessionLibraryPage() {
                         >
                           <History size={16} />
                           Version history
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!deletable}
+                          title={deletable ? 'Delete this Session and all of its content' : 'Only unpublished draft or rejected Sessions can be deleted'}
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setDeleteSession(session);
+                          }}
+                          className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-60"
+                        >
+                          <Trash2 size={16} />
+                          Delete Session
                         </button>
                         {!editable && (
                           <button
@@ -661,6 +697,7 @@ export default function StudioSessionLibraryPage() {
             {filtered.map((session) => {
               const editable = session.status === 'draft' || session.status === 'rejected';
               const hasPublishedRelease = Boolean(session.latest_release_number);
+              const deletable = editable && !hasPublishedRelease;
               const displayedStatus: StudioSessionStatus = hasPublishedRelease
                 ? 'published'
                 : session.status;
@@ -819,7 +856,7 @@ export default function StudioSessionLibraryPage() {
                           onClick={() => {
                             setOpenMenuId(null);
                             navigate(
-                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit' : ''}`,
+                              `/studio/sessions/${session.id}/plan${editable ? '?mode=edit&returnTo=library' : '?returnTo=library'}`,
                             );
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50"
@@ -836,7 +873,7 @@ export default function StudioSessionLibraryPage() {
                           disabled={!editable}
                           onClick={() => {
                             setOpenMenuId(null);
-                            navigate(`/studio/sessions/${session.id}/scripts`);
+                            navigate(`/studio/sessions/${session.id}/scripts?returnTo=library`);
                           }}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
@@ -863,6 +900,19 @@ export default function StudioSessionLibraryPage() {
                           <History size={16} />
                           Version history
                         </button>
+                        <button
+                          type="button"
+                          disabled={!deletable}
+                          title={deletable ? 'Delete this Session and all of its content' : 'Only unpublished draft or rejected Sessions can be deleted'}
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setDeleteSession(session);
+                          }}
+                          className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-60"
+                        >
+                          <Trash2 size={16} />
+                          Delete Session
+                        </button>
                         {!editable && (
                           <button
                             type="button"
@@ -883,6 +933,35 @@ export default function StudioSessionLibraryPage() {
               );
             })}
           </div>
+        </div>
+      )}
+      {deleteSession && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm Session deletion"
+          onClick={() => !deletingId && setDeleteSession(null)}
+        >
+          <section
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl bg-red-100 p-3 text-red-700"><Trash2 size={22} /></span>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Delete Session?</h2>
+                <p className="mt-1 text-sm text-slate-600">This permanently deletes <strong>{deleteSession.title}</strong>.</p>
+              </div>
+            </div>
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              Its Session Plan, uploaded originals, Screens, Screen Scripts, revisions, and editor content will also be deleted. This action cannot be undone.
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" disabled={Boolean(deletingId)} onClick={() => setDeleteSession(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">Cancel</button>
+              <button type="button" disabled={Boolean(deletingId)} onClick={() => void confirmDelete()} className="inline-flex items-center gap-2 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"><Trash2 size={16} />{deletingId ? 'Deleting...' : 'Delete Session'}</button>
+            </div>
+          </section>
         </div>
       )}
       {historySession && (

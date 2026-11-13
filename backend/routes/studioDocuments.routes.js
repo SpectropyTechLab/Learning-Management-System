@@ -10,7 +10,10 @@ import {
 } from '../controllers/studioDocuments.controller.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, fieldSize: 10 * 1024 * 1024 },
+});
 const readers = requireRole(['super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher']);
 const authors = requireRole(['super_admin', 'content_authorizer']);
 

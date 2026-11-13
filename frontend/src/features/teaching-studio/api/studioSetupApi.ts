@@ -7,6 +7,14 @@ export interface CurriculumOption {
   title?: string;
   code?: string;
   grade_number?: number;
+  chapter_number?: number;
+  topic_number?: number;
+  display_order?: number;
+  description?: string | null;
+  revision_no?: number;
+  status?: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export interface StudioSession {
@@ -52,6 +60,48 @@ export const studioSetupApi = {
   createSession: async (subtopicId: number, body: { title: string; description?: string }) => {
     const response = await api.post(`/studio/subtopics/${subtopicId}/sessions`, body);
     return response.data.data as StudioSession;
+  },
+  updateHierarchyItem: async (
+    level: CurriculumLevel,
+    id: number,
+    body: Record<string, unknown>,
+  ) => {
+    const urls: Record<CurriculumLevel, string> = {
+      board: `/boards/${id}`,
+      program: `/programs/${id}`,
+      grade: `/grades/${id}`,
+      subject: `/subjects/${id}`,
+      chapter: `/chapters/${id}`,
+      topic: `/topics/${id}`,
+      subtopic: `/subtopics/${id}`,
+    };
+    return (await api.patch(urls[level], body)).data;
+  },
+  updateSession: async (session: StudioSession, body: {
+    title: string;
+    description?: string | null;
+    subtopic_id?: number;
+  }) => {
+    const response = await api.patch(`/studio/sessions/${session.id}`, {
+      ...body,
+      revision_no: session.revision_no,
+    });
+    return response.data.data as StudioSession;
+  },
+  deleteHierarchyItem: async (level: CurriculumLevel, id: number) => {
+    const urls: Record<CurriculumLevel, string> = {
+      board: `/boards/${id}`,
+      program: `/programs/${id}`,
+      grade: `/grades/${id}`,
+      subject: `/subjects/${id}`,
+      chapter: `/chapters/${id}`,
+      topic: `/topics/${id}`,
+      subtopic: `/subtopics/${id}`,
+    };
+    await api.delete(urls[level]);
+  },
+  deleteSession: async (id: number) => {
+    await api.delete(`/studio/sessions/${id}`);
   },
   createHierarchyChild: async ({ level, parentId, name, code, order }: {
     level: CurriculumLevel;

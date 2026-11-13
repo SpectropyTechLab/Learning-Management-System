@@ -9,6 +9,12 @@ export type PresenterAnimationTimeline = {
   maxStep: number;
 };
 
+export type PresenterAnimationNavigation = {
+  direction: 'forward' | 'backward';
+  fromStep: number;
+  toStep: number;
+};
+
 type SmartDiagramLike = {
   visualType?: unknown;
   nodes?: unknown;
@@ -171,6 +177,42 @@ export const presenterElementState = (
   return {
     activeEffects,
     visible: visibleAfterEntrance && !hiddenAfterExit,
+  };
+};
+
+export const presenterElementPlaybackState = (
+  timeline: PresenterAnimationTimeline,
+  elementKey: string,
+  step: number,
+  playbackCycle: number,
+  navigation?: PresenterAnimationNavigation | null,
+) => {
+  const state = presenterElementState(timeline, elementKey, step);
+  const cueStep =
+    navigation && navigation.toStep === step
+      ? navigation.direction === 'backward'
+        ? navigation.fromStep
+        : navigation.toStep
+      : step;
+  const activeEffects = timeline.cues
+    .filter(
+      (cue) =>
+        cue.elementKey === elementKey &&
+        cue.step === cueStep &&
+        cue.effect.diagramReveal !== true,
+    )
+    .map((cue) => cue.effect);
+  const reachedCueIndex = timeline.cues.reduce(
+    (latest, cue, index) =>
+      cue.elementKey === elementKey && cue.step <= step ? index : latest,
+    -1,
+  );
+  return {
+    activeEffects,
+    identity: `${playbackCycle}-${elementKey}-${reachedCueIndex}`,
+    reverse:
+      navigation?.direction === 'backward' && navigation.toStep === step,
+    visible: state.visible,
   };
 };
 

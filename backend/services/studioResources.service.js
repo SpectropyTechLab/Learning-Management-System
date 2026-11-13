@@ -133,9 +133,12 @@ const normalizeVersionInput = (body, file, resourceType) => {
     }
   }
   if (resourceType === 'model_3d') {
-    const sourceName = file ? String(file.originalname || '').toLowerCase() : new URL(externalUrl).pathname.toLowerCase();
-    if (!sourceName.endsWith('.glb')) {
-      throw new AppError('3D Model Resources require a self-contained .glb file or direct .glb URL', 400);
+    const parsedModelUrl = file ? null : new URL(externalUrl);
+    const sourceName = file ? String(file.originalname || '').toLowerCase() : parsedModelUrl.pathname.toLowerCase();
+    const trustedGltf = !file && sourceName.endsWith('.gltf') && parsedModelUrl.hostname.toLowerCase() === 'dl.polyhaven.org';
+    const supportedModel = sourceName.endsWith('.glb') || trustedGltf;
+    if (!supportedModel) {
+      throw new AppError('3D Model Resources require a self-contained .glb file/direct URL, or a trusted Poly Haven .gltf URL', 400);
     }
   }
   const metadata = parseJsonObject(body.metadata_json, 'metadata_json');

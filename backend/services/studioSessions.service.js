@@ -1,5 +1,6 @@
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
+import { removeStoredSessionDocuments } from './studioDocuments.service.js';
 
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const SESSION_STATUSES = new Set(['draft', 'submitted', 'approved', 'rejected', 'published']);
@@ -225,13 +226,30 @@ export const updateStudioSession = async ({ sessionId: rawSessionId, body = {}, 
     const description = body.description === undefined
       ? session.description
       : optionalText(body.description, 'description', 5000);
+    let subtopicId = session.subtopic_id;
+    let sessionNumber = session.session_number;
+    if (body.subtopic_id !== undefined) {
+      const destinationId = parseId(body.subtopic_id, 'subtopic_id');
+      if (destinationId !== Number(session.subtopic_id)) {
+        const destination = await loadSubtopicContext(client, destinationId, user, { lock: true });
+        if (Number(destination.client_id) !== Number(session.client_id)) {
+          throw new AppError('The destination Subtopic is outside this curriculum scope', 403, 'CLIENT_ACCESS_DENIED');
+        }
+        subtopicId = destinationId;
+        sessionNumber = Number((await client.query(
+          'SELECT COALESCE(MAX(session_number), 0) + 1 AS value FROM sessions WHERE subtopic_id = $1',
+          [destinationId],
+        )).rows[0].value);
+      }
+    }
     const result = await client.query(
       `UPDATE sessions
-       SET title = $1, description = $2, revision_no = revision_no + 1, updated_at = NOW()
-       WHERE id = $3 AND revision_no = $4
+       SET title = $1, description = $2, subtopic_id = $3, session_number = $4,
+           revision_no = revision_no + 1, updated_at = NOW()
+       WHERE id = $5 AND revision_no = $6
        RETURNING id, client_id, subtopic_id, session_number, title, description,
                  status, revision_no, created_by, created_at, updated_at`,
-      [title, description, sessionId, expectedRevision],
+      [title, description, subtopicId, sessionNumber, sessionId, expectedRevision],
     );
     if (!result.rows[0]) {
       throw new AppError('Session revision is stale; reload before saving', 409, 'STALE_SESSION_REVISION');
@@ -244,4 +262,84 @@ export const updateStudioSession = async ({ sessionId: rawSessionId, body = {}, 
   } finally {
     client.release();
   }
+};
+
+export const deleteStudioSession = async ({
+  sessionId: rawSessionId,
+  user,
+  getDbClient = getClient,
+  removeFiles = removeStoredSessionDocuments,
+}) => {
+  assertAuthor(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const client = await getDbClient();
+  let storageKeys = [];
+  let deleted;
+  try {
+    await client.query('BEGIN');
+    const session = await loadSession(client, sessionId, user, { lock: true });
+    if (!['draft', 'rejected'].includes(session.status)) {
+      throw new AppError(
+        'Only draft or rejected Sessions can be deleted',
+        409,
+        'SESSION_DELETE_NOT_ALLOWED',
+      );
+    }
+    const release = await client.query(
+      'SELECT 1 FROM session_releases WHERE session_id = $1 LIMIT 1',
+      [sessionId],
+    );
+    if (release.rows[0]) {
+      throw new AppError(
+        'Published Sessions cannot be deleted because their releases are immutable',
+        409,
+        'PUBLISHED_SESSION_DELETE_FORBIDDEN',
+      );
+    }
+    const documents = await client.query(
+      `SELECT storage_key FROM session_documents
+       WHERE session_id = $1 AND storage_key IS NOT NULL`,
+      [sessionId],
+    );
+    storageKeys = documents.rows.map((row) => row.storage_key).filter(Boolean);
+
+    // These rows point to immutable document revisions with RESTRICT constraints.
+    await client.query('DELETE FROM session_authorizations WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM session_validations WHERE session_id = $1', [sessionId]);
+    // The live schema keeps restrictive references from Zoom links, branches and
+    // Screen Script revisions to Screens. Remove those rows explicitly first.
+    await client.query('DELETE FROM screen_zoom_links WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM screen_branches WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM screen_script_revisions WHERE session_id = $1', [sessionId]);
+    // Remaining Screen-owned editor content and resource mappings cascade here.
+    await client.query('DELETE FROM screens WHERE session_id = $1', [sessionId]);
+    await client.query('DELETE FROM session_documents WHERE session_id = $1', [sessionId]);
+    const result = await client.query(
+      `DELETE FROM sessions WHERE id = $1
+       RETURNING id, title, subtopic_id, session_number`,
+      [sessionId],
+    );
+    deleted = result.rows[0];
+    if (!deleted) throw new AppError('Studio session not found', 404, 'SESSION_NOT_FOUND');
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error?.code === '23503') {
+      throw new AppError(
+        'This Session still has related Studio activity and cannot be deleted',
+        409,
+        'SESSION_DELETE_DEPENDENCY_CONFLICT',
+      );
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const storageCleanupComplete = await removeFiles(storageKeys);
+  return {
+    ...deleted,
+    deleted_document_count: storageKeys.length,
+    storage_cleanup_complete: storageCleanupComplete,
+  };
 };

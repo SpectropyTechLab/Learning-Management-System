@@ -114,14 +114,18 @@ test('Editor fullscreen keeps the live autosaving workspace and floating control
   assert.match(shell, /header=\{hideHeader \? undefined/);
 });
 
-test('Normal editor overlays chrome inside the navy stage instead of reserving canvas columns', () => {
+test('Editor keeps floating chrome but reserves visible canvas space for opened inspectors', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const css = readFrontendAsset('index.css');
   assert.doesNotMatch(editor, /gridTemplateColumns:/);
   assert.match(editor, /studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden/);
+  assert.match(editor, /has-left-panel/);
+  assert.match(editor, /has-right-panel/);
   assert.match(css, /\.studio-editor-viewport \.studio-editor-tools-panel/);
   assert.match(css, /position: absolute/);
+  assert.match(css, /\.studio-editor-workspace\.has-left-panel \.studio-editor-canvas/);
+  assert.match(css, /\.studio-editor-workspace\.has-right-panel \.studio-editor-canvas/);
   assert.match(css, /\.studio-editor-slide-frame/);
   assert.match(canvas, /studio-editor-canvas-stage/);
   assert.match(css, /\.studio-editor-left-panel > nav > button/);
@@ -129,6 +133,34 @@ test('Normal editor overlays chrome inside the navy stage instead of reserving c
   assert.match(canvas, /studio-editor-slide-frame absolute inset-3/);
   assert.match(css, /\.studio-editor-viewport \.studio-context-bar \{\s*position: relative/);
   assert.doesNotMatch(css, /\.studio-editor-viewport \.studio-context-bar \{[^}]*position: absolute/s);
+});
+
+test('Canvas zoom scales one canonical surface and elements resize from every edge', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /width: MASTER\.width,/);
+  assert.match(slide, /transform: `scale\(\$\{scale\}\)`/);
+  for (const direction of ['resize-nw', 'resize-n', 'resize-ne', 'resize-e', 'resize-se', 'resize-s', 'resize-sw', 'resize-w']) {
+    assert.match(slide, new RegExp(direction));
+  }
+});
+
+test('Selected media supports component fitting and non-destructive crop controls', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(toolbar, /Crop and fit/);
+  assert.match(toolbar, /mediaTransform/);
+  assert.match(player, /objectFit: mediaTransform\?\.fit === 'cover'/);
+  assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0 \}/);
+});
+
+test('Text formatting commands apply font styles to the preserved selection', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const text = readFrontend('components/StudioCanvasTextElement.tsx');
+  assert.match(toolbar, /type: 'style', property: 'fontSize'/);
+  assert.match(toolbar, /type: 'format', command: 'bold'/);
+  assert.match(text, /span\.style\[command\.property\] = command\.value/);
+  assert.match(text, /selectedRange\.extractContents\(\)/);
 });
 
 test('Editor keeps both inspectors open without an appearance mode control', () => {
@@ -168,6 +200,10 @@ test('Editor commands, direct canvas authoring and canvas-only zoom share one wo
   assert.match(canvas, /mimeType\.startsWith\('video\/'\)/);
   assert.match(canvas, /mimeType\.startsWith\('audio\/'\)/);
   assert.match(canvas, /mimeType === 'application\/pdf'/);
+  assert.match(canvas, /studio-editor-status-bar/);
+  assert.match(canvas, /aria-label="Canvas zoom percentage"/);
+  assert.match(canvas, /aria-label="Fit slide"/);
+  assert.doesNotMatch(canvas, /absolute bottom-3 left-1\/2/);
 });
 
 test('Present opens a clean audience window controlled from the editor', () => {
@@ -176,8 +212,32 @@ test('Present opens a clean audience window controlled from the editor', () => {
   const shell = readFrontend('components/StudioShell.tsx');
   assert.match(editor, /openPresentation/);
   assert.match(editor, /BroadcastChannel/);
+  assert.match(editor, /getScreenDetails/);
+  assert.match(editor, /isExtended/);
+  assert.match(editor, /presentationWindowFeatures/);
+  assert.match(editor, /preferredExternal/);
+  assert.match(editor, /forwardLaptopClicker/);
+  assert.match(editor, /clickerNavigationAction/);
   assert.match(editor, /Audience presentation controls/);
   assert.match(player, /audienceMode/);
   assert.match(player, /presentationChannel/);
   assert.match(shell, /presentationMode/);
+});
+
+test('Backward animation preserves the slide tree and remounts only changed elements', () => {
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const runtime = readFrontend('components/studioClickerRuntime.ts');
+  const retreatStart = player.indexOf('const retreatPresenter');
+  const retreatEnd = player.indexOf('useEffect(() => {', retreatStart);
+  const retreatImplementation = player.slice(retreatStart, retreatEnd);
+  assert.match(player, /<PublishedCanvas key=\{screen\.screen_id\}/);
+  assert.doesNotMatch(player, /<PublishedCanvas key=\{`\$\{screen\.screen_id\}-\$\{playbackCycle\}`\}/);
+  assert.doesNotMatch(retreatImplementation, /setPlaybackCycle/);
+  assert.match(runtime, /presenterElementPlaybackState/);
+  assert.match(runtime, /reachedCueIndex/);
+  assert.match(runtime, /navigation\?\.direction === 'backward'/);
+  assert.match(player, /animationDirection/);
+  assert.match(canvas, /presenterElementPlaybackState/);
+  assert.doesNotMatch(canvas, /setPreviewCycle\(\(current\) => current \+ 1\);\s*}\s*else onPreviewPrevious/);
 });

@@ -13,6 +13,7 @@ import {
   Focus,
   FileText,
   GalleryHorizontalEnd,
+  Grid3X3,
   GripVertical,
   LayoutTemplate,
   ListOrdered,
@@ -63,6 +64,7 @@ import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionsPanel from './components/StudioTransitionsPanel';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
+import { clickerNavigationAction } from './components/studioClickerRuntime';
 import {
   SMART_DIAGRAM_THEMES,
   createSmartDiagramContent,
@@ -119,6 +121,40 @@ const screenScriptEntries = (
 const authoredDrawingStrokes = (screen: StudioScreen | null): AuthorDrawingStroke[] =>
   screen?.screen_settings_json?.author_drawings?.strokes ?? [];
 
+type ManagedScreen = Screen & {
+  availLeft?: number;
+  availTop?: number;
+  isExtended?: boolean;
+  isInternal?: boolean;
+  isPrimary?: boolean;
+  label?: string;
+  left?: number;
+  top?: number;
+};
+
+type ManagedScreenDetails = {
+  currentScreen: ManagedScreen;
+  screens: ManagedScreen[];
+};
+
+type WindowWithScreenManagement = Window & {
+  getScreenDetails?: () => Promise<ManagedScreenDetails>;
+};
+
+const sameManagedScreen = (left: ManagedScreen, right: ManagedScreen) =>
+  (left.left ?? 0) === (right.left ?? 0) &&
+  (left.top ?? 0) === (right.top ?? 0) &&
+  left.width === right.width &&
+  left.height === right.height;
+
+const presentationWindowFeatures = (target: ManagedScreen) => {
+  const left = Math.round(target.availLeft ?? target.left ?? 0);
+  const top = Math.round(target.availTop ?? target.top ?? 0);
+  const width = Math.max(640, Math.round(target.availWidth || target.width || 1440));
+  const height = Math.max(480, Math.round(target.availHeight || target.height || 900));
+  return `popup=yes,left=${left},top=${top},width=${width},height=${height}`;
+};
+
 export default function TeachingStudioPage() {
   const navigate = useNavigate();
   const { sessionId: rawSessionId } = useParams<{ sessionId?: string }>();
@@ -173,10 +209,14 @@ export default function TeachingStudioPage() {
     layout: Layout;
   } | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [selectedLayoutSlotId, setSelectedLayoutSlotId] = useState<string | null>(null);
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
   const editorClipboardRef = useRef<StudioElement[]>([]);
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
+  const presentationWindowRef = useRef<Window | null>(null);
+  const presentationWindowWatchRef = useRef<number | null>(null);
   const [presentationActive, setPresentationActive] = useState(false);
+  const [presentationDisplayName, setPresentationDisplayName] = useState('current display');
   const [inlineShapeEdit, setInlineShapeEdit] = useState<{
     elementId: string;
     shape: InlineShapeData;
@@ -197,6 +237,7 @@ export default function TeachingStudioPage() {
   const [leftPanelView, setLeftPanelView] = useState<'screens' | 'script'>('screens');
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [editorFocusMode, setEditorFocusMode] = useState(false);
+  const [showCanvasGuides, setShowCanvasGuides] = useState(false);
   const editorViewportRef = useRef<HTMLDivElement>(null);
   const [revisionPromptOpen, setRevisionPromptOpen] = useState(false);
   const [startingRevision, setStartingRevision] = useState(false);
@@ -229,6 +270,8 @@ export default function TeachingStudioPage() {
     draft: StudioScreen;
     latest: StudioScreen;
   } | null>(null);
+  const screenListRef = useRef(screenList);
+  const screenRevisionRef = useRef<Map<number, number>>(new Map());
   const selectedScreenRef = useRef<StudioScreen | null>(null);
   const saveInFlightRef = useRef(false);
   const saveDraftRef = useRef<(source?: 'autosave' | 'manual' | 'navigation') => Promise<boolean>>(
@@ -236,8 +279,25 @@ export default function TeachingStudioPage() {
   );
 
   useEffect(() => {
+    screenListRef.current = screenList;
+  }, [screenList]);
+
+  useEffect(() => {
     selectedScreenRef.current = selectedScreen;
   }, [selectedScreen]);
+
+  const rememberScreenRevision = useCallback((screen: Pick<StudioScreen, 'id' | 'revision_no'>) => {
+    const revision = Number(screen.revision_no);
+    if (Number.isInteger(revision) && revision >= 0) {
+      screenRevisionRef.current.set(screen.id, revision);
+    }
+  }, []);
+
+  const latestScreenRevision = useCallback(
+    (screen: Pick<StudioScreen, 'id' | 'revision_no'>) =>
+      Math.max(Number(screen.revision_no) || 0, screenRevisionRef.current.get(screen.id) || 0),
+    [],
+  );
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -288,12 +348,40 @@ export default function TeachingStudioPage() {
     return screenList.screens[0]?.id ?? null;
   }, [requestedScreenId, screenList.screens]);
 
+  const importedTitleByScreenId = useMemo(
+    () => new Map(
+      scripts
+        .map((script) => [script.screen_id, script.content_json?.title?.trim()] as const)
+        .filter((entry): entry is readonly [number, string] => Boolean(entry[1])),
+    ),
+    [scripts],
+  );
+
+  const screenDisplayTitle = (screen: Pick<StudioScreen, 'id' | 'screen_number' | 'title'>) => {
+    const savedTitle = screen.title?.trim() || '';
+    const importedTitle = importedTitleByScreenId.get(screen.id);
+    const normalizedSavedTitle = savedTitle.toLowerCase();
+    const generatedTitles = new Set([
+      `screen ${screen.screen_number}`,
+      `untitled screen ${screen.screen_number}`,
+      'untitled screen',
+    ]);
+
+    return importedTitle && (!savedTitle || generatedTitles.has(normalizedSavedTitle))
+      ? importedTitle
+      : savedTitle || importedTitle || `Screen ${screen.screen_number}`;
+  };
+
   const loadScreens = useCallback(async () => {
     if (!sessionId) return;
     setLoadingScreens(true);
     setError(null);
     try {
-      setScreenList(await listStudioScreens(sessionId));
+      const result = await listStudioScreens(sessionId);
+      screenRevisionRef.current = new Map(
+        result.screens.map((screen) => [screen.id, Number(screen.revision_no)]),
+      );
+      setScreenList(result);
       setScreenRequestVersion((version) => version + 1);
       return true;
     } catch (requestError) {
@@ -382,21 +470,38 @@ export default function TeachingStudioPage() {
       return;
     }
 
+    const applySelectedScreen = (screen: StudioScreen) => {
+      setSelectedScreen(screen);
+      setSelectedElementId(null);
+      setElementPast([]);
+      setElementFuture([]);
+      setDrawingPast([]);
+      setDrawingFuture([]);
+      setHasUnsavedChanges(false);
+      setSaveStatus('idle');
+      setSaveConflict(null);
+    };
+
+    const selectedScreenFromList = screenListRef.current.screens.find(
+      (screen) => screen.id === selectedScreenId,
+    );
+    if (selectedScreenFromList) {
+      applySelectedScreen({
+        ...selectedScreenFromList,
+        revision_no: latestScreenRevision(selectedScreenFromList),
+      });
+      setLoadingScreen(false);
+      return;
+    }
+
     let active = true;
     setSelectedScreen(null);
     setLoadingScreen(true);
     void getStudioScreen(selectedScreenId)
       .then((screen) => {
         if (active) {
-          setSelectedScreen(screen);
-          setSelectedElementId(null);
-          setElementPast([]);
-          setElementFuture([]);
-          setDrawingPast([]);
-          setDrawingFuture([]);
-          setHasUnsavedChanges(false);
-          setSaveStatus('idle');
-          setSaveConflict(null);
+          rememberScreenRevision(screen);
+          applySelectedScreen(screen);
         }
       })
       .catch((requestError) => {
@@ -411,7 +516,7 @@ export default function TeachingStudioPage() {
     return () => {
       active = false;
     };
-  }, [screenRequestVersion, selectedScreenId]);
+  }, [latestScreenRevision, rememberScreenRevision, screenRequestVersion, selectedScreenId]);
 
   const selectScreen = async (screenId: number) => {
     if (hasUnsavedChanges) {
@@ -419,7 +524,7 @@ export default function TeachingStudioPage() {
       if (!saved) return;
     }
     setError(null);
-    setSearchParams({ screen: String(screenId) });
+    setSearchParams({ screen: String(screenId) }, { replace: true });
   };
 
   const editSelectedScreenScript = async () => {
@@ -462,7 +567,7 @@ export default function TeachingStudioPage() {
         bloom: bloom ? [bloom] : [],
       });
       await loadScreens();
-      setSearchParams({ screen: String(created.id) });
+      setSearchParams({ screen: String(created.id) }, { replace: true });
       setCreateScreenOpen(false);
       setNewScreenTitle('Untitled Screen');
       setNewScreenPedagogyId('');
@@ -519,7 +624,7 @@ export default function TeachingStudioPage() {
 
   const leaveEditor = async () => {
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    navigate(-1);
+    navigate('/studio/sessions', { replace: true });
   };
 
   const openPreview = async () => {
@@ -531,6 +636,40 @@ export default function TeachingStudioPage() {
   const openPresentation = async () => {
     if (!sessionId) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+
+    if (presentationWindowWatchRef.current !== null) {
+      window.clearInterval(presentationWindowWatchRef.current);
+      presentationWindowWatchRef.current = null;
+    }
+    if (presentationWindowRef.current && !presentationWindowRef.current.closed) {
+      presentationWindowRef.current.close();
+    }
+
+    const browserWindow = window as WindowWithScreenManagement;
+    const currentBrowserScreen = window.screen as ManagedScreen;
+    let targetScreen = currentBrowserScreen;
+    let externalDisplay = false;
+    let screenPermissionUnavailable = false;
+
+    if (currentBrowserScreen.isExtended && browserWindow.getScreenDetails) {
+      try {
+        const details = await browserWindow.getScreenDetails();
+        const otherScreens = details.screens.filter(
+          (candidate) => !sameManagedScreen(candidate, details.currentScreen),
+        );
+        const preferredExternal =
+          otherScreens.find((candidate) => candidate.isInternal === false) ??
+          otherScreens.find((candidate) => candidate.isPrimary === false) ??
+          otherScreens[0];
+        if (preferredExternal) {
+          targetScreen = preferredExternal;
+          externalDisplay = true;
+        }
+      } catch {
+        screenPermissionUnavailable = true;
+      }
+    }
+
     const channelName = `spectropy-present-${sessionId}-${Date.now()}`;
     presentationChannelRef.current?.close();
     presentationChannelRef.current =
@@ -538,28 +677,99 @@ export default function TeachingStudioPage() {
     const audience = window.open(
       `/studio/player/${sessionId}/preview?mode=audience&channel=${encodeURIComponent(channelName)}`,
       `spectropy-presentation-${sessionId}`,
-      'popup=yes,width=1440,height=900',
+      presentationWindowFeatures(targetScreen),
     );
     if (!audience) {
+      presentationChannelRef.current?.close();
+      presentationChannelRef.current = null;
       toast.error('Allow pop-ups for this site, then choose Present again.');
       return;
     }
+
+    presentationWindowRef.current = audience;
+    try {
+      audience.moveTo(
+        Math.round(targetScreen.availLeft ?? targetScreen.left ?? 0),
+        Math.round(targetScreen.availTop ?? targetScreen.top ?? 0),
+      );
+      audience.resizeTo(
+        Math.round(targetScreen.availWidth || targetScreen.width || 1440),
+        Math.round(targetScreen.availHeight || targetScreen.height || 900),
+      );
+    } catch {
+      /* The requested bounds are already supplied to window.open. */
+    }
     audience.focus();
     setPresentationActive(true);
-    toast.success('Audience presentation opened. Move that window to the classroom display.');
+    const displayName = externalDisplay
+      ? targetScreen.label?.trim() || 'external display'
+      : 'current display';
+    setPresentationDisplayName(displayName);
+    presentationWindowWatchRef.current = window.setInterval(() => {
+      if (!presentationWindowRef.current?.closed) return;
+      if (presentationWindowWatchRef.current !== null) {
+        window.clearInterval(presentationWindowWatchRef.current);
+        presentationWindowWatchRef.current = null;
+      }
+      presentationWindowRef.current = null;
+      presentationChannelRef.current?.close();
+      presentationChannelRef.current = null;
+      setPresentationActive(false);
+    }, 750);
+
+    if (externalDisplay) {
+      toast.success(`Audience presentation opened on ${displayName}.`);
+    } else if (screenPermissionUnavailable) {
+      toast.error(
+        'Multi-screen permission was not granted. Presentation opened on this display; allow Window management and try again.',
+      );
+    } else if (currentBrowserScreen.isExtended && !browserWindow.getScreenDetails) {
+      toast('This browser cannot automatically place windows on another display.');
+    } else {
+      toast.success('Audience presentation opened on this display.');
+    }
   };
 
   const sendPresentationCommand = (command: 'previous' | 'next' | 'fullscreen') =>
     presentationChannelRef.current?.postMessage({ command });
 
+  useEffect(() => {
+    if (!presentationActive) return;
+    const forwardLaptopClicker = (event: KeyboardEvent) => {
+      const action = clickerNavigationAction(event);
+      if (!action) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      presentationChannelRef.current?.postMessage({ command: action });
+    };
+    window.addEventListener('keydown', forwardLaptopClicker, true);
+    return () => window.removeEventListener('keydown', forwardLaptopClicker, true);
+  }, [presentationActive]);
+
   const closePresentationControls = () => {
     presentationChannelRef.current?.postMessage({ command: 'close' });
+    presentationWindowRef.current?.close();
+    presentationWindowRef.current = null;
+    if (presentationWindowWatchRef.current !== null) {
+      window.clearInterval(presentationWindowWatchRef.current);
+      presentationWindowWatchRef.current = null;
+    }
     presentationChannelRef.current?.close();
     presentationChannelRef.current = null;
     setPresentationActive(false);
   };
 
-  useEffect(() => () => presentationChannelRef.current?.close(), []);
+  useEffect(
+    () => () => {
+      if (presentationWindowWatchRef.current !== null) {
+        window.clearInterval(presentationWindowWatchRef.current);
+      }
+      presentationChannelRef.current?.postMessage({ command: 'close' });
+      presentationChannelRef.current?.close();
+      presentationWindowRef.current?.close();
+    },
+    [],
+  );
 
   const runWorkflowAction = async (action: 'submit' | 'approve' | 'publish') => {
     if (!sessionId || workflowAction) return;
@@ -605,6 +815,8 @@ export default function TeachingStudioPage() {
     if (details.status !== 409) return;
     try {
       const latest = await getStudioScreen(draft.id);
+      rememberScreenRevision(latest);
+      selectedScreenRef.current = draft;
       setSelectedScreen(draft);
       setHasUnsavedChanges(true);
       setSaveConflict({ draft, latest });
@@ -649,12 +861,14 @@ export default function TeachingStudioPage() {
     };
     try {
       const saved = await updateStudioScreen(selectedScreen.id, {
-        revision_no: selectedScreen.revision_no,
+        revision_no: latestScreenRevision(selectedScreen),
         title: selectedScreen.title,
         layout_id: row.id,
         elements: remapped.elements,
         tags: selectedScreen.tags,
       });
+      rememberScreenRevision(saved);
+      selectedScreenRef.current = saved;
       setSelectedScreen(saved);
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
@@ -762,7 +976,7 @@ export default function TeachingStudioPage() {
       let sessionRevisionNo = screenList.session_revision_no;
       for (const screen of sourceScreens) {
         const saved = await updateStudioScreen(screen.id, {
-          revision_no: screen.revision_no,
+          revision_no: latestScreenRevision(screen),
           title: screen.title,
           layout_id: screen.layout_id,
           elements: screen.elements,
@@ -772,6 +986,7 @@ export default function TeachingStudioPage() {
             transition,
           },
         });
+        rememberScreenRevision(saved);
         sessionRevisionNo = saved.session_revision_no;
         savedScreens.push(saved);
       }
@@ -809,22 +1024,43 @@ export default function TeachingStudioPage() {
     setAuthoredDrawings(next, false);
   };
 
-  const addElement = (slot: Slot) => {
+  const addElement = (slot: Slot, requestedType: ObjectType = slot.allowed[0]) => {
     if (!selectedScreen) return;
     const existing = selectedScreen.elements.find((element) => element.slotId === slot.id);
     if (existing) {
       setSelectedElementId(existing.id);
-      return;
+      return existing.id;
     }
     const element: StudioElement = {
       id: `${slot.id}-${Date.now()}`,
       slotId: slot.id,
-      type: slot.allowed[0],
+      type: requestedType,
       content: { text: '' },
       position: { ...slot.bounds },
     };
     commitElements([...selectedScreen.elements, element], element.id);
     toast.success(`${slot.label} content added. Edit it, then Save.`);
+    return element.id;
+  };
+
+  const changeSlotType = (slot: Slot, type: ObjectType) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const existing = selectedScreen.elements.find((element) => element.slotId === slot.id);
+    if (existing?.type === type) {
+      setSelectedElementId(existing.id);
+    } else if (existing) {
+      const hasContent = Boolean(existing.resource) || Object.values(existing.content).some((value) =>
+        typeof value === 'string' ? value.trim().length > 0 : value !== null && value !== undefined,
+      );
+      if (hasContent && !window.confirm(`Replace the existing ${existing.type} content with ${type} content?`)) return;
+      updateElement({ ...existing, type, content: { text: '' }, resource: undefined });
+    } else {
+      addElement(slot, type);
+    }
+    if (['visual', 'media', 'simulation'].includes(type)) {
+      setPanel('resources');
+      setRightPanelOpen(true);
+    }
   };
 
   const addBlankElement = (
@@ -937,10 +1173,12 @@ export default function TeachingStudioPage() {
           ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
           : text.length;
       const token = `\\(${latex}\\)`;
+      const nextContent = { ...inlineTarget.content };
+      delete nextContent.richTextHtml;
       const updated = {
         ...inlineTarget,
         content: {
-          ...inlineTarget.content,
+          ...nextContent,
           text: `${text.slice(0, offset)}${token}${text.slice(offset)}`,
         },
       };
@@ -949,9 +1187,7 @@ export default function TeachingStudioPage() {
         offset: offset + token.length,
       };
       commitElements(
-        selectedScreen.elements.map((element) =>
-          element.id === inlineTarget.id ? updated : element,
-        ),
+        selectedScreen.elements.map((element) => element.id === inlineTarget.id ? updated : element),
         inlineTarget.id,
       );
       toast.success('Equation inserted into the selected text element.');
@@ -1025,6 +1261,34 @@ export default function TeachingStudioPage() {
     const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `diagram-${token}`;
     const content = createSmartDiagramContent(layoutId);
+    if (selectedLayout) {
+      const selectedElement = selectedScreen.elements.find((element) => element.id === selectedElementId);
+      const targetSlotId = selectedElement?.slotId || selectedLayoutSlotId;
+      const targetSlot = selectedLayout.slots.find((slot) => slot.id === targetSlotId);
+      if (!targetSlot) {
+        toast.error('Select the layout slot where the Smart Diagram should be inserted.');
+        return;
+      }
+      const existing = selectedScreen.elements.find((element) => element.slotId === targetSlot.id);
+      if (existing && !window.confirm(`Replace the existing content in ${targetSlot.label} with this Smart Diagram?`)) return;
+      const element: StudioElement = {
+        id: existing?.id ?? id,
+        slotId: targetSlot.id,
+        type: existing && targetSlot.allowed.includes(existing.type as ObjectType) ? existing.type : targetSlot.allowed[0],
+        content,
+        position: { ...targetSlot.bounds, zIndex: Number(existing?.position.zIndex) || selectedScreen.elements.length + 1 },
+      };
+      commitElements(
+        existing
+          ? selectedScreen.elements.map((candidate) => candidate.id === existing.id ? element : candidate)
+          : [...selectedScreen.elements, element],
+        element.id,
+      );
+      setSelectedLayoutSlotId(targetSlot.id);
+      setPanel('diagrams');
+      toast.success(`Smart Diagram inserted into ${targetSlot.label}.`);
+      return;
+    }
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -1245,6 +1509,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: String(element.content.altText || resource.description || resource.name),
         source: String(element.content.source || resource.name),
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
       },
       resource: {
         resource_id: resource.id,
@@ -1303,26 +1568,27 @@ export default function TeachingStudioPage() {
     setSaveStatus('saving');
     try {
       const saved = await updateStudioScreen(draft.id, {
-        revision_no: draft.revision_no,
+        revision_no: latestScreenRevision(draft),
         title: draft.title,
         layout_id: draft.layout_id,
         elements: draft.elements,
         tags: draft.tags,
         screen_settings: draft.screen_settings_json ?? {},
       });
-      const changedWhileSaving = selectedScreenRef.current !== draft;
-      setSelectedScreen((current) => {
-        if (!current || current.id !== saved.id) return current;
-        return changedWhileSaving ? { ...current, revision_no: saved.revision_no } : saved;
-      });
+      rememberScreenRevision(saved);
+      const currentDraft = selectedScreenRef.current;
+      const changedWhileSaving = currentDraft !== draft;
+      const synchronizedDraft = currentDraft?.id === saved.id
+        ? changedWhileSaving
+          ? { ...currentDraft, revision_no: saved.revision_no }
+          : saved
+        : null;
+      if (synchronizedDraft) selectedScreenRef.current = synchronizedDraft;
+      setSelectedScreen((current) => current?.id === saved.id ? synchronizedDraft ?? current : current);
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
         screens: current.screens.map((screen) =>
-          screen.id === saved.id
-            ? changedWhileSaving
-              ? { ...screen, revision_no: saved.revision_no }
-              : saved
-            : screen,
+          screen.id === saved.id ? synchronizedDraft ?? saved : screen,
         ),
       }));
       if (!changedWhileSaving) {
@@ -1516,7 +1782,7 @@ export default function TeachingStudioPage() {
   const openRenameScreen = async () => {
     if (!selectedScreen || editorReadOnly) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    setRenameTitle(selectedScreen.title);
+    setRenameTitle(screenDisplayTitle(selectedScreen));
     setRenameOpen(true);
   };
 
@@ -1535,12 +1801,14 @@ export default function TeachingStudioPage() {
     setError(null);
     try {
       const saved = await updateStudioScreen(selectedScreen.id, {
-        revision_no: selectedScreen.revision_no,
+        revision_no: latestScreenRevision(selectedScreen),
         title,
         layout_id: selectedScreen.layout_id,
         elements: selectedScreen.elements,
         tags: selectedScreen.tags,
       });
+      rememberScreenRevision(saved);
+      selectedScreenRef.current = saved;
       setSelectedScreen(saved);
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
@@ -1564,12 +1832,14 @@ export default function TeachingStudioPage() {
     try {
       if (screenAction === 'remove-layout') {
         const saved = await updateStudioScreen(selectedScreen.id, {
-          revision_no: selectedScreen.revision_no,
+          revision_no: latestScreenRevision(selectedScreen),
           title: selectedScreen.title,
           layout_id: null,
           elements: selectedScreen.elements,
           tags: selectedScreen.tags,
         });
+        rememberScreenRevision(saved);
+        selectedScreenRef.current = saved;
         setSelectedScreen(saved);
         setScreenList((current) => ({
           session_revision_no: saved.session_revision_no,
@@ -1675,11 +1945,28 @@ export default function TeachingStudioPage() {
 
   const selectedElement =
     selectedScreen?.elements.find((element) => element.id === selectedElementId) ?? null;
+  const contextualFillColor = selectedElement
+    ? String(selectedElement.content[selectedElement.type === 'shape' ? 'fill' : 'backgroundColor'] || '#ffffff')
+    : String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff');
+  const setContextualFillColor = (color: string) => {
+    if (!selectedScreen || editorReadOnly) return;
+    if (selectedElement) {
+      const key = selectedElement.type === 'shape' ? 'fill' : 'backgroundColor';
+      updateElement({ ...selectedElement, content: { ...selectedElement.content, [key]: color } });
+      return;
+    }
+    setSelectedScreen({
+      ...selectedScreen,
+      screen_settings_json: { ...(selectedScreen.screen_settings_json ?? {}), backgroundColor: color },
+    });
+    setHasUnsavedChanges(true);
+  };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string) => {
     setSelectedElementId(elementId);
     if (editorReadOnly) return;
     const element = selectedScreen?.elements.find((candidate) => candidate.id === elementId);
+    setSelectedLayoutSlotId(element?.slotId ?? null);
     const nextPanel = isSmartDiagramContent(element?.content)
       ? 'diagrams'
       : element?.type === 'math'
@@ -1800,7 +2087,7 @@ export default function TeachingStudioPage() {
         </div>
       }
     >
-      <div ref={editorViewportRef} className={`studio-editor-viewport relative flex h-full min-h-0 flex-col gap-2 overflow-hidden bg-slate-100 p-2 ${editorFocusMode ? 'studio-editor-focus-mode' : ''}`}>
+      <div ref={editorViewportRef} className={`studio-editor-viewport relative flex h-full min-h-0 flex-col gap-1 overflow-hidden bg-slate-100 p-1.5 ${editorFocusMode ? 'studio-editor-focus-mode' : ''}`}>
         <section className="studio-context-bar shrink-0 rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur-md">
             <div className="studio-context-primary flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto overscroll-contain">
               <span className="shrink-0 rounded-lg bg-slate-900 px-2.5 py-2 text-xs font-bold text-white" title={`Screen Editor · Session ${sessionId}`}>
@@ -1825,16 +2112,14 @@ export default function TeachingStudioPage() {
                 <b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}
               </span>
               <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                <span>Session</span>
                 <select aria-label="Select Session" value={sessionId} onChange={(event) => navigate(`/studio/editor/${event.target.value}`)} className="studio-context-select h-9 max-w-28 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none">
                   {sessionOptions.map((session) => <option key={session.id} value={session.id}>Session {session.session_number}: {session.title}</option>)}
                 </select>
                 <ChevronDown size={15} className="pointer-events-none absolute right-2" aria-hidden="true" />
               </label>
               <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                <span>Screen</span>
                 <select aria-label="Select Screen" value={selectedScreenId || ''} onChange={(event) => void selectScreen(Number(event.target.value))} className="studio-context-select h-9 max-w-24 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none">
-                  {screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screen.title}</option>)}
+                  {screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screenDisplayTitle(screen)}</option>)}
                 </select>
                 <ChevronDown size={15} className="pointer-events-none absolute right-2" aria-hidden="true" />
               </label>
@@ -1894,6 +2179,17 @@ export default function TeachingStudioPage() {
                   disabled={!selectedScreen}
                   onClick={() => void openPresentation()}
                 />
+                <StudioIconButton
+                  label={showCanvasGuides ? 'Hide layout guides' : 'Show layout guides'}
+                  icon={<Grid3X3 size={15} />}
+                  active={showCanvasGuides}
+                  disabled={!selectedLayout}
+                  onClick={() => setShowCanvasGuides((visible) => !visible)}
+                />
+                <label className="relative inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50" title={selectedElement ? 'Element fill colour' : 'Screen fill colour'}>
+                  <span className="h-5 w-5 rounded border border-slate-400" style={{ backgroundColor: contextualFillColor }} />
+                  <input type="color" value={contextualFillColor} disabled={editorReadOnly || !selectedScreen} onChange={(event) => setContextualFillColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" aria-label={selectedElement ? 'Element fill colour' : 'Screen fill colour'} />
+                </label>
                 <StudioIconButton
                   label={editorFocusMode ? 'Exit Editor Fullscreen' : 'Editor Fullscreen'}
                   icon={editorFocusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
@@ -1969,7 +2265,7 @@ export default function TeachingStudioPage() {
           </div>
         )}
         <div
-          className="studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden"
+          className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel' : ''}`}
         >
           <aside className={`studio-editor-left-panel ${leftPanelOpen ? 'is-expanded' : ''} flex min-h-0 overflow-visible`}>
             <nav aria-label="Screen actions" className="flex w-11 shrink-0 flex-col items-center justify-center gap-1 border-r border-slate-200 p-1">
@@ -2017,7 +2313,7 @@ export default function TeachingStudioPage() {
                             <button type="button" onClick={() => void selectScreen(screenId)} className="min-w-0 flex-1 text-left" aria-current={selected ? 'page' : undefined}>
                               <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Screen {index + 1}</span>
                               <span className="grid aspect-video w-full place-items-center overflow-hidden rounded border border-slate-200 bg-gradient-to-br from-white to-slate-100 px-2 text-center text-xs font-semibold text-slate-700 shadow-sm">
-                                <span><span className="line-clamp-2">{screen.title || `Untitled Screen ${index + 1}`}</span><span className="mt-1 block text-[9px] font-normal text-slate-500">{screen.elements.length} elements</span></span>
+                                <span><span className="line-clamp-2">{screenDisplayTitle(screen)}</span><span className="mt-1 block text-[9px] font-normal text-slate-500">{screen.elements.length} elements</span></span>
                               </span>
                             </button>
                             {!editorReadOnly && <button type="button" title="Drag Screen to reorder" aria-label={`Drag Screen ${index + 1} to reorder`} onPointerDown={(event) => { event.preventDefault(); setDraggingScreenId(screenId); reorderIdsRef.current = reorderIds; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex w-8 touch-none items-center justify-center rounded text-slate-500 hover:bg-slate-100"><GripVertical size={18} /></button>}
@@ -2057,12 +2353,16 @@ export default function TeachingStudioPage() {
             <div className="min-h-0 flex-1">
               <BlankScreenCanvas
                 screen={selectedScreen}
+                screenTitle={selectedScreen ? screenDisplayTitle(selectedScreen) : undefined}
                 loading={loadingScreen}
                 layout={selectedLayout}
+                showGuides={showCanvasGuides}
                 animationPreview={animationPreview}
                 selectedElementId={selectedElementId}
+                selectedSlotId={selectedLayoutSlotId}
                 onSelectElement={selectElementAndOpenControls}
-                onClearElementSelection={() => setSelectedElementId(null)}
+                onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedLayoutSlotId(slotId); }}
+                onClearElementSelection={() => { setSelectedElementId(null); setSelectedLayoutSlotId(null); }}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
                 onTextCaretChange={(elementId, offset) => {
@@ -2096,12 +2396,23 @@ export default function TeachingStudioPage() {
                     ? undefined
                     : (point) => addBlankElement('text', 'content', point, { text: 'Type here' })
                 }
+                onActivateSlotAt={
+                  editorReadOnly || !selectedLayout
+                    ? undefined
+                    : (point) => {
+                        const slot = selectedLayout.slots.find(({ bounds }) =>
+                          point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
+                          point.y >= bounds.y && point.y <= bounds.y + bounds.height,
+                        );
+                        return slot ? addElement(slot) : undefined;
+                      }
+                }
                 onDropFiles={editorReadOnly ? undefined : addDroppedFiles}
               />
             </div>
             {presentationActive ? (
               <div className="absolute bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-blue-200 bg-slate-950/92 p-2 text-white shadow-2xl backdrop-blur" role="toolbar" aria-label="Audience presentation controls">
-                <span className="px-2 text-xs font-bold">Presenting</span>
+                <span className="px-2 text-xs font-bold">Presenting · {presentationDisplayName}</span>
                 <button type="button" onClick={() => sendPresentationCommand('previous')} className="rounded-lg p-2 hover:bg-white/15" title="Previous"><ChevronLeft size={19} /></button>
                 <button type="button" onClick={() => sendPresentationCommand('next')} className="rounded-lg p-2 hover:bg-white/15" title="Next"><ChevronRight size={19} /></button>
                 <button type="button" onClick={() => sendPresentationCommand('fullscreen')} className="rounded-lg p-2 hover:bg-white/15" title="Audience fullscreen"><Maximize2 size={17} /></button>
@@ -2147,6 +2458,7 @@ export default function TeachingStudioPage() {
                     selectedElementId={selectedElementId}
                     onSelect={selectElementAndOpenControls}
                     onAdd={addElement}
+                    onChangeSlotType={changeSlotType}
                     onAddBlank={addBlankElement}
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
@@ -2435,6 +2747,7 @@ export default function TeachingStudioPage() {
                   selectedElementId={selectedElementId}
                   onSelect={setSelectedElementId}
                   onAdd={addElement}
+                  onChangeSlotType={changeSlotType}
                   onAddBlank={addBlankElement}
                   onUpdate={updateElement}
                   onDuplicate={duplicateElement}
@@ -2474,6 +2787,7 @@ export default function TeachingStudioPage() {
               screen={selectedScreen}
               loading={loadingScreen}
               layout={selectedLayout}
+              showGuides={showCanvasGuides}
               selectedElementId={selectedElementId}
               onSelectElement={(elementId) => {
                 setSelectedElementId(elementId);
@@ -2650,6 +2964,8 @@ export default function TeachingStudioPage() {
               <button
                 type="button"
                 onClick={() => {
+                  rememberScreenRevision(saveConflict.latest);
+                  selectedScreenRef.current = saveConflict.latest;
                   setSelectedScreen(saveConflict.latest);
                   setScreenList((current) => ({
                     ...current,
@@ -2672,10 +2988,19 @@ export default function TeachingStudioPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedScreen({
+                  const retryDraft = {
                     ...saveConflict.draft,
                     revision_no: saveConflict.latest.revision_no,
-                  });
+                  };
+                  rememberScreenRevision(saveConflict.latest);
+                  selectedScreenRef.current = retryDraft;
+                  setSelectedScreen(retryDraft);
+                  setScreenList((current) => ({
+                    ...current,
+                    screens: current.screens.map((screen) =>
+                      screen.id === retryDraft.id ? retryDraft : screen,
+                    ),
+                  }));
                   setHasUnsavedChanges(true);
                   setSaveConflict(null);
                   toast.success('Your draft is ready to retry against the latest saved Screen.');
