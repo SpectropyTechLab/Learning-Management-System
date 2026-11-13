@@ -241,3 +241,23 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   assert.match(canvas, /presenterElementPlaybackState/);
   assert.doesNotMatch(canvas, /setPreviewCycle\(\(current\) => current \+ 1\);\s*}\s*else onPreviewPrevious/);
 });
+
+test('Slide transitions cannot override the viewport fit scale', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /data-testid="slide-transition-layer"/);
+  assert.match(slide, /transform: `scale\(\$\{scale\}\)`/);
+  const scaledSurface = slide.slice(slide.indexOf('data-testid="slide-surface"'), slide.indexOf('data-testid="slide-transition-layer"'));
+  assert.doesNotMatch(scaledSurface, /studioTransitionStyle/);
+});
+
+test('Canvas elements support direct pointer dragging as well as resize handles', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /const queueDirectMove/);
+  assert.match(slide, /Math\.hypot\(movementX, movementY\) < 6/);
+  assert.match(slide, /onPointerDown=\{\(event\) => object && queueDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /onPointerDownCapture=\{\(event\) => queueDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /\[contenteditable="true"\]/);
+  const queueStart = slide.indexOf('const queueDirectMove');
+  const queueEnd = slide.indexOf('useEffect(() => {', queueStart);
+  assert.doesNotMatch(slide.slice(queueStart, queueEnd), /preventDefault|stopPropagation|setInteraction/);
+});
