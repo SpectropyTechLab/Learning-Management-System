@@ -548,7 +548,7 @@ export default function SlideCanvas({
                       key={mode}
                       type="button"
                       onPointerDown={(event) => beginInteraction(event, object.id, mode, bounds)}
-                      className={`pointer-events-auto absolute h-9 w-9 touch-none select-none ${position} rounded-full border-2 border-white bg-blue-700 shadow after:absolute after:inset-3 after:rounded-full after:bg-white`}
+                          className={`pointer-events-auto absolute h-11 w-11 touch-none select-none ${position} rounded-full border-2 border-white bg-blue-700 shadow after:absolute after:inset-4 after:rounded-full after:bg-white`}
                       title={`Resize element ${mode.replace('resize-', '')}`}
                       aria-label={`Resize element ${mode.replace('resize-', '')}`}
                     />
