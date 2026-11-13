@@ -65,7 +65,7 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, onSelect, onImageAspectRatio }: { element: StudioElement; onSelect?: () => void; onImageAspectRatio?: (aspectRatio: number) => void }) {
+function BoundResource({ element, selected = false, onSelect, onImageAspectRatio }: { element: StudioElement; selected?: boolean; onSelect?: () => void; onImageAspectRatio?: (aspectRatio: number) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -136,11 +136,12 @@ function BoundResource({ element, onSelect, onImageAspectRatio }: { element: Stu
   };
 
   return (
-    <div ref={containerRef} className="group relative h-full w-full bg-black" onClick={onSelect}>
+    <div ref={containerRef} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={onSelect}>
       <StudioResourcePlayer
         resourceType={resource.resource_type}
         version={version}
         mode="canvas"
+        selected={selected}
         className="h-full w-full"
       />
       <button
@@ -572,6 +573,7 @@ export default function BlankScreenCanvas({
       <BoundResource
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
+        selected={selectedElementId === element.id}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
         onImageAspectRatio={previewMode ? undefined : (aspectRatio) => {
           if (!onChangeElementBounds || !Number.isFinite(aspectRatio) || aspectRatio <= 0) return;
