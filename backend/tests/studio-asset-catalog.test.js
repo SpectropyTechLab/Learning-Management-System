@@ -12,9 +12,13 @@ test('Asset Catalog is wired as individual-asset search and import, not embedded
   const library = readFrontend('components/resources/ResourceLibrary.tsx');
   assert.match(routes, /asset-catalog\/search/);
   assert.match(routes, /asset-catalog\/import/);
-  assert.match(service, /api\.iconify\.design/);
-  assert.match(service, /shorepine\/kenney/);
-  assert.match(service, /3d-api\.si\.edu/);
+  assert.match(service, /CaptExcellent\/kits-library-assets/);
+  assert.match(service, /microsoft\/fluentui-emoji/);
+  assert.match(service, /googlefonts\.github\.io\/noto-emoji-files/);
+  assert.match(service, /api\.polyhaven\.com/);
+  assert.match(service, /www\.openpeeps\.com/);
+  assert.match(service, /www\.opendoodles\.com/);
+  assert.doesNotMatch(service, /api\.iconify\.design|shorepine\/kenney|3d-api\.si\.edu/);
   assert.match(service, /metadata_json: catalogMetadata/);
   assert.match(panel, /Add to screen/);
   assert.match(panel, /Add to library/);
@@ -22,11 +26,15 @@ test('Asset Catalog is wired as individual-asset search and import, not embedded
   assert.doesNotMatch(panel, /iframe/i);
 });
 
-test('Iconify search returns normalized, licensed reusable SVG assets', async () => {
+test('Kitbitz search returns individual CC0 SVG components and excludes branded kits', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    assert.match(String(url), /api\.iconify\.design\/search/);
-    return new Response(JSON.stringify({ icons: ['mdi:car', 'tabler:car-filled'] }), {
+    assert.match(String(url), /CaptExcellent\/kits-library-assets/);
+    return new Response(JSON.stringify({ tree: [
+      { type: 'blob', path: 'kits/city-kit/Car.svg' },
+      { type: 'blob', path: 'kits/city-kit/Car.png' },
+      { type: 'blob', path: 'kits/barbieland-kit/Barbie Car.svg' },
+    ] }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -34,38 +42,91 @@ test('Iconify search returns normalized, licensed reusable SVG assets', async ()
   try {
     const { searchAssetCatalog } = await import('../services/studioAssetCatalog.service.js');
     const result = await searchAssetCatalog({
-      query: { q: 'car', kind: 'icon', provider: 'iconify', limit: 12 },
+      query: { q: 'car', kind: 'illustration', provider: 'kitbitz', limit: 12 },
       user: { role: 'content_authorizer' },
     });
-    assert.equal(result.results.length, 2);
-    assert.equal(result.results[0].asset_kind, 'icon');
+    assert.equal(result.results.length, 1);
+    assert.equal(result.results[0].asset_kind, 'illustration');
     assert.equal(result.results[0].resource_type, 'image');
-    assert.equal(result.results[0].license.name, 'Apache-2.0');
-    assert.match(result.results[0].preview_url, /mdi\/car\.svg/);
+    assert.equal(result.results[0].license.name, 'CC0-1.0');
+    assert.equal(result.results[0].composition, 'component');
+    assert.match(result.results[0].preview_url, /Car\.svg/);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('Kenney search prefers filenames matching the requested object over sibling files', async () => {
+test('Fluent Emoji exposes polished color SVG components under the repository MIT licence', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    assert.match(String(url), /api\.github\.com\/repos\/shorepine\/kenney/);
+    assert.match(String(url), /microsoft\/fluentui-emoji/);
     return new Response(JSON.stringify({ tree: [
-      { type: 'blob', path: '2d/Racing Pack/Cars/bus.png' },
-      { type: 'blob', path: '2d/Racing Pack/Cars/car_blue_1.png' },
-      { type: 'blob', path: '3d/nature/plant.glb' },
+      { type: 'blob', path: 'assets/Automobile/Color/automobile_color.svg' },
+      { type: 'blob', path: 'assets/Automobile/3D/automobile_3d.png' },
+      { type: 'blob', path: 'assets/Bus/Color/bus_color.svg' },
     ] }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
   try {
     const { searchAssetCatalog } = await import('../services/studioAssetCatalog.service.js');
     const result = await searchAssetCatalog({
-      query: { q: 'car', kind: 'illustration', provider: 'kenney', limit: 12 },
+      query: { q: 'automobile', kind: 'illustration', provider: 'fluent-emoji', limit: 12 },
       user: { role: 'content_authorizer' },
     });
     assert.equal(result.results.length, 1);
-    assert.equal(result.results[0].title, 'Car Blue 1');
+    assert.equal(result.results[0].title, 'Automobile');
+    assert.equal(result.results[0].license.name, 'MIT');
+    assert.equal(result.results[0].format, 'SVG');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Noto Emoji search exposes only animated CC-BY components', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.match(String(url), /noto-emoji-files\/data\/emojis_data\.js/);
+    return new Response(`window.__NOTO_EMOJIS_DATA__ = ${JSON.stringify([
+      { codepoint: '1f697', rgi: '1f697', name: 'Automobile', cldrName: 'Automobile', category: 'Travel & Places', subgroup: 'transport-ground', hasGfontsAnim: true },
+      { codepoint: '1f3ce', rgi: '1f3ce-fe0f', name: 'Racing Car', cldrName: 'Racing Car', category: 'Travel & Places', subgroup: 'transport-ground', hasGfontsAnim: false },
+    ])};`, { status: 200, headers: { 'content-type': 'text/javascript' } });
+  };
+  try {
+    const { searchAssetCatalog } = await import('../services/studioAssetCatalog.service.js');
+    const result = await searchAssetCatalog({
+      query: { q: 'automobile', kind: 'animation', provider: 'noto-emoji', limit: 12 },
+      user: { role: 'content_authorizer' },
+    });
+    assert.equal(result.results.length, 1);
+    assert.equal(result.results[0].resource_type, 'animation');
+    assert.equal(result.results[0].license.name, 'CC-BY-4.0');
+    assert.equal(result.results[0].attribution_required, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Poly Haven search returns realistic CC0 models as individual 3D components', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.match(String(url), /api\.polyhaven\.com\/assets\?t=models/);
+    return new Response(JSON.stringify({
+      Classic_Car: {
+        name: 'Classic Car', tags: ['vehicle', 'car'], categories: ['vehicles'], category: 'Vehicles & Transport',
+        authors: { 'Example Artist': 'All' }, thumbnail_url: 'https://cdn.polyhaven.com/car.webp',
+      },
+      Chair: { name: 'Chair', tags: ['furniture'], categories: ['furniture'] },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const { searchAssetCatalog } = await import('../services/studioAssetCatalog.service.js');
+    const result = await searchAssetCatalog({
+      query: { q: 'car', kind: 'model_3d', provider: 'poly-haven', limit: 12 },
+      user: { role: 'content_authorizer' },
+    });
+    assert.equal(result.results.length, 1);
+    assert.equal(result.results[0].asset_kind, 'model_3d');
     assert.equal(result.results[0].license.name, 'CC0-1.0');
+    assert.match(result.results[0].attribution, /Example Artist/);
   } finally {
     globalThis.fetch = originalFetch;
   }

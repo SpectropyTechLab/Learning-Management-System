@@ -134,7 +134,7 @@ export type StudioAssetCatalogComposition = 'all' | 'component' | 'block';
 
 export interface StudioAssetCatalogItem {
   id: string;
-  provider: 'bioicons' | 'scidraw' | 'iconify' | 'kenney' | 'smithsonian';
+  provider: 'bioicons' | 'scidraw' | 'kitbitz' | 'fluent-emoji' | 'noto-emoji' | 'poly-haven' | 'open-peeps' | 'open-doodles';
   provider_label: string;
   provider_asset_id: string;
   title: string;

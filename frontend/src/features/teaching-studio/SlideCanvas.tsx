@@ -49,7 +49,7 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
 
 type GeometryInteraction = {
   objectId: string;
-  mode: 'move' | 'resize';
+  mode: 'move' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w' | 'resize-nw';
   startClientX: number;
   startClientY: number;
   startBounds: Rect;
@@ -143,18 +143,36 @@ export default function SlideCanvas({
       const deltaX = (event.clientX - interaction.startClientX) / scale;
       const deltaY = (event.clientY - interaction.startClientY) / scale;
       const start = interaction.startBounds;
-      const currentBounds =
-        interaction.mode === 'move'
-          ? {
-              ...start,
-              x: Math.round(clamp(start.x + deltaX, 0, MASTER.width - start.width)),
-              y: Math.round(clamp(start.y + deltaY, 0, MASTER.height - start.height)),
-            }
-          : {
-              ...start,
-              width: Math.round(clamp(start.width + deltaX, 80, MASTER.width - start.x)),
-              height: Math.round(clamp(start.height + deltaY, 60, MASTER.height - start.y)),
-            };
+      let currentBounds: Rect;
+      if (interaction.mode === 'move') {
+        currentBounds = {
+          ...start,
+          x: Math.round(clamp(start.x + deltaX, 0, MASTER.width - start.width)),
+          y: Math.round(clamp(start.y + deltaY, 0, MASTER.height - start.height)),
+        };
+      } else {
+        const direction = interaction.mode.replace('resize-', '');
+        const north = direction.includes('n');
+        const south = direction.includes('s');
+        const east = direction.includes('e');
+        const west = direction.includes('w');
+        const right = start.x + start.width;
+        const bottom = start.y + start.height;
+        const x = west ? clamp(start.x + deltaX, 0, right - 80) : start.x;
+        const y = north ? clamp(start.y + deltaY, 0, bottom - 60) : start.y;
+        const width = west
+          ? right - x
+          : east ? clamp(start.width + deltaX, 80, MASTER.width - start.x) : start.width;
+        const height = north
+          ? bottom - y
+          : south ? clamp(start.height + deltaY, 60, MASTER.height - start.y) : start.height;
+        currentBounds = {
+          x: Math.round(x),
+          y: Math.round(y),
+          width: Math.round(width),
+          height: Math.round(height),
+        };
+      }
       setInteraction((current) => (current ? { ...current, currentBounds } : null));
     };
     const finish = () => {
@@ -255,8 +273,12 @@ export default function SlideCanvas({
     >
       {scale > 0 && (
         <div
+          className="relative shrink-0"
+          style={{ width: MASTER.width * scale, height: MASTER.height * scale }}
+        >
+        <div
           data-testid="slide-surface"
-          className="relative shrink-0 overflow-hidden bg-white shadow-xl"
+          className="absolute left-0 top-0 overflow-hidden bg-white shadow-xl"
           onClick={(event) => {
             const target = event.target;
             if (target instanceof Element && target.closest('[data-element-id]')) return;
@@ -272,8 +294,10 @@ export default function SlideCanvas({
             });
           }}
           style={{
-            width: MASTER.width * scale,
-            height: MASTER.height * scale,
+            width: MASTER.width,
+            height: MASTER.height,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
             ...studioTransitionStyle(transition),
           }}
         >
@@ -510,16 +534,29 @@ export default function SlideCanvas({
                   >
                     <MoveIcon size={14} aria-hidden="true" />
                   </button>
-                  <button
-                    type="button"
-                    onPointerDown={(event) => beginInteraction(event, object.id, 'resize', bounds)}
-                    className="pointer-events-auto absolute bottom-0 right-0 h-11 w-11 touch-none select-none translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-lg border-2 border-white bg-blue-700 shadow sm:h-9 sm:w-9"
-                    title="Drag to resize element"
-                    aria-label="Resize element"
-                  />
+                  {([
+                    ['resize-nw', 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize'],
+                    ['resize-n', 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize'],
+                    ['resize-ne', 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize'],
+                    ['resize-e', 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+                    ['resize-se', 'bottom-0 right-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize'],
+                    ['resize-s', 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 cursor-ns-resize'],
+                    ['resize-sw', 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize'],
+                    ['resize-w', 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+                  ] as const).map(([mode, position]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onPointerDown={(event) => beginInteraction(event, object.id, mode, bounds)}
+                      className={`pointer-events-auto absolute h-9 w-9 touch-none select-none ${position} rounded-full border-2 border-white bg-blue-700 shadow after:absolute after:inset-3 after:rounded-full after:bg-white`}
+                      title={`Resize element ${mode.replace('resize-', '')}`}
+                      aria-label={`Resize element ${mode.replace('resize-', '')}`}
+                    />
+                  ))}
                 </div>
               );
             })}
+        </div>
         </div>
       )}
     </div>

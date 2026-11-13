@@ -24,7 +24,7 @@ const KINDS: Array<{ id: StudioAssetCatalogKind; label: string; icon: typeof Spa
   { id: 'model_3d', label: '3D models', icon: Box },
 ];
 
-const STARTERS = ['heart', 'neuron', 'DNA', 'plant cell', 'microscope', 'laboratory', 'chemistry', 'virus'];
+const STARTERS = ['heart', 'teacher', 'car', 'tree', 'laboratory', 'food', 'space', 'chair'];
 
 const kindLabel = (kind: StudioAssetCatalogItem['asset_kind']) => ({
   icon: 'Icon', illustration: '2D asset', animation: 'Animation', model_3d: '3D model',
@@ -100,10 +100,23 @@ export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPane
   }, [composition, kind, provider, submitted]);
 
   const visibleProviders = useMemo(() => {
-    if (kind === 'icon' || kind === 'animation') return [{ id: 'all', label: 'All sources' }, { id: 'iconify', label: 'Iconify' }];
-    if (kind === 'illustration') return [{ id: 'all', label: 'All sources' }, { id: 'bioicons', label: 'Bioicons & Servier' }, { id: 'scidraw', label: 'SciDraw' }, { id: 'iconify', label: 'Iconify' }, { id: 'kenney', label: 'Kenney CC0' }];
-    if (kind === 'model_3d') return [{ id: 'all', label: 'All sources' }, { id: 'kenney', label: 'Kenney CC0' }, { id: 'smithsonian', label: 'Smithsonian' }];
-    return [{ id: 'all', label: 'All sources' }, { id: 'bioicons', label: 'Bioicons & Servier' }, { id: 'scidraw', label: 'SciDraw' }, { id: 'iconify', label: 'Iconify' }, { id: 'kenney', label: 'Kenney CC0' }, { id: 'smithsonian', label: 'Smithsonian' }];
+    const all = { id: 'all', label: 'All approved sources' };
+    if (kind === 'icon') return [all, { id: 'kitbitz', label: 'Kitbitz' }, { id: 'fluent-emoji', label: 'Microsoft Fluent Emoji' }];
+    if (kind === 'animation') return [all, { id: 'noto-emoji', label: 'Google Animated Noto Emoji' }, { id: 'open-doodles', label: 'Open Doodles' }];
+    if (kind === 'model_3d') return [all, { id: 'poly-haven', label: 'Poly Haven' }];
+    if (kind === 'illustration') return [
+      all,
+      { id: 'bioicons', label: 'Bioicons & Servier' }, { id: 'scidraw', label: 'SciDraw' },
+      { id: 'kitbitz', label: 'Kitbitz' }, { id: 'fluent-emoji', label: 'Microsoft Fluent Emoji' },
+      { id: 'open-peeps', label: 'Open Peeps' }, { id: 'open-doodles', label: 'Open Doodles' },
+    ];
+    return [
+      all,
+      { id: 'bioicons', label: 'Bioicons & Servier' }, { id: 'scidraw', label: 'SciDraw' },
+      { id: 'kitbitz', label: 'Kitbitz' }, { id: 'fluent-emoji', label: 'Microsoft Fluent Emoji' },
+      { id: 'noto-emoji', label: 'Google Animated Noto Emoji' }, { id: 'poly-haven', label: 'Poly Haven' },
+      { id: 'open-peeps', label: 'Open Peeps' }, { id: 'open-doodles', label: 'Open Doodles' },
+    ];
   }, [kind]);
 
   useEffect(() => {
@@ -139,7 +152,7 @@ export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPane
           <label className="relative min-w-0">
             <span className="sr-only">Search reusable assets</span>
             <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitSearch(); }} placeholder="Search heart, neuron, cell, apparatus…" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-10 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitSearch(); }} placeholder="Search teacher, car, heart, tree, laboratory…" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-10 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100" />
             {query ? <button type="button" onClick={() => setQuery('')} className="absolute right-2 top-2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Clear asset search"><X size={16} /></button> : null}
           </label>
           <select value={provider} onChange={(event) => setProvider(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">

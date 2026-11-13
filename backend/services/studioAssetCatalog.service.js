@@ -5,11 +5,14 @@ import { createResource } from './studioResources.service.js';
 
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const CATALOG_KINDS = new Set(['all', 'icon', 'illustration', 'animation', 'model_3d']);
-const CATALOG_PROVIDERS = new Set(['all', 'bioicons', 'scidraw', 'iconify', 'kenney', 'smithsonian']);
+const CATALOG_PROVIDERS = new Set([
+  'all', 'bioicons', 'scidraw', 'kitbitz', 'fluent-emoji', 'noto-emoji',
+  'poly-haven', 'open-peeps', 'open-doodles',
+]);
 const CATALOG_COMPOSITIONS = new Set(['all', 'component', 'block']);
 const MAX_IMPORT_BYTES = 250 * 1024 * 1024;
 const JSON_CACHE_TTL_MS = 10 * 60 * 1000;
-const KENNEY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const PROVIDER_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const BIOICONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 // Share-alike, non-commercial, no-derivatives and unknown licences are intentionally
@@ -22,26 +25,9 @@ const BIOICONS_LICENSES = {
   bsd: { name: 'BSD', url: 'https://opensource.org/licenses/BSD-3-Clause', attributionRequired: true },
 };
 
-const ICONIFY_GROUPS = {
-  icon: ['mdi', 'tabler', 'lucide', 'ph', 'material-symbols', 'mingcute'],
-  illustration: ['noto'],
-  animation: ['line-md'],
-};
-
-const ICONIFY_COLLECTIONS = {
-  mdi: { name: 'Material Design Icons', author: 'Pictogrammers', license: 'Apache-2.0', license_url: 'https://github.com/Templarian/MaterialDesign/blob/master/LICENSE' },
-  tabler: { name: 'Tabler Icons', author: 'Paweł Kuna', license: 'MIT', license_url: 'https://github.com/tabler/tabler-icons/blob/master/LICENSE' },
-  lucide: { name: 'Lucide', author: 'Lucide Contributors', license: 'ISC', license_url: 'https://github.com/lucide-icons/lucide/blob/main/LICENSE' },
-  ph: { name: 'Phosphor Icons', author: 'Phosphor Icons', license: 'MIT', license_url: 'https://github.com/phosphor-icons/core/blob/main/LICENSE' },
-  'material-symbols': { name: 'Material Symbols', author: 'Google', license: 'Apache-2.0', license_url: 'https://github.com/google/material-design-icons/blob/master/LICENSE' },
-  mingcute: { name: 'MingCute', author: 'MingCute Design', license: 'Apache-2.0', license_url: 'https://github.com/Richard9394/MingCute/blob/main/LICENSE' },
-  noto: { name: 'Noto Emoji', author: 'Google', license: 'Apache-2.0', license_url: 'https://github.com/googlefonts/noto-emoji/blob/main/svg/LICENSE' },
-  'line-md': { name: 'Material Line Icons', author: 'Vjacheslav Trushkin', license: 'MIT', license_url: 'https://github.com/cyberalien/line-md/blob/main/license.txt' },
-};
-
 const jsonCache = new Map();
-let kenneyTreeCache = { expiresAt: 0, paths: [] };
 let bioiconsCache = { expiresAt: 0, icons: [] };
+const providerCache = new Map();
 
 const assertAuthor = (user) => {
   if (!AUTHOR_ROLES.has(user?.role)) throw new AppError('Only Content Authorizers can use the Asset Catalog', 403);
@@ -116,33 +102,6 @@ const sanitizeSvg = (buffer) => {
   const svg = $('svg').first();
   if (!svg.length) throw new AppError('The selected SVG is invalid', 422);
   return Buffer.from($.xml(svg));
-};
-
-const iconifyResult = (identifier, kind) => {
-  const [prefix, ...nameParts] = identifier.split(':');
-  const name = nameParts.join(':');
-  const collection = ICONIFY_COLLECTIONS[prefix];
-  if (!collection || !name) return null;
-  const svgUrl = `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg`;
-  return {
-    id: `iconify:${identifier}`,
-    provider: 'iconify',
-    provider_label: 'Iconify',
-    provider_asset_id: identifier,
-    title: displayName(name),
-    asset_kind: kind,
-    format: 'SVG',
-    resource_type: kind === 'animation' ? 'animation' : 'image',
-    preview_url: svgUrl,
-    source_url: `https://icon-sets.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}/`,
-    collection: collection.name,
-    tags: [kind, prefix, ...name.split('-')],
-    license: { name: collection.license, url: collection.license_url },
-    attribution: `${collection.author} · ${collection.license}`,
-    composition: 'component',
-    subject: 'general',
-    importable: true,
-  };
 };
 
 const bioiconsPath = (icon) => {
@@ -263,120 +222,207 @@ const searchScidraw = async (query, limit) => {
     .slice(0, limit);
 };
 
-const searchIconify = async (query, kind, limit) => {
-  const prefixes = ICONIFY_GROUPS[kind];
-  if (!prefixes?.length) return [];
-  const params = new URLSearchParams({ query, prefixes: prefixes.join(','), limit: String(Math.max(32, limit)) });
-  const payload = await fetchJson(`https://api.iconify.design/search?${params.toString()}`);
-  return (Array.isArray(payload.icons) ? payload.icons : [])
-    .map((identifier) => iconifyResult(identifier, kind))
-    .filter(Boolean)
-    .slice(0, limit);
+const providerCached = async (key, loader) => {
+  const cached = providerCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const value = await loader();
+  providerCache.set(key, { value, expiresAt: Date.now() + PROVIDER_CACHE_TTL_MS });
+  return value;
 };
 
-const getKenneyPaths = async () => {
-  if (kenneyTreeCache.expiresAt > Date.now() && kenneyTreeCache.paths.length) return kenneyTreeCache.paths;
-  const payload = await fetchJson(
-    'https://api.github.com/repos/shorepine/kenney/git/trees/main?recursive=1',
-    { cacheTtlMs: KENNEY_CACHE_TTL_MS },
-  );
-  const paths = (Array.isArray(payload.tree) ? payload.tree : [])
-    .filter((entry) => entry?.type === 'blob' && /^(2d|3d)\//i.test(entry.path) && /\.(png|svg|glb)$/i.test(entry.path))
-    .map((entry) => entry.path);
-  kenneyTreeCache = { paths, expiresAt: Date.now() + KENNEY_CACHE_TTL_MS };
-  return paths;
+const normalizedWords = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+const GENERAL_SEARCH_SYNONYMS = {
+  car: ['automobile', 'vehicle'], automobile: ['car', 'vehicle'], vehicle: ['car', 'automobile'],
+  teacher: ['educator', 'person'], student: ['learner', 'person'], people: ['person', 'human'],
+  lab: ['laboratory'], laboratory: ['lab'], plant: ['tree', 'leaf'], tree: ['plant'],
+  house: ['home', 'building'], home: ['house', 'building'], phone: ['mobile', 'telephone'],
 };
-
-const matchesAssetWords = (assetPath, query) => {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const normalized = assetPath.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  return words.every((word) => normalized.split(' ').some((part) => part === word || part.startsWith(word)));
+const matchesQuery = (value, query) => {
+  const haystack = normalizedWords(value);
+  return normalizedWords(query).every((word) => haystack.some((part) => part === word || (word.length >= 4 && part.startsWith(word))));
 };
+const matchesQueryOrSynonym = (value, query) => {
+  const haystack = normalizedWords(value);
+  return normalizedWords(query).every((word) => [word, ...(GENERAL_SEARCH_SYNONYMS[word] || [])]
+    .some((candidate) => haystack.some((part) => part === candidate || (candidate.length >= 4 && part.startsWith(candidate)))));
+};
+const githubRawUrl = (repo, assetPath) => `https://raw.githubusercontent.com/${repo}/main/${assetPath.split('/').map(encodeURIComponent).join('/')}`;
 
-const kenneyResult = (assetPath) => {
-  const isModel = assetPath.toLowerCase().endsWith('.glb');
-  const encodedPath = assetPath.split('/').map(encodeURIComponent).join('/');
-  const rawUrl = `https://raw.githubusercontent.com/shorepine/kenney/main/${encodedPath}`;
-  const fileName = path.posix.basename(assetPath);
-  const pack = assetPath.split('/').slice(1, -1)[0] || (isModel ? '3D Assets' : '2D Assets');
+const getGithubTree = async (repo) => providerCached(`github:${repo}`, async () => {
+  const payload = await fetchJson(`https://api.github.com/repos/${repo}/git/trees/main?recursive=1`, { cacheTtlMs: PROVIDER_CACHE_TTL_MS });
+  if (payload.truncated) throw new Error(`${repo} asset index is incomplete`);
+  return (Array.isArray(payload.tree) ? payload.tree : []).filter((entry) => entry?.type === 'blob').map((entry) => entry.path);
+});
+
+const kitbitzResult = (assetPath) => {
+  const title = displayName(path.posix.basename(assetPath));
+  const kit = assetPath.split('/')[1] || 'general';
+  const encoded = Buffer.from(assetPath).toString('base64url');
+  const rawUrl = githubRawUrl('CaptExcellent/kits-library-assets', assetPath);
   return {
-    id: `kenney:${Buffer.from(assetPath).toString('base64url')}`,
-    provider: 'kenney',
-    provider_label: 'Kenney CC0',
-    provider_asset_id: Buffer.from(assetPath).toString('base64url'),
-    title: displayName(fileName),
-    asset_kind: isModel ? 'model_3d' : 'illustration',
-    format: isModel ? 'GLB' : path.posix.extname(fileName).slice(1).toUpperCase(),
-    resource_type: isModel ? 'model_3d' : 'image',
-    preview_url: isModel ? '' : rawUrl,
-    source_url: `https://github.com/shorepine/kenney/blob/main/${encodedPath}`,
-    collection: displayName(pack),
-    tags: assetPath.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean),
-    license: { name: 'CC0-1.0', url: 'https://creativecommons.org/publicdomain/zero/1.0/' },
-    attribution: 'Kenney · CC0 (credit optional)',
-    composition: 'component',
-    subject: 'general',
-    importable: true,
+    id: `kitbitz:${encoded}`, provider: 'kitbitz', provider_label: 'Kitbitz', provider_asset_id: encoded,
+    title, asset_kind: 'illustration', format: 'SVG', resource_type: 'image', preview_url: rawUrl,
+    source_url: `https://kitbitz.art/kits/${encodeURIComponent(kit)}/`, collection: displayName(kit),
+    tags: normalizedWords(`${kit} ${title}`),
+    license: { name: 'CC0-1.0', url: 'https://github.com/CaptExcellent/kits-library-assets/blob/main/LICENSE' },
+    attribution: 'Kitbitz contributors · CC0 (credit optional)', attribution_required: false,
+    composition: 'component', subject: 'general', importable: true,
   };
 };
 
-const searchKenney = async (query, kind, limit) => {
-  if (!['all', 'illustration', 'model_3d'].includes(kind)) return [];
-  const paths = await getKenneyPaths();
-  const filtered = paths.filter((assetPath) => {
-    const isModel = assetPath.toLowerCase().endsWith('.glb');
-    if (kind === 'illustration' && isModel) return false;
-    if (kind === 'model_3d' && !isModel) return false;
-    return matchesAssetWords(assetPath, query);
-  });
-  const directNameMatches = filtered.filter((assetPath) => matchesAssetWords(path.posix.basename(assetPath), query));
-  const candidates = directNameMatches.length ? directNameMatches : filtered;
-  return candidates
+const searchKitbitz = async (query, limit) => {
+  const paths = await getGithubTree('CaptExcellent/kits-library-assets');
+  return paths
+    .filter((assetPath) => /^kits\/(?!barbieland-kit\/).+\.svg$/i.test(assetPath) && matchesQueryOrSynonym(assetPath, query))
     .sort((left, right) => path.posix.basename(left).length - path.posix.basename(right).length || left.localeCompare(right))
     .slice(0, limit)
-    .map(kenneyResult);
+    .map(kitbitzResult);
 };
 
-const smithsonianResult = (row) => {
-  const content = row?.content || {};
-  const uri = String(content.uri || '');
-  if (!uri || !content.model_url) return null;
-  const assetId = Buffer.from(uri).toString('base64url');
+const fluentResult = (assetPath) => {
+  const title = displayName(assetPath.split('/')[1]);
+  const encoded = Buffer.from(assetPath).toString('base64url');
+  const rawUrl = githubRawUrl('microsoft/fluentui-emoji', assetPath);
   return {
-    id: `smithsonian:${assetId}`,
-    provider: 'smithsonian',
-    provider_label: 'Smithsonian Open Access',
-    provider_asset_id: assetId,
-    title: cleanText(row.title || 'Smithsonian 3D Model'),
-    asset_kind: 'model_3d',
-    format: 'GLB',
-    resource_type: 'model_3d',
-    preview_url: '',
-    source_url: `https://3d.si.edu/object/${encodeURIComponent(content.model_url)}`,
-    collection: 'Smithsonian Open Access 3D',
-    tags: ['scientific', 'museum', '3d', 'education'],
-    license: { name: 'CC0-1.0', url: 'https://www.si.edu/openaccess' },
-    attribution: 'Smithsonian Institution · CC0',
-    composition: 'component',
-    subject: 'science',
-    importable: true,
+    id: `fluent-emoji:${encoded}`, provider: 'fluent-emoji', provider_label: 'Microsoft Fluent Emoji', provider_asset_id: encoded,
+    title, asset_kind: 'illustration', format: 'SVG', resource_type: 'image', preview_url: rawUrl,
+    source_url: `https://github.com/microsoft/fluentui-emoji/tree/main/assets/${encodeURIComponent(assetPath.split('/')[1])}`,
+    collection: 'Fluent Emoji · Color', tags: normalizedWords(title),
+    license: { name: 'MIT', url: 'https://github.com/microsoft/fluentui-emoji/blob/main/LICENSE' },
+    attribution: 'Microsoft Fluent Emoji · MIT', attribution_required: true,
+    composition: 'component', subject: 'general', importable: true,
   };
 };
 
-const searchSmithsonian = async (query, limit) => {
-  const params = new URLSearchParams({ q: query, file_type: 'glb', rows: String(Math.max(20, limit * 3)) });
-  const payload = await fetchJson(`https://3d-api.si.edu/api/v1.0/content/file/search?${params.toString()}`);
-  const preferredByModel = new Map();
-  const qualityScore = { Low: 4, Medium: 3, Thumb: 2, High: 1 };
-  for (const row of Array.isArray(payload.rows) ? payload.rows : []) {
-    const modelId = row?.content?.model_url;
-    if (!modelId) continue;
-    const existing = preferredByModel.get(modelId);
-    if (!existing || (qualityScore[row.content.quality] || 0) > (qualityScore[existing.content.quality] || 0)) {
-      preferredByModel.set(modelId, row);
-    }
-  }
-  return [...preferredByModel.values()].map(smithsonianResult).filter(Boolean).slice(0, limit);
+const searchFluentEmoji = async (query, limit) => {
+  const paths = await getGithubTree('microsoft/fluentui-emoji');
+  return paths
+    .filter((assetPath) => /^assets\/[^/]+\/Color\/[^/]+_color\.svg$/i.test(assetPath) && matchesQueryOrSynonym(assetPath.split('/')[1], query))
+    .slice(0, limit)
+    .map(fluentResult);
+};
+
+const getNotoEmoji = async () => providerCached('noto-emoji', async () => {
+  const response = await fetchResponse('https://googlefonts.github.io/noto-emoji-files/data/emojis_data.js?v=20260916_v7');
+  const script = await response.text();
+  const match = script.match(/window\.__NOTO_EMOJIS_DATA__\s*=\s*(\[[\s\S]*\]);?\s*$/);
+  if (!match) throw new Error('Noto Emoji metadata format changed');
+  return JSON.parse(match[1]);
+});
+
+const notoResult = (emoji) => {
+  const codepoint = cleanText(emoji.rgi || emoji.codepoint, 80).toLowerCase();
+  const title = cleanText(emoji.cldrName || emoji.name || displayName(codepoint), 250);
+  const previewUrl = `https://fonts.gstatic.com/s/e/notoemoji/latest/${encodeURIComponent(codepoint)}/512.webp`;
+  return {
+    id: `noto-emoji:${codepoint}`, provider: 'noto-emoji', provider_label: 'Google Animated Noto Emoji', provider_asset_id: codepoint,
+    title, asset_kind: 'animation', format: 'GIF', resource_type: 'animation', preview_url: previewUrl,
+    source_url: `https://googlefonts.github.io/noto-emoji-files/?q=${encodeURIComponent(title)}`,
+    collection: cleanText(emoji.category || 'Noto Emoji', 120),
+    tags: normalizedWords([title, emoji.name, emoji.shortcode, emoji.category, emoji.subgroup].join(' ')),
+    license: { name: 'CC-BY-4.0', url: 'https://creativecommons.org/licenses/by/4.0/' },
+    attribution: 'Google Noto Emoji · CC-BY-4.0', attribution_required: true,
+    composition: 'component', subject: 'general', importable: true,
+  };
+};
+
+const searchNotoEmoji = async (query, limit) => {
+  const emojis = await getNotoEmoji();
+  return emojis.filter((emoji) => emoji.hasGfontsAnim && matchesQueryOrSynonym(
+    [emoji.cldrName, emoji.name, emoji.shortcode, emoji.category, emoji.subgroup].join(' '), query,
+  )).slice(0, limit).map(notoResult);
+};
+
+const polyHavenResult = (assetId, asset) => ({
+  id: `poly-haven:${assetId}`, provider: 'poly-haven', provider_label: 'Poly Haven', provider_asset_id: assetId,
+  title: cleanText(asset.name || displayName(assetId), 250), asset_kind: 'model_3d', format: 'GLTF', resource_type: 'model_3d',
+  preview_url: cleanText(asset.thumbnail_url, 2000), source_url: `https://polyhaven.com/a/${encodeURIComponent(assetId)}`,
+  collection: cleanText(asset.category || asset.categories?.join(' · ') || 'Poly Haven 3D Models', 180),
+  tags: normalizedWords([asset.name, ...(asset.tags || []), ...(asset.categories || [])].join(' ')),
+  license: { name: 'CC0-1.0', url: 'https://polyhaven.com/license' },
+  attribution: `Poly Haven${Object.keys(asset.authors || {}).length ? ` · ${Object.keys(asset.authors).join(', ')}` : ''} · CC0`,
+  attribution_required: false, composition: 'component', subject: 'general', importable: true,
+});
+
+const getPolyHavenModels = async () => fetchJson('https://api.polyhaven.com/assets?t=models', { cacheTtlMs: PROVIDER_CACHE_TTL_MS });
+const searchPolyHaven = async (query, limit) => {
+  const models = await getPolyHavenModels();
+  return Object.entries(models).filter(([assetId, asset]) => matchesQueryOrSynonym(
+    [assetId, asset.name, ...(asset.tags || []), ...(asset.categories || [])].join(' '), query,
+  )).slice(0, limit).map(([assetId, asset]) => polyHavenResult(assetId, asset));
+};
+
+const getOpenPeeps = async () => providerCached('open-peeps', async () => {
+  const response = await fetchResponse('https://www.openpeeps.com/');
+  const $ = load(await response.text());
+  const results = new Map();
+  $('a[href$=".svg"]').each((_, link) => {
+    const url = String($(link).attr('href') || '');
+    const file = path.posix.basename(new URL(url).pathname);
+    const peepNumber = file.match(/peep-(\d+)\.svg$/i)?.[1];
+    if (peepNumber) results.set(peepNumber, { file, url, peepNumber });
+  });
+  return [...results.values()];
+});
+
+const searchOpenPeeps = async (query, limit) => {
+  if (!matchesQuery('person people human teacher student presenter character avatar standing sitting classroom', query)) return [];
+  const peeps = await getOpenPeeps();
+  return peeps.slice(0, limit).map(({ url, peepNumber }) => {
+    const encoded = Buffer.from(url).toString('base64url');
+    return {
+      id: `open-peeps:${encoded}`, provider: 'open-peeps', provider_label: 'Open Peeps', provider_asset_id: encoded,
+      title: `Open Peep ${peepNumber}`, asset_kind: 'illustration', format: 'SVG', resource_type: 'image',
+      preview_url: url, source_url: 'https://www.openpeeps.com/', collection: 'Open Peeps · Ready-made people',
+      tags: ['person', 'people', 'human', 'teacher', 'student', 'character'],
+      license: { name: 'CC0-1.0', url: 'https://creativecommons.org/publicdomain/zero/1.0/' },
+      attribution: 'Open Peeps by Pablo Stanley · CC0 (credit optional)', attribution_required: false,
+      composition: 'component', subject: 'general', importable: true,
+    };
+  });
+};
+
+const getOpenDoodles = async () => providerCached('open-doodles', async () => {
+  const response = await fetchResponse('https://www.opendoodles.com/');
+  const $ = load(await response.text());
+  const results = new Map();
+  $('a[href*="opendoodles.s3-"]').each((_, link) => {
+    const url = String($(link).attr('href') || '');
+    if (!/\.(svg|gif)$/i.test(url)) return;
+    const slug = path.posix.basename(new URL(url).pathname).replace(/\.[^.]+$/, '');
+    const extension = path.posix.extname(new URL(url).pathname).slice(1).toLowerCase();
+    const entry = results.get(slug) || { slug, files: {} };
+    entry.files[extension] = url;
+    results.set(slug, entry);
+  });
+  $('img[src$=".gif"]').each((_, image) => {
+    const url = String($(image).attr('src') || '');
+    if (new URL(url).hostname.toLowerCase() !== 'cdn.prod.website-files.com') return;
+    const slug = path.posix.basename(new URL(url).pathname).replace(/^[a-f0-9]+_/i, '').replace(/\.[^.]+$/, '');
+    const entry = results.get(slug) || { slug, files: {} };
+    entry.files.gif = url;
+    results.set(slug, entry);
+  });
+  return [...results.values()];
+});
+
+const searchOpenDoodles = async (query, kind, limit) => {
+  const doodles = await getOpenDoodles();
+  return doodles.filter((item) => matchesQuery(item.slug, query)).slice(0, limit).flatMap((item) => {
+    const animated = kind === 'animation' && item.files.gif;
+    const url = animated ? item.files.gif : item.files.svg;
+    if (!url) return [];
+    const encoded = Buffer.from(url).toString('base64url');
+    return [{
+      id: `open-doodles:${encoded}`, provider: 'open-doodles', provider_label: 'Open Doodles', provider_asset_id: encoded,
+      title: displayName(item.slug), asset_kind: animated ? 'animation' : 'illustration', format: animated ? 'GIF' : 'SVG',
+      resource_type: animated ? 'animation' : 'image', preview_url: url, source_url: 'https://www.opendoodles.com/',
+      collection: 'Open Doodles', tags: normalizedWords(item.slug),
+      license: { name: 'CC0-1.0', url: 'https://www.opendoodles.com/about' },
+      attribution: 'Open Doodles by Pablo Stanley · CC0 (credit optional)', attribution_required: false,
+      composition: 'block', subject: 'general', importable: true,
+    }];
+  });
 };
 
 const settleProvider = async (provider, promise) => {
@@ -402,23 +448,31 @@ export const searchAssetCatalog = async ({ query = {}, user }) => {
 
   const jobs = [];
   const include = (candidate) => provider === 'all' || provider === candidate;
-  const perGroup = Math.max(8, Math.ceil(limit / (kind === 'all' ? 4 : 2)));
+  const perGroup = Math.max(8, Math.ceil(limit / (kind === 'all' ? 6 : 3)));
   if (include('bioicons') && ['all', 'illustration'].includes(kind)) {
     jobs.push(settleProvider('bioicons', searchBioicons(search, perGroup * 3)));
   }
   if (include('scidraw') && ['all', 'illustration'].includes(kind)) {
     jobs.push(settleProvider('scidraw', searchScidraw(search, perGroup * 2)));
   }
-  if (include('iconify')) {
-    for (const iconKind of Object.keys(ICONIFY_GROUPS)) {
-      if (kind === 'all' || kind === iconKind) jobs.push(settleProvider('iconify', searchIconify(search, iconKind, perGroup)));
-    }
+  if (include('kitbitz') && ['all', 'icon', 'illustration'].includes(kind)) {
+    jobs.push(settleProvider('kitbitz', searchKitbitz(search, perGroup * 2)));
   }
-  if (include('kenney') && ['all', 'illustration', 'model_3d'].includes(kind)) {
-    jobs.push(settleProvider('kenney', searchKenney(search, kind, perGroup * 2)));
+  if (include('fluent-emoji') && ['all', 'icon', 'illustration'].includes(kind)) {
+    jobs.push(settleProvider('fluent-emoji', searchFluentEmoji(search, perGroup * 2)));
   }
-  if (include('smithsonian') && ['all', 'model_3d'].includes(kind)) {
-    jobs.push(settleProvider('smithsonian', searchSmithsonian(search, perGroup)));
+  if (include('noto-emoji') && ['all', 'animation'].includes(kind)) {
+    jobs.push(settleProvider('noto-emoji', searchNotoEmoji(search, perGroup * 2)));
+  }
+  if (include('poly-haven') && ['all', 'model_3d'].includes(kind)) {
+    jobs.push(settleProvider('poly-haven', searchPolyHaven(search, perGroup * 2)));
+  }
+  if (include('open-peeps') && ['all', 'illustration'].includes(kind)) {
+    jobs.push(settleProvider('open-peeps', searchOpenPeeps(search, perGroup)));
+  }
+  if (include('open-doodles') && ['all', 'illustration', 'animation'].includes(kind)) {
+    const doodleKind = kind === 'animation' ? 'animation' : 'illustration';
+    jobs.push(settleProvider('open-doodles', searchOpenDoodles(search, doodleKind, perGroup)));
   }
   const settled = await Promise.all(jobs);
   const buckets = settled.map((entry) => [...entry.results]);
@@ -443,9 +497,12 @@ export const searchAssetCatalog = async ({ query = {}, user }) => {
     provider_status: [
       { id: 'bioicons', label: 'Bioicons & Servier', enabled: true, kinds: ['illustration'], licence_policy: 'Allowlisted per asset' },
       { id: 'scidraw', label: 'SciDraw', enabled: true, kinds: ['illustration'], licence_policy: 'CC-BY-4.0 items only' },
-      { id: 'iconify', label: 'Iconify', enabled: true, kinds: ['icon', 'illustration', 'animation'] },
-      { id: 'kenney', label: 'Kenney CC0', enabled: true, kinds: ['illustration', 'model_3d'] },
-      { id: 'smithsonian', label: 'Smithsonian Open Access', enabled: true, kinds: ['model_3d'] },
+      { id: 'kitbitz', label: 'Kitbitz', enabled: true, kinds: ['icon', 'illustration'], licence_policy: 'CC0-1.0' },
+      { id: 'fluent-emoji', label: 'Microsoft Fluent Emoji', enabled: true, kinds: ['icon', 'illustration'], licence_policy: 'MIT' },
+      { id: 'noto-emoji', label: 'Google Animated Noto Emoji', enabled: true, kinds: ['animation'], licence_policy: 'CC-BY-4.0' },
+      { id: 'poly-haven', label: 'Poly Haven', enabled: true, kinds: ['model_3d'], licence_policy: 'CC0-1.0' },
+      { id: 'open-peeps', label: 'Open Peeps', enabled: true, kinds: ['illustration'], licence_policy: 'CC0-1.0' },
+      { id: 'open-doodles', label: 'Open Doodles', enabled: true, kinds: ['illustration', 'animation'], licence_policy: 'CC0-1.0' },
     ],
   };
 };
@@ -465,35 +522,6 @@ const catalogMetadata = (asset) => JSON.stringify({
     imported_at: new Date().toISOString(),
   },
 });
-
-const importIconify = async ({ assetId, body, user }) => {
-  if (!/^[a-z0-9-]+:[a-z0-9-]+$/i.test(assetId)) throw new AppError('Invalid Iconify asset identifier');
-  const [prefix, name] = assetId.split(':');
-  const collection = ICONIFY_COLLECTIONS[prefix];
-  const kind = Object.entries(ICONIFY_GROUPS).find(([, prefixes]) => prefixes.includes(prefix))?.[0];
-  if (!collection || !kind) throw new AppError('This Iconify collection is not approved for import');
-  const sourceUrl = `https://icon-sets.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}/`;
-  const asset = {
-    provider: 'iconify', provider_asset_id: assetId, asset_kind: kind, source_url: sourceUrl,
-    collection: collection.name, license: { name: collection.license, url: collection.license_url },
-    attribution: `${collection.author} · ${collection.license}`,
-  };
-  const { buffer: downloadedBuffer } = await fetchFile(
-    `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg`,
-    new Set(['api.iconify.design']),
-  );
-  const buffer = sanitizeSvg(downloadedBuffer);
-  return createResource({
-    user,
-    file: { buffer, originalname: `${prefix}-${name}.svg`, mimetype: 'image/svg+xml' },
-    body: {
-      name: cleanText(body.title || displayName(name), 250),
-      description: `Reusable ${displayName(kind)} from ${collection.name}. ${asset.attribution}.`,
-      resource_type: kind === 'animation' ? 'animation' : 'image',
-      metadata_json: catalogMetadata(asset),
-    },
-  });
-};
 
 const importBioicons = async ({ assetId, body, user }) => {
   let identity;
@@ -549,54 +577,133 @@ const importScidraw = async ({ assetId, body, user }) => {
   });
 };
 
-const importKenney = async ({ assetId, body, user }) => {
-  let assetPath;
-  try { assetPath = Buffer.from(assetId, 'base64url').toString('utf8'); } catch { throw new AppError('Invalid Kenney asset identifier'); }
-  const paths = await getKenneyPaths();
-  if (!paths.includes(assetPath)) throw new AppError('Kenney asset not found', 404);
-  const result = kenneyResult(assetPath);
-  const rawUrl = `https://raw.githubusercontent.com/shorepine/kenney/main/${assetPath.split('/').map(encodeURIComponent).join('/')}`;
-  const { buffer, contentType } = await fetchFile(rawUrl, new Set(['raw.githubusercontent.com']));
-  const extension = path.posix.extname(assetPath).toLowerCase();
-  const mimeType = extension === '.glb' ? 'model/gltf-binary'
-    : extension === '.svg' ? 'image/svg+xml'
-      : contentType.split(';')[0] || 'image/png';
+const importSvgResult = async ({ result, url, fileName, body, user, allowedHosts }) => {
+  const { buffer: downloadedBuffer } = await fetchFile(url, allowedHosts);
+  const buffer = sanitizeSvg(downloadedBuffer);
   return createResource({
     user,
-    file: { buffer, originalname: path.posix.basename(assetPath), mimetype: mimeType },
+    file: { buffer, originalname: fileName, mimetype: 'image/svg+xml' },
     body: {
       name: cleanText(body.title || result.title, 250),
-      description: `Reusable ${result.asset_kind === 'model_3d' ? '3D model' : '2D asset'} from ${result.collection}. Kenney CC0.`,
-      resource_type: result.resource_type,
+      description: `Reusable ${result.composition} from ${result.provider_label}. ${result.attribution}.`,
+      resource_type: 'image',
       metadata_json: catalogMetadata(result),
     },
   });
 };
 
-const importSmithsonian = async ({ assetId, body, user }) => {
-  let uri;
-  try { uri = Buffer.from(assetId, 'base64url').toString('utf8'); } catch { throw new AppError('Invalid Smithsonian asset identifier'); }
-  const parsed = new URL(uri);
-  if (parsed.hostname.toLowerCase() !== '3d-api.si.edu' || !parsed.pathname.startsWith('/content/document/') || !parsed.pathname.toLowerCase().endsWith('.glb')) {
-    throw new AppError('Invalid Smithsonian 3D asset identifier');
+const decodeCatalogUrl = (assetId, message) => {
+  let url;
+  try { url = Buffer.from(assetId, 'base64url').toString('utf8'); } catch { throw new AppError(message); }
+  try { return new URL(url); } catch { throw new AppError(message); }
+};
+
+const importKitbitz = async ({ assetId, body, user }) => {
+  let assetPath;
+  try { assetPath = Buffer.from(assetId, 'base64url').toString('utf8'); } catch { throw new AppError('Invalid Kitbitz asset identifier'); }
+  const paths = await getGithubTree('CaptExcellent/kits-library-assets');
+  if (!/^kits\/(?!barbieland-kit\/).+\.svg$/i.test(assetPath) || !paths.includes(assetPath)) {
+    throw new AppError('Kitbitz asset not found', 404);
   }
-  const { buffer } = await fetchFile(uri, new Set(['3d-api.si.edu']));
-  const title = cleanText(body.title || displayName(path.posix.basename(parsed.pathname)), 250);
-  const asset = {
-    provider: 'smithsonian', provider_asset_id: assetId, asset_kind: 'model_3d',
-    source_url: uri, collection: 'Smithsonian Open Access 3D',
-    license: { name: 'CC0-1.0', url: 'https://www.si.edu/openaccess' },
-    attribution: 'Smithsonian Institution · CC0',
-    attribution_required: false, composition: 'component', subject: 'science',
-  };
+  const result = kitbitzResult(assetPath);
+  return importSvgResult({
+    result, url: githubRawUrl('CaptExcellent/kits-library-assets', assetPath),
+    fileName: path.posix.basename(assetPath), body, user, allowedHosts: new Set(['raw.githubusercontent.com']),
+  });
+};
+
+const importFluentEmoji = async ({ assetId, body, user }) => {
+  let assetPath;
+  try { assetPath = Buffer.from(assetId, 'base64url').toString('utf8'); } catch { throw new AppError('Invalid Fluent Emoji asset identifier'); }
+  const paths = await getGithubTree('microsoft/fluentui-emoji');
+  if (!/^assets\/[^/]+\/Color\/[^/]+_color\.svg$/i.test(assetPath) || !paths.includes(assetPath)) {
+    throw new AppError('Fluent Emoji asset not found', 404);
+  }
+  const result = fluentResult(assetPath);
+  return importSvgResult({
+    result, url: githubRawUrl('microsoft/fluentui-emoji', assetPath), fileName: path.posix.basename(assetPath),
+    body, user, allowedHosts: new Set(['raw.githubusercontent.com']),
+  });
+};
+
+const importNotoEmoji = async ({ assetId, body, user }) => {
+  if (!/^[a-f0-9-]+$/i.test(assetId)) throw new AppError('Invalid Noto Emoji identifier');
+  const emojis = await getNotoEmoji();
+  const emoji = emojis.find((candidate) => String(candidate.rgi || candidate.codepoint).toLowerCase() === assetId.toLowerCase() && candidate.hasGfontsAnim);
+  if (!emoji) throw new AppError('Noto Emoji animation not found', 404);
+  const result = notoResult(emoji);
+  const url = `https://fonts.gstatic.com/s/e/notoemoji/latest/${encodeURIComponent(assetId.toLowerCase())}/512.gif`;
+  const { buffer } = await fetchFile(url, new Set(['fonts.gstatic.com']));
   return createResource({
     user,
-    file: { buffer, originalname: `${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.glb`, mimetype: 'model/gltf-binary' },
+    file: { buffer, originalname: `noto-${assetId.toLowerCase()}.gif`, mimetype: 'image/gif' },
     body: {
-      name: title,
-      description: 'Scientific 3D model imported from Smithsonian Open Access.',
-      resource_type: 'model_3d',
-      metadata_json: catalogMetadata(asset),
+      name: cleanText(body.title || result.title, 250),
+      description: `Reusable animated component from Google Noto Emoji. ${result.attribution}.`,
+      resource_type: 'animation', metadata_json: catalogMetadata(result),
+    },
+  });
+};
+
+const importPolyHaven = async ({ assetId, body, user }) => {
+  if (!/^[a-z0-9_-]+$/i.test(assetId)) throw new AppError('Invalid Poly Haven asset identifier');
+  const models = await getPolyHavenModels();
+  const model = models[assetId];
+  if (!model) throw new AppError('Poly Haven model not found', 404);
+  const files = await fetchJson(`https://api.polyhaven.com/files/${encodeURIComponent(assetId)}`);
+  const gltf = files?.gltf?.['1k']?.gltf || files?.gltf?.['2k']?.gltf || files?.gltf?.['4k']?.gltf;
+  const modelUrl = cleanText(gltf?.url, 2000);
+  if (!modelUrl || new URL(modelUrl).hostname.toLowerCase() !== 'dl.polyhaven.org') {
+    throw new AppError('This Poly Haven model has no compatible web format', 422);
+  }
+  const result = polyHavenResult(assetId, model);
+  return createResource({
+    user,
+    body: {
+      name: cleanText(body.title || result.title, 250),
+      description: `Reusable 3D model from Poly Haven. ${result.attribution}.`,
+      resource_type: 'model_3d', external_url: modelUrl, metadata_json: catalogMetadata(result),
+    },
+  });
+};
+
+const importOpenPeeps = async ({ assetId, body, user }) => {
+  const parsed = decodeCatalogUrl(assetId, 'Invalid Open Peeps asset identifier');
+  if (parsed.hostname.toLowerCase() !== 'cdn.prod.website-files.com' || !/peep-\d+\.svg$/i.test(parsed.pathname)) {
+    throw new AppError('Invalid Open Peeps asset identifier');
+  }
+  const peeps = await getOpenPeeps();
+  if (!peeps.some((item) => item.url === parsed.toString())) throw new AppError('Open Peeps asset not found', 404);
+  const file = path.posix.basename(parsed.pathname);
+  const result = (await searchOpenPeeps('person', peeps.length)).find((item) => item.provider_asset_id === assetId);
+  if (!result) throw new AppError('Open Peeps asset not found', 404);
+  return importSvgResult({ result, url: parsed.toString(), fileName: file, body, user, allowedHosts: new Set(['cdn.prod.website-files.com']) });
+};
+
+const importOpenDoodles = async ({ assetId, body, user }) => {
+  const parsed = decodeCatalogUrl(assetId, 'Invalid Open Doodles asset identifier');
+  const allowedHosts = new Set(['opendoodles.s3-us-west-1.amazonaws.com', 'cdn.prod.website-files.com']);
+  if (!allowedHosts.has(parsed.hostname.toLowerCase()) || !/\.(svg|gif)$/i.test(parsed.pathname)) {
+    throw new AppError('Invalid Open Doodles asset identifier');
+  }
+  const doodles = await getOpenDoodles();
+  if (!doodles.some((item) => Object.values(item.files).includes(parsed.toString()))) throw new AppError('Open Doodles asset not found', 404);
+  const isGif = parsed.pathname.toLowerCase().endsWith('.gif');
+  const slug = path.posix.basename(parsed.pathname).replace(/\.[^.]+$/, '');
+  const result = (await searchOpenDoodles(slug, isGif ? 'animation' : 'illustration', doodles.length))
+    .find((item) => item.provider_asset_id === assetId);
+  if (!result) throw new AppError('Open Doodles asset not found', 404);
+  if (!isGif) return importSvgResult({
+    result, url: parsed.toString(), fileName: path.posix.basename(parsed.pathname), body, user,
+    allowedHosts,
+  });
+  const { buffer } = await fetchFile(parsed.toString(), allowedHosts);
+  return createResource({
+    user,
+    file: { buffer, originalname: path.posix.basename(parsed.pathname), mimetype: 'image/gif' },
+    body: {
+      name: cleanText(body.title || result.title, 250), description: `Reusable animation from Open Doodles. ${result.attribution}.`,
+      resource_type: 'animation', metadata_json: catalogMetadata(result),
     },
   });
 };
@@ -608,8 +715,11 @@ export const importAssetCatalogItem = async ({ body = {}, user }) => {
   if (!assetId) throw new AppError('provider_asset_id is required');
   if (provider === 'bioicons') return importBioicons({ assetId, body, user });
   if (provider === 'scidraw') return importScidraw({ assetId, body, user });
-  if (provider === 'iconify') return importIconify({ assetId, body, user });
-  if (provider === 'kenney') return importKenney({ assetId, body, user });
-  if (provider === 'smithsonian') return importSmithsonian({ assetId, body, user });
+  if (provider === 'kitbitz') return importKitbitz({ assetId, body, user });
+  if (provider === 'fluent-emoji') return importFluentEmoji({ assetId, body, user });
+  if (provider === 'noto-emoji') return importNotoEmoji({ assetId, body, user });
+  if (provider === 'poly-haven') return importPolyHaven({ assetId, body, user });
+  if (provider === 'open-peeps') return importOpenPeeps({ assetId, body, user });
+  if (provider === 'open-doodles') return importOpenDoodles({ assetId, body, user });
   throw new AppError('Unsupported asset provider');
 };

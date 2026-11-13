@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { Document, Packer, Paragraph } from 'docx';
+import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow } from 'docx';
 import router from '../routes/studioDocuments.routes.js';
 import {
   SCREEN_SCRIPT_FIELDS,
@@ -76,5 +76,35 @@ test('Screen Script DOCX parser stops before later production-prompt duplicates'
   assert.equal(parsed.scripts.length, 1);
   assert.equal(parsed.scripts[0].screen_key, 'S01-01');
   assert.deepEqual(SCREEN_SCRIPT_FIELDS.every((field) => parsed.scripts[0][field]), true);
+});
+
+test('Screen Script v2 parser preserves required sections and table cells', async () => {
+  const table = (heading) => [
+    new Paragraph({ text: heading, heading: HeadingLevel.HEADING_3 }),
+    new Table({ rows: [
+      new TableRow({ children: [new TableCell({ children: [new Paragraph('Column A')] }), new TableCell({ children: [new Paragraph('Column B')] })] }),
+      new TableRow({ children: [new TableCell({ children: [new Paragraph('Value A')] }), new TableCell({ children: [new Paragraph('Value B')] })] }),
+    ] }),
+  ];
+  const children = [
+    new Paragraph({ text: '3. Screen-by-screen teacher scripts and branch specifications', heading: HeadingLevel.HEADING_1 }),
+    new Paragraph({ text: 'S01-01 | Inertia', heading: HeadingLevel.HEADING_2 }),
+    new Paragraph('00:00–04:00 | Pedagogy: inquiry'),
+    ...table('Layout Skeleton (in detail)'),
+    ...table('Title'),
+    ...table('Overall Screen Content'),
+    ...table('Animation Timeline'),
+    ...table('Teacher Narration — Dialogue & Sections'),
+    new Paragraph({ text: '4. Exit assessment', heading: HeadingLevel.HEADING_1 }),
+    ...table('Source verification register'),
+  ];
+  const buffer = await Packer.toBuffer(new Document({ sections: [{ children }] }));
+  const parsed = await parseScreenScriptDocx({ buffer, originalname: 'v2.docx', mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  assert.equal(parsed.schema_version, 2);
+  assert.equal(parsed.scripts.length, 1);
+  assert.equal(parsed.scripts[0].validation.status, 'valid');
+  assert.equal(parsed.scripts[0].sections.length, 5);
+  assert.deepEqual(parsed.scripts[0].sections[0].blocks[0].columns, ['Column A', 'Column B']);
+  assert.deepEqual(parsed.scripts[0].sections[0].blocks[0].rows, [['Value A', 'Value B']]);
 });
 

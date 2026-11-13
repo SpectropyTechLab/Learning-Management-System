@@ -182,6 +182,33 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
         selection.addRange(nextRange);
         savedRangeRef.current = nextRange.cloneRange();
       }
+    } else if (command.type === 'style') {
+      const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      if (selectedRange) {
+        const span = document.createElement('span');
+        span.style[command.property] = command.value;
+        if (selectedRange.collapsed) {
+          const marker = document.createTextNode('\u200b');
+          span.appendChild(marker);
+          selectedRange.insertNode(span);
+          const nextRange = document.createRange();
+          nextRange.setStart(marker, 1);
+          nextRange.collapse(true);
+          selection?.removeAllRanges();
+          selection?.addRange(nextRange);
+          savedRangeRef.current = nextRange.cloneRange();
+        } else {
+          span.appendChild(selectedRange.extractContents());
+          selectedRange.insertNode(span);
+          const nextRange = document.createRange();
+          nextRange.selectNodeContents(span);
+          selection?.removeAllRanges();
+          selection?.addRange(nextRange);
+          savedRangeRef.current = nextRange.cloneRange();
+        }
+      }
+    } else if (command.type === 'format') {
+      document.execCommand(command.command);
     } else if (command.type === 'bullet' || command.type === 'number') {
       const tagName = command.type === 'bullet' ? 'UL' : 'OL';
       const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;

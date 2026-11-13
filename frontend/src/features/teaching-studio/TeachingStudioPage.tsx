@@ -1440,6 +1440,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: String(element.content.altText || resource.description || resource.name),
         source: String(element.content.source || resource.name),
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
       },
       resource: {
         resource_id: resource.id,
@@ -2192,7 +2193,7 @@ export default function TeachingStudioPage() {
           </div>
         )}
         <div
-          className="studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden"
+          className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel' : ''}`}
         >
           <aside className={`studio-editor-left-panel ${leftPanelOpen ? 'is-expanded' : ''} flex min-h-0 overflow-visible`}>
             <nav aria-label="Screen actions" className="flex w-11 shrink-0 flex-col items-center justify-center gap-1 border-r border-slate-200 p-1">
