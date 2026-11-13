@@ -6,6 +6,8 @@ interface Props {
   latex: string;
   color?: string;
   backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
   fontSize?: number;
   alignment?: 'left' | 'center' | 'right';
   onRequestSize?: (requiredWidthRatio: number, requiredHeightRatio: number) => void;
@@ -15,6 +17,8 @@ export default function StudioMathElement({
   latex,
   color = '#0f2747',
   backgroundColor = 'transparent',
+  borderColor = 'transparent',
+  borderWidth = 1,
   fontSize = 42,
   alignment = 'center',
   onRequestSize,
@@ -73,7 +77,7 @@ export default function StudioMathElement({
     <div
       ref={containerRef}
       className={`pointer-events-none flex h-full w-full items-center overflow-hidden p-3 ${alignment === 'left' ? 'justify-start' : alignment === 'right' ? 'justify-end' : 'justify-center'}`}
-      style={{ color, backgroundColor, fontSize }}
+      style={{ color, backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}`, fontSize }}
       aria-label={`Equation: ${latex}`}
     >
       <div ref={contentRef} className="max-w-full overflow-hidden">
