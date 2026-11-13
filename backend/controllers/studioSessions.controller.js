@@ -19,3 +19,5 @@ export const createStudioSession = respond((req) =>
   sessions.createStudioSession({ subtopicId: req.params.subtopicId, body: req.body, user: req.user }), 201);
 export const updateStudioSession = respond((req) =>
   sessions.updateStudioSession({ sessionId: req.params.sessionId, body: req.body, user: req.user }));
+export const deleteStudioSession = respond((req) =>
+  sessions.deleteStudioSession({ sessionId: req.params.sessionId, user: req.user }));

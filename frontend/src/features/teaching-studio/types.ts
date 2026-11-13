@@ -48,6 +48,7 @@ export interface AuthorDrawingStroke {
 export type StudioDrawingTool = 'pen' | 'pencil' | 'fountain' | 'highlighter' | 'laser' | 'eraser';
 
 export interface StudioScreenSettings extends Record<string, unknown> {
+  backgroundColor?: string;
   author_drawings?: {
     strokes: AuthorDrawingStroke[];
   };

@@ -243,11 +243,21 @@ const uploadFile = async ({ sessionId, documentType, file }) => {
   };
 };
 
-const removeFile = async (objectPath) => {
-  if (!objectPath) return;
-  const { error } = await supabase.storage.from(BUCKET).remove([objectPath]);
-  if (error) console.error('Studio document cleanup failed:', error.message);
+export const removeStoredSessionDocuments = async (objectPaths) => {
+  const paths = [...new Set((Array.isArray(objectPaths) ? objectPaths : [objectPaths]).filter(Boolean))];
+  if (!paths.length) return true;
+  try {
+    const { error } = await supabase.storage.from(BUCKET).remove(paths);
+    if (!error) return true;
+    console.error('Studio document cleanup failed:', error.message);
+    return false;
+  } catch (error) {
+    console.error('Studio document cleanup failed:', error?.message || error);
+    return false;
+  }
 };
+
+const removeFile = async (objectPath) => removeStoredSessionDocuments([objectPath]);
 
 const createRevision = async ({
   sessionId, documentType, user, upload, manualContent, structuredContent, metadata = {}, afterInsert,
@@ -460,7 +470,13 @@ export const importScreenScripts = async ({ sessionId: rawSessionId, file, mappi
       user,
       upload,
       structuredContent: { scripts: mappings.map((mapping) => mapping.content) },
-      metadata: { extracted: true, parser: 'mammoth-day10-v1', screen_count: mappings.length },
+      metadata: {
+        extracted: true,
+        parser: mappings.some((mapping) => Number(mapping.content?.schema_version) === 2)
+          ? 'structured-screen-script-v2'
+          : 'mammoth-day10-v1',
+        screen_count: mappings.length,
+      },
       afterInsert: async (db, sourceDocument) => {
         const revisions = [];
         for (const mapping of mappings) {

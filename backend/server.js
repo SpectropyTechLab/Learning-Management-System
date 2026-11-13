@@ -37,6 +37,7 @@ import studioScreensRoutes from './routes/studioScreens.routes.js';
 import studioResourceRuntimeRoutes from './routes/studioResourceRuntime.routes.js';
 import studioBranchRuntimeRoutes from './routes/studioBranchRuntime.routes.js';
 import studioSessionsRoutes from './routes/studioSessions.routes.js';
+import studioCurriculumImportRoutes from './routes/studioCurriculumImport.routes.js';
 import studioScormRuntimeRoutes from './routes/studioScormRuntime.routes.js';
 import studioTaxonomyRoutes from './routes/studioTaxonomy.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
@@ -248,6 +249,7 @@ app.use('/api', studioScreensRoutes);
 // Session setup must be reached by Content Authorizers before the later
 // teacher-only branch runtime router evaluates its role boundary.
 app.use('/api', studioSessionsRoutes);
+app.use('/api', studioCurriculumImportRoutes);
 app.use('/api', studioBranchRuntimeRoutes);
 app.use('/api', studioScormRuntimeRoutes);
 

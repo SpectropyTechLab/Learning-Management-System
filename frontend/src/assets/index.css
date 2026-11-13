@@ -624,6 +624,16 @@
   grid-row: 1;
   min-width: 0;
   height: 100%;
+  padding-inline: 0;
+  transition: padding 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-editor-viewport .studio-editor-workspace.has-left-panel .studio-editor-canvas {
+  padding-left: min(316px, 40vw);
+}
+
+.studio-editor-viewport .studio-editor-workspace.has-right-panel .studio-editor-canvas {
+  padding-right: min(396px, 44vw);
 }
 
 .studio-editor-viewport .studio-editor-left-panel,
@@ -737,7 +747,12 @@
 
 .studio-editor-slide-frame {
   min-height: 0;
+  inset: 0.35rem 0.75rem !important;
   animation: studio-canvas-settle 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-editor-status-bar {
+  box-shadow: 0 -1px 0 rgb(148 163 184 / 16%);
 }
 
 @keyframes studio-canvas-settle {
@@ -781,6 +796,7 @@
     grid-row: 1;
     height: 100%;
     min-width: 0;
+    padding-inline: 0 !important;
   }
 
   .studio-editor-left-panel.is-expanded,
