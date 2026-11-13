@@ -1,6 +1,6 @@
 # Day 7 Developer 1 Handoff: Authorization Enforcement
 
-**Owner:** Rahul  
+**Owner:** Rahul<br>
 **Status:** complete on 2026-10-29
 
 ## Scope completed

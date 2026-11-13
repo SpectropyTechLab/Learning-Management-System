@@ -77,7 +77,6 @@ test('Screen Script DOCX parser stops before later production-prompt duplicates'
   assert.equal(parsed.scripts[0].screen_key, 'S01-01');
   assert.deepEqual(SCREEN_SCRIPT_FIELDS.every((field) => parsed.scripts[0][field]), true);
 });
-
 test('Screen Script v2 parser preserves required sections and table cells', async () => {
   const table = (heading) => [
     new Paragraph({ text: heading, heading: HeadingLevel.HEADING_3 }),
@@ -107,4 +106,3 @@ test('Screen Script v2 parser preserves required sections and table cells', asyn
   assert.deepEqual(parsed.scripts[0].sections[0].blocks[0].columns, ['Column A', 'Column B']);
   assert.deepEqual(parsed.scripts[0].sections[0].blocks[0].rows, [['Value A', 'Value B']]);
 });
-
