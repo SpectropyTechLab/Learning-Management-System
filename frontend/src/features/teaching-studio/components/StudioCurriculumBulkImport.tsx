@@ -57,6 +57,17 @@ const statusClasses = (row: CurriculumImportRow) => {
 
 const normalized = (value: unknown) => String(value ?? '').trim().toLocaleLowerCase();
 
+const candidatesForParent = (
+  row: CurriculumImportRow,
+  level: ImportLevel,
+  parentId: number | null,
+) => {
+  const levelIndex = levels.findIndex((item) => item.level === level);
+  if (levelIndex === 0) return row.fields[level].candidates;
+  if (!parentId) return [];
+  return row.fields[level].candidates.filter((candidate) => candidate.parent_id === parentId);
+};
+
 const reconcileLevel = (row: CurriculumImportRow, changedLevel: ImportLevel) => {
   const changedIndex = levels.findIndex((item) => item.level === changedLevel);
   const definition = levels[changedIndex];
@@ -64,9 +75,7 @@ const reconcileLevel = (row: CurriculumImportRow, changedLevel: ImportLevel) => 
   const parentId = parent ? row.fields[parent.level].selected_id : null;
   const value = String(row[definition.field] ?? '').trim();
   const code = definition.code ? String(row[definition.code] ?? '').trim() : '';
-  const candidates = row.fields[changedLevel].candidates.filter(
-    (candidate) => !candidate.parent_id || !parentId || candidate.parent_id === parentId,
-  );
+  const candidates = candidatesForParent(row, changedLevel, parentId);
   const nameMatches = candidates.filter((candidate) =>
     normalized(changedLevel === 'grade' ? candidate.name.replace(/^Grade\s+/i, '') : candidate.name) === normalized(value),
   );
@@ -100,9 +109,9 @@ const reconcileChildren = (row: CurriculumImportRow, changedLevel: ImportLevel) 
     const parentId = fields[parent.level].selected_id;
     const value = String(row[definition.field] ?? '').trim();
     const code = definition.code ? String(row[definition.code] ?? '').trim() : '';
-    const candidates = fields[definition.level].candidates.filter(
-      (candidate) => !candidate.parent_id || candidate.parent_id === parentId,
-    );
+    const candidates = parentId
+      ? fields[definition.level].candidates.filter((candidate) => candidate.parent_id === parentId)
+      : [];
     const nameMatches = parentId ? candidates.filter((candidate) =>
       normalized(definition.level === 'grade' ? candidate.name.replace(/^Grade\s+/i, '') : candidate.name) === normalized(value),
     ) : [];
@@ -143,7 +152,11 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
     setBusy(true);
     setFileName(file.name);
     try {
-      setPreview(await studioCurriculumImportApi.preview(file));
+      const result = await studioCurriculumImportApi.preview(file);
+      setPreview({
+        ...result,
+        rows: result.rows.map((row) => reconcileChildren({ ...row, action: 'import' }, 'board')),
+      });
     } catch (error) {
       toast.error(getApiErrorDetails(error).message);
       setPreview(null);
@@ -312,17 +325,29 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
                         {levels.map(({ level, label, field, code }) => {
                           const match = row.fields[level];
                           const parentIndex = levels.findIndex((item) => item.level === level) - 1;
-                          const parentId = parentIndex >= 0 ? row.fields[levels[parentIndex].level].selected_id : null;
-                          const candidates = match.candidates.filter((candidate) => !candidate.parent_id || !parentId || candidate.parent_id === parentId);
+                          const parentDefinition = parentIndex >= 0 ? levels[parentIndex] : null;
+                          const parentMatch = parentDefinition ? row.fields[parentDefinition.level] : null;
+                          const parentId = parentMatch?.selected_id ?? null;
+                          const unresolvedAncestor = parentIndex >= 0
+                            ? levels.slice(0, parentIndex + 1).find((definition) => ['ambiguous', 'missing'].includes(row.fields[definition.level].status))
+                            : null;
+                          const parentNeedsReview = Boolean(unresolvedAncestor);
+                          const candidates = candidatesForParent(row, level, parentId);
                           return (
                             <div key={level} className="rounded-lg border border-slate-200 bg-white p-3">
                               <label className="text-xs font-semibold text-slate-700">{label}<input value={String(row[field] ?? '')} type={level === 'grade' ? 'number' : 'text'} min={level === 'grade' ? 1 : undefined} onChange={(event) => updateText(rowIndex, field, event.target.value, level)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm font-normal" /></label>
                               {code && <label className="mt-2 block text-xs font-semibold text-slate-700">{label.replace('Name', 'Code')}<input value={String(row[code] ?? '')} onChange={(event) => updateText(rowIndex, code, event.target.value, level)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm font-normal" /></label>}
                               <div className="mt-2">
-                                {match.status === 'matched' && <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Existing</span>}
-                                {match.status === 'new' && <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">New</span>}
-                                {match.status === 'missing' && <div><span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">Missing</span><p className="mt-1 text-xs text-red-700">Enter the required value above.</p></div>}
-                                {match.status === 'ambiguous' && (
+                                {parentNeedsReview && unresolvedAncestor && (
+                                  <div>
+                                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Waiting for parent</span>
+                                    <p className="mt-1 text-xs text-slate-600">Resolve {unresolvedAncestor.label} first.</p>
+                                  </div>
+                                )}
+                                {!parentNeedsReview && match.status === 'matched' && <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Existing</span>}
+                                {!parentNeedsReview && match.status === 'new' && <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">New</span>}
+                                {!parentNeedsReview && match.status === 'missing' && <div><span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">Missing</span><p className="mt-1 text-xs text-red-700">Enter the required value above.</p></div>}
+                                {!parentNeedsReview && match.status === 'ambiguous' && (
                                   <label className="block text-xs font-semibold text-amber-800">
                                     Needs review
                                     <select value="" onChange={(event) => selectExisting(rowIndex, level, event.target.value)} className="mt-1 w-full rounded-md border border-amber-300 bg-amber-50 px-2 py-2 text-sm font-normal text-slate-900">

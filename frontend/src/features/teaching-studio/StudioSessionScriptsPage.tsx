@@ -51,6 +51,10 @@ export default function StudioSessionScriptsPage() {
   const mappedCount = preview.filter((script) => script.suggested_screen_id).length;
   const unmatchedCount = preview.length - mappedCount;
   const excessScriptCount = Math.max(preview.length - scripts.length, 0);
+  const uploadedTitleByScreenNumber = useMemo(
+    () => new Map(preview.map((script) => [script.screen_number, script.title.trim()])),
+    [preview],
+  );
 
   const loadScripts = async (id: number, preferredId?: number | null) => {
     const rows = await studioDocumentsApi.screenScripts(id);
@@ -469,7 +473,7 @@ export default function StudioSessionScriptsPage() {
                       <option value="">Skip this script</option>
                       {scripts.map((screen) => (
                         <option key={screen.screen_id} value={screen.screen_id}>
-                          Screen {screen.screen_number}: {screen.title}
+                          Screen {screen.screen_number}: {uploadedTitleByScreenNumber.get(screen.screen_number) || screen.title}
                         </option>
                       ))}
                     </select>
