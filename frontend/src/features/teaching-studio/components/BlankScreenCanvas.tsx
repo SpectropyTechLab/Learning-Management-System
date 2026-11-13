@@ -26,6 +26,7 @@ import {
 
 interface BlankScreenCanvasProps {
   screen: StudioScreen | null;
+  screenTitle?: string;
   loading: boolean;
   layout?: Layout | null;
   selectedElementId?: string | null;
@@ -174,6 +175,7 @@ const elementBounds = (position: Record<string, unknown>): Rect | undefined => {
 
 export default function BlankScreenCanvas({
   screen,
+  screenTitle,
   loading,
   layout = null,
   selectedElementId,
@@ -830,7 +832,7 @@ export default function BlankScreenCanvas({
       </div>
       {!previewMode ? (
         <footer className="studio-editor-status-bar flex h-8 shrink-0 items-center justify-between border-t border-slate-300 bg-white/95 px-2 text-[11px] text-slate-600" aria-label="Editor status and zoom controls">
-          <span className="min-w-0 truncate px-1">{screen ? `Screen ${screen.screen_number ?? ''} · ${screen.title}` : 'No Screen selected'}</span>
+          <span className="min-w-0 truncate px-1">{screen ? screenTitle || screen.title : 'No Screen selected'}</span>
           <div className="flex shrink-0 items-center gap-1" aria-label="Canvas zoom">
             <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => setCanvasZoom((value) => Math.max(0.4, Number((value - 0.1).toFixed(1))))} className="grid h-6 w-6 place-items-center rounded hover:bg-blue-50"><Minus size={13} /></button>
             <input type="range" min="40" max="250" step="10" value={Math.round(canvasZoom * 100)} onChange={(event) => setCanvasZoom(Number(event.target.value) / 100)} className="h-1 w-24 accent-blue-900 sm:w-32" aria-label="Canvas zoom percentage" />
