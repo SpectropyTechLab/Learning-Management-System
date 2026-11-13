@@ -11,6 +11,7 @@ const { attachClientContext } = await import('../middleware/auth.js');
 const { default: sessionRouter } = await import('../routes/studioSessions.routes.js');
 const {
   createStudioSession,
+  deleteStudioSession,
   listSubtopicSessions,
 } = await import('../services/studioSessions.service.js');
 
@@ -27,6 +28,7 @@ test('Day 9 exposes separate Studio session create and selection APIs', () => {
     'POST /studio/subtopics/:subtopicId/sessions',
     'GET /studio/sessions/:sessionId',
     'PATCH /studio/sessions/:sessionId',
+    'DELETE /studio/sessions/:sessionId',
   ]);
 });
 
@@ -135,6 +137,97 @@ test('session creation assigns the next order and starts at revision one', async
   assert.equal(session.session_number, 3);
   assert.equal(session.revision_no, 1);
   assert.ok(calls.some((call) => call.sql === 'commit'));
+});
+
+test('draft Session deletion removes dependent content before document revisions', async () => {
+  const calls = [];
+  let released = false;
+  let removedKeys = [];
+  const db = {
+    async query(text, params) {
+      const sql = normalizeSql(text);
+      calls.push({ sql, params });
+      if (['begin', 'commit', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('select s.*, st.name as subtopic_name')) {
+        return { rows: [{ id: 103, client_id: 12, subtopic_id: 31, status: 'draft', title: 'Assessment' }] };
+      }
+      if (sql.startsWith('select 1 from session_releases')) return { rows: [] };
+      if (sql.startsWith('select storage_key from session_documents')) {
+        return { rows: [{ storage_key: 'sessions/103/session_plan/plan.docx' }, { storage_key: 'sessions/103/screen_script/script.docx' }] };
+      }
+      if (sql.startsWith('delete from sessions')) {
+        return { rows: [{ id: 103, title: 'Assessment', subtopic_id: 31, session_number: 3 }] };
+      }
+      if (sql.startsWith('delete from')) return { rows: [] };
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() { released = true; },
+  };
+  const result = await deleteStudioSession({
+    sessionId: 103,
+    user: author,
+    getDbClient: async () => db,
+    removeFiles: async (keys) => { removedKeys = keys; return true; },
+  });
+  assert.equal(result.id, 103);
+  assert.equal(result.deleted_document_count, 2);
+  assert.equal(result.storage_cleanup_complete, true);
+  assert.deepEqual(removedKeys, ['sessions/103/session_plan/plan.docx', 'sessions/103/screen_script/script.docx']);
+  assert.ok(calls.some((call) => call.sql.startsWith('delete from screen_zoom_links')));
+  assert.ok(calls.findIndex((call) => call.sql.startsWith('delete from screen_script_revisions'))
+    < calls.findIndex((call) => call.sql.startsWith('delete from screens')));
+  assert.ok(calls.findIndex((call) => call.sql.startsWith('delete from screens'))
+    < calls.findIndex((call) => call.sql.startsWith('delete from session_documents')));
+  assert.ok(calls.some((call) => call.sql === 'commit'));
+  assert.equal(released, true);
+});
+
+test('submitted Session deletion is rejected and rolled back', async () => {
+  const calls = [];
+  const db = {
+    async query(text) {
+      const sql = normalizeSql(text);
+      calls.push(sql);
+      if (['begin', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('select s.*, st.name as subtopic_name')) {
+        return { rows: [{ id: 104, client_id: 12, subtopic_id: 31, status: 'submitted', title: 'Reviewing' }] };
+      }
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() {},
+  };
+  await assert.rejects(
+    deleteStudioSession({ sessionId: 104, user: author, getDbClient: async () => db, removeFiles: async () => true }),
+    (error) => error.code === 'SESSION_DELETE_NOT_ALLOWED' && error.status === 409,
+  );
+  assert.ok(calls.includes('rollback'));
+  assert.equal(calls.some((sql) => sql.startsWith('delete from sessions')), false);
+});
+
+test('unexpected Session dependency conflicts return an actionable 409 error', async () => {
+  const db = {
+    async query(text) {
+      const sql = normalizeSql(text);
+      if (['begin', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('select s.*, st.name as subtopic_name')) {
+        return { rows: [{ id: 105, client_id: 12, subtopic_id: 31, status: 'draft', title: 'Referenced' }] };
+      }
+      if (sql.startsWith('select 1 from session_releases')) return { rows: [] };
+      if (sql.startsWith('select storage_key from session_documents')) return { rows: [] };
+      if (sql.startsWith('delete from screen_zoom_links')) {
+        const error = new Error('foreign key violation');
+        error.code = '23503';
+        throw error;
+      }
+      if (sql.startsWith('delete from')) return { rows: [] };
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() {},
+  };
+  await assert.rejects(
+    deleteStudioSession({ sessionId: 105, user: author, getDbClient: async () => db, removeFiles: async () => true }),
+    (error) => error.code === 'SESSION_DELETE_DEPENDENCY_CONFLICT' && error.status === 409,
+  );
 });
 
 test('frontend exposes one actionable error parser for legacy and structured APIs', () => {

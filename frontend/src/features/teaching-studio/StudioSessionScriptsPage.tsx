@@ -30,9 +30,7 @@ export default function StudioSessionScriptsPage() {
   const [searchParams] = useSearchParams();
   const sessionId = positiveId(routeSessionId) || positiveId(searchParams.get('sessionId'));
   const requestedScreenId = positiveId(searchParams.get('screen'));
-  const returnToEditor = searchParams.get('returnTo') === 'editor';
   const returnToLibrary = searchParams.get('returnTo') === 'library';
-  const isCreatePipeline = searchParams.get('flow') === 'create';
   const [session, setSession] = useState<StudioSession | null>(null);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
   const [selectedScreenId, setSelectedScreenId] = useState<number | null>(requestedScreenId);
@@ -127,7 +125,6 @@ export default function StudioSessionScriptsPage() {
       setSourceFile(null);
       await loadScripts(sessionId, selectedScreenId);
       toast.success('Mapped Screen Scripts imported. Unmapped items were skipped.');
-      if (returnToLibrary) navigate('/studio/sessions');
     } catch (requestError) {
       const message = getApiErrorDetails(requestError).message;
       setError(message);
@@ -152,11 +149,6 @@ export default function StudioSessionScriptsPage() {
       await studioDocumentsApi.saveScreenScript(sessionId, selectedScreenId, content);
       await loadScripts(sessionId, selectedScreenId);
       toast.success('Optional Screen Script saved.');
-      if (returnToLibrary) {
-        navigate('/studio/sessions');
-      } else if (returnToEditor) {
-        navigate(`/studio/editor/${sessionId}?screen=${selectedScreenId}`);
-      }
     } catch (requestError) {
       const message = getApiErrorDetails(requestError).message;
       setError(message);
@@ -242,11 +234,7 @@ export default function StudioSessionScriptsPage() {
               >
                 {returnToLibrary
                   ? 'Back to Session Library'
-                  : returnToEditor
-                    ? 'Back to Editor'
-                    : isCreatePipeline
-                      ? 'Continue to Screen Editor'
-                      : ' Continue'}{' '}
+                  : 'Continue to Screen Editor'}{' '}
                 <ArrowRight size={16} />
               </button>
             </header>
@@ -339,11 +327,7 @@ export default function StudioSessionScriptsPage() {
                           className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                         >
                           <Save size={15} />
-                          {busy
-                            ? 'Saving…'
-                            : returnToEditor || returnToLibrary
-                              ? 'Save and return'
-                              : 'Save Script'}
+                          {busy ? 'Saving…' : 'Save Script'}
                         </button>
                       ) : null}
                     </div>
