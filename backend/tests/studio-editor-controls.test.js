@@ -252,9 +252,12 @@ test('Slide transitions cannot override the viewport fit scale', () => {
 
 test('Canvas elements support direct pointer dragging as well as resize handles', () => {
   const slide = readFrontend('SlideCanvas.tsx');
-  assert.match(slide, /const beginDirectMove/);
-  assert.match(slide, /beginInteraction\(event, objectId, 'move', bounds\)/);
-  assert.match(slide, /onPointerDown=\{\(event\) => object && beginDirectMove\(event, object\.id, bounds\)\}/);
-  assert.match(slide, /onPointerDownCapture=\{\(event\) => beginDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /const queueDirectMove/);
+  assert.match(slide, /Math\.hypot\(movementX, movementY\) < 6/);
+  assert.match(slide, /onPointerDown=\{\(event\) => object && queueDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /onPointerDownCapture=\{\(event\) => queueDirectMove\(event, object\.id, bounds\)\}/);
   assert.match(slide, /\[contenteditable="true"\]/);
+  const queueStart = slide.indexOf('const queueDirectMove');
+  const queueEnd = slide.indexOf('useEffect(() => {', queueStart);
+  assert.doesNotMatch(slide.slice(queueStart, queueEnd), /preventDefault|stopPropagation|setInteraction/);
 });
