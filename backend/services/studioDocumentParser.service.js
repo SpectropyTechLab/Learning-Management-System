@@ -308,4 +308,3 @@ export const parseScreenScriptDocx = async (file) => {
     ],
   };
 };
-

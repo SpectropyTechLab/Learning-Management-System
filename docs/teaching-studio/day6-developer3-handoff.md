@@ -73,4 +73,3 @@ The repository's known Question Bank debt suite remains excluded by the existing
 ## Day 6 integration
 
 Rahul's isolated HTML and browser-ready ZIP launch work is integrated from PR #14. The complete Day 6 acceptance evidence, including real local database and Storage execution, is recorded in `day6-complete-handoff.md`.
-

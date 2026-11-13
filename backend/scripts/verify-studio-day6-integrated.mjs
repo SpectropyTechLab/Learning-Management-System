@@ -305,4 +305,3 @@ try {
   client.release();
   await pool.end();
 }
-

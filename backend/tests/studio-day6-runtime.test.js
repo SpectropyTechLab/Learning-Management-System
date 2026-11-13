@@ -197,7 +197,7 @@ test('runtime launch serves a prepared package asset with isolation headers', as
   supabase.storage.from = () => ({
     download: async (storageKey) => {
       assert.equal(storageKey, 'runtime-packages/package-1/lesson/index.html');
-      return { data: new Blob(['<h1>Runtime</h1>'], { type: 'text/html' }), error: null };
+      return { data: new Blob(['<h1>Runtime</h1><script>localStorage.getItem("theme")</script>'], { type: 'text/html' }), error: null };
     },
   });
   t.after(() => {
@@ -238,7 +238,9 @@ test('runtime launch serves a prepared package asset with isolation headers', as
 
   assert.equal(response.statusCode, 200);
   const runtimeHtml = response.body.toString();
-  assert.ok(runtimeHtml.startsWith('<h1>Runtime</h1>'));
+  assert.match(runtimeHtml, /data-spectropy-runtime-storage/);
+  assert.ok(runtimeHtml.indexOf('data-spectropy-runtime-storage') < runtimeHtml.indexOf('localStorage.getItem("theme")'));
+  assert.match(runtimeHtml, /Object\.defineProperty\(window,name/);
   assert.match(runtimeHtml, /data-spectropy-runtime-bridge/);
   assert.match(runtimeHtml, /STUDIO_CLICKER_INPUT/);
   assert.match(runtimeHtml, /STUDIO_RUNTIME_COMPLETE/);
@@ -246,6 +248,7 @@ test('runtime launch serves a prepared package asset with isolation headers', as
     headers.get('Content-Security-Policy'),
     /sandbox allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock/,
   );
+  assert.doesNotMatch(headers.get('Content-Security-Policy'), /sandbox[^;]*allow-same-origin/);
   assert.match(headers.get('Content-Security-Policy'), /object-src 'none'/);
   assert.match(headers.get('Content-Security-Policy'), /https:\/\/cdn\.jsdelivr\.net/);
   assert.equal(headers.get('Referrer-Policy'), 'no-referrer');

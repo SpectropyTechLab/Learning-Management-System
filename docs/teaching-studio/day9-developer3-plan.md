@@ -1,8 +1,8 @@
 # Day 9 Developer 3 Plan
 
-**Owner:** Developer 3 - Dhanunjaya  
-**Area:** Frontend integration - Studio entry, editor shell, blank canvas and ordered Screen navigation  
-**Capacity:** 8 hours  
+**Owner:** Developer 3 - Dhanunjaya<br>
+**Area:** Frontend integration - Studio entry, editor shell, blank canvas and ordered Screen navigation<br>
+**Capacity:** 8 hours<br>
 **Day objective:** A Content Authorizer can enter Teaching Studio, use the Session selected through Developer 2's flow, create or open a blank Screen, and navigate the Session's Screens in persisted order.
 
 ## Dependency decision

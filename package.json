@@ -1,6 +1,9 @@
 {
   "name": "learning-management-system",
   "private": true,
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
@@ -19,5 +22,10 @@
   "dependencies": {
     "@onlyoffice/document-editor-react": "^2.3.0",
     "exceljs": "^4.4.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
   }
 }
