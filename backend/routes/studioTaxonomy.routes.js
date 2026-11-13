@@ -15,4 +15,3 @@ router.get('/studio/screens/:screenId/taxonomy', getScreenTerms);
 router.put('/studio/screens/:screenId/taxonomy', authors, setScreenTerms);
 
 export default router;
-

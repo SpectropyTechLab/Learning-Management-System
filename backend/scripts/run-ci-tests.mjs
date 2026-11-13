@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const testsRoot = path.join(backendRoot, 'tests');
 
-// This legacy suite currently tests a separate Question Bank authorization
-// policy and is tracked independently from the collaboration/deployment work.
+// This legacy suite has known mock coverage debt and is reported separately.
+// All other backend suites remain blocking in CI.
 const excludedTests = new Set(['question-bank-flow.test.js']);
 
 const testFiles = readdirSync(testsRoot)
@@ -29,7 +29,7 @@ const result = spawnSync(
   {
     cwd: backendRoot,
     stdio: 'inherit',
-  }
+  },
 );
 
 process.exit(result.status ?? 1);
