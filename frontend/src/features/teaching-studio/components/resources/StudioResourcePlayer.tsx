@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, ExternalLink, Loader2, PackageOpen, Presentation, RefreshCw } from 'lucide-react';
 import { getApiErrorDetails } from '@/lib/api';
+import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 import { getStudioObjectPreview, getStudioResourceDownload, getStudioResourcePreview, launchStudioResourceVersion, type StudioObjectPreviewDescriptor, type StudioResourceType, type StudioResourceVersion } from '../../api/studioResourcesApi';
 import Model3DViewer from './Model3DViewer';
 import EmbeddedObjectViewer from './EmbeddedObjectViewer';
@@ -41,7 +42,7 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
       if (['html', 'zip', 'scorm', 'simulation'].includes(resourceType)) {
         const launch = await launchStudioResourceVersion(version.id);
         if (!launch.launchable || !launch.launch_url) throw new Error(launch.message || 'This package cannot be previewed.');
-        return launch.launch_url;
+        return resolveAssetUrl(launch.launch_url) || launch.launch_url;
       }
       return (await getStudioResourcePreview(version.id)).url;
     };
