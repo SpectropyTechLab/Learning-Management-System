@@ -56,3 +56,4 @@ ALTER TABLE public.screen_taxonomy_terms ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.studio_taxonomy_terms, public.topic_taxonomy_terms,
   public.screen_taxonomy_terms FROM anon, authenticated, service_role;
 REVOKE ALL ON SEQUENCE public.studio_taxonomy_terms_id_seq FROM anon, authenticated, service_role;
+

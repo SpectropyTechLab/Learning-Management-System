@@ -75,3 +75,4 @@ COMMENT ON TABLE public.studio_scorm_sco_states IS
   'Independent SCORM runtime data-model and resume state for each SCO in an attempt.';
 
 COMMIT;
+
