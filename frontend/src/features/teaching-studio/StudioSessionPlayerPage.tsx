@@ -14,6 +14,7 @@ import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
 import Model3DViewer from './components/resources/Model3DViewer';
 import { ExecutableResourceFrame, ExternalLinkFrame } from './components/resources/StudioResourceFrames';
+import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 import { studioAnimationStyle } from './components/studioAnimationRuntime';
 import EmbeddedObjectViewer from './components/resources/EmbeddedObjectViewer';
 import {
@@ -119,7 +120,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false }: { releas
           ? launchStudioResourceVersion(mapping.resource_version_id)
           : launchPublishedResource(releaseId, mapping.resource_version_id)).then((result) => {
           if (!result.launchable || !result.launch_url) throw new Error(result.message || 'Resource cannot be launched.');
-          return result.launch_url;
+          return resolveAssetUrl(result.launch_url) || result.launch_url;
         })
       : (previewMode
           ? getStudioResourcePreview(mapping.resource_version_id)

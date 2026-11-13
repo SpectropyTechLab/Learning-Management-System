@@ -154,6 +154,13 @@ test('Selected media supports component fitting and non-destructive crop control
   assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0 \}/);
 });
 
+test('Executable runtime URLs resolve against the configured API backend', () => {
+  const resourcePlayer = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  const sessionPlayer = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(resourcePlayer, /resolveAssetUrl\(launch\.launch_url\)/);
+  assert.match(sessionPlayer, /resolveAssetUrl\(result\.launch_url\)/);
+});
+
 test('Text formatting commands apply font styles to the preserved selection', () => {
   const toolbar = readFrontend('components/StudioElementToolbar.tsx');
   const text = readFrontend('components/StudioCanvasTextElement.tsx');
