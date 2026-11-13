@@ -377,6 +377,12 @@ export default function BlankScreenCanvas({
             backgroundColor: typeof element.content.backgroundColor === 'string'
               ? element.content.backgroundColor
               : typeof element.content.fill === 'string' ? element.content.fill : undefined,
+            borderColor: element.type !== 'shape' && typeof element.content.borderColor === 'string'
+              ? element.content.borderColor
+              : undefined,
+            borderWidth: element.type !== 'shape' && Number.isFinite(Number(element.content.borderWidth))
+              ? Number(element.content.borderWidth)
+              : undefined,
             locked: element.position.locked === true,
             zIndex:
               typeof element.position.zIndex === 'number' ? element.position.zIndex : undefined,
@@ -502,6 +508,7 @@ export default function BlankScreenCanvas({
           text={text}
           richTextHtml={typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : undefined}
           color={typeof element.content.color === 'string' ? element.content.color : undefined}
+          backgroundColor={typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
           fontSize={Number(element.content.fontSize) || undefined}
           fontFamily={
             typeof element.content.fontFamily === 'string' ? element.content.fontFamily : undefined

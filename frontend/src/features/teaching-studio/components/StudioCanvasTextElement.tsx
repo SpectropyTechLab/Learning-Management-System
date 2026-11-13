@@ -7,7 +7,7 @@ import type { InlineShapeData } from './studioInlineShape';
 import { STUDIO_TEXT_COMMAND_EVENT, type StudioTextCommand } from './studioTextCommands';
 
 interface Props {
-  elementId?: string; text: string; richTextHtml?: string; color?: string; backgroundColor?: string; fontSize?: number; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean;
+  elementId?: string; text: string; richTextHtml?: string; color?: string; backgroundColor?: string; borderColor?: string; borderWidth?: number; fontSize?: number; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean;
   alignment?: 'left' | 'center' | 'right' | 'justify'; list?: boolean; editable?: boolean; selected?: boolean; startEditing?: boolean;
   onSelect?: () => void; onTextChange?: (text: string, richTextHtml?: string) => void; onCaretChange?: (offset: number) => void; onEditingChange?: (editing: boolean) => void;
   onRequestHeight?: (requiredRatio: number) => void;
@@ -117,7 +117,7 @@ const rangeAtSerializedOffset = (editor: HTMLElement, requestedOffset: number) =
   return range;
 };
 
-export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', list = false, editable = false, selected = false, startEditing = false, onSelect, onTextChange, onCaretChange, onEditingChange, onRequestHeight, onInlineShapeEdit }: Props) {
+export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', list = false, editable = false, selected = false, startEditing = false, onSelect, onTextChange, onCaretChange, onEditingChange, onRequestHeight, onInlineShapeEdit }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
@@ -285,7 +285,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     const frame = requestAnimationFrame(() => editorRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [editable, editing, onEditingChange, selected, startEditing]);
-  return <div ref={containerRef} className="relative flex h-full w-full flex-col" style={{ backgroundColor }} onClick={(event) => { event.stopPropagation(); onSelect?.(); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
+  return <div ref={containerRef} className="relative flex h-full w-full flex-col" style={{ backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}` }} onClick={(event) => { event.stopPropagation(); onSelect?.(); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
     {editing ? <div ref={editorRef} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: renderedRichTextHtml ?? editableHtml(text) }} className="studio-canvas-rich-text min-h-0 w-full flex-1 overflow-hidden whitespace-pre-wrap p-3 outline-none" style={{ color, fontSize, fontFamily, fontWeight: bold ? 700 : 400, fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: alignment }} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-shape]'); if (!target?.dataset.inlineShape || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); requestRequiredHeight(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={() => { reportCaret(); persistEditor(); window.setTimeout(() => { if (document.activeElement?.closest('[data-studio-element-toolbar]')) return; setEditing(false); onEditingChange?.(false); }, 0); }} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
       : renderedRichTextHtml ? <div className="studio-canvas-rich-text min-h-0 flex-1 overflow-hidden p-3" style={{ color, fontSize, fontFamily, fontWeight: bold ? 700 : 400, fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: alignment }} dangerouslySetInnerHTML={{ __html: renderedRichTextHtml }} />
       : <div className="min-h-0 flex-1 overflow-hidden" style={{ fontFamily, fontWeight: bold ? 700 : 400, fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: alignment }}>{list

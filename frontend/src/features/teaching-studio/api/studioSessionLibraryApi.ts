@@ -43,3 +43,13 @@ export const listStudioLibrarySessions = async (status?: StudioSessionStatus) =>
   const response = await api.get('/studio/sessions', { params: status ? { status } : undefined });
   return unwrap<{ sessions: StudioLibrarySession[] }>(response).sessions;
 };
+
+export const deleteStudioLibrarySession = async (sessionId: number) => {
+  const response = await api.delete(`/studio/sessions/${sessionId}`);
+  return unwrap<{
+    id: number;
+    title: string;
+    deleted_document_count: number;
+    storage_cleanup_complete: boolean;
+  }>(response);
+};

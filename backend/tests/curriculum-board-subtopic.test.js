@@ -175,6 +175,41 @@ test('program created through a board route persists the validated board id', as
   assert.equal(result.canEdit, true);
 });
 
+test('super admin can update a client-owned program', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+    if (normalized.includes('from programs where id = $1') && normalized.includes('school_id')) {
+      assert.deepEqual(params, [19]);
+      return { rows: [{ id: 19, client_id: 101, school_id: null, board_id: 1 }] };
+    }
+    if (normalized.includes('from boards') && normalized.includes('where id = $1')) {
+      assert.deepEqual(params, [1]);
+      return { rows: [{ id: 1, client_id: 101, school_id: null }] };
+    }
+    if (normalized.startsWith('update programs set')) {
+      assert.deepEqual(params, ['TECHNO', 1, 19]);
+      return {
+        rows: [{ id: 19, client_id: 101, school_id: null, board_id: 1, name: 'TECHNO' }],
+      };
+    }
+    throw new Error(`Unhandled query: ${normalized}`);
+  };
+
+  t.after(() => { pool.query = originalQuery; });
+
+  const result = await curriculumService.updateProgram({
+    user: platformAdmin,
+    params: { id: '19' },
+    body: { name: 'TECHNO', board_id: 1 },
+  });
+
+  assert.equal(result.name, 'TECHNO');
+  assert.equal(result.canEdit, true);
+  assert.equal(result.canDelete, true);
+});
+
 test('subtopic creation validates its topic ownership and preserves the subtopic id', async (t) => {
   const originalQuery = pool.query;
 
@@ -212,6 +247,120 @@ test('subtopic creation validates its topic ownership and preserves the subtopic
   assert.equal(result.id, 88);
   assert.equal(result.topic_id, 44);
   assert.equal(result.canEdit, true);
+});
+
+test('subtopic parent change validates the destination and assigns its next order', async (t) => {
+  const originalQuery = pool.query;
+  const statements = [];
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+    statements.push({ normalized, params });
+    if (normalized.includes('from subtopics st') && normalized.includes('where st.id = $1')) {
+      return { rows: [{ id: 88, topic_id: 44, client_id: 17, school_id: null }] };
+    }
+    if (normalized.includes('select t.id, s.client_id, p.school_id') && normalized.includes('where t.id = $1')) {
+      return { rows: [{ id: 55, client_id: 17, school_id: null }] };
+    }
+    if (normalized.includes('coalesce(max(display_order)')) return { rows: [{ value: 4 }] };
+    if (normalized.startsWith('update subtopics set')) {
+      assert.deepEqual(params, [55, 4, 88]);
+      return { rows: [{ id: 88, topic_id: 55, name: 'Linear Equations', display_order: 4 }] };
+    }
+    throw new Error(`Unhandled query: ${normalized}`);
+  };
+
+  t.after(() => { pool.query = originalQuery; });
+
+  const result = await curriculumService.updateSubtopic({
+    user: platformAdmin,
+    params: { id: '88' },
+    body: { topic_id: 55 },
+  });
+
+  assert.equal(result.topic_id, 55);
+  assert.ok(statements.some(({ normalized }) => normalized.includes('coalesce(max(display_order)')));
+});
+
+test('subtopic deletion removes its unpublished Sessions and Studio content', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async () => ({
+    rows: [{ id: 88, topic_id: 44, client_id: 101, school_id: null }],
+  });
+  t.after(() => { pool.query = originalQuery; });
+
+  const statements = [];
+  let released = false;
+  const client = {
+    async query(text, params = []) {
+      const normalized = normalizeSql(text);
+      statements.push({ normalized, params });
+      if (normalized === 'begin' || normalized === 'commit' || normalized === 'rollback') return { rows: [] };
+      if (normalized.startsWith('select id from subtopics')) return { rows: [{ id: 88 }] };
+      if (normalized.startsWith('select id, status from sessions')) {
+        return { rows: [{ id: 201, status: 'draft' }, { id: 202, status: 'approved' }] };
+      }
+      if (normalized.startsWith('select 1 from session_releases')) return { rows: [] };
+      if (normalized.startsWith('select storage_key from session_documents')) {
+        return { rows: [{ storage_key: 'sessions/201/plan.pdf' }] };
+      }
+      if (normalized.startsWith('delete from subtopics')) return { rows: [{ id: 88 }] };
+      if (normalized.startsWith('delete from')) return { rows: [] };
+      throw new Error(`Unhandled query: ${normalized}`);
+    },
+    release() { released = true; },
+  };
+  let removedKeys = null;
+
+  const result = await curriculumService.deleteSubtopic({
+    user: platformAdmin,
+    params: { id: '88' },
+    getDbClient: async () => client,
+    removeFiles: async (keys) => { removedKeys = keys; return true; },
+  });
+
+  assert.equal(result.deleted_session_count, 2);
+  assert.equal(result.deleted_document_count, 1);
+  assert.deepEqual(removedKeys, ['sessions/201/plan.pdf']);
+  assert.equal(released, true);
+  assert.equal(statements[0].normalized, 'begin');
+  assert.equal(statements.at(-1).normalized, 'commit');
+  assert.ok(statements.some(({ normalized }) => normalized.startsWith('delete from screen_script_revisions')));
+  assert.ok(statements.some(({ normalized }) => normalized.startsWith('delete from sessions')));
+});
+
+test('subtopic deletion is blocked when it contains a published Session', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async () => ({
+    rows: [{ id: 88, topic_id: 44, client_id: 101, school_id: null }],
+  });
+  t.after(() => { pool.query = originalQuery; });
+
+  const statements = [];
+  const client = {
+    async query(text) {
+      const normalized = normalizeSql(text);
+      statements.push(normalized);
+      if (normalized.startsWith('select id from subtopics')) return { rows: [{ id: 88 }] };
+      if (normalized.startsWith('select id, status from sessions')) {
+        return { rows: [{ id: 201, status: 'published' }] };
+      }
+      return { rows: [] };
+    },
+    release() {},
+  };
+
+  await assert.rejects(
+    curriculumService.deleteSubtopic({
+      user: platformAdmin,
+      params: { id: '88' },
+      getDbClient: async () => client,
+      removeFiles: async () => assert.fail('Published Session files must not be removed'),
+    }),
+    (error) => error?.status === 409 && error?.code === 'SUBTOPIC_HAS_PUBLISHED_SESSION',
+  );
+  assert.ok(statements.includes('rollback'));
+  assert.ok(!statements.some((statement) => statement.startsWith('delete from subtopics')));
 });
 
 test('program creation rejects a board owned by another client', async (t) => {

@@ -120,6 +120,8 @@ export type SlideObject = {
   position?: Rect;
   color?: string;
   backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
   locked?: boolean;
   zIndex?: number;
   url?: string;

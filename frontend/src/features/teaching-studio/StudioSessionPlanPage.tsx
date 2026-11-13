@@ -230,11 +230,6 @@ export default function StudioSessionPlanPage() {
       setMode('view');
       setTaxonomyTerms(await studioTaxonomyApi.list());
       toast.success('Session Plan saved as a new revision.');
-      if (returnToLibrary) {
-        navigate('/studio/sessions');
-      } else if (isCreatePipeline) {
-        navigate(`/studio/sessions/${sessionId}/scripts?flow=create`);
-      }
     } catch (requestError) {
       const message = getApiErrorDetails(requestError).message;
       setError(message);
@@ -444,7 +439,7 @@ export default function StudioSessionPlanPage() {
                     }
                     className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-blue-900 disabled:opacity-40"
                   >
-                    {returnToLibrary ? 'Back to Session Library' : 'Continue'}{' '}
+                    {returnToLibrary ? 'Back to Session Library' : 'Continue to Screen Scripts'}{' '}
                     <ArrowRight size={16} />
                   </button>
                 </div>

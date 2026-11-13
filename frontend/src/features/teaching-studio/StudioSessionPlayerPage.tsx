@@ -178,6 +178,12 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
       backgroundColor: typeof element.content_json?.backgroundColor === 'string'
         ? element.content_json.backgroundColor
         : typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined,
+      borderColor: element.element_type !== 'shape' && typeof element.content_json?.borderColor === 'string'
+        ? element.content_json.borderColor
+        : undefined,
+      borderWidth: element.element_type !== 'shape' && Number.isFinite(Number(element.content_json?.borderWidth))
+        ? Number(element.content_json?.borderWidth)
+        : undefined,
       zIndex: typeof element.position_json?.zIndex === 'number' ? element.position_json.zIndex : undefined,
     })),
   };
