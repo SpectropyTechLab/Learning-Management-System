@@ -56,6 +56,14 @@ type GeometryInteraction = {
   currentBounds: Rect;
 };
 
+type PendingMove = {
+  pointerId: number;
+  objectId: string;
+  startClientX: number;
+  startClientY: number;
+  bounds: Rect;
+};
+
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), maximum);
 
@@ -119,6 +127,7 @@ export default function SlideCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [interaction, setInteraction] = useState<GeometryInteraction | null>(null);
+  const pendingMoveRef = useRef<PendingMove | null>(null);
   const [currentStroke, setCurrentStroke] = useState<AuthorDrawingStroke | null>(null);
   const [drawingPointerActive, setDrawingPointerActive] = useState(false);
   useEffect(() => {
@@ -209,6 +218,63 @@ export default function SlideCanvas({
     });
   };
 
+  const queueDirectMove = (
+    event: React.PointerEvent<SVGGElement | HTMLDivElement>,
+    objectId: string,
+    bounds: Rect,
+  ) => {
+    if (!onChangeObjectBounds || drawingEnabled || event.button !== 0) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+    ) return;
+    pendingMoveRef.current = {
+      pointerId: event.pointerId,
+      objectId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      bounds,
+    };
+  };
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const pending = pendingMoveRef.current;
+      if (!pending || pending.pointerId !== event.pointerId || scale <= 0) return;
+      const movementX = event.clientX - pending.startClientX;
+      const movementY = event.clientY - pending.startClientY;
+      if (Math.hypot(movementX, movementY) < 6) return;
+      event.preventDefault();
+      const currentBounds = {
+        ...pending.bounds,
+        x: Math.round(clamp(pending.bounds.x + movementX / scale, 0, MASTER.width - pending.bounds.width)),
+        y: Math.round(clamp(pending.bounds.y + movementY / scale, 0, MASTER.height - pending.bounds.height)),
+      };
+      onSelectObject?.(pending.objectId);
+      setInteraction({
+        objectId: pending.objectId,
+        mode: 'move',
+        startClientX: pending.startClientX,
+        startClientY: pending.startClientY,
+        startBounds: pending.bounds,
+        currentBounds,
+      });
+      pendingMoveRef.current = null;
+    };
+    const clear = (event: PointerEvent) => {
+      if (pendingMoveRef.current?.pointerId === event.pointerId) pendingMoveRef.current = null;
+    };
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', clear);
+    window.addEventListener('pointercancel', clear);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', clear);
+      window.removeEventListener('pointercancel', clear);
+    };
+  }, [onSelectObject, scale]);
+
   const drawingPoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
@@ -298,9 +364,13 @@ export default function SlideCanvas({
             height: MASTER.height,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
-            ...studioTransitionStyle(transition),
           }}
         >
+          <div
+            data-testid="slide-transition-layer"
+            className="absolute inset-0 overflow-hidden"
+            style={studioTransitionStyle(transition)}
+          >
           <svg
             role="img"
             aria-label={layout ? `${layout.name} teaching slide preview` : 'Blank teaching screen'}
@@ -371,6 +441,7 @@ export default function SlideCanvas({
                     if (object) onSelectObject?.(object.id);
                     else onSelectSlot?.(field.id);
                   }}
+                  onPointerDown={(event) => object && queueDirectMove(event, object.id, bounds)}
                   onKeyDown={(event) => {
                     if (object && (event.key === 'Enter' || event.key === ' '))
                       onSelectObject?.(object.id);
@@ -456,7 +527,8 @@ export default function SlideCanvas({
                   event.stopPropagation();
                   onSelectObject?.(object.id);
                 }}
-                className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
+                onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds)}
+                className={`absolute touch-none overflow-hidden rounded-md border-2 ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -556,6 +628,7 @@ export default function SlideCanvas({
                 </div>
               );
             })}
+          </div>
         </div>
         </div>
       )}
