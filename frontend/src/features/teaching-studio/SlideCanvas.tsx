@@ -209,6 +209,20 @@ export default function SlideCanvas({
     });
   };
 
+  const beginDirectMove = (
+    event: React.PointerEvent<SVGGElement | HTMLDivElement>,
+    objectId: string,
+    bounds: Rect,
+  ) => {
+    if (!onChangeObjectBounds || drawingEnabled) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+    ) return;
+    beginInteraction(event, objectId, 'move', bounds);
+  };
+
   const drawingPoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
@@ -375,6 +389,7 @@ export default function SlideCanvas({
                     if (object) onSelectObject?.(object.id);
                     else onSelectSlot?.(field.id);
                   }}
+                  onPointerDown={(event) => object && beginDirectMove(event, object.id, bounds)}
                   onKeyDown={(event) => {
                     if (object && (event.key === 'Enter' || event.key === ' '))
                       onSelectObject?.(object.id);
@@ -460,7 +475,8 @@ export default function SlideCanvas({
                   event.stopPropagation();
                   onSelectObject?.(object.id);
                 }}
-                className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
+                onPointerDownCapture={(event) => beginDirectMove(event, object.id, bounds)}
+                className={`absolute touch-none overflow-hidden rounded-md border-2 ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,

@@ -249,3 +249,12 @@ test('Slide transitions cannot override the viewport fit scale', () => {
   const scaledSurface = slide.slice(slide.indexOf('data-testid="slide-surface"'), slide.indexOf('data-testid="slide-transition-layer"'));
   assert.doesNotMatch(scaledSurface, /studioTransitionStyle/);
 });
+
+test('Canvas elements support direct pointer dragging as well as resize handles', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /const beginDirectMove/);
+  assert.match(slide, /beginInteraction\(event, objectId, 'move', bounds\)/);
+  assert.match(slide, /onPointerDown=\{\(event\) => object && beginDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /onPointerDownCapture=\{\(event\) => beginDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /\[contenteditable="true"\]/);
+});
