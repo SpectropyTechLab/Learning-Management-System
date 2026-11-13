@@ -298,9 +298,13 @@ export default function SlideCanvas({
             height: MASTER.height,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
-            ...studioTransitionStyle(transition),
           }}
         >
+          <div
+            data-testid="slide-transition-layer"
+            className="absolute inset-0 overflow-hidden"
+            style={studioTransitionStyle(transition)}
+          >
           <svg
             role="img"
             aria-label={layout ? `${layout.name} teaching slide preview` : 'Blank teaching screen'}
@@ -556,6 +560,7 @@ export default function SlideCanvas({
                 </div>
               );
             })}
+          </div>
         </div>
         </div>
       )}

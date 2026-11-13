@@ -241,3 +241,11 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   assert.match(canvas, /presenterElementPlaybackState/);
   assert.doesNotMatch(canvas, /setPreviewCycle\(\(current\) => current \+ 1\);\s*}\s*else onPreviewPrevious/);
 });
+
+test('Slide transitions cannot override the viewport fit scale', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /data-testid="slide-transition-layer"/);
+  assert.match(slide, /transform: `scale\(\$\{scale\}\)`/);
+  const scaledSurface = slide.slice(slide.indexOf('data-testid="slide-surface"'), slide.indexOf('data-testid="slide-transition-layer"'));
+  assert.doesNotMatch(scaledSurface, /studioTransitionStyle/);
+});
