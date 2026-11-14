@@ -145,6 +145,19 @@ test('Inspector icon rails shrink while their panel is open', () => {
   assert.doesNotMatch(css, /\.studio-editor-left-panel > nav \{\s*order:/);
 });
 
+test('Inspector icon hover keeps the clickable hitbox stationary', () => {
+  const css = readFrontendAsset('index.css');
+  const buttonHoverRule = css.match(
+    /\.studio-editor-left-panel > nav > button:hover,\s*\.studio-editor-viewport \.studio-editor-tools-panel > nav > button:hover\s*\{[^}]*\}/s,
+  );
+  assert.ok(buttonHoverRule);
+  assert.doesNotMatch(buttonHoverRule[0], /transform:/);
+  assert.match(
+    css,
+    /\.studio-editor-left-panel > nav > button:hover svg,[\s\S]{0,180}\.studio-editor-tools-panel > nav > button:hover svg \{\s*transform: scale\(1\.16\);/,
+  );
+});
+
 test('Screen Script keeps its compact cards and renders math with KaTeX', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const math = readFrontend('components/StudioScreenScriptMath.tsx');
