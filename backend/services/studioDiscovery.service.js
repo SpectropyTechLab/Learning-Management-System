@@ -619,4 +619,3 @@ export const discoverPublishedContent = async ({
     facets: { topics, subtopics, ...taxonomyFacets, resource_types: resourceTypes },
   };
 };
-

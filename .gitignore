@@ -5,15 +5,15 @@
 .env.development
 .env.test
 .env.*
-.supabase-db-password.txt
-.login-test-password.txt
 !**/.env.local.example
-/backend/.env
-/frontend/.env
-/backend/node_modules
-/frontend/node_modules
-/frontend/dist
-/node_modules
+
+# Installed and generated dependencies
+node_modules/
+frontend/dist/
 
 # Local runtime output
 *.log
+
+# Local-only credentials and test state
+.supabase-db-password.txt
+.login-test-password.txt

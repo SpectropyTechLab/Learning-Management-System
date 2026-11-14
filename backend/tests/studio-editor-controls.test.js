@@ -114,14 +114,18 @@ test('Editor fullscreen keeps the live autosaving workspace and floating control
   assert.match(shell, /header=\{hideHeader \? undefined/);
 });
 
-test('Normal editor overlays chrome inside the navy stage instead of reserving canvas columns', () => {
+test('Editor keeps floating chrome but reserves visible canvas space for opened inspectors', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const css = readFrontendAsset('index.css');
   assert.doesNotMatch(editor, /gridTemplateColumns:/);
   assert.match(editor, /studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden/);
+  assert.match(editor, /has-left-panel/);
+  assert.match(editor, /has-right-panel/);
   assert.match(css, /\.studio-editor-viewport \.studio-editor-tools-panel/);
   assert.match(css, /position: absolute/);
+  assert.match(css, /\.studio-editor-workspace\.has-left-panel \.studio-editor-canvas/);
+  assert.match(css, /\.studio-editor-workspace\.has-right-panel \.studio-editor-canvas/);
   assert.match(css, /\.studio-editor-slide-frame/);
   assert.match(canvas, /studio-editor-canvas-stage/);
   assert.match(css, /\.studio-editor-left-panel > nav > button/);
@@ -129,6 +133,34 @@ test('Normal editor overlays chrome inside the navy stage instead of reserving c
   assert.match(canvas, /studio-editor-slide-frame absolute inset-3/);
   assert.match(css, /\.studio-editor-viewport \.studio-context-bar \{\s*position: relative/);
   assert.doesNotMatch(css, /\.studio-editor-viewport \.studio-context-bar \{[^}]*position: absolute/s);
+});
+
+test('Canvas zoom scales one canonical surface and elements resize from every edge', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /width: MASTER\.width,/);
+  assert.match(slide, /transform: `scale\(\$\{scale\}\)`/);
+  for (const direction of ['resize-nw', 'resize-n', 'resize-ne', 'resize-e', 'resize-se', 'resize-s', 'resize-sw', 'resize-w']) {
+    assert.match(slide, new RegExp(direction));
+  }
+});
+
+test('Selected media supports component fitting and non-destructive crop controls', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(toolbar, /Crop and fit/);
+  assert.match(toolbar, /mediaTransform/);
+  assert.match(player, /objectFit: mediaTransform\?\.fit === 'cover'/);
+  assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0 \}/);
+});
+
+test('Text formatting commands apply font styles to the preserved selection', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const text = readFrontend('components/StudioCanvasTextElement.tsx');
+  assert.match(toolbar, /type: 'style', property: 'fontSize'/);
+  assert.match(toolbar, /type: 'format', command: 'bold'/);
+  assert.match(text, /span\.style\[command\.property\] = command\.value/);
+  assert.match(text, /selectedRange\.extractContents\(\)/);
 });
 
 test('Editor keeps both inspectors open without an appearance mode control', () => {
@@ -208,4 +240,24 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   assert.match(player, /animationDirection/);
   assert.match(canvas, /presenterElementPlaybackState/);
   assert.doesNotMatch(canvas, /setPreviewCycle\(\(current\) => current \+ 1\);\s*}\s*else onPreviewPrevious/);
+});
+
+test('Slide transitions cannot override the viewport fit scale', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /data-testid="slide-transition-layer"/);
+  assert.match(slide, /transform: `scale\(\$\{scale\}\)`/);
+  const scaledSurface = slide.slice(slide.indexOf('data-testid="slide-surface"'), slide.indexOf('data-testid="slide-transition-layer"'));
+  assert.doesNotMatch(scaledSurface, /studioTransitionStyle/);
+});
+
+test('Canvas elements support direct pointer dragging as well as resize handles', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  assert.match(slide, /const queueDirectMove/);
+  assert.match(slide, /Math\.hypot\(movementX, movementY\) < 6/);
+  assert.match(slide, /onPointerDown=\{\(event\) => object && queueDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /onPointerDownCapture=\{\(event\) => queueDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /\[contenteditable="true"\]/);
+  const queueStart = slide.indexOf('const queueDirectMove');
+  const queueEnd = slide.indexOf('useEffect(() => {', queueStart);
+  assert.doesNotMatch(slide.slice(queueStart, queueEnd), /preventDefault|stopPropagation|setInteraction/);
 });
