@@ -4410,4 +4410,3 @@ CREATE POLICY "users_tenant_isolation" ON "public"."users" USING ((("public"."ap
 
 
 REVOKE USAGE ON SCHEMA "public" FROM PUBLIC;
-
