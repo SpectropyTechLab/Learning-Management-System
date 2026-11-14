@@ -52,7 +52,7 @@ test('Studio editor uses one stable tooltip and converts every selected line int
   assert.doesNotMatch(iconButton, /role="tooltip"/);
   assert.match(canvasText, /selectedLines\.forEach/);
   assert.match(canvasText, /document\.createElement\('li'\)/);
-  assert.match(canvasText, /selectedRange\.insertNode\(list\)/);
+  assert.match(canvasText, /selectedRange\.insertNode\(listElement\)/);
 });
 
 test('Screen navigation is a PowerPoint-style thumbnail rail with pointer reordering', () => {
@@ -142,6 +142,17 @@ test('Canvas zoom scales one canonical surface and elements resize from every ed
   for (const direction of ['resize-nw', 'resize-n', 'resize-ne', 'resize-e', 'resize-se', 'resize-s', 'resize-sw', 'resize-w']) {
     assert.match(slide, new RegExp(direction));
   }
+  assert.match(slide, /selectedWithoutBorder \? 'border-2 border-dashed border-blue-600'/);
+  assert.match(slide, /showTextEditorOutlines && textObjectTypes\.has\(object\.type\) &&/);
+  assert.match(slide, /selected \|\| object\.text\.trim\(\)\.length === 0/);
+  assert.match(slide, /outline outline-2 outline-dotted/);
+  assert.match(slide, /selected \? 'outline-blue-600' : 'outline-slate-400'/);
+  const blankCanvas = readFrontend('components/BlankScreenCanvas.tsx');
+  assert.match(blankCanvas, /showTextEditorOutlines=\{!previewMode\}/);
+  const textElement = readFrontend('components/StudioCanvasTextElement.tsx');
+  assert.match(textElement, /overflowWrap: 'anywhere'/);
+  assert.match(slide, /after:h-3 after:w-3/);
+  assert.match(slide, /after:border-blue-700 after:bg-white/);
 });
 
 test('Selected media supports component fitting and non-destructive crop controls', () => {
@@ -157,10 +168,48 @@ test('Selected media supports component fitting and non-destructive crop control
 test('Text formatting commands apply font styles to the preserved selection', () => {
   const toolbar = readFrontend('components/StudioElementToolbar.tsx');
   const text = readFrontend('components/StudioCanvasTextElement.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   assert.match(toolbar, /type: 'style', property: 'fontSize'/);
+  assert.match(toolbar, /const \[fontSizeDraft, setFontSizeDraft\]/);
+  assert.match(toolbar, /selectionFontSize === 'mixed'/);
+  assert.match(toolbar, /onChange=\{\(event\) => previewFontSize\(event\.target\.value\)\}/);
   assert.match(toolbar, /type: 'format', command: 'bold'/);
-  assert.match(text, /span\.style\[command\.property\] = command\.value/);
+  assert.match(text, /span\.style\.setProperty\(cssProperty, command\.value\)/);
   assert.match(text, /selectedRange\.extractContents\(\)/);
+  assert.match(text, /initializedEditorRef\.current === editor/);
+  assert.match(text, /initializedEditorRef\.current = null;\s*savedRangeRef\.current = null/);
+  assert.match(text, /editor\.innerHTML = renderedRichTextHtml \?\? editableHtml\(text\)/);
+  assert.match(text, /onKeyDown=\{\(event\) => \{ event\.stopPropagation\(\)/);
+  assert.match(text, /onBlur=\{handleEditorBlur\}/);
+  assert.doesNotMatch(text, /onBlur=\{\(\) => \{ reportCaret\(\)/);
+  assert.match(text, /document\.addEventListener\('selectionchange', captureSelectedText\)/);
+  assert.match(text, /const selectedRange = rangeForCommand\(editor, command\);[\s\S]*if \(!preserveToolbarFocus\) \{\s*editor\.focus\(\)/);
+  assert.match(text, /const preserveToolbarFocus = \(command\.type === 'style' \|\| command\.type === 'block-style'\)/);
+  assert.match(text, /if \(preserveToolbarFocus\) savedRangeRef\.current = nextRange\.cloneRange\(\)/);
+  assert.match(text, /const reusableSpan = selectedElement\?\.tagName === 'SPAN'/);
+  assert.match(text, /fontSizeForRange\(editor, range\)/);
+  assert.match(text, /spacingForRange\(editor, range/);
+  assert.match(canvas, /selectionFontSize=\{textSelectionFontSize\?\.elementId === selectedElement\.id/);
+  assert.match(canvas, /selectionSpacing=\{textSelectionSpacing\?\.elementId === selectedElement\.id/);
+});
+
+test('Text paste preserves supported formatting and autoresizes through one atomic commit', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const text = readFrontend('components/StudioCanvasTextElement.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  assert.match(text, /onPaste=\{handlePaste\}/);
+  assert.match(text, /supportedRichTextTags/);
+  assert.match(text, /ResizeObserver/);
+  assert.match(text, /requiredHeight: measureRequiredHeight/);
+  assert.match(text, /removeTrailingEditorPlaceholder\(measurement\)/);
+  assert.match(text, /commitEditorAfterLayout\(formatting\)/);
+  assert.match(text, /clearDescendantFormatting/);
+  assert.match(toolbar, /Line and paragraph spacing/);
+  assert.match(toolbar, /Before paragraph/);
+  assert.match(toolbar, /After paragraph/);
+  assert.match(toolbar, /spacingMenuOpen/);
+  assert.match(canvas, /onChangeElement\(\{/);
+  assert.match(canvas, /height: nextHeight/);
 });
 
 test('Editor keeps both inspectors open without an appearance mode control', () => {
@@ -259,5 +308,8 @@ test('Canvas elements support direct pointer dragging as well as resize handles'
   assert.match(slide, /\[contenteditable="true"\]/);
   const queueStart = slide.indexOf('const queueDirectMove');
   const queueEnd = slide.indexOf('useEffect(() => {', queueStart);
-  assert.doesNotMatch(slide.slice(queueStart, queueEnd), /preventDefault|stopPropagation|setInteraction/);
+  assert.match(slide.slice(queueStart, queueEnd), /event\.preventDefault\(\)/);
+  assert.doesNotMatch(slide.slice(queueStart, queueEnd), /stopPropagation|setInteraction/);
+  assert.match(slide, /root\.style\.userSelect = 'none'/);
+  assert.match(slide, /window\.getSelection\(\)\?\.removeAllRanges\(\)/);
 });
