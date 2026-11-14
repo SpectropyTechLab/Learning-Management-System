@@ -2363,6 +2363,7 @@ export default function TeachingStudioPage() {
                 onSelectElement={selectElementAndOpenControls}
                 onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedLayoutSlotId(slotId); }}
                 onClearElementSelection={() => { setSelectedElementId(null); setSelectedLayoutSlotId(null); }}
+                onChangeElement={editorReadOnly ? undefined : updateElement}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
                 onTextCaretChange={(elementId, offset) => {

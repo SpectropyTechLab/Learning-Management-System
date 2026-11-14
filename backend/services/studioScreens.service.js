@@ -1,4 +1,5 @@
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
+import { load } from 'cheerio';
 import { AppError } from '../utils/errors.js';
 import { returnSessionToDraft } from './studioSessionWorkflow.service.js';
 
@@ -27,6 +28,9 @@ const ELEMENT_TYPES = new Set([
   'graph',
   'data',
   'options', 'math', 'shape', 'zoom', 'embedded_object',
+]);
+const AUTO_HEIGHT_TEXT_ELEMENT_TYPES = new Set([
+  'title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data',
 ]);
 
 const normalizeZoom = (value, elementKey) => {
@@ -116,7 +120,7 @@ const normalizeTags = (tags) => {
   return [...new Set(normalized)];
 };
 
-const normalizePosition = (value, label) => {
+const normalizePosition = (value, label, { allowBottomOverflow = false } = {}) => {
   const position = value === undefined ? {} : assertObject(value, label);
   const normalized = { ...position };
   for (const key of ['x', 'y', 'width', 'height']) {
@@ -131,11 +135,12 @@ const normalizePosition = (value, label) => {
     throw new AppError(`${label} y must be inside the 1080 pixel canvas`, 422);
   if (normalized.width !== undefined && (normalized.width < 80 || normalized.width > 1920))
     throw new AppError(`${label} width must be between 80 and 1920`, 422);
-  if (normalized.height !== undefined && (normalized.height < 60 || normalized.height > 1080))
-    throw new AppError(`${label} height must be between 60 and 1080`, 422);
+  const maximumHeight = allowBottomOverflow ? 10000 : 1080;
+  if (normalized.height !== undefined && (normalized.height < 60 || normalized.height > maximumHeight))
+    throw new AppError(`${label} height must be between 60 and ${maximumHeight}`, 422);
   if (normalized.x !== undefined && normalized.width !== undefined && normalized.x + normalized.width > 1920)
     throw new AppError(`${label} extends beyond the right canvas edge`, 422);
-  if (normalized.y !== undefined && normalized.height !== undefined && normalized.y + normalized.height > 1080)
+  if (!allowBottomOverflow && normalized.y !== undefined && normalized.height !== undefined && normalized.y + normalized.height > 1080)
     throw new AppError(`${label} extends beyond the bottom canvas edge`, 422);
   if (position.zIndex !== undefined) {
     const zIndex = Number(position.zIndex);
@@ -233,13 +238,48 @@ const validateSmartDiagramContent = (content, elementKey) => {
   if (content.altText !== undefined && String(content.altText).length > 1000) throw new AppError(`Element ${elementKey} Smart Diagram accessibility description is too long`, 422);
 };
 
+const compactUrlValue = (value) => Array.from(value)
+  .filter((character) => character.charCodeAt(0) > 32 && character.charCodeAt(0) !== 127)
+  .join('')
+  .toLowerCase();
+
+const assertSafeRichTextHtml = (html, elementKey) => {
+  const $ = load(html, { xmlMode: false }, false);
+  const blockedTags = 'script,iframe,object,embed,style,form,link,meta,input,button,textarea,select';
+  let unsafe = $(blockedTags).length > 0;
+
+  $('*').each((_index, element) => {
+    if (unsafe) return;
+    for (const [rawName, rawValue] of Object.entries(element.attribs || {})) {
+      const name = rawName.toLowerCase();
+      const value = String(rawValue || '');
+      if (name.startsWith('on')) {
+        unsafe = true;
+        break;
+      }
+      if (['href', 'src', 'xlink:href', 'formaction'].includes(name)) {
+        const compactValue = compactUrlValue(value);
+        if (/^(?:javascript|vbscript|data):/.test(compactValue)) {
+          unsafe = true;
+          break;
+        }
+      }
+      if (name === 'style' && /expression\s*\(|url\s*\(|@import|behavior\s*:|-moz-binding\s*:/i.test(value)) {
+        unsafe = true;
+        break;
+      }
+    }
+  });
+
+  if (unsafe) throw new AppError(`Element ${elementKey} rich text contains unsafe markup`, 422);
+};
+
 const validateElementPresentationContent = (content, elementKey) => {
   if (content.richTextHtml !== undefined) {
     const html = String(content.richTextHtml);
     if (html.length > 50000)
       throw new AppError(`Element ${elementKey} rich text is too large`, 422);
-    if (/<\s*(?:script|iframe|object|embed|style|form)\b|\son\w+\s*=|javascript\s*:/i.test(html))
-      throw new AppError(`Element ${elementKey} rich text contains unsafe markup`, 422);
+    assertSafeRichTextHtml(html, elementKey);
   }
   if (content.hyperlink === undefined || content.hyperlink === null) return;
   const hyperlink = assertObject(content.hyperlink, `Element ${elementKey} hyperlink`);
@@ -286,7 +326,9 @@ const normalizeElements = (elements, layout) => {
       element.content === undefined ? {} : assertObject(element.content, `Element ${key} content`);
     validateSmartDiagramContent(content, key);
     validateElementPresentationContent(content, key);
-    const position = normalizePosition(element.position, `Element ${key} position`);
+    const position = normalizePosition(element.position, `Element ${key} position`, {
+      allowBottomOverflow: AUTO_HEIGHT_TEXT_ELEMENT_TYPES.has(type),
+    });
     const zoom = type === 'zoom' ? normalizeZoom(element.zoom ?? content.zoom, key) : null;
     if (type === 'zoom' && !zoom) throw new AppError(`Element ${key} requires a Zoom destination`, 422);
     const resourceInput =

@@ -34,6 +34,7 @@ interface BlankScreenCanvasProps {
   onSelectElement?: (elementId: string) => void;
   onSelectSlot?: (slotId: string) => void;
   onClearElementSelection?: () => void;
+  onChangeElement?: (element: StudioElement) => void;
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
   onTextCaretChange?: (elementId: string, offset: number) => void;
@@ -183,6 +184,7 @@ export default function BlankScreenCanvas({
   onSelectElement,
   onSelectSlot,
   onClearElementSelection,
+  onChangeElement,
   onChangeElementBounds,
   onChangeElementContent,
   onTextCaretChange,
@@ -208,6 +210,18 @@ export default function BlankScreenCanvas({
   onDropFiles,
 }: BlankScreenCanvasProps) {
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [textSelectionFontSize, setTextSelectionFontSize] = useState<{
+    elementId: string;
+    value: number | 'mixed' | null;
+  } | null>(null);
+  const [textSelectionSpacing, setTextSelectionSpacing] = useState<{
+    elementId: string;
+    value: {
+      lineHeight: number | 'mixed';
+      paragraphSpacingBefore: number | 'mixed';
+      paragraphSpacingAfter: number | 'mixed';
+    };
+  } | null>(null);
   const [previewStep, setPreviewStep] = useState(0);
   const [previewCycle, setPreviewCycle] = useState(0);
   const [previewNavigation, setPreviewNavigation] =
@@ -232,6 +246,8 @@ export default function BlankScreenCanvas({
   );
   useEffect(() => {
     setEditingElementId(null);
+    setTextSelectionFontSize(null);
+    setTextSelectionSpacing(null);
   }, [screen?.id]);
   useEffect(() => {
     setPreviewStep(previewStartAtEnd ? animationTimeline.maxStep : 0);
@@ -525,30 +541,55 @@ export default function BlankScreenCanvas({
               : 'left'
           }
           list={element.content.list === true}
+          lineHeight={Number(element.content.lineHeight) || undefined}
+          paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
+          paragraphSpacingAfter={Number(element.content.paragraphSpacingAfter) || undefined}
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
           startEditing={editingElementId === element.id}
           onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
-          onTextChange={(value, richText) => onChangeElementContent?.(element.id, { text: value, richTextHtml: richText })}
-          onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
-          onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
-          onRequestHeight={(requiredRatio) => {
-            if (!onChangeElementBounds) return;
+          onCommit={onChangeElement ? ({ text: value, richTextHtml: richText, formatting, requiredHeight }) => {
             const currentBounds =
               elementBounds(element.position) ??
               renderLayout?.slots.find(
                 (slot) => slot.id === (element.slotId || `free-${element.id}`),
               )?.bounds;
             if (!currentBounds) return;
-            const nextHeight = Math.max(60, Math.min(1080 - currentBounds.y, Math.ceil(currentBounds.height * requiredRatio)));
-            if (Math.abs(nextHeight - currentBounds.height) < 2) return;
-            onChangeElementBounds(element.id, { ...currentBounds, height: nextHeight });
-          }}
-          onEditingChange={(editing) =>
+            const nextContent = { ...element.content, text: value, ...formatting };
+            if (richText !== undefined) nextContent.richTextHtml = richText;
+            const nextHeight = Math.max(60, Math.ceil(requiredHeight));
+            const contentChanged = Object.entries(nextContent).some(
+              ([key, nextValue]) => element.content[key] !== nextValue,
+            );
+            if (!contentChanged && Math.abs(nextHeight - currentBounds.height) < 2) return;
+            onChangeElement({
+              ...element,
+              content: nextContent,
+              position: { ...element.position, ...currentBounds, height: nextHeight },
+            });
+          } : undefined}
+          onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
+          onSelectionFontSizeChange={(value) => setTextSelectionFontSize((current) =>
+            current?.elementId === element.id && current.value === value
+              ? current
+              : { elementId: element.id, value }
+          )}
+          onSelectionSpacingChange={(value) => setTextSelectionSpacing((current) =>
+            current?.elementId === element.id &&
+            current.value.lineHeight === value.lineHeight &&
+            current.value.paragraphSpacingBefore === value.paragraphSpacingBefore &&
+            current.value.paragraphSpacingAfter === value.paragraphSpacingAfter
+              ? current
+              : { elementId: element.id, value }
+          )}
+          onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
+          onEditingChange={(editing) => {
             setEditingElementId(
               editing ? element.id : (current) => (current === element.id ? null : current),
-            )
-          }
+            );
+            if (!editing) setTextSelectionFontSize((current) => current?.elementId === element.id ? null : current);
+            if (!editing) setTextSelectionSpacing((current) => current?.elementId === element.id ? null : current);
+          }}
         />
       );
       continue;
@@ -681,6 +722,8 @@ export default function BlankScreenCanvas({
               >
                 <StudioElementToolbar
                   element={selectedElement}
+                  selectionFontSize={textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
+                  selectionSpacing={textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
                   onChange={(changes) => onChangeElementContent(selectedElement.id, changes)}
                   onOpenMath={() => onOpenTool('math')}
                   onOpenShapes={() => onOpenTool('shapes')}
@@ -786,6 +829,8 @@ export default function BlankScreenCanvas({
             objectOverlays={objectOverlays}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
+            allowCanvasOverflow={!previewMode}
+            showTextEditorOutlines={!previewMode}
             transition={
               screen.screen_settings_json?.transition &&
               typeof screen.screen_settings_json.transition === 'object'
