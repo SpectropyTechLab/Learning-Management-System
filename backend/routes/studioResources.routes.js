@@ -3,6 +3,7 @@ import multer from 'multer';
 import { authenticateToken, attachClientContext, requireRole } from '../middleware/auth.js';
 import {
   listResources, getResource, renameResource, createResource, createResourceVersion, getResourceUsages, deleteResource,
+  searchAssetCatalog, importAssetCatalogItem,
 } from '../controllers/studioResources.controller.js';
 
 const router = Router();
@@ -13,7 +14,10 @@ const authors = requireRole(['super_admin', 'content_authorizer']);
 // router middleware here would also reject unrelated /api/studio routes that
 // are mounted after this router, including teacher discovery requests.
 router.use('/studio/resources', authenticateToken, attachClientContext, authors);
+router.use('/studio/asset-catalog', authenticateToken, attachClientContext, authors);
 router.get('/studio/resources', listResources);
+router.get('/studio/asset-catalog/search', searchAssetCatalog);
+router.post('/studio/asset-catalog/import', importAssetCatalogItem);
 router.get('/studio/resources/:resourceId', getResource);
 router.get('/studio/resources/:resourceId/usages', getResourceUsages);
 router.patch('/studio/resources/:resourceId', renameResource);

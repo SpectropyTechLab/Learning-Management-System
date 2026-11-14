@@ -49,11 +49,19 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
 
 type GeometryInteraction = {
   objectId: string;
-  mode: 'move' | 'resize';
+  mode: 'move' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w' | 'resize-nw';
   startClientX: number;
   startClientY: number;
   startBounds: Rect;
   currentBounds: Rect;
+};
+
+type PendingMove = {
+  pointerId: number;
+  objectId: string;
+  startClientX: number;
+  startClientY: number;
+  bounds: Rect;
 };
 
 const clamp = (value: number, minimum: number, maximum: number) =>
@@ -119,6 +127,7 @@ export default function SlideCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [interaction, setInteraction] = useState<GeometryInteraction | null>(null);
+  const pendingMoveRef = useRef<PendingMove | null>(null);
   const [currentStroke, setCurrentStroke] = useState<AuthorDrawingStroke | null>(null);
   const [drawingPointerActive, setDrawingPointerActive] = useState(false);
   useEffect(() => {
@@ -143,18 +152,36 @@ export default function SlideCanvas({
       const deltaX = (event.clientX - interaction.startClientX) / scale;
       const deltaY = (event.clientY - interaction.startClientY) / scale;
       const start = interaction.startBounds;
-      const currentBounds =
-        interaction.mode === 'move'
-          ? {
-              ...start,
-              x: Math.round(clamp(start.x + deltaX, 0, MASTER.width - start.width)),
-              y: Math.round(clamp(start.y + deltaY, 0, MASTER.height - start.height)),
-            }
-          : {
-              ...start,
-              width: Math.round(clamp(start.width + deltaX, 80, MASTER.width - start.x)),
-              height: Math.round(clamp(start.height + deltaY, 60, MASTER.height - start.y)),
-            };
+      let currentBounds: Rect;
+      if (interaction.mode === 'move') {
+        currentBounds = {
+          ...start,
+          x: Math.round(clamp(start.x + deltaX, 0, MASTER.width - start.width)),
+          y: Math.round(clamp(start.y + deltaY, 0, MASTER.height - start.height)),
+        };
+      } else {
+        const direction = interaction.mode.replace('resize-', '');
+        const north = direction.includes('n');
+        const south = direction.includes('s');
+        const east = direction.includes('e');
+        const west = direction.includes('w');
+        const right = start.x + start.width;
+        const bottom = start.y + start.height;
+        const x = west ? clamp(start.x + deltaX, 0, right - 80) : start.x;
+        const y = north ? clamp(start.y + deltaY, 0, bottom - 60) : start.y;
+        const width = west
+          ? right - x
+          : east ? clamp(start.width + deltaX, 80, MASTER.width - start.x) : start.width;
+        const height = north
+          ? bottom - y
+          : south ? clamp(start.height + deltaY, 60, MASTER.height - start.y) : start.height;
+        currentBounds = {
+          x: Math.round(x),
+          y: Math.round(y),
+          width: Math.round(width),
+          height: Math.round(height),
+        };
+      }
       setInteraction((current) => (current ? { ...current, currentBounds } : null));
     };
     const finish = () => {
@@ -190,6 +217,63 @@ export default function SlideCanvas({
       currentBounds: bounds,
     });
   };
+
+  const queueDirectMove = (
+    event: React.PointerEvent<SVGGElement | HTMLDivElement>,
+    objectId: string,
+    bounds: Rect,
+  ) => {
+    if (!onChangeObjectBounds || drawingEnabled || event.button !== 0) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+    ) return;
+    pendingMoveRef.current = {
+      pointerId: event.pointerId,
+      objectId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      bounds,
+    };
+  };
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const pending = pendingMoveRef.current;
+      if (!pending || pending.pointerId !== event.pointerId || scale <= 0) return;
+      const movementX = event.clientX - pending.startClientX;
+      const movementY = event.clientY - pending.startClientY;
+      if (Math.hypot(movementX, movementY) < 6) return;
+      event.preventDefault();
+      const currentBounds = {
+        ...pending.bounds,
+        x: Math.round(clamp(pending.bounds.x + movementX / scale, 0, MASTER.width - pending.bounds.width)),
+        y: Math.round(clamp(pending.bounds.y + movementY / scale, 0, MASTER.height - pending.bounds.height)),
+      };
+      onSelectObject?.(pending.objectId);
+      setInteraction({
+        objectId: pending.objectId,
+        mode: 'move',
+        startClientX: pending.startClientX,
+        startClientY: pending.startClientY,
+        startBounds: pending.bounds,
+        currentBounds,
+      });
+      pendingMoveRef.current = null;
+    };
+    const clear = (event: PointerEvent) => {
+      if (pendingMoveRef.current?.pointerId === event.pointerId) pendingMoveRef.current = null;
+    };
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', clear);
+    window.addEventListener('pointercancel', clear);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', clear);
+      window.removeEventListener('pointercancel', clear);
+    };
+  }, [onSelectObject, scale]);
 
   const drawingPoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -255,8 +339,12 @@ export default function SlideCanvas({
     >
       {scale > 0 && (
         <div
+          className="relative shrink-0"
+          style={{ width: MASTER.width * scale, height: MASTER.height * scale }}
+        >
+        <div
           data-testid="slide-surface"
-          className="relative shrink-0 overflow-hidden bg-white shadow-xl"
+          className="absolute left-0 top-0 overflow-hidden bg-white shadow-xl"
           onClick={(event) => {
             const target = event.target;
             if (target instanceof Element && target.closest('[data-element-id]')) return;
@@ -272,11 +360,17 @@ export default function SlideCanvas({
             });
           }}
           style={{
-            width: MASTER.width * scale,
-            height: MASTER.height * scale,
-            ...studioTransitionStyle(transition),
+            width: MASTER.width,
+            height: MASTER.height,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
           }}
         >
+          <div
+            data-testid="slide-transition-layer"
+            className="absolute inset-0 overflow-hidden"
+            style={studioTransitionStyle(transition)}
+          >
           <svg
             role="img"
             aria-label={layout ? `${layout.name} teaching slide preview` : 'Blank teaching screen'}
@@ -347,6 +441,7 @@ export default function SlideCanvas({
                     if (object) onSelectObject?.(object.id);
                     else onSelectSlot?.(field.id);
                   }}
+                  onPointerDown={(event) => object && queueDirectMove(event, object.id, bounds)}
                   onKeyDown={(event) => {
                     if (object && (event.key === 'Enter' || event.key === ' '))
                       onSelectObject?.(object.id);
@@ -432,7 +527,8 @@ export default function SlideCanvas({
                   event.stopPropagation();
                   onSelectObject?.(object.id);
                 }}
-                className={`absolute overflow-hidden rounded-md border-2 ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
+                onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds)}
+                className={`absolute touch-none overflow-hidden rounded-md border-2 ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -510,16 +606,30 @@ export default function SlideCanvas({
                   >
                     <MoveIcon size={14} aria-hidden="true" />
                   </button>
-                  <button
-                    type="button"
-                    onPointerDown={(event) => beginInteraction(event, object.id, 'resize', bounds)}
-                    className="pointer-events-auto absolute bottom-0 right-0 h-11 w-11 touch-none select-none translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-lg border-2 border-white bg-blue-700 shadow sm:h-9 sm:w-9"
-                    title="Drag to resize element"
-                    aria-label="Resize element"
-                  />
+                  {([
+                    ['resize-nw', 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize'],
+                    ['resize-n', 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize'],
+                    ['resize-ne', 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize'],
+                    ['resize-e', 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+                    ['resize-se', 'bottom-0 right-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize'],
+                    ['resize-s', 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 cursor-ns-resize'],
+                    ['resize-sw', 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize'],
+                    ['resize-w', 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+                  ] as const).map(([mode, position]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onPointerDown={(event) => beginInteraction(event, object.id, mode, bounds)}
+                          className={`pointer-events-auto absolute h-11 w-11 touch-none select-none ${position} rounded-full border-2 border-white bg-blue-700 shadow after:absolute after:inset-4 after:rounded-full after:bg-white`}
+                      title={`Resize element ${mode.replace('resize-', '')}`}
+                      aria-label={`Resize element ${mode.replace('resize-', '')}`}
+                    />
+                  ))}
                 </div>
               );
             })}
+          </div>
+        </div>
         </div>
       )}
     </div>

@@ -5,6 +5,8 @@ interface Model3DViewerProps {
   src: string;
   alt: string;
   className?: string;
+  mode?: 'preview' | 'canvas' | 'runtime';
+  selected?: boolean;
 }
 
 type ModelViewerElement = HTMLElement & {
@@ -16,14 +18,14 @@ type ModelViewerElement = HTMLElement & {
   play: (options?: { repetitions?: number }) => void;
 };
 
-export default function Model3DViewer({ src, alt, className = '' }: Model3DViewerProps) {
+export default function Model3DViewer({ src, alt, className = '', mode = 'preview', selected = false }: Model3DViewerProps) {
   const [ready, setReady] = useState(false);
   const [animations, setAnimations] = useState<string[]>([]);
   const [selectedAnimation, setSelectedAnimation] = useState('');
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [compact, setCompact] = useState(false);
-  const [controlsVisible, setControlsVisible] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(mode !== 'canvas');
   const viewerRef = useRef<ModelViewerElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -38,6 +40,10 @@ export default function Model3DViewer({ src, alt, className = '' }: Model3DViewe
     setSelectedAnimation('');
     setPlaying(false);
   }, [src]);
+
+  useEffect(() => {
+    if (mode === 'canvas' && !selected) setControlsVisible(false);
+  }, [mode, selected]);
 
   const playAnimation = useCallback((restart = false) => {
     const viewer = viewerRef.current;
@@ -83,13 +89,13 @@ export default function Model3DViewer({ src, alt, className = '' }: Model3DViewe
       const nextCompact = width < 520 || height < 340;
       setCompact(nextCompact);
       if (previousCompact === null || previousCompact !== nextCompact) {
-        setControlsVisible(!nextCompact);
+        setControlsVisible(mode === 'canvas' ? false : !nextCompact);
         previousCompact = nextCompact;
       }
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [ready]);
+  }, [mode, ready]);
 
   const togglePlayback = () => {
     const viewer = viewerRef.current;
@@ -103,28 +109,29 @@ export default function Model3DViewer({ src, alt, className = '' }: Model3DViewe
   };
 
   if (!ready) {
-    return <div className={`grid place-items-center bg-slate-100 text-sm text-slate-600 ${className}`}>Loading 3D viewer…</div>;
+    return <div className={`grid place-items-center text-sm text-slate-600 ${mode === 'canvas' ? 'bg-transparent' : 'bg-slate-100'} ${className}`}>Loading 3D viewer…</div>;
   }
 
   const controlSize = compact ? 'h-8 w-8' : 'h-9 w-9';
 
-  return <div ref={containerRef} className={`relative min-h-0 overflow-hidden bg-slate-50 ${className}`}>
+  const canvasMode = mode === 'canvas';
+  return <div ref={containerRef} className={`relative min-h-0 overflow-hidden ${canvasMode ? 'bg-transparent' : 'bg-slate-50'} ${className}`}>
     {createElement('model-viewer', {
       ref: (element: ModelViewerElement | null) => { viewerRef.current = element; },
       src,
       alt,
-      style: { width: '100%', height: '100%', background: '#f8fafc' },
-      'camera-controls': true,
-      'auto-rotate': true,
-      'shadow-intensity': '1',
-      'interaction-prompt': 'auto',
-      ar: true,
+      style: { width: '100%', height: '100%', background: 'transparent' },
+      'camera-controls': !canvasMode || selected ? true : undefined,
+      'auto-rotate': canvasMode ? undefined : true,
+      'shadow-intensity': canvasMode ? '0' : '1',
+      'interaction-prompt': canvasMode ? 'none' : 'auto',
+      ar: canvasMode ? undefined : true,
       loading: 'eager',
     })}
-    {animations.length > 0 && !controlsVisible && <button type="button" onClick={() => setControlsVisible(true)} title="Show animation controls" aria-label="Show animation controls" className="absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full border border-white/50 bg-slate-950/80 text-white shadow-lg backdrop-blur">
+    {animations.length > 0 && (!canvasMode || selected) && !controlsVisible && <button type="button" onClick={() => setControlsVisible(true)} title="Show animation controls" aria-label="Show animation controls" className="absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full border border-white/50 bg-slate-950/80 text-white shadow-lg backdrop-blur">
       <SlidersHorizontal size={17} />
     </button>}
-    {animations.length > 0 && controlsVisible && <div className={`absolute bottom-2 flex items-center border border-white/60 bg-slate-950/80 text-white shadow-lg backdrop-blur ${compact ? 'inset-x-1 gap-1 rounded-lg p-1' : 'left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 gap-2 rounded-xl p-2'}`}>
+    {animations.length > 0 && (!canvasMode || selected) && controlsVisible && <div className={`absolute bottom-2 flex items-center border border-white/60 bg-slate-950/80 text-white shadow-lg backdrop-blur ${compact ? 'inset-x-1 gap-1 rounded-lg p-1' : 'left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 gap-2 rounded-xl p-2'}`}>
       <label className="min-w-0 flex-1">
         <span className="sr-only">Animation</span>
         <select value={selectedAnimation} onChange={(event) => setSelectedAnimation(event.target.value)} className={`${compact ? 'h-8 max-w-full px-1 text-xs' : 'h-9 max-w-48 px-2 text-sm'} w-full rounded-lg border border-white/20 bg-slate-900 font-semibold text-white outline-none`}>

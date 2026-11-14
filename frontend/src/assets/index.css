@@ -624,6 +624,16 @@
   grid-row: 1;
   min-width: 0;
   height: 100%;
+  padding-inline: 0;
+  transition: padding 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-editor-viewport .studio-editor-workspace.has-left-panel .studio-editor-canvas {
+  padding-left: min(316px, 40vw);
+}
+
+.studio-editor-viewport .studio-editor-workspace.has-right-panel .studio-editor-canvas {
+  padding-right: min(396px, 44vw);
 }
 
 .studio-editor-viewport .studio-editor-left-panel,
@@ -786,6 +796,7 @@
     grid-row: 1;
     height: 100%;
     min-width: 0;
+    padding-inline: 0 !important;
   }
 
   .studio-editor-left-panel.is-expanded,

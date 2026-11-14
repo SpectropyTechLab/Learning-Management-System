@@ -470,7 +470,13 @@ export const importScreenScripts = async ({ sessionId: rawSessionId, file, mappi
       user,
       upload,
       structuredContent: { scripts: mappings.map((mapping) => mapping.content) },
-      metadata: { extracted: true, parser: 'mammoth-day10-v1', screen_count: mappings.length },
+      metadata: {
+        extracted: true,
+        parser: mappings.some((mapping) => Number(mapping.content?.schema_version) === 2)
+          ? 'structured-screen-script-v2'
+          : 'mammoth-day10-v1',
+        screen_count: mappings.length,
+      },
       afterInsert: async (db, sourceDocument) => {
         const revisions = [];
         for (const mapping of mappings) {

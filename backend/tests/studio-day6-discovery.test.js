@@ -336,4 +336,3 @@ test('blank tags and published branch lookup without release context are rejecte
     (error) => error?.status === 400 && /release_id/.test(error.message),
   );
 });
-

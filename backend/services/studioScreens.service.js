@@ -348,36 +348,121 @@ const loadScreenRow = async (db, screenId, user, { lock = false } = {}) => {
   return screen;
 };
 
-const hydrateScreen = async (db, screen) => {
-  // Hydration used to open four queries at once for every request. With a
-  // session-mode pooler that creates avoidable connection spikes, especially
-  // when the editor autosaves while preview and screen-list requests overlap.
+const groupRowsByScreen = (rows, field) => {
+  const grouped = new Map();
+  for (const row of rows) {
+    const screenId = Number(row[field]);
+    if (!grouped.has(screenId)) grouped.set(screenId, []);
+    grouped.get(screenId).push(row);
+  }
+  return grouped;
+};
+
+const hydrateScreens = async (db, screens) => {
+  if (!screens.length) return [];
+  const screenIds = screens.map((screen) => Number(screen.id));
   const elementsResult = await db.query(
-      `SELECT se.element_key AS id, se.slot_id, se.element_type AS type,
+      `SELECT se.screen_id, se.element_key AS id, se.slot_id, se.element_type AS type,
               se.content_json AS content, se.position_json AS position,
               se.display_order, rm.resource_id, rm.resource_version_id,
               rm.usage_details_json AS usage
        FROM screen_elements se
        LEFT JOIN resource_mappings rm
          ON rm.screen_id = se.screen_id AND rm.element_id = se.element_key
-       WHERE se.screen_id = $1 ORDER BY se.display_order, se.id`,
-      [screen.id],
+       WHERE se.screen_id = ANY($1::int[])
+       ORDER BY se.screen_id, se.display_order, se.id`,
+      [screenIds],
     );
-  const tagsResult = await db.query('SELECT tag FROM screen_tags WHERE screen_id = $1 ORDER BY tag', [screen.id]);
+  const tagsResult = await db.query(
+    'SELECT screen_id, tag FROM screen_tags WHERE screen_id = ANY($1::int[]) ORDER BY screen_id, tag',
+    [screenIds],
+  );
   const branchesResult = await db.query(
-      `SELECT branch_key AS id, destination_screen_id, trigger_kind,
+      `SELECT source_screen_id, branch_key AS id, destination_screen_id, trigger_kind,
               trigger_config_json AS trigger, return_screen_id,
               restore_screen_state, restore_session_state, display_order
-       FROM screen_branches WHERE source_screen_id = $1 ORDER BY display_order, id`,
-      [screen.id],
+       FROM screen_branches WHERE source_screen_id = ANY($1::int[])
+       ORDER BY source_screen_id, display_order, id`,
+      [screenIds],
     );
   const zoomsResult = await db.query(
-      `SELECT element_id, zoom_kind, target_screen_id, target_section_id,
+      `SELECT source_screen_id, element_id, zoom_kind, target_screen_id, target_section_id,
               return_to_zoom, transition_enabled, transition_duration_ms,
               thumbnail_mode, custom_thumbnail_url
-       FROM screen_zoom_links WHERE source_screen_id = $1`,
-      [screen.id],
+       FROM screen_zoom_links WHERE source_screen_id = ANY($1::int[])`,
+      [screenIds],
     );
+  const elementsByScreen = groupRowsByScreen(elementsResult.rows, 'screen_id');
+  const tagsByScreen = groupRowsByScreen(tagsResult.rows, 'screen_id');
+  const branchesByScreen = groupRowsByScreen(branchesResult.rows, 'source_screen_id');
+  const zooms = new Map(zoomsResult.rows.map((zoom) => [`${zoom.source_screen_id}:${zoom.element_id}`, {
+    kind: zoom.zoom_kind,
+    target_screen_id: zoom.target_screen_id === null ? null : Number(zoom.target_screen_id),
+    target_section_id: zoom.target_section_id === null ? null : Number(zoom.target_section_id),
+    return_to_zoom: zoom.return_to_zoom,
+    transition_enabled: zoom.transition_enabled,
+    transition_duration_ms: Number(zoom.transition_duration_ms),
+    thumbnail_mode: zoom.thumbnail_mode,
+    custom_thumbnail_url: zoom.custom_thumbnail_url,
+  }]));
+  return screens.map((screen) => {
+    const screenId = Number(screen.id);
+    return {
+      ...screen,
+      revision_no: Number(screen.revision_no),
+      elements: (elementsByScreen.get(screenId) || []).map((element) => {
+        const zoomKey = `${screenId}:${element.id}`;
+        return {
+          id: element.id,
+          slotId: element.slot_id,
+          type: element.type,
+          content: element.content,
+          position: element.position,
+          ...(zooms.has(zoomKey) ? { zoom: zooms.get(zoomKey) } : {}),
+          ...(element.resource_id
+            ? {
+                resource: {
+                  resource_id: Number(element.resource_id),
+                  resource_version_id: Number(element.resource_version_id),
+                  usage: element.usage,
+                },
+              }
+            : {}),
+        };
+      }),
+      tags: (tagsByScreen.get(screenId) || []).map((row) => row.tag),
+      branches: (branchesByScreen.get(screenId) || []).map(({ source_screen_id: _sourceScreenId, ...branch }) => branch),
+    };
+  });
+};
+
+const hydrateScreen = async (db, screen) => {
+  const elementsResult = await db.query(
+    `SELECT se.element_key AS id, se.slot_id, se.element_type AS type,
+            se.content_json AS content, se.position_json AS position,
+            se.display_order, rm.resource_id, rm.resource_version_id,
+            rm.usage_details_json AS usage
+     FROM screen_elements se
+     LEFT JOIN resource_mappings rm
+       ON rm.screen_id = se.screen_id AND rm.element_id = se.element_key
+     WHERE se.screen_id = $1 ORDER BY se.display_order, se.id`,
+    [screen.id],
+  );
+  const tagsResult = await db.query('SELECT tag FROM screen_tags WHERE screen_id = $1 ORDER BY tag', [screen.id]);
+  const branchesResult = await db.query(
+    `SELECT branch_key AS id, destination_screen_id, trigger_kind,
+            trigger_config_json AS trigger, return_screen_id,
+            restore_screen_state, restore_session_state, display_order
+     FROM screen_branches WHERE source_screen_id = $1 ORDER BY display_order, id`,
+    [screen.id],
+  );
+  const zoomsResult = await db.query(
+    `SELECT element_id, zoom_kind, target_screen_id, target_section_id,
+            return_to_zoom, transition_enabled, transition_duration_ms,
+            thumbnail_mode, custom_thumbnail_url
+     FROM screen_zoom_links WHERE source_screen_id = $1`,
+    [screen.id],
+  );
   const zooms = new Map(zoomsResult.rows.map((zoom) => [zoom.element_id, {
     kind: zoom.zoom_kind,
     target_screen_id: zoom.target_screen_id === null ? null : Number(zoom.target_screen_id),
@@ -425,8 +510,7 @@ export const listSessionScreens = async ({ sessionId: rawSessionId, user }) => {
     'SELECT * FROM screens WHERE session_id = $1 ORDER BY display_order, screen_number, id',
     [session.id],
   );
-  const screens = [];
-  for (const screen of result.rows) screens.push(await hydrateScreen({ query: dbQuery }, screen));
+  const screens = await hydrateScreens({ query: dbQuery }, result.rows);
   return { session_revision_no: Number(session.revision_no), screens };
 };
 

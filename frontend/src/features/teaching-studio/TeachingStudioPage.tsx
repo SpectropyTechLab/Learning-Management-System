@@ -270,6 +270,8 @@ export default function TeachingStudioPage() {
     draft: StudioScreen;
     latest: StudioScreen;
   } | null>(null);
+  const screenListRef = useRef(screenList);
+  const screenRevisionRef = useRef<Map<number, number>>(new Map());
   const selectedScreenRef = useRef<StudioScreen | null>(null);
   const saveInFlightRef = useRef(false);
   const saveDraftRef = useRef<(source?: 'autosave' | 'manual' | 'navigation') => Promise<boolean>>(
@@ -277,8 +279,25 @@ export default function TeachingStudioPage() {
   );
 
   useEffect(() => {
+    screenListRef.current = screenList;
+  }, [screenList]);
+
+  useEffect(() => {
     selectedScreenRef.current = selectedScreen;
   }, [selectedScreen]);
+
+  const rememberScreenRevision = useCallback((screen: Pick<StudioScreen, 'id' | 'revision_no'>) => {
+    const revision = Number(screen.revision_no);
+    if (Number.isInteger(revision) && revision >= 0) {
+      screenRevisionRef.current.set(screen.id, revision);
+    }
+  }, []);
+
+  const latestScreenRevision = useCallback(
+    (screen: Pick<StudioScreen, 'id' | 'revision_no'>) =>
+      Math.max(Number(screen.revision_no) || 0, screenRevisionRef.current.get(screen.id) || 0),
+    [],
+  );
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -329,12 +348,40 @@ export default function TeachingStudioPage() {
     return screenList.screens[0]?.id ?? null;
   }, [requestedScreenId, screenList.screens]);
 
+  const importedTitleByScreenId = useMemo(
+    () => new Map(
+      scripts
+        .map((script) => [script.screen_id, script.content_json?.title?.trim()] as const)
+        .filter((entry): entry is readonly [number, string] => Boolean(entry[1])),
+    ),
+    [scripts],
+  );
+
+  const screenDisplayTitle = (screen: Pick<StudioScreen, 'id' | 'screen_number' | 'title'>) => {
+    const savedTitle = screen.title?.trim() || '';
+    const importedTitle = importedTitleByScreenId.get(screen.id);
+    const normalizedSavedTitle = savedTitle.toLowerCase();
+    const generatedTitles = new Set([
+      `screen ${screen.screen_number}`,
+      `untitled screen ${screen.screen_number}`,
+      'untitled screen',
+    ]);
+
+    return importedTitle && (!savedTitle || generatedTitles.has(normalizedSavedTitle))
+      ? importedTitle
+      : savedTitle || importedTitle || `Screen ${screen.screen_number}`;
+  };
+
   const loadScreens = useCallback(async () => {
     if (!sessionId) return;
     setLoadingScreens(true);
     setError(null);
     try {
-      setScreenList(await listStudioScreens(sessionId));
+      const result = await listStudioScreens(sessionId);
+      screenRevisionRef.current = new Map(
+        result.screens.map((screen) => [screen.id, Number(screen.revision_no)]),
+      );
+      setScreenList(result);
       setScreenRequestVersion((version) => version + 1);
       return true;
     } catch (requestError) {
@@ -423,21 +470,38 @@ export default function TeachingStudioPage() {
       return;
     }
 
+    const applySelectedScreen = (screen: StudioScreen) => {
+      setSelectedScreen(screen);
+      setSelectedElementId(null);
+      setElementPast([]);
+      setElementFuture([]);
+      setDrawingPast([]);
+      setDrawingFuture([]);
+      setHasUnsavedChanges(false);
+      setSaveStatus('idle');
+      setSaveConflict(null);
+    };
+
+    const selectedScreenFromList = screenListRef.current.screens.find(
+      (screen) => screen.id === selectedScreenId,
+    );
+    if (selectedScreenFromList) {
+      applySelectedScreen({
+        ...selectedScreenFromList,
+        revision_no: latestScreenRevision(selectedScreenFromList),
+      });
+      setLoadingScreen(false);
+      return;
+    }
+
     let active = true;
     setSelectedScreen(null);
     setLoadingScreen(true);
     void getStudioScreen(selectedScreenId)
       .then((screen) => {
         if (active) {
-          setSelectedScreen(screen);
-          setSelectedElementId(null);
-          setElementPast([]);
-          setElementFuture([]);
-          setDrawingPast([]);
-          setDrawingFuture([]);
-          setHasUnsavedChanges(false);
-          setSaveStatus('idle');
-          setSaveConflict(null);
+          rememberScreenRevision(screen);
+          applySelectedScreen(screen);
         }
       })
       .catch((requestError) => {
@@ -452,7 +516,7 @@ export default function TeachingStudioPage() {
     return () => {
       active = false;
     };
-  }, [screenRequestVersion, selectedScreenId]);
+  }, [latestScreenRevision, rememberScreenRevision, screenRequestVersion, selectedScreenId]);
 
   const selectScreen = async (screenId: number) => {
     if (hasUnsavedChanges) {
@@ -460,7 +524,7 @@ export default function TeachingStudioPage() {
       if (!saved) return;
     }
     setError(null);
-    setSearchParams({ screen: String(screenId) });
+    setSearchParams({ screen: String(screenId) }, { replace: true });
   };
 
   const editSelectedScreenScript = async () => {
@@ -503,7 +567,7 @@ export default function TeachingStudioPage() {
         bloom: bloom ? [bloom] : [],
       });
       await loadScreens();
-      setSearchParams({ screen: String(created.id) });
+      setSearchParams({ screen: String(created.id) }, { replace: true });
       setCreateScreenOpen(false);
       setNewScreenTitle('Untitled Screen');
       setNewScreenPedagogyId('');
@@ -560,7 +624,7 @@ export default function TeachingStudioPage() {
 
   const leaveEditor = async () => {
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    navigate(-1);
+    navigate('/studio/sessions', { replace: true });
   };
 
   const openPreview = async () => {
@@ -751,6 +815,8 @@ export default function TeachingStudioPage() {
     if (details.status !== 409) return;
     try {
       const latest = await getStudioScreen(draft.id);
+      rememberScreenRevision(latest);
+      selectedScreenRef.current = draft;
       setSelectedScreen(draft);
       setHasUnsavedChanges(true);
       setSaveConflict({ draft, latest });
@@ -795,12 +861,14 @@ export default function TeachingStudioPage() {
     };
     try {
       const saved = await updateStudioScreen(selectedScreen.id, {
-        revision_no: selectedScreen.revision_no,
+        revision_no: latestScreenRevision(selectedScreen),
         title: selectedScreen.title,
         layout_id: row.id,
         elements: remapped.elements,
         tags: selectedScreen.tags,
       });
+      rememberScreenRevision(saved);
+      selectedScreenRef.current = saved;
       setSelectedScreen(saved);
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
@@ -908,7 +976,7 @@ export default function TeachingStudioPage() {
       let sessionRevisionNo = screenList.session_revision_no;
       for (const screen of sourceScreens) {
         const saved = await updateStudioScreen(screen.id, {
-          revision_no: screen.revision_no,
+          revision_no: latestScreenRevision(screen),
           title: screen.title,
           layout_id: screen.layout_id,
           elements: screen.elements,
@@ -918,6 +986,7 @@ export default function TeachingStudioPage() {
             transition,
           },
         });
+        rememberScreenRevision(saved);
         sessionRevisionNo = saved.session_revision_no;
         savedScreens.push(saved);
       }
@@ -1440,6 +1509,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: String(element.content.altText || resource.description || resource.name),
         source: String(element.content.source || resource.name),
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
       },
       resource: {
         resource_id: resource.id,
@@ -1498,26 +1568,27 @@ export default function TeachingStudioPage() {
     setSaveStatus('saving');
     try {
       const saved = await updateStudioScreen(draft.id, {
-        revision_no: draft.revision_no,
+        revision_no: latestScreenRevision(draft),
         title: draft.title,
         layout_id: draft.layout_id,
         elements: draft.elements,
         tags: draft.tags,
         screen_settings: draft.screen_settings_json ?? {},
       });
-      const changedWhileSaving = selectedScreenRef.current !== draft;
-      setSelectedScreen((current) => {
-        if (!current || current.id !== saved.id) return current;
-        return changedWhileSaving ? { ...current, revision_no: saved.revision_no } : saved;
-      });
+      rememberScreenRevision(saved);
+      const currentDraft = selectedScreenRef.current;
+      const changedWhileSaving = currentDraft !== draft;
+      const synchronizedDraft = currentDraft?.id === saved.id
+        ? changedWhileSaving
+          ? { ...currentDraft, revision_no: saved.revision_no }
+          : saved
+        : null;
+      if (synchronizedDraft) selectedScreenRef.current = synchronizedDraft;
+      setSelectedScreen((current) => current?.id === saved.id ? synchronizedDraft ?? current : current);
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
         screens: current.screens.map((screen) =>
-          screen.id === saved.id
-            ? changedWhileSaving
-              ? { ...screen, revision_no: saved.revision_no }
-              : saved
-            : screen,
+          screen.id === saved.id ? synchronizedDraft ?? saved : screen,
         ),
       }));
       if (!changedWhileSaving) {
@@ -1711,7 +1782,7 @@ export default function TeachingStudioPage() {
   const openRenameScreen = async () => {
     if (!selectedScreen || editorReadOnly) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    setRenameTitle(selectedScreen.title);
+    setRenameTitle(screenDisplayTitle(selectedScreen));
     setRenameOpen(true);
   };
 
@@ -1730,12 +1801,14 @@ export default function TeachingStudioPage() {
     setError(null);
     try {
       const saved = await updateStudioScreen(selectedScreen.id, {
-        revision_no: selectedScreen.revision_no,
+        revision_no: latestScreenRevision(selectedScreen),
         title,
         layout_id: selectedScreen.layout_id,
         elements: selectedScreen.elements,
         tags: selectedScreen.tags,
       });
+      rememberScreenRevision(saved);
+      selectedScreenRef.current = saved;
       setSelectedScreen(saved);
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
@@ -1759,12 +1832,14 @@ export default function TeachingStudioPage() {
     try {
       if (screenAction === 'remove-layout') {
         const saved = await updateStudioScreen(selectedScreen.id, {
-          revision_no: selectedScreen.revision_no,
+          revision_no: latestScreenRevision(selectedScreen),
           title: selectedScreen.title,
           layout_id: null,
           elements: selectedScreen.elements,
           tags: selectedScreen.tags,
         });
+        rememberScreenRevision(saved);
+        selectedScreenRef.current = saved;
         setSelectedScreen(saved);
         setScreenList((current) => ({
           session_revision_no: saved.session_revision_no,
@@ -2037,16 +2112,14 @@ export default function TeachingStudioPage() {
                 <b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}
               </span>
               <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                <span>Session</span>
                 <select aria-label="Select Session" value={sessionId} onChange={(event) => navigate(`/studio/editor/${event.target.value}`)} className="studio-context-select h-9 max-w-28 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none">
                   {sessionOptions.map((session) => <option key={session.id} value={session.id}>Session {session.session_number}: {session.title}</option>)}
                 </select>
                 <ChevronDown size={15} className="pointer-events-none absolute right-2" aria-hidden="true" />
               </label>
               <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                <span>Screen</span>
                 <select aria-label="Select Screen" value={selectedScreenId || ''} onChange={(event) => void selectScreen(Number(event.target.value))} className="studio-context-select h-9 max-w-24 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none">
-                  {screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screen.title}</option>)}
+                  {screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screenDisplayTitle(screen)}</option>)}
                 </select>
                 <ChevronDown size={15} className="pointer-events-none absolute right-2" aria-hidden="true" />
               </label>
@@ -2192,7 +2265,7 @@ export default function TeachingStudioPage() {
           </div>
         )}
         <div
-          className="studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden"
+          className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel' : ''}`}
         >
           <aside className={`studio-editor-left-panel ${leftPanelOpen ? 'is-expanded' : ''} flex min-h-0 overflow-visible`}>
             <nav aria-label="Screen actions" className="flex w-11 shrink-0 flex-col items-center justify-center gap-1 border-r border-slate-200 p-1">
@@ -2240,7 +2313,7 @@ export default function TeachingStudioPage() {
                             <button type="button" onClick={() => void selectScreen(screenId)} className="min-w-0 flex-1 text-left" aria-current={selected ? 'page' : undefined}>
                               <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Screen {index + 1}</span>
                               <span className="grid aspect-video w-full place-items-center overflow-hidden rounded border border-slate-200 bg-gradient-to-br from-white to-slate-100 px-2 text-center text-xs font-semibold text-slate-700 shadow-sm">
-                                <span><span className="line-clamp-2">{screen.title || `Untitled Screen ${index + 1}`}</span><span className="mt-1 block text-[9px] font-normal text-slate-500">{screen.elements.length} elements</span></span>
+                                <span><span className="line-clamp-2">{screenDisplayTitle(screen)}</span><span className="mt-1 block text-[9px] font-normal text-slate-500">{screen.elements.length} elements</span></span>
                               </span>
                             </button>
                             {!editorReadOnly && <button type="button" title="Drag Screen to reorder" aria-label={`Drag Screen ${index + 1} to reorder`} onPointerDown={(event) => { event.preventDefault(); setDraggingScreenId(screenId); reorderIdsRef.current = reorderIds; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex w-8 touch-none items-center justify-center rounded text-slate-500 hover:bg-slate-100"><GripVertical size={18} /></button>}
@@ -2280,6 +2353,7 @@ export default function TeachingStudioPage() {
             <div className="min-h-0 flex-1">
               <BlankScreenCanvas
                 screen={selectedScreen}
+                screenTitle={selectedScreen ? screenDisplayTitle(selectedScreen) : undefined}
                 loading={loadingScreen}
                 layout={selectedLayout}
                 showGuides={showCanvasGuides}
@@ -2890,6 +2964,8 @@ export default function TeachingStudioPage() {
               <button
                 type="button"
                 onClick={() => {
+                  rememberScreenRevision(saveConflict.latest);
+                  selectedScreenRef.current = saveConflict.latest;
                   setSelectedScreen(saveConflict.latest);
                   setScreenList((current) => ({
                     ...current,
@@ -2912,10 +2988,19 @@ export default function TeachingStudioPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedScreen({
+                  const retryDraft = {
                     ...saveConflict.draft,
                     revision_no: saveConflict.latest.revision_no,
-                  });
+                  };
+                  rememberScreenRevision(saveConflict.latest);
+                  selectedScreenRef.current = retryDraft;
+                  setSelectedScreen(retryDraft);
+                  setScreenList((current) => ({
+                    ...current,
+                    screens: current.screens.map((screen) =>
+                      screen.id === retryDraft.id ? retryDraft : screen,
+                    ),
+                  }));
                   setHasUnsavedChanges(true);
                   setSaveConflict(null);
                   toast.success('Your draft is ready to retry against the latest saved Screen.');

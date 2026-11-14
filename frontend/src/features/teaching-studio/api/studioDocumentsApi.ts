@@ -24,10 +24,24 @@ export const SCREEN_SCRIPT_FIELDS = [
 ] as const;
 
 export type SessionPlanRow = Record<(typeof SESSION_PLAN_FIELDS)[number][0], string>;
-export type ScreenScriptContent = Record<(typeof SCREEN_SCRIPT_FIELDS)[number][0], string> & {
+export type ScreenScriptBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; ordered: boolean; items: string[] }
+  | { type: 'image'; src: string; alt: string }
+  | { type: 'table'; columns: string[]; rows: string[][] };
+
+export interface ScreenScriptSection {
+  key: string;
+  label: string;
+  blocks: ScreenScriptBlock[];
+}
+
+export type ScreenScriptContent = Partial<Record<(typeof SCREEN_SCRIPT_FIELDS)[number][0], string>> & {
+  schema_version?: 1 | 2;
   screen_key?: string;
   title?: string;
   time_pedagogy?: string;
+  sections?: ScreenScriptSection[];
 };
 
 interface Envelope<T> {
@@ -71,6 +85,7 @@ export interface ScreenScriptPreviewItem extends ScreenScriptContent {
   suggested_screen_id: number | null;
   suggested_screen_title: string | null;
   mapping_status: 'matched' | 'unmatched';
+  validation?: { status: 'valid' | 'error'; errors: string[] };
 }
 
 export interface ScreenScriptPreview {
@@ -155,7 +170,7 @@ export const studioDocumentsApi = {
     scripts: ScreenScriptPreviewItem[],
   ) => {
     const mappings = scripts
-      .filter((script) => script.suggested_screen_id)
+      .filter((script) => script.suggested_screen_id && script.validation?.status !== 'error')
       .map((script) => ({
         screen_id: script.suggested_screen_id,
         content: Object.fromEntries([
@@ -163,6 +178,8 @@ export const studioDocumentsApi = {
           ['screen_key', script.screen_key],
           ['title', script.title],
           ['time_pedagogy', script.time_pedagogy],
+          ['schema_version', script.schema_version || (script.sections?.length ? 2 : 1)],
+          ['sections', script.sections || []],
         ]),
       }));
     const form = fileForm(file);

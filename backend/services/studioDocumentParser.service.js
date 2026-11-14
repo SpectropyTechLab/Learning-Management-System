@@ -1,4 +1,5 @@
 import mammoth from 'mammoth';
+import { load } from 'cheerio';
 import { AppError } from '../utils/errors.js';
 
 export const SESSION_PLAN_FIELDS = [
@@ -45,6 +46,28 @@ const SCREEN_SCRIPT_HEADINGS = [
   'Student evidence and return route',
   'PYQ / examination extension',
   'Teacher presenter notes / production checks',
+];
+
+export const SCREEN_SCRIPT_V2_SECTION_HEADINGS = [
+  'Layout Skeleton (in detail)',
+  'Title',
+  'Overall Screen Content',
+  'Asset Generation Prompts',
+  'Asset Output Format',
+  'Animation Timeline',
+  'Teacher Presenter Notes',
+  'Teacher Narration — Dialogue & Sections',
+  'Student Reflection',
+  'Corresponding Branches',
+  'Branch Roots — Misconception, Target Exam & Pedagogy',
+];
+
+export const SCREEN_SCRIPT_V2_REQUIRED_SECTIONS = [
+  'Layout Skeleton (in detail)',
+  'Title',
+  'Overall Screen Content',
+  'Animation Timeline',
+  'Teacher Narration — Dialogue & Sections',
 ];
 
 const assertDocx = (file) => {
@@ -113,7 +136,130 @@ const contentBetween = (block, heading, nextHeading) => {
   return block.slice(contentStart, end < 0 ? block.length : end).trim();
 };
 
+const normalizeHeading = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const tableText = (section) => (section?.blocks || []).map((block) => {
+  if (block.type === 'table') return [block.columns, ...block.rows].map((row) => row.join(' | ')).join('\n');
+  if (block.type === 'list') return block.items.map((item) => `• ${item}`).join('\n');
+  return block.text || '';
+}).filter(Boolean).join('\n');
+
+const parseV2ScreenScripts = async (file) => {
+  const result = await mammoth.convertToHtml(
+    { buffer: file.buffer },
+    {
+      convertImage: mammoth.images.imgElement(async (image) => ({
+        src: `data:${image.contentType};base64,${await image.read('base64')}`,
+      })),
+    },
+  );
+  const $ = load(result.value);
+  const scripts = [];
+  let current = null;
+  let section = null;
+  let stopped = false;
+  $('body').children().each((_, node) => {
+    if (stopped) return;
+    const tag = String(node.tagName || '').toLowerCase();
+    const text = normalizeHeading($(node).text());
+    if (/^h1$/.test(tag) && /^4\.\s*Exit assessment/i.test(text)) {
+      stopped = true;
+      return;
+    }
+    const screenMatch = tag === 'h2' ? text.match(/^(S\d{1,2}-\d{1,2})\s*\|\s*(.+)$/i) : null;
+    if (screenMatch) {
+      current = {
+        schema_version: 2,
+        screen_key: screenMatch[1].toUpperCase(),
+        screen_number: Number(screenMatch[1].split('-').at(-1)),
+        title: screenMatch[2].trim(),
+        time_pedagogy: '',
+        sections: [],
+      };
+      scripts.push(current);
+      section = null;
+      return;
+    }
+    if (!current) return;
+    if (tag === 'h3') {
+      section = { key: normalizeHeading(text).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''), label: text, blocks: [] };
+      current.sections.push(section);
+      return;
+    }
+    if (!section) {
+      if (text && !current.time_pedagogy) current.time_pedagogy = text;
+      return;
+    }
+    if (tag === 'table') {
+      const matrix = [];
+      $(node).find('tr').each((__, row) => {
+        matrix.push($(row).find('th,td').map((___, cell) => normalizeHeading($(cell).text())).get());
+      });
+      if (matrix.length) section.blocks.push({ type: 'table', columns: matrix[0], rows: matrix.slice(1) });
+      return;
+    }
+    if (tag === 'ul' || tag === 'ol') {
+      const items = $(node).children('li').map((__, item) => normalizeHeading($(item).text())).get().filter(Boolean);
+      if (items.length) section.blocks.push({ type: 'list', ordered: tag === 'ol', items });
+      return;
+    }
+    const images = $(node).find('img').map((__, image) => ({
+      type: 'image',
+      src: $(image).attr('src') || '',
+      alt: $(image).attr('alt') || 'Screen layout reference',
+    })).get().filter((image) => image.src);
+    section.blocks.push(...images);
+    if (text) section.blocks.push({ type: 'paragraph', text });
+  });
+  if (!scripts.length) return null;
+  scripts.forEach((script) => {
+    const byLabel = new Map(script.sections.map((item) => [normalizeHeading(item.label).toLowerCase(), item]));
+    const sectionText = (label) => tableText(byLabel.get(label.toLowerCase()));
+    script.visual_animation_interaction_assets = [sectionText('Overall Screen Content'), sectionText('Asset Generation Prompts'), sectionText('Asset Output Format'), sectionText('Animation Timeline')].filter(Boolean).join('\n\n');
+    script.teacher_narration = sectionText('Teacher Narration — Dialogue & Sections');
+    script.adaptive_branch_scripts = [sectionText('Corresponding Branches'), sectionText('Branch Roots — Misconception, Target Exam & Pedagogy')].filter(Boolean).join('\n\n');
+    script.student_evidence_return_route = sectionText('Student Reflection');
+    script.pyq_examination_extension = sectionText('Branch Roots — Misconception, Target Exam & Pedagogy');
+    script.teacher_presenter_notes_production_checks = [sectionText('Teacher Presenter Notes'), sectionText('Layout Skeleton (in detail)')].filter(Boolean).join('\n\n');
+  });
+  return {
+    scripts,
+    messages: result.messages
+      .map((message) => String(message.message || message))
+      .filter((message) => !/Unrecognised paragraph style:\s*'Title'/i.test(message)),
+  };
+};
+
 export const parseScreenScriptDocx = async (file) => {
+  assertDocx(file);
+  try {
+    const modern = await parseV2ScreenScripts(file);
+    if (modern) {
+      const duplicateKeys = modern.scripts.map((script) => script.screen_key)
+        .filter((key, index, all) => all.indexOf(key) !== index);
+      const missing = modern.scripts.flatMap((script) => {
+        const labels = new Set(script.sections.map((section) => normalizeHeading(section.label).toLowerCase()));
+        const errors = SCREEN_SCRIPT_V2_REQUIRED_SECTIONS
+          .filter((heading) => !labels.has(heading.toLowerCase()))
+          .map((heading) => `${script.screen_key}: missing required section “${heading}”`);
+        script.validation = { status: errors.length ? 'error' : 'valid', errors };
+        return errors;
+      });
+      return {
+        kind: 'screen_script',
+        schema_version: 2,
+        scripts: modern.scripts,
+        warnings: [
+          ...modern.messages,
+          ...([...new Set(duplicateKeys)].map((key) => `Duplicate Screen identifier found: ${key}`)),
+          ...missing,
+        ],
+      };
+    }
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(`Unable to read the structured Screen Script DOCX: ${error.message}`, 422);
+  }
   const extracted = await rawText(file);
   const marker = extracted.text.search(/3\.\s*Screen-by-screen teacher scripts/i);
   const candidate = marker >= 0 ? extracted.text.slice(marker) : extracted.text;
@@ -140,6 +286,9 @@ export const parseScreenScriptDocx = async (file) => {
       title: current[2].trim(),
       time_pedagogy: timePedagogy,
       ...content,
+      // Legacy six-heading documents remain importable. Blank legacy fields are
+      // surfaced as review warnings below instead of becoming hard failures.
+      validation: { status: 'valid', errors: [] },
     });
   }
   if (scripts.length === 0) {
@@ -149,6 +298,7 @@ export const parseScreenScriptDocx = async (file) => {
     .filter((key, index, all) => all.indexOf(key) !== index);
   return {
     kind: 'screen_script',
+    schema_version: 1,
     scripts,
     warnings: [
       ...extracted.messages,
@@ -158,4 +308,3 @@ export const parseScreenScriptDocx = async (file) => {
     ],
   };
 };
-

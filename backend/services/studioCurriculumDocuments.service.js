@@ -140,4 +140,3 @@ export const previewCurriculumDocument = async ({ chapterId: rawChapterId, user 
     throw new AppError(`Unable to preview the Curriculum DOCX: ${error.message}`, 422);
   }
 };
-

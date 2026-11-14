@@ -107,7 +107,7 @@ const createInlineMathExtension = (
         const container = document.createElement("span");
         try {
           katex.render(latex, container, { throwOnError: false });
-        } catch {
+        } catch (error) {
           container.textContent = latex;
         }
         dom.appendChild(container);

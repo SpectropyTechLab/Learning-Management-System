@@ -129,6 +129,40 @@ export interface StudioResourceUploadInput {
   entryPoint?: string;
 }
 
+export type StudioAssetCatalogKind = 'all' | 'icon' | 'illustration' | 'animation' | 'model_3d';
+export type StudioAssetCatalogComposition = 'all' | 'component' | 'block';
+
+export interface StudioAssetCatalogItem {
+  id: string;
+  provider: 'bioicons' | 'scidraw' | 'kitbitz' | 'fluent-emoji' | 'noto-emoji' | 'poly-haven' | 'open-peeps' | 'open-doodles';
+  provider_label: string;
+  provider_asset_id: string;
+  title: string;
+  asset_kind: Exclude<StudioAssetCatalogKind, 'all'>;
+  format: string;
+  resource_type: StudioResourceType;
+  preview_url: string;
+  source_url: string;
+  collection: string;
+  tags: string[];
+  license: { name: string; url: string };
+  attribution: string;
+  attribution_required?: boolean;
+  composition: Exclude<StudioAssetCatalogComposition, 'all'>;
+  subject: string;
+  importable: boolean;
+}
+
+export interface StudioAssetCatalogSearchResult {
+  query: string;
+  kind: StudioAssetCatalogKind;
+  composition: StudioAssetCatalogComposition;
+  results: StudioAssetCatalogItem[];
+  counts: Partial<Record<Exclude<StudioAssetCatalogKind, 'all'>, number>>;
+  unavailable_providers: Array<{ id: string; reason: string }>;
+  provider_status: Array<{ id: string; label: string; enabled: boolean; kinds: string[] }>;
+}
+
 const dataOf = <T>(payload: { data: T } | T) => (
   payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload
 ) as T;
@@ -146,6 +180,29 @@ export const listStudioResources = async (filters: StudioResourceFilters = {}) =
   }
   return resources as StudioResourceSummary[];
 };
+
+export const searchStudioAssetCatalog = async (filters: {
+  search: string;
+  kind?: StudioAssetCatalogKind;
+  composition?: StudioAssetCatalogComposition;
+  provider?: string;
+  limit?: number;
+}) => dataOf<StudioAssetCatalogSearchResult>((await api.get('/studio/asset-catalog/search', {
+  params: {
+    q: filters.search.trim(),
+    kind: filters.kind || 'all',
+    composition: filters.composition || 'component',
+    provider: filters.provider || 'all',
+    limit: filters.limit || 72,
+  },
+})).data);
+
+export const importStudioAssetCatalogItem = async (asset: StudioAssetCatalogItem) =>
+  dataOf<StudioResourceSummary>((await api.post('/studio/asset-catalog/import', {
+    provider: asset.provider,
+    provider_asset_id: asset.provider_asset_id,
+    title: asset.title,
+  })).data);
 
 export const getStudioResource = async (resourceId: number) =>
   dataOf<StudioResourceDetails>((await api.get(`/studio/resources/${resourceId}`)).data);

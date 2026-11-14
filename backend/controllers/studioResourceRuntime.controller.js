@@ -52,6 +52,42 @@ const frameAncestors = () => {
   return ["'self'", ...new Set([...configured, ...development])].join(' ');
 };
 
+// Runtime packages intentionally keep an opaque sandbox origin so uploaded HTML
+// cannot read LMS cookies or authentication tokens. Some educational simulations
+// still probe localStorage during startup, which throws in an opaque origin. This
+// small in-memory Storage implementation preserves that common browser contract
+// without weakening the iframe with allow-same-origin.
+const runtimeStorageBootstrap = `<script data-spectropy-runtime-storage>(function(){
+  function memoryStorage(){
+    var values=Object.create(null);
+    return {
+      get length(){return Object.keys(values).length},
+      key:function(index){var keys=Object.keys(values);return index>=0&&index<keys.length?keys[index]:null},
+      getItem:function(key){key=String(key);return Object.prototype.hasOwnProperty.call(values,key)?values[key]:null},
+      setItem:function(key,value){values[String(key)]=String(value)},
+      removeItem:function(key){delete values[String(key)]},
+      clear:function(){values=Object.create(null)}
+    };
+  }
+  ['localStorage','sessionStorage'].forEach(function(name){
+    try{
+      var nativeStorage=window[name],probe='__spectropy_storage_probe__';
+      nativeStorage.setItem(probe,'1');nativeStorage.removeItem(probe);return;
+    }catch(error){}
+    try{Object.defineProperty(window,name,{configurable:true,enumerable:true,value:memoryStorage()})}catch(error){}
+  });
+})();</script>`;
+
+const prependRuntimeBootstrap = (html) => {
+  if (/<head(?:\s[^>]*)?>/i.test(html)) {
+    return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${runtimeStorageBootstrap}`);
+  }
+  if (/<html(?:\s[^>]*)?>/i.test(html)) {
+    return html.replace(/<html(?:\s[^>]*)?>/i, (root) => `${root}<head>${runtimeStorageBootstrap}</head>`);
+  }
+  return `${runtimeStorageBootstrap}${html}`;
+};
+
 export const serveRuntimeAsset = async (req, res) => {
   // A sandboxed iframe has an opaque origin. Apply these headers before token
   // validation so error responses are visible instead of being replaced by
@@ -100,15 +136,16 @@ export const serveRuntimeAsset = async (req, res) => {
         },80);
       });
       window.addEventListener('spectropy:complete',function(){send('STUDIO_RUNTIME_COMPLETE')});
-      send('STUDIO_RUNTIME_READY',{capabilities:['clicker-forwarding','runtime-command']});
+      send('STUDIO_RUNTIME_READY',{capabilities:['clicker-forwarding','runtime-command','sandbox-storage-fallback']});
     })();</script>`;
     const html = /^text\/html\b/i.test(asset.mimeType);
     const htmlText = html ? asset.buffer.toString('utf8') : '';
-    const bridgedHtml = !html ? '' : /<\/body>/i.test(htmlText)
-      ? htmlText.replace(/<\/body>/i, `${bridge}</body>`)
-      : /<\/html>/i.test(htmlText)
-        ? htmlText.replace(/<\/html>/i, `${bridge}</html>`)
-        : `${htmlText}${bridge}`;
+    const bootstrappedHtml = html ? prependRuntimeBootstrap(htmlText) : '';
+    const bridgedHtml = !html ? '' : /<\/body>/i.test(bootstrappedHtml)
+      ? bootstrappedHtml.replace(/<\/body>/i, `${bridge}</body>`)
+      : /<\/html>/i.test(bootstrappedHtml)
+        ? bootstrappedHtml.replace(/<\/html>/i, `${bridge}</html>`)
+        : `${bootstrappedHtml}${bridge}`;
     const responseBuffer = html ? Buffer.from(bridgedHtml) : asset.buffer;
     res.setHeader('Content-Type', asset.mimeType);
     res.setHeader('Content-Length', String(responseBuffer.length));

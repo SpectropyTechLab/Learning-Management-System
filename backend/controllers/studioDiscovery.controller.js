@@ -37,4 +37,3 @@ export const discoverPublishedContent = respond((req) => discovery.discoverPubli
   cursor: req.query.cursor,
   user: req.user,
 }));
-

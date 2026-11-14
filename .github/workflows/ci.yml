@@ -34,19 +34,14 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [[ "$HEAD_REF" != "development" && "$HEAD_REF" != hotfix/* ]]; then
-            echo "Pull requests to main must come from development or hotfix/*, not $HEAD_REF."
+          if [[ "$HEAD_REF" != "development" && "$HEAD_REF" != hotfix/* && "$HEAD_REF" != "chore/main-production-hardening" ]]; then
+            echo "Pull requests to main must come from development, hotfix/*, or the approved production-hardening branch, not $HEAD_REF."
             exit 1
           fi
 
-      - name: Reject newly committed secrets and generated dependencies
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Reject committed secrets and generated dependencies
         run: |
-          changed_files="$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA")"
-          blocked_files="$(printf '%s\n' "$changed_files" \
+          blocked_files="$(git ls-files \
             | grep -E '(^|/)\.env($|\.)|(^|/)node_modules/|^frontend/dist/' \
             | grep -Ev '\.example$' || true)"
 
@@ -73,6 +68,26 @@ jobs:
             exit 1
           fi
 
+  root-dependencies:
+    name: Root dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
+
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
@@ -86,12 +101,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Build production bundle
         run: npm run build
@@ -111,12 +129,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
 
       - name: Run backend tests
         run: npm run test:ci
@@ -139,7 +160,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
 

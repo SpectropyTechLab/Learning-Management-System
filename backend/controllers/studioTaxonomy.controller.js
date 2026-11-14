@@ -12,4 +12,3 @@ export const getTopicTerms = respond((req) => taxonomy.getTopicTerms({ topicId: 
 export const setTopicTerms = respond((req) => taxonomy.setTopicTerms({ topicId: req.params.topicId, body: req.body, user: req.user }));
 export const getScreenTerms = respond((req) => taxonomy.getScreenTerms({ screenId: req.params.screenId, user: req.user }));
 export const setScreenTerms = respond((req) => taxonomy.setScreenTerms({ screenId: req.params.screenId, body: req.body, user: req.user }));
-

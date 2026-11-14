@@ -137,4 +137,3 @@ try {
 } finally {
   await db.end();
 }
-

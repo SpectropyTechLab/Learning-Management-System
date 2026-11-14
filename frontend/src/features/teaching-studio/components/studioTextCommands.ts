@@ -3,6 +3,8 @@ export type StudioTextCommand =
   | { type: 'number'; style: string; toggle?: boolean }
   | { type: 'indent' }
   | { type: 'outdent' }
+  | { type: 'format'; command: 'bold' | 'italic' | 'underline' }
+  | { type: 'style'; property: 'fontSize' | 'fontFamily' | 'color'; value: string }
   | { type: 'insert-equation'; latex: string; offset: number };
 
 export const STUDIO_TEXT_COMMAND_EVENT = 'studio:text-command';

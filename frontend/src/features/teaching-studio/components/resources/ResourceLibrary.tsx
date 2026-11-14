@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Grid2X2, List, MoreVertical, Pencil, Play, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Eye, Grid2X2, Layers3, List, MoreVertical, Pencil, Play, RefreshCw, Search, Sparkles, Trash2, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
 import { deleteStudioResource, getStudioResource, getStudioResourcePreview, listStudioResources, renameStudioResource, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
 import StudioResourcePlayer from './StudioResourcePlayer';
+import AssetCatalogPanel from './AssetCatalogPanel';
 import { formatResourceTypeLabel, getResourceTypeStyle } from './resourcePresentation';
 
 type ResourceView = 'grid' | 'list';
 type ResourceSort = 'recently_updated' | 'name_asc' | 'name_desc' | 'newest' | 'type';
+type ResourceLibraryTab = 'mine' | 'catalog';
 interface ResourceLibraryProps {
   mode?: 'manage' | 'picker';
   onPick?: (resource: StudioResourceSummary, version: StudioResourceVersion) => void;
@@ -111,6 +113,7 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   );
   const [sort, setSort] = useState<ResourceSort>('recently_updated');
   const [view, setView] = useState<ResourceView>('grid');
+  const [libraryTab, setLibraryTab] = useState<ResourceLibraryTab>('mine');
   const [resources, setResources] = useState<StudioResourceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -286,6 +289,11 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
 
   return (
     <section className="border-b border-gray-200 bg-white">
+      <div className="flex items-center gap-2 border-b border-gray-200 px-4 pt-3 sm:px-6">
+        <button type="button" onClick={() => setLibraryTab('mine')} className={`inline-flex items-center gap-2 rounded-t-lg border-b-2 px-3 py-2 text-sm font-bold transition ${libraryTab === 'mine' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Layers3 size={17} />My Resources</button>
+        <button type="button" onClick={() => setLibraryTab('catalog')} className={`inline-flex items-center gap-2 rounded-t-lg border-b-2 px-3 py-2 text-sm font-bold transition ${libraryTab === 'catalog' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Sparkles size={17} />Discover Assets</button>
+      </div>
+      {libraryTab === 'mine' ? <>
       <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div className={`grid gap-3 ${mode === 'manage' ? 'md:grid-cols-[minmax(0,1fr)_240px] md:items-center' : 'grid-cols-1'}`}>
           <label className="relative block min-w-0">
@@ -427,6 +435,11 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
           </div>
         )}
       </div>
+      </> : <AssetCatalogPanel mode={mode} onImported={(resource) => {
+        setResources((current) => [resource, ...current.filter((item) => item.id !== resource.id)]);
+        if (mode === 'picker' && resource.latest_version) onPick?.(resource, resource.latest_version);
+        else setLibraryTab('mine');
+      }} />}
 
       {mode === 'manage' && pickerResource ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Choose Resource version">

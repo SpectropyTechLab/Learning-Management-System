@@ -61,4 +61,3 @@ export default function StudioContextPicker({ includeSession = true, initialSele
 
   return <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{fields.map(([label, key, listKey, enabled]) => <label key={key} className="text-sm font-medium text-slate-700">{label}<select value={selection[key] ?? ''} disabled={!enabled || loading[listKey]} onChange={(event) => change(key, event.target.value ? Number(event.target.value) : null)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-900 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"><option value="">{loading[listKey] ? 'Loading…' : `Select ${label}`}</option>{lists[listKey].map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}</select>{errors[listKey] && <span className="mt-1 block text-xs text-red-700">{errors[listKey]}</span>}</label>)}</div>;
 }
-
