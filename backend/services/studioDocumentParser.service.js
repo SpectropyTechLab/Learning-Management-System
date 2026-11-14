@@ -138,6 +138,20 @@ const contentBetween = (block, heading, nextHeading) => {
 
 const normalizeHeading = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
+const structuredText = ($, node) => {
+  const clone = $(node).clone();
+  clone.find('sup').each((_, element) => {
+    const value = normalizeHeading($(element).text());
+    $(element).replaceWith(value ? `^{${value}}` : '');
+  });
+  clone.find('sub').each((_, element) => {
+    const value = normalizeHeading($(element).text());
+    $(element).replaceWith(value ? `_{${value}}` : '');
+  });
+  clone.find('br').replaceWith('\n');
+  return String(clone.text() || '').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
+};
+
 const tableText = (section) => (section?.blocks || []).map((block) => {
   if (block.type === 'table') return [block.columns, ...block.rows].map((row) => row.join(' | ')).join('\n');
   if (block.type === 'list') return block.items.map((item) => `• ${item}`).join('\n');
@@ -161,7 +175,7 @@ const parseV2ScreenScripts = async (file) => {
   $('body').children().each((_, node) => {
     if (stopped) return;
     const tag = String(node.tagName || '').toLowerCase();
-    const text = normalizeHeading($(node).text());
+    const text = normalizeHeading(structuredText($, node));
     if (/^h1$/.test(tag) && /^4\.\s*Exit assessment/i.test(text)) {
       stopped = true;
       return;
@@ -193,13 +207,13 @@ const parseV2ScreenScripts = async (file) => {
     if (tag === 'table') {
       const matrix = [];
       $(node).find('tr').each((__, row) => {
-        matrix.push($(row).find('th,td').map((___, cell) => normalizeHeading($(cell).text())).get());
+        matrix.push($(row).find('th,td').map((___, cell) => structuredText($, cell)).get());
       });
       if (matrix.length) section.blocks.push({ type: 'table', columns: matrix[0], rows: matrix.slice(1) });
       return;
     }
     if (tag === 'ul' || tag === 'ol') {
-      const items = $(node).children('li').map((__, item) => normalizeHeading($(item).text())).get().filter(Boolean);
+      const items = $(node).children('li').map((__, item) => structuredText($, item)).get().filter(Boolean);
       if (items.length) section.blocks.push({ type: 'list', ordered: tag === 'ol', items });
       return;
     }

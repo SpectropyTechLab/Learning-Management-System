@@ -14,7 +14,9 @@ import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
 import CurriculumDocumentViewer from './components/CurriculumDocumentViewer';
 import Model3DViewer from './components/resources/Model3DViewer';
+import { model3DSettingsFrom } from './components/resources/model3DSettings';
 import { ExecutableResourceFrame, ExternalLinkFrame } from './components/resources/StudioResourceFrames';
+import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 import { studioAnimationStyle } from './components/studioAnimationRuntime';
 import EmbeddedObjectViewer from './components/resources/EmbeddedObjectViewer';
 import {
@@ -100,7 +102,7 @@ const freeformLayoutFor = (screen: PublishedScreen): Layout => ({
   }),
 });
 
-function PublishedResource({ releaseId, mapping, previewMode = false }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean }) {
+function PublishedResource({ releaseId, mapping, previewMode = false, elementContent }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean; elementContent?: Record<string, unknown> }) {
   const [source, setSource] = useState(mapping.external_url || '');
   const [error, setError] = useState('');
   const [objectPreview, setObjectPreview] = useState<StudioObjectPreviewDescriptor | null>(null);
@@ -120,7 +122,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false }: { releas
           ? launchStudioResourceVersion(mapping.resource_version_id)
           : launchPublishedResource(releaseId, mapping.resource_version_id)).then((result) => {
           if (!result.launchable || !result.launch_url) throw new Error(result.message || 'Resource cannot be launched.');
-          return result.launch_url;
+          return resolveAssetUrl(result.launch_url) || result.launch_url;
         })
       : (previewMode
           ? getStudioResourcePreview(mapping.resource_version_id)
@@ -142,7 +144,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false }: { releas
   if (mapping.resource_type === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} className="h-full w-full" />;
   if (mapping.resource_type === 'image') return <img src={source} alt={mapping.name} className="h-full w-full object-contain" />;
   if (mapping.resource_type === 'video' || mapping.mime_type?.startsWith('video/')) return <video src={source} controls className="h-full w-full" />;
-  if (mapping.resource_type === 'model_3d') return <Model3DViewer src={source} alt={mapping.name} />;
+  if (mapping.resource_type === 'model_3d') return <Model3DViewer src={source} alt={mapping.name} className="h-full w-full" mode="runtime" settings={model3DSettingsFrom(elementContent)} />;
   if (mapping.resource_type === 'presentation')
     return (
       <div className="grid h-full place-items-center bg-gradient-to-br from-orange-50 to-amber-100 p-4 text-center">
@@ -210,7 +212,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
     }
     const text = textFrom(element.content_json || {});
     if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} elementId={element.element_key} text={text} richTextHtml={typeof element.content_json?.richTextHtml === 'string' ? element.content_json.richTextHtml : undefined} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} lineHeight={Number(element.content_json?.lineHeight) || undefined} paragraphSpacingBefore={Number(element.content_json?.paragraphSpacingBefore) || undefined} paragraphSpacingAfter={Number(element.content_json?.paragraphSpacingAfter) || undefined} />]];
-    return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} />]] : [];
+    return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} elementContent={element.content_json} />]] : [];
   }));
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];

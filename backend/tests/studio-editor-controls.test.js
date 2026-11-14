@@ -114,7 +114,7 @@ test('Editor fullscreen keeps the live autosaving workspace and floating control
   assert.match(shell, /header=\{hideHeader \? undefined/);
 });
 
-test('Editor keeps floating chrome but reserves visible canvas space for opened inspectors', () => {
+test('Editor reserves canvas space for opened inspectors', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const css = readFrontendAsset('index.css');
@@ -126,6 +126,8 @@ test('Editor keeps floating chrome but reserves visible canvas space for opened 
   assert.match(css, /position: absolute/);
   assert.match(css, /\.studio-editor-workspace\.has-left-panel \.studio-editor-canvas/);
   assert.match(css, /\.studio-editor-workspace\.has-right-panel \.studio-editor-canvas/);
+  assert.match(css, /\.studio-editor-workspace\.has-left-panel \.studio-editor-canvas \{\s*padding-left: min\(308px, 40vw\);/);
+  assert.match(css, /\.studio-editor-workspace\.has-right-panel \.studio-editor-canvas \{\s*padding-right: min\(388px, 44vw\);/);
   assert.match(css, /\.studio-editor-slide-frame/);
   assert.match(canvas, /studio-editor-canvas-stage/);
   assert.match(css, /\.studio-editor-left-panel > nav > button/);
@@ -133,6 +135,36 @@ test('Editor keeps floating chrome but reserves visible canvas space for opened 
   assert.match(canvas, /studio-editor-slide-frame absolute inset-3/);
   assert.match(css, /\.studio-editor-viewport \.studio-context-bar \{\s*position: relative/);
   assert.doesNotMatch(css, /\.studio-editor-viewport \.studio-context-bar \{[^}]*position: absolute/s);
+});
+
+test('Inspector icon rails shrink while their panel is open', () => {
+  const css = readFrontendAsset('index.css');
+  assert.match(css, /\.studio-editor-left-panel\.is-expanded > nav/);
+  assert.match(css, /\.studio-editor-tools-panel\.is-expanded > nav/);
+  assert.match(css, /width: 2rem;\s*height: 2rem;\s*min-height: 2rem;/);
+  assert.doesNotMatch(css, /\.studio-editor-left-panel > nav \{\s*order:/);
+});
+
+test('Inspector icon hover keeps the clickable hitbox stationary', () => {
+  const css = readFrontendAsset('index.css');
+  const buttonHoverRule = css.match(
+    /\.studio-editor-left-panel > nav > button:hover,\s*\.studio-editor-viewport \.studio-editor-tools-panel > nav > button:hover\s*\{[^}]*\}/s,
+  );
+  assert.ok(buttonHoverRule);
+  assert.doesNotMatch(buttonHoverRule[0], /transform:/);
+  assert.match(
+    css,
+    /\.studio-editor-left-panel > nav > button:hover svg,[\s\S]{0,180}\.studio-editor-tools-panel > nav > button:hover svg \{\s*transform: scale\(1\.16\);/,
+  );
+});
+
+test('Screen Script keeps its compact cards and renders math with KaTeX', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const math = readFrontend('components/StudioScreenScriptMath.tsx');
+  assert.match(editor, /screenScriptEntries/);
+  assert.match(editor, /<StudioScreenScriptMath text=\{value \|\|/);
+  assert.match(math, /katex\.renderToString/);
+  assert.doesNotMatch(editor, /StudioScreenScriptView|selectedScreenScript/);
 });
 
 test('Canvas zoom scales one canonical surface and elements resize from every edge', () => {
