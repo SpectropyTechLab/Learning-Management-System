@@ -12,6 +12,7 @@ import { downloadPublishedSessionPlan, getPublishedTeachingMaterials, getPublish
 import { getStudioObjectPreview, getStudioResourcePreview, launchStudioResourceVersion, type StudioObjectPreviewDescriptor } from './api/studioResourcesApi';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
+import CurriculumDocumentViewer from './components/CurriculumDocumentViewer';
 import Model3DViewer from './components/resources/Model3DViewer';
 import { model3DSettingsFrom } from './components/resources/model3DSettings';
 import { ExecutableResourceFrame, ExternalLinkFrame } from './components/resources/StudioResourceFrames';
@@ -928,8 +929,8 @@ export default function StudioSessionPlayerPage() {
                   <X size={16} />
                 </button>
               </header>
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-6">{curriculumPreview.text || 'The document contains no extractable text.'}</pre>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                <CurriculumDocumentViewer preview={curriculumPreview} />
               </div>
           </aside>
         )}

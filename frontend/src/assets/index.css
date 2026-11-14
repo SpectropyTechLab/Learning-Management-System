@@ -611,6 +611,14 @@
   box-shadow: 0 6px 14px rgb(15 23 42 / 14%);
 }
 
+[data-studio-toolbar-drag-handle] {
+  cursor: grab !important;
+}
+
+[data-studio-toolbar-drag-handle]:active {
+  cursor: grabbing !important;
+}
+
 .studio-editor-viewport .studio-editor-workspace {
   grid-template-columns: minmax(0, 1fr) !important;
   gap: 0;

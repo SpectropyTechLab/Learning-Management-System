@@ -13,6 +13,7 @@ const normalizeSql = (value) => String(value).replace(/\s+/g, ' ').trim().toLowe
 
 const clientAdmin = { id: 31, role: 'client_admin', client_id: 101 };
 const platformAdmin = { id: 1, role: 'super_admin', client_id: null };
+const contentAuthorizer = { id: 2, role: 'content_authorizer', client_id: null };
 
 const routeHandlers = (method, path) => {
   const layer = curriculumRouter.stack.find(
@@ -208,6 +209,88 @@ test('super admin can update a client-owned program', async (t) => {
   assert.equal(result.name, 'TECHNO');
   assert.equal(result.canEdit, true);
   assert.equal(result.canDelete, true);
+});
+
+test('content authorizer can manage a curriculum record with missing ownership', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+    if (normalized.startsWith('select id, client_id, null::integer as school_id from boards')) {
+      assert.deepEqual(params, [23]);
+      return { rows: [{ id: 23, client_id: null, school_id: null, name: 'IB', code: 'IB' }] };
+    }
+    if (normalized.startsWith('update boards set')) {
+      assert.deepEqual(params, ['International Baccalaureate', 23]);
+      return {
+        rows: [{ id: 23, client_id: null, name: 'International Baccalaureate', code: 'IB' }],
+      };
+    }
+    throw new Error(`Unhandled query: ${normalized}`);
+  };
+
+  t.after(() => { pool.query = originalQuery; });
+
+  const result = await curriculumService.updateBoard({
+    user: contentAuthorizer,
+    params: { id: '23' },
+    body: { name: 'International Baccalaureate' },
+  });
+
+  assert.equal(result.canEdit, true);
+  assert.equal(result.canDelete, true);
+});
+
+test('content authorizer mutations support bulk-imported hierarchy with missing ownership', async (t) => {
+  const originalQuery = pool.query;
+
+  pool.query = async (text, params = []) => {
+    const normalized = normalizeSql(text);
+    if (normalized.startsWith('select id, client_id, school_id, board_id from programs')) {
+      return { rows: [{ id: 43, client_id: null, school_id: null, board_id: 23 }] };
+    }
+    if (normalized.startsWith('update programs set')) {
+      assert.deepEqual(params, ['IB Diploma', 43]);
+      return { rows: [{ id: 43, client_id: null, school_id: null, board_id: 23, name: 'IB Diploma' }] };
+    }
+    if (normalized.includes('select g.id, g.program_id, p.client_id, p.school_id')) {
+      assert.deepEqual(params, [12]);
+      return { rows: [{ id: 12, program_id: 43, client_id: null, school_id: null }] };
+    }
+    if (normalized.startsWith('insert into subjects')) {
+      assert.deepEqual(params, [17, 12, 'Physics', 'PHYSICS', null, 0, true]);
+      return { rows: [{ id: 108 }] };
+    }
+    if (normalized.includes('from subjects s') && normalized.includes('where s.id = $1')) {
+      assert.deepEqual(params, [108, 17]);
+      return { rows: [{ id: 108, client_id: 17, grade_id: 12, name: 'Physics', code: 'PHYSICS' }] };
+    }
+    if (normalized.startsWith('delete from subjects')) {
+      assert.deepEqual(params, [104]);
+      return { rows: [{ id: 104 }] };
+    }
+    throw new Error(`Unhandled query: ${normalized}`);
+  };
+
+  t.after(() => { pool.query = originalQuery; });
+
+  const program = await curriculumService.updateProgram({
+    user: contentAuthorizer,
+    params: { id: '43' },
+    body: { name: 'IB Diploma' },
+  });
+  const subject = await curriculumService.createSubject({
+    user: contentAuthorizer,
+    body: { name: 'Physics', code: 'PHYSICS', grade_id: 12 },
+  });
+  const deletion = await curriculumService.deleteSubject({
+    user: contentAuthorizer,
+    params: { id: '104' },
+  });
+
+  assert.equal(program.name, 'IB Diploma');
+  assert.equal(subject.id, 108);
+  assert.deepEqual(deletion, { success: true, id: 104 });
 });
 
 test('subtopic creation validates its topic ownership and preserves the subtopic id', async (t) => {

@@ -61,6 +61,7 @@ export interface StudioDocumentRecord {
 export interface CurriculumDocumentPreview {
   file_name: string;
   revision_no: number;
+  html: string;
   text: string;
   warnings: string[];
 }
