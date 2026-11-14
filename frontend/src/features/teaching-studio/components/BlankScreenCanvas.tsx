@@ -7,6 +7,7 @@ import type { Layout, ObjectType, Rect, Slide, Slot } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
 import type { AuthorDrawingStroke, StudioDrawingTool, StudioElement, StudioScreen } from '../types';
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
+import { model3DSettingsFrom, type Model3DSettings } from './resources/model3DSettings';
 import StudioMathElement from './StudioMathElement';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
@@ -67,7 +68,7 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, selected = false, onSelect }: { element: StudioElement; selected?: boolean; onSelect?: () => void }) {
+function BoundResource({ element, selected = false, onSelect, onModel3DSettingsChange }: { element: StudioElement; selected?: boolean; onSelect?: () => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -142,6 +143,8 @@ function BoundResource({ element, selected = false, onSelect }: { element: Studi
             ? element.content.mediaTransform as { fit?: 'contain' | 'cover'; scale?: number; x?: number; y?: number }
             : undefined
         }
+        model3DSettings={resource.resource_type === 'model_3d' ? model3DSettingsFrom(element.content) : undefined}
+        onModel3DSettingsChange={resource.resource_type === 'model_3d' ? onModel3DSettingsChange : undefined}
         className="h-full w-full"
       />
       <button
@@ -623,6 +626,7 @@ export default function BlankScreenCanvas({
         element={element}
         selected={selectedElementId === element.id}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+        onModel3DSettingsChange={onChangeElementContent ? (settings) => onChangeElementContent(element.id, { model3d: settings }) : undefined}
       />
     );
   }

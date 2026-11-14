@@ -352,6 +352,23 @@ const searchPolyHaven = async (query, limit) => {
   )).slice(0, limit).map(([assetId, asset]) => polyHavenResult(assetId, asset));
 };
 
+export const getAssetCatalogPreview = async ({ query = {}, user }) => {
+  assertAuthor(user);
+  const provider = cleanText(query.provider, 30).toLowerCase();
+  const assetId = cleanText(query.asset_id, 200);
+  if (provider !== 'poly-haven') throw new AppError('Interactive preview is not available for this provider', 422);
+  if (!/^[a-z0-9_-]+$/i.test(assetId)) throw new AppError('Invalid Poly Haven asset identifier');
+  const models = await getPolyHavenModels();
+  if (!models[assetId]) throw new AppError('Poly Haven model not found', 404);
+  const files = await fetchJson(`https://api.polyhaven.com/files/${encodeURIComponent(assetId)}`);
+  const gltf = files?.gltf?.['1k']?.gltf || files?.gltf?.['2k']?.gltf || files?.gltf?.['4k']?.gltf;
+  const url = cleanText(gltf?.url, 2000);
+  if (!url || new URL(url).hostname.toLowerCase() !== 'dl.polyhaven.org') {
+    throw new AppError('This model has no compatible interactive preview', 422);
+  }
+  return { url, format: 'GLTF', title: cleanText(models[assetId].name || displayName(assetId), 250) };
+};
+
 const getOpenPeeps = async () => providerCached('open-peeps', async () => {
   const response = await fetchResponse('https://www.openpeeps.com/');
   const $ = load(await response.text());

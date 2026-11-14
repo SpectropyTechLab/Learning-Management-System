@@ -204,6 +204,11 @@ export const importStudioAssetCatalogItem = async (asset: StudioAssetCatalogItem
     title: asset.title,
   })).data);
 
+export const getStudioAssetCatalogPreview = async (asset: StudioAssetCatalogItem) =>
+  dataOf<{ url: string; format: string; title: string }>((await api.get('/studio/asset-catalog/preview', {
+    params: { provider: asset.provider, asset_id: asset.provider_asset_id },
+  })).data);
+
 export const getStudioResource = async (resourceId: number) =>
   dataOf<StudioResourceDetails>((await api.get(`/studio/resources/${resourceId}`)).data);
 

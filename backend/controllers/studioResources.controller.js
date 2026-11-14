@@ -18,4 +18,5 @@ export const createResourceVersion = respond((req) => resources.createResourceVe
 export const getResourceUsages = respond((req) => resources.getResourceUsages({ resourceId: req.params.resourceId, user: req.user }));
 export const deleteResource = respond((req) => resources.deleteResource({ resourceId: req.params.resourceId, user: req.user }));
 export const searchAssetCatalog = respond((req) => assetCatalog.searchAssetCatalog({ query: req.query, user: req.user }));
+export const getAssetCatalogPreview = respond((req) => assetCatalog.getAssetCatalogPreview({ query: req.query, user: req.user }));
 export const importAssetCatalogItem = respond((req) => assetCatalog.importAssetCatalogItem({ body: req.body, user: req.user }), 201);

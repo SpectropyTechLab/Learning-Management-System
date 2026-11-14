@@ -248,7 +248,7 @@ export default function SlideCanvas({
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+      target.closest('button, a, input, textarea, select, [contenteditable="true"], [data-canvas-interactive="true"]')
     ) return;
     event.preventDefault();
     pendingMoveRef.current = {
@@ -452,8 +452,15 @@ export default function SlideCanvas({
               const bounds = boundsFor(object, field);
               const renderedField = { ...field, bounds };
               const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
-              const isImage = object && ['visual', 'media'].includes(object.type) && object.url;
               const selectedWithoutBorder = Boolean(object?.id === selectedObjectId && !hasVisibleObjectBorder(object));
+              // Resource overlays (3D, video, protected images, and packages) own
+              // their complete visual surface. Rendering the legacy SVG image URL
+              // underneath a transparent overlay exposes the browser's broken-image
+              // placeholder when that URL is not an actual image.
+              const isImage = object
+                && ['visual', 'media'].includes(object.type)
+                && object.url
+                && !objectOverlays[object.id];
               const animation = object?.animation;
               const animateSvgObject = object && !objectOverlays[object.id];
               return (
@@ -632,7 +639,7 @@ export default function SlideCanvas({
                   <button
                     type="button"
                     onPointerDown={(event) => beginInteraction(event, object.id, 'move', bounds)}
-                    className="pointer-events-auto absolute -top-11 left-1/2 flex h-11 w-11 -translate-x-1/2 touch-none select-none items-center justify-center bg-transparent p-0 text-blue-700"
+                        className="pointer-events-auto absolute -top-11 left-1/2 flex h-11 w-11 touch-none min-h-11 min-w-11 -translate-x-1/2 select-none items-center justify-center bg-transparent p-0 text-blue-700"
                     title="Drag to move element"
                     aria-label="Drag to move element"
                   >
@@ -654,7 +661,7 @@ export default function SlideCanvas({
                       key={mode}
                       type="button"
                       onPointerDown={(event) => beginInteraction(event, object.id, mode, bounds)}
-                      className={`pointer-events-auto absolute h-11 w-11 touch-none select-none bg-transparent p-0 ${position} after:absolute after:left-1/2 after:top-1/2 after:h-3 after:w-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-sm after:border-2 after:border-blue-700 after:bg-white after:shadow-sm after:content-['']`}
+                          className={`pointer-events-auto absolute min-h-11 min-w-11 touch-none h-11 w-11 select-none bg-transparent p-0 ${position} after:absolute after:left-1/2 after:top-1/2 after:h-3 after:w-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-sm after:border-2 after:border-blue-700 after:bg-white after:shadow-sm after:content-['']`}
                       title={`Resize element ${mode.replace('resize-', '')}`}
                       aria-label={`Resize element ${mode.replace('resize-', '')}`}
                     />

@@ -64,6 +64,7 @@ import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionsPanel from './components/StudioTransitionsPanel';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
+import StudioScreenScriptMath from './components/StudioScreenScriptMath';
 import { clickerNavigationAction } from './components/studioClickerRuntime';
 import {
   SMART_DIAGRAM_THEMES,
@@ -2336,7 +2337,7 @@ export default function TeachingStudioPage() {
                           <p className="text-[10px] font-bold uppercase text-slate-500">
                             {key.replaceAll('_', ' ')}
                           </p>
-                          <p className="mt-1 whitespace-pre-wrap text-xs">{value || '—'}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-xs"><StudioScreenScriptMath text={value || '—'} /></p>
                         </div>
                       ))}
                     </div>
