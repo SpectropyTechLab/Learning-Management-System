@@ -113,6 +113,14 @@ test('screen save persists editable drawing data and Resource bindings in one tr
         content: { drawing: { strokes: [{ points: [[1, 2], [3, 4]] }] } },
         position: { x: 10, y: 20 },
         resource: { resource_id: 9, resource_version_id: 15, usage: { placement: 'canvas' } },
+      }, {
+        id: 'text-overflow', type: 'text', slotId: 'free-text-overflow',
+        content: {
+          text: 'JavaScript: basics',
+          richTextHtml: '<p>JavaScript: basics</p>',
+          lineHeight: 1.5,
+        },
+        position: { x: 100, y: 900, width: 600, height: 720 },
       }],
     },
   });
@@ -121,6 +129,7 @@ test('screen save persists editable drawing data and Resource bindings in one tr
   assert.equal(result.session_revision_no, 7);
   assert.deepEqual(result.elements[0].content.drawing.strokes[0].points[1], [3, 4]);
   assert.ok(calls.some(({ sql }) => sql.startsWith('insert into resource_mappings')));
+  assert.ok(calls.some(({ sql, params }) => sql.startsWith('insert into screen_elements') && params[1] === 'text-overflow' && JSON.parse(params[5]).height === 720));
   assert.ok(calls.some(({ sql }) => sql === 'commit'));
 });
 
@@ -192,6 +201,47 @@ test('Screen save rejects element geometry outside the master canvas', async (t)
       },
     }),
     (error) => error?.status === 422 && /right canvas edge/i.test(error.message),
+  );
+});
+
+test('Screen save rejects executable markup inside rich text', async (t) => {
+  const client = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      if (['begin', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('from screens s join sessions se') && sql.includes('for update')) {
+        return { rows: [{
+          id: 31, session_id: 21, client_id: 12, title: 'Draft', layout_id: null,
+          revision_no: 5, screen_settings_json: {}, session_status: 'draft', session_revision_no: 7,
+        }] };
+      }
+      throw new Error(`Unsafe rich text must stop before this query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  await assert.rejects(
+    saveScreen({
+      screenId: 31,
+      user: author,
+      body: {
+        revision_no: 5,
+        title: 'Draft',
+        tags: [],
+        elements: [{
+          id: 'text-unsafe', type: 'text', slotId: 'free-text-1',
+          content: {
+            text: 'Open link',
+            richTextHtml: '<p><a href="java&#x0A;script:alert(1)" onmouseover="alert(1)">Open link</a></p>',
+          },
+          position: { x: 100, y: 100, width: 300, height: 120 },
+        }],
+      },
+    }),
+    (error) => error?.status === 422 && /unsafe markup/i.test(error.message),
   );
 });
 

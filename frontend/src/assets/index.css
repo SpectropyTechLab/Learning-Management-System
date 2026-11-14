@@ -915,3 +915,8 @@
 .studio-canvas-rich-text ol { list-style-type: decimal; }
 .studio-canvas-rich-text li { display: list-item; margin: 0.12em 0; }
 .studio-canvas-rich-text a { color: #1d4ed8; text-decoration: underline; }
+.studio-canvas-rich-text > p,
+.studio-canvas-rich-text > div {
+  margin-top: var(--studio-paragraph-before, 0);
+  margin-bottom: var(--studio-paragraph-after, 0);
+}
