@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
@@ -215,12 +216,28 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
     }
   };
 
-  const closeInterface = () => {
+  const closeInterface = useCallback(() => {
     if (busy) return;
     setPreview(null);
     setFileName('');
     setInterfaceOpen(false);
-  };
+  }, [busy]);
+
+  useEffect(() => {
+    if (!interfaceOpen && !preview) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) closeInterface();
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [interfaceOpen, preview, busy, closeInterface]);
 
   return (
     <>
@@ -229,10 +246,10 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
       </button>
       <input ref={inputRef} type="file" accept=".xlsx" className="sr-only" onChange={(event) => void chooseFile(event.target.files?.[0])} />
 
-      {interfaceOpen && !preview && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-labelledby="bulk-upload-title">
-          <section className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-4">
+      {interfaceOpen && !preview && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-stretch justify-center bg-slate-950/70 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="bulk-upload-title">
+          <section className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl">
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 p-3 sm:gap-4 sm:p-4">
               <div>
                 <h2 id="bulk-upload-title" className="text-lg font-bold text-slate-950">Bulk upload</h2>
                 <p className="mt-0.5 text-sm text-slate-600">Download the template, add one session per row, then upload it.</p>
@@ -240,7 +257,7 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
               <button type="button" disabled={busy} onClick={closeInterface} className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-50" aria-label="Close bulk upload"><X size={19} /></button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <section className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                   <h3 className="text-sm font-bold text-blue-950">1. Download template</h3>
@@ -283,17 +300,18 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
               </section>
             </div>
 
-            <footer className="flex justify-end border-t border-slate-200 p-4">
-              <button type="button" disabled={busy} onClick={closeInterface} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+            <footer className="flex shrink-0 justify-end border-t border-slate-200 p-3 sm:p-4">
+              <button type="button" disabled={busy} onClick={closeInterface} className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto">Cancel</button>
             </footer>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {preview && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Review curriculum import">
-          <section className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+      {preview && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-stretch justify-center bg-slate-950/70 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Review curriculum import">
+          <section className="flex h-[100dvh] w-full max-w-7xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl">
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 p-3 sm:gap-4 sm:p-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Review curriculum and Session import</h2>
                 <p className="mt-1 text-sm text-slate-600">{fileName} - {rows.length} data rows. Statuses show what will happen; only items marked Needs review require a choice.</p>
@@ -307,7 +325,7 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
               <span className={`rounded-full px-3 py-1 font-semibold ${issueCount ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{issueCount} unresolved issues</span>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-5">
               {rows.map((row, rowIndex) => (
                 <article key={`${row.row_number}-${rowIndex}`} className={`rounded-xl border p-4 ${statusClasses(row)}`}>
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -374,9 +392,9 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
               ))}
             </div>
 
-            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-5">
+            <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-200 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:p-5">
               <p className="text-sm text-slate-600">Chapter, Topic, Subtopic and Session ordering will be assigned automatically.</p>
-              <div className="flex gap-2">
+              <div className="flex w-full gap-2 sm:w-auto">
                 <button type="button" disabled={busy} onClick={closeInterface} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold">Cancel</button>
                 <button type="button" disabled={busy || issueCount > 0 || importCount === 0} onClick={() => void confirm()} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Upload size={16} />{busy ? 'Importing...' : `Import ${importCount} rows`}</button>
               </div>
@@ -385,7 +403,8 @@ export default function StudioCurriculumBulkImport({ onImported }: Props) {
           <datalist id="bulk-import-pedagogy">{preview.taxonomy_terms.filter((term) => term.type === 'pedagogy').map((term) => <option key={term.id} value={term.label} />)}</datalist>
           <datalist id="bulk-import-bloom">{preview.taxonomy_terms.filter((term) => term.type === 'bloom').map((term) => <option key={term.id} value={term.label} />)}</datalist>
           <datalist id="bulk-import-target-exam">{preview.taxonomy_terms.filter((term) => term.type === 'target_exam').map((term) => <option key={term.id} value={term.label} />)}</datalist>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

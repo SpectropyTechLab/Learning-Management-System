@@ -132,6 +132,30 @@ test('Poly Haven search returns realistic CC0 models as individual 3D components
   }
 });
 
+test('Poly Haven exposes an interactive model preview without importing it first', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/assets?t=models')) return new Response(JSON.stringify({
+      Classic_Car: { name: 'Classic Car', tags: ['vehicle'], categories: ['vehicles'] },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    assert.match(String(url), /api\.polyhaven\.com\/files\/Classic_Car/);
+    return new Response(JSON.stringify({
+      gltf: { '1k': { gltf: { url: 'https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/Classic_Car.gltf' } } },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const { getAssetCatalogPreview } = await import('../services/studioAssetCatalog.service.js');
+    const result = await getAssetCatalogPreview({
+      query: { provider: 'poly-haven', asset_id: 'Classic_Car' },
+      user: { role: 'content_authorizer' },
+    });
+    assert.equal(result.format, 'GLTF');
+    assert.match(result.url, /^https:\/\/dl\.polyhaven\.org\//);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('Bioicons exposes individual SVG components only when their per-asset licence is allowlisted', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
@@ -194,6 +218,44 @@ test('canvas resources use transparent object rendering for images and 3D models
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   assert.match(player, /mode === 'canvas' \? 'bg-transparent'/);
   assert.match(model, /background: 'transparent'/);
-  assert.match(model, /canvasMode \? '0' : '1'/);
+  assert.match(model, /'--poster-color': 'transparent'/);
+  assert.match(model, /shadow-intensity.*settings\.shadowIntensity/);
   assert.match(canvas, /resource\.resource_type === 'image' \|\| resource\.resource_type === 'model_3d'/);
+  assert.match(readFrontend('SlideCanvas.tsx'), /object\.url\s*&&\s*!objectOverlays\[object\.id\]/);
+});
+
+test('Poly Haven GLTF packages resolve manifest dependencies before rendering', () => {
+  const model = readFrontend('components/resources/Model3DViewer.tsx');
+  assert.match(model, /api\.polyhaven\.com\/files/);
+  assert.match(model, /include\[dependency\.uri\]\?\.url/);
+  assert.match(model, /hostname\.toLowerCase\(\) !== 'dl\.polyhaven\.org'/);
+  assert.match(model, /URL\.createObjectURL/);
+});
+
+test('resource backgrounds remain type-specific instead of being globally removed', () => {
+  const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  assert.match(player, /resourceType === 'image'.*mode === 'canvas' \? 'bg-transparent'/s);
+  assert.match(player, /resourceType === 'video'.*bg-black/s);
+  assert.match(player, /resourceType === 'presentation'.*from-orange-50 to-amber-100/s);
+  assert.match(player, /ExecutableResourceFrame/);
+});
+
+test('3D authoring follows PowerPoint-style outer movement and dedicated inner controls', () => {
+  const viewer = readFrontend('components/resources/Model3DViewer.tsx');
+  const settings = readFrontend('components/resources/model3DSettings.ts');
+  const canvas = readFrontend('SlideCanvas.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  const catalog = readFrontend('components/resources/AssetCatalogPanel.tsx');
+  assert.match(viewer, /Drag to rotate the 3D model/);
+  assert.match(viewer, /Pan & Zoom · drag model inside frame/);
+  assert.match(viewer, /positionAndNormalFromPoint/);
+  assert.match(viewer, /'tone-mapping': 'neutral'/);
+  assert.match(viewer, /background: 'transparent'/);
+  assert.match(viewer, /source model appears to contain only white or neutral material/);
+  assert.match(settings, /cameraOrbit/);
+  assert.match(settings, /cameraTarget/);
+  assert.match(settings, /shadowIntensity/);
+  assert.match(canvas, /data-canvas-interactive/);
+  assert.match(player, /className="h-full w-full" mode="runtime"/);
+  assert.match(catalog, /Open interactive 3D preview/);
 });

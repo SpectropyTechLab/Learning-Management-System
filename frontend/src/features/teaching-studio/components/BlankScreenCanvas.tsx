@@ -7,6 +7,7 @@ import type { Layout, ObjectType, Rect, Slide, Slot } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
 import type { AuthorDrawingStroke, StudioDrawingTool, StudioElement, StudioScreen } from '../types';
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
+import { model3DSettingsFrom, type Model3DSettings } from './resources/model3DSettings';
 import StudioMathElement from './StudioMathElement';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
@@ -34,6 +35,7 @@ interface BlankScreenCanvasProps {
   onSelectElement?: (elementId: string) => void;
   onSelectSlot?: (slotId: string) => void;
   onClearElementSelection?: () => void;
+  onChangeElement?: (element: StudioElement) => void;
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
   onTextCaretChange?: (elementId: string, offset: number) => void;
@@ -66,7 +68,7 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, selected = false, onSelect }: { element: StudioElement; selected?: boolean; onSelect?: () => void }) {
+function BoundResource({ element, selected = false, onSelect, onModel3DSettingsChange }: { element: StudioElement; selected?: boolean; onSelect?: () => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -141,6 +143,8 @@ function BoundResource({ element, selected = false, onSelect }: { element: Studi
             ? element.content.mediaTransform as { fit?: 'contain' | 'cover'; scale?: number; x?: number; y?: number }
             : undefined
         }
+        model3DSettings={resource.resource_type === 'model_3d' ? model3DSettingsFrom(element.content) : undefined}
+        onModel3DSettingsChange={resource.resource_type === 'model_3d' ? onModel3DSettingsChange : undefined}
         className="h-full w-full"
       />
       <button
@@ -183,6 +187,7 @@ export default function BlankScreenCanvas({
   onSelectElement,
   onSelectSlot,
   onClearElementSelection,
+  onChangeElement,
   onChangeElementBounds,
   onChangeElementContent,
   onTextCaretChange,
@@ -208,6 +213,18 @@ export default function BlankScreenCanvas({
   onDropFiles,
 }: BlankScreenCanvasProps) {
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [textSelectionFontSize, setTextSelectionFontSize] = useState<{
+    elementId: string;
+    value: number | 'mixed' | null;
+  } | null>(null);
+  const [textSelectionSpacing, setTextSelectionSpacing] = useState<{
+    elementId: string;
+    value: {
+      lineHeight: number | 'mixed';
+      paragraphSpacingBefore: number | 'mixed';
+      paragraphSpacingAfter: number | 'mixed';
+    };
+  } | null>(null);
   const [previewStep, setPreviewStep] = useState(0);
   const [previewCycle, setPreviewCycle] = useState(0);
   const [previewNavigation, setPreviewNavigation] =
@@ -232,6 +249,8 @@ export default function BlankScreenCanvas({
   );
   useEffect(() => {
     setEditingElementId(null);
+    setTextSelectionFontSize(null);
+    setTextSelectionSpacing(null);
   }, [screen?.id]);
   useEffect(() => {
     setPreviewStep(previewStartAtEnd ? animationTimeline.maxStep : 0);
@@ -525,30 +544,55 @@ export default function BlankScreenCanvas({
               : 'left'
           }
           list={element.content.list === true}
+          lineHeight={Number(element.content.lineHeight) || undefined}
+          paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
+          paragraphSpacingAfter={Number(element.content.paragraphSpacingAfter) || undefined}
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
           startEditing={editingElementId === element.id}
           onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
-          onTextChange={(value, richText) => onChangeElementContent?.(element.id, { text: value, richTextHtml: richText })}
-          onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
-          onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
-          onRequestHeight={(requiredRatio) => {
-            if (!onChangeElementBounds) return;
+          onCommit={onChangeElement ? ({ text: value, richTextHtml: richText, formatting, requiredHeight }) => {
             const currentBounds =
               elementBounds(element.position) ??
               renderLayout?.slots.find(
                 (slot) => slot.id === (element.slotId || `free-${element.id}`),
               )?.bounds;
             if (!currentBounds) return;
-            const nextHeight = Math.max(60, Math.min(1080 - currentBounds.y, Math.ceil(currentBounds.height * requiredRatio)));
-            if (Math.abs(nextHeight - currentBounds.height) < 2) return;
-            onChangeElementBounds(element.id, { ...currentBounds, height: nextHeight });
-          }}
-          onEditingChange={(editing) =>
+            const nextContent = { ...element.content, text: value, ...formatting };
+            if (richText !== undefined) nextContent.richTextHtml = richText;
+            const nextHeight = Math.max(60, Math.ceil(requiredHeight));
+            const contentChanged = Object.entries(nextContent).some(
+              ([key, nextValue]) => element.content[key] !== nextValue,
+            );
+            if (!contentChanged && Math.abs(nextHeight - currentBounds.height) < 2) return;
+            onChangeElement({
+              ...element,
+              content: nextContent,
+              position: { ...element.position, ...currentBounds, height: nextHeight },
+            });
+          } : undefined}
+          onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
+          onSelectionFontSizeChange={(value) => setTextSelectionFontSize((current) =>
+            current?.elementId === element.id && current.value === value
+              ? current
+              : { elementId: element.id, value }
+          )}
+          onSelectionSpacingChange={(value) => setTextSelectionSpacing((current) =>
+            current?.elementId === element.id &&
+            current.value.lineHeight === value.lineHeight &&
+            current.value.paragraphSpacingBefore === value.paragraphSpacingBefore &&
+            current.value.paragraphSpacingAfter === value.paragraphSpacingAfter
+              ? current
+              : { elementId: element.id, value }
+          )}
+          onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
+          onEditingChange={(editing) => {
             setEditingElementId(
               editing ? element.id : (current) => (current === element.id ? null : current),
-            )
-          }
+            );
+            if (!editing) setTextSelectionFontSize((current) => current?.elementId === element.id ? null : current);
+            if (!editing) setTextSelectionSpacing((current) => current?.elementId === element.id ? null : current);
+          }}
         />
       );
       continue;
@@ -582,6 +626,7 @@ export default function BlankScreenCanvas({
         element={element}
         selected={selectedElementId === element.id}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+        onModel3DSettingsChange={onChangeElementContent ? (settings) => onChangeElementContent(element.id, { model3d: settings }) : undefined}
       />
     );
   }
@@ -640,15 +685,27 @@ export default function BlankScreenCanvas({
   const selectedElement =
     screen?.elements.find((element) => element.id === selectedElementId) ?? null;
 
+  const toolbarHorizontalBounds = (boundsWidth: number, toolbarWidth: number) => {
+    // Keep floating controls clear of the left and right navigation rails when
+    // there is enough room. On narrow viewports, retain a small visible inset.
+    const preferredInset = 64;
+    const minimumInset = 8;
+    const inset = boundsWidth >= toolbarWidth + preferredInset * 2 ? preferredInset : minimumInset;
+    return {
+      minimumX: inset,
+      maximumX: Math.max(inset, boundsWidth - toolbarWidth - inset),
+    };
+  };
+
   const moveToolbar = (clientX: number, clientY: number) => {
     const bounds = toolbarBoundsRef.current?.getBoundingClientRect();
     const toolbar = toolbarRef.current?.getBoundingClientRect();
     const drag = toolbarDragRef.current;
     if (!bounds || !toolbar || !drag) return;
-    const maximumX = Math.max(0, bounds.width - toolbar.width);
+    const { minimumX, maximumX } = toolbarHorizontalBounds(bounds.width, toolbar.width);
     const maximumY = Math.max(0, bounds.height - toolbar.height);
     setToolbarPosition({
-      x: Math.min(maximumX, Math.max(0, clientX - bounds.left - drag.offsetX)),
+      x: Math.min(maximumX, Math.max(minimumX, clientX - bounds.left - drag.offsetX)),
       y: Math.min(maximumY, Math.max(0, clientY - bounds.top - drag.offsetY)),
     });
   };
@@ -681,6 +738,8 @@ export default function BlankScreenCanvas({
               >
                 <StudioElementToolbar
                   element={selectedElement}
+                  selectionFontSize={textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
+                  selectionSpacing={textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
                   onChange={(changes) => onChangeElementContent(selectedElement.id, changes)}
                   onOpenMath={() => onOpenTool('math')}
                   onOpenShapes={() => onOpenTool('shapes')}
@@ -692,13 +751,18 @@ export default function BlankScreenCanvas({
                     const toolbar = toolbarRef.current?.getBoundingClientRect();
                     if (!bounds || !toolbar) return;
                     event.preventDefault();
+                    event.stopPropagation();
                     event.currentTarget.setPointerCapture(event.pointerId);
+                    const { minimumX, maximumX } = toolbarHorizontalBounds(bounds.width, toolbar.width);
                     toolbarDragRef.current = {
                       pointerId: event.pointerId,
                       offsetX: event.clientX - toolbar.left,
                       offsetY: event.clientY - toolbar.top,
                     };
-                    setToolbarPosition({ x: toolbar.left - bounds.left, y: toolbar.top - bounds.top });
+                    setToolbarPosition({
+                      x: Math.min(maximumX, Math.max(minimumX, toolbar.left - bounds.left)),
+                      y: Math.min(Math.max(0, bounds.height - toolbar.height), Math.max(0, toolbar.top - bounds.top)),
+                    });
                   }}
                   onDragPointerMove={(event) => {
                     if (toolbarDragRef.current?.pointerId === event.pointerId) moveToolbar(event.clientX, event.clientY);
@@ -786,6 +850,8 @@ export default function BlankScreenCanvas({
             objectOverlays={objectOverlays}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
+            allowCanvasOverflow={!previewMode}
+            showTextEditorOutlines={!previewMode}
             transition={
               screen.screen_settings_json?.transition &&
               typeof screen.screen_settings_json.transition === 'object'

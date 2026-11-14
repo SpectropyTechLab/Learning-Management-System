@@ -17,6 +17,11 @@ const colors: Record<string, { fill: string; stroke: string; ink: string }> = {
   workspace: { fill: '#f5f9fc', stroke: '#b8c9e5', ink: '#25436b' },
   footer: { fill: '#e5edf6', stroke: '#c8d6e6', ink: '#25436b' },
 };
+const textObjectTypes = new Set(['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data']);
+const hasVisibleObjectBorder = (object: Slide['objects'][number]) => {
+  const color = String(object.borderColor ?? '').trim().toLowerCase();
+  return Number(object.borderWidth ?? 0) > 0 && Boolean(color) && color !== 'transparent';
+};
 
 function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string }) {
   const { x, y, width, height } = slot.bounds;
@@ -73,6 +78,8 @@ export default function SlideCanvas({
   showGuides = false,
   compactViewport = false,
   immersiveViewport = false,
+  allowCanvasOverflow = false,
+  showTextEditorOutlines = false,
   selectedObjectId,
   selectedSlotId,
   onSelectObject,
@@ -101,6 +108,8 @@ export default function SlideCanvas({
   showGuides?: boolean;
   compactViewport?: boolean;
   immersiveViewport?: boolean;
+  allowCanvasOverflow?: boolean;
+  showTextEditorOutlines?: boolean;
   selectedObjectId?: string | null;
   selectedSlotId?: string | null;
   onSelectObject?: (objectId: string) => void;
@@ -130,6 +139,15 @@ export default function SlideCanvas({
   const pendingMoveRef = useRef<PendingMove | null>(null);
   const [currentStroke, setCurrentStroke] = useState<AuthorDrawingStroke | null>(null);
   const [drawingPointerActive, setDrawingPointerActive] = useState(false);
+  const geometryGestureActive = interaction !== null;
+  useEffect(() => {
+    if (!geometryGestureActive) return;
+    const root = document.documentElement;
+    const previousUserSelect = root.style.userSelect;
+    root.style.userSelect = 'none';
+    window.getSelection()?.removeAllRanges();
+    return () => { root.style.userSelect = previousUserSelect; };
+  }, [geometryGestureActive]);
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
@@ -154,10 +172,13 @@ export default function SlideCanvas({
       const start = interaction.startBounds;
       let currentBounds: Rect;
       if (interaction.mode === 'move') {
+        const maximumY = start.y + start.height > MASTER.height
+          ? MASTER.height - 60
+          : MASTER.height - start.height;
         currentBounds = {
           ...start,
           x: Math.round(clamp(start.x + deltaX, 0, MASTER.width - start.width)),
-          y: Math.round(clamp(start.y + deltaY, 0, MASTER.height - start.height)),
+          y: Math.round(clamp(start.y + deltaY, 0, Math.max(0, maximumY))),
         };
       } else {
         const direction = interaction.mode.replace('resize-', '');
@@ -227,8 +248,9 @@ export default function SlideCanvas({
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+      target.closest('button, a, input, textarea, select, [contenteditable="true"], [data-canvas-interactive="true"]')
     ) return;
+    event.preventDefault();
     pendingMoveRef.current = {
       pointerId: event.pointerId,
       objectId,
@@ -249,7 +271,11 @@ export default function SlideCanvas({
       const currentBounds = {
         ...pending.bounds,
         x: Math.round(clamp(pending.bounds.x + movementX / scale, 0, MASTER.width - pending.bounds.width)),
-        y: Math.round(clamp(pending.bounds.y + movementY / scale, 0, MASTER.height - pending.bounds.height)),
+        y: Math.round(clamp(
+          pending.bounds.y + movementY / scale,
+          0,
+          Math.max(0, pending.bounds.y + pending.bounds.height > MASTER.height ? MASTER.height - 60 : MASTER.height - pending.bounds.height),
+        )),
       };
       onSelectObject?.(pending.objectId);
       setInteraction({
@@ -334,7 +360,7 @@ export default function SlideCanvas({
   return (
     <div
       ref={containerRef}
-      className={`flex h-full min-h-[240px] w-full items-center justify-center ${zoom > 1 ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
+      className={`flex h-full min-h-[240px] w-full items-center justify-center ${zoom > 1 || allowCanvasOverflow ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
       data-testid="slide-viewport"
     >
       {scale > 0 && (
@@ -344,7 +370,7 @@ export default function SlideCanvas({
         >
         <div
           data-testid="slide-surface"
-          className="absolute left-0 top-0 overflow-hidden bg-white shadow-xl"
+          className={`absolute left-0 top-0 bg-white shadow-xl ${allowCanvasOverflow ? 'overflow-visible' : 'overflow-hidden'}`}
           onClick={(event) => {
             const target = event.target;
             if (target instanceof Element && target.closest('[data-element-id]')) return;
@@ -368,7 +394,7 @@ export default function SlideCanvas({
         >
           <div
             data-testid="slide-transition-layer"
-            className="absolute inset-0 overflow-hidden"
+            className={`absolute inset-0 ${allowCanvasOverflow ? 'overflow-visible' : 'overflow-hidden'}`}
             style={studioTransitionStyle(transition)}
           >
           <svg
@@ -426,7 +452,15 @@ export default function SlideCanvas({
               const bounds = boundsFor(object, field);
               const renderedField = { ...field, bounds };
               const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
-              const isImage = object && ['visual', 'media'].includes(object.type) && object.url;
+              const selectedWithoutBorder = Boolean(object?.id === selectedObjectId && !hasVisibleObjectBorder(object));
+              // Resource overlays (3D, video, protected images, and packages) own
+              // their complete visual surface. Rendering the legacy SVG image URL
+              // underneath a transparent overlay exposes the browser's broken-image
+              // placeholder when that URL is not an actual image.
+              const isImage = object
+                && ['visual', 'media'].includes(object.type)
+                && object.url
+                && !objectOverlays[object.id];
               const animation = object?.animation;
               const animateSvgObject = object && !objectOverlays[object.id];
               return (
@@ -464,6 +498,7 @@ export default function SlideCanvas({
                       fill={!object && !showGuides ? selectedEmptySlot ? '#dbeafe55' : 'transparent' : object?.backgroundColor ?? tone.fill}
                       stroke={selectedEmptySlot ? '#2563eb' : !object && !showGuides ? 'transparent' : object?.id === selectedObjectId ? '#1d4ed8' : object?.borderColor ?? tone.stroke}
                       strokeWidth={object?.id === selectedObjectId || selectedEmptySlot ? 8 : Math.max(0, object?.borderWidth ?? 1) * 3}
+                      strokeDasharray={selectedWithoutBorder ? '14 10' : undefined}
                     />
                   )}
                   {isImage && (
@@ -519,6 +554,10 @@ export default function SlideCanvas({
             const overlay = object ? objectOverlays[object.id] : null;
             if (!object || !overlay) return null;
             const bounds = boundsFor(object, slot);
+            const selected = object.id === selectedObjectId;
+            const selectedWithoutBorder = selected && !hasVisibleObjectBorder(object);
+            const textEditorOutline = showTextEditorOutlines && textObjectTypes.has(object.type) &&
+              (selected || object.text.trim().length === 0);
             return (
               <div
                 key={`overlay-${object.id}-${objectAnimationKeys[object.id] ?? 'static'}`}
@@ -528,7 +567,7 @@ export default function SlideCanvas({
                   onSelectObject?.(object.id);
                 }}
                 onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds)}
-                className={`absolute touch-none overflow-hidden rounded-md border-2 ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${object.id === selectedObjectId ? 'border-blue-700' : ''}`}
+                className={`absolute touch-none rounded-md border-solid ${allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'} ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -536,8 +575,8 @@ export default function SlideCanvas({
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
                   backgroundColor: object.backgroundColor,
-                  borderColor: object.id === selectedObjectId ? undefined : object.borderColor ?? 'transparent',
-                  borderWidth: object.id === selectedObjectId ? 2 : Math.max(0, object.borderWidth ?? 1),
+                  borderColor: textEditorOutline || !selected ? object.borderColor ?? 'transparent' : undefined,
+                  borderWidth: textEditorOutline || !selected ? Math.max(0, object.borderWidth ?? 1) : 2,
                   ...objectAnimationStyles[object.id],
                 }}
               >
@@ -600,11 +639,13 @@ export default function SlideCanvas({
                   <button
                     type="button"
                     onPointerDown={(event) => beginInteraction(event, object.id, 'move', bounds)}
-                    className="pointer-events-auto absolute left-1/2 top-0 flex min-h-11 min-w-11 touch-none select-none items-center justify-center -translate-x-1/2 -translate-y-1/2 cursor-move rounded-full border-2 border-white bg-blue-700 px-3 py-2 text-xs font-bold text-white shadow sm:min-h-10"
+                        className="pointer-events-auto absolute -top-11 left-1/2 flex h-11 w-11 touch-none min-h-11 min-w-11 -translate-x-1/2 select-none items-center justify-center bg-transparent p-0 text-blue-700"
                     title="Drag to move element"
                     aria-label="Drag to move element"
                   >
-                    <MoveIcon size={14} aria-hidden="true" />
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-blue-700 bg-white shadow-sm">
+                      <MoveIcon size={12} aria-hidden="true" />
+                    </span>
                   </button>
                   {([
                     ['resize-nw', 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize'],
@@ -620,7 +661,7 @@ export default function SlideCanvas({
                       key={mode}
                       type="button"
                       onPointerDown={(event) => beginInteraction(event, object.id, mode, bounds)}
-                          className={`pointer-events-auto absolute h-11 w-11 touch-none select-none ${position} rounded-full border-2 border-white bg-blue-700 shadow after:absolute after:inset-4 after:rounded-full after:bg-white`}
+                          className={`pointer-events-auto absolute min-h-11 min-w-11 touch-none h-11 w-11 select-none bg-transparent p-0 ${position} after:absolute after:left-1/2 after:top-1/2 after:h-3 after:w-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-sm after:border-2 after:border-blue-700 after:bg-white after:shadow-sm after:content-['']`}
                       title={`Resize element ${mode.replace('resize-', '')}`}
                       aria-label={`Resize element ${mode.replace('resize-', '')}`}
                     />

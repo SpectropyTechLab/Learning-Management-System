@@ -2,6 +2,7 @@ import { Copy, ImagePlus, Layers3, Plus, Trash2 } from 'lucide-react';
 import type { Layout, ObjectType, Slot } from '../layouts';
 import type { StudioElement, StudioScreen } from '../types';
 import { canPlaceResource } from '../resourcePlacement';
+import { model3DSettingsFrom, standardModel3DView, type Model3DSettings } from './resources/model3DSettings';
 
 interface Props {
   layout: Layout | null;
@@ -78,6 +79,14 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
       ...selected,
       position: { ...selected.position, [key]: value },
     });
+  const boundResourceType = typeof selected?.resource?.usage?.resource_type === 'string'
+    ? selected.resource.usage.resource_type
+    : '';
+  const model3DSettings = model3DSettingsFrom(selected?.content);
+  const updateModel3D = (changes: Partial<Model3DSettings>) => selected && onUpdate({
+    ...selected,
+    content: { ...selected.content, model3d: { ...model3DSettings, ...changes } },
+  });
   return (
     <div className="grid gap-5">
       <div>
@@ -263,6 +272,38 @@ export default function StudioElementPanel({ layout, screen, selectedElementId, 
                   Teaching label
                   <input value={textValue(selected)} onChange={(event) => updateContent('text', event.target.value)} placeholder="Short visible label" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
                 </label>
+                {boundResourceType === 'model_3d' && (
+                  <div className="mt-4 grid gap-4 rounded-xl border border-cyan-200 bg-cyan-50/70 p-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">3D appearance and interaction</h4>
+                      <p className="mt-1 text-xs text-slate-600">Drag the outer object to move it. Drag the circular control over the model to rotate it, or open Pan & Zoom from the model tools. The internal view is saved automatically.</p>
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-white p-3 text-xs text-emerald-900">
+                      The viewer background is always transparent. Model colour comes from the GLB material and texture, exactly as in PowerPoint.
+                    </div>
+                    <label className="text-sm font-semibold text-slate-700">Standard camera view
+                      <select defaultValue="" onChange={(event) => { const cameraOrbit = standardModel3DView(event.target.value); if (cameraOrbit) updateModel3D({ cameraOrbit, fieldOfView: '30deg' }); event.target.value = ''; }} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
+                        <option value="">Choose a view…</option><option value="front">Front</option><option value="back">Back</option><option value="left">Left</option><option value="right">Right</option><option value="top">Top</option><option value="isometric">Isometric</option>
+                      </select>
+                    </label>
+                    <button type="button" onClick={() => updateModel3D({ cameraOrbit: '', cameraTarget: '', fieldOfView: '' })} className="rounded-lg border border-cyan-300 bg-white px-3 py-2 text-xs font-bold text-cyan-900">Reset camera, pan and zoom</button>
+                    <label className="text-sm font-semibold text-slate-700">Lighting environment
+                      <select value={model3DSettings.environment} onChange={(event) => updateModel3D({ environment: event.target.value as Model3DSettings['environment'] })} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"><option value="neutral">Neutral studio</option><option value="soft">Soft studio</option><option value="none">Model lighting only</option></select>
+                    </label>
+                    <label className="text-sm font-semibold text-slate-700">Exposure · {model3DSettings.exposure.toFixed(2)}<input type="range" min="0.25" max="2.5" step="0.05" value={model3DSettings.exposure} onChange={(event) => updateModel3D({ exposure: Number(event.target.value) })} className="mt-1 w-full" /></label>
+                    <label className="text-sm font-semibold text-slate-700">Contact shadow · {model3DSettings.shadowIntensity.toFixed(2)}<input type="range" min="0" max="2" step="0.05" value={model3DSettings.shadowIntensity} onChange={(event) => updateModel3D({ shadowIntensity: Number(event.target.value) })} className="mt-1 w-full" /></label>
+                    <label className="text-sm font-semibold text-slate-700">Shadow softness · {model3DSettings.shadowSoftness.toFixed(2)}<input type="range" min="0" max="1" step="0.05" value={model3DSettings.shadowSoftness} onChange={(event) => updateModel3D({ shadowSoftness: Number(event.target.value) })} className="mt-1 w-full" /></label>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={model3DSettings.autoRotate} onChange={(event) => updateModel3D({ autoRotate: event.target.checked })} />Auto-rotate model</label>
+                    {model3DSettings.autoRotate && <label className="text-sm font-semibold text-slate-700">Rotation speed · {model3DSettings.rotationPerSecond}°/s<input type="range" min="1" max="90" step="1" value={model3DSettings.rotationPerSecond} onChange={(event) => updateModel3D({ rotationPerSecond: Number(event.target.value) })} className="mt-1 w-full" /></label>}
+                    <label className="text-sm font-semibold text-slate-700">Animation speed · {model3DSettings.animationSpeed}×<select value={model3DSettings.animationSpeed} onChange={(event) => updateModel3D({ animationSpeed: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">{[0.25, 0.5, 1, 1.5, 2, 3].map((speed) => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
+                    <div>
+                      <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold text-slate-800">Model labels</p><span className="text-xs text-slate-500">{model3DSettings.hotspots.length}</span></div>
+                      <p className="mt-1 text-xs text-slate-600">Use the crosshair in the model controls, then double-click its surface.</p>
+                      <div className="mt-2 grid gap-2">{model3DSettings.hotspots.map((hotspot) => <div key={hotspot.id} className="flex items-center gap-2"><input value={hotspot.label} onChange={(event) => updateModel3D({ hotspots: model3DSettings.hotspots.map((item) => item.id === hotspot.id ? { ...item, label: event.target.value } : item) })} className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs"/><button type="button" onClick={() => updateModel3D({ hotspots: model3DSettings.hotspots.filter((item) => item.id !== hotspot.id) })} className="rounded-lg border border-red-200 bg-white px-2 py-1.5 text-xs font-bold text-red-700">Remove</button></div>)}</div>
+                    </div>
+                    <p className="text-[11px] leading-4 text-slate-500">Material variants and embedded animations appear automatically when the GLB provides them. A generic exploded view cannot be safely generated for arbitrary models; use an embedded “explode” animation when authored into the model.</p>
+                  </div>
+                )}
               </>
             )}
             <div className="mt-4 grid grid-cols-2 gap-3">
