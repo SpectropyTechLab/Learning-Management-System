@@ -681,15 +681,27 @@ export default function BlankScreenCanvas({
   const selectedElement =
     screen?.elements.find((element) => element.id === selectedElementId) ?? null;
 
+  const toolbarHorizontalBounds = (boundsWidth: number, toolbarWidth: number) => {
+    // Keep floating controls clear of the left and right navigation rails when
+    // there is enough room. On narrow viewports, retain a small visible inset.
+    const preferredInset = 64;
+    const minimumInset = 8;
+    const inset = boundsWidth >= toolbarWidth + preferredInset * 2 ? preferredInset : minimumInset;
+    return {
+      minimumX: inset,
+      maximumX: Math.max(inset, boundsWidth - toolbarWidth - inset),
+    };
+  };
+
   const moveToolbar = (clientX: number, clientY: number) => {
     const bounds = toolbarBoundsRef.current?.getBoundingClientRect();
     const toolbar = toolbarRef.current?.getBoundingClientRect();
     const drag = toolbarDragRef.current;
     if (!bounds || !toolbar || !drag) return;
-    const maximumX = Math.max(0, bounds.width - toolbar.width);
+    const { minimumX, maximumX } = toolbarHorizontalBounds(bounds.width, toolbar.width);
     const maximumY = Math.max(0, bounds.height - toolbar.height);
     setToolbarPosition({
-      x: Math.min(maximumX, Math.max(0, clientX - bounds.left - drag.offsetX)),
+      x: Math.min(maximumX, Math.max(minimumX, clientX - bounds.left - drag.offsetX)),
       y: Math.min(maximumY, Math.max(0, clientY - bounds.top - drag.offsetY)),
     });
   };
@@ -735,13 +747,18 @@ export default function BlankScreenCanvas({
                     const toolbar = toolbarRef.current?.getBoundingClientRect();
                     if (!bounds || !toolbar) return;
                     event.preventDefault();
+                    event.stopPropagation();
                     event.currentTarget.setPointerCapture(event.pointerId);
+                    const { minimumX, maximumX } = toolbarHorizontalBounds(bounds.width, toolbar.width);
                     toolbarDragRef.current = {
                       pointerId: event.pointerId,
                       offsetX: event.clientX - toolbar.left,
                       offsetY: event.clientY - toolbar.top,
                     };
-                    setToolbarPosition({ x: toolbar.left - bounds.left, y: toolbar.top - bounds.top });
+                    setToolbarPosition({
+                      x: Math.min(maximumX, Math.max(minimumX, toolbar.left - bounds.left)),
+                      y: Math.min(Math.max(0, bounds.height - toolbar.height), Math.max(0, toolbar.top - bounds.top)),
+                    });
                   }}
                   onDragPointerMove={(event) => {
                     if (toolbarDragRef.current?.pointerId === event.pointerId) moveToolbar(event.clientX, event.clientY);

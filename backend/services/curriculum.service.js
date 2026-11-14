@@ -15,6 +15,8 @@ const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
 
 const isSuperAdmin = (role) => role === 'super_admin';
 const isContentAuthorizer = (role) => role === 'content_authorizer';
+const hasUnrestrictedCurriculumAccess = (user) =>
+  isSuperAdmin(user?.role) || isContentAuthorizer(user?.role);
 const isPlatformTenantClientAdmin = (user) =>
   user?.role === 'client_admin' && Number(user?.client_id) === PLATFORM_PROGRAM_OWNER_CLIENT_ID;
 const isPlatformCurriculumAdmin = (user) =>
@@ -38,7 +40,7 @@ const resolveClientId = (user, sourceClientId) => {
 };
 
 const resolveScopedClientId = (user) => {
-  if (isSuperAdmin(user?.role)) return null;
+  if (hasUnrestrictedCurriculumAccess(user)) return null;
   if (isContentAuthorizer(user?.role) || isPlatformTenantClientAdmin(user)) return PLATFORM_PROGRAM_OWNER_CLIENT_ID;
   const clientId = user?.client_id ?? null;
   if (!clientId) {
@@ -101,8 +103,8 @@ const isSchoolOwnedByUser = async (record, user) => {
 };
 
 const canManageCurriculumContext = async (user, context) => {
-  if (isSuperAdmin(user?.role)) return true;
-  if (isContentAuthorizer(user?.role) || isPlatformTenantClientAdmin(user)) {
+  if (isSuperAdmin(user?.role) || isContentAuthorizer(user?.role)) return true;
+  if (isPlatformTenantClientAdmin(user)) {
     return isPlatformOwned(context);
   }
   if (isClientOwnedByUser(context, user)) return true;
@@ -208,7 +210,8 @@ const getBoardReadScope = async (user) => {
   };
 };
 
-const ensureBoardMatchesClient = (board, clientId) => {
+const ensureBoardMatchesClient = (board, clientId, user) => {
+  if (hasUnrestrictedCurriculumAccess(user)) return;
   if (board?.client_id !== null && Number(board?.client_id) !== Number(clientId)) {
     throw new AppError('Board does not belong to this client', 403);
   }
@@ -273,7 +276,7 @@ export const updateBoard = async ({ user, params, body }) => {
     throw new AppError('Access denied', 403);
   }
 
-  const clientId = isSuperAdmin(user?.role) ? null : context.rows[0].client_id;
+  const clientId = hasUnrestrictedCurriculumAccess(user) ? null : context.rows[0].client_id;
   const result = await curriculumRepo.updateBoard({ id, clientId, updates });
   if (result.rows.length === 0) {
     throw new AppError('Board not found', 404);
@@ -291,7 +294,7 @@ export const deleteBoard = async ({ user, params }) => {
     throw new AppError('Access denied', 403);
   }
 
-  const clientId = isSuperAdmin(user?.role) ? null : context.rows[0].client_id;
+  const clientId = hasUnrestrictedCurriculumAccess(user) ? null : context.rows[0].client_id;
   const result = await curriculumRepo.deleteBoard({ id, clientId });
   if (result.rows.length === 0) {
     throw new AppError('Board not found', 404);
@@ -346,7 +349,7 @@ export const createProgramForBoard = async ({ user, params, body }) => {
   const clientId = resolveClientId(user, body?.client_id);
   const schoolId = await resolveOwnedSchoolId(user, body?.school_id);
   const isActive = parseBoolean(body?.is_active, 'is_active');
-  ensureBoardMatchesClient(boardResult.rows[0], clientId);
+  ensureBoardMatchesClient(boardResult.rows[0], clientId, user);
 
   const result = await curriculumRepo.insertProgram({
     clientId,
@@ -423,7 +426,7 @@ export const createProgram = async ({ user, body }) => {
     if (boardResult.rows.length === 0) {
       throw new AppError('Board not found', 404);
     }
-    ensureBoardMatchesClient(boardResult.rows[0], clientId);
+    ensureBoardMatchesClient(boardResult.rows[0], clientId, user);
   }
 
   const result = await curriculumRepo.insertProgram({
@@ -472,7 +475,7 @@ export const updateProgram = async ({ user, params, body }) => {
     if (boardResult.rows.length === 0) {
       throw new AppError('Board not found', 404);
     }
-    ensureBoardMatchesClient(boardResult.rows[0], context.rows[0].client_id);
+    ensureBoardMatchesClient(boardResult.rows[0], context.rows[0].client_id, user);
   }
 
   const result = await curriculumRepo.updateProgram({ id, clientId, updates });
@@ -588,7 +591,7 @@ export const updateGrade = async ({ user, params, body }) => {
   if (updates.program_id !== undefined && Number(updates.program_id) !== Number(gradeContext.rows[0].program_id)) {
     const destination = await curriculumRepo.fetchProgramContext(updates.program_id);
     if (!destination.rows[0]) throw new AppError('Destination Program not found', 404);
-    if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(gradeContext.rows[0].client_id)) {
+    if (!(await canManageCurriculumContext(user, destination.rows[0])) || (!hasUnrestrictedCurriculumAccess(user) && Number(destination.rows[0].client_id) !== Number(gradeContext.rows[0].client_id))) {
       throw new AppError('The destination Program is outside this curriculum scope', 403);
     }
     const gradeNumber = updates.grade_number ?? (await dbQuery('SELECT grade_number FROM grades WHERE id = $1', [id])).rows[0].grade_number;
@@ -678,7 +681,7 @@ export const createSubject = async ({ user, body }) => {
     if (gradeContext.rows.length === 0) {
       throw new AppError('Grade not found', 404);
     }
-    if (clientId && Number(gradeContext.rows[0].client_id) !== Number(clientId)) {
+    if (!hasUnrestrictedCurriculumAccess(user) && clientId && Number(gradeContext.rows[0].client_id) !== Number(clientId)) {
       throw new AppError('Grade does not belong to this client', 403);
     }
   }
@@ -724,7 +727,7 @@ export const updateSubject = async ({ user, params, body }) => {
     if (gradeContext.rows.length === 0) {
       throw new AppError('Grade not found', 404);
     }
-    if (clientId && Number(gradeContext.rows[0].client_id) !== Number(clientId)) {
+    if (!hasUnrestrictedCurriculumAccess(user) && clientId && Number(gradeContext.rows[0].client_id) !== Number(clientId)) {
       throw new AppError('Grade does not belong to this client', 403);
     }
   }
@@ -844,7 +847,7 @@ export const updateChapter = async ({ user, params, body }) => {
     if (Number(updates.subject_id) !== Number(current.rows[0]?.subject_id)) {
       const destination = await curriculumRepo.fetchSubjectContext(updates.subject_id);
       if (!destination.rows[0]) throw new AppError('Destination Subject not found', 404);
-      if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(chapterContext.rows[0].client_id)) throw new AppError('The destination Subject is outside this curriculum scope', 403);
+      if (!(await canManageCurriculumContext(user, destination.rows[0])) || (!hasUnrestrictedCurriculumAccess(user) && Number(destination.rows[0].client_id) !== Number(chapterContext.rows[0].client_id))) throw new AppError('The destination Subject is outside this curriculum scope', 403);
       updates.chapter_number = Number((await dbQuery('SELECT COALESCE(MAX(chapter_number), 0) + 1 AS value FROM chapters WHERE subject_id = $1', [updates.subject_id])).rows[0].value);
     }
   }
@@ -958,7 +961,7 @@ export const updateTopic = async ({ user, params, body }) => {
     if (Number(updates.chapter_id) !== Number(current.rows[0]?.chapter_id)) {
       const destination = await curriculumRepo.fetchChapterContext(updates.chapter_id);
       if (!destination.rows[0]) throw new AppError('Destination Chapter not found', 404);
-      if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(topicContext.rows[0].client_id)) throw new AppError('The destination Chapter is outside this curriculum scope', 403);
+      if (!(await canManageCurriculumContext(user, destination.rows[0])) || (!hasUnrestrictedCurriculumAccess(user) && Number(destination.rows[0].client_id) !== Number(topicContext.rows[0].client_id))) throw new AppError('The destination Chapter is outside this curriculum scope', 403);
       updates.topic_number = Number((await dbQuery('SELECT COALESCE(MAX(topic_number), 0) + 1 AS value FROM topics WHERE chapter_id = $1', [updates.chapter_id])).rows[0].value);
     }
   }
@@ -1080,7 +1083,7 @@ export const updateSubtopic = async ({ user, params, body }) => {
   if (updates.topic_id !== undefined && Number(updates.topic_id) !== Number(context.rows[0].topic_id)) {
     const destination = await curriculumRepo.fetchTopicContext(updates.topic_id);
     if (!destination.rows[0]) throw new AppError('Destination Topic not found', 404);
-    if (!(await canManageCurriculumContext(user, destination.rows[0])) || Number(destination.rows[0].client_id) !== Number(context.rows[0].client_id)) throw new AppError('The destination Topic is outside this curriculum scope', 403);
+    if (!(await canManageCurriculumContext(user, destination.rows[0])) || (!hasUnrestrictedCurriculumAccess(user) && Number(destination.rows[0].client_id) !== Number(context.rows[0].client_id))) throw new AppError('The destination Topic is outside this curriculum scope', 403);
     updates.display_order = Number((await dbQuery('SELECT COALESCE(MAX(display_order), 0) + 1 AS value FROM subtopics WHERE topic_id = $1', [updates.topic_id])).rows[0].value);
   }
 
