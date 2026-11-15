@@ -89,7 +89,7 @@ const freeformLayoutFor = (screen: PublishedScreen): Layout => ({
   name: 'Freeform screen',
   purpose: 'Published author-positioned screen',
   catalog: 'pilot',
-  slots: screen.elements.map((element, index) => {
+  slots: screen.elements.filter((element) => element.position_json?.hidden !== true).map((element, index) => {
     const region = element.element_type === 'title' ? 'header' : element.element_type === 'footer' ? 'footer' : 'content';
     const fallback = region === 'header' ? { x: 90, y: 60, width: 1740, height: 150 } : region === 'footer' ? { x: 90, y: 950, width: 1740, height: 90 } : { x: 180 + (index % 2) * 800, y: 260, width: 760, height: 420 };
     return {
@@ -168,7 +168,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
   const slide: Slide = {
     title: screen.title,
     creationMode: layout ? 'layout' : 'blank',
-    objects: screen.elements.map((element) => ({
+    objects: screen.elements.filter((element) => element.position_json?.hidden !== true).map((element) => ({
       id: element.element_key,
       slotId: element.slot_id || `free-${element.element_key}`,
       type: element.element_type as ObjectType,
@@ -187,10 +187,11 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
       borderWidth: element.element_type !== 'shape' && Number.isFinite(Number(element.content_json?.borderWidth))
         ? Number(element.content_json?.borderWidth)
         : undefined,
+      rotation: Number(element.position_json?.rotation) || 0,
       zIndex: typeof element.position_json?.zIndex === 'number' ? element.position_json.zIndex : undefined,
     })),
   };
-  const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.flatMap((element) => {
+  const overlays: Record<string, ReactNode> = Object.fromEntries(screen.elements.filter((element) => element.position_json?.hidden !== true).flatMap((element) => {
     if (isSmartDiagramContent(element.content_json)) {
       const visibleNodeIds = animationTimeline && animationStep !== undefined
         ? presenterDiagramVisibleNodes(animationTimeline, element.element_key, animationStep, element.content_json.nodes.map((node) => node.id))

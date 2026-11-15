@@ -9,6 +9,7 @@ interface Model3DViewerProps {
   mode?: 'preview' | 'canvas' | 'runtime';
   selected?: boolean;
   settings?: Model3DSettings;
+  panZoomRequestToken?: number;
   onSettingsChange?: (settings: Model3DSettings) => void;
 }
 
@@ -111,6 +112,7 @@ export default function Model3DViewer({
   mode = 'preview',
   selected = false,
   settings = DEFAULT_MODEL_3D_SETTINGS,
+  panZoomRequestToken,
   onSettingsChange,
 }: Model3DViewerProps) {
   const [moduleReady, setModuleReady] = useState(false);
@@ -133,6 +135,13 @@ export default function Model3DViewer({
   const panDragRef = useRef<PanDrag | null>(null);
   const latestSettings = useRef(settings);
   latestSettings.current = settings;
+
+  useEffect(() => {
+    if (!panZoomRequestToken || mode !== 'canvas' || !selected) return;
+    setPanZoomMode(true);
+    setControlsVisible(true);
+    setPlacingHotspot(false);
+  }, [mode, panZoomRequestToken, selected]);
 
   useEffect(() => {
     let active = true;

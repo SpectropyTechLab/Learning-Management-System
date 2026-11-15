@@ -7,7 +7,7 @@ import type { StudioElement, StudioScreen } from '../types';
 import StudioShapeElement from './StudioShapeElement';
 import type { InlineShapeData } from './studioInlineShape';
 
-const shapeGroups = [
+export const STUDIO_SHAPE_GROUPS = [
   { label: 'Lines', shapes: ['line', 'diagonal-line', 'vertical-line', 'arrow', 'double-arrow', 'elbow-arrow', 'curved-arrow', 'left-arrow', 'up-arrow', 'down-arrow', 'connector', 'curve'] },
   { label: 'Rectangles', shapes: ['rectangle', 'rounded-rectangle', 'round-one-rectangle', 'round-two-rectangle', 'snip-one-rectangle', 'snip-two-rectangle', 'snip-round-rectangle', 'frame'] },
   {
@@ -54,6 +54,7 @@ const shapeGroups = [
   { label: 'Stars & banners', shapes: ['star-4', 'star', 'star-6', 'star-8', 'burst-1', 'burst-2', 'banner', 'ribbon', 'wave-banner', 'scroll'] },
   { label: 'Action buttons', shapes: ['action-back', 'action-forward', 'action-beginning', 'action-end', 'action-home', 'action-info', 'action-return', 'action-document', 'action-sound', 'action-help'] },
 ] as const;
+const shapeGroups = STUDIO_SHAPE_GROUPS;
 type DrawingPoint = { x: number; y: number };
 
 const distance = (a: DrawingPoint, b: DrawingPoint) => Math.hypot(a.x - b.x, a.y - b.y);

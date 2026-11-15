@@ -21,14 +21,31 @@ test('AutoSave preserves Screen undo and redo history', () => {
   assert.match(editor, /setHasUnsavedChanges\(true\);\s*setSaveStatus\('pending'\)/);
   assert.match(editor, /key === 'y' \|\| \(key === 'z' && event\.shiftKey\)/);
 });
-test('Studio tools and context ribbon use compact toggle controls', () => {
+test('Studio navigation stays outside Home while tools are allocated to ribbon tabs', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
+  const ribbonModel = readFrontend('components/studioRibbonModel.ts');
   assert.match(editor, /studioTools\.map/);
   assert.match(editor, /toggleStudioTool\(tool\.id\)/);
-  assert.match(editor, /flex w-11 shrink-0 flex-col/);
-  assert.match(editor, /leftPanelView !== 'script' \|\| !open/);
-  assert.match(editor, /studio-context-bar shrink-0/);
+  assert.match(editor, /aria-label="Open Screens and Script"/);
+  assert.match(editor, /aria-label="Screen navigation views"/);
+  assert.doesNotMatch(editor, /id: 'editor-context', label: 'Context'/);
+  assert.doesNotMatch(editor, /id: 'session-navigation', label: 'Navigation'/);
+  assert.match(editor, /aria-label="Select Session"/);
+  assert.match(editor, /contextBreadcrumb=/);
+  assert.match(ribbonModel, /id: 'draw'/);
+  assert.match(ribbonModel, /id: 'transitions'/);
+  assert.match(ribbonModel, /id: 'view'/);
+  assert.match(editor, /studio-context-bar hidden/);
   assert.doesNotMatch(editor, /Hide context controls|Show context and actions|contextBarOpen/);
+});
+
+test('Selected-element formatting is hosted by the ribbon instead of floating over the canvas', () => {
+  const ribbon = readFrontend('components/StudioAdaptiveRibbon.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  assert.match(ribbon, /id="studio-contextual-toolbar-host"/);
+  assert.match(canvas, /createPortal\(/);
+  assert.match(canvas, /document\.getElementById\('studio-contextual-toolbar-host'\)/);
+  assert.doesNotMatch(canvas, /Drag formatting toolbar|toolbarHorizontalBounds|moveToolbar/);
 });
 
 test('Cursor-aware lists and element hyperlinks reach authoring and playback', () => {
@@ -66,34 +83,55 @@ test('Screen navigation is a PowerPoint-style thumbnail rail with pointer reorde
   assert.doesNotMatch(editor, /studio-context-secondary/);
 });
 
-test('Reorder toggles closed and selected objects automatically open their applicable inspector', () => {
+test('Screen navigation remains permanent while selected objects activate contextual ribbon without forcing an inspector', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
-  assert.match(editor, /leftPanelOpen && leftPanelView === 'screens'/);
-  assert.match(editor, /setLeftPanelOpen\(false\);\s*return;/);
+  const ribbon = readFrontend('components/StudioAdaptiveRibbon.tsx');
+  const layers = readFrontend('components/StudioLayersPanel.tsx');
+  assert.match(editor, /useState\(true\);/);
+  assert.doesNotMatch(editor, /setLeftPanelOpen\(false\);\s*return;/);
+  assert.match(editor, /setLeftPanelView\('screens'\);\s*setLeftPanelOpen\(true\)/);
   assert.match(editor, /const selectElementAndOpenControls/);
-  assert.match(editor, /isSmartDiagramContent\(element\?\.content\)/);
-  assert.match(editor, /element\?\.type === 'math'/);
-  assert.match(editor, /element\?\.type === 'shape'/);
-  assert.match(editor, /setPanel\(nextPanel\);\s*setRightPanelOpen\(true\)/);
+  const selectionStart = editor.indexOf('const selectElementAndOpenControls');
+  const selectionEnd = editor.indexOf('const studioTools', selectionStart);
+  const selectionImplementation = editor.slice(selectionStart, selectionEnd);
+  assert.match(selectionImplementation, /setSelectedElementId\(elementId\)/);
+  assert.match(selectionImplementation, /setSelectedLayoutSlotId/);
+  assert.doesNotMatch(selectionImplementation, /setRightPanelOpen\(true\)|setPanel\(/);
   assert.match(editor, /onSelectElement=\{selectElementAndOpenControls\}/);
+  assert.match(editor, /label: 'Layers'/);
+  assert.match(editor, /<StudioLayersPanel/);
+  assert.doesNotMatch(ribbon, /flyoutTitle|flyoutContent|absolute right-2 top-full/);
+  assert.doesNotMatch(editor, /ribbonFlyout|setRibbonFlyout/);
+  assert.match(layers, /Hide layer|Show layer/);
+  assert.match(layers, /Lock layer|Unlock layer/);
+  assert.match(layers, /Drag to reorder layer/);
+  assert.match(layers, /reorderStudioLayers/);
+  assert.doesNotMatch(layers, /ArrowUp|ArrowDown|Bring layer forward|Send layer backward/);
 });
 
-test('Editor screen actions use the compact requested order and header owns rename and delete', () => {
+test('Screens and Script alone use the left pane while Screen actions live in Home', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const actions = [
-    'aria-label="Screens and reorder"',
-    'aria-label="Screen Script"',
-    'aria-label="Add Screen"',
-    'aria-label="Screen metadata"',
-    'aria-label="Edit layout"',
-    'aria-label="Remove layout"',
+    "id: 'add-screen'",
+    "id: 'screen-metadata'",
+    "id: 'rename-screen'",
+    "id: 'delete-screen'",
+    "id: 'edit-layout'",
+    "id: 'remove-layout'",
   ].map((label) => editor.indexOf(label));
   assert.ok(actions.every((index) => index > 0));
   assert.deepEqual(actions, [...actions].sort((left, right) => left - right));
+  assert.doesNotMatch(editor, /id: 'screens-and-reorder'/);
+  assert.doesNotMatch(editor, /id: 'screen-script'/);
   assert.doesNotMatch(editor, /w-44 shrink-0 self-center/);
-  assert.match(editor, /label="Rename Screen"/);
-  assert.match(editor, /label="Delete Screen"/);
+  const leftPaneStart = editor.indexOf('aria-label="Screen navigation views"');
+  const leftPaneEnd = editor.indexOf('aria-label="Select Session"', leftPaneStart);
+  const leftPane = editor.slice(leftPaneStart, leftPaneEnd);
+  assert.match(leftPane, />Screens</);
+  assert.match(leftPane, />Script</);
+  assert.match(leftPane, /Close Screens and Script/);
+  assert.doesNotMatch(leftPane, /Add Screen|Screen metadata|Edit layout|Remove layout/);
   assert.doesNotMatch(canvas, /Screen actions/);
   assert.doesNotMatch(canvas, /absolute left-16 top-16/);
 });
@@ -126,8 +164,10 @@ test('Editor reserves canvas space for opened inspectors', () => {
   assert.match(css, /position: absolute/);
   assert.match(css, /\.studio-editor-workspace\.has-left-panel \.studio-editor-canvas/);
   assert.match(css, /\.studio-editor-workspace\.has-right-panel \.studio-editor-canvas/);
-  assert.match(css, /\.studio-editor-workspace\.has-left-panel \.studio-editor-canvas \{\s*padding-left: min\(308px, 40vw\);/);
+  assert.match(css, /\.studio-editor-workspace\.has-left-panel \.studio-editor-canvas \{\s*padding-left: min\(288px, 38vw\);/);
   assert.match(css, /\.studio-editor-workspace\.has-right-panel \.studio-editor-canvas \{\s*padding-right: min\(388px, 44vw\);/);
+  assert.match(css, /\.studio-editor-workspace\.has-compact-right-panel \.studio-editor-canvas \{\s*padding-right: min\(316px, 38vw\);/);
+  assert.match(css, /\.studio-editor-workspace\.has-layers-panel \.studio-editor-canvas \{\s*padding-right: min\(280px, 34vw\);/);
   assert.match(css, /\.studio-editor-slide-frame/);
   assert.match(canvas, /studio-editor-canvas-stage/);
   assert.match(css, /\.studio-editor-left-panel > nav > button/);
@@ -195,6 +235,25 @@ test('Selected media supports component fitting and non-destructive crop control
   assert.match(toolbar, /mediaTransform/);
   assert.match(player, /objectFit: mediaTransform\?\.fit === 'cover'/);
   assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0 \}/);
+});
+
+test('Multi-selection, grouping, direct crop and rotation share the persisted element model', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const slide = readFrontend('SlideCanvas.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(editor, /selectedElementIds/);
+  assert.match(slide, /event\.ctrlKey \|\| event\.metaKey \|\| event\.shiftKey/);
+  assert.match(editor, /groupSelectedElements/);
+  assert.match(editor, /position: \{ \.\.\.element\.position, groupId \}/);
+  assert.match(editor, /ungroupSelectedElements/);
+  assert.match(editor, /candidate\.position\.groupId === groupId/);
+  assert.match(canvas, /Crop inside this container/);
+  assert.match(canvas, /onMediaTransformChange/);
+  assert.match(slide, /aria-label="Rotate element"/);
+  assert.match(slide, /onChangeObjectRotation/);
+  assert.match(slide, /rotate: `\$\{rotationFor\(object\)\}deg`/);
+  assert.match(player, /rotation: Number\(element\.position_json\?\.rotation\) \|\| 0/);
 });
 
 test('Text formatting commands apply font styles to the preserved selection', () => {
@@ -335,8 +394,9 @@ test('Canvas elements support direct pointer dragging as well as resize handles'
   const slide = readFrontend('SlideCanvas.tsx');
   assert.match(slide, /const queueDirectMove/);
   assert.match(slide, /Math\.hypot\(movementX, movementY\) < 6/);
-  assert.match(slide, /onPointerDown=\{\(event\) => object && queueDirectMove\(event, object\.id, bounds\)\}/);
-  assert.match(slide, /onPointerDownCapture=\{\(event\) => queueDirectMove\(event, object\.id, bounds\)\}/);
+  assert.match(slide, /onPointerDown=\{\(event\) => object && queueDirectMove\(event, object\.id, bounds, object\.locked\)\}/);
+  assert.match(slide, /onPointerDownCapture=\{\(event\) => queueDirectMove\(event, object\.id, bounds, object\.locked\)\}/);
+  assert.match(slide, /if \(locked \|\| !onChangeObjectBounds/);
   assert.match(slide, /\[contenteditable="true"\]/);
   const queueStart = slide.indexOf('const queueDirectMove');
   const queueEnd = slide.indexOf('useEffect(() => {', queueStart);
@@ -344,4 +404,61 @@ test('Canvas elements support direct pointer dragging as well as resize handles'
   assert.doesNotMatch(slide.slice(queueStart, queueEnd), /stopPropagation|setInteraction/);
   assert.match(slide, /root\.style\.userSelect = 'none'/);
   assert.match(slide, /window\.getSelection\(\)\?\.removeAllRanges\(\)/);
+});
+
+test('Adaptive ribbon exposes PowerPoint-style collapse, contextual crop, shape and animation workflows', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const ribbon = readFrontend('components/StudioAdaptiveRibbon.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+
+  assert.match(ribbon, /aria-label=\{collapsed \? 'Show ribbon commands' : 'Hide ribbon commands'\}/);
+  assert.match(ribbon, /height: collapsed \? '2rem' : '6\.35rem'/);
+  assert.match(ribbon, /if \(collapsed\) onToggleCollapsed\?\.\(\)/);
+
+  assert.match(editor, /id: 'picture-crop'/);
+  assert.match(editor, /setCropRequest\(\{ elementId: selectedElement\.id, token: Date\.now\(\) \}\)/);
+  assert.match(canvas, /cropRequestToken/);
+  assert.match(canvas, /Crop inside this container/);
+
+  const shapeFormatStart = editor.indexOf("case 'shape-format':");
+  const nextContextualTabStart = editor.indexOf("case 'diagram-design':", shapeFormatStart);
+  const shapeFormat = editor.slice(shapeFormatStart, nextContextualTabStart);
+  assert.match(shapeFormat, /RIBBON_VISIBLE_SHAPES/);
+  assert.match(shapeFormat, /Shape fill/);
+  assert.match(shapeFormat, /Shape outline/);
+  assert.match(shapeFormat, /Shape effect/);
+  assert.match(shapeFormat, /Selection Pane/);
+  assert.match(shapeFormat, /Rotate/);
+  assert.doesNotMatch(shapeFormat, /openRibbonTool\('shapes'\)/);
+
+  for (const group of [
+    'animation-preview',
+    'animation-gallery',
+    'animation-effect-options',
+    'advanced-animation',
+    'animation-timing',
+    'animation-reorder',
+  ]) assert.match(editor, new RegExp(`id: '${group}'`));
+  assert.match(editor, /const openAnimationPane = \(\) => \{[\s\S]*setPanel\('animations'\);[\s\S]*setRightPanelOpen\(true\)/);
+  assert.match(editor, /moveSelectedAnimation\(-1, selectedAnimationEffects\.length - 1\)/);
+});
+
+test('3D contextual controls stay in the ribbon and activate interaction inside the model', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  const model = readFrontend('components/resources/Model3DViewer.tsx');
+  const start = editor.indexOf("case '3d-model':");
+  const end = editor.indexOf("case 'simulation-format':", start);
+  const modelRibbon = editor.slice(start, end);
+  for (const capability of ['3D Model Views', 'Alt Text', 'Bring Forward', 'Send Backward', 'Selection Pane', 'Align Center', 'Group', 'Pan & Zoom', 'Auto Rotate', 'Size']) {
+    assert.match(modelRibbon, new RegExp(capability.replace(/[&]/g, '\\&')));
+  }
+  assert.match(modelRibbon, /standardModel3DView\(view\)/);
+  assert.match(modelRibbon, /setModel3DModeRequest/);
+  assert.doesNotMatch(modelRibbon, /ribbonFlyout|setRibbonFlyout/);
+  assert.match(canvas, /model3DModeRequestToken/);
+  assert.match(player, /panZoomRequestToken=\{model3DModeRequestToken\}/);
+  assert.match(model, /setPanZoomMode\(true\)/);
+  assert.match(model, /setControlsVisible\(true\)/);
 });
