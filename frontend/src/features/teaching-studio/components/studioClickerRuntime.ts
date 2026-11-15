@@ -140,13 +140,34 @@ export const buildPresenterAnimationTimeline = (
 ): PresenterAnimationTimeline => {
   let currentStep = 0;
   const cues: PresenterAnimationCue[] = [];
-  for (const element of elements) {
-    const effects = [...effectsFor(element), ...diagramEffectsFor(element)];
-    effects.forEach((effect, index) => {
-      const start = String(effect.start || (index === 0 ? 'on-click' : 'after-previous'));
-      if (start === 'on-click') currentStep += 1;
-      cues.push({ elementKey: element.element_key, effect: { ...effect, start }, step: currentStep });
-    });
+  let fallbackOrder = 0;
+  const ordered = elements.flatMap((element) => {
+    const objectEffects = effectsFor(element).map((effect, index) => ({
+      elementKey: element.element_key,
+      effect,
+      effectIndex: index,
+      explicitOrder: Number(effect.sequenceOrder),
+      fallbackOrder: fallbackOrder++,
+    }));
+    const diagramEffects = diagramEffectsFor(element).map((effect, index) => ({
+      elementKey: element.element_key,
+      effect,
+      effectIndex: objectEffects.length + index,
+      explicitOrder: Number.NaN,
+      fallbackOrder: fallbackOrder++,
+    }));
+    return [...objectEffects, ...diagramEffects];
+  }).sort((left, right) => {
+    const leftOrdered = Number.isFinite(left.explicitOrder);
+    const rightOrdered = Number.isFinite(right.explicitOrder);
+    if (leftOrdered && rightOrdered && left.explicitOrder !== right.explicitOrder) return left.explicitOrder - right.explicitOrder;
+    if (leftOrdered !== rightOrdered) return leftOrdered ? -1 : 1;
+    return left.fallbackOrder - right.fallbackOrder;
+  });
+  for (const item of ordered) {
+    const start = String(item.effect.start || (item.effectIndex === 0 ? 'on-click' : 'after-previous'));
+    if (start === 'on-click' || start === 'trigger') currentStep += 1;
+    cues.push({ elementKey: item.elementKey, effect: { ...item.effect, start }, step: currentStep });
   }
   return { cues, maxStep: currentStep };
 };

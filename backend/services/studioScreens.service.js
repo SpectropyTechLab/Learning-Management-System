@@ -150,6 +150,8 @@ const normalizePosition = (value, label, { allowBottomOverflow = false } = {}) =
   }
   if (position.locked !== undefined && typeof position.locked !== 'boolean')
     throw new AppError(`${label} locked must be true or false`, 422);
+  if (position.hidden !== undefined && typeof position.hidden !== 'boolean')
+    throw new AppError(`${label} hidden must be true or false`, 422);
   return normalized;
 };
 
@@ -275,6 +277,8 @@ const assertSafeRichTextHtml = (html, elementKey) => {
 };
 
 const validateElementPresentationContent = (content, elementKey) => {
+  if (content.layerName !== undefined)
+    optionalText(content.layerName, `Element ${elementKey} layer name`, 120);
   if (content.richTextHtml !== undefined) {
     const html = String(content.richTextHtml);
     if (html.length > 50000)
