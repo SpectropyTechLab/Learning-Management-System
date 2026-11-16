@@ -318,6 +318,13 @@ test('Selected media supports component fitting and non-destructive crop control
   assert.match(editor, /image\.naturalWidth/);
 });
 
+test('Executable runtime URLs resolve against the configured API backend', () => {
+  const resourcePlayer = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  const sessionPlayer = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(resourcePlayer, /resolveAssetUrl\(launch\.launch_url\)/);
+  assert.match(sessionPlayer, /resolveAssetUrl\(result\.launch_url\)/);
+});
+
 test('Multi-selection, grouping, direct crop and rotation share the persisted element model', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');

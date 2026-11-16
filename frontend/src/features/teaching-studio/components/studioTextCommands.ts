@@ -10,7 +10,13 @@ export type StudioTextCommand =
       property: 'lineHeight' | 'marginTop' | 'marginBottom' | 'textAlign';
       value: string;
     }
-  | { type: 'insert-equation'; latex: string; offset: number };
+  | {
+      type: 'insert-equation';
+      latex: string;
+      offset: number;
+      openControl?: 'keyboard' | 'menu';
+      controlLocation?: { x: number; y: number };
+    };
 
 export const STUDIO_TEXT_COMMAND_EVENT = 'studio:text-command';
 
