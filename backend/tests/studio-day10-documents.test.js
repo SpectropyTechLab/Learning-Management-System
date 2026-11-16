@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow } from 'docx';
+import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun } from 'docx';
 import router from '../routes/studioDocuments.routes.js';
 import {
   SCREEN_SCRIPT_FIELDS,
@@ -82,7 +82,7 @@ test('Screen Script v2 parser preserves required sections and table cells', asyn
     new Paragraph({ text: heading, heading: HeadingLevel.HEADING_3 }),
     new Table({ rows: [
       new TableRow({ children: [new TableCell({ children: [new Paragraph('Column A')] }), new TableCell({ children: [new Paragraph('Column B')] })] }),
-      new TableRow({ children: [new TableCell({ children: [new Paragraph('Value A')] }), new TableCell({ children: [new Paragraph('Value B')] })] }),
+      new TableRow({ children: [new TableCell({ children: [new Paragraph({ children: [new TextRun('x'), new TextRun({ text: '2', superScript: true }), new TextRun(' + y'), new TextRun({ text: '1', subScript: true })] })] }), new TableCell({ children: [new Paragraph('Value B')] })] }),
     ] }),
   ];
   const children = [
@@ -104,5 +104,5 @@ test('Screen Script v2 parser preserves required sections and table cells', asyn
   assert.equal(parsed.scripts[0].validation.status, 'valid');
   assert.equal(parsed.scripts[0].sections.length, 5);
   assert.deepEqual(parsed.scripts[0].sections[0].blocks[0].columns, ['Column A', 'Column B']);
-  assert.deepEqual(parsed.scripts[0].sections[0].blocks[0].rows, [['Value A', 'Value B']]);
+  assert.deepEqual(parsed.scripts[0].sections[0].blocks[0].rows, [['x^{2} + y_{1}', 'Value B']]);
 });

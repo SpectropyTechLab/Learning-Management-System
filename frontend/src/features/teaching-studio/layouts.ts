@@ -123,6 +123,7 @@ export type SlideObject = {
   borderColor?: string;
   borderWidth?: number;
   locked?: boolean;
+  rotation?: number;
   zIndex?: number;
   url?: string;
   altText?: string;

@@ -3,7 +3,7 @@ import multer from 'multer';
 import { authenticateToken, attachClientContext, requireRole } from '../middleware/auth.js';
 import {
   listResources, getResource, renameResource, createResource, createResourceVersion, getResourceUsages, deleteResource,
-  searchAssetCatalog, importAssetCatalogItem,
+  searchAssetCatalog, getAssetCatalogPreview, importAssetCatalogItem,
 } from '../controllers/studioResources.controller.js';
 
 const router = Router();
@@ -17,6 +17,7 @@ router.use('/studio/resources', authenticateToken, attachClientContext, authors)
 router.use('/studio/asset-catalog', authenticateToken, attachClientContext, authors);
 router.get('/studio/resources', listResources);
 router.get('/studio/asset-catalog/search', searchAssetCatalog);
+router.get('/studio/asset-catalog/preview', getAssetCatalogPreview);
 router.post('/studio/asset-catalog/import', importAssetCatalogItem);
 router.get('/studio/resources/:resourceId', getResource);
 router.get('/studio/resources/:resourceId/usages', getResourceUsages);

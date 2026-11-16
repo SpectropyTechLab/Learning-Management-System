@@ -6,6 +6,7 @@ interface Props {
   opacity?: number;
   strokeDash?: string;
   customPath?: string;
+  effect?: string;
 }
 export default function StudioShapeElement({
   kind,
@@ -15,6 +16,7 @@ export default function StudioShapeElement({
   opacity = 1,
   strokeDash = 'solid',
   customPath,
+  effect = 'none',
 }: Props) {
   const common = {
     fill,
@@ -31,6 +33,12 @@ export default function StudioShapeElement({
       className="pointer-events-none h-full w-full"
       preserveAspectRatio="none"
       aria-hidden="true"
+      style={{
+        filter: effect === 'shadow' ? 'drop-shadow(8px 8px 7px rgb(15 23 42 / 0.38))'
+          : effect === 'glow' ? 'drop-shadow(0 0 9px rgb(37 99 235 / 0.75))'
+            : effect === 'soft-edges' ? 'blur(1.5px)'
+              : undefined,
+      }}
     >
       {kind === 'custom-drawing' && customPath ? (
         <path d={customPath} {...common} fill="none" strokeLinecap="round" strokeLinejoin="round" />

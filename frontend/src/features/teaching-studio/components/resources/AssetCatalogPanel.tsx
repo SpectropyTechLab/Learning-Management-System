@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, ExternalLink, Image, Loader2, Plus, Search, Shapes, Sparkles, WandSparkles, X } from 'lucide-react';
+import { Box, Eye, ExternalLink, Image, Loader2, Plus, Search, Shapes, Sparkles, WandSparkles, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
 import {
   importStudioAssetCatalogItem,
+  getStudioAssetCatalogPreview,
   searchStudioAssetCatalog,
   type StudioAssetCatalogItem,
   type StudioAssetCatalogComposition,
   type StudioAssetCatalogKind,
   type StudioResourceSummary,
 } from '../../api/studioResourcesApi';
+import Model3DViewer from './Model3DViewer';
 
 interface AssetCatalogPanelProps {
   mode: 'manage' | 'picker';
@@ -30,10 +32,11 @@ const kindLabel = (kind: StudioAssetCatalogItem['asset_kind']) => ({
   icon: 'Icon', illustration: '2D asset', animation: 'Animation', model_3d: '3D model',
 }[kind]);
 
-function CatalogCard({ asset, importing, onImport, mode }: {
+function CatalogCard({ asset, importing, onImport, onPreview, mode }: {
   asset: StudioAssetCatalogItem;
   importing: boolean;
   onImport: () => void;
+  onPreview?: () => void;
   mode: 'manage' | 'picker';
 }) {
   return (
@@ -60,6 +63,7 @@ function CatalogCard({ asset, importing, onImport, mode }: {
             {importing ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
             {mode === 'picker' ? 'Add to screen' : 'Add to library'}
           </button>
+          {asset.asset_kind === 'model_3d' && onPreview ? <button type="button" onClick={onPreview} title="Open interactive 3D preview" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-indigo-300 text-indigo-700 transition hover:bg-indigo-50"><Eye size={14}/></button> : null}
           <a href={asset.source_url} target="_blank" rel="noreferrer" title="Open original source" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-300 text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-900"><ExternalLink size={14} /></a>
         </div>
       </div>
@@ -78,6 +82,10 @@ export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPane
   const [error, setError] = useState('');
   const [unavailable, setUnavailable] = useState<Array<{ id: string; reason: string }>>([]);
   const [importing, setImporting] = useState('');
+  const [previewAsset, setPreviewAsset] = useState<StudioAssetCatalogItem | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -145,6 +153,18 @@ export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPane
     }
   };
 
+  const openInteractivePreview = async (asset: StudioAssetCatalogItem) => {
+    setPreviewAsset(asset); setPreviewUrl(''); setPreviewError(''); setPreviewLoading(true);
+    try {
+      const preview = await getStudioAssetCatalogPreview(asset);
+      setPreviewUrl(preview.url);
+    } catch (failure) {
+      setPreviewError(getApiErrorDetails(failure, 'Unable to open the interactive 3D preview.').message);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6">
       <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 shadow-sm">
@@ -183,7 +203,14 @@ export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPane
       {loading ? <div className="grid min-h-72 place-items-center text-sm text-slate-600"><span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={20} />Searching approved asset sources…</span></div> : null}
       {!loading && error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-800">{error}</div> : null}
       {!loading && !error && assets.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-12 text-center"><Search className="mx-auto text-slate-300" size={36} /><p className="mt-3 font-semibold text-slate-700">No matching reusable assets</p><p className="mt-1 text-sm text-slate-500">Try a shorter object name or select All assets.</p></div> : null}
-      {!loading && !error && assets.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{assets.map((asset) => <CatalogCard key={asset.id} asset={asset} importing={importing === asset.id} onImport={() => void importAsset(asset)} mode={mode} />)}</div> : null}
+      {!loading && !error && assets.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{assets.map((asset) => <CatalogCard key={asset.id} asset={asset} importing={importing === asset.id} onImport={() => void importAsset(asset)} onPreview={asset.asset_kind === 'model_3d' ? () => void openInteractivePreview(asset) : undefined} mode={mode} />)}</div> : null}
+      {previewAsset ? <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`3D preview: ${previewAsset.title}`}>
+        <div className="flex h-[min(82vh,760px)] w-[min(92vw,1100px)] flex-col overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3"><div><p className="font-bold text-slate-900">{previewAsset.title}</p><p className="text-xs text-slate-500">Drag to rotate · scroll or pinch to zoom · preview before adding</p></div><button type="button" onClick={() => setPreviewAsset(null)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-300 text-slate-600" aria-label="Close 3D preview"><X size={18}/></button></div>
+          <div className="min-h-0 flex-1 bg-slate-100">{previewLoading ? <div className="grid h-full place-items-center"><span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600"><Loader2 className="animate-spin" size={18}/>Preparing interactive model…</span></div> : previewError ? <div className="grid h-full place-items-center p-8 text-center text-sm text-red-700">{previewError}</div> : previewUrl ? <Model3DViewer src={previewUrl} alt={previewAsset.title} className="h-full w-full" mode="preview"/> : null}</div>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3"><p className="text-xs text-slate-500">{previewAsset.attribution}</p><button type="button" disabled={importing === previewAsset.id} onClick={() => void importAsset(previewAsset).then(() => setPreviewAsset(null))} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus size={15}/>{mode === 'picker' ? 'Add to screen' : 'Add to library'}</button></div>
+        </div>
+      </div> : null}
     </div>
   );
 }
