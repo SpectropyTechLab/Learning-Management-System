@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Move as MoveIcon } from 'lucide-react';
+import { Move as MoveIcon, RotateCw } from 'lucide-react';
 import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Rect, Slide, Slot } from './layouts';
 import type { AuthorDrawingStroke, StudioDrawingTool } from './types';
@@ -54,11 +54,16 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
 
 type GeometryInteraction = {
   objectId: string;
-  mode: 'move' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w' | 'resize-nw';
+  mode: 'move' | 'rotate' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w' | 'resize-nw';
   startClientX: number;
   startClientY: number;
   startBounds: Rect;
   currentBounds: Rect;
+  startRotation?: number;
+  currentRotation?: number;
+  centerClientX?: number;
+  centerClientY?: number;
+  startPointerAngle?: number;
 };
 
 type PendingMove = {
@@ -81,11 +86,13 @@ export default function SlideCanvas({
   allowCanvasOverflow = false,
   showTextEditorOutlines = false,
   selectedObjectId,
+  selectedObjectIds = [],
   selectedSlotId,
   onSelectObject,
   onSelectSlot,
   onClearSelection,
   onChangeObjectBounds,
+  onChangeObjectRotation,
   objectOverlays = {},
   objectAnimationStyles = {},
   objectAnimationKeys = {},
@@ -111,11 +118,13 @@ export default function SlideCanvas({
   allowCanvasOverflow?: boolean;
   showTextEditorOutlines?: boolean;
   selectedObjectId?: string | null;
+  selectedObjectIds?: string[];
   selectedSlotId?: string | null;
-  onSelectObject?: (objectId: string) => void;
+  onSelectObject?: (objectId: string, additive?: boolean) => void;
   onSelectSlot?: (slotId: string) => void;
   onClearSelection?: () => void;
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
+  onChangeObjectRotation?: (objectId: string, rotation: number) => void;
   objectOverlays?: Record<string, ReactNode>;
   objectAnimationStyles?: Record<string, CSSProperties>;
   objectAnimationKeys?: Record<string, string | number>;
@@ -163,6 +172,10 @@ export default function SlideCanvas({
     if (interaction && object?.id === interaction.objectId) return interaction.currentBounds;
     return object?.position ?? slot.bounds;
   };
+  const rotationFor = (object: Slide['objects'][number] | undefined) =>
+    interaction?.mode === 'rotate' && object?.id === interaction.objectId
+      ? interaction.currentRotation ?? object.rotation ?? 0
+      : object?.rotation ?? 0;
 
   useEffect(() => {
     if (!interaction || scale <= 0) return;
@@ -171,6 +184,15 @@ export default function SlideCanvas({
       const deltaY = (event.clientY - interaction.startClientY) / scale;
       const start = interaction.startBounds;
       let currentBounds: Rect;
+      if (interaction.mode === 'rotate') {
+        const pointerAngle = Math.atan2(
+          event.clientY - (interaction.centerClientY ?? 0),
+          event.clientX - (interaction.centerClientX ?? 0),
+        ) * 180 / Math.PI;
+        const rotation = Math.round((interaction.startRotation ?? 0) + pointerAngle - (interaction.startPointerAngle ?? pointerAngle));
+        setInteraction((current) => current ? { ...current, currentRotation: rotation } : null);
+        return;
+      }
       if (interaction.mode === 'move') {
         const maximumY = start.y + start.height > MASTER.height
           ? MASTER.height - 60
@@ -206,7 +228,9 @@ export default function SlideCanvas({
       setInteraction((current) => (current ? { ...current, currentBounds } : null));
     };
     const finish = () => {
-      onChangeObjectBounds?.(interaction.objectId, interaction.currentBounds);
+      if (interaction.mode === 'rotate')
+        onChangeObjectRotation?.(interaction.objectId, interaction.currentRotation ?? interaction.startRotation ?? 0);
+      else onChangeObjectBounds?.(interaction.objectId, interaction.currentBounds);
       setInteraction(null);
     };
     window.addEventListener('pointermove', move);
@@ -217,14 +241,16 @@ export default function SlideCanvas({
       window.removeEventListener('pointerup', finish);
       window.removeEventListener('pointercancel', finish);
     };
-  }, [interaction, onChangeObjectBounds, scale]);
+  }, [interaction, onChangeObjectBounds, onChangeObjectRotation, scale]);
 
   const beginInteraction = (
     event: React.PointerEvent,
     objectId: string,
     mode: GeometryInteraction['mode'],
     bounds: Rect,
+    locked = false,
   ) => {
+    if (locked) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -239,16 +265,47 @@ export default function SlideCanvas({
     });
   };
 
+  const beginRotation = (
+    event: React.PointerEvent,
+    objectId: string,
+    bounds: Rect,
+    rotation: number,
+    locked = false,
+  ) => {
+    if (locked || !onChangeObjectRotation) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const frame = (event.currentTarget.parentElement as HTMLElement | null)?.getBoundingClientRect();
+    const centerClientX = frame ? frame.left + frame.width / 2 : event.clientX;
+    const centerClientY = frame ? frame.top + frame.height / 2 : event.clientY;
+    const startPointerAngle = Math.atan2(event.clientY - centerClientY, event.clientX - centerClientX) * 180 / Math.PI;
+    onSelectObject?.(objectId);
+    setInteraction({
+      objectId,
+      mode: 'rotate',
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startBounds: bounds,
+      currentBounds: bounds,
+      startRotation: rotation,
+      currentRotation: rotation,
+      centerClientX,
+      centerClientY,
+      startPointerAngle,
+    });
+  };
+
   const queueDirectMove = (
     event: React.PointerEvent<SVGGElement | HTMLDivElement>,
     objectId: string,
     bounds: Rect,
+    locked = false,
   ) => {
-    if (!onChangeObjectBounds || drawingEnabled || event.button !== 0) return;
+    if (locked || !onChangeObjectBounds || drawingEnabled || event.button !== 0) return;
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+      target.closest('button, a, input, textarea, select, [contenteditable="true"], [data-canvas-interactive="true"]')
     ) return;
     event.preventDefault();
     pendingMoveRef.current = {
@@ -452,8 +509,16 @@ export default function SlideCanvas({
               const bounds = boundsFor(object, field);
               const renderedField = { ...field, bounds };
               const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
-              const isImage = object && ['visual', 'media'].includes(object.type) && object.url;
-              const selectedWithoutBorder = Boolean(object?.id === selectedObjectId && !hasVisibleObjectBorder(object));
+              const objectSelected = Boolean(object && (object.id === selectedObjectId || selectedObjectIds.includes(object.id)));
+              const selectedWithoutBorder = Boolean(objectSelected && !hasVisibleObjectBorder(object));
+              // Resource overlays (3D, video, protected images, and packages) own
+              // their complete visual surface. Rendering the legacy SVG image URL
+              // underneath a transparent overlay exposes the browser's broken-image
+              // placeholder when that URL is not an actual image.
+              const isImage = object
+                && ['visual', 'media'].includes(object.type)
+                && object.url
+                && !objectOverlays[object.id];
               const animation = object?.animation;
               const animateSvgObject = object && !objectOverlays[object.id];
               return (
@@ -461,14 +526,15 @@ export default function SlideCanvas({
                   key={field.id}
                   data-slot={field.id}
                   data-element-id={object?.id}
+                  transform={object ? `rotate(${rotationFor(object)} ${bounds.x + bounds.width / 2} ${bounds.y + bounds.height / 2})` : undefined}
                   role={object ? 'button' : undefined}
                   tabIndex={object ? 0 : undefined}
                   onClick={(event) => {
                     event.stopPropagation();
-                    if (object) onSelectObject?.(object.id);
+                    if (object) onSelectObject?.(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
                     else onSelectSlot?.(field.id);
                   }}
-                  onPointerDown={(event) => object && queueDirectMove(event, object.id, bounds)}
+                  onPointerDown={(event) => object && queueDirectMove(event, object.id, bounds, object.locked)}
                   onKeyDown={(event) => {
                     if (object && (event.key === 'Enter' || event.key === ' '))
                       onSelectObject?.(object.id);
@@ -489,8 +555,8 @@ export default function SlideCanvas({
                       {...bounds}
                       rx={field.region === 'footer' ? 12 : 22}
                       fill={!object && !showGuides ? selectedEmptySlot ? '#dbeafe55' : 'transparent' : object?.backgroundColor ?? tone.fill}
-                      stroke={selectedEmptySlot ? '#2563eb' : !object && !showGuides ? 'transparent' : object?.id === selectedObjectId ? '#1d4ed8' : object?.borderColor ?? tone.stroke}
-                      strokeWidth={object?.id === selectedObjectId || selectedEmptySlot ? 8 : Math.max(0, object?.borderWidth ?? 1) * 3}
+                      stroke={selectedEmptySlot ? '#2563eb' : !object && !showGuides ? 'transparent' : objectSelected ? '#1d4ed8' : object?.borderColor ?? tone.stroke}
+                      strokeWidth={objectSelected || selectedEmptySlot ? 8 : Math.max(0, object?.borderWidth ?? 1) * 3}
                       strokeDasharray={selectedWithoutBorder ? '14 10' : undefined}
                     />
                   )}
@@ -547,7 +613,7 @@ export default function SlideCanvas({
             const overlay = object ? objectOverlays[object.id] : null;
             if (!object || !overlay) return null;
             const bounds = boundsFor(object, slot);
-            const selected = object.id === selectedObjectId;
+            const selected = object.id === selectedObjectId || selectedObjectIds.includes(object.id);
             const selectedWithoutBorder = selected && !hasVisibleObjectBorder(object);
             const textEditorOutline = showTextEditorOutlines && textObjectTypes.has(object.type) &&
               (selected || object.text.trim().length === 0);
@@ -557,9 +623,9 @@ export default function SlideCanvas({
                 data-element-id={object.id}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onSelectObject?.(object.id);
+                  onSelectObject?.(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
                 }}
-                onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds)}
+                onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds, object.locked)}
                 className={`absolute touch-none rounded-md border-solid ${allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'} ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
@@ -571,6 +637,7 @@ export default function SlideCanvas({
                   borderColor: textEditorOutline || !selected ? object.borderColor ?? 'transparent' : undefined,
                   borderWidth: textEditorOutline || !selected ? Math.max(0, object.borderWidth ?? 1) : 2,
                   ...objectAnimationStyles[object.id],
+                  rotate: `${rotationFor(object)}deg`,
                 }}
               >
                 {overlay}
@@ -616,6 +683,7 @@ export default function SlideCanvas({
             (layout?.slots ?? []).map((slot) => {
               const object = slide.objects.find((item) => item.slotId === slot.id);
               if (!object || object.id !== selectedObjectId) return null;
+              if (object.locked) return null;
               const bounds = boundsFor(object, slot);
               return (
                 <div
@@ -627,18 +695,28 @@ export default function SlideCanvas({
                     top: `${(bounds.y / MASTER.height) * 100}%`,
                     width: `${(bounds.width / MASTER.width) * 100}%`,
                     height: `${(bounds.height / MASTER.height) * 100}%`,
+                    rotate: `${rotationFor(object)}deg`,
                   }}
                 >
                   <button
                     type="button"
-                    onPointerDown={(event) => beginInteraction(event, object.id, 'move', bounds)}
-                    className="pointer-events-auto absolute -top-11 left-1/2 flex h-11 w-11 -translate-x-1/2 touch-none select-none items-center justify-center bg-transparent p-0 text-blue-700"
+                    onPointerDown={(event) => beginInteraction(event, object.id, 'move', bounds, object.locked)}
+                        className="pointer-events-auto absolute -top-11 left-1/2 flex h-11 w-11 touch-none min-h-11 min-w-11 -translate-x-1/2 select-none items-center justify-center bg-transparent p-0 text-blue-700"
                     title="Drag to move element"
                     aria-label="Drag to move element"
                   >
                     <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-blue-700 bg-white shadow-sm">
                       <MoveIcon size={12} aria-hidden="true" />
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => beginRotation(event, object.id, bounds, rotationFor(object), object.locked)}
+                    className="pointer-events-auto absolute -right-11 -top-11 flex h-11 w-11 touch-none select-none items-center justify-center bg-transparent p-0 text-blue-700"
+                    title="Rotate element"
+                    aria-label="Rotate element"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-blue-700 bg-white shadow-sm"><RotateCw size={13} /></span>
                   </button>
                   {([
                     ['resize-nw', 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize'],
@@ -653,8 +731,8 @@ export default function SlideCanvas({
                     <button
                       key={mode}
                       type="button"
-                      onPointerDown={(event) => beginInteraction(event, object.id, mode, bounds)}
-                      className={`pointer-events-auto absolute h-11 w-11 touch-none select-none bg-transparent p-0 ${position} after:absolute after:left-1/2 after:top-1/2 after:h-3 after:w-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-sm after:border-2 after:border-blue-700 after:bg-white after:shadow-sm after:content-['']`}
+                      onPointerDown={(event) => beginInteraction(event, object.id, mode, bounds, object.locked)}
+                          className={`pointer-events-auto absolute min-h-11 min-w-11 touch-none h-11 w-11 select-none bg-transparent p-0 ${position} after:absolute after:left-1/2 after:top-1/2 after:h-3 after:w-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-sm after:border-2 after:border-blue-700 after:bg-white after:shadow-sm after:content-['']`}
                       title={`Resize element ${mode.replace('resize-', '')}`}
                       aria-label={`Resize element ${mode.replace('resize-', '')}`}
                     />

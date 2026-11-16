@@ -41,7 +41,13 @@ const assertAuthor = (user) => {
     throw new AppError('Only Studio authors can import curriculum', 403, 'AUTHOR_ROLE_REQUIRED');
   }
 };
-const scopedClientId = (user) => user?.client_id ? Number(user.client_id) : null;
+const PLATFORM_PROGRAM_OWNER_CLIENT_ID = 17;
+const scopedClientId = (user) => {
+  if (user?.role === 'super_admin' || user?.role === 'content_authorizer') {
+    return PLATFORM_PROGRAM_OWNER_CLIENT_ID;
+  }
+  return user?.client_id ? Number(user.client_id) : null;
+};
 
 const parseWorkbook = async (file) => {
   if (!file?.buffer) throw new AppError('Choose an Excel workbook to upload', 422, 'FILE_REQUIRED');

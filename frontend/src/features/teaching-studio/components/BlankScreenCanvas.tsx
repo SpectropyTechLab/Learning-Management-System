@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { FileText, Image as ImageIcon, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Check, Crop, FileText, Image as ImageIcon, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
 import { getStudioResource } from '../api/studioResourcesApi';
 import type { StudioResourceDetails, StudioResourceVersion } from '../api/studioResourcesApi';
 import type { Layout, ObjectType, Rect, Slide, Slot } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
 import type { AuthorDrawingStroke, StudioDrawingTool, StudioElement, StudioScreen } from '../types';
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
+import { model3DSettingsFrom, type Model3DSettings } from './resources/model3DSettings';
 import StudioMathElement from './StudioMathElement';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
@@ -27,15 +29,18 @@ import {
 interface BlankScreenCanvasProps {
   screen: StudioScreen | null;
   screenTitle?: string;
+  contextBreadcrumb?: string;
   loading: boolean;
   layout?: Layout | null;
   selectedElementId?: string | null;
+  selectedElementIds?: string[];
   selectedSlotId?: string | null;
-  onSelectElement?: (elementId: string) => void;
+  onSelectElement?: (elementId: string, additive?: boolean) => void;
   onSelectSlot?: (slotId: string) => void;
   onClearElementSelection?: () => void;
   onChangeElement?: (element: StudioElement) => void;
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
+  onChangeElementRotation?: (elementId: string, rotation: number) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
   onTextCaretChange?: (elementId: string, offset: number) => void;
   onEditInlineShape?: (elementId: string, shape: InlineShapeData, start: number, end: number) => void;
@@ -45,6 +50,8 @@ interface BlankScreenCanvasProps {
   showGuides?: boolean;
   previewMode?: boolean;
   animationPreview?: { elementId: string; token: number } | null;
+  cropRequest?: { elementId: string; token: number } | null;
+  model3DModeRequest?: { elementId: string; token: number } | null;
   previewStartAtEnd?: boolean;
   onPreviewNext?: () => void;
   onPreviewPrevious?: () => void;
@@ -67,14 +74,40 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, selected = false, onSelect }: { element: StudioElement; selected?: boolean; onSelect?: () => void }) {
+function BoundResource({ element, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onModel3DSettingsChange, onMediaTransformChange }: { element: StudioElement; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: () => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: { fit: 'contain' | 'cover'; scale: number; x: number; y: number }) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
   const [error, setError] = useState('');
   const [fullScreen, setFullScreen] = useState(false);
+  const [cropping, setCropping] = useState(false);
+  const [cropDraft, setCropDraft] = useState<{ fit: 'contain' | 'cover'; scale: number; x: number; y: number } | null>(null);
+  const handledCropRequestRef = useRef<number | undefined>(undefined);
+  const cropPointerRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
   const resourceId = element.resource?.resource_id;
   const versionId = element.resource?.resource_version_id;
+  const storedMediaTransform = element.content.mediaTransform && typeof element.content.mediaTransform === 'object'
+    ? element.content.mediaTransform as { fit?: 'contain' | 'cover'; scale?: number; x?: number; y?: number }
+    : {};
+  const mediaTransform = {
+    fit: storedMediaTransform.fit === 'cover' ? 'cover' as const : 'contain' as const,
+    scale: Math.max(1, Number(storedMediaTransform.scale) || 1),
+    x: Number(storedMediaTransform.x) || 0,
+    y: Number(storedMediaTransform.y) || 0,
+  };
+  const effectiveMediaTransform = cropping && cropDraft ? cropDraft : mediaTransform;
+
+  useEffect(() => {
+    if (!cropRequestToken || handledCropRequestRef.current === cropRequestToken || !selected || !onMediaTransformChange) return;
+    handledCropRequestRef.current = cropRequestToken;
+    setCropDraft({
+      fit: 'cover',
+      scale: Math.max(1, Number(storedMediaTransform.scale) || 1),
+      x: Number(storedMediaTransform.x) || 0,
+      y: Number(storedMediaTransform.y) || 0,
+    });
+    setCropping(true);
+  }, [cropRequestToken, onMediaTransformChange, selected, storedMediaTransform.scale, storedMediaTransform.x, storedMediaTransform.y]);
 
   useEffect(() => {
     if (!resourceId || !versionId) return;
@@ -137,13 +170,61 @@ function BoundResource({ element, selected = false, onSelect }: { element: Studi
         version={version}
         mode="canvas"
         selected={selected}
-        mediaTransform={
-          element.content.mediaTransform && typeof element.content.mediaTransform === 'object'
-            ? element.content.mediaTransform as { fit?: 'contain' | 'cover'; scale?: number; x?: number; y?: number }
-            : undefined
-        }
+        mediaTransform={effectiveMediaTransform}
+        model3DSettings={resource.resource_type === 'model_3d' ? model3DSettingsFrom(element.content) : undefined}
+        model3DModeRequestToken={resource.resource_type === 'model_3d' ? model3DModeRequestToken : undefined}
+        onModel3DSettingsChange={resource.resource_type === 'model_3d' ? onModel3DSettingsChange : undefined}
         className="h-full w-full"
       />
+      {selected && onMediaTransformChange && ['image', 'animation', 'video'].includes(resource.resource_type) ? (
+        <>
+          <button
+            type="button"
+            data-canvas-interactive="true"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (cropping) {
+                if (cropDraft) onMediaTransformChange(cropDraft);
+                setCropping(false);
+                setCropDraft(null);
+              } else {
+                setCropDraft({ ...mediaTransform, fit: 'cover' });
+                setCropping(true);
+              }
+            }}
+            className={`absolute left-2 top-2 z-20 inline-flex h-9 items-center gap-1 rounded-lg border px-2 text-xs font-bold shadow ${cropping ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-300 bg-white/95 text-blue-900'}`}
+            title={cropping ? 'Finish direct crop' : 'Crop inside this container'}
+          >
+            {cropping ? <Check size={15} /> : <Crop size={15} />}{cropping ? 'Done' : 'Crop'}
+          </button>
+          {cropping ? (
+            <div
+              data-canvas-interactive="true"
+              className="absolute inset-0 z-10 cursor-grab touch-none border-2 border-blue-500 bg-blue-500/5 active:cursor-grabbing"
+              title="Drag to reposition. Use Ctrl + mouse wheel to zoom the media inside its container."
+              onPointerDown={(event) => {
+                event.preventDefault(); event.stopPropagation();
+                event.currentTarget.setPointerCapture(event.pointerId);
+                cropPointerRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, originX: effectiveMediaTransform.x, originY: effectiveMediaTransform.y };
+              }}
+              onPointerMove={(event) => {
+                const drag = cropPointerRef.current;
+                if (!drag || drag.pointerId !== event.pointerId) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                setCropDraft({ ...effectiveMediaTransform, fit: 'cover', x: Math.max(-100, Math.min(100, drag.originX + ((event.clientX - drag.x) / Math.max(1, rect.width)) * 200)), y: Math.max(-100, Math.min(100, drag.originY + ((event.clientY - drag.y) / Math.max(1, rect.height)) * 200)) });
+              }}
+              onPointerUp={() => { cropPointerRef.current = null; }}
+              onPointerCancel={() => { cropPointerRef.current = null; }}
+              onWheel={(event) => {
+                if (!event.ctrlKey && !event.metaKey) return;
+                event.preventDefault(); event.stopPropagation();
+                setCropDraft({ ...effectiveMediaTransform, fit: 'cover', scale: Math.max(1, Math.min(3, effectiveMediaTransform.scale + (event.deltaY < 0 ? 0.1 : -0.1))) });
+              }}
+            />
+          ) : null}
+        </>
+      ) : null}
       <button
         type="button"
         onClick={(event) => {
@@ -177,15 +258,18 @@ const elementBounds = (position: Record<string, unknown>): Rect | undefined => {
 export default function BlankScreenCanvas({
   screen,
   screenTitle,
+  contextBreadcrumb,
   loading,
   layout = null,
   selectedElementId,
+  selectedElementIds = [],
   selectedSlotId,
   onSelectElement,
   onSelectSlot,
   onClearElementSelection,
   onChangeElement,
   onChangeElementBounds,
+  onChangeElementRotation,
   onChangeElementContent,
   onTextCaretChange,
   onEditInlineShape,
@@ -195,6 +279,8 @@ export default function BlankScreenCanvas({
   showGuides = false,
   previewMode = false,
   animationPreview = null,
+  cropRequest = null,
+  model3DModeRequest = null,
   previewStartAtEnd = false,
   onPreviewNext,
   onPreviewPrevious,
@@ -228,10 +314,7 @@ export default function BlankScreenCanvas({
     useState<PresenterAnimationNavigation | null>(null);
   const [lastClickerAction, setLastClickerAction] = useState<'next' | 'previous' | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
-  const toolbarBoundsRef = useRef<HTMLDivElement>(null);
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
-  const toolbarDragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
   const zoomPointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | null>(null);
   const animationTimeline = useMemo(
@@ -291,6 +374,9 @@ export default function BlankScreenCanvas({
   useEffect(() => {
     if (editingElementId && selectedElementId !== editingElementId) setEditingElementId(null);
   }, [editingElementId, selectedElementId]);
+  useEffect(() => {
+    setToolbarHost(document.getElementById('studio-contextual-toolbar-host'));
+  }, []);
   const authoredStrokes =
     drawingStrokes ?? screen?.screen_settings_json?.author_drawings?.strokes ?? [];
   const freeformLayout: Layout | null =
@@ -302,7 +388,7 @@ export default function BlankScreenCanvas({
           name: 'Freeform screen',
           purpose: 'Author-positioned blank screen elements',
           catalog: 'pilot',
-          slots: screen.elements.map((element, index) => {
+          slots: screen.elements.filter((element) => element.position.hidden !== true).map((element, index) => {
             const region =
               element.type === 'title'
                 ? 'header'
@@ -336,6 +422,7 @@ export default function BlankScreenCanvas({
             ...screen.elements
               .filter(
                 (element) =>
+                  element.position.hidden !== true &&
                   !baseLayout.slots.some(
                     (slot) => slot.id === (element.slotId || `free-${element.id}`),
                   ),
@@ -384,7 +471,7 @@ export default function BlankScreenCanvas({
       ? {
           title: screen.title,
           creationMode: 'layout',
-          objects: screen.elements.map((element) => ({
+          objects: screen.elements.filter((element) => element.position.hidden !== true).map((element) => ({
             id: element.id,
             slotId: element.slotId || `free-${element.id}`,
             type: element.type as Slide['objects'][number]['type'],
@@ -401,6 +488,7 @@ export default function BlankScreenCanvas({
               ? Number(element.content.borderWidth)
               : undefined,
             locked: element.position.locked === true,
+            rotation: Number(element.position.rotation) || 0,
             zIndex:
               typeof element.position.zIndex === 'number' ? element.position.zIndex : undefined,
             url: typeof element.content.url === 'string' ? element.content.url : undefined,
@@ -416,6 +504,7 @@ export default function BlankScreenCanvas({
   const objectAnimationStyles: Record<string, CSSProperties> = {};
   const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen?.elements ?? []) {
+    if (element.position.hidden === true) continue;
     if (isSmartDiagramContent(element.content)) {
       const visibleNodeIds = previewMode
         ? presenterDiagramVisibleNodes(
@@ -489,6 +578,7 @@ export default function BlankScreenCanvas({
           customPath={
             typeof element.content.customPath === 'string' ? element.content.customPath : undefined
           }
+          effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
         />
       );
       continue;
@@ -622,7 +712,11 @@ export default function BlankScreenCanvas({
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
         selected={selectedElementId === element.id}
+        cropRequestToken={cropRequest?.elementId === element.id ? cropRequest.token : undefined}
+        model3DModeRequestToken={model3DModeRequest?.elementId === element.id ? model3DModeRequest.token : undefined}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+        onModel3DSettingsChange={onChangeElementContent ? (settings) => onChangeElementContent(element.id, { model3d: settings }) : undefined}
+        onMediaTransformChange={onChangeElementContent ? (mediaTransform) => onChangeElementContent(element.id, { mediaTransform }) : undefined}
       />
     );
   }
@@ -681,26 +775,12 @@ export default function BlankScreenCanvas({
   const selectedElement =
     screen?.elements.find((element) => element.id === selectedElementId) ?? null;
 
-  const moveToolbar = (clientX: number, clientY: number) => {
-    const bounds = toolbarBoundsRef.current?.getBoundingClientRect();
-    const toolbar = toolbarRef.current?.getBoundingClientRect();
-    const drag = toolbarDragRef.current;
-    if (!bounds || !toolbar || !drag) return;
-    const maximumX = Math.max(0, bounds.width - toolbar.width);
-    const maximumY = Math.max(0, bounds.height - toolbar.height);
-    setToolbarPosition({
-      x: Math.min(maximumX, Math.max(0, clientX - bounds.left - drag.offsetX)),
-      y: Math.min(maximumY, Math.max(0, clientY - bounds.top - drag.offsetY)),
-    });
-  };
-
   return (
     <section
       aria-label={previewMode ? 'Flattened screen preview' : 'Studio canvas'}
       className={`relative flex h-full min-h-0 min-w-0 flex-col ${previewMode ? 'bg-white' : 'studio-editor-canvas-stage overflow-hidden rounded-2xl border border-slate-300 bg-slate-200 shadow-sm'}`}
     >
       <div
-        ref={toolbarBoundsRef}
         className="relative min-h-0 flex-1"
         onClick={(event) => {
           if (!previewMode) return;
@@ -712,15 +792,9 @@ export default function BlankScreenCanvas({
           setLastClickerAction('next');
         }}
       >
-        {!previewMode ? (
-          <>
-            {screen && selectedElement && onChangeElementContent && onOpenTool ? (
-              <div
-                ref={toolbarRef}
-                className={`absolute z-40 max-w-[calc(100%-1rem)] rounded-xl border border-white/70 bg-white/82 shadow-lg backdrop-blur-md ${toolbarPosition ? '' : 'left-1/2 top-16 -translate-x-1/2'}`}
-                style={toolbarPosition ? { left: toolbarPosition.x, top: toolbarPosition.y } : undefined}
-              >
-                <StudioElementToolbar
+        {!previewMode && toolbarHost && screen && selectedElement && onChangeElementContent && onOpenTool
+          ? createPortal(
+              <StudioElementToolbar
                   element={selectedElement}
                   selectionFontSize={textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
                   selectionSpacing={textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
@@ -730,33 +804,10 @@ export default function BlankScreenCanvas({
                   onOpenAnimations={() => onOpenTool('animations')}
                   onDuplicate={onDuplicateElement ? () => onDuplicateElement(selectedElement.id) : undefined}
                   onRemove={onRemoveElement ? () => onRemoveElement(selectedElement.id) : undefined}
-                  onDragPointerDown={(event) => {
-                    const bounds = toolbarBoundsRef.current?.getBoundingClientRect();
-                    const toolbar = toolbarRef.current?.getBoundingClientRect();
-                    if (!bounds || !toolbar) return;
-                    event.preventDefault();
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                    toolbarDragRef.current = {
-                      pointerId: event.pointerId,
-                      offsetX: event.clientX - toolbar.left,
-                      offsetY: event.clientY - toolbar.top,
-                    };
-                    setToolbarPosition({ x: toolbar.left - bounds.left, y: toolbar.top - bounds.top });
-                  }}
-                  onDragPointerMove={(event) => {
-                    if (toolbarDragRef.current?.pointerId === event.pointerId) moveToolbar(event.clientX, event.clientY);
-                  }}
-                  onDragPointerEnd={(event) => {
-                    if (toolbarDragRef.current?.pointerId !== event.pointerId) return;
-                    moveToolbar(event.clientX, event.clientY);
-                    toolbarDragRef.current = null;
-                    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-                  }}
-                />
-              </div>
-            ) : null}
-          </>
-        ) : null}
+                />,
+              toolbarHost,
+            )
+          : null}
         {previewMode && animationTimeline.maxStep > 0 ? (
           <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full bg-slate-950/75 px-3 py-1 text-xs font-semibold text-white">
             Clicker ready · Animation {previewStep}/{animationTimeline.maxStep}
@@ -821,11 +872,13 @@ export default function BlankScreenCanvas({
             slide={slide}
             showGuides={displayLayoutGuides}
             selectedObjectId={selectedElementId}
+            selectedObjectIds={selectedElementIds}
             selectedSlotId={selectedSlotId}
             onSelectObject={onSelectElement}
             onSelectSlot={onSelectSlot}
             onClearSelection={onClearElementSelection}
             onChangeObjectBounds={onChangeElementBounds}
+            onChangeObjectRotation={onChangeElementRotation}
             objectOverlays={objectOverlays}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
@@ -877,7 +930,9 @@ export default function BlankScreenCanvas({
       </div>
       {!previewMode ? (
         <footer className="studio-editor-status-bar flex h-8 shrink-0 items-center justify-between border-t border-slate-300 bg-white/95 px-2 text-[11px] text-slate-600" aria-label="Editor status and zoom controls">
-          <span className="min-w-0 truncate px-1">{screen ? screenTitle || screen.title : 'No Screen selected'}</span>
+          <span className="min-w-0 truncate px-1" title={contextBreadcrumb || screenTitle || screen?.title}>
+            {screen ? contextBreadcrumb || screenTitle || screen.title : 'No Screen selected'}
+          </span>
           <div className="flex shrink-0 items-center gap-1" aria-label="Canvas zoom">
             <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => setCanvasZoom((value) => Math.max(0.4, Number((value - 0.1).toFixed(1))))} className="grid h-6 w-6 place-items-center rounded hover:bg-blue-50"><Minus size={13} /></button>
             <input type="range" min="40" max="250" step="10" value={Math.round(canvasZoom * 100)} onChange={(event) => setCanvasZoom(Number(event.target.value) / 100)} className="h-1 w-24 accent-blue-900 sm:w-32" aria-label="Canvas zoom percentage" />

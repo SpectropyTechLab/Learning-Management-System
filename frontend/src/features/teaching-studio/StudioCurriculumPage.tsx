@@ -13,6 +13,7 @@ import type { CurriculumDocumentPreview, StudioDocumentRecord } from './api/stud
 import StudioCurriculumTree from './components/StudioCurriculumTree';
 import StudioShell from './components/StudioShell';
 import StudioCurriculumBulkImport from './components/StudioCurriculumBulkImport';
+import CurriculumDocumentViewer from './components/CurriculumDocumentViewer';
 
 export default function StudioCurriculumPage() {
   const navigate = useNavigate();
@@ -196,13 +197,13 @@ export default function StudioCurriculumPage() {
       )}
       {preview && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4"
+          className="fixed inset-0 z-[100] flex items-stretch justify-center bg-slate-950/70 p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Curriculum document preview"
         >
-          <section className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <header className="flex items-start justify-between gap-4 border-b border-gray-200 p-5">
+          <section className="flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl">
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-200 p-4 sm:p-5">
               <div className="min-w-0">
                 <h2 className="font-bold">Curriculum document</h2>
                 <p className="truncate text-sm text-slate-600" title={preview.file_name}>
@@ -218,10 +219,8 @@ export default function StudioCurriculumPage() {
                 <X size={19} />
               </button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-slate-800">
-                {preview.text || 'The document contains no extractable text.'}
-              </pre>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+              <CurriculumDocumentViewer preview={preview} />
             </div>
           </section>
         </div>

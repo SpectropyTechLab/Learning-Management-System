@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import mammoth from 'mammoth';
+import sanitizeHtml from 'sanitize-html';
 import supabase from '../config/supabaseClient.js';
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
@@ -7,6 +8,61 @@ import { AppError } from '../utils/errors.js';
 const BUCKET = process.env.STUDIO_DOCUMENTS_BUCKET || 'sessions-scripts-plans';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const READER_ROLES = new Set(['super_admin', 'content_authorizer', 'client_admin', 'school_owner', 'teacher']);
+const DOCX_STYLE_MAP = [
+  "p[style-name='Title'] => h1:fresh",
+  "p[style-name='Subtitle'] => p.document-subtitle:fresh",
+  "p[style-name='Heading 1'] => h2:fresh",
+  "p[style-name='Heading 2'] => h3:fresh",
+  "p[style-name='Heading 3'] => h4:fresh",
+];
+
+const sanitizeDocumentHtml = (html) => sanitizeHtml(html, {
+  allowedTags: [
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr', 'strong', 'b', 'em', 'i', 'u',
+    's', 'sup', 'sub', 'blockquote', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tfoot',
+    'tr', 'th', 'td', 'caption', 'a', 'img', 'div', 'span',
+  ],
+  allowedAttributes: {
+    a: ['href', 'title', 'target', 'rel'],
+    img: ['src', 'alt', 'title', 'width', 'height'],
+    th: ['colspan', 'rowspan', 'scope'],
+    td: ['colspan', 'rowspan'],
+    p: ['class'],
+  },
+  allowedClasses: { p: ['document-subtitle'] },
+  allowedSchemes: ['http', 'https', 'mailto', 'tel', 'data'],
+  allowedSchemesByTag: { img: ['http', 'https', 'data'] },
+  allowProtocolRelative: false,
+  transformTags: {
+    a: (_tagName, attribs) => ({
+      tagName: 'a',
+      attribs: { ...attribs, target: '_blank', rel: 'noopener noreferrer' },
+    }),
+  },
+});
+
+export const convertCurriculumDocxPreview = async (buffer) => {
+  const [converted, extracted] = await Promise.all([
+    mammoth.convertToHtml(
+      { buffer },
+      {
+        styleMap: DOCX_STYLE_MAP,
+        includeDefaultStyleMap: true,
+        convertImage: mammoth.images.imgElement(async (image) => ({
+          src: `data:${image.contentType};base64,${await image.read('base64')}`,
+        })),
+      },
+    ),
+    mammoth.extractRawText({ buffer }),
+  ]);
+  return {
+    html: sanitizeDocumentHtml(converted.value).trim(),
+    text: extracted.value.replace(/\r/g, '').trim(),
+    warnings: [...converted.messages, ...extracted.messages]
+      .map((message) => String(message.message || message))
+      .filter((message, index, messages) => messages.indexOf(message) === index),
+  };
+};
 
 const parseId = (value, label) => {
   const id = Number(value);
@@ -129,12 +185,11 @@ export const previewCurriculumDocument = async ({ chapterId: rawChapterId, user 
     throw new AppError('Inline Curriculum preview currently supports DOCX files; download this original to view it in its native application', 415);
   }
   try {
-    const extracted = await mammoth.extractRawText({ buffer: downloaded.bytes });
+    const converted = await convertCurriculumDocxPreview(downloaded.bytes);
     return {
       file_name: downloaded.fileName,
       revision_no: downloaded.revisionNo,
-      text: extracted.value.replace(/\r/g, '').trim(),
-      warnings: extracted.messages.map((message) => String(message.message || message)),
+      ...converted,
     };
   } catch (error) {
     throw new AppError(`Unable to preview the Curriculum DOCX: ${error.message}`, 422);

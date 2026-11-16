@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Ban, Bold, ChevronDown, Circle, Copy, Crop, GripVertical, IndentDecrease, IndentIncrease, Italic, Link2, List, ListChevronsUpDown, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Ban, Bold, ChevronDown, Circle, Copy, Crop, IndentDecrease, IndentIncrease, Italic, Link2, List, ListChevronsUpDown, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
 import type { StudioElement } from '../types';
 import { normalizeStudioHyperlink } from './studioHyperlinkModel';
 import { dispatchStudioTextCommand } from './studioTextCommands';
@@ -19,14 +18,11 @@ interface Props {
   onOpenAnimations: () => void;
   onDuplicate?: () => void;
   onRemove?: () => void;
-  onDragPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onDragPointerMove?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onDragPointerEnd?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }
 
 const textTypes = ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'];
 
-export default function StudioElementToolbar({ element, selectionFontSize, selectionSpacing, onChange, onOpenMath, onOpenShapes, onOpenAnimations, onDuplicate, onRemove, onDragPointerDown, onDragPointerMove, onDragPointerEnd }: Props) {
+export default function StudioElementToolbar({ element, selectionFontSize, selectionSpacing, onChange, onOpenMath, onOpenShapes, onOpenAnimations, onDuplicate, onRemove }: Props) {
   const [listMenuOpen, setListMenuOpen] = useState(false);
   const [linkMenuOpen, setLinkMenuOpen] = useState(false);
   const [cropMenuOpen, setCropMenuOpen] = useState(false);
@@ -131,23 +127,24 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
     setLinkMenuOpen(false);
   };
 
-  return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm" aria-label="Selected element formatting toolbar">
-    {onDragPointerDown ? <button type="button" onPointerDown={onDragPointerDown} onPointerMove={onDragPointerMove} onPointerUp={onDragPointerEnd} onPointerCancel={onDragPointerEnd} className="flex h-7 w-6 shrink-0 touch-none cursor-grab items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing" title="Drag formatting toolbar" aria-label="Drag formatting toolbar"><GripVertical size={15} /></button> : null}
-    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+  const ribbonGroup = (label: string, controls: ReactNode) => (
+    <section className="flex shrink-0 flex-col justify-between border-r border-slate-200 px-1.5 last:border-r-0" aria-label={`${label} controls`}>
+      <div className="flex min-h-8 items-center gap-1">{controls}</div>
+      <span className="mt-0.5 text-center text-[9px] font-semibold text-slate-500">{label}</span>
+    </section>
+  );
+
+  return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="Selected element Home controls">
+    {ribbonGroup('Font', <>
       <select disabled={!textElement} value={String(content.fontFamily || 'Arial')} onChange={(event) => sendTextCommand({ type: 'style', property: 'fontFamily', value: event.target.value })} aria-label="Font family" className="h-7 w-24 shrink-0 rounded border px-1 text-xs disabled:opacity-35"><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option></select>
       <input disabled={!textElement} type="number" min="10" max="160" value={fontSizeDraft} placeholder={selectionFontSize === 'mixed' ? 'Mixed' : undefined} onFocus={() => setFontSizeEditing(true)} onChange={(event) => previewFontSize(event.target.value)} onBlur={() => { setFontSizeEditing(false); const size = Number(fontSizeDraft); if (!Number.isFinite(size) || size < 10 || size > 160) setFontSizeDraft(displayedFontSize); }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} aria-label="Font size" className="h-7 w-12 shrink-0 rounded border px-1 text-xs disabled:opacity-35" />
-      <button ref={spacingButtonRef} disabled={!textElement} type="button" title="Line and paragraph spacing" aria-label="Line and paragraph spacing" onClick={() => { setSpacingMenuOpen((open) => !open); setListMenuOpen(false); setLinkMenuOpen(false); setCropMenuOpen(false); }} className={button(spacingMenuOpen)}><ListChevronsUpDown size={14} /></button>
       <input disabled={!textElement} type="color" value={typeof content.color === 'string' ? content.color : '#25436b'} onChange={(event) => sendTextCommand({ type: 'style', property: 'color', value: event.target.value })} aria-label="Text colour" className="h-7 w-8 shrink-0 rounded border p-0.5 disabled:opacity-35" />
-      <input type="color" value={typeof fillValue === 'string' && fillValue !== 'transparent' ? fillValue : '#ffffff'} onChange={(event) => onChange(shapeElement ? { fill: event.target.value } : { backgroundColor: event.target.value })} aria-label="Fill colour" title="Fill colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
-      <button type="button" title="No fill" aria-label="No fill" onClick={() => onChange(shapeElement ? { fill: 'transparent' } : { backgroundColor: 'transparent' })} className={button(fillValue === 'transparent')}><Ban size={14} /></button>
-      <input type="color" value={typeof borderValue === 'string' && borderValue !== 'transparent' ? borderValue : '#64748b'} onChange={(event) => onChange(shapeElement ? { stroke: event.target.value, strokeWidth: borderWidth || 1 } : { borderColor: event.target.value, borderWidth: borderWidth || 1 })} aria-label="Border colour" title="Border colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
-      <select value={borderWidth} onChange={(event) => { const width = Number(event.target.value); onChange(shapeElement ? { strokeWidth: width } : { borderWidth: width }); }} aria-label="Border size" title="Border size" className="h-7 w-14 shrink-0 rounded border px-1 text-xs">
-        {[0, 1, 2, 3, 4, 5, 6, 8].map((width) => <option key={width} value={width}>{width}px</option>)}
-      </select>
-      <button type="button" title="No border" aria-label="No border" onClick={() => onChange(shapeElement ? { stroke: 'transparent', strokeWidth: 0 } : { borderColor: 'transparent', borderWidth: 0 })} className={button(borderValue === 'transparent' || borderWidth === 0)}><Ban size={14} /></button>
       <button disabled={!textElement} type="button" title="Bold selected text" onClick={() => sendTextCommand({ type: 'format', command: 'bold' })} className={button(content.bold === true)}><Bold size={14} /></button>
       <button disabled={!textElement} type="button" title="Italicise selected text" onClick={() => sendTextCommand({ type: 'format', command: 'italic' })} className={button(content.italic === true)}><Italic size={14} /></button>
       <button disabled={!textElement} type="button" title="Underline selected text" onClick={() => sendTextCommand({ type: 'format', command: 'underline' })} className={button(content.underline === true)}><Underline size={14} /></button>
+    </>)}
+    {ribbonGroup('Paragraph', <>
+      <button ref={spacingButtonRef} disabled={!textElement} type="button" title="Line and paragraph spacing" aria-label="Line and paragraph spacing" onClick={() => { setSpacingMenuOpen((open) => !open); setListMenuOpen(false); setLinkMenuOpen(false); setCropMenuOpen(false); }} className={button(spacingMenuOpen)}><ListChevronsUpDown size={14} /></button>
       <button disabled={!textElement} type="button" title="Align left" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'left' })} className={button(alignment === 'left')}><AlignLeft size={14} /></button>
       <button disabled={!textElement} type="button" title="Align centre" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'center' })} className={button(alignment === 'center')}><AlignCenter size={14} /></button>
       <button disabled={!textElement} type="button" title="Align right" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'right' })} className={button(alignment === 'right')}><AlignRight size={14} /></button>
@@ -158,7 +155,17 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
       </div>
       <button disabled={!textElement} type="button" title="Increase list level" onClick={() => sendTextCommand({ type: 'indent' })} className={button()}><IndentIncrease size={14} /></button>
       <button disabled={!textElement} type="button" title="Decrease list level" onClick={() => sendTextCommand({ type: 'outdent' })} className={button()}><IndentDecrease size={14} /></button>
-      <span className="mx-0.5 h-5 w-px shrink-0 bg-slate-200" />
+    </>)}
+    {ribbonGroup('Drawing', <>
+      <input type="color" value={typeof fillValue === 'string' && fillValue !== 'transparent' ? fillValue : '#ffffff'} onChange={(event) => onChange(shapeElement ? { fill: event.target.value } : { backgroundColor: event.target.value })} aria-label="Fill colour" title="Fill colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
+      <button type="button" title="No fill" aria-label="No fill" onClick={() => onChange(shapeElement ? { fill: 'transparent' } : { backgroundColor: 'transparent' })} className={button(fillValue === 'transparent')}><Ban size={14} /></button>
+      <input type="color" value={typeof borderValue === 'string' && borderValue !== 'transparent' ? borderValue : '#64748b'} onChange={(event) => onChange(shapeElement ? { stroke: event.target.value, strokeWidth: borderWidth || 1 } : { borderColor: event.target.value, borderWidth: borderWidth || 1 })} aria-label="Border colour" title="Border colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
+      <select value={borderWidth} onChange={(event) => { const width = Number(event.target.value); onChange(shapeElement ? { strokeWidth: width } : { borderWidth: width }); }} aria-label="Border size" title="Border size" className="h-7 w-14 shrink-0 rounded border px-1 text-xs">
+        {[0, 1, 2, 3, 4, 5, 6, 8].map((width) => <option key={width} value={width}>{width}px</option>)}
+      </select>
+      <button type="button" title="No border" aria-label="No border" onClick={() => onChange(shapeElement ? { stroke: 'transparent', strokeWidth: 0 } : { borderColor: 'transparent', borderWidth: 0 })} className={button(borderValue === 'transparent' || borderWidth === 0)}><Ban size={14} /></button>
+    </>)}
+    {ribbonGroup('Editing', <>
       <button type="button" title={storedLink ? 'Edit hyperlink' : 'Add hyperlink'} onClick={openLinkMenu} className={button(Boolean(storedLink))}><Link2 size={14} /></button>
       {storedLink ? <button type="button" title="Remove hyperlink" onClick={() => onChange({ hyperlink: null })} className={button()}><Unlink size={14} /></button> : null}
       <button type="button" title="Animations" onClick={onOpenAnimations} className={button()}><Sparkles size={14} /></button>
@@ -167,7 +174,7 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
       <button type="button" title="Shapes" onClick={onOpenShapes} className={button()}><Circle size={14} /></button>
       {onDuplicate ? <button type="button" title="Duplicate element" onClick={onDuplicate} className={button()}><Copy size={14} /></button> : null}
       {onRemove ? <button type="button" title="Remove element" onClick={onRemove} className="rounded p-1.5 text-red-700 hover:bg-red-50"><Trash2 size={14} /></button> : null}
-    </div>
+    </>)}
 
     {spacingMenuOpen && textElement ? <div ref={spacingMenuRef} className="absolute left-20 top-full z-[80] mt-2 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-slate-500"><ListChevronsUpDown size={14} />Spacing</div><p className="mb-2 text-[10px] leading-4 text-slate-500">Applies to the selected paragraph, or the complete text box when no text is selected.</p><div className="grid grid-cols-4 gap-1">{[1, 1.15, 1.5, 2].map((value) => <button key={value} type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => previewLineSpacing(String(value))} className={`rounded-lg border px-2 py-1.5 text-xs font-semibold ${lineSpacingDraft === String(value) ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 hover:bg-slate-50'}`}>{value}</button>)}</div><label className="mt-3 block text-[11px] font-semibold text-slate-600">Line spacing<input type="number" min="0.8" max="3" step="0.05" value={lineSpacingDraft} placeholder={selectionSpacing?.lineHeight === 'mixed' ? 'Mixed' : undefined} onChange={(event) => previewLineSpacing(event.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 font-normal" /></label><div className="mt-3 grid grid-cols-2 gap-2"><label className="text-[11px] font-semibold text-slate-600">Before paragraph<input type="number" min="0" max="120" step="1" value={paragraphBeforeDraft} placeholder={selectionSpacing?.paragraphSpacingBefore === 'mixed' ? 'Mixed' : undefined} onChange={(event) => previewParagraphSpacing('before', event.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 font-normal" /></label><label className="text-[11px] font-semibold text-slate-600">After paragraph<input type="number" min="0" max="120" step="1" value={paragraphAfterDraft} placeholder={selectionSpacing?.paragraphSpacingAfter === 'mixed' ? 'Mixed' : undefined} onChange={(event) => previewParagraphSpacing('after', event.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 font-normal" /></label></div></div> : null}
 
