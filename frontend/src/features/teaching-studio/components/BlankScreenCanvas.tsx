@@ -67,6 +67,12 @@ interface BlankScreenCanvasProps {
   onDropFiles?: (files: File[], point: { x: number; y: number }) => void;
 }
 
+const emptySlide: Slide = {
+  title: '',
+  creationMode: 'layout',
+  objects: [],
+};
+
 const elementText = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title;
   if (typeof preferred === 'string') return preferred;
@@ -380,9 +386,7 @@ export default function BlankScreenCanvas({
   const authoredStrokes =
     drawingStrokes ?? screen?.screen_settings_json?.author_drawings?.strokes ?? [];
   const freeformLayout: Layout | null =
-    !layout &&
-    screen &&
-    (screen.elements.length > 0 || drawingEnabled || authoredStrokes.length > 0)
+    !layout && screen
       ? {
           id: 'FREEFORM',
           name: 'Freeform screen',
@@ -906,14 +910,15 @@ export default function BlankScreenCanvas({
           />
           </div>
         ) : (
-          <div className="flex h-full min-h-0 items-center justify-center rounded-xl bg-slate-200 p-3">
-            <div
-              className="relative h-full min-h-0 w-full max-w-5xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-xl"
-              style={{ backgroundColor: typeof screen?.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff' }}
-              data-testid="studio-canvas"
-            >
-              <p
-                className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-slate-500"
+          <div className={previewMode ? 'relative h-full' : 'studio-editor-slide-frame absolute inset-3'}>
+            <SlideCanvas
+              layout={null}
+              slide={emptySlide}
+              allowCanvasOverflow={!previewMode}
+              backgroundColor={typeof screen?.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'}
+            />
+            <p
+                className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-slate-500"
                 role={loading ? 'status' : undefined}
               >
                 {loading
@@ -923,8 +928,7 @@ export default function BlankScreenCanvas({
                     : screen.elements.length === 0
                       ? 'Empty canvas'
                       : 'Apply a layout to position this Screen’s content.'}
-              </p>
-            </div>
+            </p>
           </div>
         )}
       </div>

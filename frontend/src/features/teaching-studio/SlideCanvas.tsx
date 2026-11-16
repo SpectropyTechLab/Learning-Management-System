@@ -464,16 +464,6 @@ export default function SlideCanvas({
             data-scale={scale}
           >
             <rect width={MASTER.width} height={MASTER.height} fill={backgroundColor} />
-            <rect
-              x="45"
-              y="30"
-              width="1830"
-              height="1020"
-              rx="24"
-              fill={backgroundColor}
-              stroke="#d6e3f0"
-              strokeWidth="3"
-            />
             {showGuides && (
               <>
                 <rect
