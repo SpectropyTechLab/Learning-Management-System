@@ -14,6 +14,10 @@ test('permanent tabs remain available without a selection', () => {
 });
 test('element selection exposes only its applicable contextual tabs', () => {
   assert.deepEqual(
+    studioContextualRibbonTabs({ elementType: 'text', selectionCount: 1 }).map((tab) => tab.id),
+    [],
+  );
+  assert.deepEqual(
     studioContextualRibbonTabs({ elementType: 'shape', selectionCount: 1 }).map((tab) => tab.id),
     ['shape-format'],
   );
@@ -28,6 +32,10 @@ test('element selection exposes only its applicable contextual tabs', () => {
       (tab) => tab.id,
     ),
     ['picture-format'],
+  );
+  assert.deepEqual(
+    studioContextualRibbonTabs({ elementType: 'visual', visualType: 'smart_diagram' }).map((tab) => tab.id),
+    ['diagram-design', 'diagram-format'],
   );
 });
 

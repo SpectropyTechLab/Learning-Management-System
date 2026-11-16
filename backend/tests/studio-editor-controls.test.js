@@ -24,7 +24,7 @@ test('AutoSave preserves Screen undo and redo history', () => {
 test('Studio navigation stays outside Home while tools are allocated to ribbon tabs', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const ribbonModel = readFrontend('components/studioRibbonModel.ts');
-  assert.match(editor, /studioTools\.map/);
+  assert.match(editor, /studioTools\.filter/);
   assert.match(editor, /toggleStudioTool\(tool\.id\)/);
   assert.match(editor, /aria-label="Open Screens and Script"/);
   assert.match(editor, /aria-label="Screen navigation views"/);
@@ -228,11 +228,11 @@ test('Canvas zoom scales one canonical surface and elements resize from every ed
 });
 
 test('Selected media supports component fitting and non-destructive crop controls', () => {
-  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
   const editor = readFrontend('TeachingStudioPage.tsx');
-  assert.match(toolbar, /Crop and fit/);
-  assert.match(toolbar, /mediaTransform/);
+  assert.match(canvas, /Crop inside this container/);
+  assert.match(canvas, /onMediaTransformChange/);
   assert.match(player, /objectFit: mediaTransform\?\.fit === 'cover'/);
   assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0 \}/);
 });
@@ -287,8 +287,8 @@ test('Text formatting commands apply font styles to the preserved selection', ()
   assert.match(text, /const reusableSpan = selectedElement\?\.tagName === 'SPAN'/);
   assert.match(text, /fontSizeForRange\(editor, range\)/);
   assert.match(text, /spacingForRange\(editor, range/);
-  assert.match(canvas, /selectionFontSize=\{textSelectionFontSize\?\.elementId === selectedElement\.id/);
-  assert.match(canvas, /selectionSpacing=\{textSelectionSpacing\?\.elementId === selectedElement\.id/);
+  assert.match(canvas, /selectionFontSize=\{selectedElement && textSelectionFontSize\?\.elementId === selectedElement\.id/);
+  assert.match(canvas, /selectionSpacing=\{selectedElement && textSelectionSpacing\?\.elementId === selectedElement\.id/);
 });
 
 test('Text paste preserves supported formatting and autoresizes through one atomic commit', () => {
@@ -335,7 +335,7 @@ test('Editor commands, direct canvas authoring and canvas-only zoom share one wo
   const editor = readFrontend('TeachingStudioPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const slide = readFrontend('SlideCanvas.tsx');
-  assert.match(editor, /editorClipboardRef/);
+  assert.match(editor, /editorClipboard/);
   assert.match(editor, /key === 'd'/);
   assert.match(editor, /key === 'x'/);
   assert.match(editor, /addDroppedFiles/);
@@ -351,6 +351,34 @@ test('Editor commands, direct canvas authoring and canvas-only zoom share one wo
   assert.match(canvas, /aria-label="Canvas zoom percentage"/);
   assert.match(canvas, /aria-label="Fit slide"/);
   assert.doesNotMatch(canvas, /absolute bottom-3 left-1\/2/);
+});
+
+test('Home ribbon Clipboard group shares multi-element paste and Format Painter workflows', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const clipboard = readFrontend('components/StudioClipboardGroup.tsx');
+  const model = readFrontend('components/studioClipboardModel.ts');
+  const textElement = readFrontend('components/StudioCanvasTextElement.tsx');
+  const textCommands = readFrontend('components/studioTextCommands.ts');
+  assert.match(editor, /id: 'clipboard'/);
+  assert.match(editor, /<StudioClipboardGroup/);
+  assert.match(editor, /copySelectedElements/);
+  assert.match(editor, /cutSelectedElements/);
+  assert.match(editor, /pasteClipboard\('source-formatting'\)/);
+  assert.match(editor, /toggleFormatPainter/);
+  assert.match(clipboard, /Use Destination Theme/);
+  assert.match(clipboard, /Keep Source Formatting/);
+  assert.match(clipboard, /Picture/);
+  assert.match(clipboard, /Keep Text Only/);
+  assert.match(clipboard, /onDoubleClick/);
+  assert.match(model, /collectStudioClipboardElements/);
+  assert.match(model, /pasteStudioClipboardElements/);
+  assert.match(model, /copyStudioElementFormat/);
+  assert.match(editor, /selectedCharacterFormat/);
+  assert.match(editor, /sourceSelectionText/);
+  assert.match(editor, /apply-character-format/);
+  assert.match(textCommands, /type: 'apply-character-format'/);
+  assert.match(textElement, /command\.type === 'apply-character-format'/);
+  assert.match(textElement, /selectedRange\.extractContents\(\)/);
 });
 
 test('Present opens a clean audience window controlled from the editor', () => {

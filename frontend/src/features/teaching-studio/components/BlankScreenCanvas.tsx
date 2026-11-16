@@ -14,8 +14,9 @@ import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
 import StudioSmartDiagram from './StudioSmartDiagram';
+import StudioDiagramTextPane from './StudioDiagramTextPane';
 import StudioHyperlinkOverlay from './studioHyperlink';
-import { isSmartDiagramContent } from './smartDiagramModel';
+import { isSmartDiagramContent, type SmartDiagramContent } from './smartDiagramModel';
 import { studioAnimationStyle } from './studioAnimationRuntime';
 import type { InlineShapeData } from './studioInlineShape';
 import {
@@ -34,8 +35,13 @@ interface BlankScreenCanvasProps {
   layout?: Layout | null;
   selectedElementId?: string | null;
   selectedElementIds?: string[];
+  selectedDiagramNodeId?: string | null;
+  diagramLivePreview?: Partial<SmartDiagramContent> | null;
+  diagramTextPaneOpen?: boolean;
+  onCloseDiagramTextPane?: () => void;
   selectedSlotId?: string | null;
   onSelectElement?: (elementId: string, additive?: boolean) => void;
+  onSelectDiagramNode?: (elementId: string, nodeId: string) => void;
   onSelectSlot?: (slotId: string) => void;
   onClearElementSelection?: () => void;
   onChangeElement?: (element: StudioElement) => void;
@@ -44,9 +50,6 @@ interface BlankScreenCanvasProps {
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
   onTextCaretChange?: (elementId: string, offset: number) => void;
   onEditInlineShape?: (elementId: string, shape: InlineShapeData, start: number, end: number) => void;
-  onOpenTool?: (tool: 'math' | 'shapes' | 'animations') => void;
-  onDuplicateElement?: (elementId: string) => void;
-  onRemoveElement?: (elementId: string) => void;
   showGuides?: boolean;
   previewMode?: boolean;
   animationPreview?: { elementId: string; token: number } | null;
@@ -263,8 +266,13 @@ export default function BlankScreenCanvas({
   layout = null,
   selectedElementId,
   selectedElementIds = [],
+  selectedDiagramNodeId = null,
+  diagramLivePreview = null,
+  diagramTextPaneOpen = false,
+  onCloseDiagramTextPane,
   selectedSlotId,
   onSelectElement,
+  onSelectDiagramNode,
   onSelectSlot,
   onClearElementSelection,
   onChangeElement,
@@ -273,9 +281,6 @@ export default function BlankScreenCanvas({
   onChangeElementContent,
   onTextCaretChange,
   onEditInlineShape,
-  onOpenTool,
-  onDuplicateElement,
-  onRemoveElement,
   showGuides = false,
   previewMode = false,
   animationPreview = null,
@@ -375,7 +380,14 @@ export default function BlankScreenCanvas({
     if (editingElementId && selectedElementId !== editingElementId) setEditingElementId(null);
   }, [editingElementId, selectedElementId]);
   useEffect(() => {
-    setToolbarHost(document.getElementById('studio-contextual-toolbar-host'));
+    const syncToolbarHost = () => {
+      const nextHost = document.getElementById('studio-contextual-toolbar-host');
+      setToolbarHost((current) => current === nextHost ? current : nextHost);
+    };
+    syncToolbarHost();
+    const observer = new MutationObserver(syncToolbarHost);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, []);
   const authoredStrokes =
     drawingStrokes ?? screen?.screen_settings_json?.author_drawings?.strokes ?? [];
@@ -516,8 +528,9 @@ export default function BlankScreenCanvas({
         : undefined;
       objectOverlays[element.id] = (
         <StudioSmartDiagram
-          content={element.content}
+          content={selectedElementId === element.id && diagramLivePreview ? { ...element.content, ...diagramLivePreview } : element.content}
           editable={!previewMode && Boolean(onChangeElementContent)}
+          selectedNodeId={selectedElementId === element.id ? selectedDiagramNodeId : null}
           visibleNodeIds={visibleNodeIds}
             onAspectRatioChange={!previewMode && onChangeElementBounds ? (aspectRatio) => {
               const currentBounds = elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === element.slotId)?.bounds;
@@ -534,7 +547,7 @@ export default function BlankScreenCanvas({
               if (Math.abs(nextBounds.width - currentBounds.width) < 2 && Math.abs(nextBounds.height - currentBounds.height) < 2) return;
               onChangeElementBounds(element.id, nextBounds);
             } : undefined}
-          onSelectNode={() => onSelectElement?.(element.id)}
+          onSelectNode={(nodeId) => { onSelectElement?.(element.id); onSelectDiagramNode?.(element.id, nodeId); }}
           onChangeNodeText={(nodeId, text) =>
             onChangeElementContent?.(element.id, {
               nodes: element.content.nodes.map((node) =>
@@ -731,6 +744,11 @@ export default function BlankScreenCanvas({
   }
   for (const element of screen?.elements ?? []) {
     const overlay = objectOverlays[element.id];
+    if (!overlay) continue;
+    objectOverlays[element.id] = <div data-element-id={element.id} className="h-full w-full">{overlay}</div>;
+  }
+  for (const element of screen?.elements ?? []) {
+    const overlay = objectOverlays[element.id];
     const animation =
       element.content.animation && typeof element.content.animation === 'object'
         ? (element.content.animation as Record<string, unknown>)
@@ -792,18 +810,12 @@ export default function BlankScreenCanvas({
           setLastClickerAction('next');
         }}
       >
-        {!previewMode && toolbarHost && screen && selectedElement && onChangeElementContent && onOpenTool
+        {!previewMode && toolbarHost && screen
           ? createPortal(
               <StudioElementToolbar
                   element={selectedElement}
-                  selectionFontSize={textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
-                  selectionSpacing={textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
-                  onChange={(changes) => onChangeElementContent(selectedElement.id, changes)}
-                  onOpenMath={() => onOpenTool('math')}
-                  onOpenShapes={() => onOpenTool('shapes')}
-                  onOpenAnimations={() => onOpenTool('animations')}
-                  onDuplicate={onDuplicateElement ? () => onDuplicateElement(selectedElement.id) : undefined}
-                  onRemove={onRemoveElement ? () => onRemoveElement(selectedElement.id) : undefined}
+                  selectionFontSize={selectedElement && textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
+                  selectionSpacing={selectedElement && textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
                 />,
               toolbarHost,
             )
@@ -904,6 +916,7 @@ export default function BlankScreenCanvas({
               if (createdId) setEditingElementId(createdId);
             } : undefined}
           />
+              {!previewMode && diagramTextPaneOpen && selectedElement && isSmartDiagramContent(selectedElement.content) ? <StudioDiagramTextPane content={selectedElement.content} onChange={(content) => onChangeElement?.({ ...selectedElement, content })} onClose={() => onCloseDiagramTextPane?.()} /> : null}
           </div>
         ) : (
           <div className="flex h-full min-h-0 items-center justify-center rounded-xl bg-slate-200 p-3">

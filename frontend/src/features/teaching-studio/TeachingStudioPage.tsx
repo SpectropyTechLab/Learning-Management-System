@@ -65,6 +65,18 @@ import StudioIconButton from './components/StudioIconButton';
 import StudioAdaptiveRibbon, {
   type StudioRibbonGroup,
 } from './components/StudioAdaptiveRibbon';
+import StudioClipboardGroup from './components/StudioClipboardGroup';
+import StudioElementContextMenu from './components/StudioElementContextMenu';
+import {
+  applyStudioElementFormat,
+  collectStudioClipboardElements,
+  copyStudioElementFormat,
+  pasteStudioClipboardElements,
+  studioElementFormatFamily,
+  studioPasteModesForElements,
+  type StudioCopiedFormat,
+  type StudioPasteMode,
+} from './components/studioClipboardModel';
 import StudioLayersPanel from './components/StudioLayersPanel';
 import { moveStudioLayer } from './components/studioLayerModel';
 import { buildStudioAnimationSequence } from './components/studioAnimationSequence';
@@ -77,13 +89,21 @@ import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionsPanel from './components/StudioTransitionsPanel';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
+import StudioDiagramChooser from './components/StudioDiagramChooser';
+import StudioDiagramThumbnail from './components/StudioDiagramThumbnail';
 import StudioScreenScriptMath from './components/StudioScreenScriptMath';
 import { clickerNavigationAction } from './components/studioClickerRuntime';
+import { dispatchStudioTextCommand } from './components/studioTextCommands';
 import {
   SMART_DIAGRAM_THEMES,
+  SMART_DIAGRAM_LAYOUTS,
+  createSmartDiagramNode,
   createSmartDiagramContent,
   isSmartDiagramContent,
   layoutSmartDiagram,
+  rebuildDiagramParents,
+  type SmartDiagramNode,
+  type SmartDiagramContent,
 } from './components/smartDiagramModel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
@@ -240,7 +260,21 @@ export default function TeachingStudioPage() {
   const [ribbonCollapsed, setRibbonCollapsed] = useState(false);
   const [selectedLayoutSlotId, setSelectedLayoutSlotId] = useState<string | null>(null);
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
-  const editorClipboardRef = useRef<StudioElement[]>([]);
+  const [editorClipboard, setEditorClipboard] = useState<StudioElement[]>([]);
+  const [diagramChooserOpen, setDiagramChooserOpen] = useState(false);
+  const [diagramLayoutGalleryOpen, setDiagramLayoutGalleryOpen] = useState(false);
+  const [diagramTextPaneOpen, setDiagramTextPaneOpen] = useState(false);
+  const [selectedDiagramNodeId, setSelectedDiagramNodeId] = useState<string | null>(null);
+  const [diagramLivePreview, setDiagramLivePreview] = useState<Partial<SmartDiagramContent> | null>(null);
+  const [elementContextMenu, setElementContextMenu] = useState<{ elementId: string; x: number; y: number } | null>(null);
+  const [formatPainter, setFormatPainter] = useState<{
+    sourceElementId: string;
+    format: StudioCopiedFormat;
+    persistent: boolean;
+    textRangeFormat?: Record<string, string>;
+    sourceSelectionText?: string;
+  } | null>(null);
+  const formatPainterAppliedTargetRef = useRef<string | null>(null);
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
   const presentationWindowRef = useRef<Window | null>(null);
   const presentationWindowWatchRef = useRef<number | null>(null);
@@ -955,7 +989,7 @@ export default function TeachingStudioPage() {
     );
   }, [layouts, selectedScreen?.layout_id]);
 
-  const commitElements = (elements: StudioElement[], selectElementId?: string | null) => {
+  const commitElements = useCallback((elements: StudioElement[], selectElementId?: string | null) => {
     if (!selectedScreen || editorReadOnly) return;
     setElementPast((past) => [...past.slice(-99), selectedScreen.elements]);
     setElementFuture([]);
@@ -965,7 +999,7 @@ export default function TeachingStudioPage() {
       setSelectedElementIds(selectElementId ? [selectElementId] : []);
     }
     setHasUnsavedChanges(true);
-  };
+  }, [editorReadOnly, selectedScreen]);
 
   const setAuthoredDrawings = (strokes: AuthorDrawingStroke[], recordHistory = true) => {
     if (!selectedScreen || editorReadOnly) return;
@@ -1324,7 +1358,8 @@ export default function TeachingStudioPage() {
         element.id,
       );
       setSelectedLayoutSlotId(targetSlot.id);
-      setPanel('diagrams');
+      setDiagramChooserOpen(false);
+      setActiveRibbonTab('diagram-design');
       toast.success(`Smart Diagram inserted into ${targetSlot.label}.`);
       return;
     }
@@ -1336,7 +1371,9 @@ export default function TeachingStudioPage() {
       position: { x: 260, y: 210, width: 1400, height: 700, zIndex: selectedScreen.elements.length + 1 },
     };
     commitElements([...selectedScreen.elements, element], id);
-    setPanel('diagrams');
+    setDiagramChooserOpen(false);
+    setSelectedDiagramNodeId(content.nodes[0]?.id ?? null);
+    setActiveRibbonTab('diagram-design');
     toast.success('Smart Diagram inserted. Edit its Text Pane or double-click a node on the Screen.');
   };
 
@@ -1736,36 +1773,148 @@ export default function TeachingStudioPage() {
     return () => window.removeEventListener('keydown', historyShortcut);
   }, [elementFuture, elementPast, redoElementChange, selectedScreen, undoElementChange]);
 
+  const selectedElementsForClipboard = () => selectedScreen
+    ? collectStudioClipboardElements(selectedScreen.elements, selectedElementIds, selectedElementId)
+    : [];
+
+  const selectedCharacterFormat = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+    const range = selection.getRangeAt(0);
+    const node = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement;
+    const editor = node?.closest<HTMLElement>('.studio-canvas-rich-text[contenteditable="true"]');
+    const elementRoot = editor?.closest<HTMLElement>('[data-element-id]');
+    if (!editor || !elementRoot?.dataset.elementId || !editor.contains(range.endContainer)) return null;
+    const styleTarget = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement ?? editor;
+    const computed = window.getComputedStyle(styleTarget);
+    return {
+      elementId: elementRoot.dataset.elementId,
+      text: selection.toString(),
+      styles: {
+        'font-family': computed.fontFamily,
+        'font-size': computed.fontSize,
+        'font-weight': computed.fontWeight,
+        'font-style': computed.fontStyle,
+        'text-decoration-line': computed.textDecorationLine,
+        color: computed.color,
+        ...(computed.backgroundColor !== 'rgba(0, 0, 0, 0)' ? { 'background-color': computed.backgroundColor } : {}),
+      },
+    };
+  };
+
+  const runNativeTextClipboardCommand = (command: 'copy' | 'cut') => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return false;
+    const container = selection.getRangeAt(0).commonAncestorContainer;
+    const owner = container instanceof HTMLElement ? container : container.parentElement;
+    if (!owner?.closest('.studio-canvas-rich-text, [contenteditable="true"]')) return false;
+    return document.execCommand(command);
+  };
+
+  const copySelectedElements = () => {
+    if (editorReadOnly) return;
+    if (runNativeTextClipboardCommand('copy')) return;
+    const copied = selectedElementsForClipboard();
+    if (!copied.length) return;
+    setEditorClipboard(copied);
+    toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} copied.`);
+  };
+
+  const cutSelectedElements = () => {
+    if (!selectedScreen || editorReadOnly) return;
+    if (runNativeTextClipboardCommand('cut')) return;
+    const copied = selectedElementsForClipboard();
+    if (!copied.length) return;
+    const copiedIds = new Set(copied.map((element) => element.id));
+    setEditorClipboard(copied);
+    commitElements(selectedScreen.elements.filter((element) => !copiedIds.has(element.id)), null);
+    toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} cut to the Studio clipboard.`);
+  };
+
+  const pasteClipboard = (mode: StudioPasteMode = 'source-formatting') => {
+    if (!selectedScreen || editorReadOnly || !editorClipboard.length) return;
+    const pasted = pasteStudioClipboardElements(editorClipboard, mode);
+    commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
+    setSelectedElementIds(pasted.map((element) => element.id));
+    if (mode === 'picture' && pasted.length === 1) setActiveRibbonTab('picture-format');
+    toast.success(`${pasted.length === 1 ? 'Element' : `${pasted.length} elements`} pasted using ${mode.replaceAll('-', ' ')}.`);
+  };
+
+  const toggleFormatPainter = (persistent: boolean) => {
+    if (formatPainter) {
+      setFormatPainter(null);
+      formatPainterAppliedTargetRef.current = null;
+      toast.success('Format Painter stopped.');
+      return;
+    }
+    const source = selectedScreen?.elements.find((element) => element.id === selectedElementId);
+    if (!source || editorReadOnly) return;
+    const characterFormat = selectedCharacterFormat();
+    setFormatPainter({
+      sourceElementId: source.id,
+      format: copyStudioElementFormat(source),
+      persistent,
+      ...(characterFormat?.elementId === source.id ? { textRangeFormat: characterFormat.styles, sourceSelectionText: characterFormat.text } : {}),
+    });
+    formatPainterAppliedTargetRef.current = null;
+    toast.success(persistent
+      ? 'Format Painter locked. Select multiple targets; press Escape when finished.'
+      : 'Format Painter ready. Select one target element.');
+  };
+
+  useEffect(() => {
+    if (!formatPainter || formatPainter.textRangeFormat || !selectedElementId || selectedElementId === formatPainter.sourceElementId) return;
+    if (formatPainterAppliedTargetRef.current === selectedElementId) return;
+    const target = selectedScreen?.elements.find((element) => element.id === selectedElementId);
+    if (!target || editorReadOnly) return;
+    if (studioElementFormatFamily(target) !== formatPainter.format.family) {
+      toast.error(`Format Painter requires a compatible ${formatPainter.format.family} target.`);
+      return;
+    }
+    formatPainterAppliedTargetRef.current = selectedElementId;
+    commitElements(
+      selectedScreen.elements.map((element) => element.id === target.id
+        ? applyStudioElementFormat(element, formatPainter.format)
+        : element),
+      target.id,
+    );
+    toast.success('Formatting applied.');
+    if (!formatPainter.persistent) setFormatPainter(null);
+  }, [commitElements, editorReadOnly, formatPainter, selectedElementId, selectedScreen]);
+
+  useEffect(() => {
+    document.body.classList.toggle('studio-format-painter-active', Boolean(formatPainter));
+    return () => document.body.classList.remove('studio-format-painter-active');
+  }, [formatPainter]);
+
+  useEffect(() => {
+    if (!formatPainter?.textRangeFormat) return;
+    let timer: number | null = null;
+    const paintSelectedText = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const target = selectedCharacterFormat();
+        if (!target || !formatPainter.textRangeFormat) return;
+        if (target.elementId === formatPainter.sourceElementId && target.text === formatPainter.sourceSelectionText) return;
+        const signature = `text:${target.elementId}:${target.text}`;
+        if (formatPainterAppliedTargetRef.current === signature) return;
+        formatPainterAppliedTargetRef.current = signature;
+        dispatchStudioTextCommand(target.elementId, { type: 'apply-character-format', styles: formatPainter.textRangeFormat });
+        toast.success('Character formatting applied to the selected text.');
+        if (!formatPainter.persistent) setFormatPainter(null);
+      }, 0);
+    };
+    document.addEventListener('selectionchange', paintSelectedText);
+    return () => {
+      document.removeEventListener('selectionchange', paintSelectedText);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [formatPainter]);
+
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) =>
       target instanceof HTMLElement &&
       Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
-    const cloneForPaste = (source: StudioElement, offset = 40): StudioElement => {
-      const token =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const id = `element-${token}`;
-      const width = Number(source.position.width) || 400;
-      const height = Number(source.position.height) || 240;
-      return {
-        ...source,
-        id,
-        slotId: `free-${id}`,
-        content: structuredClone(source.content),
-        position: {
-          ...source.position,
-          x: Math.min((Number(source.position.x) || 0) + offset, 1920 - width),
-          y: Math.min((Number(source.position.y) || 0) + offset, 1080 - height),
-        },
-        resource: source.resource
-          ? {
-              ...source.resource,
-              usage: { ...source.resource.usage, slot_id: `free-${id}` },
-            }
-          : undefined,
-      };
-    };
     const commands = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target) || editorReadOnly) return;
       const modifier = event.ctrlKey || event.metaKey;
@@ -1779,26 +1928,27 @@ export default function TeachingStudioPage() {
         return;
       }
       if (key === 'escape') {
+        if (formatPainter) {
+          setFormatPainter(null);
+          formatPainterAppliedTargetRef.current = null;
+          return;
+        }
         setSelectedElementId(null);
         return;
       }
       if (modifier && key === 'c' && selected) {
         event.preventDefault();
-        editorClipboardRef.current = [structuredClone(selected)];
+        copySelectedElements();
         return;
       }
       if (modifier && key === 'x' && selected) {
         event.preventDefault();
-        editorClipboardRef.current = [structuredClone(selected)];
-        removeElement(selected.id);
+        cutSelectedElements();
         return;
       }
-      if (modifier && key === 'v' && editorClipboardRef.current.length && selectedScreen) {
+      if (modifier && key === 'v' && editorClipboard.length && selectedScreen) {
         event.preventDefault();
-        const pasted = editorClipboardRef.current.map((element, index) =>
-          cloneForPaste(element, 40 + index * 20),
-        );
-        commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
+        pasteClipboard('source-formatting');
         return;
       }
       if (modifier && key === 'd' && selected) {
@@ -1828,7 +1978,7 @@ export default function TeachingStudioPage() {
       }
     };
     const pasteExternal = (event: ClipboardEvent) => {
-      if (isTypingTarget(event.target) || editorClipboardRef.current.length) return;
+      if (isTypingTarget(event.target) || editorClipboard.length) return;
       const images = Array.from(event.clipboardData?.files ?? []).filter((file) =>
         file.type.startsWith('image/'),
       );
@@ -1842,7 +1992,7 @@ export default function TeachingStudioPage() {
       window.removeEventListener('keydown', commands);
       window.removeEventListener('paste', pasteExternal);
     };
-  }, [editorReadOnly, selectedElementId, selectedScreen]);
+  }, [editorClipboard, editorReadOnly, formatPainter, selectedElementId, selectedElementIds, selectedScreen]);
 
   useEffect(() => {
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -2031,6 +2181,46 @@ export default function TeachingStudioPage() {
   const selectedResourceType = String(selectedElement?.resource?.usage?.resource_type || '');
   const selectedVisualType = String(selectedElement?.content?.visualType || '');
   const selectedModel3DSettings = model3DSettingsFrom(selectedElement?.content);
+  const selectedDiagramContent = selectedElement && isSmartDiagramContent(selectedElement.content) ? selectedElement.content : null;
+  const selectedDiagramNode = selectedDiagramContent?.nodes.find((node) => node.id === selectedDiagramNodeId)
+    ?? selectedDiagramContent?.nodes[0]
+    ?? null;
+  const updateSelectedDiagram = (changes: Partial<NonNullable<typeof selectedDiagramContent>>) => {
+    if (!selectedElement || !selectedDiagramContent || editorReadOnly) return;
+    updateElement({ ...selectedElement, content: { ...selectedDiagramContent, ...changes } });
+  };
+  const replaceSelectedDiagramNodes = (nodes: SmartDiagramNode[]) => updateSelectedDiagram({ nodes: rebuildDiagramParents(nodes) });
+  const updateSelectedDiagramNode = (changes: Partial<SmartDiagramNode>) => {
+    if (!selectedDiagramContent || !selectedDiagramNode) return;
+    replaceSelectedDiagramNodes(selectedDiagramContent.nodes.map((node) => node.id === selectedDiagramNode.id ? { ...node, ...changes } : node));
+  };
+  const addSelectedDiagramNode = (placement: 'before' | 'after' | 'child' | 'assistant') => {
+    if (!selectedDiagramContent) return;
+    const anchor = selectedDiagramNode ?? selectedDiagramContent.nodes.at(-1);
+    const anchorIndex = anchor ? selectedDiagramContent.nodes.findIndex((node) => node.id === anchor.id) : -1;
+    const node = createSmartDiagramNode('New item', placement === 'child' ? Math.min(5, (anchor?.level ?? -1) + 1) : anchor?.level ?? 0);
+    if (placement === 'assistant') { node.level = Math.min(5, (anchor?.level ?? -1) + 1); node.role = 'assistant'; }
+    const nodes = [...selectedDiagramContent.nodes];
+    nodes.splice(placement === 'before' ? Math.max(0, anchorIndex) : anchorIndex + 1, 0, node);
+    replaceSelectedDiagramNodes(nodes);
+    setSelectedDiagramNodeId(node.id);
+  };
+  const changeSelectedDiagramNodeLevel = (delta: -1 | 1) => {
+    if (!selectedDiagramContent || !selectedDiagramNode) return;
+    const index = selectedDiagramContent.nodes.findIndex((node) => node.id === selectedDiagramNode.id);
+    const maximum = index > 0 ? Math.min(5, selectedDiagramContent.nodes[index - 1].level + 1) : 0;
+    const level = Math.max(0, Math.min(maximum, selectedDiagramNode.level + delta));
+    replaceSelectedDiagramNodes(selectedDiagramContent.nodes.map((node) => node.id === selectedDiagramNode.id ? { ...node, level } : node));
+  };
+  const moveSelectedDiagramNode = (delta: -1 | 1) => {
+    if (!selectedDiagramContent || !selectedDiagramNode) return;
+    const index = selectedDiagramContent.nodes.findIndex((node) => node.id === selectedDiagramNode.id);
+    const target = index + delta;
+    if (target < 0 || target >= selectedDiagramContent.nodes.length) return;
+    const nodes = [...selectedDiagramContent.nodes];
+    [nodes[index], nodes[target]] = [nodes[target], nodes[index]];
+    replaceSelectedDiagramNodes(nodes);
+  };
   const updateSelectedModel3D = (changes: Partial<Model3DSettings>) => {
     if (!selectedElement || editorReadOnly) return;
     changeElementContent(selectedElement.id, { model3d: { ...selectedModel3DSettings, ...changes } });
@@ -2227,7 +2417,7 @@ export default function TeachingStudioPage() {
     { id: 'math', label: 'Math equations', icon: <Sigma size={17} /> },
     { id: 'transitions', label: 'Transitions', icon: <GalleryHorizontalEnd size={17} /> },
     { id: 'shapes', label: 'Shapes', icon: <Shapes size={17} /> },
-    { id: 'diagrams', label: 'Smart Diagram', icon: <Network size={17} /> },
+    { id: 'diagrams', label: 'Smart Diagram', icon: <Network size={17} />, hidden: true },
     { id: 'drawing', label: 'Drawing', icon: <Paintbrush size={17} /> },
     { id: 'zoom', label: 'Zoom navigation', icon: <Focus size={17} /> },
   ] as const;
@@ -2260,13 +2450,31 @@ export default function TeachingStudioPage() {
       case 'home':
         return [
           {
+            id: 'clipboard',
+            label: 'Clipboard',
+            content: (
+              <StudioClipboardGroup
+                canPaste={!editorReadOnly && editorClipboard.length > 0 && Boolean(selectedScreen)}
+                canCopy={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
+                canCut={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
+                formatPainterActive={Boolean(formatPainter)}
+                formatPainterLocked={formatPainter?.persistent === true}
+                availablePasteModes={studioPasteModesForElements(editorClipboard)}
+                onPaste={pasteClipboard}
+                onCopy={copySelectedElements}
+                onCut={cutSelectedElements}
+                onFormatPainter={toggleFormatPainter}
+              />
+            ),
+          },
+          {
             id: 'history', label: 'History', commands: [
               { id: 'go-back', label: 'Back', icon: <ArrowLeft size={17} />, onExecute: () => void leaveEditor() },
               { id: 'undo', label: 'Undo', icon: <Undo2 size={17} />, disabled: editorReadOnly || elementPast.length === 0, onExecute: undoElementChange },
               { id: 'redo', label: 'Redo', icon: <Redo2 size={17} />, disabled: editorReadOnly || elementFuture.length === 0, onExecute: redoElementChange },
-              { id: 'save-now', label: savingScreen ? 'Saving' : 'Save', icon: savingScreen ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />, disabled: editorReadOnly || !hasUnsavedChanges || savingScreen, onExecute: () => void saveScreenDraft('manual') },
+              { id: 'save-now', label: 'Save', icon: savingScreen ? <LoaderCircle size={17} className="animate-spin" aria-label="Saving" /> : <Save size={17} />, disabled: editorReadOnly || !hasUnsavedChanges || savingScreen, onExecute: () => void saveScreenDraft('manual') },
             ],
-            content: <span className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`}>{saveStatus === 'saving' ? <LoaderCircle size={13} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={13} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={13} className="text-amber-700" /> : <Cloud size={13} />}<span>{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span></span>,
+            content: <span className="inline-flex h-8 w-20 shrink-0 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`}>{saveStatus === 'saving' ? <LoaderCircle size={13} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={13} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={13} className="text-amber-700" /> : <Cloud size={13} />}<span className="w-11 text-center">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span></span>,
           },
           {
             id: 'screen', label: 'Screen', commands: [
@@ -2302,7 +2510,7 @@ export default function TeachingStudioPage() {
               { id: 'insert-resource', label: 'Resources', icon: <Upload size={17} />, onExecute: openRibbonTool('resources'), active: rightPanelOpen && panel === 'resources' },
           ] },
           { id: 'insert-illustrations', label: 'Illustrations', commands: [
-              { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: openRibbonTool('diagrams'), active: rightPanelOpen && panel === 'diagrams' },
+              { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: () => setDiagramChooserOpen(true), active: diagramChooserOpen },
               { id: 'insert-zoom', label: 'Zoom', icon: <Focus size={17} />, onExecute: openRibbonTool('zoom'), active: rightPanelOpen && panel === 'zoom' },
           ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div> },
         ];
@@ -2389,8 +2597,6 @@ export default function TeachingStudioPage() {
             { id: 'view-fullscreen', label: editorFocusMode ? 'Exit Fullscreen' : 'Fullscreen', icon: editorFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />, active: editorFocusMode, onExecute: () => void toggleEditorFocusMode() },
           ] },
         ];
-      case 'text-format':
-        return elementCommands('elements');
       case 'picture-format':
         return [
           { id: 'picture-adjust', label: 'Adjust', commands: [
@@ -2429,7 +2635,36 @@ export default function TeachingStudioPage() {
           { id: 'shape-size', label: 'Size', content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="Shape width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="Shape height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
         ];
       case 'diagram-design':
-        return elementCommands('diagrams');
+        return [
+          { id: 'diagram-create', label: 'Create Graphic', commands: [
+            { id: 'diagram-add-after', label: 'Add Shape', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('after') },
+            { id: 'diagram-promote', label: 'Promote', icon: <ChevronLeft size={17}/>, disabled: !selectedDiagramNode || selectedDiagramNode.level === 0, onExecute: () => changeSelectedDiagramNodeLevel(-1) },
+            { id: 'diagram-demote', label: 'Demote', icon: <ChevronRight size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id, onExecute: () => changeSelectedDiagramNodeLevel(1) },
+            { id: 'diagram-move-before', label: 'Move Before', icon: <ChevronUp size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id, onExecute: () => moveSelectedDiagramNode(-1) },
+            { id: 'diagram-move-after', label: 'Move After', icon: <ChevronDown size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes.at(-1)?.id === selectedDiagramNode.id, onExecute: () => moveSelectedDiagramNode(1) },
+            { id: 'diagram-text-pane', label: 'Text Pane', icon: <FileText size={17}/>, disabled: !selectedDiagramContent, onExecute: () => setDiagramTextPaneOpen((open) => !open), active: diagramTextPaneOpen },
+            { id: 'diagram-direction', label: 'Right to Left', icon: <RefreshCw size={17}/>, disabled: !selectedDiagramContent, onExecute: () => updateSelectedDiagram({ direction: selectedDiagramContent?.direction === 'rtl' ? 'ltr' : 'rtl' }) },
+          ] },
+          { id: 'diagram-layouts', label: 'Layouts', content: <div className="flex items-center gap-1 px-1">{SMART_DIAGRAM_LAYOUTS.filter((layout) => layout.category === selectedDiagramContent?.category).slice(0, 5).map((layout) => <button key={layout.id} type="button" title={layout.name} onMouseEnter={() => setDiagramLivePreview({ layout: layout.id, category: layout.category })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ layout: layout.id, category: layout.category })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ layout: layout.id, category: layout.category }); }} className={`h-11 w-14 overflow-hidden rounded border bg-white p-0.5 ${selectedDiagramContent?.layout === layout.id ? 'border-blue-700 ring-1 ring-blue-300' : 'border-slate-200 hover:border-blue-400'}`}><StudioDiagramThumbnail layout={layout}/></button>)}<button type="button" title="More diagram layouts" onClick={() => setDiagramLayoutGalleryOpen(true)} className="grid h-11 w-6 place-items-center rounded border border-slate-200 hover:bg-blue-50"><ChevronDown size={14}/></button></div> },
+          { id: 'diagram-colours', label: 'Change Colours', content: <div className="flex items-center gap-1 px-1">{SMART_DIAGRAM_THEMES.map((theme) => <button key={theme.id} type="button" title={theme.name} onMouseEnter={() => setDiagramLivePreview({ themeId: theme.id })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ themeId: theme.id })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ themeId: theme.id }); }} className={`flex h-9 w-9 overflow-hidden rounded-full border-2 ${selectedDiagramContent?.themeId === theme.id ? 'border-blue-800' : 'border-white ring-1 ring-slate-300'}`}>{theme.colors.slice(0, 3).map((colour) => <span key={colour} className="h-full flex-1" style={{ backgroundColor: colour }}/>)}</button>)}</div> },
+          { id: 'diagram-styles', label: 'Diagram Styles', content: <div className="flex gap-1 px-1">{(['flat', 'outline', 'soft', 'polished', 'bevel'] as const).map((style) => <button key={style} type="button" onMouseEnter={() => setDiagramLivePreview({ styleId: style })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ styleId: style })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ styleId: style }); }} className={`h-9 rounded-lg border px-2 text-[9px] font-semibold capitalize ${selectedDiagramContent?.styleId === style ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>{style}</button>)}</div> },
+          { id: 'diagram-reset', label: 'Reset', commands: [
+            { id: 'diagram-reset-graphic', label: 'Reset Graphic', icon: <RefreshCw size={17}/>, disabled: !selectedDiagramContent, onExecute: () => updateSelectedDiagram({ themeId: 'spectropy', styleId: 'soft', connectorStyle: 'straight', nodes: selectedDiagramContent?.nodes.map((node) => ({ id: node.id, text: node.text, level: node.level, parentId: node.parentId, role: node.role, icon: node.icon })) }) },
+            { id: 'diagram-convert', label: 'Convert', icon: <Shapes size={17}/>, disabled: !selectedElement, onExecute: () => selectedElement && convertDiagramToShapes(selectedElement.id) },
+          ] },
+        ];
+      case 'diagram-format':
+        return [
+          { id: 'diagram-node', label: 'Selected Shape', commands: [
+            { id: 'diagram-add-before', label: 'Add Before', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('before') },
+            { id: 'diagram-add-child', label: 'Add Below', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('child') },
+            { id: 'diagram-add-assistant', label: 'Assistant', icon: <Plus size={17}/>, disabled: selectedDiagramContent?.category !== 'hierarchy', onExecute: () => addSelectedDiagramNode('assistant') },
+          ] },
+          { id: 'diagram-node-colours', label: 'Shape & Text', content: <div className="flex items-center gap-1 px-1"><label className="relative grid h-9 w-9 place-items-center rounded border" title="Node fill"><span className="h-5 w-5 rounded" style={{ backgroundColor: selectedDiagramNode?.fill || '#1d4ed8' }}/><input type="color" value={selectedDiagramNode?.fill || '#1d4ed8'} disabled={!selectedDiagramNode} onChange={(event) => updateSelectedDiagramNode({ fill: event.target.value })} className="absolute inset-0 opacity-0" aria-label="Diagram node fill"/></label><label className="relative grid h-9 w-9 place-items-center rounded border" title="Node text colour"><span className="text-base font-black" style={{ color: selectedDiagramNode?.textColor || '#ffffff' }}>A</span><input type="color" value={selectedDiagramNode?.textColor || '#ffffff'} disabled={!selectedDiagramNode} onChange={(event) => updateSelectedDiagramNode({ textColor: event.target.value })} className="absolute inset-0 opacity-0" aria-label="Diagram node text colour"/></label></div> },
+          { id: 'diagram-connectors', label: 'Connectors', content: <select aria-label="Diagram connector style" value={selectedDiagramContent?.connectorStyle || 'straight'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ connectorStyle: event.target.value as SmartDiagramContent['connectorStyle'] })} className="mx-1 h-9 rounded border px-2 text-[10px]"><option value="straight">Straight</option><option value="elbow">Elbow</option><option value="curve">Curved</option><option value="none">None</option></select> },
+          { id: 'diagram-animation', label: 'Diagram Animation', content: <div className="flex gap-1 px-1"><select aria-label="Diagram animation mode" value={selectedDiagramContent?.revealMode || 'as-one-object'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ revealMode: event.target.value as SmartDiagramContent['revealMode'] })} className="h-9 w-28 rounded border px-1 text-[9px]"><option value="as-one-object">As one object</option><option value="all-at-once">All at once</option><option value="one-by-one">One by one</option><option value="level-at-once">Level at once</option><option value="level-one-by-one">Level one by one</option></select><button type="button" disabled={!selectedDiagramContent} onClick={() => updateSelectedDiagram({ reverseAnimation: !selectedDiagramContent?.reverseAnimation })} className={`h-9 rounded border px-2 text-[9px] font-semibold ${selectedDiagramContent?.reverseAnimation ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>Reverse</button></div> },
+          { id: 'diagram-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Diagram accessibility description" type="text" value={selectedDiagramContent?.altText || ''} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ altText: event.target.value })} className="h-8 w-32 rounded border px-1 text-[10px]"/></label> },
+        ];
       case '3d-model':
         return [
           { id: 'model-adjust', label: 'Adjust', commands: [
@@ -2614,9 +2849,9 @@ export default function TeachingStudioPage() {
                 onClick={() => void requestScreenAction('delete-screen')}
               />
               <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
-                <span className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`} aria-live="polite">
+                <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`} aria-live="polite">
                   {saveStatus === 'saving' ? <LoaderCircle size={14} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={14} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={14} className="text-amber-700" /> : <Cloud size={14} />}
-                  <span className="hidden xl:inline">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span>
+                  <span className="hidden w-11 text-center xl:inline">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span>
                 </span>
                 <StudioIconButton label="Back" icon={<ArrowLeft size={15} />} onClick={() => void leaveEditor()} />
                 <StudioIconButton label={loadingScreens ? 'Refreshing Screens' : 'Refresh Screens'} icon={<RefreshCw size={15} className={loadingScreens ? 'animate-spin' : ''} />} onClick={() => void refreshScreens()} disabled={loadingScreens} />
@@ -2832,7 +3067,18 @@ export default function TeachingStudioPage() {
                 </>}
               </section> : null}
           </aside>
-          <main className="studio-editor-canvas flex min-h-0 flex-col overflow-hidden">
+          <main
+            className="studio-editor-canvas flex min-h-0 flex-col overflow-hidden"
+            onContextMenu={(event) => {
+              const target = (event.target as HTMLElement).closest<HTMLElement>('[data-element-id]');
+              const elementId = target?.dataset.elementId;
+              if (!elementId) return;
+              event.preventDefault();
+              setSelectedElementId(elementId);
+              setSelectedElementIds((current) => current.includes(elementId) ? current : [elementId]);
+              setElementContextMenu({ elementId, x: event.clientX, y: event.clientY });
+            }}
+          >
             <div className="min-h-0 flex-1">
               <BlankScreenCanvas
                 screen={selectedScreen}
@@ -2846,8 +3092,13 @@ export default function TeachingStudioPage() {
                 model3DModeRequest={model3DModeRequest}
                 selectedElementId={selectedElementId}
                 selectedElementIds={selectedElementIds}
+                selectedDiagramNodeId={selectedDiagramNodeId}
+                diagramLivePreview={diagramLivePreview}
+                diagramTextPaneOpen={diagramTextPaneOpen}
+                onCloseDiagramTextPane={() => setDiagramTextPaneOpen(false)}
                 selectedSlotId={selectedLayoutSlotId}
                 onSelectElement={selectElementAndOpenControls}
+                onSelectDiagramNode={(elementId, nodeId) => { setSelectedElementId(elementId); setSelectedDiagramNodeId(nodeId); }}
                 onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
                 onClearElementSelection={() => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
                 onChangeElement={editorReadOnly ? undefined : updateElement}
@@ -2863,24 +3114,6 @@ export default function TeachingStudioPage() {
                   setPanel('shapes');
                   setRightPanelOpen(true);
                 }}
-                onDuplicateElement={editorReadOnly ? undefined : duplicateElement}
-                onRemoveElement={editorReadOnly ? undefined : removeElement}
-                onOpenTool={
-                  editorReadOnly
-                    ? undefined
-                    : (tool) => {
-                        if (tool === 'shapes') {
-                          setActiveRibbonTab(selectedElement?.type === 'shape' ? 'shape-format' : 'insert');
-                          return;
-                        }
-                        if (tool === 'animations') {
-                          setActiveRibbonTab('animations');
-                          return;
-                        }
-                        setPanel(tool);
-                        setRightPanelOpen(true);
-                      }
-                }
                 drawingStrokes={authoredDrawingStrokes(selectedScreen)}
                 drawingEnabled={!editorReadOnly && (activeRibbonTab === 'draw' || activeRibbonTab === 'drawing-format' || (rightPanelOpen && panel === 'drawing'))}
                 drawingTool={drawingTool}
@@ -2907,6 +3140,21 @@ export default function TeachingStudioPage() {
                 onDropFiles={editorReadOnly ? undefined : addDroppedFiles}
               />
             </div>
+            {elementContextMenu ? <StudioElementContextMenu
+              position={{ x: elementContextMenu.x, y: elementContextMenu.y }}
+              canPaste={!editorReadOnly && editorClipboard.length > 0}
+              canGroup={!editorReadOnly && selectedElementIds.length > 1}
+              canUngroup={!editorReadOnly && selectedHasGroup}
+              onCut={cutSelectedElements}
+              onCopy={copySelectedElements}
+              onPaste={() => pasteClipboard('source-formatting')}
+              onDuplicate={() => duplicateElement(elementContextMenu.elementId)}
+              onDelete={() => removeElement(elementContextMenu.elementId)}
+              onGroup={groupSelectedElements}
+              onUngroup={ungroupSelectedElements}
+              onLayers={openSelectionPane}
+              onClose={() => setElementContextMenu(null)}
+            /> : null}
             {presentationActive ? (
               <div className="absolute bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-blue-200 bg-slate-950/92 p-2 text-white shadow-2xl backdrop-blur" role="toolbar" aria-label="Audience presentation controls">
                 <span className="px-2 text-xs font-bold">Presenting · {presentationDisplayName}</span>
@@ -2920,7 +3168,7 @@ export default function TeachingStudioPage() {
           {!editorReadOnly && rightPanelOpen && (
             <aside className={`studio-editor-tools-panel ${toolPanelOpen ? 'is-expanded is-compact' : ''} ${panel === 'layers' ? 'is-layers' : ''} flex min-h-0 overflow-visible`}>
               <nav aria-label="Studio tools" className="hidden">
-                {studioTools.map((tool) => (
+                {studioTools.filter((tool) => !('hidden' in tool && tool.hidden)).map((tool) => (
                   <button
                     key={tool.id}
                     type="button"
@@ -3585,6 +3833,8 @@ export default function TeachingStudioPage() {
           </div>
         </div>
       )}
+      {diagramChooserOpen ? <StudioDiagramChooser onInsert={addSmartDiagram} onClose={() => setDiagramChooserOpen(false)} /> : null}
+      {diagramLayoutGalleryOpen ? <StudioDiagramChooser onInsert={(layoutId) => { const layout = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === layoutId); if (layout) updateSelectedDiagram({ layout: layout.id, category: layout.category }); setDiagramLayoutGalleryOpen(false); }} onClose={() => setDiagramLayoutGalleryOpen(false)} /> : null}
       {createScreenOpen && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4"

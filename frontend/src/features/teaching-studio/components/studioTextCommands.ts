@@ -5,6 +5,7 @@ export type StudioTextCommand =
   | { type: 'outdent' }
   | { type: 'format'; command: 'bold' | 'italic' | 'underline' }
   | { type: 'style'; property: 'fontSize' | 'fontFamily' | 'color'; value: string }
+  | { type: 'apply-character-format'; styles: Record<string, string> }
   | {
       type: 'block-style';
       property: 'lineHeight' | 'marginTop' | 'marginBottom' | 'textAlign';

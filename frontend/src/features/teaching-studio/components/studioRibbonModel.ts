@@ -8,10 +8,10 @@ export type StudioRibbonTabId =
   | 'present'
   | 'review'
   | 'view'
-  | 'text-format'
   | 'picture-format'
   | 'shape-format'
   | 'diagram-design'
+  | 'diagram-format'
   | '3d-model'
   | 'simulation-format'
   | 'group-format'
@@ -43,18 +43,6 @@ export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
   { id: 'view', label: 'View' },
 ];
 
-const textTypes = new Set([
-  'title',
-  'text',
-  'question',
-  'response',
-  'steps',
-  'workspace',
-  'footer',
-  'options',
-  'data',
-]);
-
 const mediaResourceTypes = new Set(['image', 'animation', 'video']);
 const simulationTypes = new Set(['simulation', 'embedded_object']);
 
@@ -71,9 +59,6 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
   if (selection.drawingActive) {
     tabs.push({ id: 'drawing-format', label: 'Drawing', contextual: true, accent: 'amber' });
   }
-  if (textTypes.has(elementType)) {
-    tabs.push({ id: 'text-format', label: 'Text Format', contextual: true, accent: 'violet' });
-  }
   if (elementType === 'shape') {
     tabs.push({ id: 'shape-format', label: 'Shape Format', contextual: true, accent: 'violet' });
   }
@@ -84,6 +69,7 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
       contextual: true,
       accent: 'emerald',
     });
+    tabs.push({ id: 'diagram-format', label: 'Diagram Format', contextual: true, accent: 'emerald' });
   }
   if (resourceType === 'model_3d') {
     tabs.push({ id: '3d-model', label: '3D Model', contextual: true, accent: 'amber' });

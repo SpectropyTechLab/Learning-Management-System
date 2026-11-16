@@ -529,6 +529,18 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
         if (preserveToolbarFocus) savedRangeRef.current = nextRange.cloneRange();
         else restoreRange(nextRange);
       }
+    } else if (command.type === 'apply-character-format') {
+      if (!hasSelection) return;
+      const span = document.createElement('span');
+      const fragment = selectedRange.extractContents();
+      Object.keys(command.styles).forEach((property) => clearDescendantFormatting(fragment, property));
+      span.appendChild(fragment);
+      Object.entries(command.styles).forEach(([property, value]) => span.style.setProperty(property, value));
+      selectedRange.insertNode(span);
+      const nextRange = document.createRange();
+      nextRange.selectNodeContents(span);
+      savedRangeRef.current = nextRange.cloneRange();
+      restoreRange(nextRange);
     } else if (command.type === 'block-style') {
       const cssProperty = command.property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
       const blocks = hasSelection ? selectedBlocks(editor, selectedRange) : [];

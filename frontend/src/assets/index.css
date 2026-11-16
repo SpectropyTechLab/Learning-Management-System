@@ -689,6 +689,10 @@
   transition: padding 380ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.studio-format-painter-active .studio-editor-canvas [data-element-id] {
+  cursor: copy !important;
+}
+
 .studio-editor-viewport .studio-editor-workspace.has-left-panel .studio-editor-canvas {
   padding-left: min(288px, 38vw);
 }
