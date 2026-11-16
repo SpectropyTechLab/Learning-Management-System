@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Ban, Bold, ChevronDown, Circle, Copy, Crop, IndentDecrease, IndentIncrease, Italic, Link2, List, ListChevronsUpDown, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ChevronDown, Circle, Copy, Crop, IndentDecrease, IndentIncrease, Italic, Link2, List, ListChevronsUpDown, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
 import type { StudioElement } from '../types';
 import { normalizeStudioHyperlink } from './studioHyperlinkModel';
 import { dispatchStudioTextCommand } from './studioTextCommands';
+import StudioColourMenu from './StudioColourMenu';
 
 interface Props {
   element: StudioElement | null;
@@ -45,6 +46,7 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
     ? content.mediaTransform as Record<string, unknown>
     : {};
   const shapeElement = element?.type === 'shape';
+  const mathElement = element?.type === 'math';
   const fillValue = shapeElement ? content.fill : content.backgroundColor;
   const borderValue = shapeElement ? content.stroke : content.borderColor;
   const borderWidthValue = Number(shapeElement ? content.strokeWidth : content.borderWidth);
@@ -134,6 +136,24 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
     </section>
   );
 
+  if (mathElement) {
+    return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="Selected equation formatting controls">
+      {ribbonGroup('Equation Format', <>
+        <input type="color" value={typeof content.color === 'string' ? content.color : '#0f2747'} onChange={(event) => onChange({ color: event.target.value })} aria-label="Equation colour" title="Equation colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
+        <input type="number" min="12" max="160" value={Number(content.fontSize) || 42} onChange={(event) => { const size = Number(event.target.value); if (Number.isFinite(size) && size >= 12 && size <= 160) onChange({ fontSize: size }); }} aria-label="Equation size" title="Equation size" className="h-7 w-12 shrink-0 rounded border px-1 text-xs" />
+        <button type="button" title="Align equation left" onClick={() => onChange({ alignment: 'left' })} className={button(alignment === 'left')}><AlignLeft size={14} /></button>
+        <button type="button" title="Align equation centre" onClick={() => onChange({ alignment: 'center' })} className={button(alignment === 'center')}><AlignCenter size={14} /></button>
+        <button type="button" title="Align equation right" onClick={() => onChange({ alignment: 'right' })} className={button(alignment === 'right')}><AlignRight size={14} /></button>
+      </>)}
+      {ribbonGroup('Editing', <>
+        <button type="button" title="Edit equation" onClick={onOpenMath} className={button()}><Sigma size={14} /></button>
+        <button type="button" title="Animations" onClick={onOpenAnimations} className={button()}><Sparkles size={14} /></button>
+        {onDuplicate ? <button type="button" title="Duplicate equation" onClick={onDuplicate} className={button()}><Copy size={14} /></button> : null}
+        {onRemove ? <button type="button" title="Delete equation" onClick={onRemove} className="rounded p-1.5 text-red-700 hover:bg-red-50"><Trash2 size={14} /></button> : null}
+      </>)}
+    </div>;
+  }
+
   return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="Selected element Home controls">
     {ribbonGroup('Font', <>
       <select disabled={!textElement} value={String(content.fontFamily || 'Arial')} onChange={(event) => sendTextCommand({ type: 'style', property: 'fontFamily', value: event.target.value })} aria-label="Font family" className="h-7 w-24 shrink-0 rounded border px-1 text-xs disabled:opacity-35"><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option></select>
@@ -157,13 +177,11 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
       <button disabled={!textElement} type="button" title="Decrease list level" onClick={() => sendTextCommand({ type: 'outdent' })} className={button()}><IndentDecrease size={14} /></button>
     </>)}
     {ribbonGroup('Drawing', <>
-      <input type="color" value={typeof fillValue === 'string' && fillValue !== 'transparent' ? fillValue : '#ffffff'} onChange={(event) => onChange(shapeElement ? { fill: event.target.value } : { backgroundColor: event.target.value })} aria-label="Fill colour" title="Fill colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
-      <button type="button" title="No fill" aria-label="No fill" onClick={() => onChange(shapeElement ? { fill: 'transparent' } : { backgroundColor: 'transparent' })} className={button(fillValue === 'transparent')}><Ban size={14} /></button>
-      <input type="color" value={typeof borderValue === 'string' && borderValue !== 'transparent' ? borderValue : '#64748b'} onChange={(event) => onChange(shapeElement ? { stroke: event.target.value, strokeWidth: borderWidth || 1 } : { borderColor: event.target.value, borderWidth: borderWidth || 1 })} aria-label="Border colour" title="Border colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
+      <StudioColourMenu compact label="Fill colour" noColourLabel="No Fill" value={typeof fillValue === 'string' ? fillValue : '#ffffff'} onChange={(fill) => onChange(shapeElement ? { fill } : { backgroundColor: fill })} />
+      <StudioColourMenu compact outline label="Border colour" noColourLabel="No Outline" value={typeof borderValue === 'string' ? borderValue : '#64748b'} onChange={(borderColor) => onChange(shapeElement ? { stroke: borderColor, strokeWidth: borderColor === 'transparent' ? 0 : borderWidth || 1 } : { borderColor, borderWidth: borderColor === 'transparent' ? 0 : borderWidth || 1 })} />
       <select value={borderWidth} onChange={(event) => { const width = Number(event.target.value); onChange(shapeElement ? { strokeWidth: width } : { borderWidth: width }); }} aria-label="Border size" title="Border size" className="h-7 w-14 shrink-0 rounded border px-1 text-xs">
         {[0, 1, 2, 3, 4, 5, 6, 8].map((width) => <option key={width} value={width}>{width}px</option>)}
       </select>
-      <button type="button" title="No border" aria-label="No border" onClick={() => onChange(shapeElement ? { stroke: 'transparent', strokeWidth: 0 } : { borderColor: 'transparent', borderWidth: 0 })} className={button(borderValue === 'transparent' || borderWidth === 0)}><Ban size={14} /></button>
     </>)}
     {ribbonGroup('Editing', <>
       <button type="button" title={storedLink ? 'Edit hyperlink' : 'Add hyperlink'} onClick={openLinkMenu} className={button(Boolean(storedLink))}><Link2 size={14} /></button>
