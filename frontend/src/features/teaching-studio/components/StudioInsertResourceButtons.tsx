@@ -4,6 +4,7 @@ import {
   Archive,
   Blocks,
   ChevronDown,
+  Cuboid,
   Image,
   Library,
   Link2,
@@ -16,7 +17,7 @@ import type { StudioResourceType } from '../api/studioResourcesApi';
 
 export type InsertResourceType = Extract<
   StudioResourceType,
-  'image' | 'video' | 'simulation' | 'external_link' | 'zip' | 'scorm'
+  'image' | 'video' | 'simulation' | 'external_link' | 'zip' | 'scorm' | 'model_3d'
 >;
 
 const resourceCommands: Array<{
@@ -30,6 +31,7 @@ const resourceCommands: Array<{
   { type: 'external_link', label: 'External Link', icon: Link2 },
   { type: 'zip', label: 'ZIP', icon: Archive },
   { type: 'scorm', label: 'SCORM', icon: Package },
+  { type: 'model_3d', label: '3D Model', icon: Cuboid },
 ];
 
 type Props = {

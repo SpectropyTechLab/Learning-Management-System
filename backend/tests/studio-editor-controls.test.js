@@ -244,7 +244,7 @@ test('Insert ribbon uploads or picks filtered Resources and places them without 
   const upload = readFrontend('components/StudioResourceInsertUpload.tsx');
   const library = readFrontend('components/resources/ResourceLibrary.tsx');
   const catalog = readFrontend('components/resources/AssetCatalogPanel.tsx');
-  for (const label of ['Image', 'Video', 'Simulation', 'External Link', 'ZIP', 'SCORM']) {
+  for (const label of ['Image', 'Video', 'Simulation', 'External Link', 'ZIP', 'SCORM', '3D Model']) {
     assert.match(buttons, new RegExp(`label: '${label}'`));
   }
   assert.match(buttons, />\s*Upload\s*</);
@@ -465,10 +465,30 @@ test('Backward animation preserves the slide tree and remounts only changed elem
 
 test('Slide transitions cannot override the viewport fit scale', () => {
   const slide = readFrontend('SlideCanvas.tsx');
+  const transitionRibbon = readFrontend('components/StudioTransitionRibbon.tsx');
+  const transitionRuntime = readFrontend('components/studioTransition.ts');
   assert.match(slide, /data-testid="slide-transition-layer"/);
   assert.match(slide, /transform: `scale\(\$\{scale\}\)`/);
   const scaledSurface = slide.slice(slide.indexOf('data-testid="slide-surface"'), slide.indexOf('data-testid="slide-transition-layer"'));
   assert.doesNotMatch(scaledSurface, /studioTransitionStyle/);
+  assert.match(transitionRibbon, /querySelector<HTMLElement>\('\[data-testid=slide-transition-layer\]'\)/);
+  assert.match(transitionRuntime, /element\.dataset\.testid === 'slide-surface'/);
+});
+
+test('Transitions keep their complete PowerPoint-style workflow in the ribbon', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const transitionRibbon = readFrontend('components/StudioTransitionRibbon.tsx');
+
+  assert.match(editor, /<StudioTransitionRibbon/);
+  assert.doesNotMatch(editor, /<StudioTransitionsPanel/);
+  assert.match(transitionRibbon, /Transition category/);
+  assert.match(transitionRibbon, /Transition direction/);
+  assert.match(transitionRibbon, /Transition duration/);
+  assert.match(transitionRibbon, /Motion intensity/);
+  assert.match(transitionRibbon, /Transition easing/);
+  assert.match(transitionRibbon, /Transition sound/);
+  assert.match(transitionRibbon, /Respect reduced motion/);
+  assert.match(transitionRibbon, /Apply to all/);
 });
 
 test('Canvas elements support direct pointer dragging as well as resize handles', () => {

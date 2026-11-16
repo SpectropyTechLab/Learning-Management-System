@@ -74,7 +74,7 @@ import {
   type StudioRibbonTabId,
 } from './components/studioRibbonModel';
 import StudioDrawingPanel from './components/StudioDrawingPanel';
-import StudioTransitionsPanel from './components/StudioTransitionsPanel';
+import StudioTransitionRibbon from './components/StudioTransitionRibbon';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
 import StudioScreenScriptMath from './components/StudioScreenScriptMath';
@@ -2256,19 +2256,6 @@ export default function TeachingStudioPage() {
     if (alignment === 'bottom') current.y = Math.max(0, 1080 - height);
     changeElementBounds(selectedElement.id, current);
   };
-  const applyQuickTransition = (effect: string) => {
-    const saved = selectedScreen?.screen_settings_json?.transition;
-    setScreenTransition({
-      duration: 0.7,
-      direction: 'right',
-      advanceOnClick: true,
-      easing: 'ease-in-out',
-      intensity: 'standard',
-      respectReducedMotion: true,
-      ...(saved && typeof saved === 'object' ? saved as Record<string, unknown> : {}),
-      effect,
-    });
-  };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string, additive = false) => {
     if (additive) {
@@ -2447,13 +2434,15 @@ export default function TeachingStudioPage() {
         ];
       case 'transitions':
         return [
-          { id: 'transition-preview', label: 'Preview', commands: [
-            { id: 'transition-preview-more', label: 'Preview', icon: <Eye size={17} />, disabled: !selectedScreen, onExecute: openRibbonTool('transitions') },
-          ] },
-          { id: 'transition-gallery', label: 'Transition to This Screen', commands: [
-            ...[['none', 'None'], ['fade', 'Fade'], ['push', 'Push'], ['wipe', 'Wipe'], ['split', 'Split'], ['morph', 'Morph']].map(([effect, label]) => ({ id: `transition-${effect}`, label, icon: <GalleryHorizontalEnd size={17} />, disabled: !selectedScreen, active: String((selectedScreen?.screen_settings_json?.transition as Record<string, unknown> | undefined)?.effect || 'none') === effect, onExecute: () => applyQuickTransition(effect) })),
-            { id: 'transition-more', label: 'More', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('transitions'), active: rightPanelOpen && panel === 'transitions' },
-          ] },
+          { id: 'transition-controls', label: 'Transition to This Screen', content: (
+            <StudioTransitionRibbon
+              settings={selectedScreen?.screen_settings_json ?? null}
+              disabled={editorReadOnly || !selectedScreen}
+              screenCount={screenList.screens.length}
+              onChange={setScreenTransition}
+              onApplyToAll={applyTransitionToAllScreens}
+            />
+          ) },
         ];
       case 'animations':
         return [
@@ -2840,7 +2829,10 @@ export default function TeachingStudioPage() {
           tabs={ribbonTabs}
           activeTab={activeRibbonTab}
           groups={ribbonGroups}
-          onTabChange={setActiveRibbonTab}
+          onTabChange={(tab) => {
+            setActiveRibbonTab(tab);
+            if (tab === 'transitions' && panel === 'transitions') setRightPanelOpen(false);
+          }}
           collapsed={ribbonCollapsed}
           onToggleCollapsed={() => setRibbonCollapsed((collapsed) => !collapsed)}
         />
@@ -3171,14 +3163,6 @@ export default function TeachingStudioPage() {
                     onCommit={commitElements}
                     onPreview={(elementId) => setAnimationPreview({ elementId, token: Date.now() })}
                     onSelectElement={selectElementAndOpenControls}
-                  />
-                )}
-                {panel === 'transitions' && (
-                  <StudioTransitionsPanel
-                    settings={selectedScreen?.screen_settings_json ?? null}
-                    onChange={setScreenTransition}
-                    onApplyToAll={applyTransitionToAllScreens}
-                    screenCount={screenList.screens.length}
                   />
                 )}
                 {panel === 'drawing' && (

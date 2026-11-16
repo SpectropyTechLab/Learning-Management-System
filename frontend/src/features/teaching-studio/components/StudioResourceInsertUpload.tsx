@@ -17,6 +17,7 @@ const ACCEPT_BY_TYPE: Record<InsertResourceType, string> = {
   external_link: '',
   zip: '.zip,application/zip',
   scorm: '.zip,application/zip',
+  model_3d: '.glb,model/gltf-binary,application/octet-stream',
 };
 
 const defaultName = (type: InsertResourceType, file: File | null, url: string) => {

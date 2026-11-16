@@ -78,14 +78,32 @@ const runtimeStorageBootstrap = `<script data-spectropy-runtime-storage>(functio
   });
 })();</script>`;
 
-const prependRuntimeBootstrap = (html) => {
+const scormApiBootstrap = (runtime) => {
+  if (!runtime || !['1.2', '2004'].includes(runtime.edition)) return '';
+  const config = JSON.stringify(runtime).replaceAll('<', '\\u003c');
+  return `<script data-spectropy-scorm-api>(function(){
+    var config=${config},values=Object.assign({},config.initialData||{}),initialized=false,lastError='0';
+    function fail(code,value){lastError=code;return value===undefined?'false':value}
+    function initialize(){if(initialized)return fail('103');initialized=true;lastError='0';return 'true'}
+    function getValue(name){if(!initialized)return fail('123','');lastError='0';return values[name]||''}
+    function setValue(name,value){if(!initialized)return fail('132');values[String(name)]=String(value);lastError='0';return 'true'}
+    function commit(event){if(!initialized)return fail('142');parent.postMessage({source:'spectropy-scorm',type:'STUDIO_SCORM_COMMIT',attemptId:config.attemptId,scoIdentifier:config.scoIdentifier,data:Object.assign({},values),event:event||'commit'},'*');lastError='0';return 'true'}
+    function finish(event){if(!initialized)return fail('301');commit(event);initialized=false;return 'true'}
+    function errorString(code){return code==='0'?'No error':'SCORM runtime error'}
+    if(config.edition==='1.2')window.API={LMSInitialize:function(){return initialize()},LMSGetValue:getValue,LMSSetValue:setValue,LMSCommit:function(){return commit('commit')},LMSFinish:function(){return finish(values['cmi.core.exit']==='suspend'?'suspend':'terminate')},LMSGetLastError:function(){return lastError},LMSGetErrorString:errorString,LMSGetDiagnostic:errorString};
+    else window.API_1484_11={Initialize:function(){return initialize()},GetValue:getValue,SetValue:setValue,Commit:function(){return commit('commit')},Terminate:function(){return finish(values['cmi.exit']==='suspend'?'suspend':'terminate')},GetLastError:function(){return lastError},GetErrorString:errorString,GetDiagnostic:errorString};
+  })();</script>`;
+};
+
+const prependRuntimeBootstrap = (html, scormRuntime) => {
+  const bootstrap = `${runtimeStorageBootstrap}${scormApiBootstrap(scormRuntime)}`;
   if (/<head(?:\s[^>]*)?>/i.test(html)) {
-    return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${runtimeStorageBootstrap}`);
+    return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${bootstrap}`);
   }
   if (/<html(?:\s[^>]*)?>/i.test(html)) {
-    return html.replace(/<html(?:\s[^>]*)?>/i, (root) => `${root}<head>${runtimeStorageBootstrap}</head>`);
+    return html.replace(/<html(?:\s[^>]*)?>/i, (root) => `${root}<head>${bootstrap}</head>`);
   }
-  return `${runtimeStorageBootstrap}${html}`;
+  return `${bootstrap}${html}`;
 };
 
 export const serveRuntimeAsset = async (req, res) => {
@@ -96,6 +114,7 @@ export const serveRuntimeAsset = async (req, res) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('Referrer-Policy', 'no-referrer');
+  if (req.headers?.origin === 'null') res.setHeader('Access-Control-Allow-Origin', 'null');
   try {
     const asset = await loadRuntimeAsset({
       launchToken: req.params.launchToken,
@@ -104,7 +123,7 @@ export const serveRuntimeAsset = async (req, res) => {
     const cdnSources = studioCdnOrigins().join(' ');
     res.setHeader(
       'Content-Security-Policy',
-      `sandbox allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock; ` +
+      `sandbox allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock allow-forms allow-modals allow-downloads allow-presentation; ` +
       `default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' ${cdnSources}; ` +
       `style-src 'self' 'unsafe-inline' ${cdnSources}; img-src 'self' data: blob: ${cdnSources}; ` +
       `media-src 'self' data: blob: ${cdnSources}; font-src 'self' data: ${cdnSources}; ` +
@@ -140,7 +159,7 @@ export const serveRuntimeAsset = async (req, res) => {
     })();</script>`;
     const html = /^text\/html\b/i.test(asset.mimeType);
     const htmlText = html ? asset.buffer.toString('utf8') : '';
-    const bootstrappedHtml = html ? prependRuntimeBootstrap(htmlText) : '';
+    const bootstrappedHtml = html ? prependRuntimeBootstrap(htmlText, asset.scormRuntime) : '';
     const bridgedHtml = !html ? '' : /<\/body>/i.test(bootstrappedHtml)
       ? bootstrappedHtml.replace(/<\/body>/i, `${bridge}</body>`)
       : /<\/html>/i.test(bootstrappedHtml)

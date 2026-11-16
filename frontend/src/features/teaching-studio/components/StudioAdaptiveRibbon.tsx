@@ -77,7 +77,7 @@ export default function StudioAdaptiveRibbon({
           </button>
         ) : null}
       </div>
-      <div id="studio-ribbon-command-panel" role="tabpanel" aria-hidden={collapsed} className={`studio-ribbon-groups h-[4.3rem] min-w-0 items-stretch gap-1 overflow-hidden px-2 py-1 ${collapsed ? 'hidden' : 'flex'}`}>
+      <div id="studio-ribbon-command-panel" role="tabpanel" aria-hidden={collapsed} className={`studio-ribbon-groups h-[4.3rem] min-w-0 items-stretch gap-1 overflow-y-hidden px-2 py-1 ${activeTab === 'transitions' ? 'overflow-x-auto' : 'overflow-x-hidden'} ${collapsed ? 'hidden' : 'flex'}`}>
         {groups.length ? groups.map((group) => (
           <div key={group.id} className="studio-ribbon-group relative flex min-w-0 shrink flex-col border-r border-slate-200 pr-1 last:border-r-0">
             <div className="flex min-h-0 flex-1 items-center gap-0.5 overflow-hidden">
