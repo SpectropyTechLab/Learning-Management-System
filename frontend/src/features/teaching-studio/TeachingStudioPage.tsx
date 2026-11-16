@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  Brush,
   Boxes,
   Check,
   ChevronDown,
@@ -11,17 +12,21 @@ import {
   Cloud,
   CloudOff,
   Eye,
+  Eraser,
   Focus,
   FileText,
   GalleryHorizontalEnd,
   Grid3X3,
   GripVertical,
+  Highlighter,
   LayoutTemplate,
   ListOrdered,
   LoaderCircle,
   Maximize2,
   Minimize2,
-  Paintbrush,
+  MousePointer2,
+  PenLine,
+  Pencil as PencilIcon,
   Network,
   Pencil,
   Plus,
@@ -30,7 +35,6 @@ import {
   RefreshCw,
   Save,
   Shapes,
-  Sigma,
   SlidersHorizontal,
   Sparkles,
   Trash2,
@@ -57,9 +61,12 @@ import StudioLayoutGallery from './components/StudioLayoutGallery';
 import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
 import StudioAnimationsPanel from './components/StudioAnimationsPanel';
-import StudioMathPanel from './components/StudioMathPanel';
+import { STUDIO_EQUATION_GROUPS } from './components/StudioMathPanel';
+import StudioEquationRibbon from './components/StudioEquationRibbon';
+import { dispatchStudioTextCommand } from './components/studioTextCommands';
 import StudioShapesPanel, { STUDIO_SHAPE_GROUPS } from './components/StudioShapesPanel';
 import StudioShapeElement from './components/StudioShapeElement';
+import StudioColourMenu from './components/StudioColourMenu';
 import { inlineShapeToken, type InlineShapeData } from './components/studioInlineShape';
 import StudioIconButton from './components/StudioIconButton';
 import StudioAdaptiveRibbon, {
@@ -86,14 +93,13 @@ import {
   type StudioRibbonTabId,
 } from './components/studioRibbonModel';
 import StudioDrawingPanel from './components/StudioDrawingPanel';
-import StudioTransitionsPanel from './components/StudioTransitionsPanel';
+import StudioTransitionRibbon from './components/StudioTransitionRibbon';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
 import StudioDiagramChooser from './components/StudioDiagramChooser';
 import StudioDiagramThumbnail from './components/StudioDiagramThumbnail';
 import StudioScreenScriptMath from './components/StudioScreenScriptMath';
 import { clickerNavigationAction } from './components/studioClickerRuntime';
-import { dispatchStudioTextCommand } from './components/studioTextCommands';
 import {
   SMART_DIAGRAM_THEMES,
   SMART_DIAGRAM_LAYOUTS,
@@ -106,9 +112,15 @@ import {
   type SmartDiagramContent,
 } from './components/smartDiagramModel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
+import AssetCatalogPanel from './components/resources/AssetCatalogPanel';
+import StudioInsertResourceButtons, {
+  type InsertResourceType,
+} from './components/StudioInsertResourceButtons';
+import StudioResourceInsertUpload from './components/StudioResourceInsertUpload';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
 import type { StudioLayoutSummary } from './api/studioEditorApi';
+import { getStudioResourcePreview } from './api/studioResourcesApi';
 import type { StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
 import {
   approveStudioSession,
@@ -218,17 +230,20 @@ export default function TeachingStudioPage() {
     | 'layouts'
     | 'script'
     | 'resources'
+    | 'insert-resources'
     | 'elements'
-    | 'math'
     | 'shapes'
     | 'animations'
     | 'transitions'
-    | 'drawing'
     | 'zoom'
     | 'diagrams'
     | 'layers'
     | null
   >('elements');
+  const [insertResourceType, setInsertResourceType] = useState<InsertResourceType>('image');
+  const [insertResourceFilter, setInsertResourceFilter] = useState<InsertResourceType | null>(null);
+  const [resourceUploadOpen, setResourceUploadOpen] = useState(false);
+  const [assetCatalogOpen, setAssetCatalogOpen] = useState(false);
   const [animationPreview, setAnimationPreview] = useState<{
     elementId: string;
     token: number;
@@ -275,6 +290,7 @@ export default function TeachingStudioPage() {
     sourceSelectionText?: string;
   } | null>(null);
   const formatPainterAppliedTargetRef = useRef<string | null>(null);
+  const equationCanvasPointRef = useRef({ x: 600, y: 410 });
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
   const presentationWindowRef = useRef<Window | null>(null);
   const presentationWindowWatchRef = useRef<number | null>(null);
@@ -317,6 +333,9 @@ export default function TeachingStudioPage() {
     requestId: number;
   } | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
+  const [tablePickerPosition, setTablePickerPosition] = useState({ left: 16, top: 96 });
+  const [tablePickerHover, setTablePickerHover] = useState({ rows: 0, columns: 0 });
   const [renameTitle, setRenameTitle] = useState('');
   const [renamingScreen, setRenamingScreen] = useState(false);
   const [reorderIds, setReorderIds] = useState<number[]>([]);
@@ -1222,7 +1241,7 @@ export default function TeachingStudioPage() {
   };
 
   const addMathElement = (latex: string, forceStandalone = false) => {
-    if (!selectedScreen || editorReadOnly) return;
+    if (!selectedScreen || editorReadOnly) return null;
     const inlineTarget = selectedScreen.elements.find(
       (element) =>
         element.id === selectedElementId &&
@@ -1246,37 +1265,26 @@ export default function TeachingStudioPage() {
           ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
           : text.length;
       const token = `\\(${latex}\\)`;
-      const nextContent = { ...inlineTarget.content };
-      delete nextContent.richTextHtml;
-      const updated = {
-        ...inlineTarget,
-        content: {
-          ...nextContent,
-          text: `${text.slice(0, offset)}${token}${text.slice(offset)}`,
-        },
-      };
+      dispatchStudioTextCommand(inlineTarget.id, { type: 'insert-equation', latex, offset });
       inlineEquationCaretRef.current = {
         elementId: inlineTarget.id,
         offset: offset + token.length,
       };
-      commitElements(
-        selectedScreen.elements.map((element) => element.id === inlineTarget.id ? updated : element),
-        inlineTarget.id,
-      );
       toast.success('Equation inserted into the selected text element.');
-      return;
+      return inlineTarget.id;
     }
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `math-${token}`;
+    const point = equationCanvasPointRef.current;
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
       type: 'math',
       content: { text: latex, latex, color: '#0f2747', fontSize: 42, alignment: 'center' },
       position: {
-        x: 600,
-        y: 410,
+        x: Math.max(0, Math.min(1200, point.x - 360)),
+        y: Math.max(0, Math.min(920, point.y - 80)),
         width: 720,
         height: 160,
         zIndex: selectedScreen.elements.length + 1,
@@ -1284,6 +1292,57 @@ export default function TeachingStudioPage() {
     };
     commitElements([...selectedScreen.elements, element], element.id);
     toast.success('Equation added. Move or resize it on the canvas, then Save.');
+    return element.id;
+  };
+
+  const addTableElement = (rowCount = 3, columnCount = 4) => {
+    if (!selectedScreen || editorReadOnly) return null;
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+    const id = `table-${token}`;
+    const element: StudioElement = {
+      id,
+      slotId: `free-${id}`,
+      type: 'table',
+      content: {
+        visualType: 'table',
+        rows: Array.from({ length: rowCount }, () => Array(columnCount).fill('')),
+        headerRow: true,
+        totalRow: false,
+        firstColumn: false,
+        lastColumn: false,
+        bandedRows: true,
+        bandedColumns: false,
+        headerFill: '#1d4ed8',
+        bandFill: '#dbeafe',
+        cellFill: '#ffffff',
+        textColor: '#0f172a',
+        borderColor: '#64748b',
+        borderWidth: 1,
+        borderStyle: 'solid',
+        alignment: 'left',
+        verticalAlignment: 'middle',
+        cellMargin: 8,
+        fontSize: 22,
+        merges: [],
+      },
+      position: { x: 360, y: 260, width: 1200, height: 520, zIndex: selectedScreen.elements.length + 1 },
+    };
+    commitElements([...selectedScreen.elements, element], id);
+    setActiveRibbonTab('table-design');
+    setRightPanelOpen(false);
+    toast.success('Table inserted. Select a cell to edit it or use the table ribbon.');
+    return id;
+  };
+
+  const openTablePicker = () => {
+    const trigger = document.querySelector<HTMLElement>('[aria-label="Table"]');
+    const bounds = trigger?.getBoundingClientRect();
+    setTablePickerPosition({
+      left: Math.max(8, Math.min(bounds?.left ?? 16, window.innerWidth - 250)),
+      top: Math.max(8, Math.min((bounds?.bottom ?? 90) + 6, window.innerHeight - 360)),
+    });
+    setTablePickerHover({ rows: 0, columns: 0 });
+    setTablePickerOpen((open) => !open);
   };
 
   const addShapeElement = (
@@ -1594,6 +1653,93 @@ export default function TeachingStudioPage() {
     toast.success('Element duplicated. Move it to the required position, then Save.');
   };
 
+  const updateElementPreservingSelection = (updated: StudioElement) => {
+    if (!selectedScreen || editorReadOnly) return;
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+      selectedElementId,
+    );
+  };
+
+  const placeResourceDirectly = async (
+    resource: StudioResourceSummary,
+    selectedVersion?: StudioResourceVersion,
+  ) => {
+    if (editorReadOnly) {
+      toast.error('Start an update before changing this Session.');
+      return;
+    }
+    if (!selectedScreen) {
+      toast.error('Select a Screen before adding a Resource.');
+      return;
+    }
+    const version = selectedVersion || resource.latest_version;
+    if (!version) {
+      toast.error('This Resource has no available version.');
+      return;
+    }
+    const type: ObjectType = ['image', 'animation', 'model_3d'].includes(resource.resource_type)
+      ? 'visual'
+      : ['video', 'presentation'].includes(resource.resource_type)
+        ? 'media'
+        : 'simulation';
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}`;
+    const id = `resource-${token}`;
+    let naturalWidth = Number(version.width);
+    let naturalHeight = Number(version.height);
+    if (resource.resource_type === 'image' && !(naturalWidth > 0 && naturalHeight > 0)) {
+      try {
+        const source = version.external_url || (await getStudioResourcePreview(version.id)).url;
+        const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+          image.onerror = () => reject(new Error('Unable to read image dimensions.'));
+          image.src = source;
+        });
+        naturalWidth = dimensions.width;
+        naturalHeight = dimensions.height;
+      } catch (dimensionError) {
+        console.warn('Unable to resolve intrinsic image dimensions; using the default image area.', dimensionError);
+      }
+    }
+    const imageScale = resource.resource_type === 'image' && naturalWidth > 0 && naturalHeight > 0
+      ? Math.min(1, 960 / naturalWidth, 540 / naturalHeight)
+      : null;
+    const imageWidth = imageScale === null ? 960 : Math.max(1, Math.round(naturalWidth * imageScale));
+    const imageHeight = imageScale === null ? 540 : Math.max(1, Math.round(naturalHeight * imageScale));
+    const size = type === 'visual'
+      ? resource.resource_type === 'image'
+        ? { x: Math.round((1920 - imageWidth) / 2), y: Math.round((1080 - imageHeight) / 2), width: imageWidth, height: imageHeight }
+        : { x: 480, y: 270, width: 960, height: 540 }
+      : type === 'media'
+        ? { x: 400, y: 225, width: 1120, height: 630 }
+        : { x: 320, y: 180, width: 1280, height: 720 };
+    const element: StudioElement = {
+      id,
+      slotId: `free-${id}`,
+      type,
+      content: {
+        text: resource.name,
+        url: version.external_url || '',
+        altText: resource.description || resource.name,
+        source: resource.name,
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
+      },
+      position: { ...size, zIndex: selectedScreen.elements.length + 1 },
+      resource: {
+        resource_id: resource.id,
+        resource_version_id: version.id,
+        usage: { slot_id: `free-${id}`, resource_type: resource.resource_type },
+      },
+    };
+    commitElements([...selectedScreen.elements, element], element.id);
+    setPanel('elements');
+    setRightPanelOpen(true);
+    toast.success(`${resource.name} added directly to the current Screen.`);
+  };
+
   const bindResourceToSelectedElement = (
     resource: StudioResourceSummary,
     selectedVersion?: StudioResourceVersion,
@@ -1627,7 +1773,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: String(element.content.altText || resource.description || resource.name),
         source: String(element.content.source || resource.name),
-        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
       },
       resource: {
         resource_id: resource.id,
@@ -2230,8 +2376,8 @@ export default function TeachingStudioPage() {
     resourceType: selectedResourceType,
     visualType: selectedVisualType,
     selectionCount: selectedElementIds.length,
-    drawingActive: rightPanelOpen && panel === 'drawing',
-  }), [panel, rightPanelOpen, selectedElementIds.length, selectedElementType, selectedResourceType, selectedVisualType]);
+    drawingActive: false,
+  }), [selectedElementIds.length, selectedElementType, selectedResourceType, selectedVisualType]);
   const contextualRibbonTabKey = ribbonTabs
     .filter((tab) => tab.contextual)
     .map((tab) => tab.id)
@@ -2275,6 +2421,14 @@ export default function TeachingStudioPage() {
       return;
     }
     addShapeElement(kind);
+  };
+  const updateSelectedTable = (changes: Record<string, unknown>) => {
+    if (!selectedElement || selectedElement.type !== 'table' || editorReadOnly) return;
+    updateElement({ ...selectedElement, content: { ...selectedElement.content, ...changes } });
+  };
+  const runTableAction = (action: import('./components/StudioTableElement').StudioTableAction) => {
+    if (!selectedElement || selectedElement.type !== 'table' || editorReadOnly) return;
+    window.dispatchEvent(new CustomEvent('studio-table-control', { detail: { elementId: selectedElement.id, action } }));
   };
   const applyQuickAnimation = (effect: string, append = false) => {
     if (!selectedElement || editorReadOnly) return;
@@ -2348,19 +2502,6 @@ export default function TeachingStudioPage() {
     if (alignment === 'bottom') current.y = Math.max(0, 1080 - height);
     changeElementBounds(selectedElement.id, current);
   };
-  const applyQuickTransition = (effect: string) => {
-    const saved = selectedScreen?.screen_settings_json?.transition;
-    setScreenTransition({
-      duration: 0.7,
-      direction: 'right',
-      advanceOnClick: true,
-      easing: 'ease-in-out',
-      intensity: 'standard',
-      respectReducedMotion: true,
-      ...(saved && typeof saved === 'object' ? saved as Record<string, unknown> : {}),
-      effect,
-    });
-  };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string, additive = false) => {
     if (additive) {
@@ -2381,6 +2522,10 @@ export default function TeachingStudioPage() {
       setSelectedElementId(elementId);
     }
     const element = selectedScreen?.elements.find((candidate) => candidate.id === elementId);
+    if (element?.type !== 'math') {
+      const controlWindow = window as Window & { __studioActiveEquationElementId?: string };
+      delete controlWindow.__studioActiveEquationElementId;
+    }
     setSelectedLayoutSlotId(element?.slotId ?? null);
   };
   const groupSelectedElements = () => {
@@ -2414,10 +2559,9 @@ export default function TeachingStudioPage() {
     { id: 'resources', label: 'Resources', icon: <Upload size={17} /> },
     { id: 'elements', label: 'Elements', icon: <Boxes size={17} /> },
     { id: 'animations', label: 'Animations', icon: <Sparkles size={17} /> },
-    { id: 'math', label: 'Math equations', icon: <Sigma size={17} /> },
     { id: 'transitions', label: 'Transitions', icon: <GalleryHorizontalEnd size={17} /> },
     { id: 'shapes', label: 'Shapes', icon: <Shapes size={17} /> },
-    { id: 'diagrams', label: 'Smart Diagram', icon: <Network size={17} />, hidden: true },
+    { id: 'diagrams', label: 'Smart Diagram', icon: <Network size={17} /> },
     { id: 'drawing', label: 'Drawing', icon: <Paintbrush size={17} /> },
     { id: 'zoom', label: 'Zoom navigation', icon: <Focus size={17} /> },
   ] as const;
@@ -2442,6 +2586,39 @@ export default function TeachingStudioPage() {
       commands: [
         { id: 'duplicate-element', label: 'Duplicate', icon: <Boxes size={17} />, disabled: editorReadOnly || !selectedElement, onExecute: () => { if (selectedElement) duplicateElement(selectedElement.id); } },
         { id: 'delete-element', label: 'Delete', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedElement, onExecute: () => { if (selectedElement) removeElement(selectedElement.id); } },
+      ],
+    },
+  ];
+  const drawingToolIcons = {
+    pen: PenLine,
+    pencil: PencilIcon,
+    fountain: Brush,
+    highlighter: Highlighter,
+    laser: Sparkles,
+    eraser: Eraser,
+    'object-eraser': Trash2,
+  } satisfies Record<StudioDrawingTool, typeof PenLine>;
+  const drawingRibbonGroups: StudioRibbonGroup[] = [
+    {
+      id: 'draw-tools', label: 'Drawing Tools', commands: [
+        { id: 'draw-select', label: 'Select', icon: <MousePointer2 size={17} />, onExecute: () => setActiveRibbonTab('home') },
+        ...(['pen', 'pencil', 'fountain', 'highlighter', 'laser', 'eraser', 'object-eraser'] as StudioDrawingTool[]).map((tool) => {
+          const Icon = drawingToolIcons[tool];
+          return { id: `draw-${tool}`, label: tool === 'fountain' ? 'Fountain Pen' : tool === 'laser' ? 'Laser Pointer' : tool === 'eraser' ? 'Annotation Eraser' : tool === 'object-eraser' ? 'Object Eraser' : tool[0].toUpperCase() + tool.slice(1), icon: <Icon size={17} />, active: drawingTool === tool, onExecute: () => setDrawingTool(tool) };
+        }),
+      ],
+    },
+    {
+      id: 'draw-colours', label: 'Colours', content: <div className="flex items-center gap-1 px-1"><label className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg border" title="Custom ink colour"><span className="h-5 w-5 rounded-full border" style={{ backgroundColor: drawingColor }} /><input type="color" value={drawingColor} onChange={(event) => setDrawingColor(event.target.value)} className="absolute inset-0 opacity-0" aria-label="Custom ink colour" /></label>{['#0f172a', '#2563eb', '#ef4444', '#16a34a', '#f59e0b', '#9333ea'].map((color) => <button key={color} type="button" title={`Use ${color}`} aria-label={`Use ${color}`} onClick={() => setDrawingColor(color)} className={`h-6 w-6 shrink-0 rounded-full border-2 ${drawingColor === color ? 'border-slate-900 ring-1 ring-slate-300' : 'border-white shadow'}`} style={{ backgroundColor: color }} />)}</div>,
+    },
+    {
+      id: 'draw-stroke', label: 'Stroke', content: <div className="grid w-48 shrink-0 gap-1 px-1 text-[9px] font-semibold text-slate-600"><label className="grid grid-cols-[44px_1fr_36px] items-center gap-2"><span>Width</span><input type="range" min="1" max="28" value={drawingWidth} onChange={(event) => setDrawingWidth(Number(event.target.value))} className="min-w-0 w-full" /><span className="whitespace-nowrap text-right tabular-nums">{drawingWidth}px</span></label><label className="grid grid-cols-[44px_1fr_36px] items-center gap-2"><span>Opacity</span><input type="range" min="0.1" max="1" step="0.1" value={drawingOpacity} onChange={(event) => setDrawingOpacity(Number(event.target.value))} className="min-w-0 w-full" /><span className="whitespace-nowrap text-right tabular-nums">{Math.round(drawingOpacity * 100)}%</span></label></div>,
+    },
+    {
+      id: 'draw-history', label: 'Ink History', commands: [
+        { id: 'undo-ink', label: 'Undo Ink', icon: <Undo2 size={17} />, disabled: drawingPast.length === 0, onExecute: undoDrawing },
+        { id: 'redo-ink', label: 'Redo Ink', icon: <Redo2 size={17} />, disabled: drawingFuture.length === 0, onExecute: redoDrawing },
+        { id: 'clear-ink', label: 'Clear Ink', icon: <Trash2 size={17} />, danger: true, disabled: authoredDrawingStrokes(selectedScreen).length === 0, onExecute: () => setAuthoredDrawings([]) },
       ],
     },
   ];
@@ -2503,29 +2680,100 @@ export default function TeachingStudioPage() {
           {
             id: 'insert-text', label: 'Text', commands: [
               { id: 'insert-text', label: 'Text', icon: <FileText size={17} />, disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id), onExecute: () => { addBlankElement('text', 'content', undefined, { text: 'Type here' }); } },
-              { id: 'insert-math', label: 'Equation', icon: <Sigma size={17} />, onExecute: openRibbonTool('math'), active: rightPanelOpen && panel === 'math' },
+              { id: 'insert-table', label: 'Table', icon: <Grid3X3 size={17} />, disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id), active: tablePickerOpen, onExecute: openTablePicker },
             ],
           },
-          { id: 'insert-media', label: 'Media', commands: [
-              { id: 'insert-resource', label: 'Resources', icon: <Upload size={17} />, onExecute: openRibbonTool('resources'), active: rightPanelOpen && panel === 'resources' },
-          ] },
+          { id: 'insert-media', label: 'Resources', content: (
+            <StudioInsertResourceButtons
+              disabled={editorReadOnly || !selectedScreen}
+              onUpload={(type) => {
+                setInsertResourceType(type);
+                setResourceUploadOpen(true);
+              }}
+              onFromResource={(type) => {
+                setInsertResourceType(type);
+                setInsertResourceFilter(type);
+                setPanel('insert-resources');
+                setRightPanelOpen(true);
+              }}
+            />
+          ), launcher: {
+            label: 'Open Resources',
+            onExecute: () => {
+              setInsertResourceFilter(null);
+              setPanel('insert-resources');
+              setRightPanelOpen(true);
+            },
+          } },
           { id: 'insert-illustrations', label: 'Illustrations', commands: [
+              { id: 'discover-assets', label: 'Discover Assets', icon: <Sparkles size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => setAssetCatalogOpen(true) },
               { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: () => setDiagramChooserOpen(true), active: diagramChooserOpen },
               { id: 'insert-zoom', label: 'Zoom', icon: <Focus size={17} />, onExecute: openRibbonTool('zoom'), active: rightPanelOpen && panel === 'zoom' },
           ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div> },
         ];
-      case 'draw':
+      case 'equation':
         return [
-          { id: 'draw-tools', label: 'Drawing Tools', commands: [
-            ...(['pen', 'pencil', 'fountain', 'highlighter', 'laser', 'eraser'] as StudioDrawingTool[]).map((tool) => ({ id: `draw-${tool}`, label: tool.replace('-', ' '), icon: <Paintbrush size={17} />, active: drawingTool === tool, onExecute: () => setDrawingTool(tool) })),
-          ] },
-          { id: 'draw-colour', label: 'Ink', content: <div className="flex items-center gap-1 px-1"><label className="relative grid h-9 w-9 place-items-center rounded-lg border" title="Ink colour"><span className="h-5 w-5 rounded-full border" style={{ backgroundColor: drawingColor }} /><input type="color" value={drawingColor} onChange={(event) => setDrawingColor(event.target.value)} className="absolute inset-0 opacity-0" aria-label="Ink colour" /></label><select aria-label="Ink width" value={drawingWidth} onChange={(event) => setDrawingWidth(Number(event.target.value))} className="h-9 rounded-lg border px-1 text-[10px]"><option value="2">2 px</option><option value="4">4 px</option><option value="8">8 px</option><option value="14">14 px</option></select></div> },
-          { id: 'draw-history', label: 'Ink History', commands: [
-            { id: 'undo-ink', label: 'Undo Ink', icon: <Undo2 size={17} />, disabled: drawingPast.length === 0, onExecute: undoDrawing },
-            { id: 'redo-ink', label: 'Redo Ink', icon: <Redo2 size={17} />, disabled: drawingFuture.length === 0, onExecute: redoDrawing },
-            { id: 'more-drawing', label: 'More', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('drawing'), active: rightPanelOpen && panel === 'drawing' },
-          ] },
+          ...STUDIO_EQUATION_GROUPS.map((group) => ({
+            id: `equation-${group.name.toLowerCase()}`,
+            label: group.name,
+            commands: group.items.map(([label, latex, glyph]) => ({
+              id: `equation-${group.name.toLowerCase()}-${label.toLowerCase().replaceAll(' ', '-')}`,
+              label,
+              icon: <span className="grid min-h-5 min-w-6 place-items-center font-serif text-base font-semibold leading-none" aria-hidden="true">{glyph}</span>,
+              disabled: editorReadOnly || !selectedScreen,
+              onExecute: () => {
+                const activeEquationId = (window as Window & { __studioActiveEquationElementId?: string }).__studioActiveEquationElementId;
+                const targetEquationId = selectedElement?.type === 'math' ? selectedElement.id : activeEquationId;
+                if (targetEquationId) {
+                  window.dispatchEvent(new CustomEvent('studio-equation-control', { detail: { elementId: targetEquationId, action: 'insert', latex } }));
+                } else addMathElement(latex);
+              },
+            })),
+          })),
+          {
+            id: 'equation-editor',
+            label: 'Edit & Insert',
+            content: (
+              <StudioEquationRibbon
+                screen={selectedScreen}
+                selectedElementId={selectedElementId}
+                readOnly={editorReadOnly}
+                onDuplicate={duplicateElement}
+                onRemove={removeElement}
+                onRequestControl={(action, location) => {
+                  const caret = inlineEquationCaretRef.current;
+                  const textTarget = selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type)
+                    ? selectedElement
+                    : null;
+                  if (textTarget && caret?.elementId === textTarget.id) {
+                    const text = String(textTarget.content.text ?? '');
+                    const offset = Math.min(Math.max(caret.offset, 0), text.length);
+                    const latex = '';
+                    dispatchStudioTextCommand(textTarget.id, {
+                      type: 'insert-equation',
+                      latex,
+                      offset,
+                      openControl: action,
+                      controlLocation: location,
+                    });
+                    inlineEquationCaretRef.current = {
+                      elementId: textTarget.id,
+                      offset: offset + `\\(${latex}\\)`.length,
+                    };
+                    return;
+                  }
+                  const elementId = addMathElement('', true);
+                  if (!elementId) return;
+                  const detail = { elementId, action, ...(location ?? {}) };
+                  (window as Window & { __studioPendingEquationControl?: typeof detail }).__studioPendingEquationControl = detail;
+                  window.setTimeout(() => window.dispatchEvent(new CustomEvent('studio-equation-control', { detail })), 0);
+                }}
+              />
+            ),
+          },
         ];
+      case 'draw':
+        return drawingRibbonGroups;
       case 'design':
         return [
           {
@@ -2537,13 +2785,15 @@ export default function TeachingStudioPage() {
         ];
       case 'transitions':
         return [
-          { id: 'transition-preview', label: 'Preview', commands: [
-            { id: 'transition-preview-more', label: 'Preview', icon: <Eye size={17} />, disabled: !selectedScreen, onExecute: openRibbonTool('transitions') },
-          ] },
-          { id: 'transition-gallery', label: 'Transition to This Screen', commands: [
-            ...[['none', 'None'], ['fade', 'Fade'], ['push', 'Push'], ['wipe', 'Wipe'], ['split', 'Split'], ['morph', 'Morph']].map(([effect, label]) => ({ id: `transition-${effect}`, label, icon: <GalleryHorizontalEnd size={17} />, disabled: !selectedScreen, active: String((selectedScreen?.screen_settings_json?.transition as Record<string, unknown> | undefined)?.effect || 'none') === effect, onExecute: () => applyQuickTransition(effect) })),
-            { id: 'transition-more', label: 'More', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('transitions'), active: rightPanelOpen && panel === 'transitions' },
-          ] },
+          { id: 'transition-controls', label: 'Transition to This Screen', content: (
+            <StudioTransitionRibbon
+              settings={selectedScreen?.screen_settings_json ?? null}
+              disabled={editorReadOnly || !selectedScreen}
+              screenCount={screenList.screens.length}
+              onChange={setScreenTransition}
+              onApplyToAll={applyTransitionToAllScreens}
+            />
+          ) },
         ];
       case 'animations':
         return [
@@ -2612,8 +2862,8 @@ export default function TeachingStudioPage() {
             { id: 'picture-rotate', label: 'Rotate 90°', icon: <RefreshCw size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementRotation(selectedElement.id, (Number(selectedElement.position.rotation) || 0) + 90) },
           ] },
           { id: 'picture-size', label: 'Size', commands: [
-            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0 } }) },
-            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0 } }) },
+            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0, cropped: false } }) },
+            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0, cropped: true } }) },
             { id: 'picture-crop', label: 'Crop', icon: <Focus size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && setCropRequest({ elementId: selectedElement.id, token: Date.now() }) },
           ], content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="Picture width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="Picture height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
         ];
@@ -2621,7 +2871,7 @@ export default function TeachingStudioPage() {
         return [
           { id: 'shape-insert', label: 'Insert Shapes', content: <div className="flex items-center gap-0.5 px-1" aria-label="Change shape gallery">{RIBBON_VISIBLE_SHAPES.map((kind) => <button key={kind} type="button" title={kind.replaceAll('-', ' ')} disabled={!selectedElement} onClick={() => chooseRibbonShape(kind)} className={`h-7 w-7 rounded border bg-white p-0.5 hover:border-blue-500 hover:bg-blue-50 ${String(selectedElement?.content.kind) === kind ? 'border-blue-700 ring-1 ring-blue-300' : 'border-slate-200'}`}><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="All shapes" value={String(selectedElement?.content.kind || '')} disabled={!selectedElement} onChange={(event) => chooseRibbonShape(event.target.value)} className="h-8 w-20 rounded border px-1 text-[9px]"><option value="">All shapes</option>{RIBBON_SHAPE_KINDS.map((kind) => <option key={kind} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</select></div> },
           { id: 'shape-styles', label: 'Shape Styles', content: <div className="flex items-center gap-1 px-1">{[['#dbeafe', '#1d4ed8'], ['#fee2e2', '#dc2626'], ['#dcfce7', '#16a34a'], ['#ffffff', '#0f172a']].map(([fill, stroke]) => <button key={`${fill}-${stroke}`} type="button" title="Apply shape style" disabled={!selectedElement} onClick={() => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, fill, stroke, strokeWidth: 2 } })} className="h-9 w-10 rounded-lg border-2" style={{ backgroundColor: fill, borderColor: stroke }} />)}</div> },
-          { id: 'shape-colours', label: 'Shape Style', content: <div className="flex items-center gap-1 px-1"><label className="relative grid h-9 w-9 place-items-center rounded-lg border" title="Shape fill"><span className="h-5 w-5 rounded" style={{ backgroundColor: String(selectedElement?.content.fill || '#dbeafe') }} /><input type="color" value={String(selectedElement?.content.fill || '#dbeafe')} disabled={!selectedElement} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, fill: event.target.value } })} className="absolute inset-0 opacity-0" aria-label="Shape fill colour" /></label><label className="relative grid h-9 w-9 place-items-center rounded-lg border" title="Shape outline"><span className="h-5 w-5 rounded border-2" style={{ borderColor: String(selectedElement?.content.stroke || '#1d4ed8') }} /><input type="color" value={String(selectedElement?.content.stroke || '#1d4ed8')} disabled={!selectedElement} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, stroke: event.target.value } })} className="absolute inset-0 opacity-0" aria-label="Shape outline colour" /></label><select aria-label="Shape outline width" value={Number(selectedElement?.content.strokeWidth) || 2} disabled={!selectedElement} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, strokeWidth: Number(event.target.value) } })} className="h-9 w-14 rounded-lg border text-[10px]"><option value="1">1 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="6">6 px</option></select><select aria-label="Shape effect" value={String(selectedElement?.content.shapeEffect || 'none')} disabled={!selectedElement} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, shapeEffect: event.target.value } })} className="h-9 w-20 rounded-lg border px-1 text-[10px]"><option value="none">No effect</option><option value="shadow">Shadow</option><option value="glow">Glow</option><option value="soft-edges">Soft edges</option></select></div> },
+          { id: 'shape-colours', label: 'Shape Style', content: <div className="flex items-center gap-1 px-1"><StudioColourMenu label="Shape fill" noColourLabel="No Fill" value={String(selectedElement?.content.fill || '#dbeafe')} disabled={!selectedElement || editorReadOnly} onChange={(fill) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, fill } })} /><StudioColourMenu outline label="Shape outline" noColourLabel="No Outline" value={String(selectedElement?.content.stroke || '#1d4ed8')} disabled={!selectedElement || editorReadOnly} onChange={(stroke) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, stroke } })} /><select aria-label="Shape outline width" value={Number(selectedElement?.content.strokeWidth) || 2} disabled={!selectedElement || editorReadOnly} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, strokeWidth: Number(event.target.value) } })} className="h-9 w-14 rounded-lg border text-[10px]"><option value="1">1 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="6">6 px</option></select><select aria-label="Shape effect" value={String(selectedElement?.content.shapeEffect || 'none')} disabled={!selectedElement || editorReadOnly} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, shapeEffect: event.target.value } })} className="h-9 w-20 rounded-lg border px-1 text-[10px]"><option value="none">No effect</option><option value="shadow">Shadow</option><option value="glow">Glow</option><option value="soft-edges">Soft edges</option></select></div> },
           { id: 'shape-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Shape alt text" type="text" value={String(selectedElement?.content.altText || '')} disabled={!selectedElement} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, altText: event.target.value } })} className="h-8 w-24 rounded border px-1 text-[10px]" /></label> },
           { id: 'shape-arrange', label: 'Arrange', commands: [
             { id: 'shape-forward', label: 'Bring Forward', icon: <ChevronUp size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'), selectedElement.id) },
@@ -2633,6 +2883,33 @@ export default function TeachingStudioPage() {
             { id: 'shape-rotate-right', label: 'Rotate Right', icon: <Redo2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementRotation(selectedElement.id, (Number(selectedElement.position.rotation) || 0) + 90) },
           ] },
           { id: 'shape-size', label: 'Size', content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="Shape width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="Shape height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
+        ];
+      case 'table-design':
+        return [
+          { id: 'table-options', label: 'Table Style Options', content: <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 px-1 text-[9px] font-semibold text-slate-700">{([['headerRow', 'Header Row'], ['totalRow', 'Total Row'], ['firstColumn', 'First Column'], ['lastColumn', 'Last Column'], ['bandedRows', 'Banded Rows'], ['bandedColumns', 'Banded Columns']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-1 whitespace-nowrap"><input type="checkbox" checked={selectedElement?.content[key] === true} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ [key]: event.target.checked })} />{label}</label>)}</div> },
+          { id: 'table-styles', label: 'Table Styles', content: <div className="flex items-center gap-1 px-1">{[['#1d4ed8', '#dbeafe', '#ffffff'], ['#0f766e', '#ccfbf1', '#ffffff'], ['#b45309', '#fef3c7', '#ffffff'], ['#334155', '#e2e8f0', '#ffffff'], ['#7e22ce', '#f3e8ff', '#ffffff']].map(([headerFill, bandFill, cellFill]) => <button key={headerFill} type="button" title="Apply table style" disabled={editorReadOnly || selectedElement?.type !== 'table'} onClick={() => updateSelectedTable({ headerFill, bandFill, cellFill, borderColor: headerFill })} className="grid h-9 w-10 grid-rows-3 overflow-hidden rounded border border-slate-300"><span style={{ backgroundColor: headerFill }} /><span style={{ backgroundColor: cellFill }} /><span style={{ backgroundColor: bandFill }} /></button>)}</div> },
+          { id: 'table-colours', label: 'Table Formatting', content: <div className="flex items-center gap-1 px-1"><StudioColourMenu label="Table shading" noColourLabel="No Shading" value={String(selectedElement?.content.cellFill || '#ffffff')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(cellFill) => updateSelectedTable({ cellFill })} /><StudioColourMenu outline label="Table borders" noColourLabel="No Borders" value={String(selectedElement?.content.borderColor || '#64748b')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(borderColor) => updateSelectedTable({ borderColor, borderWidth: borderColor === 'transparent' ? 0 : Number(selectedElement?.content.borderWidth) || 1 })} /><select aria-label="Table border width" value={Number(selectedElement?.content.borderWidth) || 0} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ borderWidth: Number(event.target.value) })} className="h-9 w-16 rounded border px-1 text-[10px]"><option value="0">0 px</option><option value="1">1 px</option><option value="2">2 px</option><option value="3">3 px</option><option value="4">4 px</option></select><select aria-label="Table border style" value={String(selectedElement?.content.borderStyle || 'solid')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ borderStyle: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="double">Double</option></select></div> },
+          { id: 'table-effects', label: 'Effects', content: <select aria-label="Table effect" value={String(selectedElement?.content.effect || 'none')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ effect: event.target.value })} className="h-9 w-24 rounded border px-1 text-[10px]"><option value="none">No effect</option><option value="shadow">Shadow</option></select> },
+        ];
+      case 'table-layout':
+        return [
+          { id: 'table-rows-columns', label: 'Rows & Columns', commands: [
+            { id: 'table-row-above', label: 'Insert Above', icon: <ChevronUp size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-row-above') },
+            { id: 'table-row-below', label: 'Insert Below', icon: <ChevronDown size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-row-below') },
+            { id: 'table-column-left', label: 'Insert Left', icon: <ChevronLeft size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-column-left') },
+            { id: 'table-column-right', label: 'Insert Right', icon: <ChevronRight size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-column-right') },
+          ] },
+          { id: 'table-delete', label: 'Delete', commands: [
+            { id: 'table-delete-row', label: 'Delete Row', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('delete-row') },
+            { id: 'table-delete-column', label: 'Delete Column', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('delete-column') },
+            { id: 'table-delete-table', label: 'Delete Table', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => selectedElement && removeElement(selectedElement.id) },
+          ] },
+          { id: 'table-merge', label: 'Merge', commands: [
+            { id: 'table-merge-right', label: 'Merge Right', icon: <Boxes size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('merge-right') },
+            { id: 'table-split-cell', label: 'Split Cell', icon: <Grid3X3 size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('split-cell') },
+          ] },
+          { id: 'table-cell-size', label: 'Cell Size', content: selectedElement?.type === 'table' ? <div className="grid gap-0.5 px-1 text-[9px]"><label>Width <input aria-label="Table width" type="number" min="120" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 200 })} className="h-6 w-16 rounded border px-1" /></label><label>Height <input aria-label="Table height" type="number" min="80" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 300, height: Number(event.target.value) })} className="h-6 w-16 rounded border px-1" /></label></div> : null },
+          { id: 'table-alignment', label: 'Alignment', content: <div className="flex items-center gap-1 px-1"><select aria-label="Cell horizontal alignment" value={String(selectedElement?.content.alignment || 'left')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ alignment: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select><select aria-label="Cell vertical alignment" value={String(selectedElement?.content.verticalAlignment || 'middle')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ verticalAlignment: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select><label className="grid text-[9px]">Margin<input aria-label="Cell margin" type="number" min="0" max="40" value={Number(selectedElement?.content.cellMargin) || 0} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ cellMargin: Number(event.target.value) })} className="h-6 w-12 rounded border px-1" /></label></div> },
         ];
       case 'diagram-design':
         return [
@@ -2689,12 +2966,7 @@ export default function TeachingStudioPage() {
       case 'simulation-format':
         return elementCommands('elements');
       case 'drawing-format':
-        return [
-          { id: 'drawing-context-tools', label: 'Drawing Tools', commands: [
-            ...(['pen', 'pencil', 'fountain', 'highlighter', 'eraser'] as StudioDrawingTool[]).map((tool) => ({ id: `context-draw-${tool}`, label: tool.replace('-', ' '), icon: <Paintbrush size={17} />, active: drawingTool === tool, onExecute: () => setDrawingTool(tool) })),
-            { id: 'open-drawing', label: 'More', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('drawing'), active: rightPanelOpen && panel === 'drawing' },
-          ] },
-        ];
+        return drawingRibbonGroups;
       case 'group-format':
         return [
           { id: 'group-actions', label: 'Group', commands: [
@@ -2957,7 +3229,11 @@ export default function TeachingStudioPage() {
           tabs={ribbonTabs}
           activeTab={activeRibbonTab}
           groups={ribbonGroups}
-          onTabChange={setActiveRibbonTab}
+          onTabChange={(tab) => {
+            setActiveRibbonTab(tab);
+            if (tab === 'transitions' && panel === 'transitions') setRightPanelOpen(false);
+            if (tab === 'equation') setRightPanelOpen(false);
+          }}
           collapsed={ribbonCollapsed}
           onToggleCollapsed={() => setRibbonCollapsed((collapsed) => !collapsed)}
         />
@@ -3102,11 +3378,20 @@ export default function TeachingStudioPage() {
                 onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
                 onClearElementSelection={() => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
                 onChangeElement={editorReadOnly ? undefined : updateElement}
+                onCommitElementChange={editorReadOnly ? undefined : updateElementPreservingSelection}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementRotation={editorReadOnly ? undefined : changeElementRotation}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
                 onTextCaretChange={(elementId, offset) => {
                   inlineEquationCaretRef.current = { elementId, offset };
+                  const controlWindow = window as Window & { __studioActiveEquationElementId?: string };
+                  delete controlWindow.__studioActiveEquationElementId;
+                }}
+                onCanvasPointChange={(point) => {
+                  equationCanvasPointRef.current = point;
+                  inlineEquationCaretRef.current = null;
+                  const controlWindow = window as Window & { __studioActiveEquationElementId?: string };
+                  delete controlWindow.__studioActiveEquationElementId;
                 }}
                 onEditInlineShape={(elementId, shape, start, end) => {
                   setSelectedElementId(elementId);
@@ -3114,8 +3399,39 @@ export default function TeachingStudioPage() {
                   setPanel('shapes');
                   setRightPanelOpen(true);
                 }}
+                onEditInlineEquation={(elementId, latex, start, end) => {
+                  const element = selectedScreen?.elements.find((candidate) => candidate.id === elementId);
+                  if (!element) return;
+                  const text = String(element.content.text ?? '');
+                  const content = { ...element.content };
+                  delete content.richTextHtml;
+                  updateElement({ ...element, content: { ...content, text: `${text.slice(0, start)}\\(${latex}\\)${text.slice(end)}` } });
+                }}
+                onDuplicateElement={editorReadOnly ? undefined : duplicateElement}
+                onRemoveElement={editorReadOnly ? undefined : removeElement}
+                onOpenTool={
+                  editorReadOnly
+                    ? undefined
+                    : (tool) => {
+                        if (tool === 'math') {
+                          setActiveRibbonTab('equation');
+                          setRightPanelOpen(false);
+                          return;
+                        }
+                        if (tool === 'shapes') {
+                          setActiveRibbonTab(selectedElement?.type === 'shape' ? 'shape-format' : 'insert');
+                          return;
+                        }
+                        if (tool === 'animations') {
+                          setActiveRibbonTab('animations');
+                          return;
+                        }
+                        setPanel(tool);
+                        setRightPanelOpen(true);
+                      }
+                }
                 drawingStrokes={authoredDrawingStrokes(selectedScreen)}
-                drawingEnabled={!editorReadOnly && (activeRibbonTab === 'draw' || activeRibbonTab === 'drawing-format' || (rightPanelOpen && panel === 'drawing'))}
+                drawingEnabled={!editorReadOnly && (activeRibbonTab === 'draw' || activeRibbonTab === 'drawing-format')}
                 drawingTool={drawingTool}
                 drawingColor={drawingColor}
                 drawingWidth={drawingWidth}
@@ -3183,7 +3499,7 @@ export default function TeachingStudioPage() {
                 ))}
               </nav>
               <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain ${panel === 'layers' ? 'p-1.5' : 'p-2'} [scrollbar-gutter:stable]`}>
-                <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div>
+                {panel !== 'insert-resources' ? <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div> : null}
                 {panel === 'layers' && (
                   <StudioLayersPanel screen={selectedScreen} selectedElementId={selectedElementId} readOnly={editorReadOnly} onSelect={selectElementAndOpenControls} onCommit={commitElements} />
                 )}
@@ -3199,6 +3515,23 @@ export default function TeachingStudioPage() {
                 )}
                 {panel === 'resources' && (
                   <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />
+                )}
+                {panel === 'insert-resources' && (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <h2 className="font-bold text-slate-900">From Resource</h2>
+                        <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-slate-100"><X size={13} /></button>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                    </div>
+                    <ResourceLibrary
+                      mode="picker"
+                      initialType={insertResourceFilter ?? ''}
+                      allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined}
+                      onPick={placeResourceDirectly}
+                    />
+                  </div>
                 )}
                 {panel === 'elements' && (
                   <StudioElementPanel
@@ -3224,32 +3557,6 @@ export default function TeachingStudioPage() {
                     onInsert={addZoomElements}
                   />
                 ) : null}
-                {panel === 'math' && (
-                  <StudioMathPanel
-                    screen={selectedScreen}
-                    selectedElementId={selectedElementId}
-                    onSelect={selectElementAndOpenControls}
-                    onAddStandalone={(latex) => addMathElement(latex, true)}
-                    onInsertInline={(latex) => addMathElement(latex)}
-                    onUpdate={updateElement}
-                    onDuplicate={duplicateElement}
-                    onRemove={removeElement}
-                    inlineTarget={Boolean(
-                      selectedElement &&
-                      [
-                        'title',
-                        'text',
-                        'question',
-                        'response',
-                        'steps',
-                        'workspace',
-                        'footer',
-                        'options',
-                        'data',
-                      ].includes(selectedElement.type),
-                    )}
-                  />
-                )}
                 {panel === 'shapes' && (
                   <StudioShapesPanel
                     screen={selectedScreen}
@@ -3283,14 +3590,6 @@ export default function TeachingStudioPage() {
                     onCommit={commitElements}
                     onPreview={(elementId) => setAnimationPreview({ elementId, token: Date.now() })}
                     onSelectElement={selectElementAndOpenControls}
-                  />
-                )}
-                {panel === 'transitions' && (
-                  <StudioTransitionsPanel
-                    settings={selectedScreen?.screen_settings_json ?? null}
-                    onChange={setScreenTransition}
-                    onApplyToAll={applyTransitionToAllScreens}
-                    screenCount={screenList.screens.length}
                   />
                 )}
                 {panel === 'drawing' && (
@@ -3453,6 +3752,15 @@ export default function TeachingStudioPage() {
                   )}
                 </>
               )}
+              {panel === 'insert-resources' && (
+                <>
+                  <div className="mb-3">
+                    <h2 className="font-semibold">From Resource</h2>
+                    <p className="mt-1 text-sm text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                  </div>
+                  <ResourceLibrary mode="picker" initialType={insertResourceFilter ?? ''} allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined} onPick={placeResourceDirectly} />
+                </>
+              )}
               {panel === 'script' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
@@ -3545,6 +3853,22 @@ export default function TeachingStudioPage() {
                 setPanel('elements');
               }}
             />
+          </div>
+        </>
+      )}
+      {tablePickerOpen && selectedScreen && (
+        <>
+          <button type="button" aria-label="Close table picker" onClick={() => setTablePickerOpen(false)} className="fixed inset-0 z-[89] cursor-default bg-transparent" />
+          <div className="fixed z-[90] w-[242px] rounded-md border border-slate-300 bg-white shadow-2xl" style={{ left: tablePickerPosition.left, top: tablePickerPosition.top }} role="menu" aria-label="Insert table options">
+            <div className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">{tablePickerHover.rows && tablePickerHover.columns ? `${tablePickerHover.columns} × ${tablePickerHover.rows} Table` : 'Insert Table'}</div>
+            <div className="grid grid-cols-10 gap-1 p-2" onMouseLeave={() => setTablePickerHover({ rows: 0, columns: 0 })} aria-label="Choose table dimensions">
+              {Array.from({ length: 8 }, (_, row) => Array.from({ length: 10 }, (__, column) => {
+                const rows = row + 1;
+                const columns = column + 1;
+                const highlighted = rows <= tablePickerHover.rows && columns <= tablePickerHover.columns;
+                return <button key={`${rows}-${columns}`} type="button" title={`${columns} columns by ${rows} rows`} aria-label={`Insert ${columns} columns by ${rows} rows table`} onMouseEnter={() => setTablePickerHover({ rows, columns })} onFocus={() => setTablePickerHover({ rows, columns })} onClick={() => { setTablePickerOpen(false); addTableElement(rows, columns); }} className={`h-4 w-4 border ${highlighted ? 'border-blue-700 bg-blue-200' : 'border-slate-500 bg-white hover:bg-blue-100'}`} />;
+              }))}
+            </div>
           </div>
         </>
       )}
@@ -3835,6 +4159,63 @@ export default function TeachingStudioPage() {
       )}
       {diagramChooserOpen ? <StudioDiagramChooser onInsert={addSmartDiagram} onClose={() => setDiagramChooserOpen(false)} /> : null}
       {diagramLayoutGalleryOpen ? <StudioDiagramChooser onInsert={(layoutId) => { const layout = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === layoutId); if (layout) updateSelectedDiagram({ layout: layout.id, category: layout.category }); setDiagramLayoutGalleryOpen(false); }} onClose={() => setDiagramLayoutGalleryOpen(false)} /> : null}
+      {assetCatalogOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Discover Assets"
+        >
+          <div className="flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+              <div>
+                <h2 className="font-bold text-slate-900">Discover Assets</h2>
+                <p className="text-xs text-slate-500">Choose a reusable asset to add directly to the current Screen.</p>
+              </div>
+              <button type="button" onClick={() => setAssetCatalogOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Discover Assets">
+                <X size={17} />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <AssetCatalogPanel
+                mode="picker"
+                onImported={(resource) => {
+                  setAssetCatalogOpen(false);
+                  placeResourceDirectly(resource);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {resourceUploadOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Upload ${insertResourceType} Resource`}
+        >
+          <div className="relative max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setResourceUploadOpen(false)}
+              className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+              aria-label="Close Resource upload"
+            >
+              <X size={16} />
+            </button>
+            <div className="pr-8">
+              <StudioResourceInsertUpload
+                type={insertResourceType}
+                onUploaded={(resource) => {
+                  setResourceUploadOpen(false);
+                  placeResourceDirectly(resource);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       {createScreenOpen && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4"

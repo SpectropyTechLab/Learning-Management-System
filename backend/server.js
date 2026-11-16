@@ -39,6 +39,7 @@ import studioBranchRuntimeRoutes from './routes/studioBranchRuntime.routes.js';
 import studioSessionsRoutes from './routes/studioSessions.routes.js';
 import studioCurriculumImportRoutes from './routes/studioCurriculumImport.routes.js';
 import studioScormRuntimeRoutes from './routes/studioScormRuntime.routes.js';
+import { serveRuntimeAsset } from './controllers/studioResourceRuntime.controller.js';
 import studioTaxonomyRoutes from './routes/studioTaxonomy.routes.js';
 import { authenticateAccessTokenValue, authenticateToken } from './middleware/auth.js';
 import supabase from './config/supabaseClient.js';
@@ -135,6 +136,20 @@ const authenticateScormLaunch = async (req, res, next) => {
   }
 };
 
+
+// Sandboxed executable Resources have an opaque browser origin (`null`). Serve
+// only their tokenized immutable assets before global credentialed CORS; the
+// short-lived launch token remains the sole authorization for this route.
+app.use('/api/studio/runtime', (req, res, next) => {
+  if (req.headers.origin === 'null') {
+    res.setHeader('Access-Control-Allow-Origin', 'null');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  return next();
+});
+app.get('/api/studio/runtime/:launchToken/*', serveRuntimeAsset);
 
 app.use(
   cors({

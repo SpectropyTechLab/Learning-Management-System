@@ -100,6 +100,14 @@ export interface StudioResourceLaunch {
   fallback?: { endpoint: string };
 }
 
+export interface StudioScormAttempt {
+  id: number;
+  edition: '1.2' | '2004';
+  current_sco_identifier: string;
+  status: string;
+  launch: StudioResourceLaunch;
+}
+
 export interface StudioResourceDownload {
   url: string;
   expires_in_seconds: number;
@@ -256,6 +264,24 @@ export const createStudioResourceVersion = async (
 
 export const launchStudioResourceVersion = async (versionId: number) =>
   dataOf<StudioResourceLaunch>((await api.post(`/studio/resource-versions/${versionId}/launch`)).data);
+
+export const startStudioScormAttempt = async (versionId: number, releaseId?: number) =>
+  dataOf<StudioScormAttempt>((await api.post('/studio/scorm/attempts', {
+    resource_version_id: versionId,
+    release_id: releaseId,
+    resume: true,
+  })).data);
+
+export const commitStudioScormAttempt = async (
+  attemptId: number,
+  scoIdentifier: string,
+  data: Record<string, string>,
+  event: 'commit' | 'suspend' | 'terminate',
+) => dataOf<unknown>((await api.post(`/studio/scorm/attempts/${attemptId}/commit`, {
+  sco_identifier: scoIdentifier,
+  data,
+  event,
+})).data);
 
 export const getStudioResourceDownload = async (versionId: number) =>
   dataOf<StudioResourceDownload>((await api.get(`/studio/resource-versions/${versionId}/download`)).data);

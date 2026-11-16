@@ -1,43 +1,88 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ChevronDown, IndentDecrease, IndentIncrease, Italic, List, ListChevronsUpDown, ListOrdered, Underline } from 'lucide-react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ChevronDown, Circle, Copy, Crop, IndentDecrease, IndentIncrease, Italic, Link2, List, ListChevronsUpDown, ListOrdered, Sigma, Sparkles, Trash2, Underline, Unlink } from 'lucide-react';
 import type { StudioElement } from '../types';
+import { normalizeStudioHyperlink } from './studioHyperlinkModel';
 import { dispatchStudioTextCommand } from './studioTextCommands';
+import StudioColourMenu from './StudioColourMenu';
 
 interface Props {
   element: StudioElement | null;
   selectionFontSize?: number | 'mixed' | null;
-  selectionSpacing?: { lineHeight: number | 'mixed'; paragraphSpacingBefore: number | 'mixed'; paragraphSpacingAfter: number | 'mixed' } | null;
+  selectionSpacing?: {
+    lineHeight: number | 'mixed';
+    paragraphSpacingBefore: number | 'mixed';
+    paragraphSpacingAfter: number | 'mixed';
+  } | null;
+  onChange: (changes: Record<string, unknown>) => void;
+  onOpenMath: () => void;
+  onOpenShapes: () => void;
+  onOpenAnimations: () => void;
+  onDuplicate?: () => void;
+  onRemove?: () => void;
 }
 
-const textTypes = new Set(['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data']);
+const textTypes = ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'];
 
-export default function StudioElementToolbar({ element, selectionFontSize, selectionSpacing }: Props) {
+export default function StudioElementToolbar({ element, selectionFontSize, selectionSpacing, onChange, onOpenMath, onOpenShapes, onOpenAnimations, onDuplicate, onRemove }: Props) {
   const [listMenuOpen, setListMenuOpen] = useState(false);
+  const [linkMenuOpen, setLinkMenuOpen] = useState(false);
+  const [cropMenuOpen, setCropMenuOpen] = useState(false);
   const [spacingMenuOpen, setSpacingMenuOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkTooltip, setLinkTooltip] = useState('');
+  const [linkError, setLinkError] = useState('');
   const [fontSizeDraft, setFontSizeDraft] = useState('18');
   const [fontSizeEditing, setFontSizeEditing] = useState(false);
   const [lineSpacingDraft, setLineSpacingDraft] = useState('1.35');
   const [paragraphBeforeDraft, setParagraphBeforeDraft] = useState('0');
   const [paragraphAfterDraft, setParagraphAfterDraft] = useState('0');
-  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
-  const listButtonRef = useRef<HTMLButtonElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ left: 12, top: 48 });
   const spacingButtonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const textElement = Boolean(element && textTypes.has(element.type));
+  const spacingMenuRef = useRef<HTMLDivElement>(null);
+  const textElement = Boolean(element && textTypes.includes(element.type));
   const content = element?.content ?? {};
+  const resourceType = String(element?.resource?.usage?.resource_type || '');
+  const croppable = ['image', 'animation', 'video'].includes(resourceType);
+  const mediaTransform = content.mediaTransform && typeof content.mediaTransform === 'object'
+    ? content.mediaTransform as Record<string, unknown>
+    : {};
+  const shapeElement = element?.type === 'shape';
+  const mathElement = element?.type === 'math';
+  const fillValue = shapeElement ? content.fill : content.backgroundColor;
+  const borderValue = shapeElement ? content.stroke : content.borderColor;
+  const borderWidthValue = Number(shapeElement ? content.strokeWidth : content.borderWidth);
+  const borderWidth = Number.isFinite(borderWidthValue) ? Math.max(0, Math.min(8, borderWidthValue)) : 1;
   const alignment = String(content.alignment || 'left');
   const hasRichList = typeof content.richTextHtml === 'string' && /<(?:ul|ol)\b/i.test(content.richTextHtml);
-  const button = (active = false) => `grid h-7 w-7 shrink-0 place-items-center rounded ${active ? 'bg-blue-100 text-blue-900' : 'text-slate-700 hover:bg-slate-100'} disabled:cursor-not-allowed disabled:opacity-30`;
+  const storedLink = normalizeStudioHyperlink(content.hyperlink);
+  const button = (active = false) => `rounded p-1.5 ${active ? 'bg-blue-100 text-blue-900' : 'hover:bg-slate-100'} disabled:cursor-not-allowed disabled:opacity-35`;
   const sendTextCommand = (command: Parameters<typeof dispatchStudioTextCommand>[1]) => {
-    if (element && textElement) dispatchStudioTextCommand(element.id, command);
+    if (!element || !textElement) return;
+    dispatchStudioTextCommand(element.id, command);
   };
-  const displayedFontSize = selectionFontSize === 'mixed' ? '' : String(selectionFontSize ?? (Number(content.fontSize) || 18));
-  const displayedLineSpacing = selectionSpacing?.lineHeight === 'mixed' ? '' : String(selectionSpacing?.lineHeight ?? (Number(content.lineHeight) || 1.35));
-  const displayedParagraphBefore = selectionSpacing?.paragraphSpacingBefore === 'mixed' ? '' : String(selectionSpacing?.paragraphSpacingBefore ?? (Number(content.paragraphSpacingBefore) || 0));
-  const displayedParagraphAfter = selectionSpacing?.paragraphSpacingAfter === 'mixed' ? '' : String(selectionSpacing?.paragraphSpacingAfter ?? (Number(content.paragraphSpacingAfter) || 0));
-
-  useEffect(() => { if (!fontSizeEditing) setFontSizeDraft(displayedFontSize); }, [displayedFontSize, element?.id, fontSizeEditing]);
+  const displayedFontSize = selectionFontSize === 'mixed'
+    ? ''
+    : String(selectionFontSize ?? (Number(content.fontSize) || 18));
+  useEffect(() => {
+    if (fontSizeEditing) return;
+    setFontSizeDraft(displayedFontSize);
+  }, [displayedFontSize, element?.id, fontSizeEditing]);
+  const previewFontSize = (value: string) => {
+    setFontSizeDraft(value);
+    const size = Number(value);
+    if (!Number.isFinite(size) || size < 10 || size > 160) return;
+    sendTextCommand({ type: 'style', property: 'fontSize', value: `${size}px` });
+  };
+  const displayedLineSpacing = selectionSpacing?.lineHeight === 'mixed'
+    ? ''
+    : String(selectionSpacing?.lineHeight ?? (Number(content.lineHeight) || 1.35));
+  const displayedParagraphBefore = selectionSpacing?.paragraphSpacingBefore === 'mixed'
+    ? ''
+    : String(selectionSpacing?.paragraphSpacingBefore ?? (Number(content.paragraphSpacingBefore) || 0));
+  const displayedParagraphAfter = selectionSpacing?.paragraphSpacingAfter === 'mixed'
+    ? ''
+    : String(selectionSpacing?.paragraphSpacingAfter ?? (Number(content.paragraphSpacingAfter) || 0));
   useEffect(() => {
     if (spacingMenuOpen) return;
     setLineSpacingDraft(displayedLineSpacing);
@@ -45,58 +90,127 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
     setParagraphAfterDraft(displayedParagraphAfter);
   }, [displayedLineSpacing, displayedParagraphAfter, displayedParagraphBefore, element?.id, spacingMenuOpen]);
   useEffect(() => {
-    const close = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (listButtonRef.current?.contains(target) || spacingButtonRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setListMenuOpen(false);
+    if (!spacingMenuOpen) return;
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && (spacingButtonRef.current?.contains(target) || spacingMenuRef.current?.contains(target))) return;
       setSpacingMenuOpen(false);
     };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, []);
-
-  const positionMenu = (target: HTMLButtonElement | null) => {
-    const rect = target?.getBoundingClientRect();
-    if (rect) setMenuPosition({ left: Math.min(rect.left, window.innerWidth - 300), top: rect.bottom + 8 });
-  };
-  const previewFontSize = (value: string) => {
-    setFontSizeDraft(value);
-    const size = Number(value);
-    if (Number.isFinite(size) && size >= 10 && size <= 160) sendTextCommand({ type: 'style', property: 'fontSize', value: `${size}px` });
-  };
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointerDown);
+  }, [spacingMenuOpen]);
   const previewLineSpacing = (value: string) => {
     setLineSpacingDraft(value);
     const spacing = Number(value);
-    if (value.trim() && Number.isFinite(spacing) && spacing >= 0.8 && spacing <= 3) sendTextCommand({ type: 'block-style', property: 'lineHeight', value: String(spacing) });
+    if (!value.trim() || !Number.isFinite(spacing) || spacing < 0.8 || spacing > 3) return;
+    sendTextCommand({ type: 'block-style', property: 'lineHeight', value: String(spacing) });
   };
   const previewParagraphSpacing = (position: 'before' | 'after', value: string) => {
-    if (position === 'before') setParagraphBeforeDraft(value); else setParagraphAfterDraft(value);
+    if (position === 'before') setParagraphBeforeDraft(value);
+    else setParagraphAfterDraft(value);
     const spacing = Number(value);
-    if (value.trim() && Number.isFinite(spacing) && spacing >= 0 && spacing <= 120) sendTextCommand({ type: 'block-style', property: position === 'before' ? 'marginTop' : 'marginBottom', value: `${spacing}px` });
+    if (!value.trim() || !Number.isFinite(spacing) || spacing < 0 || spacing > 120) return;
+    sendTextCommand({ type: 'block-style', property: position === 'before' ? 'marginTop' : 'marginBottom', value: `${spacing}px` });
   };
-  const ribbonGroup = (label: string, controls: ReactNode) => <section className="flex shrink-0 flex-col justify-between border-r border-slate-200 px-1.5 last:border-r-0" aria-label={`${label} controls`}><div className="flex min-h-8 items-center gap-0.5">{controls}</div><span className="mt-0.5 text-center text-[9px] font-semibold text-slate-500">{label}</span></section>;
+  const positionMenu = (target: HTMLElement, width: number) => {
+    const rect = target.getBoundingClientRect();
+    setMenuPosition({
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+      top: rect.bottom + 8,
+    });
+  };
+  const openLinkMenu = (target: HTMLElement) => {
+    positionMenu(target, 320);
+    setLinkUrl(storedLink?.url ?? '');
+    setLinkTooltip(storedLink?.tooltip ?? '');
+    setLinkError('');
+    setLinkMenuOpen((open) => !open);
+    setListMenuOpen(false);
+    setCropMenuOpen(false);
+    setSpacingMenuOpen(false);
+  };
+  const applyLink = () => {
+    const normalized = normalizeStudioHyperlink({ url: linkUrl, tooltip: linkTooltip, target: '_blank' });
+    if (!normalized) {
+      setLinkError('Enter a valid web, email or telephone URL.');
+      return;
+    }
+    onChange({ hyperlink: normalized });
+    setLinkMenuOpen(false);
+  };
 
-  return <div data-studio-element-toolbar className="relative flex shrink-0 items-stretch" aria-label="Home text controls">
+  const ribbonGroup = (label: string, controls: ReactNode) => (
+    <section className="flex shrink-0 flex-col justify-between border-r border-slate-200 px-1.5 last:border-r-0" aria-label={`${label} controls`}>
+      <div className="flex min-h-8 items-center gap-1">{controls}</div>
+      <span className="mt-0.5 text-center text-[9px] font-semibold text-slate-500">{label}</span>
+    </section>
+  );
+
+  if (mathElement) {
+    return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="Selected equation formatting controls">
+      {ribbonGroup('Equation Format', <>
+        <input type="color" value={typeof content.color === 'string' ? content.color : '#0f2747'} onChange={(event) => onChange({ color: event.target.value })} aria-label="Equation colour" title="Equation colour" className="h-7 w-8 shrink-0 rounded border p-0.5" />
+        <input type="number" min="12" max="160" value={Number(content.fontSize) || 42} onChange={(event) => { const size = Number(event.target.value); if (Number.isFinite(size) && size >= 12 && size <= 160) onChange({ fontSize: size }); }} aria-label="Equation size" title="Equation size" className="h-7 w-12 shrink-0 rounded border px-1 text-xs" />
+        <button type="button" title="Align equation left" onClick={() => onChange({ alignment: 'left' })} className={button(alignment === 'left')}><AlignLeft size={14} /></button>
+        <button type="button" title="Align equation centre" onClick={() => onChange({ alignment: 'center' })} className={button(alignment === 'center')}><AlignCenter size={14} /></button>
+        <button type="button" title="Align equation right" onClick={() => onChange({ alignment: 'right' })} className={button(alignment === 'right')}><AlignRight size={14} /></button>
+      </>)}
+      {ribbonGroup('Editing', <>
+        <button type="button" title="Edit equation" onClick={onOpenMath} className={button()}><Sigma size={14} /></button>
+        <button type="button" title="Animations" onClick={onOpenAnimations} className={button()}><Sparkles size={14} /></button>
+        {onDuplicate ? <button type="button" title="Duplicate equation" onClick={onDuplicate} className={button()}><Copy size={14} /></button> : null}
+        {onRemove ? <button type="button" title="Delete equation" onClick={onRemove} className="rounded p-1.5 text-red-700 hover:bg-red-50"><Trash2 size={14} /></button> : null}
+      </>)}
+    </div>;
+  }
+
+  return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="Selected element Home controls">
     {ribbonGroup('Font', <>
-      <select disabled={!textElement} value={String(content.fontFamily || 'Arial')} onChange={(event) => sendTextCommand({ type: 'style', property: 'fontFamily', value: event.target.value })} aria-label="Font family" className="h-7 w-20 shrink-0 rounded border px-1 text-[10px] disabled:opacity-30"><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option></select>
-      <input disabled={!textElement} type="number" min="10" max="160" value={fontSizeDraft} placeholder={selectionFontSize === 'mixed' ? 'Mixed' : undefined} onFocus={() => setFontSizeEditing(true)} onChange={(event) => previewFontSize(event.target.value)} onBlur={() => { setFontSizeEditing(false); const size = Number(fontSizeDraft); if (!Number.isFinite(size) || size < 10 || size > 160) setFontSizeDraft(displayedFontSize); }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} aria-label="Font size" className="h-7 w-11 shrink-0 rounded border px-1 text-[10px] disabled:opacity-30" />
-      <label className="relative grid h-7 w-7 shrink-0 place-items-center rounded border" title="Text colour"><span className="h-4 w-4 rounded-sm" style={{ backgroundColor: typeof content.color === 'string' ? content.color : '#25436b' }} /><input disabled={!textElement} type="color" value={typeof content.color === 'string' ? content.color : '#25436b'} onChange={(event) => sendTextCommand({ type: 'style', property: 'color', value: event.target.value })} aria-label="Text colour" className="absolute inset-0 opacity-0 disabled:cursor-not-allowed" /></label>
+      <select disabled={!textElement} value={String(content.fontFamily || 'Arial')} onChange={(event) => sendTextCommand({ type: 'style', property: 'fontFamily', value: event.target.value })} aria-label="Font family" className="h-7 w-24 shrink-0 rounded border px-1 text-xs disabled:opacity-35"><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option></select>
+      <input disabled={!textElement} type="number" min="10" max="160" value={fontSizeDraft} placeholder={selectionFontSize === 'mixed' ? 'Mixed' : undefined} onFocus={() => setFontSizeEditing(true)} onChange={(event) => previewFontSize(event.target.value)} onBlur={() => { setFontSizeEditing(false); const size = Number(fontSizeDraft); if (!Number.isFinite(size) || size < 10 || size > 160) setFontSizeDraft(displayedFontSize); }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} aria-label="Font size" className="h-7 w-12 shrink-0 rounded border px-1 text-xs disabled:opacity-35" />
+      <input disabled={!textElement} type="color" value={typeof content.color === 'string' ? content.color : '#25436b'} onChange={(event) => sendTextCommand({ type: 'style', property: 'color', value: event.target.value })} aria-label="Text colour" className="h-7 w-8 shrink-0 rounded border p-0.5 disabled:opacity-35" />
       <button disabled={!textElement} type="button" title="Bold selected text" onClick={() => sendTextCommand({ type: 'format', command: 'bold' })} className={button(content.bold === true)}><Bold size={14} /></button>
       <button disabled={!textElement} type="button" title="Italicise selected text" onClick={() => sendTextCommand({ type: 'format', command: 'italic' })} className={button(content.italic === true)}><Italic size={14} /></button>
       <button disabled={!textElement} type="button" title="Underline selected text" onClick={() => sendTextCommand({ type: 'format', command: 'underline' })} className={button(content.underline === true)}><Underline size={14} /></button>
     </>)}
     {ribbonGroup('Paragraph', <>
-      <button ref={spacingButtonRef} disabled={!textElement} type="button" title="Line and paragraph spacing" onClick={() => { positionMenu(spacingButtonRef.current); setSpacingMenuOpen((open) => !open); setListMenuOpen(false); }} className={button(spacingMenuOpen)}><ListChevronsUpDown size={14} /></button>
+      <button ref={spacingButtonRef} disabled={!textElement} type="button" title="Line and paragraph spacing" aria-label="Line and paragraph spacing" onClick={(event) => { positionMenu(event.currentTarget, 288); setSpacingMenuOpen((open) => !open); setListMenuOpen(false); setLinkMenuOpen(false); setCropMenuOpen(false); }} className={button(spacingMenuOpen)}><ListChevronsUpDown size={14} /></button>
       <button disabled={!textElement} type="button" title="Align left" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'left' })} className={button(alignment === 'left')}><AlignLeft size={14} /></button>
       <button disabled={!textElement} type="button" title="Align centre" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'center' })} className={button(alignment === 'center')}><AlignCenter size={14} /></button>
       <button disabled={!textElement} type="button" title="Align right" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'right' })} className={button(alignment === 'right')}><AlignRight size={14} /></button>
       <button disabled={!textElement} type="button" title="Justify" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'justify' })} className={button(alignment === 'justify')}><AlignJustify size={14} /></button>
-      <button disabled={!textElement} type="button" title="Toggle bullet list" onClick={() => sendTextCommand({ type: 'bullet', style: 'disc', toggle: true })} className={button(content.list === true || hasRichList)}><List size={14} /></button>
-      <button ref={listButtonRef} disabled={!textElement} type="button" title="Bullet and numbering styles" onClick={() => { positionMenu(listButtonRef.current); setListMenuOpen((open) => !open); setSpacingMenuOpen(false); }} className={button(listMenuOpen)}><ChevronDown size={12} /></button>
+      <div className="flex shrink-0 overflow-hidden rounded border border-transparent">
+        <button disabled={!textElement} type="button" title="Toggle bullet list at cursor" onClick={() => sendTextCommand({ type: 'bullet', style: 'disc', toggle: true })} className={button(content.list === true || hasRichList)}><List size={14} /></button>
+        <button disabled={!textElement} type="button" title="Bullet and numbering styles" onClick={(event) => { positionMenu(event.currentTarget, 288); setListMenuOpen((open) => !open); setLinkMenuOpen(false); setSpacingMenuOpen(false); setCropMenuOpen(false); }} className={button()}><ChevronDown size={12} /></button>
+      </div>
       <button disabled={!textElement} type="button" title="Increase list level" onClick={() => sendTextCommand({ type: 'indent' })} className={button()}><IndentIncrease size={14} /></button>
       <button disabled={!textElement} type="button" title="Decrease list level" onClick={() => sendTextCommand({ type: 'outdent' })} className={button()}><IndentDecrease size={14} /></button>
     </>)}
-    {spacingMenuOpen && typeof document !== 'undefined' ? createPortal(<div ref={menuRef} className="fixed z-[260] w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-xl" style={menuPosition}><div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-slate-500"><ListChevronsUpDown size={14} />Spacing</div><p className="mb-2 text-[10px] text-slate-500">Applies to the selected paragraph, or the complete text box when no text is selected.</p><div className="grid grid-cols-4 gap-1">{[1, 1.15, 1.5, 2].map((value) => <button key={value} type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => previewLineSpacing(String(value))} className={`rounded-lg border px-2 py-1.5 text-xs font-semibold ${lineSpacingDraft === String(value) ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 hover:bg-slate-50'}`}>{value}</button>)}</div><label className="mt-3 block text-[11px] font-semibold text-slate-600">Line spacing<input type="number" min="0.8" max="3" step="0.05" value={lineSpacingDraft} onChange={(event) => previewLineSpacing(event.target.value)} className="mt-1 h-8 w-full rounded-lg border px-2 font-normal" /></label><div className="mt-3 grid grid-cols-2 gap-2"><label className="text-[11px] font-semibold text-slate-600">Before paragraph<input type="number" min="0" max="120" value={paragraphBeforeDraft} onChange={(event) => previewParagraphSpacing('before', event.target.value)} className="mt-1 h-8 w-full rounded-lg border px-2 font-normal" /></label><label className="text-[11px] font-semibold text-slate-600">After paragraph<input type="number" min="0" max="120" value={paragraphAfterDraft} onChange={(event) => previewParagraphSpacing('after', event.target.value)} className="mt-1 h-8 w-full rounded-lg border px-2 font-normal" /></label></div></div>, document.body) : null}
-    {listMenuOpen && typeof document !== 'undefined' ? createPortal(<div ref={menuRef} className="fixed z-[260] w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-xl" style={menuPosition}><div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-slate-500"><List size={14} />Bullets</div><div className="grid grid-cols-4 gap-2">{([{ style: 'disc', glyph: '●' }, { style: 'circle', glyph: '○' }, { style: 'square', glyph: '■' }, { style: '"◆  "', glyph: '◆' }] as const).map((item) => <button key={item.style} type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => { sendTextCommand({ type: 'bullet', style: item.style }); setListMenuOpen(false); }} className="rounded-lg border p-2 text-lg hover:bg-blue-50">{item.glyph}</button>)}</div><div className="mb-2 mt-3 flex items-center gap-2 text-xs font-bold uppercase text-slate-500"><ListOrdered size={14} />Numbering</div><div className="grid grid-cols-3 gap-2">{([{ style: 'decimal', glyph: '1.' }, { style: 'lower-alpha', glyph: 'a.' }, { style: 'upper-alpha', glyph: 'A.' }, { style: 'lower-roman', glyph: 'i.' }, { style: 'upper-roman', glyph: 'I.' }] as const).map((item) => <button key={item.style} type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => { sendTextCommand({ type: 'number', style: item.style }); setListMenuOpen(false); }} className="rounded-lg border p-2 text-sm font-semibold hover:bg-blue-50">{item.glyph}</button>)}</div></div>, document.body) : null}
+    {ribbonGroup('Drawing', <>
+      <StudioColourMenu compact label="Fill colour" noColourLabel="No Fill" value={typeof fillValue === 'string' ? fillValue : '#ffffff'} onChange={(fill) => onChange(shapeElement ? { fill } : { backgroundColor: fill })} />
+      <StudioColourMenu compact outline label="Border colour" noColourLabel="No Outline" value={typeof borderValue === 'string' ? borderValue : '#64748b'} onChange={(borderColor) => onChange(shapeElement ? { stroke: borderColor, strokeWidth: borderColor === 'transparent' ? 0 : borderWidth || 1 } : { borderColor, borderWidth: borderColor === 'transparent' ? 0 : borderWidth || 1 })} />
+      <select value={borderWidth} onChange={(event) => { const width = Number(event.target.value); onChange(shapeElement ? { strokeWidth: width } : { borderWidth: width }); }} aria-label="Border size" title="Border size" className="h-7 w-14 shrink-0 rounded border px-1 text-xs">
+        {[0, 1, 2, 3, 4, 5, 6, 8].map((width) => <option key={width} value={width}>{width}px</option>)}
+      </select>
+    </>)}
+    {ribbonGroup('Editing', <>
+      <button type="button" title={storedLink ? 'Edit hyperlink' : 'Add hyperlink'} onClick={(event) => openLinkMenu(event.currentTarget)} className={button(Boolean(storedLink))}><Link2 size={14} /></button>
+      {storedLink ? <button type="button" title="Remove hyperlink" onClick={() => onChange({ hyperlink: null })} className={button()}><Unlink size={14} /></button> : null}
+      <button type="button" title="Animations" onClick={onOpenAnimations} className={button()}><Sparkles size={14} /></button>
+      {croppable ? <button type="button" title="Crop and fit media" aria-label="Crop and fit media" onClick={(event) => { positionMenu(event.currentTarget, 320); setCropMenuOpen((open) => !open); setListMenuOpen(false); setLinkMenuOpen(false); setSpacingMenuOpen(false); }} className={button(cropMenuOpen)}><Crop size={14} /></button> : null}
+      <button type="button" title="Math" onClick={onOpenMath} className={button()}><Sigma size={14} /></button>
+      <button type="button" title="Shapes" onClick={onOpenShapes} className={button()}><Circle size={14} /></button>
+      {onDuplicate ? <button type="button" title="Duplicate element" onClick={onDuplicate} className={button()}><Copy size={14} /></button> : null}
+      {onRemove ? <button type="button" title="Remove element" onClick={onRemove} className="rounded p-1.5 text-red-700 hover:bg-red-50"><Trash2 size={14} /></button> : null}
+    </>)}
+
+    {spacingMenuOpen && textElement && typeof document !== 'undefined' ? createPortal(<div ref={spacingMenuRef} className="fixed z-[260] max-h-[calc(100dvh-4rem)] w-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-xl" style={menuPosition}><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-slate-500"><ListChevronsUpDown size={14} />Spacing</div><p className="mb-2 text-[10px] leading-4 text-slate-500">Applies to the selected paragraph, or the complete text box when no text is selected.</p><div className="grid grid-cols-4 gap-1">{[1, 1.15, 1.5, 2].map((value) => <button key={value} type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => previewLineSpacing(String(value))} className={`rounded-lg border px-2 py-1.5 text-xs font-semibold ${lineSpacingDraft === String(value) ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 hover:bg-slate-50'}`}>{value}</button>)}</div><label className="mt-3 block text-[11px] font-semibold text-slate-600">Line spacing<input type="number" min="0.8" max="3" step="0.05" value={lineSpacingDraft} placeholder={selectionSpacing?.lineHeight === 'mixed' ? 'Mixed' : undefined} onChange={(event) => previewLineSpacing(event.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 font-normal" /></label><div className="mt-3 grid grid-cols-2 gap-2"><label className="text-[11px] font-semibold text-slate-600">Before paragraph<input type="number" min="0" max="120" step="1" value={paragraphBeforeDraft} placeholder={selectionSpacing?.paragraphSpacingBefore === 'mixed' ? 'Mixed' : undefined} onChange={(event) => previewParagraphSpacing('before', event.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 font-normal" /></label><label className="text-[11px] font-semibold text-slate-600">After paragraph<input type="number" min="0" max="120" step="1" value={paragraphAfterDraft} placeholder={selectionSpacing?.paragraphSpacingAfter === 'mixed' ? 'Mixed' : undefined} onChange={(event) => previewParagraphSpacing('after', event.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 font-normal" /></label></div></div>, document.body) : null}
+
+    {listMenuOpen && typeof document !== 'undefined' ? createPortal(<div className="fixed z-[260] max-h-[calc(100dvh-4rem)] w-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-xl" style={menuPosition}><div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-slate-500"><List size={14} />Bullets</div><div className="grid grid-cols-4 gap-2">{([{ style: 'disc', glyph: '●' }, { style: 'circle', glyph: '○' }, { style: 'square', glyph: '■' }, { style: '"◆  "', glyph: '◆' }, { style: '"➤  "', glyph: '➤' }, { style: '"✓  "', glyph: '✓' }, { style: '"❖  "', glyph: '❖' }] as const).map((item) => <button key={item.style} type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => { sendTextCommand({ type: 'bullet', style: item.style }); setListMenuOpen(false); }} className="rounded-lg border border-slate-200 p-2 text-lg hover:bg-blue-50">{item.glyph}</button>)}</div><div className="mb-2 mt-3 flex items-center gap-2 text-xs font-bold uppercase text-slate-500"><ListOrdered size={14} />Numbering</div><div className="grid grid-cols-3 gap-2">{([{ style: 'decimal', glyph: '1.' }, { style: 'decimal-leading-zero', glyph: '01.' }, { style: 'lower-alpha', glyph: 'a.' }, { style: 'upper-alpha', glyph: 'A.' }, { style: 'lower-roman', glyph: 'i.' }, { style: 'upper-roman', glyph: 'I.' }] as const).map((item) => <button key={item.style} type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => { sendTextCommand({ type: 'number', style: item.style }); setListMenuOpen(false); }} className="rounded-lg border border-slate-200 p-2 text-sm font-semibold hover:bg-blue-50">{item.glyph}</button>)}</div><p className="mt-3 text-[10px] leading-4 text-slate-500">Double-click text, select every required line, then choose one style. The complete selection becomes one list.</p></div>, document.body) : null}
+
+    {cropMenuOpen && croppable && typeof document !== 'undefined' ? createPortal(<div className="fixed z-[260] max-h-[calc(100dvh-4rem)] w-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl" style={menuPosition}><div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900"><Crop size={16} />Crop and fit</div><label className="block text-xs font-semibold text-slate-600">Fit mode<select value={String(mediaTransform.fit || 'contain')} onChange={(event) => onChange({ mediaTransform: { ...mediaTransform, fit: event.target.value, cropped: event.target.value === 'cover' } })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"><option value="contain">Fit — resize complete resource</option><option value="cover">Fill — crop to component</option></select></label><label className="mt-3 block text-xs font-semibold text-slate-600">Zoom · {Math.round((Number(mediaTransform.scale) || 1) * 100)}%<input type="range" min="1" max="3" step="0.05" value={Number(mediaTransform.scale) || 1} onChange={(event) => onChange({ mediaTransform: { ...mediaTransform, scale: Number(event.target.value) } })} className="mt-1 w-full accent-blue-900" /></label><label className="mt-2 block text-xs font-semibold text-slate-600">Horizontal position<input type="range" min="-100" max="100" value={Number(mediaTransform.x) || 0} onChange={(event) => onChange({ mediaTransform: { ...mediaTransform, x: Number(event.target.value) } })} className="mt-1 w-full accent-blue-900" /></label><label className="mt-2 block text-xs font-semibold text-slate-600">Vertical position<input type="range" min="-100" max="100" value={Number(mediaTransform.y) || 0} onChange={(event) => onChange({ mediaTransform: { ...mediaTransform, y: Number(event.target.value) } })} className="mt-1 w-full accent-blue-900" /></label><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => onChange({ mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false } })} className="rounded-lg border px-3 py-2 text-xs font-semibold">Reset</button><button type="button" onClick={() => setCropMenuOpen(false)} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Done</button></div></div>, document.body) : null}
+
+    {linkMenuOpen && typeof document !== 'undefined' ? createPortal(<div className="fixed z-[260] max-h-[calc(100dvh-4rem)] w-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-xl" style={menuPosition}><h3 className="text-sm font-semibold text-slate-900">Element hyperlink</h3><p className="mt-1 text-xs text-slate-500">The complete text, shape, image, button or block becomes clickable in Preview and Teacher Player.</p><label className="mt-3 block text-xs font-semibold text-slate-600">Destination URL<input autoFocus value={linkUrl} onChange={(event) => { setLinkUrl(event.target.value); setLinkError(''); }} placeholder="https://example.com" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label><label className="mt-2 block text-xs font-semibold text-slate-600">Hover description<input value={linkTooltip} onChange={(event) => setLinkTooltip(event.target.value)} placeholder="Open supporting resource" maxLength={240} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>{linkError ? <p className="mt-2 text-xs text-red-700">{linkError}</p> : null}<div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setLinkMenuOpen(false)} className="rounded-lg border px-3 py-2 text-xs font-semibold">Cancel</button><button type="button" onClick={applyLink} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Apply link</button></div></div>, document.body) : null}
   </div>;
 }
+

@@ -154,6 +154,11 @@ export const createRuntimeLaunch = async ({
       resourceVersionId: version.id,
       requestedBy: user.id,
       ...(attemptId ? { scormAttemptId: Number(attemptId) } : {}),
+      ...(attemptId && runtime.kind === 'scorm' ? {
+        scormEdition: runtime.scorm?.edition,
+        scormScoIdentifier: runtime.scorm?.scos?.find((sco) =>
+          String(sco.launch_path || '').toLowerCase() === entryPoint.toLowerCase())?.identifier,
+      } : {}),
     },
     TOKEN_SECRET,
     { expiresIn: TOKEN_SECONDS }
@@ -169,6 +174,10 @@ export const createRuntimeLaunch = async ({
       'allow-popups',
       'allow-top-navigation-by-user-activation',
       'allow-pointer-lock',
+      'allow-forms',
+      'allow-modals',
+      'allow-downloads',
+      'allow-presentation',
     ],
     controls: {
       reload: true,
@@ -215,10 +224,25 @@ export const loadRuntimeAsset = async ({ launchToken, requestedPath }) => {
   const { data, error } = await supabase.storage.from(BUCKET).download(storageKey);
   if (error || !data) throw new AppError('Unable to load runtime asset', 502);
   const buffer = Buffer.from(await data.arrayBuffer());
+  let scormRuntime = null;
+  if (payload.scormAttemptId && payload.scormEdition && payload.scormScoIdentifier) {
+    const state = (await dbQuery(
+      `SELECT data_json FROM studio_scorm_sco_states
+       WHERE attempt_id = $1 AND sco_identifier = $2`,
+      [Number(payload.scormAttemptId), String(payload.scormScoIdentifier)],
+    )).rows[0];
+    scormRuntime = {
+      attemptId: Number(payload.scormAttemptId),
+      edition: String(payload.scormEdition),
+      scoIdentifier: String(payload.scormScoIdentifier),
+      initialData: state?.data_json && typeof state.data_json === 'object' ? state.data_json : {},
+    };
+  }
   return {
     buffer,
     mimeType: file.mime_type || mime.lookup(file.path) || 'application/octet-stream',
     etag: createHash('sha256').update(buffer).digest('hex'),
+    scormRuntime,
   };
 };
 

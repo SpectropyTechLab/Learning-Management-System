@@ -1,6 +1,7 @@
 export type StudioRibbonTabId =
   | 'home'
   | 'insert'
+  | 'equation'
   | 'draw'
   | 'design'
   | 'transitions'
@@ -10,6 +11,8 @@ export type StudioRibbonTabId =
   | 'view'
   | 'picture-format'
   | 'shape-format'
+  | 'table-design'
+  | 'table-layout'
   | 'diagram-design'
   | 'diagram-format'
   | '3d-model'
@@ -34,6 +37,7 @@ export type StudioRibbonSelection = {
 export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
   { id: 'home', label: 'Home' },
   { id: 'insert', label: 'Insert' },
+  { id: 'equation', label: 'Equations' },
   { id: 'draw', label: 'Draw' },
   { id: 'design', label: 'Design' },
   { id: 'transitions', label: 'Transitions' },
@@ -61,6 +65,10 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
   }
   if (elementType === 'shape') {
     tabs.push({ id: 'shape-format', label: 'Shape Format', contextual: true, accent: 'violet' });
+  }
+  if (elementType === 'table' || visualType === 'table') {
+    tabs.push({ id: 'table-design', label: 'Table Design', contextual: true, accent: 'amber' });
+    tabs.push({ id: 'table-layout', label: 'Layout', contextual: true, accent: 'amber' });
   }
   if (visualType === 'smart_diagram') {
     tabs.push({
