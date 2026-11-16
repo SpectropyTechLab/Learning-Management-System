@@ -94,6 +94,7 @@ import StudioResourceInsertUpload from './components/StudioResourceInsertUpload'
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
 import type { StudioLayoutSummary } from './api/studioEditorApi';
+import { getStudioResourcePreview } from './api/studioResourcesApi';
 import type { StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
 import {
   approveStudioSession,
@@ -1567,7 +1568,15 @@ export default function TeachingStudioPage() {
     toast.success('Element duplicated. Move it to the required position, then Save.');
   };
 
-  const placeResourceDirectly = (
+  const updateElementPreservingSelection = (updated: StudioElement) => {
+    if (!selectedScreen || editorReadOnly) return;
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+      selectedElementId,
+    );
+  };
+
+  const placeResourceDirectly = async (
     resource: StudioResourceSummary,
     selectedVersion?: StudioResourceVersion,
   ) => {
@@ -1593,8 +1602,32 @@ export default function TeachingStudioPage() {
       ? crypto.randomUUID()
       : `${Date.now()}`;
     const id = `resource-${token}`;
+    let naturalWidth = Number(version.width);
+    let naturalHeight = Number(version.height);
+    if (resource.resource_type === 'image' && !(naturalWidth > 0 && naturalHeight > 0)) {
+      try {
+        const source = version.external_url || (await getStudioResourcePreview(version.id)).url;
+        const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+          image.onerror = () => reject(new Error('Unable to read image dimensions.'));
+          image.src = source;
+        });
+        naturalWidth = dimensions.width;
+        naturalHeight = dimensions.height;
+      } catch (dimensionError) {
+        console.warn('Unable to resolve intrinsic image dimensions; using the default image area.', dimensionError);
+      }
+    }
+    const imageScale = resource.resource_type === 'image' && naturalWidth > 0 && naturalHeight > 0
+      ? Math.min(1, 960 / naturalWidth, 540 / naturalHeight)
+      : null;
+    const imageWidth = imageScale === null ? 960 : Math.max(1, Math.round(naturalWidth * imageScale));
+    const imageHeight = imageScale === null ? 540 : Math.max(1, Math.round(naturalHeight * imageScale));
     const size = type === 'visual'
-      ? { x: 480, y: 270, width: 960, height: 540 }
+      ? resource.resource_type === 'image'
+        ? { x: Math.round((1920 - imageWidth) / 2), y: Math.round((1080 - imageHeight) / 2), width: imageWidth, height: imageHeight }
+        : { x: 480, y: 270, width: 960, height: 540 }
       : type === 'media'
         ? { x: 400, y: 225, width: 1120, height: 630 }
         : { x: 320, y: 180, width: 1280, height: 720 };
@@ -1607,7 +1640,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: resource.description || resource.name,
         source: resource.name,
-        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
       },
       position: { ...size, zIndex: selectedScreen.elements.length + 1 },
       resource: {
@@ -1655,7 +1688,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: String(element.content.altText || resource.description || resource.name),
         source: String(element.content.source || resource.name),
-        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
       },
       resource: {
         resource_id: resource.id,
@@ -2491,8 +2524,8 @@ export default function TeachingStudioPage() {
             { id: 'picture-rotate', label: 'Rotate 90°', icon: <RefreshCw size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementRotation(selectedElement.id, (Number(selectedElement.position.rotation) || 0) + 90) },
           ] },
           { id: 'picture-size', label: 'Size', commands: [
-            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0 } }) },
-            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0 } }) },
+            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0, cropped: false } }) },
+            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0, cropped: true } }) },
             { id: 'picture-crop', label: 'Crop', icon: <Focus size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && setCropRequest({ elementId: selectedElement.id, token: Date.now() }) },
           ], content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="Picture width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="Picture height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
         ];
@@ -2936,6 +2969,7 @@ export default function TeachingStudioPage() {
                 onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
                 onClearElementSelection={() => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
                 onChangeElement={editorReadOnly ? undefined : updateElement}
+                onCommitElementChange={editorReadOnly ? undefined : updateElementPreservingSelection}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementRotation={editorReadOnly ? undefined : changeElementRotation}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}

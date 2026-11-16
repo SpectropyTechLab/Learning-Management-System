@@ -87,6 +87,8 @@ export default function SlideCanvas({
   showTextEditorOutlines = false,
   selectedObjectId,
   selectedObjectIds = [],
+  geometryControlsHiddenForObjectId,
+  overflowVisibleForObjectId,
   selectedSlotId,
   onSelectObject,
   onSelectSlot,
@@ -119,6 +121,8 @@ export default function SlideCanvas({
   showTextEditorOutlines?: boolean;
   selectedObjectId?: string | null;
   selectedObjectIds?: string[];
+  geometryControlsHiddenForObjectId?: string | null;
+  overflowVisibleForObjectId?: string | null;
   selectedSlotId?: string | null;
   onSelectObject?: (objectId: string, additive?: boolean) => void;
   onSelectSlot?: (slotId: string) => void;
@@ -210,14 +214,30 @@ export default function SlideCanvas({
         const west = direction.includes('w');
         const right = start.x + start.width;
         const bottom = start.y + start.height;
-        const x = west ? clamp(start.x + deltaX, 0, right - 80) : start.x;
-        const y = north ? clamp(start.y + deltaY, 0, bottom - 60) : start.y;
-        const width = west
+        let x = west ? clamp(start.x + deltaX, 0, right - 80) : start.x;
+        let y = north ? clamp(start.y + deltaY, 0, bottom - 60) : start.y;
+        let width = west
           ? right - x
           : east ? clamp(start.width + deltaX, 80, MASTER.width - start.x) : start.width;
-        const height = north
+        let height = north
           ? bottom - y
           : south ? clamp(start.height + deltaY, 60, MASTER.height - start.y) : start.height;
+        if (event.shiftKey) {
+          const horizontalScale = width / start.width;
+          const verticalScale = height / start.height;
+          const scaleFromHorizontal = east || west;
+          const scaleFromVertical = north || south;
+          const scaleFactor = scaleFromHorizontal && scaleFromVertical
+            ? (Math.abs(horizontalScale - 1) >= Math.abs(verticalScale - 1) ? horizontalScale : verticalScale)
+            : scaleFromHorizontal ? horizontalScale : verticalScale;
+          const maximumWidth = west ? right : MASTER.width - start.x;
+          const maximumHeight = north ? bottom : MASTER.height - start.y;
+          const constrainedScale = clamp(scaleFactor, Math.max(80 / start.width, 60 / start.height), Math.min(maximumWidth / start.width, maximumHeight / start.height));
+          width = Math.round(start.width * constrainedScale);
+          height = Math.round(start.height * constrainedScale);
+          x = west ? right - width : east ? start.x : Math.round(start.x + (start.width - width) / 2);
+          y = north ? bottom - height : south ? start.y : Math.round(start.y + (start.height - height) / 2);
+        }
         currentBounds = {
           x: Math.round(x),
           y: Math.round(y),
@@ -417,7 +437,7 @@ export default function SlideCanvas({
   return (
     <div
       ref={containerRef}
-      className={`flex h-full min-h-[240px] w-full items-center justify-center ${zoom > 1 || allowCanvasOverflow ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
+      className={`flex h-full min-h-[240px] w-full ${zoom > 1 ? 'items-start justify-start' : 'items-center justify-center'} ${zoom > 1 || allowCanvasOverflow ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
       data-testid="slide-viewport"
     >
       {scale > 0 && (
@@ -557,7 +577,7 @@ export default function SlideCanvas({
                       y={bounds.y + 12}
                       width={bounds.width - 24}
                       height={bounds.height - (object.caption ? 70 : 24)}
-                      preserveAspectRatio="xMidYMid meet"
+                      preserveAspectRatio="none"
                     >
                       <title>{object.altText || object.text || field.label}</title>
                     </image>
@@ -616,7 +636,7 @@ export default function SlideCanvas({
                   onSelectObject?.(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
                 }}
                 onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds, object.locked)}
-                className={`absolute touch-none rounded-md border-solid ${allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'} ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
+                className={`absolute touch-none rounded-md border-solid ${object.id === overflowVisibleForObjectId || allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'} ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -673,6 +693,7 @@ export default function SlideCanvas({
             (layout?.slots ?? []).map((slot) => {
               const object = slide.objects.find((item) => item.slotId === slot.id);
               if (!object || object.id !== selectedObjectId) return null;
+              if (object.id === geometryControlsHiddenForObjectId) return null;
               if (object.locked) return null;
               const bounds = boundsFor(object, slot);
               return (

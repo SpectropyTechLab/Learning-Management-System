@@ -283,11 +283,39 @@ test('Insert ribbon uploads or picks filtered Resources and places them without 
 test('Selected media supports component fitting and non-destructive crop controls', () => {
   const toolbar = readFrontend('components/StudioElementToolbar.tsx');
   const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  const blankCanvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const slideCanvas = readFrontend('SlideCanvas.tsx');
   const editor = readFrontend('TeachingStudioPage.tsx');
   assert.match(toolbar, /Crop and fit/);
   assert.match(toolbar, /mediaTransform/);
-  assert.match(player, /objectFit: mediaTransform\?\.fit === 'cover'/);
-  assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0 \}/);
+  assert.match(player, /mediaTransform\?\.cropped === true && !hasEdgeCrop/);
+  assert.match(player, /resourceType === 'image'[\s\S]*?\? 'fill' as const/);
+  assert.match(player, /resourceType === 'image' && !hasEdgeCrop/);
+  assert.match(player, /mediaTransform\?\.edgeCrop === true/);
+  assert.match(blankCanvas, /continuingEdgeCrop/);
+  assert.match(blankCanvas, /continuingCropGeometry/);
+  assert.match(blankCanvas, /minimumLeft/);
+  assert.match(blankCanvas, /overflowVisibleForObjectId=\{croppingElementId\}/);
+  assert.match(blankCanvas, /cropScaleX: cropDraft\.cropScaleX \/ remainingX/);
+  assert.match(blankCanvas, /position: \{ \.\.\.element\.position, \.\.\.bounds \}/);
+  assert.match(blankCanvas, /Math\.max\(0\.25, Math\.min\(4/);
+  assert.match(blankCanvas, /data-image-crop-active="true"/);
+  assert.match(blankCanvas, /passive: false/);
+  assert.match(blankCanvas, /anchorX/);
+  assert.match(blankCanvas, /viewport\.scrollLeft \+=/);
+  assert.match(blankCanvas, /handleCropWheel/);
+  assert.match(blankCanvas, /onCommitCrop/);
+  assert.match(blankCanvas, /if \(selected \|\| !cropping\) return;[\s\S]*?finishCrop\(\)/);
+  assert.match(editor, /updateElementPreservingSelection/);
+  assert.match(blankCanvas, /top-left/);
+  assert.match(slideCanvas, /event\.shiftKey/);
+  assert.match(blankCanvas, /geometryControlsHiddenForObjectId=\{croppingElementId\}/);
+  assert.match(slideCanvas, /object\.id === geometryControlsHiddenForObjectId/);
+  assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0, cropped: false \}/);
+  assert.match(editor, /960 \/ naturalWidth/);
+  assert.match(editor, /540 \/ naturalHeight/);
+  assert.match(editor, /getStudioResourcePreview\(version\.id\)/);
+  assert.match(editor, /image\.naturalWidth/);
 });
 
 test('Multi-selection, grouping, direct crop and rotation share the persisted element model', () => {
