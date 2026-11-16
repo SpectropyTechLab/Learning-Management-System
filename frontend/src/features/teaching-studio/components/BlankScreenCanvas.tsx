@@ -10,9 +10,11 @@ import type { AuthorDrawingStroke, StudioDrawingTool, StudioElement, StudioScree
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
 import { model3DSettingsFrom, type Model3DSettings } from './resources/model3DSettings';
 import StudioMathElement from './StudioMathElement';
+import MathLiveEquationEditor from './MathLiveEquationEditor';
 import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
+import StudioTableElement from './StudioTableElement';
 import StudioSmartDiagram from './StudioSmartDiagram';
 import StudioHyperlinkOverlay from './studioHyperlink';
 import { isSmartDiagramContent } from './smartDiagramModel';
@@ -44,6 +46,7 @@ interface BlankScreenCanvasProps {
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
   onTextCaretChange?: (elementId: string, offset: number) => void;
   onEditInlineShape?: (elementId: string, shape: InlineShapeData, start: number, end: number) => void;
+  onEditInlineEquation?: (elementId: string, latex: string, start: number, end: number) => void;
   onOpenTool?: (tool: 'math' | 'shapes' | 'animations') => void;
   onDuplicateElement?: (elementId: string) => void;
   onRemoveElement?: (elementId: string) => void;
@@ -65,6 +68,7 @@ interface BlankScreenCanvasProps {
   onCreateTextAt?: (point: { x: number; y: number }) => string | void;
   onActivateSlotAt?: (point: { x: number; y: number }) => string | void;
   onDropFiles?: (files: File[], point: { x: number; y: number }) => void;
+  onCanvasPointChange?: (point: { x: number; y: number }) => void;
 }
 
 const elementText = (content: Record<string, unknown>) => {
@@ -273,6 +277,7 @@ export default function BlankScreenCanvas({
   onChangeElementContent,
   onTextCaretChange,
   onEditInlineShape,
+  onEditInlineEquation,
   onOpenTool,
   onDuplicateElement,
   onRemoveElement,
@@ -292,6 +297,7 @@ export default function BlankScreenCanvas({
   drawingOpacity = 1,
   onDrawingChange,
   onCreateTextAt,
+  onCanvasPointChange,
   onActivateSlotAt,
   onDropFiles,
 }: BlankScreenCanvasProps) {
@@ -478,9 +484,9 @@ export default function BlankScreenCanvas({
             text: elementText(element.content),
             position: elementBounds(element.position),
             color: typeof element.content.color === 'string' ? element.content.color : undefined,
-            backgroundColor: typeof element.content.backgroundColor === 'string'
+            backgroundColor: element.type !== 'shape' && typeof element.content.backgroundColor === 'string'
               ? element.content.backgroundColor
-              : typeof element.content.fill === 'string' ? element.content.fill : undefined,
+              : undefined,
             borderColor: element.type !== 'shape' && typeof element.content.borderColor === 'string'
               ? element.content.borderColor
               : undefined,
@@ -506,17 +512,18 @@ export default function BlankScreenCanvas({
   for (const element of screen?.elements ?? []) {
     if (element.position.hidden === true) continue;
     if (isSmartDiagramContent(element.content)) {
+      const diagramContent = element.content;
       const visibleNodeIds = previewMode
         ? presenterDiagramVisibleNodes(
             animationTimeline,
             element.id,
             previewStep,
-            element.content.nodes.map((node) => node.id),
+            diagramContent.nodes.map((node) => node.id),
           )
         : undefined;
       objectOverlays[element.id] = (
         <StudioSmartDiagram
-          content={element.content}
+          content={diagramContent}
           editable={!previewMode && Boolean(onChangeElementContent)}
           visibleNodeIds={visibleNodeIds}
             onAspectRatioChange={!previewMode && onChangeElementBounds ? (aspectRatio) => {
@@ -537,7 +544,7 @@ export default function BlankScreenCanvas({
           onSelectNode={() => onSelectElement?.(element.id)}
           onChangeNodeText={(nodeId, text) =>
             onChangeElementContent?.(element.id, {
-              nodes: element.content.nodes.map((node) =>
+              nodes: diagramContent.nodes.map((node) =>
                 node.id === nodeId ? { ...node, text } : node,
               ),
             })
@@ -548,19 +555,31 @@ export default function BlankScreenCanvas({
     }
     if (element.type === 'math') {
       objectOverlays[element.id] = (
-        <StudioMathElement
-          key={element.id}
-          latex={String(element.content.latex ?? element.content.text ?? '')}
-          color={typeof element.content.color === 'string' ? element.content.color : undefined}
-          backgroundColor={typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
-          fontSize={Number(element.content.fontSize) || undefined}
-          alignment={
-            element.content.alignment === 'left' || element.content.alignment === 'right'
-              ? element.content.alignment
-              : 'center'
-          }
-          onRequestSize={previewMode ? undefined : (widthRatio, heightRatio) => fitElementToRenderedSize(element, widthRatio, heightRatio)}
-        />
+        !previewMode && selectedElementId === element.id && onChangeElementContent ? (
+          <div className="flex h-full w-full items-center" style={{ color: typeof element.content.color === 'string' ? element.content.color : '#0f2747', fontSize: Number(element.content.fontSize) || 42 }}>
+            <MathLiveEquationEditor
+              value={String(element.content.latex ?? element.content.text ?? '')}
+              onChange={(latex) => onChangeElementContent(element.id, { latex, text: latex })}
+              ariaLabel="Edit equation on canvas"
+              elementId={element.id}
+              canvas
+            />
+          </div>
+        ) : (
+          <StudioMathElement
+            key={element.id}
+            latex={String(element.content.latex ?? element.content.text ?? '')}
+            color={typeof element.content.color === 'string' ? element.content.color : undefined}
+            backgroundColor={typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
+            fontSize={Number(element.content.fontSize) || undefined}
+            alignment={
+              element.content.alignment === 'left' || element.content.alignment === 'right'
+                ? element.content.alignment
+                : 'center'
+            }
+            onRequestSize={previewMode ? undefined : (widthRatio, heightRatio) => fitElementToRenderedSize(element, widthRatio, heightRatio)}
+          />
+        )
       );
       continue;
     }
@@ -579,6 +598,17 @@ export default function BlankScreenCanvas({
             typeof element.content.customPath === 'string' ? element.content.customPath : undefined
           }
           effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
+        />
+      );
+      continue;
+    }
+    if (element.type === 'table' || element.content.visualType === 'table') {
+      objectOverlays[element.id] = (
+        <StudioTableElement
+          elementId={element.id}
+          content={element.content}
+          editable={!previewMode && Boolean(onChangeElementContent)}
+          onChange={(changes) => onChangeElementContent?.(element.id, changes)}
         />
       );
       continue;
@@ -645,7 +675,7 @@ export default function BlankScreenCanvas({
                 (slot) => slot.id === (element.slotId || `free-${element.id}`),
               )?.bounds;
             if (!currentBounds) return;
-            const nextContent = { ...element.content, text: value, ...formatting };
+            const nextContent: Record<string, unknown> = { ...element.content, text: value, ...formatting };
             if (richText !== undefined) nextContent.richTextHtml = richText;
             const nextHeight = Math.max(60, Math.ceil(requiredHeight));
             const contentChanged = Object.entries(nextContent).some(
@@ -673,6 +703,7 @@ export default function BlankScreenCanvas({
               : { elementId: element.id, value }
           )}
           onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
+          onInlineEquationEdit={(latex, start, end) => onEditInlineEquation?.(element.id, latex, start, end)}
           onEditingChange={(editing) => {
             setEditingElementId(
               editing ? element.id : (current) => (current === element.id ? null : current),
@@ -897,12 +928,14 @@ export default function BlankScreenCanvas({
             drawingWidth={drawingWidth}
             drawingOpacity={drawingOpacity}
             onDrawingChange={onDrawingChange}
+            onRemoveObject={onRemoveElement}
             zoom={previewMode ? 1 : canvasZoom}
             backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'}
             onCanvasDoubleClick={!previewMode && (onActivateSlotAt || onCreateTextAt) ? (point) => {
               const createdId = onActivateSlotAt?.(point) ?? onCreateTextAt?.(point);
               if (createdId) setEditingElementId(createdId);
             } : undefined}
+            onCanvasClick={!previewMode ? onCanvasPointChange : undefined}
           />
           </div>
         ) : (

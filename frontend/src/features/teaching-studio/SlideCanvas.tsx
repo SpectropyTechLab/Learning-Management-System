@@ -77,6 +77,34 @@ type PendingMove = {
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), maximum);
 
+function DrawingStrokeMark({ stroke, keyPrefix = '' }: { stroke: AuthorDrawingStroke; keyPrefix?: string }) {
+  if (stroke.tool === 'laser') return null;
+  const points = stroke.points.map((point) => `${point.x},${point.y}`).join(' ');
+  if (stroke.tool === 'fountain' && stroke.points.length > 1) {
+    return <g>
+      {stroke.points.slice(1).map((point, index) => {
+        const previous = stroke.points[index];
+        const progress = (index + 1) / Math.max(1, stroke.points.length - 1);
+        const edgeTaper = Math.min(1, progress * 5, (1 - progress) * 5 + 0.2);
+        const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+        const speedFactor = Math.max(0.55, Math.min(1.25, 18 / Math.max(6, distance)));
+        return <line key={`${keyPrefix}${stroke.id}-segment-${index}`} x1={previous.x} y1={previous.y} x2={point.x} y2={point.y} stroke={stroke.color} strokeWidth={Math.max(1, stroke.width * edgeTaper * speedFactor)} strokeOpacity={stroke.opacity ?? 1} strokeLinecap="round" />;
+      })}
+    </g>;
+  }
+  return <polyline
+    points={points}
+    fill="none"
+    stroke={stroke.color}
+    strokeWidth={stroke.width}
+    strokeOpacity={stroke.tool === 'pencil' ? Math.min(stroke.opacity ?? 1, 0.68) : stroke.opacity ?? 1}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeDasharray={stroke.tool === 'pencil' ? `${Math.max(1, stroke.width * 0.75)} ${Math.max(0.5, stroke.width * 0.22)}` : undefined}
+    style={stroke.tool === 'highlighter' ? { mixBlendMode: 'multiply' } : undefined}
+  />;
+}
+
 export default function SlideCanvas({
   layout,
   slide,
@@ -106,9 +134,11 @@ export default function SlideCanvas({
   drawingWidth = 6,
   drawingOpacity = 1,
   onDrawingChange,
+  onRemoveObject,
   zoom = 1,
   backgroundColor = '#f9fcff',
   onCanvasDoubleClick,
+  onCanvasClick,
 }: {
   layout: Layout | null;
   slide: Slide;
@@ -138,15 +168,18 @@ export default function SlideCanvas({
   drawingWidth?: number;
   drawingOpacity?: number;
   onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
+  onRemoveObject?: (objectId: string) => void;
   zoom?: number;
   backgroundColor?: string;
   onCanvasDoubleClick?: (point: { x: number; y: number }) => void;
+  onCanvasClick?: (point: { x: number; y: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [interaction, setInteraction] = useState<GeometryInteraction | null>(null);
   const pendingMoveRef = useRef<PendingMove | null>(null);
   const [currentStroke, setCurrentStroke] = useState<AuthorDrawingStroke | null>(null);
+  const [laserPoint, setLaserPoint] = useState<{ x: number; y: number } | null>(null);
   const [drawingPointerActive, setDrawingPointerActive] = useState(false);
   const geometryGestureActive = interaction !== null;
   useEffect(() => {
@@ -377,6 +410,19 @@ export default function SlideCanvas({
     if (next.length !== drawingStrokes.length) onDrawingChange?.(next);
   };
 
+  const eraseObjectAt = (point: { x: number; y: number }) => {
+    const target = [...slide.objects]
+      .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))
+      .find((object) => {
+        if (object.locked) return false;
+        const slot = layout?.slots.find((candidate) => candidate.id === object.slotId);
+        if (!slot) return false;
+        const bounds = boundsFor(object, slot);
+        return point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
+      });
+    if (target) onRemoveObject?.(target.id);
+  };
+
   const beginDrawing = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!drawingEnabled) return;
     event.preventDefault();
@@ -384,11 +430,13 @@ export default function SlideCanvas({
     const point = drawingPoint(event);
     setDrawingPointerActive(true);
     if (drawingTool === 'eraser') eraseAt(point);
+    else if (drawingTool === 'object-eraser') eraseObjectAt(point);
+    else if (drawingTool === 'laser') setLaserPoint(point);
     else
       setCurrentStroke({
         id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         color: drawingColor,
-        width: drawingTool === 'highlighter' ? drawingWidth * 3 : drawingWidth,
+        width: drawingTool === 'highlighter' ? drawingWidth * 3 : drawingTool === 'pencil' ? Math.max(1, drawingWidth * 0.65) : drawingWidth,
         tool: drawingTool,
         opacity: drawingTool === 'highlighter' ? Math.min(drawingOpacity, 0.35) : drawingOpacity,
         points: [point],
@@ -399,6 +447,8 @@ export default function SlideCanvas({
     if (!drawingPointerActive) return;
     const point = drawingPoint(event);
     if (drawingTool === 'eraser') eraseAt(point);
+    else if (drawingTool === 'object-eraser') return;
+    else if (drawingTool === 'laser') setLaserPoint(point);
     else
       setCurrentStroke((stroke) =>
         stroke ? { ...stroke, points: [...stroke.points, point] } : null,
@@ -411,6 +461,7 @@ export default function SlideCanvas({
       event.currentTarget.releasePointerCapture(event.pointerId);
     if (currentStroke?.points.length) onDrawingChange?.([...drawingStrokes, currentStroke]);
     setCurrentStroke(null);
+    setLaserPoint(null);
     setDrawingPointerActive(false);
   };
 
@@ -431,6 +482,11 @@ export default function SlideCanvas({
           onClick={(event) => {
             const target = event.target;
             if (target instanceof Element && target.closest('[data-element-id]')) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            onCanvasClick?.({
+              x: Math.round(((event.clientX - rect.left) / rect.width) * MASTER.width),
+              y: Math.round(((event.clientY - rect.top) / rect.height) * MASTER.height),
+            });
             onClearSelection?.();
           }}
           onDoubleClick={(event) => {
@@ -653,30 +709,9 @@ export default function SlideCanvas({
             onPointerCancel={finishDrawing}
             aria-label="Authored drawing layer"
           >
-            {fixedDrawingStrokes.map((stroke) => (
-              <polyline
-                key={`fixed-${stroke.id}`}
-                points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')}
-                fill="none"
-                stroke={stroke.color}
-                strokeWidth={stroke.width}
-                strokeOpacity={stroke.opacity ?? 1}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-            {[...drawingStrokes, ...(currentStroke ? [currentStroke] : [])].map((stroke) => (
-              <polyline
-                key={stroke.id}
-                points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')}
-                fill="none"
-                stroke={stroke.color}
-                strokeWidth={stroke.width}
-                strokeOpacity={stroke.opacity ?? 1}
-                strokeLinecap={stroke.tool === 'fountain' ? 'square' : 'round'}
-                strokeLinejoin="round"
-              />
-            ))}
+            {fixedDrawingStrokes.map((stroke) => <DrawingStrokeMark key={`fixed-${stroke.id}`} keyPrefix="fixed-" stroke={stroke} />)}
+            {[...drawingStrokes, ...(currentStroke ? [currentStroke] : [])].map((stroke) => <DrawingStrokeMark key={stroke.id} stroke={stroke} />)}
+            {laserPoint ? <g pointerEvents="none"><circle cx={laserPoint.x} cy={laserPoint.y} r={Math.max(18, drawingWidth * 2.5)} fill={drawingColor} opacity={0.2} /><circle cx={laserPoint.x} cy={laserPoint.y} r={Math.max(6, drawingWidth)} fill={drawingColor} opacity={0.95} /></g> : null}
           </svg>
           {!drawingEnabled &&
             onChangeObjectBounds &&

@@ -1,6 +1,7 @@
 export type StudioRibbonTabId =
   | 'home'
   | 'insert'
+  | 'equation'
   | 'draw'
   | 'design'
   | 'transitions'
@@ -11,6 +12,8 @@ export type StudioRibbonTabId =
   | 'text-format'
   | 'picture-format'
   | 'shape-format'
+  | 'table-design'
+  | 'table-layout'
   | 'diagram-design'
   | '3d-model'
   | 'simulation-format'
@@ -34,6 +37,7 @@ export type StudioRibbonSelection = {
 export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
   { id: 'home', label: 'Home' },
   { id: 'insert', label: 'Insert' },
+  { id: 'equation', label: 'Equations' },
   { id: 'draw', label: 'Draw' },
   { id: 'design', label: 'Design' },
   { id: 'transitions', label: 'Transitions' },
@@ -71,11 +75,15 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
   if (selection.drawingActive) {
     tabs.push({ id: 'drawing-format', label: 'Drawing', contextual: true, accent: 'amber' });
   }
-  if (textTypes.has(elementType)) {
+  if (textTypes.has(elementType) && visualType !== 'table') {
     tabs.push({ id: 'text-format', label: 'Text Format', contextual: true, accent: 'violet' });
   }
   if (elementType === 'shape') {
     tabs.push({ id: 'shape-format', label: 'Shape Format', contextual: true, accent: 'violet' });
+  }
+  if (elementType === 'table' || visualType === 'table') {
+    tabs.push({ id: 'table-design', label: 'Table Design', contextual: true, accent: 'amber' });
+    tabs.push({ id: 'table-layout', label: 'Layout', contextual: true, accent: 'amber' });
   }
   if (visualType === 'smart_diagram') {
     tabs.push({
