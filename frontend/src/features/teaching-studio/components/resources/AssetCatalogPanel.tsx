@@ -72,13 +72,13 @@ function CatalogCard({ asset, importing, onImport, onPreview, mode }: {
 }
 
 export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPanelProps) {
-  const [query, setQuery] = useState('heart');
-  const [submitted, setSubmitted] = useState('heart');
+  const [query, setQuery] = useState('');
+  const [submitted, setSubmitted] = useState('');
   const [kind, setKind] = useState<StudioAssetCatalogKind>('all');
   const [composition, setComposition] = useState<StudioAssetCatalogComposition>('component');
   const [provider, setProvider] = useState('all');
   const [assets, setAssets] = useState<StudioAssetCatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [unavailable, setUnavailable] = useState<Array<{ id: string; reason: string }>>([]);
   const [importing, setImporting] = useState('');
@@ -88,6 +88,13 @@ export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPane
   const [previewError, setPreviewError] = useState('');
 
   useEffect(() => {
+    if (!submitted) {
+      setAssets([]);
+      setUnavailable([]);
+      setError('');
+      setLoading(false);
+      return undefined;
+    }
     let active = true;
     setLoading(true);
     setError('');
@@ -202,7 +209,7 @@ export default function AssetCatalogPanel({ mode, onImported }: AssetCatalogPane
       {unavailable.length ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Some sources are temporarily unavailable: {unavailable.map((item) => item.id).join(', ')}. Available sources are still shown.</p> : null}
       {loading ? <div className="grid min-h-72 place-items-center text-sm text-slate-600"><span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={20} />Searching approved asset sources…</span></div> : null}
       {!loading && error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-800">{error}</div> : null}
-      {!loading && !error && assets.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-12 text-center"><Search className="mx-auto text-slate-300" size={36} /><p className="mt-3 font-semibold text-slate-700">No matching reusable assets</p><p className="mt-1 text-sm text-slate-500">Try a shorter object name or select All assets.</p></div> : null}
+      {!loading && !error && assets.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-12 text-center"><Search className="mx-auto text-slate-300" size={36} /><p className="mt-3 font-semibold text-slate-700">{submitted ? 'No matching reusable assets' : 'Search reusable assets'}</p><p className="mt-1 text-sm text-slate-500">{submitted ? 'Try a shorter object name or select All assets.' : 'Enter a search term or choose one of the suggestions above.'}</p></div> : null}
       {!loading && !error && assets.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{assets.map((asset) => <CatalogCard key={asset.id} asset={asset} importing={importing === asset.id} onImport={() => void importAsset(asset)} onPreview={asset.asset_kind === 'model_3d' ? () => void openInteractivePreview(asset) : undefined} mode={mode} />)}</div> : null}
       {previewAsset ? <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`3D preview: ${previewAsset.title}`}>
         <div className="flex h-[min(82vh,760px)] w-[min(92vw,1100px)] flex-col overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">

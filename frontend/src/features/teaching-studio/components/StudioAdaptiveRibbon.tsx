@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { StudioRibbonTab, StudioRibbonTabId } from './studioRibbonModel';
 
@@ -17,6 +17,10 @@ export type StudioRibbonGroup = {
   label: string;
   commands?: StudioRibbonCommand[];
   content?: ReactNode;
+  launcher?: {
+    label: string;
+    onExecute: () => void;
+  };
 };
 
 type Props = {
@@ -94,7 +98,14 @@ export default function StudioAdaptiveRibbon({
                 </button>
               ))}
             </div>
-            <span className="mt-0.5 text-center text-[9px] font-medium text-slate-400">{group.label}</span>
+            <div className="relative mt-0.5 min-h-3 text-center text-[9px] font-medium text-slate-400">
+              <span>{group.label}</span>
+              {group.launcher ? (
+                <button type="button" onClick={group.launcher.onExecute} title={group.launcher.label} aria-label={group.launcher.label} className="absolute bottom-0 right-0 grid h-3.5 w-3.5 place-items-center rounded-sm text-slate-500 hover:bg-blue-100 hover:text-blue-900">
+                  <ArrowUpRight size={10} strokeWidth={2.5} />
+                </button>
+              ) : null}
+            </div>
           </div>
         )) : (
           <p className="flex items-center px-2 text-xs text-slate-500">No commands are available for this selection.</p>

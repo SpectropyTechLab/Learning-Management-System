@@ -227,14 +227,95 @@ test('Canvas zoom scales one canonical surface and elements resize from every ed
   assert.match(slide, /after:border-blue-700 after:bg-white/);
 });
 
+test('Empty and populated Screens use the same borderless slide surface', () => {
+  const slide = readFrontend('SlideCanvas.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  assert.match(canvas, /const freeformLayout: Layout \| null =\s*!layout && screen/);
+  assert.match(canvas, /slide=\{emptySlide\}/);
+  assert.match(canvas, /studio-editor-slide-frame absolute inset-3/);
+  assert.doesNotMatch(canvas, /screen\.elements\.length > 0 \|\| drawingEnabled/);
+  assert.doesNotMatch(canvas, /max-w-5xl/);
+  assert.doesNotMatch(slide, /stroke="#d6e3f0"/);
+});
+
+test('Insert ribbon uploads or picks filtered Resources and places them without placeholders', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const buttons = readFrontend('components/StudioInsertResourceButtons.tsx');
+  const upload = readFrontend('components/StudioResourceInsertUpload.tsx');
+  const library = readFrontend('components/resources/ResourceLibrary.tsx');
+  const catalog = readFrontend('components/resources/AssetCatalogPanel.tsx');
+  for (const label of ['Image', 'Video', 'Simulation', 'External Link', 'ZIP', 'SCORM', '3D Model']) {
+    assert.match(buttons, new RegExp(`label: '${label}'`));
+  }
+  assert.match(buttons, />\s*Upload\s*</);
+  assert.match(buttons, /From Resource/);
+  assert.match(editor, /const placeResourceDirectly/);
+  assert.match(editor, /slotId: `free-\$\{id\}`/);
+  assert.match(editor, /initialType=\{insertResourceFilter \?\? ''\}/);
+  assert.match(editor, /id: 'discover-assets'/);
+  assert.match(editor, /assetCatalogOpen && \([\s\S]*<AssetCatalogPanel/);
+  assert.match(editor, /<AssetCatalogPanel[\s\S]*mode="picker"/);
+  assert.match(catalog, /const \[query, setQuery\] = useState\(''\)/);
+  assert.match(catalog, /const \[submitted, setSubmitted\] = useState\(''\)/);
+  assert.match(library, /if \(initialType !== undefined\) setResourceType\(initialType\)/);
+  assert.match(library, /mode === 'manage' \? <div[\s\S]*Discover Assets/);
+  assert.match(library, /if \(resource\.latest_version\) onPick\?\.\(resource, resource\.latest_version\)/);
+  assert.match(library, /function PickerResourceActions/);
+  assert.match(library, /Select version/);
+  assert.match(library, /<ResourcePreview resource=\{resource\} card/);
+  assert.match(library, /title=\{resource\.description \|\| resource\.latest_version\?\.original_file_name/);
+  assert.doesNotMatch(library, /group-hover:opacity-100/);
+  assert.match(library, /onPick\?\.\(pickerResource, version\)/);
+  assert.match(upload, /Advanced options/);
+  assert.match(upload, /advancedOpen \? \(/);
+  assert.match(editor, /resourceUploadOpen && \([\s\S]*fixed inset-0 z-\[90\]/);
+  assert.ok(upload.indexOf('Resource name') < upload.indexOf('Choose ${studioResourceTypeLabel(type)} file'));
+  assert.doesNotMatch(upload, /fixed inset-0/);
+  assert.match(editor, /label: 'Open Resources'/);
+  assert.match(editor, /setInsertResourceFilter\(null\)/);
+  assert.match(editor, /panel !== 'insert-resources'/);
+  assert.match(editor, /<h2 className="font-bold text-slate-900">From Resource<\/h2>[\s\S]*?rounded-md text-slate-600 hover:bg-slate-100/);
+  const ribbon = readFrontend('components/StudioAdaptiveRibbon.tsx');
+  assert.match(ribbon, /group\.launcher/);
+  assert.match(ribbon, /<ArrowUpRight/);
+});
+
 test('Selected media supports component fitting and non-destructive crop controls', () => {
   const toolbar = readFrontend('components/StudioElementToolbar.tsx');
   const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
+  const blankCanvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const slideCanvas = readFrontend('SlideCanvas.tsx');
   const editor = readFrontend('TeachingStudioPage.tsx');
   assert.match(toolbar, /Crop and fit/);
   assert.match(toolbar, /mediaTransform/);
-  assert.match(player, /objectFit: mediaTransform\?\.fit === 'cover'/);
-  assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0 \}/);
+  assert.match(player, /mediaTransform\?\.cropped === true && !hasEdgeCrop/);
+  assert.match(player, /resourceType === 'image'[\s\S]*?\? 'fill' as const/);
+  assert.match(player, /resourceType === 'image' && !hasEdgeCrop/);
+  assert.match(player, /mediaTransform\?\.edgeCrop === true/);
+  assert.match(blankCanvas, /continuingEdgeCrop/);
+  assert.match(blankCanvas, /continuingCropGeometry/);
+  assert.match(blankCanvas, /minimumLeft/);
+  assert.match(blankCanvas, /overflowVisibleForObjectId=\{croppingElementId\}/);
+  assert.match(blankCanvas, /cropScaleX: cropDraft\.cropScaleX \/ remainingX/);
+  assert.match(blankCanvas, /position: \{ \.\.\.element\.position, \.\.\.bounds \}/);
+  assert.match(blankCanvas, /Math\.max\(0\.25, Math\.min\(4/);
+  assert.match(blankCanvas, /data-image-crop-active="true"/);
+  assert.match(blankCanvas, /passive: false/);
+  assert.match(blankCanvas, /anchorX/);
+  assert.match(blankCanvas, /viewport\.scrollLeft \+=/);
+  assert.match(blankCanvas, /handleCropWheel/);
+  assert.match(blankCanvas, /onCommitCrop/);
+  assert.match(blankCanvas, /if \(selected \|\| !cropping\) return;[\s\S]*?finishCrop\(\)/);
+  assert.match(editor, /updateElementPreservingSelection/);
+  assert.match(blankCanvas, /top-left/);
+  assert.match(slideCanvas, /event\.shiftKey/);
+  assert.match(blankCanvas, /geometryControlsHiddenForObjectId=\{croppingElementId\}/);
+  assert.match(slideCanvas, /object\.id === geometryControlsHiddenForObjectId/);
+  assert.match(editor, /mediaTransform: \{ fit: 'contain', scale: 1, x: 0, y: 0, cropped: false \}/);
+  assert.match(editor, /960 \/ naturalWidth/);
+  assert.match(editor, /540 \/ naturalHeight/);
+  assert.match(editor, /getStudioResourcePreview\(version\.id\)/);
+  assert.match(editor, /image\.naturalWidth/);
 });
 
 test('Executable runtime URLs resolve against the configured API backend', () => {
@@ -391,10 +472,30 @@ test('Backward animation preserves the slide tree and remounts only changed elem
 
 test('Slide transitions cannot override the viewport fit scale', () => {
   const slide = readFrontend('SlideCanvas.tsx');
+  const transitionRibbon = readFrontend('components/StudioTransitionRibbon.tsx');
+  const transitionRuntime = readFrontend('components/studioTransition.ts');
   assert.match(slide, /data-testid="slide-transition-layer"/);
   assert.match(slide, /transform: `scale\(\$\{scale\}\)`/);
   const scaledSurface = slide.slice(slide.indexOf('data-testid="slide-surface"'), slide.indexOf('data-testid="slide-transition-layer"'));
   assert.doesNotMatch(scaledSurface, /studioTransitionStyle/);
+  assert.match(transitionRibbon, /querySelector<HTMLElement>\('\[data-testid=slide-transition-layer\]'\)/);
+  assert.match(transitionRuntime, /element\.dataset\.testid === 'slide-surface'/);
+});
+
+test('Transitions keep their complete PowerPoint-style workflow in the ribbon', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const transitionRibbon = readFrontend('components/StudioTransitionRibbon.tsx');
+
+  assert.match(editor, /<StudioTransitionRibbon/);
+  assert.doesNotMatch(editor, /<StudioTransitionsPanel/);
+  assert.match(transitionRibbon, /Transition category/);
+  assert.match(transitionRibbon, /Transition direction/);
+  assert.match(transitionRibbon, /Transition duration/);
+  assert.match(transitionRibbon, /Motion intensity/);
+  assert.match(transitionRibbon, /Transition easing/);
+  assert.match(transitionRibbon, /Transition sound/);
+  assert.match(transitionRibbon, /Respect reduced motion/);
+  assert.match(transitionRibbon, /Apply to all/);
 });
 
 test('Canvas elements support direct pointer dragging as well as resize handles', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Crop, FileText, Image as ImageIcon, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
 import { getStudioResource } from '../api/studioResourcesApi';
@@ -41,6 +41,7 @@ interface BlankScreenCanvasProps {
   onSelectSlot?: (slotId: string) => void;
   onClearElementSelection?: () => void;
   onChangeElement?: (element: StudioElement) => void;
+  onCommitElementChange?: (element: StudioElement) => void;
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   onChangeElementRotation?: (elementId: string, rotation: number) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
@@ -71,6 +72,12 @@ interface BlankScreenCanvasProps {
   onCanvasPointChange?: (point: { x: number; y: number }) => void;
 }
 
+const emptySlide: Slide = {
+  title: '',
+  creationMode: 'layout',
+  objects: [],
+};
+
 const elementText = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title;
   if (typeof preferred === 'string') return preferred;
@@ -78,40 +85,68 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-function BoundResource({ element, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onModel3DSettingsChange, onMediaTransformChange }: { element: StudioElement; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: () => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: { fit: 'contain' | 'cover'; scale: number; x: number; y: number }) => void }) {
+type MediaTransform = { fit: 'contain' | 'cover'; scale: number; x: number; y: number; cropped: boolean; edgeCrop: boolean; cropGeometry: boolean; cropLeft: number; cropRight: number; cropTop: number; cropBottom: number; cropScaleX: number; cropScaleY: number; cropOffsetX: number; cropOffsetY: number };
+
+function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: () => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
   const [error, setError] = useState('');
   const [fullScreen, setFullScreen] = useState(false);
   const [cropping, setCropping] = useState(false);
-  const [cropDraft, setCropDraft] = useState<{ fit: 'contain' | 'cover'; scale: number; x: number; y: number } | null>(null);
+  const [cropDraft, setCropDraft] = useState<MediaTransform | null>(null);
   const handledCropRequestRef = useRef<number | undefined>(undefined);
   const cropPointerRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
+  const cropEdgeRef = useRef<{ pointerId: number; edge: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; x: number; y: number; left: number; right: number; top: number; bottom: number } | null>(null);
   const resourceId = element.resource?.resource_id;
   const versionId = element.resource?.resource_version_id;
   const storedMediaTransform = element.content.mediaTransform && typeof element.content.mediaTransform === 'object'
-    ? element.content.mediaTransform as { fit?: 'contain' | 'cover'; scale?: number; x?: number; y?: number }
+    ? element.content.mediaTransform as Partial<MediaTransform>
     : {};
   const mediaTransform = {
     fit: storedMediaTransform.fit === 'cover' ? 'cover' as const : 'contain' as const,
     scale: Math.max(1, Number(storedMediaTransform.scale) || 1),
     x: Number(storedMediaTransform.x) || 0,
     y: Number(storedMediaTransform.y) || 0,
+    cropped: storedMediaTransform.cropped === true,
+    edgeCrop: storedMediaTransform.edgeCrop === true,
+    cropGeometry: storedMediaTransform.cropGeometry === true,
+    cropLeft: Math.max(0, Number(storedMediaTransform.cropLeft) || 0),
+    cropRight: Math.max(0, Number(storedMediaTransform.cropRight) || 0),
+    cropTop: Math.max(0, Number(storedMediaTransform.cropTop) || 0),
+    cropBottom: Math.max(0, Number(storedMediaTransform.cropBottom) || 0),
+    cropScaleX: Math.max(1, Number(storedMediaTransform.cropScaleX) || 1),
+    cropScaleY: Math.max(1, Number(storedMediaTransform.cropScaleY) || 1),
+    cropOffsetX: Number(storedMediaTransform.cropOffsetX) || 0,
+    cropOffsetY: Number(storedMediaTransform.cropOffsetY) || 0,
   };
   const effectiveMediaTransform = cropping && cropDraft ? cropDraft : mediaTransform;
 
   useEffect(() => {
     if (!cropRequestToken || handledCropRequestRef.current === cropRequestToken || !selected || !onMediaTransformChange) return;
     handledCropRequestRef.current = cropRequestToken;
+    const continuingEdgeCrop = storedMediaTransform.edgeCrop === true;
+    const continuingCropGeometry = continuingEdgeCrop || storedMediaTransform.cropGeometry === true;
     setCropDraft({
-      fit: 'cover',
-      scale: Math.max(1, Number(storedMediaTransform.scale) || 1),
-      x: Number(storedMediaTransform.x) || 0,
-      y: Number(storedMediaTransform.y) || 0,
+      fit: 'contain',
+      scale: continuingCropGeometry ? Math.max(0.25, Number(storedMediaTransform.scale) || 1) : 1,
+      x: continuingCropGeometry ? Number(storedMediaTransform.x) || 0 : 0,
+      y: continuingCropGeometry ? Number(storedMediaTransform.y) || 0 : 0,
+      cropped: true,
+      edgeCrop: true,
+      cropGeometry: storedMediaTransform.cropGeometry === true,
+      cropLeft: continuingEdgeCrop ? Math.max(0, Number(storedMediaTransform.cropLeft) || 0) : 0,
+      cropRight: continuingEdgeCrop ? Math.max(0, Number(storedMediaTransform.cropRight) || 0) : 0,
+      cropTop: continuingEdgeCrop ? Math.max(0, Number(storedMediaTransform.cropTop) || 0) : 0,
+      cropBottom: continuingEdgeCrop ? Math.max(0, Number(storedMediaTransform.cropBottom) || 0) : 0,
+      cropScaleX: Math.max(1, Number(storedMediaTransform.cropScaleX) || 1),
+      cropScaleY: Math.max(1, Number(storedMediaTransform.cropScaleY) || 1),
+      cropOffsetX: Number(storedMediaTransform.cropOffsetX) || 0,
+      cropOffsetY: Number(storedMediaTransform.cropOffsetY) || 0,
     });
     setCropping(true);
-  }, [cropRequestToken, onMediaTransformChange, selected, storedMediaTransform.scale, storedMediaTransform.x, storedMediaTransform.y]);
+    onCroppingChange?.(true);
+  }, [cropRequestToken, onCroppingChange, onMediaTransformChange, selected, storedMediaTransform.scale, storedMediaTransform.x, storedMediaTransform.y]);
 
   useEffect(() => {
     if (!resourceId || !versionId) return;
@@ -145,6 +180,135 @@ function BoundResource({ element, selected = false, cropRequestToken, model3DMod
     return () => document.removeEventListener('fullscreenchange', syncFullScreen);
   }, []);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !cropping) return;
+    const handleCropWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setCropDraft((current) => current ? {
+        ...current,
+        scale: Math.max(0.25, Math.min(4, current.scale + (event.deltaY < 0 ? 0.1 : -0.1))),
+      } : current);
+    };
+    container.addEventListener('wheel', handleCropWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleCropWheel);
+  }, [cropping]);
+
+  const toggleFullScreen = async () => {
+    const container = containerRef.current;
+    if (document.fullscreenElement === container) {
+      await document.exitFullscreen();
+      return;
+    }
+    if (container?.requestFullscreen) await container.requestFullscreen();
+  };
+
+  const beginCropEdge = (event: ReactPointerEvent<HTMLButtonElement>, edge: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    cropEdgeRef.current = {
+      pointerId: event.pointerId,
+      edge,
+      x: event.clientX,
+      y: event.clientY,
+      left: effectiveMediaTransform.cropLeft,
+      right: effectiveMediaTransform.cropRight,
+      top: effectiveMediaTransform.cropTop,
+      bottom: effectiveMediaTransform.cropBottom,
+    };
+  };
+
+  const moveCropEdge = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = cropEdgeRef.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!drag || drag.pointerId !== event.pointerId || !rect) return;
+    const deltaX = ((event.clientX - drag.x) / Math.max(1, rect.width)) * 100;
+    const deltaY = ((event.clientY - drag.y) / Math.max(1, rect.height)) * 100;
+    const next = { ...effectiveMediaTransform, fit: 'contain' as const, cropped: true, edgeCrop: true };
+    const minimumWidthPercent = bounds ? Math.min(100, (80 / bounds.width) * 100) : 5;
+    const minimumHeightPercent = bounds ? Math.min(100, (60 / bounds.height) * 100) : 5;
+    const movesLeft = drag.edge === 'left' || drag.edge.endsWith('-left');
+    const movesRight = drag.edge === 'right' || drag.edge.endsWith('-right');
+    const movesTop = drag.edge === 'top' || drag.edge.startsWith('top-');
+    const movesBottom = drag.edge === 'bottom' || drag.edge.startsWith('bottom-');
+    const minimumLeft = effectiveMediaTransform.cropGeometry ? effectiveMediaTransform.cropOffsetX * 100 : 0;
+    const minimumRight = effectiveMediaTransform.cropGeometry ? (1 - effectiveMediaTransform.cropOffsetX - effectiveMediaTransform.cropScaleX) * 100 : 0;
+    const minimumTop = effectiveMediaTransform.cropGeometry ? effectiveMediaTransform.cropOffsetY * 100 : 0;
+    const minimumBottom = effectiveMediaTransform.cropGeometry ? (1 - effectiveMediaTransform.cropOffsetY - effectiveMediaTransform.cropScaleY) * 100 : 0;
+    if (movesLeft) next.cropLeft = Math.max(minimumLeft, Math.min(100 - minimumWidthPercent - drag.right, drag.left + deltaX));
+    if (movesRight) next.cropRight = Math.max(minimumRight, Math.min(100 - minimumWidthPercent - drag.left, drag.right - deltaX));
+    if (movesTop) next.cropTop = Math.max(minimumTop, Math.min(100 - minimumHeightPercent - drag.bottom, drag.top + deltaY));
+    if (movesBottom) next.cropBottom = Math.max(minimumBottom, Math.min(100 - minimumHeightPercent - drag.top, drag.bottom - deltaY));
+    if (event.shiftKey) {
+      const startWidth = 100 - drag.left - drag.right;
+      const startHeight = 100 - drag.top - drag.bottom;
+      const width = 100 - next.cropLeft - next.cropRight;
+      const height = 100 - next.cropTop - next.cropBottom;
+      const scale = Math.abs(width / startWidth - 1) >= Math.abs(height / startHeight - 1)
+        ? width / startWidth
+        : height / startHeight;
+      const targetWidth = Math.max(minimumWidthPercent, startWidth * scale);
+      const targetHeight = Math.max(minimumHeightPercent, startHeight * scale);
+      if (movesLeft) next.cropLeft = Math.max(minimumLeft, 100 - drag.right - targetWidth);
+      else if (movesRight) next.cropRight = Math.max(minimumRight, 100 - drag.left - targetWidth);
+      else {
+        const horizontalChange = (startWidth - targetWidth) / 2;
+        next.cropLeft = Math.max(minimumLeft, drag.left + horizontalChange);
+        next.cropRight = Math.max(minimumRight, drag.right + horizontalChange);
+      }
+      if (movesTop) next.cropTop = Math.max(minimumTop, 100 - drag.bottom - targetHeight);
+      else if (movesBottom) next.cropBottom = Math.max(minimumBottom, 100 - drag.top - targetHeight);
+      else {
+        const verticalChange = (startHeight - targetHeight) / 2;
+        next.cropTop = Math.max(minimumTop, drag.top + verticalChange);
+        next.cropBottom = Math.max(minimumBottom, drag.bottom + verticalChange);
+      }
+    }
+    setCropDraft(next);
+  };
+
+  const finishCrop = () => {
+    if (!cropDraft) return;
+    const left = cropDraft.cropLeft / 100;
+    const right = cropDraft.cropRight / 100;
+    const top = cropDraft.cropTop / 100;
+    const bottom = cropDraft.cropBottom / 100;
+    const remainingX = Math.max(0.01, 1 - left - right);
+    const remainingY = Math.max(0.01, 1 - top - bottom);
+    const nextBounds = bounds ? {
+        x: Math.round(bounds.x + bounds.width * left),
+        y: Math.round(bounds.y + bounds.height * top),
+        width: Math.round(bounds.width * remainingX),
+        height: Math.round(bounds.height * remainingY),
+      } : null;
+    const nextTransform: MediaTransform = {
+      ...cropDraft,
+      edgeCrop: false,
+      cropGeometry: true,
+      cropLeft: 0,
+      cropRight: 0,
+      cropTop: 0,
+      cropBottom: 0,
+      cropScaleX: cropDraft.cropScaleX / remainingX,
+      cropScaleY: cropDraft.cropScaleY / remainingY,
+      cropOffsetX: (cropDraft.cropOffsetX - left) / remainingX,
+      cropOffsetY: (cropDraft.cropOffsetY - top) / remainingY,
+    };
+    if (nextBounds && onCommitCrop) onCommitCrop(nextBounds, nextTransform);
+    else onMediaTransformChange?.(nextTransform);
+  };
+
+  useEffect(() => {
+    if (selected || !cropping) return;
+    finishCrop();
+    setCropping(false);
+    setCropDraft(null);
+    onCroppingChange?.(false);
+  }, [cropping, selected]);
+
   if (error)
     return (
       <div className="grid h-full place-items-center bg-slate-900 p-3 text-center text-xs text-white">
@@ -157,15 +321,6 @@ function BoundResource({ element, selected = false, cropRequestToken, model3DMod
         Preparing media…
       </div>
     );
-
-  const toggleFullScreen = async () => {
-    const container = containerRef.current;
-    if (document.fullscreenElement === container) {
-      await document.exitFullscreen();
-      return;
-    }
-    if (container?.requestFullscreen) await container.requestFullscreen();
-  };
 
   return (
     <div ref={containerRef} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={onSelect}>
@@ -189,12 +344,16 @@ function BoundResource({ element, selected = false, cropRequestToken, model3DMod
             onClick={(event) => {
               event.stopPropagation();
               if (cropping) {
-                if (cropDraft) onMediaTransformChange(cropDraft);
+                finishCrop();
                 setCropping(false);
                 setCropDraft(null);
+                onCroppingChange?.(false);
               } else {
-                setCropDraft({ ...mediaTransform, fit: 'cover' });
+                setCropDraft(mediaTransform.edgeCrop || mediaTransform.cropGeometry
+                  ? { ...mediaTransform, fit: 'contain', cropped: true, edgeCrop: true }
+                  : { fit: 'contain', scale: 1, x: 0, y: 0, cropped: true, edgeCrop: true, cropGeometry: false, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0, cropScaleX: 1, cropScaleY: 1, cropOffsetX: 0, cropOffsetY: 0 });
                 setCropping(true);
+                onCroppingChange?.(true);
               }
             }}
             className={`absolute left-2 top-2 z-20 inline-flex h-9 items-center gap-1 rounded-lg border px-2 text-xs font-bold shadow ${cropping ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-300 bg-white/95 text-blue-900'}`}
@@ -205,7 +364,9 @@ function BoundResource({ element, selected = false, cropRequestToken, model3DMod
           {cropping ? (
             <div
               data-canvas-interactive="true"
-              className="absolute inset-0 z-10 cursor-grab touch-none border-2 border-blue-500 bg-blue-500/5 active:cursor-grabbing"
+              data-image-crop-active="true"
+              className="absolute z-10 cursor-grab touch-none border-2 border-blue-500 bg-blue-500/5 active:cursor-grabbing"
+              style={{ left: `${effectiveMediaTransform.cropLeft}%`, right: `${effectiveMediaTransform.cropRight}%`, top: `${effectiveMediaTransform.cropTop}%`, bottom: `${effectiveMediaTransform.cropBottom}%` }}
               title="Drag to reposition. Use Ctrl + mouse wheel to zoom the media inside its container."
               onPointerDown={(event) => {
                 event.preventDefault(); event.stopPropagation();
@@ -216,16 +377,39 @@ function BoundResource({ element, selected = false, cropRequestToken, model3DMod
                 const drag = cropPointerRef.current;
                 if (!drag || drag.pointerId !== event.pointerId) return;
                 const rect = event.currentTarget.getBoundingClientRect();
-                setCropDraft({ ...effectiveMediaTransform, fit: 'cover', x: Math.max(-100, Math.min(100, drag.originX + ((event.clientX - drag.x) / Math.max(1, rect.width)) * 200)), y: Math.max(-100, Math.min(100, drag.originY + ((event.clientY - drag.y) / Math.max(1, rect.height)) * 200)) });
+                setCropDraft({ ...effectiveMediaTransform, fit: 'contain', cropped: true, edgeCrop: true, x: Math.max(-100, Math.min(100, drag.originX + ((event.clientX - drag.x) / Math.max(1, rect.width)) * 200)), y: Math.max(-100, Math.min(100, drag.originY + ((event.clientY - drag.y) / Math.max(1, rect.height)) * 200)) });
               }}
               onPointerUp={() => { cropPointerRef.current = null; }}
               onPointerCancel={() => { cropPointerRef.current = null; }}
-              onWheel={(event) => {
-                if (!event.ctrlKey && !event.metaKey) return;
-                event.preventDefault(); event.stopPropagation();
-                setCropDraft({ ...effectiveMediaTransform, fit: 'cover', scale: Math.max(1, Math.min(3, effectiveMediaTransform.scale + (event.deltaY < 0 ? 0.1 : -0.1))) });
-              }}
-            />
+            >
+              {([
+                ['left', 'left-0 top-1/2 h-8 w-8 -translate-y-1/2 cursor-ew-resize after:left-0 after:top-1/2 after:-translate-y-1/2'],
+                ['right', 'right-0 top-1/2 h-8 w-8 -translate-y-1/2 cursor-ew-resize after:right-0 after:top-1/2 after:-translate-y-1/2'],
+                ['top', 'left-1/2 top-0 h-8 w-8 -translate-x-1/2 cursor-ns-resize after:left-1/2 after:top-0 after:-translate-x-1/2'],
+                ['bottom', 'bottom-0 left-1/2 h-8 w-8 -translate-x-1/2 cursor-ns-resize after:bottom-0 after:left-1/2 after:-translate-x-1/2'],
+                ['top-left', 'left-0 top-0 h-8 w-8 cursor-nwse-resize after:left-0 after:top-0'],
+                ['top-right', 'right-0 top-0 h-8 w-8 cursor-nesw-resize after:right-0 after:top-0'],
+                ['bottom-left', 'bottom-0 left-0 h-8 w-8 cursor-nesw-resize after:bottom-0 after:left-0'],
+                ['bottom-right', 'bottom-0 right-0 h-8 w-8 cursor-nwse-resize after:bottom-0 after:right-0'],
+              ] as const).map(([edge, position]) => (
+                <button
+                  key={edge}
+                  type="button"
+                  aria-label={`Crop ${edge} edge`}
+                  title={`Crop ${edge} edge`}
+                  onPointerDown={(event) => beginCropEdge(event, edge)}
+                  onPointerMove={moveCropEdge}
+                  onPointerUp={() => { cropEdgeRef.current = null; }}
+                  onPointerCancel={() => { cropEdgeRef.current = null; }}
+                  className={`absolute z-20 touch-none bg-transparent after:absolute after:h-3 after:w-3 after:rounded-sm after:bg-blue-700 after:ring-2 after:ring-white ${position}`}
+                />
+              ))}
+              <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1 rounded-md bg-white/95 p-1 text-blue-900 shadow">
+                <button type="button" aria-label="Zoom image out" title="Zoom image out" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setCropDraft({ ...effectiveMediaTransform, scale: Math.max(0.25, effectiveMediaTransform.scale - 0.1) }); }} className="grid h-7 w-7 place-items-center rounded hover:bg-blue-50"><Minus size={14}/></button>
+                <span className="min-w-10 text-center text-[10px] font-bold">{Math.round(effectiveMediaTransform.scale * 100)}%</span>
+                <button type="button" aria-label="Zoom image in" title="Zoom image in" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setCropDraft({ ...effectiveMediaTransform, scale: Math.min(4, effectiveMediaTransform.scale + 0.1) }); }} className="grid h-7 w-7 place-items-center rounded hover:bg-blue-50"><Plus size={14}/></button>
+              </div>
+            </div>
           ) : null}
         </>
       ) : null}
@@ -272,6 +456,7 @@ export default function BlankScreenCanvas({
   onSelectSlot,
   onClearElementSelection,
   onChangeElement,
+  onCommitElementChange,
   onChangeElementBounds,
   onChangeElementRotation,
   onChangeElementContent,
@@ -321,6 +506,8 @@ export default function BlankScreenCanvas({
   const [lastClickerAction, setLastClickerAction] = useState<'next' | 'previous' | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
+  const [croppingElementId, setCroppingElementId] = useState<string | null>(null);
+  const slideFrameRef = useRef<HTMLDivElement>(null);
   const zoomPointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | null>(null);
   const animationTimeline = useMemo(
@@ -335,6 +522,7 @@ export default function BlankScreenCanvas({
   );
   useEffect(() => {
     setEditingElementId(null);
+    setCroppingElementId(null);
     setTextSelectionFontSize(null);
     setTextSelectionSpacing(null);
   }, [screen?.id]);
@@ -383,12 +571,35 @@ export default function BlankScreenCanvas({
   useEffect(() => {
     setToolbarHost(document.getElementById('studio-contextual-toolbar-host'));
   }, []);
+  useEffect(() => {
+    const frame = slideFrameRef.current;
+    if (!frame || previewMode) return;
+    const handleWheel = (event: WheelEvent) => {
+      if ((!event.ctrlKey && !event.metaKey) || (event.target as Element | null)?.closest('[data-image-crop-active="true"]')) return;
+      event.preventDefault();
+      const viewport = frame.querySelector<HTMLElement>('[data-testid="slide-viewport"]');
+      const surface = frame.querySelector<HTMLElement>('[data-testid="slide-surface"]');
+      if (!viewport || !surface) return;
+      const surfaceRect = surface.getBoundingClientRect();
+      const anchorX = (event.clientX - surfaceRect.left) / Math.max(1, surfaceRect.width);
+      const anchorY = (event.clientY - surfaceRect.top) / Math.max(1, surfaceRect.height);
+      setCanvasZoom((current) => {
+        const next = Math.min(2.5, Math.max(0.4, current + (event.deltaY < 0 ? 0.1 : -0.1)));
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const nextRect = surface.getBoundingClientRect();
+          viewport.scrollLeft += nextRect.left + anchorX * nextRect.width - event.clientX;
+          viewport.scrollTop += nextRect.top + anchorY * nextRect.height - event.clientY;
+        }));
+        return next;
+      });
+    };
+    frame.addEventListener('wheel', handleWheel, { passive: false });
+    return () => frame.removeEventListener('wheel', handleWheel);
+  }, [loading, previewMode, screen?.id]);
   const authoredStrokes =
     drawingStrokes ?? screen?.screen_settings_json?.author_drawings?.strokes ?? [];
   const freeformLayout: Layout | null =
-    !layout &&
-    screen &&
-    (screen.elements.length > 0 || drawingEnabled || authoredStrokes.length > 0)
+    !layout && screen
       ? {
           id: 'FREEFORM',
           name: 'Freeform screen',
@@ -722,7 +933,7 @@ export default function BlankScreenCanvas({
       if (element.type === 'visual' || mimeType.startsWith('image/')) {
         objectOverlays[element.id] = (
           <div className="group relative h-full w-full bg-slate-100" onClick={() => onSelectElement?.(element.id)}>
-            <img src={droppedUrl} alt={String(element.content.altText || name)} className="h-full w-full object-contain" />
+            <img src={droppedUrl} alt={String(element.content.altText || name)} className="h-full w-full object-fill" />
             <span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span>
           </div>
         );
@@ -742,10 +953,13 @@ export default function BlankScreenCanvas({
       <BoundResource
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
+        bounds={elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === (element.slotId || `free-${element.id}`))?.bounds}
         selected={selectedElementId === element.id}
         cropRequestToken={cropRequest?.elementId === element.id ? cropRequest.token : undefined}
         model3DModeRequestToken={model3DModeRequest?.elementId === element.id ? model3DModeRequest.token : undefined}
         onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+        onCroppingChange={(cropping) => setCroppingElementId((current) => cropping ? element.id : current === element.id ? null : current)}
+        onCommitCrop={onCommitElementChange || onChangeElement ? (bounds, mediaTransform) => (onCommitElementChange || onChangeElement)?.({ ...element, position: { ...element.position, ...bounds }, content: { ...element.content, mediaTransform } }) : undefined}
         onModel3DSettingsChange={onChangeElementContent ? (settings) => onChangeElementContent(element.id, { model3d: settings }) : undefined}
         onMediaTransformChange={onChangeElementContent ? (mediaTransform) => onChangeElementContent(element.id, { mediaTransform }) : undefined}
       />
@@ -849,12 +1063,8 @@ export default function BlankScreenCanvas({
         ) : null}
         {screen && slide && renderLayout && !loading ? (
           <div
+            ref={slideFrameRef}
             className={previewMode ? 'h-full' : 'studio-editor-slide-frame absolute inset-3'}
-            onWheel={(event) => {
-              if (previewMode || (!event.ctrlKey && !event.metaKey)) return;
-              event.preventDefault();
-              setCanvasZoom((current) => Math.min(2.5, Math.max(0.4, current + (event.deltaY < 0 ? 0.1 : -0.1))));
-            }}
             onPointerDown={(event) => {
               if (previewMode || event.pointerType !== 'touch') return;
               zoomPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -904,6 +1114,8 @@ export default function BlankScreenCanvas({
             showGuides={displayLayoutGuides}
             selectedObjectId={selectedElementId}
             selectedObjectIds={selectedElementIds}
+            geometryControlsHiddenForObjectId={croppingElementId}
+            overflowVisibleForObjectId={croppingElementId}
             selectedSlotId={selectedSlotId}
             onSelectObject={onSelectElement}
             onSelectSlot={onSelectSlot}
@@ -939,14 +1151,15 @@ export default function BlankScreenCanvas({
           />
           </div>
         ) : (
-          <div className="flex h-full min-h-0 items-center justify-center rounded-xl bg-slate-200 p-3">
-            <div
-              className="relative h-full min-h-0 w-full max-w-5xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-xl"
-              style={{ backgroundColor: typeof screen?.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff' }}
-              data-testid="studio-canvas"
-            >
-              <p
-                className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-slate-500"
+          <div className={previewMode ? 'relative h-full' : 'studio-editor-slide-frame absolute inset-3'}>
+            <SlideCanvas
+              layout={null}
+              slide={emptySlide}
+              allowCanvasOverflow={!previewMode}
+              backgroundColor={typeof screen?.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'}
+            />
+            <p
+                className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-slate-500"
                 role={loading ? 'status' : undefined}
               >
                 {loading
@@ -956,8 +1169,7 @@ export default function BlankScreenCanvas({
                     : screen.elements.length === 0
                       ? 'Empty canvas'
                       : 'Apply a layout to position this Screen’s content.'}
-              </p>
-            </div>
+            </p>
           </div>
         )}
       </div>

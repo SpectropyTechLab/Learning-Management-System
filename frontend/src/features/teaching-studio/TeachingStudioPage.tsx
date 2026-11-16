@@ -80,7 +80,8 @@ import {
   studioRibbonTabs,
   type StudioRibbonTabId,
 } from './components/studioRibbonModel';
-import StudioTransitionsPanel from './components/StudioTransitionsPanel';
+import StudioDrawingPanel from './components/StudioDrawingPanel';
+import StudioTransitionRibbon from './components/StudioTransitionRibbon';
 import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
 import StudioScreenScriptMath from './components/StudioScreenScriptMath';
@@ -92,9 +93,15 @@ import {
   layoutSmartDiagram,
 } from './components/smartDiagramModel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
+import AssetCatalogPanel from './components/resources/AssetCatalogPanel';
+import StudioInsertResourceButtons, {
+  type InsertResourceType,
+} from './components/StudioInsertResourceButtons';
+import StudioResourceInsertUpload from './components/StudioResourceInsertUpload';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
 import type { StudioLayoutSummary } from './api/studioEditorApi';
+import { getStudioResourcePreview } from './api/studioResourcesApi';
 import type { StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
 import {
   approveStudioSession,
@@ -204,6 +211,7 @@ export default function TeachingStudioPage() {
     | 'layouts'
     | 'script'
     | 'resources'
+    | 'insert-resources'
     | 'elements'
     | 'shapes'
     | 'animations'
@@ -213,6 +221,10 @@ export default function TeachingStudioPage() {
     | 'layers'
     | null
   >('elements');
+  const [insertResourceType, setInsertResourceType] = useState<InsertResourceType>('image');
+  const [insertResourceFilter, setInsertResourceFilter] = useState<InsertResourceType | null>(null);
+  const [resourceUploadOpen, setResourceUploadOpen] = useState(false);
+  const [assetCatalogOpen, setAssetCatalogOpen] = useState(false);
   const [animationPreview, setAnimationPreview] = useState<{
     elementId: string;
     token: number;
@@ -1605,6 +1617,93 @@ export default function TeachingStudioPage() {
     toast.success('Element duplicated. Move it to the required position, then Save.');
   };
 
+  const updateElementPreservingSelection = (updated: StudioElement) => {
+    if (!selectedScreen || editorReadOnly) return;
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+      selectedElementId,
+    );
+  };
+
+  const placeResourceDirectly = async (
+    resource: StudioResourceSummary,
+    selectedVersion?: StudioResourceVersion,
+  ) => {
+    if (editorReadOnly) {
+      toast.error('Start an update before changing this Session.');
+      return;
+    }
+    if (!selectedScreen) {
+      toast.error('Select a Screen before adding a Resource.');
+      return;
+    }
+    const version = selectedVersion || resource.latest_version;
+    if (!version) {
+      toast.error('This Resource has no available version.');
+      return;
+    }
+    const type: ObjectType = ['image', 'animation', 'model_3d'].includes(resource.resource_type)
+      ? 'visual'
+      : ['video', 'presentation'].includes(resource.resource_type)
+        ? 'media'
+        : 'simulation';
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}`;
+    const id = `resource-${token}`;
+    let naturalWidth = Number(version.width);
+    let naturalHeight = Number(version.height);
+    if (resource.resource_type === 'image' && !(naturalWidth > 0 && naturalHeight > 0)) {
+      try {
+        const source = version.external_url || (await getStudioResourcePreview(version.id)).url;
+        const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+          image.onerror = () => reject(new Error('Unable to read image dimensions.'));
+          image.src = source;
+        });
+        naturalWidth = dimensions.width;
+        naturalHeight = dimensions.height;
+      } catch (dimensionError) {
+        console.warn('Unable to resolve intrinsic image dimensions; using the default image area.', dimensionError);
+      }
+    }
+    const imageScale = resource.resource_type === 'image' && naturalWidth > 0 && naturalHeight > 0
+      ? Math.min(1, 960 / naturalWidth, 540 / naturalHeight)
+      : null;
+    const imageWidth = imageScale === null ? 960 : Math.max(1, Math.round(naturalWidth * imageScale));
+    const imageHeight = imageScale === null ? 540 : Math.max(1, Math.round(naturalHeight * imageScale));
+    const size = type === 'visual'
+      ? resource.resource_type === 'image'
+        ? { x: Math.round((1920 - imageWidth) / 2), y: Math.round((1080 - imageHeight) / 2), width: imageWidth, height: imageHeight }
+        : { x: 480, y: 270, width: 960, height: 540 }
+      : type === 'media'
+        ? { x: 400, y: 225, width: 1120, height: 630 }
+        : { x: 320, y: 180, width: 1280, height: 720 };
+    const element: StudioElement = {
+      id,
+      slotId: `free-${id}`,
+      type,
+      content: {
+        text: resource.name,
+        url: version.external_url || '',
+        altText: resource.description || resource.name,
+        source: resource.name,
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
+      },
+      position: { ...size, zIndex: selectedScreen.elements.length + 1 },
+      resource: {
+        resource_id: resource.id,
+        resource_version_id: version.id,
+        usage: { slot_id: `free-${id}`, resource_type: resource.resource_type },
+      },
+    };
+    commitElements([...selectedScreen.elements, element], element.id);
+    setPanel('elements');
+    setRightPanelOpen(true);
+    toast.success(`${resource.name} added directly to the current Screen.`);
+  };
+
   const bindResourceToSelectedElement = (
     resource: StudioResourceSummary,
     selectedVersion?: StudioResourceVersion,
@@ -1638,7 +1737,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: String(element.content.altText || resource.description || resource.name),
         source: String(element.content.source || resource.name),
-        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
       },
       resource: {
         resource_id: resource.id,
@@ -2214,19 +2313,6 @@ export default function TeachingStudioPage() {
     if (alignment === 'bottom') current.y = Math.max(0, 1080 - height);
     changeElementBounds(selectedElement.id, current);
   };
-  const applyQuickTransition = (effect: string) => {
-    const saved = selectedScreen?.screen_settings_json?.transition;
-    setScreenTransition({
-      duration: 0.7,
-      direction: 'right',
-      advanceOnClick: true,
-      easing: 'ease-in-out',
-      intensity: 'standard',
-      respectReducedMotion: true,
-      ...(saved && typeof saved === 'object' ? saved as Record<string, unknown> : {}),
-      effect,
-    });
-  };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string, additive = false) => {
     if (additive) {
@@ -2389,10 +2475,30 @@ export default function TeachingStudioPage() {
               { id: 'insert-table', label: 'Table', icon: <Grid3X3 size={17} />, disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id), active: tablePickerOpen, onExecute: openTablePicker },
             ],
           },
-          { id: 'insert-media', label: 'Media', commands: [
-              { id: 'insert-resource', label: 'Resources', icon: <Upload size={17} />, onExecute: openRibbonTool('resources'), active: rightPanelOpen && panel === 'resources' },
-          ] },
+          { id: 'insert-media', label: 'Resources', content: (
+            <StudioInsertResourceButtons
+              disabled={editorReadOnly || !selectedScreen}
+              onUpload={(type) => {
+                setInsertResourceType(type);
+                setResourceUploadOpen(true);
+              }}
+              onFromResource={(type) => {
+                setInsertResourceType(type);
+                setInsertResourceFilter(type);
+                setPanel('insert-resources');
+                setRightPanelOpen(true);
+              }}
+            />
+          ), launcher: {
+            label: 'Open Resources',
+            onExecute: () => {
+              setInsertResourceFilter(null);
+              setPanel('insert-resources');
+              setRightPanelOpen(true);
+            },
+          } },
           { id: 'insert-illustrations', label: 'Illustrations', commands: [
+              { id: 'discover-assets', label: 'Discover Assets', icon: <Sparkles size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => setAssetCatalogOpen(true) },
               { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: openRibbonTool('diagrams'), active: rightPanelOpen && panel === 'diagrams' },
               { id: 'insert-zoom', label: 'Zoom', icon: <Focus size={17} />, onExecute: openRibbonTool('zoom'), active: rightPanelOpen && panel === 'zoom' },
           ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div> },
@@ -2471,13 +2577,15 @@ export default function TeachingStudioPage() {
         ];
       case 'transitions':
         return [
-          { id: 'transition-preview', label: 'Preview', commands: [
-            { id: 'transition-preview-more', label: 'Preview', icon: <Eye size={17} />, disabled: !selectedScreen, onExecute: openRibbonTool('transitions') },
-          ] },
-          { id: 'transition-gallery', label: 'Transition to This Screen', commands: [
-            ...[['none', 'None'], ['fade', 'Fade'], ['push', 'Push'], ['wipe', 'Wipe'], ['split', 'Split'], ['morph', 'Morph']].map(([effect, label]) => ({ id: `transition-${effect}`, label, icon: <GalleryHorizontalEnd size={17} />, disabled: !selectedScreen, active: String((selectedScreen?.screen_settings_json?.transition as Record<string, unknown> | undefined)?.effect || 'none') === effect, onExecute: () => applyQuickTransition(effect) })),
-            { id: 'transition-more', label: 'More', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('transitions'), active: rightPanelOpen && panel === 'transitions' },
-          ] },
+          { id: 'transition-controls', label: 'Transition to This Screen', content: (
+            <StudioTransitionRibbon
+              settings={selectedScreen?.screen_settings_json ?? null}
+              disabled={editorReadOnly || !selectedScreen}
+              screenCount={screenList.screens.length}
+              onChange={setScreenTransition}
+              onApplyToAll={applyTransitionToAllScreens}
+            />
+          ) },
         ];
       case 'animations':
         return [
@@ -2548,8 +2656,8 @@ export default function TeachingStudioPage() {
             { id: 'picture-rotate', label: 'Rotate 90°', icon: <RefreshCw size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementRotation(selectedElement.id, (Number(selectedElement.position.rotation) || 0) + 90) },
           ] },
           { id: 'picture-size', label: 'Size', commands: [
-            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0 } }) },
-            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0 } }) },
+            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0, cropped: false } }) },
+            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0, cropped: true } }) },
             { id: 'picture-crop', label: 'Crop', icon: <Focus size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && setCropRequest({ elementId: selectedElement.id, token: Date.now() }) },
           ], content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="Picture width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="Picture height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
         ];
@@ -2888,6 +2996,7 @@ export default function TeachingStudioPage() {
           groups={ribbonGroups}
           onTabChange={(tab) => {
             setActiveRibbonTab(tab);
+            if (tab === 'transitions' && panel === 'transitions') setRightPanelOpen(false);
             if (tab === 'equation') setRightPanelOpen(false);
           }}
           collapsed={ribbonCollapsed}
@@ -3018,6 +3127,7 @@ export default function TeachingStudioPage() {
                 onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
                 onClearElementSelection={() => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
                 onChangeElement={editorReadOnly ? undefined : updateElement}
+                onCommitElementChange={editorReadOnly ? undefined : updateElementPreservingSelection}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementRotation={editorReadOnly ? undefined : changeElementRotation}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
@@ -3123,7 +3233,7 @@ export default function TeachingStudioPage() {
                 ))}
               </nav>
               <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain ${panel === 'layers' ? 'p-1.5' : 'p-2'} [scrollbar-gutter:stable]`}>
-                <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div>
+                {panel !== 'insert-resources' ? <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div> : null}
                 {panel === 'layers' && (
                   <StudioLayersPanel screen={selectedScreen} selectedElementId={selectedElementId} readOnly={editorReadOnly} onSelect={selectElementAndOpenControls} onCommit={commitElements} />
                 )}
@@ -3139,6 +3249,23 @@ export default function TeachingStudioPage() {
                 )}
                 {panel === 'resources' && (
                   <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />
+                )}
+                {panel === 'insert-resources' && (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <h2 className="font-bold text-slate-900">From Resource</h2>
+                        <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-slate-100"><X size={13} /></button>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                    </div>
+                    <ResourceLibrary
+                      mode="picker"
+                      initialType={insertResourceFilter ?? ''}
+                      allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined}
+                      onPick={placeResourceDirectly}
+                    />
+                  </div>
                 )}
                 {panel === 'elements' && (
                   <StudioElementPanel
@@ -3199,12 +3326,22 @@ export default function TeachingStudioPage() {
                     onSelectElement={selectElementAndOpenControls}
                   />
                 )}
-                {panel === 'transitions' && (
-                  <StudioTransitionsPanel
-                    settings={selectedScreen?.screen_settings_json ?? null}
-                    onChange={setScreenTransition}
-                    onApplyToAll={applyTransitionToAllScreens}
-                    screenCount={screenList.screens.length}
+                {panel === 'drawing' && (
+                  <StudioDrawingPanel
+                    tool={drawingTool}
+                    color={drawingColor}
+                    width={drawingWidth}
+                    opacity={drawingOpacity}
+                    canUndo={drawingPast.length > 0}
+                    canRedo={drawingFuture.length > 0}
+                    hasDrawing={authoredDrawingStrokes(selectedScreen).length > 0}
+                    onToolChange={setDrawingTool}
+                    onColorChange={setDrawingColor}
+                    onWidthChange={setDrawingWidth}
+                    onOpacityChange={setDrawingOpacity}
+                    onUndo={undoDrawing}
+                    onRedo={redoDrawing}
+                    onClear={() => setAuthoredDrawings([])}
                   />
                 )}
               </div>
@@ -3347,6 +3484,15 @@ export default function TeachingStudioPage() {
                       Select a visual, media, or simulation element to see compatible Resources.
                     </p>
                   )}
+                </>
+              )}
+              {panel === 'insert-resources' && (
+                <>
+                  <div className="mb-3">
+                    <h2 className="font-semibold">From Resource</h2>
+                    <p className="mt-1 text-sm text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                  </div>
+                  <ResourceLibrary mode="picker" initialType={insertResourceFilter ?? ''} allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined} onPick={placeResourceDirectly} />
                 </>
               )}
               {panel === 'script' && (
@@ -3741,6 +3887,63 @@ export default function TeachingStudioPage() {
               >
                 {creating ? 'Saving…' : 'Save metadata'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {assetCatalogOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Discover Assets"
+        >
+          <div className="flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+              <div>
+                <h2 className="font-bold text-slate-900">Discover Assets</h2>
+                <p className="text-xs text-slate-500">Choose a reusable asset to add directly to the current Screen.</p>
+              </div>
+              <button type="button" onClick={() => setAssetCatalogOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Discover Assets">
+                <X size={17} />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <AssetCatalogPanel
+                mode="picker"
+                onImported={(resource) => {
+                  setAssetCatalogOpen(false);
+                  placeResourceDirectly(resource);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {resourceUploadOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Upload ${insertResourceType} Resource`}
+        >
+          <div className="relative max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setResourceUploadOpen(false)}
+              className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+              aria-label="Close Resource upload"
+            >
+              <X size={16} />
+            </button>
+            <div className="pr-8">
+              <StudioResourceInsertUpload
+                type={insertResourceType}
+                onUploaded={(resource) => {
+                  setResourceUploadOpen(false);
+                  placeResourceDirectly(resource);
+                }}
+              />
             </div>
           </div>
         </div>
