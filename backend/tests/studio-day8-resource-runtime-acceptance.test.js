@@ -252,6 +252,10 @@ test('HTML and browser ZIP launches serve only immutable manifest files', async 
       'allow-popups',
       'allow-top-navigation-by-user-activation',
       'allow-pointer-lock',
+      'allow-forms',
+      'allow-modals',
+      'allow-downloads',
+      'allow-presentation',
     ]);
     assert.match(launch.launch_url, new RegExp(`${entryPoint.replace('/', '\\/')}$`));
 

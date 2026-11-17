@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
 import { deleteStudioResource, getStudioResource, getStudioResourcePreview, listStudioResources, renameStudioResource, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
-import StudioResourcePlayer from './StudioResourcePlayer';
 import AssetCatalogPanel from './AssetCatalogPanel';
 import { formatResourceTypeLabel, getResourceTypeStyle } from './resourcePresentation';
 
@@ -17,6 +16,7 @@ interface ResourceLibraryProps {
   onPick?: (resource: StudioResourceSummary, version: StudioResourceVersion) => void;
   refreshKey?: number;
   allowedTypes?: readonly StudioResourceType[];
+  initialType?: StudioResourceType | '';
 }
 
 const formatDuration = (seconds?: number | null) => {
@@ -25,7 +25,7 @@ const formatDuration = (seconds?: number | null) => {
   return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`;
 };
 
-function ResourcePreview({ resource }: { resource: StudioResourceSummary }) {
+function ResourcePreview({ resource, card = false }: { resource: StudioResourceSummary; card?: boolean }) {
   const style = getResourceTypeStyle(resource.resource_type);
   const Icon = style.icon;
   const duration = formatDuration(resource.latest_version?.duration_seconds);
@@ -44,7 +44,7 @@ function ResourcePreview({ resource }: { resource: StudioResourceSummary }) {
     return () => { active = false; };
   }, [canShowCover, resource.latest_version?.id, source]);
   return (
-    <div className={`relative flex h-24 w-28 shrink-0 items-center justify-center overflow-hidden rounded-l-xl bg-gradient-to-br ${style.preview}`}>
+    <div className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br ${style.preview} ${card ? 'h-36 w-full rounded-t-xl' : 'h-24 w-28 rounded-l-xl'}`}>
       {source && canShowCover ? mediaType.startsWith('video/')
         ? <video src={source} muted playsInline preload="metadata" className="h-full w-full object-cover" />
         : isGif
@@ -83,6 +83,24 @@ function ResourceActions({ resource, open, onToggle, onPreview, onRename, onDele
   );
 }
 
+function PickerResourceActions({ resource, open, onToggle, onSelectVersion }: { resource: StudioResourceSummary; open: boolean; onToggle: () => void; onSelectVersion: () => void }) {
+  return (
+    <div className="relative" data-resource-menu>
+      <button type="button" onClick={(event) => { event.stopPropagation(); onToggle(); }} aria-label={`More options for ${resource.name}`} aria-expanded={open} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+        <MoreVertical size={19} />
+      </button>
+      {open ? (
+        <div className="absolute bottom-10 right-0 z-30 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-xl">
+          <button type="button" onClick={(event) => { event.stopPropagation(); onSelectVersion(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-slate-700 hover:bg-slate-50">
+            <Layers3 size={16} />
+            Select version
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const LoadingCards = () => (
   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
     {Array.from({ length: 8 }, (_, index) => (
@@ -99,18 +117,22 @@ const LoadingCards = () => (
   </div>
 );
 
-export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 0, allowedTypes }: ResourceLibraryProps) {
+export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 0, allowedTypes, initialType }: ResourceLibraryProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const initial = new URLSearchParams(location.search);
   const [searchInput, setSearchInput] = useState(initial.get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState(initial.get('search') || '');
-  const initialType = initial.get('type');
+  const urlInitialType = initial.get('type');
   const [resourceType, setResourceType] = useState<StudioResourceType | ''>(
-    STUDIO_RESOURCE_TYPES.includes(initialType as StudioResourceType) && !(mode === 'picker' && initialType === 'html')
-      ? (initialType as StudioResourceType)
-      : '',
+    initialType !== undefined ? initialType : (STUDIO_RESOURCE_TYPES.includes(urlInitialType as StudioResourceType) && !(mode === 'picker' && urlInitialType === 'html')
+      ? (urlInitialType as StudioResourceType)
+      : ''),
   );
+
+  useEffect(() => {
+    if (initialType !== undefined) setResourceType(initialType);
+  }, [initialType]);
   const [sort, setSort] = useState<ResourceSort>('recently_updated');
   const [view, setView] = useState<ResourceView>('grid');
   const [libraryTab, setLibraryTab] = useState<ResourceLibraryTab>('mine');
@@ -127,7 +149,6 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   const [deleteError, setDeleteError] = useState('');
   const [pickerResource, setPickerResource] = useState<StudioResourceSummary | null>(null);
   const [pickerDetails, setPickerDetails] = useState<StudioResourceDetails | null>(null);
-  const [pickerVersionId, setPickerVersionId] = useState<number | null>(null);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerError, setPickerError] = useState('');
   const requestRef = useRef(0);
@@ -186,21 +207,25 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
     [allowedTypes, mode, resources, sort],
   );
 
+  const openVersionPicker = (resource: StudioResourceSummary) => {
+    setMenuResourceId(null);
+    setPickerResource(resource);
+    setPickerDetails(null);
+    setPickerError('');
+    setPickerLoading(true);
+    void getStudioResource(resource.id)
+      .then((details) => {
+        setPickerDetails(details);
+      })
+      .catch((loadError) => setPickerError(getApiErrorDetails(loadError, 'Unable to load Resource versions.').message))
+      .finally(() => setPickerLoading(false));
+  };
+
   const openResource = (resource: StudioResourceSummary) => {
     setMenuResourceId(null);
     if (mode === 'picker') {
-      setPickerResource(resource);
-      setPickerDetails(null);
-      setPickerVersionId(resource.latest_version?.id ?? null);
-      setPickerError('');
-      setPickerLoading(true);
-      void getStudioResource(resource.id)
-        .then((details) => {
-          setPickerDetails(details);
-          setPickerVersionId(details.versions.find((version) => version.id === resource.latest_version?.id)?.id ?? details.versions[0]?.id ?? null);
-        })
-        .catch((loadError) => setPickerError(getApiErrorDetails(loadError, 'Unable to load Resource versions.').message))
-        .finally(() => setPickerLoading(false));
+      if (resource.latest_version) onPick?.(resource, resource.latest_version);
+      else toast.error('This Resource has no available version.');
       return;
     }
     const params = new URLSearchParams();
@@ -270,30 +295,14 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   };
 
   const filtersActive = Boolean(searchInput || resourceType);
-  const pickerVersion = pickerDetails?.versions.find((version) => version.id === pickerVersionId) ?? null;
-  const renderPlacementCard = (resource: StudioResourceSummary) => pickerResource?.id === resource.id ? (
-    <div className="m-3 rounded-xl border border-blue-200 bg-blue-50/70 p-3 shadow-sm" role="dialog" aria-label={`Place ${resource.name}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0"><h3 className="truncate text-sm font-bold text-slate-900">Place {resource.name}</h3><p className="mt-0.5 text-xs text-slate-500">Choose the exact immutable version.</p></div>
-        <button type="button" onClick={() => setPickerResource(null)} className="shrink-0 rounded-md border border-slate-300 bg-white p-1.5 text-slate-600" aria-label="Close Resource version chooser"><X size={15} /></button>
-      </div>
-      <div className="mt-3">
-        {pickerLoading ? <p className="rounded-lg bg-white p-3 text-center text-xs text-slate-600">Loading versions...</p>
-          : pickerError ? <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{pickerError}</p>
-            : pickerDetails && pickerVersion ? <><label className="block text-xs font-semibold text-slate-700">Exact version<select value={pickerVersionId ?? ''} onChange={(event) => setPickerVersionId(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">{pickerDetails.versions.map((version) => <option key={version.id} value={version.id}>Version {version.version_number}</option>)}</select></label><div className="mt-2 rounded-lg bg-white p-2 text-xs text-slate-600"><span className="font-semibold">File:</span> <span className="break-words">{pickerVersion.original_file_name || 'External URL'}</span><span className="ml-2 text-slate-400">ID {pickerVersion.id}</span></div></>
-              : <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">No version is available for placement.</p>}
-      </div>
-      <div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setPickerResource(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Cancel</button><button type="button" disabled={!pickerVersion || pickerLoading} onClick={() => { if (!pickerVersion) return; onPick?.(resource, pickerVersion); setPickerResource(null); }} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Place version {pickerVersion?.version_number ?? ''}</button></div>
-    </div>
-  ) : null;
 
   return (
     <section className="border-b border-gray-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-gray-200 px-4 pt-3 sm:px-6">
+      {mode === 'manage' ? <div className="flex items-center gap-2 border-b border-gray-200 px-4 pt-3 sm:px-6">
         <button type="button" onClick={() => setLibraryTab('mine')} className={`inline-flex items-center gap-2 rounded-t-lg border-b-2 px-3 py-2 text-sm font-bold transition ${libraryTab === 'mine' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Layers3 size={17} />My Resources</button>
         <button type="button" onClick={() => setLibraryTab('catalog')} className={`inline-flex items-center gap-2 rounded-t-lg border-b-2 px-3 py-2 text-sm font-bold transition ${libraryTab === 'catalog' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Sparkles size={17} />Discover Assets</button>
-      </div>
-      {libraryTab === 'mine' ? <>
+      </div> : null}
+      {libraryTab === 'mine' || mode === 'picker' ? <>
       <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div className={`grid gap-3 ${mode === 'manage' ? 'md:grid-cols-[minmax(0,1fr)_240px] md:items-center' : 'grid-cols-1'}`}>
           <label className="relative block min-w-0">
@@ -379,6 +388,29 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
           <div className={`grid gap-4 ${mode === 'picker' ? 'grid-cols-1' : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
             {sorted.map((resource) => {
               const style = getResourceTypeStyle(resource.resource_type);
+              if (mode === 'picker') return (
+                <article
+                  key={resource.id}
+                  title={resource.description || resource.latest_version?.original_file_name || 'No additional details.'}
+                  className="relative overflow-visible rounded-xl border border-gray-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md"
+                >
+                  <button type="button" onClick={() => openResource(resource)} className="relative block w-full overflow-hidden rounded-xl text-left" aria-label={`Add latest version of ${resource.name} to Screen`}>
+                    <ResourcePreview resource={resource} card />
+                    <div className="min-h-14 p-3 pr-12">
+                      <p className="truncate font-bold text-slate-900">{resource.name}</p>
+                    </div>
+                  </button>
+                  <span className="pointer-events-none absolute right-2 top-2 z-20 rounded-full bg-slate-950/75 px-2 py-1 text-[11px] font-bold text-white">v{resource.latest_version?.version_number ?? 'â€”'}</span>
+                  <div className="absolute bottom-2 right-2 z-30">
+                    <PickerResourceActions
+                      resource={resource}
+                      open={menuResourceId === resource.id}
+                      onToggle={() => setMenuResourceId((current) => current === resource.id ? null : resource.id)}
+                      onSelectVersion={() => openVersionPicker(resource)}
+                    />
+                  </div>
+                </article>
+              );
               return (
                 <article key={resource.id} className="relative overflow-visible rounded-xl border border-gray-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md">
                   <button type="button" onClick={() => openResource(resource)} className="flex min-h-24 w-full overflow-hidden rounded-xl text-left">
@@ -397,7 +429,6 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
                       <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onRename={() => requestRename(resource)} onDelete={() => requestDelete(resource)} />
                     </div>
                   ) : null}
-                  {renderPlacementCard(resource)}
                 </article>
               );
             })}
@@ -426,9 +457,12 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
                     <div className="flex items-center pr-3">
                       <ResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => (current === resource.id ? null : resource.id))} onPreview={() => openResource(resource)} onRename={() => requestRename(resource)} onDelete={() => requestDelete(resource)} />
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="flex items-center pr-3">
+                      <PickerResourceActions resource={resource} open={menuResourceId === resource.id} onToggle={() => setMenuResourceId((current) => current === resource.id ? null : resource.id)} onSelectVersion={() => openVersionPicker(resource)} />
+                    </div>
+                  )}
                   </div>
-                  {renderPlacementCard(resource)}
                 </div>
               );
             })}
@@ -441,13 +475,13 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
         else setLibraryTab('mine');
       }} />}
 
-      {mode === 'manage' && pickerResource ? (
+      {mode === 'picker' && pickerResource ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Choose Resource version">
           <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Place {pickerResource.name}</h2>
-                <p className="mt-1 text-sm text-slate-500">Choose the exact immutable version for this Screen.</p>
+                <h2 className="text-lg font-bold text-slate-900">Select version of {pickerResource.name}</h2>
+                <p className="mt-1 text-sm text-slate-500">Click a version to add it directly to the current Screen.</p>
               </div>
               <button type="button" onClick={() => setPickerResource(null)} className="rounded-lg border border-slate-300 p-2 text-slate-600" aria-label="Close Resource version chooser">
                 <X size={18} />
@@ -458,53 +492,35 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
                 <p className="rounded-lg bg-slate-50 p-5 text-center text-sm text-slate-600">Loading version history…</p>
               ) : pickerError ? (
                 <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{pickerError}</p>
-              ) : pickerDetails && pickerVersion ? (
-                <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_220px]">
-                  <div className="min-h-64 overflow-hidden rounded-xl bg-slate-950">
-                    <StudioResourcePlayer resourceType={pickerResource.resource_type} version={pickerVersion} mode="preview" className="h-full min-h-64 w-full" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Exact version
-                      <select value={pickerVersionId ?? ''} onChange={(event) => setPickerVersionId(Number(event.target.value))} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
-                        {pickerDetails.versions.map((version) => (
-                          <option key={version.id} value={version.id}>
-                            Version {version.version_number}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <dl className="mt-4 space-y-3 rounded-lg bg-slate-50 p-3 text-sm">
-                      <div>
-                        <dt className="text-xs font-semibold text-slate-500">File</dt>
-                        <dd className="mt-1 break-words text-slate-800">{pickerVersion.original_file_name || 'External URL'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold text-slate-500">Version ID</dt>
-                        <dd className="mt-1 text-slate-800">{pickerVersion.id}</dd>
-                      </div>
-                    </dl>
-                  </div>
+              ) : pickerDetails?.versions.length ? (
+                <div className="space-y-2">
+                  {[...pickerDetails.versions]
+                    .sort((left, right) => right.version_number - left.version_number)
+                    .map((version) => (
+                      <button
+                        key={version.id}
+                        type="button"
+                        onClick={() => {
+                          onPick?.(pickerResource, version);
+                          setPickerResource(null);
+                        }}
+                        className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 p-4 text-left hover:border-blue-500 hover:bg-blue-50"
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-bold text-slate-900">Version {version.version_number}</span>
+                          <span className="mt-1 block truncate text-xs text-slate-500">{version.original_file_name || version.external_url || 'External URL'}</span>
+                        </span>
+                        <span className="shrink-0 text-xs font-bold text-blue-800">Add to Screen</span>
+                      </button>
+                    ))}
                 </div>
               ) : (
                 <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">This Resource has no version available for placement.</p>
               )}
             </div>
-            <footer className="flex justify-end gap-2 border-t border-slate-200 p-4">
+            <footer className="flex justify-end border-t border-slate-200 p-4">
               <button type="button" onClick={() => setPickerResource(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
                 Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!pickerVersion || pickerLoading}
-                onClick={() => {
-                  if (!pickerVersion) return;
-                  onPick?.(pickerResource, pickerVersion);
-                  setPickerResource(null);
-                }}
-                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-              >
-                Place version {pickerVersion?.version_number ?? ''}
               </button>
             </footer>
           </div>

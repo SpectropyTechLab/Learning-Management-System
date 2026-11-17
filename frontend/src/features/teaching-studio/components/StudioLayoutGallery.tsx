@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Pencil, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import type { StudioLayoutSummary } from '../api/studioEditorApi';
-import { targetLayouts } from '../targetLayouts';
 import type { Layout } from '../layouts';
+import { targetLayouts } from '../targetLayouts';
 import StudioCustomLayoutForm from './StudioCustomLayoutForm';
 
 interface Props {
@@ -11,26 +11,18 @@ interface Props {
   applying: boolean;
   onApply: (row: StudioLayoutSummary, layout: Layout) => void;
   onLayoutsChanged: () => Promise<void>;
+  onCancel: () => void;
   editRequest?: { layoutId: number; requestId: number } | null;
 }
 
 const LayoutThumbnail = ({ layout }: { layout: Layout }) => (
-  <div className="relative aspect-video overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+  <div className="relative aspect-video w-full overflow-hidden rounded-md border border-slate-200 bg-slate-50">
     {layout.slots.map((slot) => (
       <div
         key={slot.id}
         title={slot.label}
-        className={slot.region === 'header'
-          ? 'absolute rounded-sm border border-blue-300 bg-blue-100'
-          : slot.region === 'footer'
-            ? 'absolute rounded-sm border border-slate-300 bg-slate-200'
-            : 'absolute rounded-sm border border-teal-300 bg-teal-50'}
-        style={{
-          left: `${slot.bounds.x / 19.2}%`,
-          top: `${slot.bounds.y / 10.8}%`,
-          width: `${slot.bounds.width / 19.2}%`,
-          height: `${slot.bounds.height / 10.8}%`,
-        }}
+        className={slot.region === 'header' ? 'absolute rounded-sm border border-blue-300 bg-blue-100' : slot.region === 'footer' ? 'absolute rounded-sm border border-slate-300 bg-slate-200' : 'absolute rounded-sm border border-teal-300 bg-teal-50'}
+        style={{ left: `${slot.bounds.x / 19.2}%`, top: `${slot.bounds.y / 10.8}%`, width: `${slot.bounds.width / 19.2}%`, height: `${slot.bounds.height / 10.8}%` }}
       />
     ))}
   </div>
@@ -44,89 +36,96 @@ const customLayout = (row: StudioLayoutSummary): Layout => ({
   slots: row.layout_data_json?.slots || [],
 });
 
-export default function StudioLayoutGallery({ layouts, selectedLayoutId, applying, onApply, onLayoutsChanged, editRequest }: Props) {
-  const byKey = new Map(layouts.map((row) => [row.layout_key.toUpperCase(), row]));
-  const customRows = layouts.filter((row) => !row.is_default);
-  const defaultKeys = layouts.filter((row) => row.is_default).map((row) => row.layout_key.toUpperCase());
-  const derivedBaseKey = (row: StudioLayoutSummary) => defaultKeys.find((key) => row.layout_key.toUpperCase().startsWith(`${key}-CUSTOM`)) ?? null;
-  const visibleCustomRows = [...customRows.reduce((groups, row) => {
-    const groupKey = derivedBaseKey(row) ?? row.layout_key.toUpperCase();
-    const current = groups.get(groupKey);
-    if (!current || row.version_no > current.version_no || (row.version_no === current.version_no && row.id > current.id)) groups.set(groupKey, row);
-    return groups;
-  }, new Map<string, StudioLayoutSummary>()).values()];
+export default function StudioLayoutGallery({ layouts, selectedLayoutId, applying, onApply, onLayoutsChanged, onCancel, editRequest }: Props) {
+  const defaultRows = useMemo(() => new Map(layouts.filter((row) => row.is_default).map((row) => [row.layout_key.toUpperCase(), row])), [layouts]);
+  const visibleCustomRows = useMemo(() => {
+    const defaults = [...defaultRows.keys()];
+    const groups = new Map<string, StudioLayoutSummary>();
+    layouts.filter((row) => !row.is_default).forEach((row) => {
+      const key = defaults.find((candidate) => row.layout_key.toUpperCase().startsWith(`${candidate}-CUSTOM`)) ?? row.layout_key.toUpperCase();
+      const current = groups.get(key);
+      if (!current || row.version_no > current.version_no || (row.version_no === current.version_no && row.id > current.id)) groups.set(key, row);
+    });
+    return [...groups.values()];
+  }, [defaultRows, layouts]);
+  const initialValue = (() => {
+    const selected = layouts.find((row) => row.id === selectedLayoutId);
+    if (selected?.is_default) return `default:${selected.layout_key.toUpperCase()}`;
+    if (selected) return `custom:${selected.id}`;
+    return `default:${targetLayouts[0]?.id ?? ''}`;
+  })();
+  const [selection, setSelection] = useState(initialValue);
   const [formLayout, setFormLayout] = useState<StudioLayoutSummary | null | undefined>(undefined);
-  const selectedDefaultKey = layouts.find((row) => row.id === selectedLayoutId && row.is_default)?.layout_key.toUpperCase();
-  const [defaultLayoutKey, setDefaultLayoutKey] = useState(selectedDefaultKey || targetLayouts[0]?.id || '');
-  const selectedCustomRow = visibleCustomRows.find((row) => row.id === selectedLayoutId);
-  const [customLayoutId, setCustomLayoutId] = useState<number | null>(selectedCustomRow?.id ?? visibleCustomRows[0]?.id ?? null);
-  const activeDefaultLayout = targetLayouts.find((layout) => layout.id === defaultLayoutKey) || targetLayouts[0];
-  const activeDefaultRow = activeDefaultLayout ? byKey.get(activeDefaultLayout.id) : undefined;
-  const activeCustomRow = visibleCustomRows.find((row) => row.id === customLayoutId) ?? visibleCustomRows[0];
-  useEffect(() => {
-    if (selectedDefaultKey) setDefaultLayoutKey(selectedDefaultKey);
-  }, [selectedDefaultKey]);
-  useEffect(() => {
-    if (selectedCustomRow) setCustomLayoutId(selectedCustomRow.id);
-    else if (!visibleCustomRows.some((row) => row.id === customLayoutId)) setCustomLayoutId(visibleCustomRows[0]?.id ?? null);
-  }, [customLayoutId, selectedCustomRow, visibleCustomRows]);
+  const selectedDefaultKey = selection.startsWith('default:') ? selection.slice(8) : null;
+  const selectedCustomId = selection.startsWith('custom:') ? Number(selection.slice(7)) : null;
+  const activeDefaultLayout = selectedDefaultKey ? targetLayouts.find((layout) => layout.id.toUpperCase() === selectedDefaultKey) : undefined;
+  const activeDefaultRow = activeDefaultLayout ? defaultRows.get(activeDefaultLayout.id.toUpperCase()) : undefined;
+  const activeCustomRow = selectedCustomId ? visibleCustomRows.find((row) => row.id === selectedCustomId) : undefined;
+  const activeRow = activeCustomRow ?? activeDefaultRow;
+  const activeLayout = activeCustomRow ? customLayout(activeCustomRow) : activeDefaultLayout;
+  const alreadyApplied = Boolean(activeRow && activeRow.id === selectedLayoutId);
+
   useEffect(() => {
     if (!editRequest) return;
     const requested = layouts.find((row) => row.id === editRequest.layoutId);
     if (!requested) return;
-    if (!requested.is_default) {
-      setFormLayout(requested);
-      return;
-    }
-    const prefix = `${requested.layout_key.toUpperCase()}-CUSTOM`;
-    const existingCopy = customRows
-      .filter((row) => row.layout_key.toUpperCase().startsWith(prefix))
-      .sort((left, right) => right.version_no - left.version_no || right.id - left.id)[0];
-    setFormLayout(existingCopy ?? requested);
+    setSelection(requested.is_default ? `default:${requested.layout_key.toUpperCase()}` : `custom:${requested.id}`);
+    if (!requested.is_default) setFormLayout(requested);
   }, [editRequest, layouts]);
+
+  if (formLayout !== undefined) {
+    return (
+      <div className="h-full overflow-y-auto p-4">
+        <StudioCustomLayoutForm
+          key={formLayout?.id ?? 'new'}
+          layout={formLayout}
+          onCancel={() => setFormLayout(undefined)}
+          onSaved={async (saved) => {
+            await onLayoutsChanged();
+            setSelection(`custom:${saved.id}`);
+            setFormLayout(undefined);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <>
-      <div>
-        <label className="block text-sm font-semibold text-slate-700">Default layout
-          <select value={defaultLayoutKey} onChange={(event) => setDefaultLayoutKey(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900">
-            {targetLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.id} · {layout.name}</option>)}
-          </select>
-        </label>
-        {activeDefaultLayout && (() => {
-          const selected = Boolean(activeDefaultRow && selectedLayoutId === activeDefaultRow.id);
-          return <article className={`mt-3 rounded-xl border p-3 ${selected ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>
-            <LayoutThumbnail layout={activeDefaultLayout} />
-            <div className="mt-3 flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-bold text-blue-800">{activeDefaultLayout.id}</p><h3 className="truncate text-sm font-semibold text-slate-900">{activeDefaultLayout.name}</h3></div>{activeDefaultRow ? <span className="shrink-0 text-xs text-slate-500">v{activeDefaultRow.version_no}</span> : null}</div>
-            <p className="mt-1 text-xs text-slate-600">{activeDefaultLayout.purpose}</p>
-            <button type="button" disabled={!activeDefaultRow || selected || applying} onClick={() => activeDefaultRow && onApply(activeDefaultRow, activeDefaultLayout)} className="mt-3 w-full rounded-lg border border-blue-800 px-3 py-2 text-xs font-semibold text-blue-900 hover:bg-blue-900 hover:text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400">{selected ? 'Applied' : activeDefaultRow ? (applying ? 'Applying...' : 'Apply layout') : 'Not provisioned'}</button>
-          </article>;
-        })()}
-      </div>
-      <div className="mt-6 border-t border-slate-200 pt-5">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="font-semibold text-slate-900">Custom layouts</h2><p className="text-sm text-slate-500">Create reusable slot geometry or revise an existing custom layout. Default LYT templates are protected.</p></div>
-          <button type="button" onClick={() => setFormLayout(null)} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white"><Plus size={16} />Create custom layout</button>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-slate-900">Default layouts ({targetLayouts.length})</h3>
+          <span className="text-xs text-slate-500">Select a visual layout, then choose Apply.</span>
         </div>
-        {formLayout !== undefined && <StudioCustomLayoutForm key={formLayout?.id ?? 'new'} layout={formLayout} onCancel={() => setFormLayout(undefined)} onSaved={async () => { await onLayoutsChanged(); setFormLayout(undefined); }} />}
-        {formLayout === undefined && (visibleCustomRows.length > 0 && activeCustomRow ? <div>
-          <label className="block text-sm font-semibold text-slate-700">Custom layout
-            <select value={activeCustomRow.id} onChange={(event) => setCustomLayoutId(Number(event.target.value))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900">
-              {visibleCustomRows.map((row) => <option key={row.id} value={row.id}>{row.layout_key} · {row.name} · v{row.version_no}</option>)}
-            </select>
-          </label>
-          {(() => {
-            const row = activeCustomRow;
+        <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {targetLayouts.map((layout) => {
+            const row = defaultRows.get(layout.id.toUpperCase());
+            const value = `default:${layout.id}`;
+            const selected = selection === value;
+            return <button key={layout.id} type="button" onClick={() => setSelection(value)} aria-pressed={selected} className={`min-w-0 rounded-lg border p-2 text-left transition ${selected ? 'border-blue-700 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50/40'}`}><LayoutThumbnail layout={layout} /><div className="mt-2 flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-bold text-blue-800">{layout.id}</p><p className="truncate text-xs font-semibold text-slate-900">{layout.name}</p></div>{row ? <span className="text-[10px] text-slate-500">v{row.version_no}</span> : null}</div></button>;
+          })}
+        </div>
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
+          <h3 className="text-sm font-bold text-slate-900">Custom layouts ({visibleCustomRows.length})</h3>
+          <button type="button" onClick={() => setFormLayout(null)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-900 hover:underline"><Plus size={14} />Create custom layout</button>
+        </div>
+        {visibleCustomRows.length > 0 ? <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {visibleCustomRows.map((row) => {
             const layout = customLayout(row);
-            const selected = selectedLayoutId === row.id;
-            return <article key={row.id} className={`mt-3 rounded-xl border p-3 ${selected ? 'border-blue-700 bg-blue-50' : 'border-slate-200 bg-white'}`}>
-              <LayoutThumbnail layout={layout} />
-              <div className="mt-3 flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs font-bold text-blue-800">{row.layout_key}</p><h3 className="truncate text-sm font-semibold text-slate-900">{row.name}</h3></div><span className="shrink-0 text-xs text-slate-500">v{row.version_no}</span></div>
-              <p className="mt-1 line-clamp-2 min-h-10 text-xs text-slate-600">{row.description || 'Custom Studio layout'}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={selected || applying} onClick={() => onApply(row, layout)} className="rounded-lg border border-blue-800 px-2 py-2 text-xs font-semibold text-blue-900 disabled:border-slate-300 disabled:text-slate-400">{selected ? 'Applied' : applying ? 'Applying...' : 'Apply'}</button><button type="button" onClick={() => setFormLayout(row)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold text-slate-700"><Pencil size={14} />Revise</button></div>
-            </article>;
-          })()}
-        </div> : <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No custom layouts yet.</p>)}
+            const value = `custom:${row.id}`;
+            const selected = selection === value;
+            return <button key={row.id} type="button" onClick={() => setSelection(value)} aria-pressed={selected} className={`min-w-0 rounded-lg border p-2 text-left transition ${selected ? 'border-blue-700 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50/40'}`}><LayoutThumbnail layout={layout} /><div className="mt-2 flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-[10px] font-bold text-blue-800">{row.layout_key}</p><p className="truncate text-xs font-semibold text-slate-900">{row.name}</p></div><span className="text-[10px] text-slate-500">v{row.version_no}</span></div></button>;
+          })}
+        </div> : <p className="mt-2 rounded-lg border border-dashed border-slate-300 p-5 text-center text-xs text-slate-500">No custom layouts yet.</p>}
       </div>
-    </>
+      <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-2.5">
+        <span className="text-xs text-slate-500">{activeCustomRow ? 'Custom layout selected' : `Choose from all ${targetLayouts.length} default layouts`}</span>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="button" disabled={!activeCustomRow} onClick={() => activeCustomRow && setFormLayout(activeCustomRow)} className="rounded-lg border border-blue-800 px-4 py-2 text-sm font-semibold text-blue-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400">Revise</button>
+          <button type="button" disabled={!activeRow || !activeLayout || alreadyApplied || applying} onClick={() => activeRow && activeLayout && onApply(activeRow, activeLayout)} className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">{applying ? 'Applying...' : alreadyApplied ? 'Applied' : 'Apply'}</button>
+        </div>
+      </footer>
+    </div>
   );
 }

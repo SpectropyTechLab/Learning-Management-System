@@ -2,31 +2,73 @@ import { useEffect, useRef } from 'react';
 import { Keyboard, Menu } from 'lucide-react';
 import type { MathfieldElement } from 'mathlive';
 import 'mathlive/fonts.css';
+import { stripEquationEditingPlaceholders } from './studioEquationPlaceholders';
+import { equationControlTarget, shouldCloseEquationKeyboard } from './studioEquationControlModel';
 
 type EquationControlDetail = { elementId: string; action: 'keyboard' | 'menu' | 'insert'; x?: number; y?: number; latex?: string };
-type EquationControlWindow = Window & { __studioPendingEquationControl?: EquationControlDetail; __studioActiveEquationElementId?: string };
+type EquationControlWindow = Window & {
+  __studioPendingEquationControl?: EquationControlDetail;
+  __studioActiveEquationElementId?: string;
+  __studioKeyboardEquationElementId?: string;
+};
 
-function runEquationControl(mathfield: MathfieldElement, detail: EquationControlDetail) {
+function equationMenuIsOpen(mathfield: MathfieldElement) {
+  const internal = mathfield as unknown as {
+    _mathfield?: { menu?: { state?: string } };
+  };
+  return internal._mathfield?.menu?.state === 'open';
+}
+
+const nextAnimationFrame = () => new Promise<void>((resolve) => {
+  window.requestAnimationFrame(() => resolve());
+});
+
+async function runEquationControl(mathfield: MathfieldElement, detail: EquationControlDetail) {
   if (detail.action === 'insert' && detail.latex) {
     mathfield.focus();
     mathfield.executeCommand(['insert', detail.latex]);
-    return;
+    return true;
   }
-  const openWhenReady = () => {
-    if (!mathfield.isConnected) return;
+  const controlWindow = window as EquationControlWindow;
+  if (detail.action === 'keyboard' && shouldCloseEquationKeyboard(Boolean(window.mathVirtualKeyboard?.visible), controlWindow.__studioKeyboardEquationElementId, detail.elementId)) {
+    mathfield.executeCommand('hideVirtualKeyboard');
+    window.mathVirtualKeyboard.hide({ animate: true });
+    delete controlWindow.__studioKeyboardEquationElementId;
+    return true;
+  }
+  if (detail.action === 'keyboard' && equationMenuIsOpen(mathfield)) {
+    mathfield.executeCommand('toggleContextMenu');
+  }
+  if (detail.action === 'menu' && equationMenuIsOpen(mathfield)) {
+    mathfield.executeCommand('toggleContextMenu');
+    return true;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (!mathfield.isConnected) {
+      await nextAnimationFrame();
+      continue;
+    }
     mathfield.focus({ preventScroll: true });
-    window.requestAnimationFrame(() => {
-      if (!mathfield.isConnected) return;
-      mathfield.focus({ preventScroll: true });
-      if (detail.action === 'keyboard') {
-        mathfield.executeCommand('showVirtualKeyboard');
-        window.mathVirtualKeyboard?.show({ animate: true });
-      } else {
-        mathfield.showMenu({ location: { x: detail.x ?? 0, y: detail.y ?? 0 }, modifiers: { alt: false, control: false, meta: false, shift: false } });
-      }
+    await nextAnimationFrame();
+    if (!mathfield.isConnected) continue;
+    mathfield.focus({ preventScroll: true });
+    if (detail.action === 'keyboard') {
+      mathfield.executeCommand('showVirtualKeyboard');
+      window.mathVirtualKeyboard?.show({ animate: true });
+      controlWindow.__studioKeyboardEquationElementId = detail.elementId;
+      return true;
+    }
+    window.mathVirtualKeyboard?.hide({ animate: true });
+    delete controlWindow.__studioKeyboardEquationElementId;
+    const opened = mathfield.showMenu({
+      location: { x: detail.x ?? 0, y: detail.y ?? 0 },
+      modifiers: { alt: false, control: false, meta: false, shift: false },
     });
-  };
-  window.requestAnimationFrame(openWhenReady);
+    if (opened || equationMenuIsOpen(mathfield)) return true;
+    await nextAnimationFrame();
+  }
+  return false;
 }
 
 interface Props {
@@ -38,13 +80,14 @@ interface Props {
   elementId?: string;
   canvas?: boolean;
   onRequestControl?: (action: 'keyboard' | 'menu', location?: { x: number; y: number }) => void;
+  requestControlFirst?: boolean;
 }
 
 const MATRIX_ENVIRONMENTS =
   /\\begin\{(matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|smallmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g;
 
 function restoreEmptyPlaceholders(latex: string) {
-  const withMatrixPlaceholders = latex.replace(
+  const withMatrixPlaceholders = stripEquationEditingPlaceholders(latex).replace(
     MATRIX_ENVIRONMENTS,
     (_environment, name: string, body: string) => {
       const rows = body.split(/\\\\/).map((row) =>
@@ -74,6 +117,7 @@ export default function MathLiveEquationEditor({
   elementId,
   canvas = false,
   onRequestControl,
+  requestControlFirst = false,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -110,7 +154,7 @@ export default function MathLiveEquationEditor({
           mathfield.value = restoredLatex;
           mathfield.position = Math.min(caretPosition, mathfield.lastOffset);
         }
-        onChangeRef.current(restoredLatex);
+        onChangeRef.current(stripEquationEditingPlaceholders(restoredLatex));
       };
       mathfield.addEventListener('input', handleInput);
       handleFocus = () => { if (elementId) (window as EquationControlWindow).__studioActiveEquationElementId = elementId; };
@@ -119,8 +163,12 @@ export default function MathLiveEquationEditor({
       mathfieldRef.current = mathfield;
       const controlWindow = window as EquationControlWindow;
       if (elementId && controlWindow.__studioPendingEquationControl?.elementId === elementId) {
-        runEquationControl(mathfield, controlWindow.__studioPendingEquationControl);
-        delete controlWindow.__studioPendingEquationControl;
+        const pendingControl = controlWindow.__studioPendingEquationControl;
+        void runEquationControl(mathfield, pendingControl).then((handled) => {
+          if (handled && controlWindow.__studioPendingEquationControl === pendingControl) {
+            delete controlWindow.__studioPendingEquationControl;
+          }
+        });
       }
     });
     return () => {
@@ -130,6 +178,7 @@ export default function MathLiveEquationEditor({
       if (mathfield && handleFocus) mathfield.removeEventListener('focus', handleFocus);
       const controlWindow = window as EquationControlWindow;
       if (elementId && controlWindow.__studioActiveEquationElementId === elementId) delete controlWindow.__studioActiveEquationElementId;
+      if (elementId && controlWindow.__studioKeyboardEquationElementId === elementId) delete controlWindow.__studioKeyboardEquationElementId;
       mathfield?.remove();
       mathfieldRef.current = null;
     };
@@ -142,7 +191,7 @@ export default function MathLiveEquationEditor({
       if (detail?.elementId !== elementId) return;
       const mathfield = mathfieldRef.current;
       if (!mathfield) return;
-      runEquationControl(mathfield, detail);
+      void runEquationControl(mathfield, detail);
     };
     window.addEventListener('studio-equation-control', handleControl);
     return () => window.removeEventListener('studio-equation-control', handleControl);
@@ -162,8 +211,8 @@ export default function MathLiveEquationEditor({
 
   if (controlsOnly) return (
     <div className="relative flex items-center gap-1" aria-label="Equation input tools">
-      <button type="button" title="Open equation keyboard" aria-label="Open equation keyboard" onClick={() => { const targetId = elementId ?? (window as EquationControlWindow).__studioActiveEquationElementId; if (targetId) window.dispatchEvent(new CustomEvent('studio-equation-control', { detail: { elementId: targetId, action: 'keyboard' } })); else onRequestControl?.('keyboard'); }} className="studio-equation-ribbon-action"><Keyboard size={16} /><span>Keyboard</span></button>
-      <button ref={menuButtonRef} type="button" title="Open equation menu" aria-label="Open equation menu" onClick={() => { const button = menuButtonRef.current; if (!button) return; const rect = button.getBoundingClientRect(); const location = { x: rect.left + rect.width / 2, y: rect.bottom }; const targetId = elementId ?? (window as EquationControlWindow).__studioActiveEquationElementId; if (targetId) window.dispatchEvent(new CustomEvent('studio-equation-control', { detail: { elementId: targetId, action: 'menu', ...location } })); else onRequestControl?.('menu', location); }} className="studio-equation-ribbon-action"><Menu size={16} /><span>Menu</span></button>
+      <button type="button" title="Toggle equation keyboard" aria-label="Toggle equation keyboard" onClick={() => { const targetId = equationControlTarget(elementId, (window as EquationControlWindow).__studioActiveEquationElementId, requestControlFirst); if (targetId) window.dispatchEvent(new CustomEvent('studio-equation-control', { detail: { elementId: targetId, action: 'keyboard' } })); else onRequestControl?.('keyboard'); }} className="studio-equation-ribbon-action"><Keyboard size={16} /><span>Keyboard</span></button>
+      <button ref={menuButtonRef} type="button" title="Toggle equation menu" aria-label="Toggle equation menu" onPointerDown={(event) => event.stopPropagation()} onClick={() => { const button = menuButtonRef.current; if (!button) return; const rect = button.getBoundingClientRect(); const location = { x: rect.left + rect.width / 2, y: rect.bottom }; const targetId = equationControlTarget(elementId, (window as EquationControlWindow).__studioActiveEquationElementId, requestControlFirst); if (targetId) window.dispatchEvent(new CustomEvent('studio-equation-control', { detail: { elementId: targetId, action: 'menu', ...location } })); else onRequestControl?.('menu', location); }} className="studio-equation-ribbon-action"><Menu size={16} /><span>Menu</span></button>
     </div>
   );
 

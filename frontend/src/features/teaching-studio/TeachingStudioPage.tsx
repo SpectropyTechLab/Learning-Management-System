@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Cloud,
   CloudOff,
+  Download,
   Eye,
   Eraser,
   Focus,
@@ -20,11 +21,13 @@ import {
   GripVertical,
   Highlighter,
   LayoutTemplate,
+  Link2,
   ListOrdered,
   LoaderCircle,
   Maximize2,
   Minimize2,
   MousePointer2,
+  Paintbrush,
   PenLine,
   Pencil as PencilIcon,
   Network,
@@ -58,9 +61,12 @@ import BlankScreenCanvas from './components/BlankScreenCanvas';
 import StudioScreenNavigator from './components/StudioScreenNavigator';
 import StudioShell from './components/StudioShell';
 import StudioLayoutGallery from './components/StudioLayoutGallery';
+import StudioLayoutRibbon from './components/StudioLayoutRibbon';
 import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
 import StudioAnimationsPanel from './components/StudioAnimationsPanel';
+import StudioAnimationRibbonGallery from './components/StudioAnimationRibbonGallery';
+import StudioAnimationMenu from './components/StudioAnimationMenu';
 import { STUDIO_EQUATION_GROUPS } from './components/StudioMathPanel';
 import StudioEquationRibbon from './components/StudioEquationRibbon';
 import { dispatchStudioTextCommand } from './components/studioTextCommands';
@@ -72,6 +78,18 @@ import StudioIconButton from './components/StudioIconButton';
 import StudioAdaptiveRibbon, {
   type StudioRibbonGroup,
 } from './components/StudioAdaptiveRibbon';
+import StudioClipboardGroup from './components/StudioClipboardGroup';
+import StudioElementContextMenu from './components/StudioElementContextMenu';
+import {
+  applyStudioElementFormat,
+  collectStudioClipboardElements,
+  copyStudioElementFormat,
+  pasteStudioClipboardElements,
+  studioElementFormatFamily,
+  studioPasteModesForElements,
+  type StudioCopiedFormat,
+  type StudioPasteMode,
+} from './components/studioClipboardModel';
 import StudioLayersPanel from './components/StudioLayersPanel';
 import { moveStudioLayer } from './components/studioLayerModel';
 import { buildStudioAnimationSequence } from './components/studioAnimationSequence';
@@ -80,21 +98,37 @@ import {
   studioRibbonTabs,
   type StudioRibbonTabId,
 } from './components/studioRibbonModel';
-import StudioTransitionsPanel from './components/StudioTransitionsPanel';
-import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
+import StudioDrawingPanel from './components/StudioDrawingPanel';
+import StudioTransitionRibbon from './components/StudioTransitionRibbon';
+import StudioZoomPanel, { type StudioZoomMode, type ZoomInsert } from './components/StudioZoomPanel';
+import StudioZoomMenu from './components/StudioZoomMenu';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
+import StudioDiagramChooser from './components/StudioDiagramChooser';
+import StudioDiagramThumbnail from './components/StudioDiagramThumbnail';
 import StudioScreenScriptMath from './components/StudioScreenScriptMath';
+import StructuredScreenScriptEditor from './components/StructuredScreenScriptEditor';
 import { clickerNavigationAction } from './components/studioClickerRuntime';
 import {
   SMART_DIAGRAM_THEMES,
+  SMART_DIAGRAM_LAYOUTS,
+  createSmartDiagramNode,
   createSmartDiagramContent,
   isSmartDiagramContent,
   layoutSmartDiagram,
+  rebuildDiagramParents,
+  type SmartDiagramNode,
+  type SmartDiagramContent,
 } from './components/smartDiagramModel';
 import ResourceLibrary from './components/resources/ResourceLibrary';
+import AssetCatalogPanel from './components/resources/AssetCatalogPanel';
+import StudioInsertResourceButtons, {
+  type InsertResourceType,
+} from './components/StudioInsertResourceButtons';
+import StudioResourceInsertUpload from './components/StudioResourceInsertUpload';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
 import type { StudioLayoutSummary } from './api/studioEditorApi';
+import { getStudioResourcePreview } from './api/studioResourcesApi';
 import type { StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
 import {
   approveStudioSession,
@@ -201,22 +235,28 @@ export default function TeachingStudioPage() {
   const [screenRequestVersion, setScreenRequestVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<
-    | 'layouts'
     | 'script'
     | 'resources'
+    | 'insert-resources'
     | 'elements'
     | 'shapes'
     | 'animations'
     | 'transitions'
-    | 'zoom'
     | 'diagrams'
     | 'layers'
     | null
   >('elements');
+  const [insertResourceType, setInsertResourceType] = useState<InsertResourceType>('image');
+  const [insertResourceFilter, setInsertResourceFilter] = useState<InsertResourceType | null>(null);
+  const [resourceUploadOpen, setResourceUploadOpen] = useState(false);
+  const [assetCatalogOpen, setAssetCatalogOpen] = useState(false);
+  const [layoutGalleryOpen, setLayoutGalleryOpen] = useState(false);
+  const [zoomDialogMode, setZoomDialogMode] = useState<StudioZoomMode | null>(null);
   const [animationPreview, setAnimationPreview] = useState<{
     elementId: string;
     token: number;
   } | null>(null);
+  const [selectedAnimationEffectId, setSelectedAnimationEffectId] = useState<string | null>(null);
   const [cropRequest, setCropRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [model3DModeRequest, setModel3DModeRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
@@ -244,8 +284,23 @@ export default function TeachingStudioPage() {
   const [ribbonCollapsed, setRibbonCollapsed] = useState(false);
   const [selectedLayoutSlotId, setSelectedLayoutSlotId] = useState<string | null>(null);
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
+  const [editorClipboard, setEditorClipboard] = useState<StudioElement[]>([]);
+  const [diagramChooserOpen, setDiagramChooserOpen] = useState(false);
+  const [diagramLayoutGalleryOpen, setDiagramLayoutGalleryOpen] = useState(false);
+  const [diagramTextPaneOpen, setDiagramTextPaneOpen] = useState(false);
+  const [selectedDiagramNodeId, setSelectedDiagramNodeId] = useState<string | null>(null);
+  const [diagramLivePreview, setDiagramLivePreview] = useState<Partial<SmartDiagramContent> | null>(null);
+  const [elementContextMenu, setElementContextMenu] = useState<{ elementId: string; x: number; y: number } | null>(null);
+  const [formatPainter, setFormatPainter] = useState<{
+    sourceElementId: string;
+    format: StudioCopiedFormat;
+    persistent: boolean;
+    textRangeFormat?: Record<string, string>;
+    sourceSelectionText?: string;
+  } | null>(null);
+  const formatPainterAppliedTargetRef = useRef<string | null>(null);
+  const spectropyShortcutHeldRef = useRef(false);
   const equationCanvasPointRef = useRef({ x: 600, y: 410 });
-  const editorClipboardRef = useRef<StudioElement[]>([]);
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
   const presentationWindowRef = useRef<Window | null>(null);
   const presentationWindowWatchRef = useRef<number | null>(null);
@@ -268,7 +323,7 @@ export default function TeachingStudioPage() {
   const [sessionContext, setSessionContext] = useState<StudioSession | null>(null);
   const [sessionOptions, setSessionOptions] = useState<StudioSession[]>([]);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [leftPanelView, setLeftPanelView] = useState<'screens' | 'script'>('screens');
+  const [scriptOverlayOpen, setScriptOverlayOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [editorFocusMode, setEditorFocusMode] = useState(false);
   const [showCanvasGuides, setShowCanvasGuides] = useState(false);
@@ -963,7 +1018,7 @@ export default function TeachingStudioPage() {
     );
   }, [layouts, selectedScreen?.layout_id]);
 
-  const commitElements = (elements: StudioElement[], selectElementId?: string | null) => {
+  const commitElements = useCallback((elements: StudioElement[], selectElementId?: string | null) => {
     if (!selectedScreen || editorReadOnly) return;
     setElementPast((past) => [...past.slice(-99), selectedScreen.elements]);
     setElementFuture([]);
@@ -973,7 +1028,7 @@ export default function TeachingStudioPage() {
       setSelectedElementIds(selectElementId ? [selectElementId] : []);
     }
     setHasUnsavedChanges(true);
-  };
+  }, [editorReadOnly, selectedScreen]);
 
   const setAuthoredDrawings = (strokes: AuthorDrawingStroke[], recordHistory = true) => {
     if (!selectedScreen || editorReadOnly) return;
@@ -1372,7 +1427,8 @@ export default function TeachingStudioPage() {
         element.id,
       );
       setSelectedLayoutSlotId(targetSlot.id);
-      setPanel('diagrams');
+      setDiagramChooserOpen(false);
+      setActiveRibbonTab('diagram-design');
       toast.success(`Smart Diagram inserted into ${targetSlot.label}.`);
       return;
     }
@@ -1384,7 +1440,9 @@ export default function TeachingStudioPage() {
       position: { x: 260, y: 210, width: 1400, height: 700, zIndex: selectedScreen.elements.length + 1 },
     };
     commitElements([...selectedScreen.elements, element], id);
-    setPanel('diagrams');
+    setDiagramChooserOpen(false);
+    setSelectedDiagramNodeId(content.nodes[0]?.id ?? null);
+    setActiveRibbonTab('diagram-design');
     toast.success('Smart Diagram inserted. Edit its Text Pane or double-click a node on the Screen.');
   };
 
@@ -1605,6 +1663,93 @@ export default function TeachingStudioPage() {
     toast.success('Element duplicated. Move it to the required position, then Save.');
   };
 
+  const updateElementPreservingSelection = (updated: StudioElement) => {
+    if (!selectedScreen || editorReadOnly) return;
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+      selectedElementId,
+    );
+  };
+
+  const placeResourceDirectly = async (
+    resource: StudioResourceSummary,
+    selectedVersion?: StudioResourceVersion,
+  ) => {
+    if (editorReadOnly) {
+      toast.error('Start an update before changing this Session.');
+      return;
+    }
+    if (!selectedScreen) {
+      toast.error('Select a Screen before adding a Resource.');
+      return;
+    }
+    const version = selectedVersion || resource.latest_version;
+    if (!version) {
+      toast.error('This Resource has no available version.');
+      return;
+    }
+    const type: ObjectType = ['image', 'animation', 'model_3d'].includes(resource.resource_type)
+      ? 'visual'
+      : ['video', 'presentation'].includes(resource.resource_type)
+        ? 'media'
+        : 'simulation';
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}`;
+    const id = `resource-${token}`;
+    let naturalWidth = Number(version.width);
+    let naturalHeight = Number(version.height);
+    if (resource.resource_type === 'image' && !(naturalWidth > 0 && naturalHeight > 0)) {
+      try {
+        const source = version.external_url || (await getStudioResourcePreview(version.id)).url;
+        const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+          image.onerror = () => reject(new Error('Unable to read image dimensions.'));
+          image.src = source;
+        });
+        naturalWidth = dimensions.width;
+        naturalHeight = dimensions.height;
+      } catch (dimensionError) {
+        console.warn('Unable to resolve intrinsic image dimensions; using the default image area.', dimensionError);
+      }
+    }
+    const imageScale = resource.resource_type === 'image' && naturalWidth > 0 && naturalHeight > 0
+      ? Math.min(1, 960 / naturalWidth, 540 / naturalHeight)
+      : null;
+    const imageWidth = imageScale === null ? 960 : Math.max(1, Math.round(naturalWidth * imageScale));
+    const imageHeight = imageScale === null ? 540 : Math.max(1, Math.round(naturalHeight * imageScale));
+    const size = type === 'visual'
+      ? resource.resource_type === 'image'
+        ? { x: Math.round((1920 - imageWidth) / 2), y: Math.round((1080 - imageHeight) / 2), width: imageWidth, height: imageHeight }
+        : { x: 480, y: 270, width: 960, height: 540 }
+      : type === 'media'
+        ? { x: 400, y: 225, width: 1120, height: 630 }
+        : { x: 320, y: 180, width: 1280, height: 720 };
+    const element: StudioElement = {
+      id,
+      slotId: `free-${id}`,
+      type,
+      content: {
+        text: resource.name,
+        url: version.external_url || '',
+        altText: resource.description || resource.name,
+        source: resource.name,
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
+      },
+      position: { ...size, zIndex: selectedScreen.elements.length + 1 },
+      resource: {
+        resource_id: resource.id,
+        resource_version_id: version.id,
+        usage: { slot_id: `free-${id}`, resource_type: resource.resource_type },
+      },
+    };
+    commitElements([...selectedScreen.elements, element], element.id);
+    setPanel('elements');
+    setRightPanelOpen(true);
+    toast.success(`${resource.name} added directly to the current Screen.`);
+  };
+
   const bindResourceToSelectedElement = (
     resource: StudioResourceSummary,
     selectedVersion?: StudioResourceVersion,
@@ -1638,7 +1783,7 @@ export default function TeachingStudioPage() {
         url: version.external_url || '',
         altText: String(element.content.altText || resource.description || resource.name),
         source: String(element.content.source || resource.name),
-        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0 },
+        mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
       },
       resource: {
         resource_id: resource.id,
@@ -1784,41 +1929,198 @@ export default function TeachingStudioPage() {
     return () => window.removeEventListener('keydown', historyShortcut);
   }, [elementFuture, elementPast, redoElementChange, selectedScreen, undoElementChange]);
 
+  const selectedElementsForClipboard = () => selectedScreen
+    ? collectStudioClipboardElements(selectedScreen.elements, selectedElementIds, selectedElementId)
+    : [];
+
+  const selectedCharacterFormat = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+    const range = selection.getRangeAt(0);
+    const node = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement;
+    const editor = node?.closest<HTMLElement>('.studio-canvas-rich-text[contenteditable="true"]');
+    const elementRoot = editor?.closest<HTMLElement>('[data-element-id]');
+    if (!editor || !elementRoot?.dataset.elementId || !editor.contains(range.endContainer)) return null;
+    const styleTarget = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement ?? editor;
+    const computed = window.getComputedStyle(styleTarget);
+    const offsetAt = (container: Node, offset: number) => {
+      const prefix = document.createRange();
+      prefix.selectNodeContents(editor);
+      prefix.setEnd(container, offset);
+      return prefix.toString().length;
+    };
+    return {
+      elementId: elementRoot.dataset.elementId,
+      text: selection.toString(),
+      start: offsetAt(range.startContainer, range.startOffset),
+      end: offsetAt(range.endContainer, range.endOffset),
+      styles: {
+        'font-family': computed.fontFamily,
+        'font-size': computed.fontSize,
+        'font-weight': computed.fontWeight,
+        'font-style': computed.fontStyle,
+        'text-decoration-line': computed.textDecorationLine,
+        color: computed.color,
+        ...(computed.backgroundColor !== 'rgba(0, 0, 0, 0)' ? { 'background-color': computed.backgroundColor } : {}),
+      },
+    };
+  };
+
+  const runNativeTextClipboardCommand = (command: 'copy' | 'cut') => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return false;
+    const container = selection.getRangeAt(0).commonAncestorContainer;
+    const owner = container instanceof HTMLElement ? container : container.parentElement;
+    if (!owner?.closest('.studio-canvas-rich-text, [contenteditable="true"]')) return false;
+    return document.execCommand(command);
+  };
+
+  const copySelectedElements = () => {
+    if (editorReadOnly) return;
+    if (runNativeTextClipboardCommand('copy')) return;
+    const copied = selectedElementsForClipboard();
+    if (!copied.length) return;
+    setEditorClipboard(copied);
+    toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} copied.`);
+  };
+
+  const cutSelectedElements = () => {
+    if (!selectedScreen || editorReadOnly) return;
+    if (runNativeTextClipboardCommand('cut')) return;
+    const copied = selectedElementsForClipboard();
+    if (!copied.length) return;
+    const copiedIds = new Set(copied.map((element) => element.id));
+    setEditorClipboard(copied);
+    commitElements(selectedScreen.elements.filter((element) => !copiedIds.has(element.id)), null);
+    toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} cut to the Studio clipboard.`);
+  };
+
+  const pasteClipboard = (mode: StudioPasteMode = 'source-formatting') => {
+    if (!selectedScreen || editorReadOnly || !editorClipboard.length) return;
+    const pasted = pasteStudioClipboardElements(editorClipboard, mode);
+    commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
+    setSelectedElementIds(pasted.map((element) => element.id));
+    if (mode === 'picture' && pasted.length === 1) setActiveRibbonTab('picture-format');
+    toast.success(`${pasted.length === 1 ? 'Element' : `${pasted.length} elements`} pasted using ${mode.replaceAll('-', ' ')}.`);
+  };
+
+  const toggleFormatPainter = (persistent: boolean) => {
+    if (formatPainter) {
+      setFormatPainter(null);
+      formatPainterAppliedTargetRef.current = null;
+      toast.success('Format Painter stopped.');
+      return;
+    }
+    const source = selectedScreen?.elements.find((element) => element.id === selectedElementId);
+    if (!source || editorReadOnly) return;
+    const characterFormat = selectedCharacterFormat();
+    setFormatPainter({
+      sourceElementId: source.id,
+      format: copyStudioElementFormat(source),
+      persistent,
+      ...(characterFormat?.elementId === source.id ? { textRangeFormat: characterFormat.styles, sourceSelectionText: characterFormat.text } : {}),
+    });
+    formatPainterAppliedTargetRef.current = null;
+    toast.success(persistent
+      ? 'Format Painter locked. Select multiple targets; press Escape when finished.'
+      : 'Format Painter ready. Select one target element.');
+  };
+
+  useEffect(() => {
+    if (!formatPainter || formatPainter.textRangeFormat || !selectedElementId || selectedElementId === formatPainter.sourceElementId) return;
+    if (formatPainterAppliedTargetRef.current === selectedElementId) return;
+    const target = selectedScreen?.elements.find((element) => element.id === selectedElementId);
+    if (!target || editorReadOnly) return;
+    if (studioElementFormatFamily(target) !== formatPainter.format.family) {
+      toast.error(`Format Painter requires a compatible ${formatPainter.format.family} target.`);
+      return;
+    }
+    formatPainterAppliedTargetRef.current = selectedElementId;
+    commitElements(
+      selectedScreen.elements.map((element) => element.id === target.id
+        ? applyStudioElementFormat(element, formatPainter.format)
+        : element),
+      target.id,
+    );
+    toast.success('Formatting applied.');
+    if (!formatPainter.persistent) setFormatPainter(null);
+  }, [commitElements, editorReadOnly, formatPainter, selectedElementId, selectedScreen]);
+
+  useEffect(() => {
+    document.body.classList.toggle('studio-format-painter-active', Boolean(formatPainter));
+    return () => document.body.classList.remove('studio-format-painter-active');
+  }, [formatPainter]);
+
+  useEffect(() => {
+    if (!formatPainter?.textRangeFormat) return;
+    let timer: number | null = null;
+    const paintSelectedText = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const target = selectedCharacterFormat();
+        if (!target || !formatPainter.textRangeFormat) return;
+        if (target.elementId === formatPainter.sourceElementId && target.text === formatPainter.sourceSelectionText) return;
+        const signature = `text:${target.elementId}:${target.text}`;
+        if (formatPainterAppliedTargetRef.current === signature) return;
+        formatPainterAppliedTargetRef.current = signature;
+        dispatchStudioTextCommand(target.elementId, {
+          type: 'apply-character-format',
+          styles: formatPainter.textRangeFormat,
+          range: { start: target.start, end: target.end },
+        });
+        toast.success('Character formatting applied to the selected text.');
+        if (!formatPainter.persistent) setFormatPainter(null);
+      }, 0);
+    };
+    document.addEventListener('selectionchange', paintSelectedText);
+    return () => {
+      document.removeEventListener('selectionchange', paintSelectedText);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [formatPainter]);
+
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) =>
       target instanceof HTMLElement &&
       Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
-    const cloneForPaste = (source: StudioElement, offset = 40): StudioElement => {
-      const token =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const id = `element-${token}`;
-      const width = Number(source.position.width) || 400;
-      const height = Number(source.position.height) || 240;
-      return {
-        ...source,
-        id,
-        slotId: `free-${id}`,
-        content: structuredClone(source.content),
-        position: {
-          ...source.position,
-          x: Math.min((Number(source.position.x) || 0) + offset, 1920 - width),
-          y: Math.min((Number(source.position.y) || 0) + offset, 1080 - height),
-        },
-        resource: source.resource
-          ? {
-              ...source.resource,
-              usage: { ...source.resource.usage, slot_id: `free-${id}` },
-            }
-          : undefined,
-      };
-    };
     const commands = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target) || editorReadOnly) return;
+      const typingTarget = isTypingTarget(event.target);
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const selected = selectedScreen?.elements.find((element) => element.id === selectedElementId);
+
+      if (!typingTarget && !modifier && !event.altKey && key === 's' && !spectropyShortcutHeldRef.current) {
+        spectropyShortcutHeldRef.current = true;
+        event.preventDefault();
+        return;
+      }
+
+      if (!typingTarget && spectropyShortcutHeldRef.current && key !== 's') {
+        event.preventDefault();
+        spectropyShortcutHeldRef.current = false;
+        if (key === 'a' && selectedScreen) {
+          const ids = selectedScreen.elements.map((element) => element.id);
+          setSelectedElementIds(ids);
+          setSelectedElementId(ids.at(-1) ?? null);
+        } else if (key === 'c' && selected) copySelectedElements();
+        else if (key === 'x' && selected && !editorReadOnly) cutSelectedElements();
+        else if (key === 'v' && editorClipboard.length && selectedScreen && !editorReadOnly) pasteClipboard('source-formatting');
+        else if (key === 'd' && selected && !editorReadOnly) duplicateElement(selected.id);
+        else if (key === 'g' && selectedElementIds.length > 1 && !editorReadOnly) groupSelectedElements();
+        else if (key === 'u' && selectedHasGroup && !editorReadOnly) ungroupSelectedElements();
+        else if (key === 'z' && !editorReadOnly) undoElementChange();
+        else if (key === 'y' && !editorReadOnly) redoElementChange();
+        else if (key === 'p') {
+          if (event.shiftKey) void openPresentation();
+          else void openPreview();
+        }
+        else if (key === 'r') openScreenScript();
+        else if (key === 'l') openSelectionPane();
+        else if (key === 'enter' && !editorReadOnly) void saveDraftRef.current('manual');
+        return;
+      }
+
+      if (typingTarget || editorReadOnly) return;
 
       if (event.key === 'F5') {
         event.preventDefault();
@@ -1826,27 +2128,35 @@ export default function TeachingStudioPage() {
         else void openPreview();
         return;
       }
+      if (modifier && key === 'a' && selectedScreen) {
+        event.preventDefault();
+        const ids = selectedScreen.elements.map((element) => element.id);
+        setSelectedElementIds(ids);
+        setSelectedElementId(ids.at(-1) ?? null);
+        return;
+      }
       if (key === 'escape') {
+        if (formatPainter) {
+          setFormatPainter(null);
+          formatPainterAppliedTargetRef.current = null;
+          return;
+        }
         setSelectedElementId(null);
         return;
       }
       if (modifier && key === 'c' && selected) {
         event.preventDefault();
-        editorClipboardRef.current = [structuredClone(selected)];
+        copySelectedElements();
         return;
       }
       if (modifier && key === 'x' && selected) {
         event.preventDefault();
-        editorClipboardRef.current = [structuredClone(selected)];
-        removeElement(selected.id);
+        cutSelectedElements();
         return;
       }
-      if (modifier && key === 'v' && editorClipboardRef.current.length && selectedScreen) {
+      if (modifier && key === 'v' && editorClipboard.length && selectedScreen) {
         event.preventDefault();
-        const pasted = editorClipboardRef.current.map((element, index) =>
-          cloneForPaste(element, 40 + index * 20),
-        );
-        commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
+        pasteClipboard('source-formatting');
         return;
       }
       if (modifier && key === 'd' && selected) {
@@ -1875,8 +2185,11 @@ export default function TeachingStudioPage() {
         changeElementBounds(selected.id, bounds);
       }
     };
+    const releaseSpectropyShortcut = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 's') spectropyShortcutHeldRef.current = false;
+    };
     const pasteExternal = (event: ClipboardEvent) => {
-      if (isTypingTarget(event.target) || editorClipboardRef.current.length) return;
+      if (isTypingTarget(event.target) || editorClipboard.length) return;
       const images = Array.from(event.clipboardData?.files ?? []).filter((file) =>
         file.type.startsWith('image/'),
       );
@@ -1885,12 +2198,16 @@ export default function TeachingStudioPage() {
       addDroppedFiles(images, { x: 300, y: 260 });
     };
     window.addEventListener('keydown', commands);
+    window.addEventListener('keyup', releaseSpectropyShortcut);
     window.addEventListener('paste', pasteExternal);
     return () => {
       window.removeEventListener('keydown', commands);
+      window.removeEventListener('keyup', releaseSpectropyShortcut);
       window.removeEventListener('paste', pasteExternal);
     };
-  }, [editorReadOnly, selectedElementId, selectedScreen]);
+    // Command callbacks intentionally refresh with the editor state dependencies below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorClipboard, editorReadOnly, formatPainter, selectedElementId, selectedElementIds, selectedScreen]);
 
   useEffect(() => {
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -2012,13 +2329,11 @@ export default function TeachingStudioPage() {
     const ids = screenList.screens.map((screen) => screen.id);
     setReorderIds(ids);
     reorderIdsRef.current = ids;
-    setLeftPanelView('screens');
     setLeftPanelOpen(true);
   };
 
   const openScreenScript = () => {
-    setLeftPanelView('script');
-    setLeftPanelOpen(true);
+    setScriptOverlayOpen(true);
   };
 
   const moveDraggedScreen = (event: React.PointerEvent) => {
@@ -2079,6 +2394,46 @@ export default function TeachingStudioPage() {
   const selectedResourceType = String(selectedElement?.resource?.usage?.resource_type || '');
   const selectedVisualType = String(selectedElement?.content?.visualType || '');
   const selectedModel3DSettings = model3DSettingsFrom(selectedElement?.content);
+  const selectedDiagramContent = selectedElement && isSmartDiagramContent(selectedElement.content) ? selectedElement.content : null;
+  const selectedDiagramNode = selectedDiagramContent?.nodes.find((node) => node.id === selectedDiagramNodeId)
+    ?? selectedDiagramContent?.nodes[0]
+    ?? null;
+  const updateSelectedDiagram = (changes: Partial<NonNullable<typeof selectedDiagramContent>>) => {
+    if (!selectedElement || !selectedDiagramContent || editorReadOnly) return;
+    updateElement({ ...selectedElement, content: { ...selectedDiagramContent, ...changes } });
+  };
+  const replaceSelectedDiagramNodes = (nodes: SmartDiagramNode[]) => updateSelectedDiagram({ nodes: rebuildDiagramParents(nodes) });
+  const updateSelectedDiagramNode = (changes: Partial<SmartDiagramNode>) => {
+    if (!selectedDiagramContent || !selectedDiagramNode) return;
+    replaceSelectedDiagramNodes(selectedDiagramContent.nodes.map((node) => node.id === selectedDiagramNode.id ? { ...node, ...changes } : node));
+  };
+  const addSelectedDiagramNode = (placement: 'before' | 'after' | 'child' | 'assistant') => {
+    if (!selectedDiagramContent) return;
+    const anchor = selectedDiagramNode ?? selectedDiagramContent.nodes.at(-1);
+    const anchorIndex = anchor ? selectedDiagramContent.nodes.findIndex((node) => node.id === anchor.id) : -1;
+    const node = createSmartDiagramNode('New item', placement === 'child' ? Math.min(5, (anchor?.level ?? -1) + 1) : anchor?.level ?? 0);
+    if (placement === 'assistant') { node.level = Math.min(5, (anchor?.level ?? -1) + 1); node.role = 'assistant'; }
+    const nodes = [...selectedDiagramContent.nodes];
+    nodes.splice(placement === 'before' ? Math.max(0, anchorIndex) : anchorIndex + 1, 0, node);
+    replaceSelectedDiagramNodes(nodes);
+    setSelectedDiagramNodeId(node.id);
+  };
+  const changeSelectedDiagramNodeLevel = (delta: -1 | 1) => {
+    if (!selectedDiagramContent || !selectedDiagramNode) return;
+    const index = selectedDiagramContent.nodes.findIndex((node) => node.id === selectedDiagramNode.id);
+    const maximum = index > 0 ? Math.min(5, selectedDiagramContent.nodes[index - 1].level + 1) : 0;
+    const level = Math.max(0, Math.min(maximum, selectedDiagramNode.level + delta));
+    replaceSelectedDiagramNodes(selectedDiagramContent.nodes.map((node) => node.id === selectedDiagramNode.id ? { ...node, level } : node));
+  };
+  const moveSelectedDiagramNode = (delta: -1 | 1) => {
+    if (!selectedDiagramContent || !selectedDiagramNode) return;
+    const index = selectedDiagramContent.nodes.findIndex((node) => node.id === selectedDiagramNode.id);
+    const target = index + delta;
+    if (target < 0 || target >= selectedDiagramContent.nodes.length) return;
+    const nodes = [...selectedDiagramContent.nodes];
+    [nodes[index], nodes[target]] = [nodes[target], nodes[index]];
+    replaceSelectedDiagramNodes(nodes);
+  };
   const updateSelectedModel3D = (changes: Partial<Model3DSettings>) => {
     if (!selectedElement || editorReadOnly) return;
     changeElementContent(selectedElement.id, { model3d: { ...selectedModel3DSettings, ...changes } });
@@ -2149,25 +2504,34 @@ export default function TeachingStudioPage() {
       : {};
     const existingEffects = Array.isArray(saved.effects) ? saved.effects as Array<Record<string, unknown>> : [];
     const screenSequenceLength = buildStudioAnimationSequence(selectedScreen?.elements ?? []).length;
+    const selectedIndex = Math.max(0, existingEffects.findIndex((candidate) => String(candidate.id) === selectedAnimationEffectId));
+    const currentEffect = existingEffects[selectedIndex];
     const nextEffect = {
+      ...(!append && currentEffect ? currentEffect : {}),
       id: `animation-${Date.now()}`,
       effect,
-      duration: 0.8,
-      delay: 0,
-      start: 'on-click',
+      duration: !append && currentEffect ? Number(currentEffect.duration) || 0.8 : 0.8,
+      delay: !append && currentEffect ? Number(currentEffect.delay) || 0 : 0,
+      start: !append && currentEffect ? String(currentEffect.start || 'on-click') : 'on-click',
       sequenceOrder: append
         ? screenSequenceLength
-        : Number.isFinite(Number(existingEffects[0]?.sequenceOrder))
-          ? Number(existingEffects[0]?.sequenceOrder)
+        : Number.isFinite(Number(currentEffect?.sequenceOrder))
+          ? Number(currentEffect?.sequenceOrder)
           : screenSequenceLength,
     };
+    const nextEffects = append
+      ? [...existingEffects, nextEffect]
+      : existingEffects.length
+        ? existingEffects.map((candidate, index) => index === selectedIndex ? nextEffect : candidate)
+        : [nextEffect];
     updateElement({
       ...selectedElement,
       content: {
         ...selectedElement.content,
-        animation: { ...saved, effects: append ? [...existingEffects, nextEffect] : [nextEffect], effect, duration: 0.8, delay: 0 },
+        animation: { ...saved, effects: nextEffects, effect: String(nextEffects[0]?.effect || 'none'), duration: Number(nextEffects[0]?.duration) || 0.8, delay: Number(nextEffects[0]?.delay) || 0 },
       },
     });
+    setSelectedAnimationEffectId(String(nextEffect.id));
     setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
   };
   const selectedAnimationEffects = (() => {
@@ -2178,13 +2542,22 @@ export default function TeachingStudioPage() {
     const effect = String(saved.effect || 'none');
     return effect === 'none' ? [] : [{ id: 'legacy', effect, duration: Number(saved.duration) || 0.8, delay: Number(saved.delay) || 0, start: 'on-click' }];
   })();
-  const updateSelectedAnimationEffect = (changes: Record<string, unknown>, index = 0) => {
+  const selectedAnimationEffectIndex = Math.max(0, selectedAnimationEffects.findIndex((effect) => String(effect.id) === selectedAnimationEffectId));
+  const activeSelectedAnimationEffect = selectedAnimationEffects[selectedAnimationEffectIndex];
+  const updateSelectedAnimationEffect = (changes: Record<string, unknown>, index = selectedAnimationEffectIndex) => {
     if (!selectedElement || !selectedAnimationEffects[index]) return;
     const effects = selectedAnimationEffects.map((effect, effectIndex) => effectIndex === index ? { ...effect, ...changes } : effect);
     const first = effects[0];
     updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
   };
-  const moveSelectedAnimation = (delta: number, index = 0) => {
+  const removeSelectedAnimation = () => {
+    if (!selectedElement || !activeSelectedAnimationEffect) return;
+    const effects = selectedAnimationEffects.filter((_, index) => index !== selectedAnimationEffectIndex);
+    const first = effects[0];
+    updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
+    setSelectedAnimationEffectId(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)]?.id ? String(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)].id) : null);
+  };
+  const moveSelectedAnimation = (delta: number, index = selectedAnimationEffectIndex) => {
     if (!selectedElement) return;
     const target = index + delta;
     if (target < 0 || target >= selectedAnimationEffects.length) return;
@@ -2192,6 +2565,7 @@ export default function TeachingStudioPage() {
     [effects[index], effects[target]] = [effects[target], effects[index]];
     const first = effects[0];
     updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
+    setSelectedAnimationEffectId(String(effects[target].id));
   };
   const openAnimationPane = () => {
     setPanel('animations');
@@ -2213,19 +2587,6 @@ export default function TeachingStudioPage() {
     if (alignment === 'middle') current.y = Math.round((1080 - height) / 2);
     if (alignment === 'bottom') current.y = Math.max(0, 1080 - height);
     changeElementBounds(selectedElement.id, current);
-  };
-  const applyQuickTransition = (effect: string) => {
-    const saved = selectedScreen?.screen_settings_json?.transition;
-    setScreenTransition({
-      duration: 0.7,
-      direction: 'right',
-      advanceOnClick: true,
-      easing: 'ease-in-out',
-      intensity: 'standard',
-      respectReducedMotion: true,
-      ...(saved && typeof saved === 'object' ? saved as Record<string, unknown> : {}),
-      effect,
-    });
   };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string, additive = false) => {
@@ -2280,14 +2641,13 @@ export default function TeachingStudioPage() {
   const selectedHasGroup = Boolean(selectedScreen?.elements.some((element) =>
     selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string'));
   const studioTools = [
-    { id: 'layouts', label: 'Layouts', icon: <LayoutTemplate size={17} /> },
     { id: 'resources', label: 'Resources', icon: <Upload size={17} /> },
     { id: 'elements', label: 'Elements', icon: <Boxes size={17} /> },
     { id: 'animations', label: 'Animations', icon: <Sparkles size={17} /> },
     { id: 'transitions', label: 'Transitions', icon: <GalleryHorizontalEnd size={17} /> },
     { id: 'shapes', label: 'Shapes', icon: <Shapes size={17} /> },
     { id: 'diagrams', label: 'Smart Diagram', icon: <Network size={17} /> },
-    { id: 'zoom', label: 'Zoom navigation', icon: <Focus size={17} /> },
+    { id: 'drawing', label: 'Drawing', icon: <Paintbrush size={17} /> },
   ] as const;
   const toggleStudioTool = (tool: (typeof studioTools)[number]['id']) => {
     setPanel(tool);
@@ -2351,13 +2711,31 @@ export default function TeachingStudioPage() {
       case 'home':
         return [
           {
+            id: 'clipboard',
+            label: 'Clipboard',
+            content: (
+              <StudioClipboardGroup
+                canPaste={!editorReadOnly && editorClipboard.length > 0 && Boolean(selectedScreen)}
+                canCopy={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
+                canCut={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
+                formatPainterActive={Boolean(formatPainter)}
+                formatPainterLocked={formatPainter?.persistent === true}
+                availablePasteModes={studioPasteModesForElements(editorClipboard)}
+                onPaste={pasteClipboard}
+                onCopy={copySelectedElements}
+                onCut={cutSelectedElements}
+                onFormatPainter={toggleFormatPainter}
+              />
+            ),
+          },
+          {
             id: 'history', label: 'History', commands: [
               { id: 'go-back', label: 'Back', icon: <ArrowLeft size={17} />, onExecute: () => void leaveEditor() },
               { id: 'undo', label: 'Undo', icon: <Undo2 size={17} />, disabled: editorReadOnly || elementPast.length === 0, onExecute: undoElementChange },
               { id: 'redo', label: 'Redo', icon: <Redo2 size={17} />, disabled: editorReadOnly || elementFuture.length === 0, onExecute: redoElementChange },
-              { id: 'save-now', label: savingScreen ? 'Saving' : 'Save', icon: savingScreen ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />, disabled: editorReadOnly || !hasUnsavedChanges || savingScreen, onExecute: () => void saveScreenDraft('manual') },
+              { id: 'save-now', label: 'Save', icon: savingScreen ? <LoaderCircle size={17} className="animate-spin" aria-label="Saving" /> : <Save size={17} />, disabled: editorReadOnly || !hasUnsavedChanges || savingScreen, onExecute: () => void saveScreenDraft('manual') },
             ],
-            content: <span className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`}>{saveStatus === 'saving' ? <LoaderCircle size={13} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={13} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={13} className="text-amber-700" /> : <Cloud size={13} />}<span>{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span></span>,
+            content: <span className="inline-flex h-8 w-20 shrink-0 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`}>{saveStatus === 'saving' ? <LoaderCircle size={13} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={13} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={13} className="text-amber-700" /> : <Cloud size={13} />}<span className="w-11 text-center">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span></span>,
           },
           {
             id: 'screen', label: 'Screen', commands: [
@@ -2365,7 +2743,7 @@ export default function TeachingStudioPage() {
               { id: 'screen-metadata', label: 'Metadata', icon: <SlidersHorizontal size={17} />, disabled: editorReadOnly || !selectedScreenId, onExecute: () => void openScreenMetadata() },
               { id: 'rename-screen', label: 'Rename', icon: <Pencil size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => void openRenameScreen() },
               { id: 'delete-screen', label: 'Delete', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen, onExecute: () => void requestScreenAction('delete-screen') },
-              { id: 'edit-layout', label: 'Edit Layout', icon: <LayoutTemplate size={17} />, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => { if (!selectedScreen?.layout_id) return; setPanel('layouts'); setRightPanelOpen(true); setLayoutEditRequest({ layoutId: selectedScreen.layout_id, requestId: Date.now() }); } },
+              { id: 'edit-layout', label: 'Edit Layout', icon: <LayoutTemplate size={17} />, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => { if (!selectedScreen?.layout_id) return; setLayoutGalleryOpen(true); setLayoutEditRequest({ layoutId: selectedScreen.layout_id, requestId: Date.now() }); } },
               { id: 'remove-layout', label: 'Remove Layout', icon: <Unlink size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => void requestScreenAction('remove-layout') },
             ],
           },
@@ -2373,6 +2751,8 @@ export default function TeachingStudioPage() {
             id: 'selection', label: 'Selection', commands: [
               { id: 'open-layers', label: 'Layers', icon: <ListOrdered size={17} />, disabled: !selectedScreen, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
               { id: 'open-elements', label: 'Properties', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('elements'), active: rightPanelOpen && panel === 'elements' },
+              { id: 'edit-hyperlink', label: 'Link', icon: <Link2 size={17} />, disabled: editorReadOnly || !selectedElement, onExecute: () => window.dispatchEvent(new Event('studio-open-hyperlink')) },
+              { id: 'crop-fit-media', label: 'Crop & Fit', icon: <Focus size={17} />, disabled: editorReadOnly || !selectedElement || !['image', 'animation', 'video'].includes(selectedResourceType), onExecute: () => window.dispatchEvent(new Event('studio-open-crop-fit')) },
               { id: 'group-elements-home', label: 'Group', icon: <Boxes size={17} />, disabled: editorReadOnly || selectedElementIds.length < 2, onExecute: groupSelectedElements },
               { id: 'ungroup-elements-home', label: 'Ungroup', icon: <Unlink size={17} />, disabled: editorReadOnly || !selectedHasGroup, onExecute: ungroupSelectedElements },
             ],
@@ -2389,13 +2769,32 @@ export default function TeachingStudioPage() {
               { id: 'insert-table', label: 'Table', icon: <Grid3X3 size={17} />, disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id), active: tablePickerOpen, onExecute: openTablePicker },
             ],
           },
-          { id: 'insert-media', label: 'Media', commands: [
-              { id: 'insert-resource', label: 'Resources', icon: <Upload size={17} />, onExecute: openRibbonTool('resources'), active: rightPanelOpen && panel === 'resources' },
-          ] },
+          { id: 'insert-media', label: 'Resources', content: (
+            <StudioInsertResourceButtons
+              disabled={editorReadOnly || !selectedScreen}
+              onUpload={(type) => {
+                setInsertResourceType(type);
+                setResourceUploadOpen(true);
+              }}
+              onFromResource={(type) => {
+                setInsertResourceType(type);
+                setInsertResourceFilter(type);
+                setPanel('insert-resources');
+                setRightPanelOpen(true);
+              }}
+            />
+          ), launcher: {
+            label: 'Open Resources',
+            onExecute: () => {
+              setInsertResourceFilter(null);
+              setPanel('insert-resources');
+              setRightPanelOpen(true);
+            },
+          } },
           { id: 'insert-illustrations', label: 'Illustrations', commands: [
-              { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: openRibbonTool('diagrams'), active: rightPanelOpen && panel === 'diagrams' },
-              { id: 'insert-zoom', label: 'Zoom', icon: <Focus size={17} />, onExecute: openRibbonTool('zoom'), active: rightPanelOpen && panel === 'zoom' },
-          ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div> },
+              { id: 'discover-assets', label: 'Discover Assets', icon: <Sparkles size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => setAssetCatalogOpen(true) },
+              { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: () => setDiagramChooserOpen(true), active: diagramChooserOpen },
+          ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes and Zoom"><div className="flex items-center gap-0.5" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div><StudioZoomMenu disabled={editorReadOnly || !selectedScreen} active={Boolean(zoomDialogMode)} onSelect={setZoomDialogMode} /></div> },
         ];
       case 'equation':
         return [
@@ -2426,6 +2825,7 @@ export default function TeachingStudioPage() {
                 readOnly={editorReadOnly}
                 onDuplicate={duplicateElement}
                 onRemove={removeElement}
+                preferInlineControl={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type) && inlineEquationCaretRef.current?.elementId === selectedElement.id)}
                 onRequestControl={(action, location) => {
                   const caret = inlineEquationCaretRef.current;
                   const textTarget = selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type)
@@ -2463,42 +2863,34 @@ export default function TeachingStudioPage() {
       case 'design':
         return [
           {
-            id: 'screen-design', label: 'Screen', commands: [
-              { id: 'screen-layout', label: 'Layouts', icon: <LayoutTemplate size={17} />, onExecute: openRibbonTool('layouts'), active: rightPanelOpen && panel === 'layouts' },
-            ],
+            id: 'screen-layouts', label: 'Layouts', content: <StudioLayoutRibbon layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} disabled={editorReadOnly || !selectedScreen} onApply={requestLayoutApplication} onMore={() => setLayoutGalleryOpen(true)} />,
           },
-          { id: 'screen-background', label: 'Background', content: <label className="relative inline-flex h-9 cursor-pointer items-center gap-1 rounded-lg border px-2 text-[10px] font-semibold"><span className="h-5 w-5 rounded border" style={{ backgroundColor: String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff') }} />Background<input type="color" value={String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')} disabled={editorReadOnly || !selectedScreen} onChange={(event) => setScreenBackgroundColor(event.target.value)} className="absolute inset-0 opacity-0" aria-label="Screen background colour" /></label> },
+          { id: 'screen-background', label: 'Background', content: <StudioColourMenu label="Screen background colour" noColourLabel="No Fill" value={String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')} disabled={editorReadOnly || !selectedScreen} onChange={setScreenBackgroundColor} /> },
         ];
       case 'transitions':
         return [
-          { id: 'transition-preview', label: 'Preview', commands: [
-            { id: 'transition-preview-more', label: 'Preview', icon: <Eye size={17} />, disabled: !selectedScreen, onExecute: openRibbonTool('transitions') },
-          ] },
-          { id: 'transition-gallery', label: 'Transition to This Screen', commands: [
-            ...[['none', 'None'], ['fade', 'Fade'], ['push', 'Push'], ['wipe', 'Wipe'], ['split', 'Split'], ['morph', 'Morph']].map(([effect, label]) => ({ id: `transition-${effect}`, label, icon: <GalleryHorizontalEnd size={17} />, disabled: !selectedScreen, active: String((selectedScreen?.screen_settings_json?.transition as Record<string, unknown> | undefined)?.effect || 'none') === effect, onExecute: () => applyQuickTransition(effect) })),
-            { id: 'transition-more', label: 'More', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('transitions'), active: rightPanelOpen && panel === 'transitions' },
-          ] },
+          { id: 'transition-controls', label: 'Transition to This Screen', content: (
+            <StudioTransitionRibbon
+              settings={selectedScreen?.screen_settings_json ?? null}
+              disabled={editorReadOnly || !selectedScreen}
+              screenCount={screenList.screens.length}
+              onChange={setScreenTransition}
+              onApplyToAll={applyTransitionToAllScreens}
+            />
+          ) },
         ];
       case 'animations':
         return [
-          { id: 'animation-preview', label: 'Preview', commands: [
-            { id: 'preview-animation', label: 'Preview', icon: <Eye size={17} />, disabled: !selectedElement || selectedAnimationEffects.length === 0, onExecute: () => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() }) },
-          ] },
+          { id: 'animation-preview', label: 'Preview', content: <button type="button" title="Preview animation" aria-label="Preview animation" disabled={!selectedElement || selectedAnimationEffects.length === 0} onClick={() => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() })} className="grid h-10 w-10 place-items-center rounded-lg text-blue-900 hover:bg-blue-50 disabled:opacity-35"><Eye size={18}/></button> },
           {
-            id: 'animation-gallery', label: 'Animation', commands: [
-              ...[['none', 'None'], ['appear', 'Appear'], ['fade', 'Fade'], ['fly-in', 'Fly In'], ['float-in', 'Float In'], ['split', 'Split'], ['wipe', 'Wipe'], ['zoom', 'Zoom']].map(([effect, label]) => ({ id: `animation-${effect}`, label, icon: <Sparkles size={17} />, disabled: !selectedElement, active: String(selectedAnimationEffects[0]?.effect || 'none') === effect, onExecute: () => effect === 'none' ? selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { effect: 'none', effects: [] } } }) : applyQuickAnimation(effect) })),
-            ],
+            id: 'animation-gallery', label: 'Animation', content: <StudioAnimationRibbonGallery activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')} disabled={!selectedElement || editorReadOnly} onSelect={(effect) => applyQuickAnimation(effect)} onRemove={removeSelectedAnimation} />,
           },
-          { id: 'animation-effect-options', label: 'Effect Options', content: <select aria-label="Animation effect direction" disabled={!selectedAnimationEffects[0]} value={String(selectedAnimationEffects[0]?.direction || 'default')} onChange={(event) => updateSelectedAnimationEffect({ direction: event.target.value })} className="h-9 w-24 rounded-lg border px-1 text-[10px]"><option value="default">Default</option><option value="left">From left</option><option value="right">From right</option><option value="top">From top</option><option value="bottom">From bottom</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select> },
+          { id: 'animation-effect-options', label: 'Effect Options', content: <div className="grid gap-0.5"><select aria-label="Animation effect direction" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.direction || 'default')} onChange={(event) => updateSelectedAnimationEffect({ direction: event.target.value })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[9px] outline-none hover:bg-slate-100"><option value="default">Default</option><option value="left">From left</option><option value="right">From right</option><option value="top">From top</option><option value="bottom">From bottom</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select><select aria-label="Animate text" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.textSequence || 'object')} onChange={(event) => updateSelectedAnimationEffect({ textSequence: event.target.value })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[9px] outline-none hover:bg-slate-100"><option value="object">As object</option><option value="paragraph">Paragraph</option><option value="word">By word</option><option value="letter">By letter</option></select>{activeSelectedAnimationEffect?.effect === 'color-pulse' ? <input type="color" aria-label="Colour Pulse colour" value={String(activeSelectedAnimationEffect.color || '#2563eb')} onChange={(event) => updateSelectedAnimationEffect({ color: event.target.value })} className="h-5 w-24 rounded p-0.5"/> : null}</div> },
           { id: 'advanced-animation', label: 'Advanced Animation', commands: [
-            { id: 'add-animation', label: 'Add Animation', icon: <Plus size={17} />, disabled: !selectedElement, onExecute: () => applyQuickAnimation('fade', true) },
             { id: 'animation-pane', label: 'Animation Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, active: rightPanelOpen && panel === 'animations', onExecute: openAnimationPane },
-          ], content: <select aria-label="Animation trigger" disabled={!selectedAnimationEffects[0]} value={String(selectedAnimationEffects[0]?.triggerElementId || '')} onChange={(event) => updateSelectedAnimationEffect({ triggerElementId: event.target.value || undefined, start: event.target.value ? 'trigger' : 'on-click' })} className="h-9 w-20 rounded-lg border px-1 text-[10px]"><option value="">Trigger</option>{selectedScreen?.elements.filter((element) => element.id !== selectedElementId).map((element, index) => <option key={element.id} value={element.id}>On {String(element.content.layerName || element.content.text || `${element.type} ${index + 1}`).slice(0, 20)}</option>)}</select> },
-          { id: 'animation-timing', label: 'Timing', content: <div className="flex items-center gap-1"><select aria-label="Animation start" disabled={!selectedAnimationEffects[0]} value={String(selectedAnimationEffects[0]?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="h-9 w-24 rounded-lg border px-1 text-[10px]"><option value="on-click">On Click</option><option value="with-previous">With Previous</option><option value="after-previous">After Previous</option><option value="trigger">Trigger</option></select><label className="grid text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!selectedAnimationEffects[0]} value={Number(selectedAnimationEffects[0]?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label><label className="grid text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!selectedAnimationEffects[0]} value={Number(selectedAnimationEffects[0]?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> },
-          { id: 'animation-reorder', label: 'Reorder Animation', commands: [
-            { id: 'animation-earlier', label: 'Move Earlier', icon: <ChevronUp size={17} />, disabled: selectedAnimationEffects.length < 2, onExecute: () => moveSelectedAnimation(-1, selectedAnimationEffects.length - 1) },
-            { id: 'animation-later', label: 'Move Later', icon: <ChevronDown size={17} />, disabled: selectedAnimationEffects.length < 2, onExecute: () => moveSelectedAnimation(1) },
-          ] },
+          ], content: <div className="flex items-center gap-1"><StudioAnimationMenu label="Add Animation" addMode disabled={!selectedElement || editorReadOnly} onSelect={(effect) => applyQuickAnimation(effect, true)}/><label title={activeSelectedAnimationEffect?.triggerElementId ? 'Change animation trigger' : 'Choose animation trigger'} className="relative flex h-10 w-14 cursor-pointer flex-col items-center justify-center rounded-lg text-[9px] font-semibold text-slate-700 hover:bg-slate-50"><MousePointer2 size={16}/><span>Trigger</span><select aria-label="Animation trigger" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.triggerElementId || '')} onChange={(event) => updateSelectedAnimationEffect({ triggerElementId: event.target.value || undefined, start: event.target.value ? 'trigger' : 'on-click' })} className="absolute inset-0 cursor-pointer opacity-0"><option value="">No trigger</option>{selectedScreen?.elements.filter((element) => element.id !== selectedElementId).map((element, index) => <option key={element.id} value={element.id}>On {String(element.content.layerName || element.content.text || `${element.type} ${index + 1}`).slice(0, 20)}</option>)}</select></label></div> },
+          { id: 'animation-timing', label: 'Timing', content: <div className="grid gap-0.5"><select aria-label="Animation start" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="h-5 w-28 rounded border px-1 text-[9px]"><option value="on-click">Start: On Click</option><option value="with-previous">Start: With Previous</option><option value="after-previous">Start: After Previous</option><option value="trigger">Start: Trigger</option></select><label className="flex items-center justify-between gap-1 text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Repeat<select aria-label="Animation repeat" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.repeat) || 1} onChange={(event) => updateSelectedAnimationEffect({ repeat: Number(event.target.value) })} className="h-5 w-14 rounded border px-1 text-[9px]"><option value="1">Once</option><option value="2">2x</option><option value="3">3x</option><option value="999">Until click</option></select></label></div> },
+          { id: 'animation-reorder', label: 'Reorder Animation', content: <div className="grid gap-0.5"><button type="button" disabled={selectedAnimationEffectIndex <= 0} onClick={() => moveSelectedAnimation(-1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronUp size={13}/>Move Earlier</button><button type="button" disabled={selectedAnimationEffectIndex >= selectedAnimationEffects.length - 1} onClick={() => moveSelectedAnimation(1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronDown size={13}/>Move Later</button></div> },
         ];
       case 'present':
         return [
@@ -2525,14 +2917,13 @@ export default function TeachingStudioPage() {
           { id: 'view-show', label: 'Show', commands: [
             { id: 'view-guides', label: 'Guides', icon: <Grid3X3 size={17} />, disabled: !selectedLayout, active: showCanvasGuides, onExecute: () => setShowCanvasGuides((visible) => !visible) },
             { id: 'view-layers', label: 'Selection Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
+            { id: 'view-script', label: 'Screen Script', icon: <FileText size={17} />, disabled: !selectedScreen, active: scriptOverlayOpen, onExecute: openScreenScript },
           ] },
           { id: 'view-window', label: 'Window', commands: [
             { id: 'view-refresh', label: 'Refresh', icon: <RefreshCw size={17} className={loadingScreens ? 'animate-spin' : ''} />, disabled: loadingScreens, onExecute: () => void refreshScreens() },
             { id: 'view-fullscreen', label: editorFocusMode ? 'Exit Fullscreen' : 'Fullscreen', icon: editorFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />, active: editorFocusMode, onExecute: () => void toggleEditorFocusMode() },
           ] },
         ];
-      case 'text-format':
-        return elementCommands('elements');
       case 'picture-format':
         return [
           { id: 'picture-adjust', label: 'Adjust', commands: [
@@ -2548,8 +2939,8 @@ export default function TeachingStudioPage() {
             { id: 'picture-rotate', label: 'Rotate 90°', icon: <RefreshCw size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementRotation(selectedElement.id, (Number(selectedElement.position.rotation) || 0) + 90) },
           ] },
           { id: 'picture-size', label: 'Size', commands: [
-            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0 } }) },
-            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0 } }) },
+            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0, cropped: false } }) },
+            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0, cropped: true } }) },
             { id: 'picture-crop', label: 'Crop', icon: <Focus size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && setCropRequest({ elementId: selectedElement.id, token: Date.now() }) },
           ], content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="Picture width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="Picture height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
         ];
@@ -2598,7 +2989,36 @@ export default function TeachingStudioPage() {
           { id: 'table-alignment', label: 'Alignment', content: <div className="flex items-center gap-1 px-1"><select aria-label="Cell horizontal alignment" value={String(selectedElement?.content.alignment || 'left')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ alignment: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select><select aria-label="Cell vertical alignment" value={String(selectedElement?.content.verticalAlignment || 'middle')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ verticalAlignment: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select><label className="grid text-[9px]">Margin<input aria-label="Cell margin" type="number" min="0" max="40" value={Number(selectedElement?.content.cellMargin) || 0} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ cellMargin: Number(event.target.value) })} className="h-6 w-12 rounded border px-1" /></label></div> },
         ];
       case 'diagram-design':
-        return elementCommands('diagrams');
+        return [
+          { id: 'diagram-create', label: 'Create Graphic', commands: [
+            { id: 'diagram-add-after', label: 'Add Shape', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('after') },
+            { id: 'diagram-promote', label: 'Promote', icon: <ChevronLeft size={17}/>, disabled: !selectedDiagramNode || selectedDiagramNode.level === 0, onExecute: () => changeSelectedDiagramNodeLevel(-1) },
+            { id: 'diagram-demote', label: 'Demote', icon: <ChevronRight size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id, onExecute: () => changeSelectedDiagramNodeLevel(1) },
+            { id: 'diagram-move-before', label: 'Move Before', icon: <ChevronUp size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id, onExecute: () => moveSelectedDiagramNode(-1) },
+            { id: 'diagram-move-after', label: 'Move After', icon: <ChevronDown size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes.at(-1)?.id === selectedDiagramNode.id, onExecute: () => moveSelectedDiagramNode(1) },
+            { id: 'diagram-text-pane', label: 'Text Pane', icon: <FileText size={17}/>, disabled: !selectedDiagramContent, onExecute: () => setDiagramTextPaneOpen((open) => !open), active: diagramTextPaneOpen },
+            { id: 'diagram-direction', label: 'Right to Left', icon: <RefreshCw size={17}/>, disabled: !selectedDiagramContent, onExecute: () => updateSelectedDiagram({ direction: selectedDiagramContent?.direction === 'rtl' ? 'ltr' : 'rtl' }) },
+          ] },
+          { id: 'diagram-layouts', label: 'Layouts', content: <div className="flex items-center gap-1 px-1">{SMART_DIAGRAM_LAYOUTS.filter((layout) => layout.category === selectedDiagramContent?.category).slice(0, 5).map((layout) => <button key={layout.id} type="button" title={layout.name} onMouseEnter={() => setDiagramLivePreview({ layout: layout.id, category: layout.category })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ layout: layout.id, category: layout.category })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ layout: layout.id, category: layout.category }); }} className={`h-11 w-14 overflow-hidden rounded border bg-white p-0.5 ${selectedDiagramContent?.layout === layout.id ? 'border-blue-700 ring-1 ring-blue-300' : 'border-slate-200 hover:border-blue-400'}`}><StudioDiagramThumbnail layout={layout}/></button>)}<button type="button" title="More diagram layouts" onClick={() => setDiagramLayoutGalleryOpen(true)} className="grid h-11 w-6 place-items-center rounded border border-slate-200 hover:bg-blue-50"><ChevronDown size={14}/></button></div> },
+          { id: 'diagram-colours', label: 'Change Colours', content: <div className="flex items-center gap-1 px-1">{SMART_DIAGRAM_THEMES.map((theme) => <button key={theme.id} type="button" title={theme.name} onMouseEnter={() => setDiagramLivePreview({ themeId: theme.id })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ themeId: theme.id })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ themeId: theme.id }); }} className={`flex h-9 w-9 overflow-hidden rounded-full border-2 ${selectedDiagramContent?.themeId === theme.id ? 'border-blue-800' : 'border-white ring-1 ring-slate-300'}`}>{theme.colors.slice(0, 3).map((colour) => <span key={colour} className="h-full flex-1" style={{ backgroundColor: colour }}/>)}</button>)}</div> },
+          { id: 'diagram-styles', label: 'Diagram Styles', content: <div className="flex gap-1 px-1">{(['flat', 'outline', 'soft', 'polished', 'bevel'] as const).map((style) => <button key={style} type="button" onMouseEnter={() => setDiagramLivePreview({ styleId: style })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ styleId: style })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ styleId: style }); }} className={`h-9 rounded-lg border px-2 text-[9px] font-semibold capitalize ${selectedDiagramContent?.styleId === style ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>{style}</button>)}</div> },
+          { id: 'diagram-reset', label: 'Reset', commands: [
+            { id: 'diagram-reset-graphic', label: 'Reset Graphic', icon: <RefreshCw size={17}/>, disabled: !selectedDiagramContent, onExecute: () => updateSelectedDiagram({ themeId: 'spectropy', styleId: 'soft', connectorStyle: 'straight', nodes: selectedDiagramContent?.nodes.map((node) => ({ id: node.id, text: node.text, level: node.level, parentId: node.parentId, role: node.role, icon: node.icon })) }) },
+            { id: 'diagram-convert', label: 'Convert', icon: <Shapes size={17}/>, disabled: !selectedElement, onExecute: () => selectedElement && convertDiagramToShapes(selectedElement.id) },
+          ] },
+        ];
+      case 'diagram-format':
+        return [
+          { id: 'diagram-node', label: 'Selected Shape', commands: [
+            { id: 'diagram-add-before', label: 'Add Before', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('before') },
+            { id: 'diagram-add-child', label: 'Add Below', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('child') },
+            { id: 'diagram-add-assistant', label: 'Assistant', icon: <Plus size={17}/>, disabled: selectedDiagramContent?.category !== 'hierarchy', onExecute: () => addSelectedDiagramNode('assistant') },
+          ] },
+          { id: 'diagram-node-colours', label: 'Shape & Text', content: <div className="flex items-center gap-1 px-1"><label className="relative grid h-9 w-9 place-items-center rounded border" title="Node fill"><span className="h-5 w-5 rounded" style={{ backgroundColor: selectedDiagramNode?.fill || '#1d4ed8' }}/><input type="color" value={selectedDiagramNode?.fill || '#1d4ed8'} disabled={!selectedDiagramNode} onChange={(event) => updateSelectedDiagramNode({ fill: event.target.value })} className="absolute inset-0 opacity-0" aria-label="Diagram node fill"/></label><label className="relative grid h-9 w-9 place-items-center rounded border" title="Node text colour"><span className="text-base font-black" style={{ color: selectedDiagramNode?.textColor || '#ffffff' }}>A</span><input type="color" value={selectedDiagramNode?.textColor || '#ffffff'} disabled={!selectedDiagramNode} onChange={(event) => updateSelectedDiagramNode({ textColor: event.target.value })} className="absolute inset-0 opacity-0" aria-label="Diagram node text colour"/></label></div> },
+          { id: 'diagram-connectors', label: 'Connectors', content: <select aria-label="Diagram connector style" value={selectedDiagramContent?.connectorStyle || 'straight'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ connectorStyle: event.target.value as SmartDiagramContent['connectorStyle'] })} className="mx-1 h-9 rounded border px-2 text-[10px]"><option value="straight">Straight</option><option value="elbow">Elbow</option><option value="curve">Curved</option><option value="none">None</option></select> },
+          { id: 'diagram-animation', label: 'Diagram Animation', content: <div className="flex gap-1 px-1"><select aria-label="Diagram animation mode" value={selectedDiagramContent?.revealMode || 'as-one-object'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ revealMode: event.target.value as SmartDiagramContent['revealMode'] })} className="h-9 w-28 rounded border px-1 text-[9px]"><option value="as-one-object">As one object</option><option value="all-at-once">All at once</option><option value="one-by-one">One by one</option><option value="level-at-once">Level at once</option><option value="level-one-by-one">Level one by one</option></select><button type="button" disabled={!selectedDiagramContent} onClick={() => updateSelectedDiagram({ reverseAnimation: !selectedDiagramContent?.reverseAnimation })} className={`h-9 rounded border px-2 text-[9px] font-semibold ${selectedDiagramContent?.reverseAnimation ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>Reverse</button></div> },
+          { id: 'diagram-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Diagram accessibility description" type="text" value={selectedDiagramContent?.altText || ''} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ altText: event.target.value })} className="h-8 w-32 rounded border px-1 text-[10px]"/></label> },
+        ];
       case '3d-model':
         return [
           { id: 'model-adjust', label: 'Adjust', commands: [
@@ -2778,9 +3198,9 @@ export default function TeachingStudioPage() {
                 onClick={() => void requestScreenAction('delete-screen')}
               />
               <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
-                <span className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`} aria-live="polite">
+                <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`} aria-live="polite">
                   {saveStatus === 'saving' ? <LoaderCircle size={14} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={14} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={14} className="text-amber-700" /> : <Cloud size={14} />}
-                  <span className="hidden xl:inline">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span>
+                  <span className="hidden w-11 text-center xl:inline">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span>
                 </span>
                 <StudioIconButton label="Back" icon={<ArrowLeft size={15} />} onClick={() => void leaveEditor()} />
                 <StudioIconButton label={loadingScreens ? 'Refreshing Screens' : 'Refresh Screens'} icon={<RefreshCw size={15} className={loadingScreens ? 'animate-spin' : ''} />} onClick={() => void refreshScreens()} disabled={loadingScreens} />
@@ -2888,6 +3308,7 @@ export default function TeachingStudioPage() {
           groups={ribbonGroups}
           onTabChange={(tab) => {
             setActiveRibbonTab(tab);
+            if (tab === 'transitions' && panel === 'transitions') setRightPanelOpen(false);
             if (tab === 'equation') setRightPanelOpen(false);
           }}
           collapsed={ribbonCollapsed}
@@ -2918,7 +3339,7 @@ export default function TeachingStudioPage() {
           </div>
         )}
         <div
-          className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel has-compact-right-panel' : ''} ${toolPanelOpen && panel === 'layers' ? 'has-layers-panel' : ''}`}
+          className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel has-compact-right-panel' : ''} ${toolPanelOpen && panel === 'layers' ? 'has-layers-panel' : ''} ${toolPanelOpen && panel === 'animations' ? 'has-animation-panel' : ''}`}
         >
           <aside className={`studio-editor-left-panel ${leftPanelOpen ? 'is-expanded' : ''} flex min-h-0 overflow-visible`}>
             {!leftPanelOpen ? <nav aria-label="Open Screen navigation" className="flex shrink-0 items-center">
@@ -2926,19 +3347,18 @@ export default function TeachingStudioPage() {
                 type="button"
                 onClick={openScreenReorder}
                 disabled={screenList.screens.length === 0 || hasUnsavedChanges}
-                title={hasUnsavedChanges ? 'Wait for AutoSave before opening Screens' : 'Open Screens and Script'}
-                aria-label="Open Screens and Script"
+                title={hasUnsavedChanges ? 'Wait for AutoSave before opening Screens' : 'Open Screens'}
+                aria-label="Open Screens"
                 aria-expanded={false}
                 className="inline-flex h-9 w-8 items-center justify-center rounded-r-lg border border-l-0 border-white/80 bg-white/90 text-slate-700 shadow-lg backdrop-blur hover:bg-white disabled:opacity-35"
               >
                 <ListOrdered size={16} />
               </button>
             </nav> : null}
-              {leftPanelOpen ? <section onPointerMove={leftPanelView === 'screens' ? moveDraggedScreen : undefined} onPointerUp={leftPanelView === 'screens' ? finishScreenDrag : undefined} onPointerCancel={leftPanelView === 'screens' ? finishScreenDrag : undefined} className="studio-editor-left-content is-open flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2">
-                <div className="mb-1.5 flex h-8 shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-0.5" role="tablist" aria-label="Screen navigation views">
-                  <button type="button" role="tab" aria-selected={leftPanelView === 'screens'} onClick={openScreenReorder} disabled={screenList.screens.length === 0 || (hasUnsavedChanges && leftPanelView !== 'screens')} className={`inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-[10px] font-semibold ${leftPanelView === 'screens' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}><ListOrdered size={13} />Screens</button>
-                  <button type="button" role="tab" aria-selected={leftPanelView === 'script'} onClick={openScreenScript} className={`inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-[10px] font-semibold ${leftPanelView === 'script' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}><FileText size={13} />Script</button>
-                  <button type="button" title="Close Screens and Script" aria-label="Close Screens and Script" onClick={() => setLeftPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white hover:text-slate-800"><X size={13} /></button>
+              {leftPanelOpen ? <section onPointerMove={moveDraggedScreen} onPointerUp={finishScreenDrag} onPointerCancel={finishScreenDrag} className="studio-editor-left-content is-open flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2">
+                <div className="mb-1.5 flex h-8 shrink-0 items-center justify-between rounded-lg bg-slate-100 px-2" aria-label="Screen navigation">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-950"><ListOrdered size={13} />Screens</span>
+                  <button type="button" title="Close Screens" aria-label="Close Screens" onClick={() => setLeftPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white hover:text-slate-800"><X size={13} /></button>
                 </div>
                 <label className="relative mb-2 flex h-9 shrink-0 items-center rounded-lg bg-blue-900 text-[11px] font-semibold text-white">
                   <span className="pl-2">Session</span>
@@ -2947,8 +3367,7 @@ export default function TeachingStudioPage() {
                   </select>
                   <ChevronDown size={13} className="pointer-events-none absolute right-2" />
                 </label>
-                {leftPanelView === 'screens' ? (
-                  <>
+                <>
                     <div className="flex shrink-0 items-center justify-between gap-2">
                       <div><h2 className="font-semibold">Screens</h2><p className="text-[11px] text-slate-500">Select or drag to reorder</p></div>
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{screenList.screens.length}</span>
@@ -2972,34 +3391,21 @@ export default function TeachingStudioPage() {
                       })}
                     </div>
                     {reorderingScreens && <p className="mt-2 text-center text-xs font-semibold text-blue-800">Saving Screen order…</p>}
-                  </>
-                ) : <>
-                  <h2 className="shrink-0 font-semibold">Screen Script</h2>
-                  {(() => {
-                  const entries = screenScriptEntries(
-                    scripts.find((row) => row.screen_id === selectedScreenId)?.content_json,
-                  );
-                  return entries.length > 0 ? (
-                    <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                      {entries.map(([key, value]) => (
-                        <div key={key} className="rounded-lg bg-slate-50 p-2">
-                          <p className="text-[10px] font-bold uppercase text-slate-500">
-                            {key.replaceAll('_', ' ')}
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap text-xs"><StudioScreenScriptMath text={value || '—'} /></p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 min-h-0 flex-1 overflow-y-auto text-xs text-slate-500">
-                      No saved script for this Screen.
-                    </p>
-                  );
-                  })()}
-                </>}
+                </>
               </section> : null}
           </aside>
-          <main className="studio-editor-canvas flex min-h-0 flex-col overflow-hidden">
+          <main
+            className="studio-editor-canvas flex min-h-0 flex-col overflow-hidden"
+            onContextMenu={(event) => {
+              const target = (event.target as HTMLElement).closest<HTMLElement>('[data-element-id]');
+              const elementId = target?.dataset.elementId;
+              if (!elementId) return;
+              event.preventDefault();
+              setSelectedElementId(elementId);
+              setSelectedElementIds((current) => current.includes(elementId) ? current : [elementId]);
+              setElementContextMenu({ elementId, x: event.clientX, y: event.clientY });
+            }}
+          >
             <div className="min-h-0 flex-1">
               <BlankScreenCanvas
                 screen={selectedScreen}
@@ -3013,11 +3419,17 @@ export default function TeachingStudioPage() {
                 model3DModeRequest={model3DModeRequest}
                 selectedElementId={selectedElementId}
                 selectedElementIds={selectedElementIds}
+                selectedDiagramNodeId={selectedDiagramNodeId}
+                diagramLivePreview={diagramLivePreview}
+                diagramTextPaneOpen={diagramTextPaneOpen}
+                onCloseDiagramTextPane={() => setDiagramTextPaneOpen(false)}
                 selectedSlotId={selectedLayoutSlotId}
                 onSelectElement={selectElementAndOpenControls}
+                onSelectDiagramNode={(elementId, nodeId) => { setSelectedElementId(elementId); setSelectedDiagramNodeId(nodeId); }}
                 onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
                 onClearElementSelection={() => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
                 onChangeElement={editorReadOnly ? undefined : updateElement}
+                onCommitElementChange={editorReadOnly ? undefined : updateElementPreservingSelection}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementRotation={editorReadOnly ? undefined : changeElementRotation}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
@@ -3046,29 +3458,7 @@ export default function TeachingStudioPage() {
                   delete content.richTextHtml;
                   updateElement({ ...element, content: { ...content, text: `${text.slice(0, start)}\\(${latex}\\)${text.slice(end)}` } });
                 }}
-                onDuplicateElement={editorReadOnly ? undefined : duplicateElement}
                 onRemoveElement={editorReadOnly ? undefined : removeElement}
-                onOpenTool={
-                  editorReadOnly
-                    ? undefined
-                    : (tool) => {
-                        if (tool === 'math') {
-                          setActiveRibbonTab('equation');
-                          setRightPanelOpen(false);
-                          return;
-                        }
-                        if (tool === 'shapes') {
-                          setActiveRibbonTab(selectedElement?.type === 'shape' ? 'shape-format' : 'insert');
-                          return;
-                        }
-                        if (tool === 'animations') {
-                          setActiveRibbonTab('animations');
-                          return;
-                        }
-                        setPanel(tool);
-                        setRightPanelOpen(true);
-                      }
-                }
                 drawingStrokes={authoredDrawingStrokes(selectedScreen)}
                 drawingEnabled={!editorReadOnly && (activeRibbonTab === 'draw' || activeRibbonTab === 'drawing-format')}
                 drawingTool={drawingTool}
@@ -3095,6 +3485,21 @@ export default function TeachingStudioPage() {
                 onDropFiles={editorReadOnly ? undefined : addDroppedFiles}
               />
             </div>
+            {elementContextMenu ? <StudioElementContextMenu
+              position={{ x: elementContextMenu.x, y: elementContextMenu.y }}
+              canPaste={!editorReadOnly && editorClipboard.length > 0}
+              canGroup={!editorReadOnly && selectedElementIds.length > 1}
+              canUngroup={!editorReadOnly && selectedHasGroup}
+              onCut={cutSelectedElements}
+              onCopy={copySelectedElements}
+              onPaste={() => pasteClipboard('source-formatting')}
+              onDuplicate={() => duplicateElement(elementContextMenu.elementId)}
+              onDelete={() => removeElement(elementContextMenu.elementId)}
+              onGroup={groupSelectedElements}
+              onUngroup={ungroupSelectedElements}
+              onLayers={openSelectionPane}
+              onClose={() => setElementContextMenu(null)}
+            /> : null}
             {presentationActive ? (
               <div className="absolute bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-blue-200 bg-slate-950/92 p-2 text-white shadow-2xl backdrop-blur" role="toolbar" aria-label="Audience presentation controls">
                 <span className="px-2 text-xs font-bold">Presenting · {presentationDisplayName}</span>
@@ -3106,9 +3511,9 @@ export default function TeachingStudioPage() {
             ) : null}
           </main>
           {!editorReadOnly && rightPanelOpen && (
-            <aside className={`studio-editor-tools-panel ${toolPanelOpen ? 'is-expanded is-compact' : ''} ${panel === 'layers' ? 'is-layers' : ''} flex min-h-0 overflow-visible`}>
+            <aside className={`studio-editor-tools-panel ${toolPanelOpen ? 'is-expanded is-compact' : ''} ${panel === 'layers' ? 'is-layers' : ''} ${panel === 'animations' ? 'is-animation' : ''} flex min-h-0 overflow-visible`}>
               <nav aria-label="Studio tools" className="hidden">
-                {studioTools.map((tool) => (
+                {studioTools.filter((tool) => !('hidden' in tool && tool.hidden)).map((tool) => (
                   <button
                     key={tool.id}
                     type="button"
@@ -3122,23 +3527,30 @@ export default function TeachingStudioPage() {
                   </button>
                 ))}
               </nav>
-              <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain ${panel === 'layers' ? 'p-1.5' : 'p-2'} [scrollbar-gutter:stable]`}>
-                <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div>
+              <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} relative min-h-0 min-w-0 flex-1 overscroll-contain ${panel === 'animations' ? 'overflow-hidden p-2' : 'overflow-auto [scrollbar-gutter:stable]'} ${panel === 'layers' ? 'p-1.5' : panel === 'animations' ? '' : 'p-2'}`}>
+                {panel !== 'insert-resources' ? panel === 'animations' ? <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"><X size={13} /></button> : <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div> : null}
                 {panel === 'layers' && (
                   <StudioLayersPanel screen={selectedScreen} selectedElementId={selectedElementId} readOnly={editorReadOnly} onSelect={selectElementAndOpenControls} onCommit={commitElements} />
                 )}
-                {panel === 'layouts' && (
-                  <StudioLayoutGallery
-                    layouts={layouts}
-                    selectedLayoutId={selectedScreen?.layout_id ?? null}
-                    applying={applyingLayout}
-                    onApply={requestLayoutApplication}
-                    onLayoutsChanged={loadLayouts}
-                    editRequest={layoutEditRequest}
-                  />
-                )}
                 {panel === 'resources' && (
                   <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />
+                )}
+                {panel === 'insert-resources' && (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <h2 className="font-bold text-slate-900">From Resource</h2>
+                        <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-slate-100"><X size={13} /></button>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                    </div>
+                    <ResourceLibrary
+                      mode="picker"
+                      initialType={insertResourceFilter ?? ''}
+                      allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined}
+                      onPick={placeResourceDirectly}
+                    />
+                  </div>
                 )}
                 {panel === 'elements' && (
                   <StudioElementPanel
@@ -3155,15 +3567,6 @@ export default function TeachingStudioPage() {
                     availableScreens={screenList.screens}
                   />
                 )}
-                {panel === 'zoom' && sessionId && selectedScreen ? (
-                  <StudioZoomPanel
-                    sessionId={sessionId}
-                    screens={screenList.screens}
-                    currentScreenId={selectedScreen.id}
-                    disabled={editorReadOnly}
-                    onInsert={addZoomElements}
-                  />
-                ) : null}
                 {panel === 'shapes' && (
                   <StudioShapesPanel
                     screen={selectedScreen}
@@ -3193,18 +3596,27 @@ export default function TeachingStudioPage() {
                   <StudioAnimationsPanel
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
-                    onUpdate={updateElement}
                     onCommit={commitElements}
-                    onPreview={(elementId) => setAnimationPreview({ elementId, token: Date.now() })}
                     onSelectElement={selectElementAndOpenControls}
+                    onSelectAnimation={setSelectedAnimationEffectId}
                   />
                 )}
-                {panel === 'transitions' && (
-                  <StudioTransitionsPanel
-                    settings={selectedScreen?.screen_settings_json ?? null}
-                    onChange={setScreenTransition}
-                    onApplyToAll={applyTransitionToAllScreens}
-                    screenCount={screenList.screens.length}
+                {panel === 'drawing' && (
+                  <StudioDrawingPanel
+                    tool={drawingTool}
+                    color={drawingColor}
+                    width={drawingWidth}
+                    opacity={drawingOpacity}
+                    canUndo={drawingPast.length > 0}
+                    canRedo={drawingFuture.length > 0}
+                    hasDrawing={authoredDrawingStrokes(selectedScreen).length > 0}
+                    onToolChange={setDrawingTool}
+                    onColorChange={setDrawingColor}
+                    onWidthChange={setDrawingWidth}
+                    onOpacityChange={setDrawingOpacity}
+                    onUndo={undoDrawing}
+                    onRedo={redoDrawing}
+                    onClear={() => setAuthoredDrawings([])}
                   />
                 )}
               </div>
@@ -3217,7 +3629,7 @@ export default function TeachingStudioPage() {
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
             <button
               type="button"
-              onClick={() => setPanel(panel === 'layouts' ? null : 'layouts')}
+              onClick={() => setLayoutGalleryOpen(true)}
               className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"
             >
               <LayoutTemplate size={17} />
@@ -3309,15 +3721,6 @@ export default function TeachingStudioPage() {
 
           {panel && (
             <section className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              {panel === 'layouts' && (
-                <StudioLayoutGallery
-                  layouts={layouts}
-                  selectedLayoutId={selectedScreen?.layout_id ?? null}
-                  applying={applyingLayout}
-                  onApply={requestLayoutApplication}
-                  onLayoutsChanged={loadLayouts}
-                />
-              )}
               {panel === 'resources' && (
                 <>
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -3347,6 +3750,15 @@ export default function TeachingStudioPage() {
                       Select a visual, media, or simulation element to see compatible Resources.
                     </p>
                   )}
+                </>
+              )}
+              {panel === 'insert-resources' && (
+                <>
+                  <div className="mb-3">
+                    <h2 className="font-semibold">From Resource</h2>
+                    <p className="mt-1 text-sm text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                  </div>
+                  <ResourceLibrary mode="picker" initialType={insertResourceFilter ?? ''} allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined} onPick={placeResourceDirectly} />
                 </>
               )}
               {panel === 'script' && (
@@ -3741,6 +4153,149 @@ export default function TeachingStudioPage() {
               >
                 {creating ? 'Saving…' : 'Save metadata'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {scriptOverlayOpen ? (
+        <div className="fixed inset-0 z-[240] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Screen Script viewer">
+          <section className="flex h-[min(90dvh,900px)] w-[min(94vw,1280px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold text-slate-950">Screen Script</h2>
+                <p className="truncate text-xs text-slate-500">{selectedScreen ? `Screen ${selectedScreen.screen_number}: ${screenDisplayTitle(selectedScreen)}` : 'No Screen selected'}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" disabled={!sessionId} onClick={() => void studioDocumentsApi.downloadScreenScriptSource(sessionId).catch((downloadError) => toast.error(getStudioErrorMessage(downloadError)))} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-900 px-3 text-xs font-semibold text-white disabled:opacity-40"><Download size={15} />Download script</button>
+                <button type="button" onClick={() => setScriptOverlayOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Screen Script"><X size={17} /></button>
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-5">
+              {(() => {
+                const script = scripts.find((row) => row.screen_id === selectedScreenId)?.content_json;
+                if (script?.sections?.length) return <StructuredScreenScriptEditor content={script} editable={false} onChange={() => undefined} />;
+                const entries = screenScriptEntries(script);
+                if (!entries.length) return <div className="grid h-full place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500">No saved script is available for this Screen.</div>;
+                return <div className="mx-auto max-w-5xl space-y-3">{entries.map(([key, value]) => <section key={key} className="rounded-xl border border-slate-200 bg-white p-4"><h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{key.replaceAll('_', ' ')}</h3><div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800"><StudioScreenScriptMath text={value || '—'} /></div></section>)}</div>;
+              })()}
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {diagramChooserOpen ? <StudioDiagramChooser onInsert={addSmartDiagram} onClose={() => setDiagramChooserOpen(false)} /> : null}
+      {diagramLayoutGalleryOpen ? <StudioDiagramChooser onInsert={(layoutId) => { const layout = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === layoutId); if (layout) updateSelectedDiagram({ layout: layout.id, category: layout.category }); setDiagramLayoutGalleryOpen(false); }} onClose={() => setDiagramLayoutGalleryOpen(false)} /> : null}
+      {layoutGalleryOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Layouts"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setLayoutGalleryOpen(false);
+          }}
+        >
+          <section className="flex h-[min(90dvh,780px)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-slate-900">Layouts</h2>
+                <p className="truncate text-xs text-slate-500">Choose a reusable Screen layout or manage custom layouts.</p>
+              </div>
+              <button type="button" onClick={() => setLayoutGalleryOpen(false)} className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close layouts">
+                <X size={16} />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <StudioLayoutGallery
+                layouts={layouts}
+                selectedLayoutId={selectedScreen?.layout_id ?? null}
+                applying={applyingLayout}
+                onApply={(row, layout) => {
+                  requestLayoutApplication(row, layout);
+                  setLayoutGalleryOpen(false);
+                }}
+                onLayoutsChanged={loadLayouts}
+                onCancel={() => setLayoutGalleryOpen(false)}
+                editRequest={layoutEditRequest}
+              />
+            </div>
+          </section>
+        </div>
+      )}
+      {assetCatalogOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Discover Assets"
+        >
+          <div className="flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+              <div>
+                <h2 className="font-bold text-slate-900">Discover Assets</h2>
+                <p className="text-xs text-slate-500">Choose a reusable asset to add directly to the current Screen.</p>
+              </div>
+              <button type="button" onClick={() => setAssetCatalogOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Discover Assets">
+                <X size={17} />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <AssetCatalogPanel
+                mode="picker"
+                onImported={(resource) => {
+                  setAssetCatalogOpen(false);
+                  placeResourceDirectly(resource);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {zoomDialogMode && sessionId && selectedScreen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label={`${zoomDialogMode} Zoom`} onPointerDown={(event) => { if (event.target === event.currentTarget) setZoomDialogMode(null); }}>
+          <div className="relative flex h-[84dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 px-4 py-2.5">
+              <h2 className="shrink-0 text-base font-semibold text-slate-900">{zoomDialogMode === 'summary' ? 'Insert Summary Zoom' : zoomDialogMode === 'section' ? 'Insert Section Zoom' : 'Insert Screen (Slide) Zoom'}</h2>
+              <p className="min-w-0 flex-1 truncate text-xs text-slate-500">{zoomDialogMode === 'summary' ? 'Select the Sections to include in the ordered Summary Zoom.' : zoomDialogMode === 'section' ? 'Select a Section, or create one from Screens.' : 'Select the Screen to open before returning to this Screen.'}</p>
+              <button type="button" onClick={() => setZoomDialogMode(null)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Zoom window"><X size={14} /></button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+              <StudioZoomPanel
+                mode={zoomDialogMode}
+                sessionId={sessionId}
+                screens={screenList.screens}
+                currentScreenId={selectedScreen.id}
+                disabled={editorReadOnly}
+                onInsert={addZoomElements}
+                onCancel={() => setZoomDialogMode(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {resourceUploadOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Upload ${insertResourceType} Resource`}
+        >
+          <div className="relative max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setResourceUploadOpen(false)}
+              className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+              aria-label="Close Resource upload"
+            >
+              <X size={16} />
+            </button>
+            <div className="pr-8">
+              <StudioResourceInsertUpload
+                type={insertResourceType}
+                onUploaded={(resource) => {
+                  setResourceUploadOpen(false);
+                  placeResourceDirectly(resource);
+                }}
+              />
             </div>
           </div>
         </div>

@@ -800,6 +800,10 @@
   transition: padding 380ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.studio-format-painter-active .studio-editor-canvas [data-element-id] {
+  cursor: copy !important;
+}
+
 .studio-editor-viewport .studio-editor-workspace.has-left-panel .studio-editor-canvas {
   padding-left: min(288px, 38vw);
 }
@@ -814,6 +818,10 @@
 
 .studio-editor-viewport .studio-editor-workspace.has-layers-panel .studio-editor-canvas {
   padding-right: min(280px, 34vw);
+}
+
+.studio-editor-viewport .studio-editor-workspace.has-animation-panel .studio-editor-canvas {
+  padding-right: min(280px, 33vw);
 }
 
 .studio-editor-viewport .studio-editor-left-panel,
@@ -851,6 +859,10 @@
 
 .studio-editor-viewport .studio-editor-tools-panel.is-expanded.is-compact.is-layers {
   width: min(276px, 34vw);
+}
+
+.studio-editor-viewport .studio-editor-tools-panel.is-expanded.is-compact.is-animation {
+  width: min(276px, 33vw);
 }
 
 .studio-editor-viewport .studio-editor-left-panel > nav,
