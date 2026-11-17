@@ -225,6 +225,15 @@ const rangeAtSerializedOffset = (editor: HTMLElement, requestedOffset: number) =
   return range;
 };
 
+const rangeAtSerializedSpan = (editor: HTMLElement, start: number, end: number) => {
+  const startRange = rangeAtSerializedOffset(editor, start);
+  const endRange = rangeAtSerializedOffset(editor, Math.max(start, end));
+  const range = document.createRange();
+  range.setStart(startRange.startContainer, startRange.startOffset);
+  range.setEnd(endRange.startContainer, endRange.startOffset);
+  return range;
+};
+
 const unwrapElement = (element: Element) => element.replaceWith(...Array.from(element.childNodes));
 const clearDescendantFormatting = (root: ParentNode, property: string) => {
   root.querySelectorAll<HTMLElement>('*').forEach((node) => {
@@ -457,6 +466,8 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
   };
   const rangeForCommand = (editor: HTMLElement, command: StudioTextCommand) => {
     if (command.type === 'insert-equation') return rangeAtSerializedOffset(editor, command.offset);
+    if (command.type === 'apply-character-format' && command.range)
+      return rangeAtSerializedSpan(editor, command.range.start, command.range.end);
     if (savedRangeRef.current && editor.contains(savedRangeRef.current.commonAncestorContainer))
       return savedRangeRef.current.cloneRange();
     const range = document.createRange();

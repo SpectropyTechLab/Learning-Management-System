@@ -77,19 +77,19 @@ export default function StudioClipboardGroup({
 
   return (
     <>
-      <div ref={rootRef} className="relative flex h-full items-center gap-0.5 px-0.5" aria-label="Clipboard commands">
-      <div className="flex h-[3.45rem] w-[3.4rem] flex-col overflow-hidden rounded-md border border-transparent hover:border-slate-200 hover:bg-slate-50">
+      <div ref={rootRef} className="relative flex h-full w-[4.55rem] shrink-0 items-center justify-center gap-0.5 px-0.5" aria-label="Clipboard commands">
+      <div className="flex h-[3.35rem] w-[2.7rem] shrink-0 flex-col overflow-hidden rounded-md border border-transparent hover:border-slate-200 hover:bg-slate-50">
         <button type="button" disabled={!canPaste} onClick={() => choosePaste('source-formatting')} title="Paste (Ctrl+V)" className="flex flex-1 flex-col items-center justify-center text-[9px] font-semibold text-slate-700 disabled:opacity-35">
-          <ClipboardPaste size={25} className="text-amber-600" />
+          <ClipboardPaste size={22} className="text-amber-600" />
           <span>Paste</span>
         </button>
         <button type="button" disabled={!canPaste} onClick={togglePasteOptions} aria-expanded={open} aria-haspopup="menu" title="Paste options" className="flex h-4 items-center justify-center border-t border-slate-100 text-slate-600 disabled:opacity-35">
           <ChevronDown size={11} />
         </button>
       </div>
-      <div className="grid gap-0.5">
-        <button type="button" disabled={!canCut} onPointerDown={(event) => event.preventDefault()} onClick={onCut} title="Cut (Ctrl+X)" aria-label="Cut" className="grid h-[1.05rem] w-7 place-items-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-35"><Scissors size={15} /></button>
-        <button type="button" disabled={!canCopy} onPointerDown={(event) => event.preventDefault()} onClick={onCopy} title="Copy (Ctrl+C)" aria-label="Copy" className="grid h-[1.05rem] w-7 place-items-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-35"><Copy size={15} /></button>
+      <div className="grid w-6 shrink-0 gap-0.5">
+        <button type="button" disabled={!canCut} onPointerDown={(event) => event.preventDefault()} onClick={onCut} title="Cut (Ctrl+X)" aria-label="Cut" className="grid h-[1.05rem] w-6 place-items-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-35"><Scissors size={14} /></button>
+        <button type="button" disabled={!canCopy} onPointerDown={(event) => event.preventDefault()} onClick={onCopy} title="Copy (Ctrl+C)" aria-label="Copy" className="grid h-[1.05rem] w-6 place-items-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-35"><Copy size={14} /></button>
         <button
           type="button"
           disabled={!canCopy && !formatPainterActive}
@@ -106,9 +106,9 @@ export default function StudioClipboardGroup({
           title={formatPainterLocked ? 'Format Painter locked — click to stop' : 'Format Painter (double-click to keep active)'}
           aria-label="Format Painter"
           aria-pressed={formatPainterActive}
-          className={`grid h-[1.05rem] w-7 place-items-center rounded hover:bg-slate-100 disabled:opacity-35 ${formatPainterActive ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-400' : 'text-amber-700'}`}
+          className={`grid h-[1.05rem] w-6 place-items-center rounded hover:bg-slate-100 disabled:opacity-35 ${formatPainterActive ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-400' : 'text-amber-700'}`}
         >
-          <Paintbrush size={15} />
+          <Paintbrush size={14} />
         </button>
       </div>
       </div>

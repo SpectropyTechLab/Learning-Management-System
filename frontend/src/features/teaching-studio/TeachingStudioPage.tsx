@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Cloud,
   CloudOff,
+  Download,
   Eye,
   Eraser,
   Focus,
@@ -20,11 +21,13 @@ import {
   GripVertical,
   Highlighter,
   LayoutTemplate,
+  Link2,
   ListOrdered,
   LoaderCircle,
   Maximize2,
   Minimize2,
   MousePointer2,
+  Paintbrush,
   PenLine,
   Pencil as PencilIcon,
   Network,
@@ -99,6 +102,7 @@ import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
 import StudioDiagramChooser from './components/StudioDiagramChooser';
 import StudioDiagramThumbnail from './components/StudioDiagramThumbnail';
 import StudioScreenScriptMath from './components/StudioScreenScriptMath';
+import StructuredScreenScriptEditor from './components/StructuredScreenScriptEditor';
 import { clickerNavigationAction } from './components/studioClickerRuntime';
 import {
   SMART_DIAGRAM_THEMES,
@@ -290,6 +294,7 @@ export default function TeachingStudioPage() {
     sourceSelectionText?: string;
   } | null>(null);
   const formatPainterAppliedTargetRef = useRef<string | null>(null);
+  const spectropyShortcutHeldRef = useRef(false);
   const equationCanvasPointRef = useRef({ x: 600, y: 410 });
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
   const presentationWindowRef = useRef<Window | null>(null);
@@ -313,7 +318,7 @@ export default function TeachingStudioPage() {
   const [sessionContext, setSessionContext] = useState<StudioSession | null>(null);
   const [sessionOptions, setSessionOptions] = useState<StudioSession[]>([]);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [leftPanelView, setLeftPanelView] = useState<'screens' | 'script'>('screens');
+  const [scriptOverlayOpen, setScriptOverlayOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [editorFocusMode, setEditorFocusMode] = useState(false);
   const [showCanvasGuides, setShowCanvasGuides] = useState(false);
@@ -1933,9 +1938,17 @@ export default function TeachingStudioPage() {
     if (!editor || !elementRoot?.dataset.elementId || !editor.contains(range.endContainer)) return null;
     const styleTarget = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement ?? editor;
     const computed = window.getComputedStyle(styleTarget);
+    const offsetAt = (container: Node, offset: number) => {
+      const prefix = document.createRange();
+      prefix.selectNodeContents(editor);
+      prefix.setEnd(container, offset);
+      return prefix.toString().length;
+    };
     return {
       elementId: elementRoot.dataset.elementId,
       text: selection.toString(),
+      start: offsetAt(range.startContainer, range.startOffset),
+      end: offsetAt(range.endContainer, range.endOffset),
       styles: {
         'font-family': computed.fontFamily,
         'font-size': computed.fontSize,
@@ -2045,7 +2058,11 @@ export default function TeachingStudioPage() {
         const signature = `text:${target.elementId}:${target.text}`;
         if (formatPainterAppliedTargetRef.current === signature) return;
         formatPainterAppliedTargetRef.current = signature;
-        dispatchStudioTextCommand(target.elementId, { type: 'apply-character-format', styles: formatPainter.textRangeFormat });
+        dispatchStudioTextCommand(target.elementId, {
+          type: 'apply-character-format',
+          styles: formatPainter.textRangeFormat,
+          range: { start: target.start, end: target.end },
+        });
         toast.success('Character formatting applied to the selected text.');
         if (!formatPainter.persistent) setFormatPainter(null);
       }, 0);
@@ -2062,15 +2079,55 @@ export default function TeachingStudioPage() {
       target instanceof HTMLElement &&
       Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
     const commands = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target) || editorReadOnly) return;
+      const typingTarget = isTypingTarget(event.target);
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const selected = selectedScreen?.elements.find((element) => element.id === selectedElementId);
+
+      if (!typingTarget && !modifier && !event.altKey && key === 's' && !spectropyShortcutHeldRef.current) {
+        spectropyShortcutHeldRef.current = true;
+        event.preventDefault();
+        return;
+      }
+
+      if (!typingTarget && spectropyShortcutHeldRef.current && key !== 's') {
+        event.preventDefault();
+        spectropyShortcutHeldRef.current = false;
+        if (key === 'a' && selectedScreen) {
+          const ids = selectedScreen.elements.map((element) => element.id);
+          setSelectedElementIds(ids);
+          setSelectedElementId(ids.at(-1) ?? null);
+        } else if (key === 'c' && selected) copySelectedElements();
+        else if (key === 'x' && selected && !editorReadOnly) cutSelectedElements();
+        else if (key === 'v' && editorClipboard.length && selectedScreen && !editorReadOnly) pasteClipboard('source-formatting');
+        else if (key === 'd' && selected && !editorReadOnly) duplicateElement(selected.id);
+        else if (key === 'g' && selectedElementIds.length > 1 && !editorReadOnly) groupSelectedElements();
+        else if (key === 'u' && selectedHasGroup && !editorReadOnly) ungroupSelectedElements();
+        else if (key === 'z' && !editorReadOnly) undoElementChange();
+        else if (key === 'y' && !editorReadOnly) redoElementChange();
+        else if (key === 'p') {
+          if (event.shiftKey) void openPresentation();
+          else void openPreview();
+        }
+        else if (key === 'r') openScreenScript();
+        else if (key === 'l') openSelectionPane();
+        else if (key === 'enter' && !editorReadOnly) void saveDraftRef.current('manual');
+        return;
+      }
+
+      if (typingTarget || editorReadOnly) return;
 
       if (event.key === 'F5') {
         event.preventDefault();
         if (event.shiftKey) void openPresentation();
         else void openPreview();
+        return;
+      }
+      if (modifier && key === 'a' && selectedScreen) {
+        event.preventDefault();
+        const ids = selectedScreen.elements.map((element) => element.id);
+        setSelectedElementIds(ids);
+        setSelectedElementId(ids.at(-1) ?? null);
         return;
       }
       if (key === 'escape') {
@@ -2123,6 +2180,9 @@ export default function TeachingStudioPage() {
         changeElementBounds(selected.id, bounds);
       }
     };
+    const releaseSpectropyShortcut = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 's') spectropyShortcutHeldRef.current = false;
+    };
     const pasteExternal = (event: ClipboardEvent) => {
       if (isTypingTarget(event.target) || editorClipboard.length) return;
       const images = Array.from(event.clipboardData?.files ?? []).filter((file) =>
@@ -2133,11 +2193,15 @@ export default function TeachingStudioPage() {
       addDroppedFiles(images, { x: 300, y: 260 });
     };
     window.addEventListener('keydown', commands);
+    window.addEventListener('keyup', releaseSpectropyShortcut);
     window.addEventListener('paste', pasteExternal);
     return () => {
       window.removeEventListener('keydown', commands);
+      window.removeEventListener('keyup', releaseSpectropyShortcut);
       window.removeEventListener('paste', pasteExternal);
     };
+    // Command callbacks intentionally refresh with the editor state dependencies below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorClipboard, editorReadOnly, formatPainter, selectedElementId, selectedElementIds, selectedScreen]);
 
   useEffect(() => {
@@ -2260,13 +2324,11 @@ export default function TeachingStudioPage() {
     const ids = screenList.screens.map((screen) => screen.id);
     setReorderIds(ids);
     reorderIdsRef.current = ids;
-    setLeftPanelView('screens');
     setLeftPanelOpen(true);
   };
 
   const openScreenScript = () => {
-    setLeftPanelView('script');
-    setLeftPanelOpen(true);
+    setScriptOverlayOpen(true);
   };
 
   const moveDraggedScreen = (event: React.PointerEvent) => {
@@ -2667,6 +2729,8 @@ export default function TeachingStudioPage() {
             id: 'selection', label: 'Selection', commands: [
               { id: 'open-layers', label: 'Layers', icon: <ListOrdered size={17} />, disabled: !selectedScreen, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
               { id: 'open-elements', label: 'Properties', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('elements'), active: rightPanelOpen && panel === 'elements' },
+              { id: 'edit-hyperlink', label: 'Link', icon: <Link2 size={17} />, disabled: editorReadOnly || !selectedElement, onExecute: () => window.dispatchEvent(new Event('studio-open-hyperlink')) },
+              { id: 'crop-fit-media', label: 'Crop & Fit', icon: <Focus size={17} />, disabled: editorReadOnly || !selectedElement || !['image', 'animation', 'video'].includes(selectedResourceType), onExecute: () => window.dispatchEvent(new Event('studio-open-crop-fit')) },
               { id: 'group-elements-home', label: 'Group', icon: <Boxes size={17} />, disabled: editorReadOnly || selectedElementIds.length < 2, onExecute: groupSelectedElements },
               { id: 'ungroup-elements-home', label: 'Ungroup', icon: <Unlink size={17} />, disabled: editorReadOnly || !selectedHasGroup, onExecute: ungroupSelectedElements },
             ],
@@ -2841,6 +2905,7 @@ export default function TeachingStudioPage() {
           { id: 'view-show', label: 'Show', commands: [
             { id: 'view-guides', label: 'Guides', icon: <Grid3X3 size={17} />, disabled: !selectedLayout, active: showCanvasGuides, onExecute: () => setShowCanvasGuides((visible) => !visible) },
             { id: 'view-layers', label: 'Selection Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
+            { id: 'view-script', label: 'Screen Script', icon: <FileText size={17} />, disabled: !selectedScreen, active: scriptOverlayOpen, onExecute: openScreenScript },
           ] },
           { id: 'view-window', label: 'Window', commands: [
             { id: 'view-refresh', label: 'Refresh', icon: <RefreshCw size={17} className={loadingScreens ? 'animate-spin' : ''} />, disabled: loadingScreens, onExecute: () => void refreshScreens() },
@@ -3270,19 +3335,18 @@ export default function TeachingStudioPage() {
                 type="button"
                 onClick={openScreenReorder}
                 disabled={screenList.screens.length === 0 || hasUnsavedChanges}
-                title={hasUnsavedChanges ? 'Wait for AutoSave before opening Screens' : 'Open Screens and Script'}
-                aria-label="Open Screens and Script"
+                title={hasUnsavedChanges ? 'Wait for AutoSave before opening Screens' : 'Open Screens'}
+                aria-label="Open Screens"
                 aria-expanded={false}
                 className="inline-flex h-9 w-8 items-center justify-center rounded-r-lg border border-l-0 border-white/80 bg-white/90 text-slate-700 shadow-lg backdrop-blur hover:bg-white disabled:opacity-35"
               >
                 <ListOrdered size={16} />
               </button>
             </nav> : null}
-              {leftPanelOpen ? <section onPointerMove={leftPanelView === 'screens' ? moveDraggedScreen : undefined} onPointerUp={leftPanelView === 'screens' ? finishScreenDrag : undefined} onPointerCancel={leftPanelView === 'screens' ? finishScreenDrag : undefined} className="studio-editor-left-content is-open flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2">
-                <div className="mb-1.5 flex h-8 shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-0.5" role="tablist" aria-label="Screen navigation views">
-                  <button type="button" role="tab" aria-selected={leftPanelView === 'screens'} onClick={openScreenReorder} disabled={screenList.screens.length === 0 || (hasUnsavedChanges && leftPanelView !== 'screens')} className={`inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-[10px] font-semibold ${leftPanelView === 'screens' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}><ListOrdered size={13} />Screens</button>
-                  <button type="button" role="tab" aria-selected={leftPanelView === 'script'} onClick={openScreenScript} className={`inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-[10px] font-semibold ${leftPanelView === 'script' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}><FileText size={13} />Script</button>
-                  <button type="button" title="Close Screens and Script" aria-label="Close Screens and Script" onClick={() => setLeftPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white hover:text-slate-800"><X size={13} /></button>
+              {leftPanelOpen ? <section onPointerMove={moveDraggedScreen} onPointerUp={finishScreenDrag} onPointerCancel={finishScreenDrag} className="studio-editor-left-content is-open flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2">
+                <div className="mb-1.5 flex h-8 shrink-0 items-center justify-between rounded-lg bg-slate-100 px-2" aria-label="Screen navigation">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-950"><ListOrdered size={13} />Screens</span>
+                  <button type="button" title="Close Screens" aria-label="Close Screens" onClick={() => setLeftPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white hover:text-slate-800"><X size={13} /></button>
                 </div>
                 <label className="relative mb-2 flex h-9 shrink-0 items-center rounded-lg bg-blue-900 text-[11px] font-semibold text-white">
                   <span className="pl-2">Session</span>
@@ -3291,8 +3355,7 @@ export default function TeachingStudioPage() {
                   </select>
                   <ChevronDown size={13} className="pointer-events-none absolute right-2" />
                 </label>
-                {leftPanelView === 'screens' ? (
-                  <>
+                <>
                     <div className="flex shrink-0 items-center justify-between gap-2">
                       <div><h2 className="font-semibold">Screens</h2><p className="text-[11px] text-slate-500">Select or drag to reorder</p></div>
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{screenList.screens.length}</span>
@@ -3316,31 +3379,7 @@ export default function TeachingStudioPage() {
                       })}
                     </div>
                     {reorderingScreens && <p className="mt-2 text-center text-xs font-semibold text-blue-800">Saving Screen order…</p>}
-                  </>
-                ) : <>
-                  <h2 className="shrink-0 font-semibold">Screen Script</h2>
-                  {(() => {
-                  const entries = screenScriptEntries(
-                    scripts.find((row) => row.screen_id === selectedScreenId)?.content_json,
-                  );
-                  return entries.length > 0 ? (
-                    <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                      {entries.map(([key, value]) => (
-                        <div key={key} className="rounded-lg bg-slate-50 p-2">
-                          <p className="text-[10px] font-bold uppercase text-slate-500">
-                            {key.replaceAll('_', ' ')}
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap text-xs"><StudioScreenScriptMath text={value || '—'} /></p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 min-h-0 flex-1 overflow-y-auto text-xs text-slate-500">
-                      No saved script for this Screen.
-                    </p>
-                  );
-                  })()}
-                </>}
+                </>
               </section> : null}
           </aside>
           <main
@@ -3407,29 +3446,7 @@ export default function TeachingStudioPage() {
                   delete content.richTextHtml;
                   updateElement({ ...element, content: { ...content, text: `${text.slice(0, start)}\\(${latex}\\)${text.slice(end)}` } });
                 }}
-                onDuplicateElement={editorReadOnly ? undefined : duplicateElement}
                 onRemoveElement={editorReadOnly ? undefined : removeElement}
-                onOpenTool={
-                  editorReadOnly
-                    ? undefined
-                    : (tool) => {
-                        if (tool === 'math') {
-                          setActiveRibbonTab('equation');
-                          setRightPanelOpen(false);
-                          return;
-                        }
-                        if (tool === 'shapes') {
-                          setActiveRibbonTab(selectedElement?.type === 'shape' ? 'shape-format' : 'insert');
-                          return;
-                        }
-                        if (tool === 'animations') {
-                          setActiveRibbonTab('animations');
-                          return;
-                        }
-                        setPanel(tool);
-                        setRightPanelOpen(true);
-                      }
-                }
                 drawingStrokes={authoredDrawingStrokes(selectedScreen)}
                 drawingEnabled={!editorReadOnly && (activeRibbonTab === 'draw' || activeRibbonTab === 'drawing-format')}
                 drawingTool={drawingTool}
@@ -4157,6 +4174,31 @@ export default function TeachingStudioPage() {
           </div>
         </div>
       )}
+      {scriptOverlayOpen ? (
+        <div className="fixed inset-0 z-[240] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Screen Script viewer">
+          <section className="flex h-[min(90dvh,900px)] w-[min(94vw,1280px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold text-slate-950">Screen Script</h2>
+                <p className="truncate text-xs text-slate-500">{selectedScreen ? `Screen ${selectedScreen.screen_number}: ${screenDisplayTitle(selectedScreen)}` : 'No Screen selected'}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" disabled={!sessionId} onClick={() => void studioDocumentsApi.downloadScreenScriptSource(sessionId).catch((downloadError) => toast.error(getStudioErrorMessage(downloadError)))} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-900 px-3 text-xs font-semibold text-white disabled:opacity-40"><Download size={15} />Download script</button>
+                <button type="button" onClick={() => setScriptOverlayOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Screen Script"><X size={17} /></button>
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-5">
+              {(() => {
+                const script = scripts.find((row) => row.screen_id === selectedScreenId)?.content_json;
+                if (script?.sections?.length) return <StructuredScreenScriptEditor content={script} editable={false} onChange={() => undefined} />;
+                const entries = screenScriptEntries(script);
+                if (!entries.length) return <div className="grid h-full place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500">No saved script is available for this Screen.</div>;
+                return <div className="mx-auto max-w-5xl space-y-3">{entries.map(([key, value]) => <section key={key} className="rounded-xl border border-slate-200 bg-white p-4"><h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{key.replaceAll('_', ' ')}</h3><div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800"><StudioScreenScriptMath text={value || '—'} /></div></section>)}</div>;
+              })()}
+            </div>
+          </section>
+        </div>
+      ) : null}
       {diagramChooserOpen ? <StudioDiagramChooser onInsert={addSmartDiagram} onClose={() => setDiagramChooserOpen(false)} /> : null}
       {diagramLayoutGalleryOpen ? <StudioDiagramChooser onInsert={(layoutId) => { const layout = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === layoutId); if (layout) updateSelectedDiagram({ layout: layout.id, category: layout.category }); setDiagramLayoutGalleryOpen(false); }} onClose={() => setDiagramLayoutGalleryOpen(false)} /> : null}
       {assetCatalogOpen && (

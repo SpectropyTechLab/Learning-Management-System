@@ -54,8 +54,6 @@ interface BlankScreenCanvasProps {
   onTextCaretChange?: (elementId: string, offset: number) => void;
   onEditInlineShape?: (elementId: string, shape: InlineShapeData, start: number, end: number) => void;
   onEditInlineEquation?: (elementId: string, latex: string, start: number, end: number) => void;
-  onOpenTool?: (tool: 'math' | 'shapes' | 'animations') => void;
-  onDuplicateElement?: (elementId: string) => void;
   onRemoveElement?: (elementId: string) => void;
   showGuides?: boolean;
   previewMode?: boolean;
@@ -474,8 +472,6 @@ export default function BlankScreenCanvas({
   onTextCaretChange,
   onEditInlineShape,
   onEditInlineEquation,
-  onOpenTool,
-  onDuplicateElement,
   onRemoveElement,
   showGuides = false,
   previewMode = false,
@@ -1061,18 +1057,13 @@ export default function BlankScreenCanvas({
           setLastClickerAction('next');
         }}
       >
-        {!previewMode && toolbarHost && screen && selectedElement && onChangeElementContent && onOpenTool
+        {!previewMode && toolbarHost && screen && onChangeElementContent
           ? createPortal(
               <StudioElementToolbar
                 element={selectedElement}
-                selectionFontSize={textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
-                selectionSpacing={textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
-                onChange={(changes) => onChangeElementContent(selectedElement.id, changes)}
-                onOpenMath={() => onOpenTool('math')}
-                onOpenShapes={() => onOpenTool('shapes')}
-                onOpenAnimations={() => onOpenTool('animations')}
-                onDuplicate={onDuplicateElement ? () => onDuplicateElement(selectedElement.id) : undefined}
-                onRemove={onRemoveElement ? () => onRemoveElement(selectedElement.id) : undefined}
+                selectionFontSize={selectedElement && textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
+                selectionSpacing={selectedElement && textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
+                onChange={(changes) => { if (selectedElement) onChangeElementContent(selectedElement.id, changes); }}
                 />,
               toolbarHost,
             )

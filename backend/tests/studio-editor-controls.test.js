@@ -26,8 +26,8 @@ test('Studio navigation stays outside Home while tools are allocated to ribbon t
   const ribbonModel = readFrontend('components/studioRibbonModel.ts');
   assert.match(editor, /studioTools\.filter/);
   assert.match(editor, /toggleStudioTool\(tool\.id\)/);
-  assert.match(editor, /aria-label="Open Screens and Script"/);
-  assert.match(editor, /aria-label="Screen navigation views"/);
+  assert.match(editor, /aria-label="Open Screens"/);
+  assert.match(editor, /aria-label="Screen navigation"/);
   assert.doesNotMatch(editor, /id: 'editor-context', label: 'Context'/);
   assert.doesNotMatch(editor, /id: 'session-navigation', label: 'Navigation'/);
   assert.match(editor, /aria-label="Select Session"/);
@@ -76,7 +76,7 @@ test('Screen navigation is a PowerPoint-style thumbnail rail with pointer reorde
   const editor = readFrontend('TeachingStudioPage.tsx');
   assert.match(editor, /data-reorder-screen-id=\{screenId\}/);
   assert.match(editor, /setPointerCapture\(event\.pointerId\)/);
-  assert.match(editor, /onPointerMove=\{leftPanelView === 'screens' \? moveDraggedScreen/);
+  assert.match(editor, /onPointerMove=\{moveDraggedScreen\}/);
   assert.match(editor, /void selectScreen\(screenId\)/);
   assert.match(editor, /void saveScreenOrder\(reorderIdsRef\.current\)/);
   assert.doesNotMatch(editor, /reorderOpen/);
@@ -89,7 +89,7 @@ test('Screen navigation remains permanent while selected objects activate contex
   const layers = readFrontend('components/StudioLayersPanel.tsx');
   assert.match(editor, /useState\(true\);/);
   assert.doesNotMatch(editor, /setLeftPanelOpen\(false\);\s*return;/);
-  assert.match(editor, /setLeftPanelView\('screens'\);\s*setLeftPanelOpen\(true\)/);
+  assert.match(editor, /setLeftPanelOpen\(true\)/);
   assert.match(editor, /const selectElementAndOpenControls/);
   const selectionStart = editor.indexOf('const selectElementAndOpenControls');
   const selectionEnd = editor.indexOf('const studioTools', selectionStart);
@@ -109,7 +109,7 @@ test('Screen navigation remains permanent while selected objects activate contex
   assert.doesNotMatch(layers, /ArrowUp|ArrowDown|Bring layer forward|Send layer backward/);
 });
 
-test('Screens and Script alone use the left pane while Screen actions live in Home', () => {
+test('Screens alone use the left pane while Script opens from View', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const actions = [
@@ -125,13 +125,15 @@ test('Screens and Script alone use the left pane while Screen actions live in Ho
   assert.doesNotMatch(editor, /id: 'screens-and-reorder'/);
   assert.doesNotMatch(editor, /id: 'screen-script'/);
   assert.doesNotMatch(editor, /w-44 shrink-0 self-center/);
-  const leftPaneStart = editor.indexOf('aria-label="Screen navigation views"');
+  const leftPaneStart = editor.indexOf('aria-label="Screen navigation"');
   const leftPaneEnd = editor.indexOf('aria-label="Select Session"', leftPaneStart);
   const leftPane = editor.slice(leftPaneStart, leftPaneEnd);
   assert.match(leftPane, />Screens</);
-  assert.match(leftPane, />Script</);
-  assert.match(leftPane, /Close Screens and Script/);
+  assert.doesNotMatch(leftPane, />Script</);
+  assert.match(leftPane, /Close Screens/);
   assert.doesNotMatch(leftPane, /Add Screen|Screen metadata|Edit layout|Remove layout/);
+  assert.match(editor, /id: 'view-script'/);
+  assert.match(editor, /aria-label="Screen Script viewer"/);
   assert.doesNotMatch(canvas, /Screen actions/);
   assert.doesNotMatch(canvas, /absolute left-16 top-16/);
 });
@@ -198,13 +200,19 @@ test('Inspector icon hover keeps the clickable hitbox stationary', () => {
   );
 });
 
-test('Screen Script keeps its compact cards and renders math with KaTeX', () => {
+test('Screen Script opens from View in a table-aware overlay with download support', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const math = readFrontend('components/StudioScreenScriptMath.tsx');
+  const structured = readFrontend('components/StructuredScreenScriptEditor.tsx');
   assert.match(editor, /screenScriptEntries/);
   assert.match(editor, /<StudioScreenScriptMath text=\{value \|\|/);
+  assert.match(editor, /id: 'view-script'/);
+  assert.match(editor, /scriptOverlayOpen/);
+  assert.match(editor, /downloadScreenScriptSource\(sessionId\)/);
+  assert.match(editor, /<StructuredScreenScriptEditor/);
   assert.match(math, /katex\.renderToString/);
-  assert.doesNotMatch(editor, /StudioScreenScriptView|selectedScreenScript/);
+  assert.match(structured, /<table/);
+  assert.doesNotMatch(editor, /leftPanelView/);
 });
 
 test('Canvas zoom scales one canonical surface and elements resize from every edge', () => {
@@ -371,8 +379,8 @@ test('Text formatting commands apply font styles to the preserved selection', ()
   assert.match(text, /const reusableSpan = selectedElement\?\.tagName === 'SPAN'/);
   assert.match(text, /fontSizeForRange\(editor, range\)/);
   assert.match(text, /spacingForRange\(editor, range/);
-  assert.match(canvas, /selectionFontSize=\{textSelectionFontSize\?\.elementId === selectedElement\.id/);
-  assert.match(canvas, /selectionSpacing=\{textSelectionSpacing\?\.elementId === selectedElement\.id/);
+  assert.match(canvas, /selectionFontSize=\{selectedElement && textSelectionFontSize\?\.elementId === selectedElement\.id/);
+  assert.match(canvas, /selectionSpacing=\{selectedElement && textSelectionSpacing\?\.elementId === selectedElement\.id/);
 });
 
 test('Text paste preserves supported formatting and autoresizes through one atomic commit', () => {
@@ -460,9 +468,30 @@ test('Home ribbon Clipboard group shares multi-element paste and Format Painter 
   assert.match(editor, /selectedCharacterFormat/);
   assert.match(editor, /sourceSelectionText/);
   assert.match(editor, /apply-character-format/);
+  assert.match(editor, /range: \{ start: target\.start, end: target\.end \}/);
   assert.match(textCommands, /type: 'apply-character-format'/);
   assert.match(textElement, /command\.type === 'apply-character-format'/);
+  assert.match(textElement, /rangeAtSerializedSpan/);
   assert.match(textElement, /selectedRange\.extractContents\(\)/);
+});
+
+test('Spectropy shortcuts select and operate on canvas elements without browser conflicts', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(editor, /spectropyShortcutHeldRef/);
+  assert.match(editor, /key === 'a' && selectedScreen/);
+  assert.match(editor, /setSelectedElementIds\(ids\)/);
+  assert.match(editor, /key === 'g'/);
+  assert.match(editor, /key === 'u'/);
+  assert.match(editor, /key === 'r'/);
+  assert.match(editor, /window\.addEventListener\('keyup', releaseSpectropyShortcut\)/);
+});
+
+test('Diagram Text Pane preserves a trailing Enter while synchronizing node changes', () => {
+  const pane = readFrontend('components/StudioDiagramTextPane.tsx');
+  assert.match(pane, /locallyAppliedNodesRef/);
+  assert.match(pane, /setOutline\(value\)/);
+  assert.match(pane, /event\.key !== 'Tab'/);
+  assert.match(pane, /Shift\+Tab promotes/);
 });
 
 test('Present opens a clean audience window controlled from the editor', () => {
