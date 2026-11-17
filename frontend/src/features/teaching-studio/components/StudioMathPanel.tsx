@@ -25,7 +25,7 @@ interface Props {
   inlineTarget?: boolean;
 }
 
-const groups = [
+export const STUDIO_EQUATION_GROUPS = [
   {
     name: 'Common',
     items: [
@@ -122,7 +122,7 @@ export default function StudioMathPanel({
         role="tablist"
         aria-label="Equation categories"
       >
-        {groups.map((group, index) => (
+        {STUDIO_EQUATION_GROUPS.map((group, index) => (
           <button
             key={group.name}
             type="button"
@@ -136,7 +136,7 @@ export default function StudioMathPanel({
         ))}
       </div>
       <div className="mt-2 grid grid-cols-5 gap-2">
-        {groups[activeGroup].items.map(([label, value, glyph]) => (
+        {STUDIO_EQUATION_GROUPS[activeGroup].items.map(([label, value, glyph]) => (
           <button
             key={label}
             type="button"

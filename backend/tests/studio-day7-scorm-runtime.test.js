@@ -114,10 +114,17 @@ test('teacher cannot start a published SCORM attempt without a program assignmen
 test('schema and browser runtime contain attempt persistence and both SCORM APIs', async () => {
   const migration = await readFile(path.join('..', 'supabase', 'migrations', '20261030170000_studio_day7_scorm_runtime.sql'), 'utf8');
   const wrapper = await readFile(path.join('..', 'frontend', 'src', 'lib', 'ScormAPIWrapper.ts'), 'utf8');
+  const runtimeController = await readFile(path.join('controllers', 'studioResourceRuntime.controller.js'), 'utf8');
+  const resourcePlayer = await readFile(path.join('..', 'frontend', 'src', 'features', 'teaching-studio', 'components', 'resources', 'StudioResourcePlayer.tsx'), 'utf8');
   assert.match(migration, /studio_scorm_attempts/);
   assert.match(migration, /studio_scorm_sco_states/);
   assert.match(wrapper, /API_1484_11/);
   assert.match(wrapper, /LMSCommit/);
   assert.doesNotMatch(wrapper, /LMSCommit[^\n]*async/);
   assert.match(wrapper, /Network persistence is queued/);
+  assert.match(runtimeController, /data-spectropy-scorm-api/);
+  assert.match(runtimeController, /window\.API_1484_11/);
+  assert.match(runtimeController, /window\.API=/);
+  assert.match(resourcePlayer, /startStudioScormAttempt/);
+  assert.match(resourcePlayer, /commitStudioScormAttempt/);
 });

@@ -9,7 +9,7 @@ interface Props {
   fontSize?: number;
 }
 
-const inlineContentPattern = /\\\((.+?)\\\)|\[\[shape:(.+?)\]\]/gs;
+const inlineContentPattern = /\\\((.*?)\\\)|\[\[shape:(.+?)\]\]/gs;
 
 export const inlineEquationParts = (text: string) => {
   inlineContentPattern.lastIndex = 0;
@@ -33,10 +33,10 @@ export const hasInlineEquation = (text: string) => {
 export default function StudioRichTextElement({ text, color = '#25436b', fontSize = 18 }: Props) {
   const parts = inlineEquationParts(text);
 
-  return <div className="pointer-events-none h-full w-full overflow-hidden p-3 font-medium leading-relaxed" style={{ color, fontSize }}>
+  return <div className="pointer-events-none h-full w-full overflow-visible p-3 font-medium leading-relaxed" style={{ color, fontSize }}>
     {parts.map((part, index) => {
       if (part.kind === 'text') return <span key={index} className="whitespace-pre-wrap">{part.value}</span>;
-      if (part.kind === 'math') return <span key={index} className="mx-1 inline-block align-middle" dangerouslySetInnerHTML={{ __html: katex.renderToString(part.value, { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' }) }} />;
+      if (part.kind === 'math') return <span key={index} className="studio-inline-equation" dangerouslySetInnerHTML={{ __html: katex.renderToString(part.value, { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' }) }} />;
       try {
         const shape = JSON.parse(decodeURIComponent(part.value)) as InlineShapeData;
         return <span key={index} className="mx-1 inline-block h-[1.5em] w-[2.5em] align-middle"><StudioShapeElement {...shape} /></span>;

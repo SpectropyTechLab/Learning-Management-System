@@ -40,12 +40,12 @@ export interface AuthorDrawingStroke {
   id: string;
   color: string;
   width: number;
-  tool?: Exclude<StudioDrawingTool, 'eraser'>;
+  tool?: Exclude<StudioDrawingTool, 'eraser' | 'object-eraser'>;
   opacity?: number;
   points: Array<{ x: number; y: number }>;
 }
 
-export type StudioDrawingTool = 'pen' | 'pencil' | 'fountain' | 'highlighter' | 'laser' | 'eraser';
+export type StudioDrawingTool = 'pen' | 'pencil' | 'fountain' | 'highlighter' | 'laser' | 'eraser' | 'object-eraser';
 
 export interface StudioScreenSettings extends Record<string, unknown> {
   backgroundColor?: string;
