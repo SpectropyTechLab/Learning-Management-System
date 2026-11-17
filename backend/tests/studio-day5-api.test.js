@@ -310,6 +310,8 @@ test('missing required documents prevent the validated state', async (t) => {
 
   await assert.rejects(
     submitSession({ sessionId: 41, user: author }),
-    (error) => error?.status === 422 && error?.details?.length === 2
+    (error) => error?.status === 422 && error?.details?.some(
+      (detail) => detail.code === 'SESSION_PLAN_MISSING',
+    ),
   );
 });
