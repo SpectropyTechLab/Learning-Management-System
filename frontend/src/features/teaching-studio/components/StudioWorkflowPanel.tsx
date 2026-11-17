@@ -14,6 +14,7 @@ interface Props {
 
 export default function StudioWorkflowPanel({ status, problems, loading, action, onRefresh, onAction }: Props) {
   const visibleProblems = problems.length ? problems : status?.validation.errors || [];
+  const visibleWarnings = problems.length ? [] : status?.validation.warnings || [];
   return (
     <section className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Publication readiness">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -43,6 +44,15 @@ export default function StudioWorkflowPanel({ status, problems, loading, action,
           {visibleProblems.map((problem, index) => (
             <li key={`${problem.code}-${problem.screen_id || index}`} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               <strong>{problem.code.replaceAll('_', ' ')}:</strong> {problem.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {visibleWarnings.length > 0 ? (
+        <ul className="mt-4 space-y-2" aria-label="Publication warnings">
+          {visibleWarnings.map((warning, index) => (
+            <li key={`${warning.code}-${warning.screen_id || index}`} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              <strong>Warning · {warning.code.replaceAll('_', ' ')}:</strong> {warning.message}
             </li>
           ))}
         </ul>

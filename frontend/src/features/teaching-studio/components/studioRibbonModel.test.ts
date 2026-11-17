@@ -14,11 +14,11 @@ test('permanent tabs remain available without a selection', () => {
 });
 test('element selection exposes only its applicable contextual tabs', () => {
   assert.deepEqual(
-    studioContextualRibbonTabs({ elementType: 'text', selectionCount: 1 }).map((tab) => tab.id),
-    [],
+    studioContextualRibbonTabs({ elementType: 'shape', selectionCount: 1 }).map((tab) => tab.id),
+    ['shape-format'],
   );
   assert.deepEqual(
-    studioContextualRibbonTabs({ elementType: 'shape', selectionCount: 1 }).map((tab) => tab.id),
+    studioContextualRibbonTabs({ elementType: 'text', selectionCount: 1 }).map((tab) => tab.id),
     ['shape-format'],
   );
   assert.deepEqual(

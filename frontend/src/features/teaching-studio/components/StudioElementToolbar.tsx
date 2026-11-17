@@ -16,7 +16,7 @@ interface Props {
   onChange: (changes: Record<string, unknown>) => void;
 }
 
-const textTypes = ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'];
+const textTypes = ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data', 'shape'];
 
 export default function StudioElementToolbar({ element, selectionFontSize, selectionSpacing, onChange }: Props) {
   const [listMenuOpen, setListMenuOpen] = useState(false);

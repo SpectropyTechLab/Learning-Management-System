@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
+
 interface Props {
+  elementId?: string;
   kind: string;
   fill?: string;
   stroke?: string;
@@ -9,6 +12,7 @@ interface Props {
   effect?: string;
 }
 export default function StudioShapeElement({
+  elementId,
   kind,
   fill = '#dbeafe',
   stroke = '#1d4ed8',
@@ -18,15 +22,33 @@ export default function StudioShapeElement({
   customPath,
   effect = 'none',
 }: Props) {
+  const [preview, setPreview] = useState<Partial<Pick<Props, 'fill' | 'stroke' | 'strokeWidth' | 'opacity' | 'strokeDash' | 'effect'>> | null>(null);
+  useEffect(() => {
+    if (!elementId) return;
+    const handlePreview = (event: Event) => {
+      const detail = (event as CustomEvent<{ elementId?: string; changes?: Record<string, unknown>; clear?: boolean }>).detail;
+      if (detail?.elementId !== elementId) return;
+      if (detail.clear) { setPreview(null); return; }
+      setPreview((current) => ({ ...(current ?? {}), ...(detail.changes ?? {}) }));
+    };
+    window.addEventListener('studio-preview-shape-style', handlePreview);
+    return () => window.removeEventListener('studio-preview-shape-style', handlePreview);
+  }, [elementId]);
+  const renderedFill = typeof preview?.fill === 'string' ? preview.fill : fill;
+  const renderedStroke = typeof preview?.stroke === 'string' ? preview.stroke : stroke;
+  const renderedStrokeWidth = Number.isFinite(Number(preview?.strokeWidth)) ? Number(preview?.strokeWidth) : strokeWidth;
+  const renderedOpacity = Number.isFinite(Number(preview?.opacity)) ? Number(preview?.opacity) : opacity;
+  const renderedStrokeDash = typeof preview?.strokeDash === 'string' ? preview.strokeDash : strokeDash;
+  const renderedEffect = typeof preview?.effect === 'string' ? preview.effect : effect;
   const common = {
-    fill,
-    stroke,
-    strokeWidth,
-    opacity,
-    strokeDasharray: strokeDash === 'dash' ? '12 8' : strokeDash === 'dot' ? '2 7' : undefined,
+    fill: renderedFill,
+    stroke: renderedStroke,
+    strokeWidth: renderedStrokeWidth,
+    opacity: renderedOpacity,
+    strokeDasharray: renderedStrokeDash === 'dash' ? '12 8' : renderedStrokeDash === 'dot' ? '2 7' : undefined,
     vectorEffect: 'non-scaling-stroke' as const,
   };
-  const textCommon = { fill: stroke, stroke: 'none', fontSize: 64, fontWeight: 700 };
+  const textCommon = { fill: renderedStroke, stroke: 'none', fontSize: 64, fontWeight: 700 };
   return (
     <svg
       viewBox="0 0 200 120"
@@ -34,9 +56,9 @@ export default function StudioShapeElement({
       preserveAspectRatio="none"
       aria-hidden="true"
       style={{
-        filter: effect === 'shadow' ? 'drop-shadow(8px 8px 7px rgb(15 23 42 / 0.38))'
-          : effect === 'glow' ? 'drop-shadow(0 0 9px rgb(37 99 235 / 0.75))'
-            : effect === 'soft-edges' ? 'blur(1.5px)'
+        filter: renderedEffect === 'shadow' ? 'drop-shadow(8px 8px 7px rgb(15 23 42 / 0.38))'
+          : renderedEffect === 'glow' ? 'drop-shadow(0 0 9px rgb(37 99 235 / 0.75))'
+            : renderedEffect === 'soft-edges' ? 'blur(1.5px)'
               : undefined,
       }}
     >
@@ -77,7 +99,7 @@ export default function StudioShapeElement({
       ) : kind === 'plaque' ? (
         <path d="M28 6H172C172 23 183 34 194 38V82C183 86 172 97 172 114H28C28 97 17 86 6 82V38C17 34 28 23 28 6Z" {...common} />
       ) : kind === 'cube' ? (
-        <path d="M42 28L100 5L158 28V92L100 115L42 92ZM42 28L100 52L158 28M100 52V115" {...common} fill={fill} />
+        <path d="M42 28L100 5L158 28V92L100 115L42 92ZM42 28L100 52L158 28M100 52V115" {...common} fill={renderedFill} />
       ) : kind === 'cylinder' ? (
         <path d="M25 22C25 4 175 4 175 22V98C175 116 25 116 25 98ZM25 22C25 40 175 40 175 22M25 98C25 80 175 80 175 98" {...common} />
       ) : kind === 'pie' ? (
