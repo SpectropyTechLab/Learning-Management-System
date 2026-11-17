@@ -63,7 +63,7 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
   if (selection.drawingActive) {
     tabs.push({ id: 'drawing-format', label: 'Drawing', contextual: true, accent: 'amber' });
   }
-  if (elementType === 'shape') {
+  if (elementType === 'shape' || elementType === 'text') {
     tabs.push({ id: 'shape-format', label: 'Shape Format', contextual: true, accent: 'violet' });
   }
   if (elementType === 'table' || visualType === 'table') {

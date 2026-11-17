@@ -759,6 +759,30 @@ export const getPublishedTeachingMaterials = async ({ releaseId: rawReleaseId, u
   };
 };
 
+export const getPublishedPresenterData = async ({ releaseId: rawReleaseId, user }) => {
+  assertTeacher(user);
+  const releaseId = parseId(rawReleaseId, 'Release ID');
+  const release = (await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE id = $1 AND client_id = $2 LIMIT 1`,
+    [releaseId, parseId(user.client_id, 'Client ID')],
+  )).rows[0];
+  if (!release) throw new AppError('Published Session release not found', 404);
+  await assertPublishedReleaseAccess(release, user);
+  const scripts = Array.isArray(release.manifest_json?.screen_scripts)
+    ? release.manifest_json.screen_scripts
+    : [];
+  return {
+    release_id: Number(release.id),
+    release_number: Number(release.release_number),
+    screen_scripts: scripts.map((script) => ({
+      screen_id: Number(script.screen_id),
+      revision_no: Number(script.revision_no),
+      content: script.content && typeof script.content === 'object' ? script.content : {},
+    })),
+  };
+};
+
 export const downloadPublishedSessionPlan = async ({ releaseId: rawReleaseId, user }) => {
   const materials = await getPublishedTeachingMaterials({ releaseId: rawReleaseId, user });
   const release = (await dbQuery(

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import pool from '../config/db.js';
 import {
   assertPinnedPublishedResourceAccess,
+  getPublishedPresenterData,
   getPublishedTeachingMaterials,
   getPublishedReleaseByNumber,
   getCurrentTeacherRelease,
@@ -458,6 +459,43 @@ test('published teaching materials expose Curriculum and a pinned Session Plan w
   assert.equal('screen_scripts' in materials, false);
   assert.equal('storage_key' in materials.session_plan, false);
   assert.equal(materials.session_plan.original_file_name, 'Approved Session Plan.docx');
+});
+
+test('teacher presenter data exposes only pinned per-screen narration to an assigned teacher', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async (text) => {
+    const sql = normalizeSql(text);
+    if (sql.includes('from session_releases')) return { rows: [{
+      id: 101,
+      client_id: 7,
+      session_id: 25,
+      release_number: 2,
+      manifest_json: {
+        session: { program_id: 4, program_school_id: 12 },
+        screen_scripts: [{
+          screen_id: 40,
+          revision_no: 5,
+          content: { teacher_narration: 'Ask learners to predict.' },
+          created_by: 99,
+        }],
+      },
+    }] };
+    if (sql.includes('from school_memberships')) return { rows: [{ school_id: 12 }] };
+    if (sql.includes('from question_bank_school_assignments')) return { rows: [] };
+    return { rows: [] };
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const data = await getPublishedPresenterData({
+    releaseId: 101,
+    user: { id: 30, role: 'teacher', client_id: 7 },
+  });
+  assert.equal(data.screen_scripts[0].content.teacher_narration, 'Ask learners to predict.');
+  assert.equal('created_by' in data.screen_scripts[0], false);
+  await assert.rejects(
+    () => getPublishedPresenterData({ releaseId: 101, user: { id: 31, role: 'client_admin', client_id: 7 } }),
+    /Teacher access required/,
+  );
 });
 
 test('publication rejects a Session that is not approved', async (t) => {
