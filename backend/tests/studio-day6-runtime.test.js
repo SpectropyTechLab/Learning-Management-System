@@ -187,7 +187,10 @@ test('runtime launch serves a prepared package asset with isolation headers', as
         kind: 'browser_zip',
         package_prefix: 'runtime-packages/package-1',
         entry_point: 'lesson/index.html',
-        files: [{ path: 'lesson/index.html', size: 18, mime_type: 'text/html' }],
+        files: [
+          { path: 'lesson/index.html', size: 18, mime_type: 'text/html' },
+          { path: 'lesson/content.html', size: 19, mime_type: 'text/html' },
+        ],
       },
     },
   };
@@ -196,8 +199,11 @@ test('runtime launch serves a prepared package asset with isolation headers', as
   const originalFrom = supabase.storage.from;
   supabase.storage.from = () => ({
     download: async (storageKey) => {
-      assert.equal(storageKey, 'runtime-packages/package-1/lesson/index.html');
-      return { data: new Blob(['<h1>Runtime</h1><script>localStorage.getItem("theme")</script>'], { type: 'text/html' }), error: null };
+      assert.match(storageKey, /^runtime-packages\/package-1\/lesson\/(?:index|content)\.html$/);
+      const html = storageKey.endsWith('/content.html')
+        ? '<h1>Nested runtime</h1>'
+        : '<h1>Runtime</h1><script>localStorage.getItem("theme")</script>';
+      return { data: new Blob([html], { type: 'text/html' }), error: null };
     },
   });
   t.after(() => {
@@ -255,7 +261,17 @@ test('runtime launch serves a prepared package asset with isolation headers', as
   assert.doesNotMatch(headers.get('Content-Security-Policy'), /sandbox[^;]*allow-same-origin/);
   assert.match(headers.get('Content-Security-Policy'), /object-src 'none'/);
   assert.match(headers.get('Content-Security-Policy'), /https:\/\/cdn\.jsdelivr\.net/);
+  assert.match(headers.get('Content-Security-Policy'), /frame-ancestors 'self'/);
   assert.equal(headers.get('Referrer-Policy'), 'no-referrer');
+
+  await serveRuntimeAsset({
+    params: {
+      launchToken: decodeURIComponent(match[1]),
+      0: 'lesson/content.html',
+    },
+  }, response);
+  assert.equal(response.statusCode, 200);
+  assert.doesNotMatch(headers.get('Content-Security-Policy'), /frame-ancestors/);
 });
 
 test('Day 6 runtime routes expose launch, fallback download and tokenized asset delivery', () => {

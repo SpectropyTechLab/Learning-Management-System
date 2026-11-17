@@ -498,7 +498,7 @@ export default function SlideCanvas({
         >
         <div
           data-testid="slide-surface"
-          className={`absolute left-0 top-0 bg-white shadow-xl ${allowCanvasOverflow ? 'overflow-visible' : 'overflow-hidden'}`}
+          className={`absolute left-0 top-0 bg-transparent shadow-xl ${allowCanvasOverflow ? 'overflow-visible' : 'overflow-hidden'}`}
           onClick={(event) => {
             const target = event.target;
             if (target instanceof Element && target.closest('[data-element-id]')) return;
@@ -528,7 +528,7 @@ export default function SlideCanvas({
           <div
             data-testid="slide-transition-layer"
             className={`absolute inset-0 ${allowCanvasOverflow ? 'overflow-visible' : 'overflow-hidden'}`}
-            style={studioTransitionStyle(transition)}
+            style={{ backgroundColor, ...studioTransitionStyle(transition) }}
           >
           <svg
             role="img"

@@ -121,6 +121,13 @@ export const serveRuntimeAsset = async (req, res) => {
       requestedPath: req.params[0],
     });
     const cdnSources = studioCdnOrigins().join(' ');
+    // Protect the signed launch document from arbitrary framing. Internal
+    // package documents may be framed by the sandboxed launch document, whose
+    // browser origin is intentionally opaque and therefore cannot match a
+    // frame-ancestors source expression.
+    const frameAncestorsDirective = asset.isEntryPoint
+      ? `; frame-ancestors ${frameAncestors()}`
+      : '';
     res.setHeader(
       'Content-Security-Policy',
       `sandbox allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock allow-forms allow-modals allow-downloads allow-presentation; ` +
@@ -129,7 +136,7 @@ export const serveRuntimeAsset = async (req, res) => {
       `media-src 'self' data: blob: ${cdnSources}; font-src 'self' data: ${cdnSources}; ` +
       `connect-src 'self' ${cdnSources}; frame-src 'self' ${cdnSources}; ` +
       `worker-src 'self' blob: ${cdnSources}; object-src 'none'; ` +
-      `base-uri 'none'; form-action 'none'; frame-ancestors ${frameAncestors()}`
+      `base-uri 'none'; form-action 'none'${frameAncestorsDirective}`
     );
     const bridge = `<script data-spectropy-runtime-bridge>(function(){
       var parentWindow=window.parent,dispatching=false;

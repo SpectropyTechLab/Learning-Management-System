@@ -211,8 +211,8 @@ export const commitScormAttempt = async ({ attemptId: rawAttemptId, scoIdentifie
       normalized.suspendData, normalized.sessionTimeSeconds, JSON.stringify(normalized.data), event],
   );
   await dbQuery(
-    `UPDATE studio_scorm_attempts SET status=$2, current_sco_identifier=$3, last_activity_at=NOW(),
-     completed_at=CASE WHEN $2 IN ('completed','terminated') THEN NOW() ELSE completed_at END, updated_at=NOW()
+    `UPDATE studio_scorm_attempts SET status=$2::varchar, current_sco_identifier=$3, last_activity_at=NOW(),
+     completed_at=CASE WHEN $2::varchar IN ('completed'::varchar,'terminated'::varchar) THEN NOW() ELSE completed_at END, updated_at=NOW()
      WHERE id=$1`, [attemptId, status, scoIdentifier],
   );
   return getScormAttempt({ attemptId, user });

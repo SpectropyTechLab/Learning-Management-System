@@ -153,6 +153,7 @@ export const createRuntimeLaunch = async ({
       purpose: 'studio-resource-runtime',
       resourceVersionId: version.id,
       requestedBy: user.id,
+      runtimeEntryPoint: entryPoint,
       ...(attemptId ? { scormAttemptId: Number(attemptId) } : {}),
       ...(attemptId && runtime.kind === 'scorm' ? {
         scormEdition: runtime.scorm?.edition,
@@ -210,6 +211,10 @@ export const loadRuntimeAsset = async ({ launchToken, requestedPath }) => {
   if (!runtime) throw new AppError('Resource version is not prepared for runtime delivery', 422);
 
   const assetPath = normalizeStudioRuntimePath(requestedPath, 'Runtime asset path');
+  const runtimeEntryPoint = normalizeStudioRuntimePath(
+    payload.runtimeEntryPoint || runtime.entry_point || version.entry_point,
+    'Runtime entry point',
+  );
   const files = Array.isArray(runtime.files) ? runtime.files : [];
   const file = files.find((candidate) =>
     String(candidate?.path || '').toLowerCase() === assetPath.toLowerCase()
@@ -227,7 +232,7 @@ export const loadRuntimeAsset = async ({ launchToken, requestedPath }) => {
   let scormRuntime = null;
   if (payload.scormAttemptId && payload.scormEdition && payload.scormScoIdentifier) {
     const state = (await dbQuery(
-      `SELECT data_json FROM studio_scorm_sco_states
+      `SELECT data_model_json FROM studio_scorm_sco_states
        WHERE attempt_id = $1 AND sco_identifier = $2`,
       [Number(payload.scormAttemptId), String(payload.scormScoIdentifier)],
     )).rows[0];
@@ -242,6 +247,7 @@ export const loadRuntimeAsset = async ({ launchToken, requestedPath }) => {
     buffer,
     mimeType: file.mime_type || mime.lookup(file.path) || 'application/octet-stream',
     etag: createHash('sha256').update(buffer).digest('hex'),
+    isEntryPoint: assetPath.toLowerCase() === runtimeEntryPoint.toLowerCase(),
     scormRuntime,
   };
 };
