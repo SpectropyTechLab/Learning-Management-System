@@ -6,6 +6,7 @@ import {
   getPublishedReleaseByNumber,
   getTeacherReleaseByNumber,
   getPublishedTeachingMaterials,
+  getPublishedPresenterData,
   getSessionPlayerPreview,
   downloadPublishedSessionPlan,
   launchPublishedResource,
@@ -67,6 +68,11 @@ router.get(
   '/studio/published-releases/:releaseId/teaching-materials',
   publishedReaders,
   getPublishedTeachingMaterials,
+);
+router.get(
+  '/studio/published-releases/:releaseId/presenter-data',
+  requireRole(['teacher']),
+  getPublishedPresenterData,
 );
 router.get(
   '/studio/published-releases/:releaseId/session-plan/download',

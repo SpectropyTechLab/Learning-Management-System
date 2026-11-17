@@ -143,6 +143,18 @@ export const getPublishedTeachingMaterials = async (req, res) => {
   }
 };
 
+export const getPublishedPresenterData = async (req, res) => {
+  try {
+    const data = await releases.getPublishedPresenterData({
+      releaseId: req.params.releaseId,
+      user: req.user,
+    });
+    return res.json({ data });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 export const downloadPublishedSessionPlan = async (req, res) => {
   try {
     const result = await releases.downloadPublishedSessionPlan({ releaseId: req.params.releaseId, user: req.user });

@@ -148,6 +148,13 @@ export const serveRuntimeAsset = async (req, res) => {
           send('STUDIO_CLICKER_INPUT',{key:key,shiftKey:event.shiftKey});
         }
       },true);
+      var pointerFrame=0,lastPointer=null;
+      window.addEventListener('pointermove',function(event){
+        lastPointer={x:Math.max(0,Math.min(1,event.clientX/Math.max(1,window.innerWidth))),y:Math.max(0,Math.min(1,event.clientY/Math.max(1,window.innerHeight)))};
+        if(pointerFrame)return;
+        pointerFrame=requestAnimationFrame(function(){pointerFrame=0;send('STUDIO_RUNTIME_POINTER',{point:lastPointer})});
+      },true);
+      window.addEventListener('pointerleave',function(){send('STUDIO_RUNTIME_POINTER',{point:null})},true);
       window.addEventListener('message',function(event){
         var data=event.data||{};
         if(data.source!=='spectropy-player'||data.type!=='STUDIO_RUNTIME_COMMAND')return;

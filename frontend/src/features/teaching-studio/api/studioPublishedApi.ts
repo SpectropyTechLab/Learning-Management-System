@@ -156,6 +156,21 @@ export const getPublishedTeachingMaterials = async (releaseId: number) =>
     `/studio/published-releases/${releaseId}/teaching-materials`,
   )).data);
 
+export interface PublishedPresenterData {
+  release_id: number;
+  release_number: number;
+  screen_scripts: Array<{
+    screen_id: number;
+    revision_no: number;
+    content: Record<string, unknown>;
+  }>;
+}
+
+export const getPublishedPresenterData = async (releaseId: number) =>
+  dataOf<PublishedPresenterData>((await api.get(
+    `/studio/published-releases/${releaseId}/presenter-data`,
+  )).data);
+
 const downloadFile = async (url: string, fallback: string) => {
   const response = await api.get(url, { responseType: 'blob' });
   const disposition = String(response.headers['content-disposition'] || '');

@@ -17,10 +17,10 @@ const FORMAT_KEYS = new Set([
   'alignment', 'backgroundColor', 'bold', 'borderColor', 'borderRadius', 'borderWidth',
   'color', 'fill', 'fontFamily', 'fontSize', 'grayscale', 'italic', 'lineHeight', 'opacity',
   'paragraphSpacingAfter', 'paragraphSpacingBefore', 'saturate', 'shapeEffect', 'stroke',
-  'strokeDash', 'strokeWidth', 'underline',
+  'strokeDash', 'strokeWidth', 'underline', 'verticalAlignment',
 ]);
 
-const TEXT_FORMAT_KEYS = new Set(['alignment', 'backgroundColor', 'bold', 'color', 'fontFamily', 'fontSize', 'italic', 'lineHeight', 'paragraphSpacingAfter', 'paragraphSpacingBefore', 'underline']);
+const TEXT_FORMAT_KEYS = new Set(['alignment', 'backgroundColor', 'bold', 'color', 'fill', 'fontFamily', 'fontSize', 'italic', 'lineHeight', 'opacity', 'paragraphSpacingAfter', 'paragraphSpacingBefore', 'shapeEffect', 'stroke', 'strokeDash', 'strokeWidth', 'underline', 'verticalAlignment']);
 const SHAPE_FORMAT_KEYS = new Set(['fill', 'opacity', 'shapeEffect', 'stroke', 'strokeDash', 'strokeWidth', 'borderRadius']);
 const PICTURE_FORMAT_KEYS = new Set(['borderColor', 'borderRadius', 'borderWidth', 'grayscale', 'opacity', 'saturate', 'shapeEffect']);
 const resourceTypeOf = (element: StudioElement) => String(element.resource?.usage.resource_type || '');

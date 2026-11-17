@@ -27,12 +27,14 @@ const assertTenantAccess = (session, user) => {
 
 const loadSession = async (db, sessionId, { lock = false } = {}) => {
   const result = await db.query(
-    `SELECT id, client_id, subtopic_id, title, status, revision_no,
-            submitted_by, submitted_at, approved_by, approved_at,
-            approval_comment, published_at
-     FROM sessions
-     WHERE id = $1
-     ${lock ? 'FOR UPDATE' : ''}`,
+    `SELECT s.id, s.client_id, s.subtopic_id, s.title, s.status, s.revision_no,
+            s.submitted_by, s.submitted_at, s.approved_by, s.approved_at,
+            s.approval_comment, s.published_at,
+            reviewer.full_name AS reviewer_name
+     FROM sessions s
+     LEFT JOIN users reviewer ON reviewer.id = s.approved_by
+     WHERE s.id = $1
+     ${lock ? 'FOR UPDATE OF s' : ''}`,
     [sessionId]
   );
   if (!result.rows[0]) throw new AppError('Studio session not found', 404);
@@ -41,6 +43,7 @@ const loadSession = async (db, sessionId, { lock = false } = {}) => {
 
 const validateContent = async (db, session) => {
   const errors = [];
+  const warnings = [];
   const documentsResult = await db.query(
     `SELECT id, document_type, revision_no, source_mode, metadata_json
      FROM session_documents
@@ -74,9 +77,9 @@ const validateContent = async (db, session) => {
   const usesLegacySessionScript = scriptsResult.rows.length === 0 && Boolean(legacyScriptDocument);
   for (const screen of screensResult.rows) {
     if (!usesLegacySessionScript && !scriptsByScreen.has(Number(screen.id))) {
-      errors.push({
+      warnings.push({
         code: 'SCREEN_SCRIPT_MISSING',
-        message: `Screen Script is required for Screen ${screen.screen_number}.`,
+        message: `Screen Script is missing for Screen ${screen.screen_number}. You can still submit this Session.`,
         screen_id: Number(screen.id),
       });
     }
@@ -85,6 +88,7 @@ const validateContent = async (db, session) => {
   return {
     valid: errors.length === 0,
     errors,
+    warnings,
     screen_count: screensResult.rows.length,
     exact_revision: {
       session_revision_no: Number(session.revision_no),
@@ -293,6 +297,9 @@ export const getSessionStatus = async ({ sessionId: rawSessionId, user }) => {
     submitted_at: session.submitted_at,
     approved_by: session.approved_by,
     approved_at: session.approved_at,
+    reviewer_name: session.reviewer_name,
+    reviewed_by: session.approved_by,
+    reviewed_at: session.approved_at,
     approval_comment: session.approval_comment,
     published_at: session.published_at,
     revision_no: Number(session.revision_no),
