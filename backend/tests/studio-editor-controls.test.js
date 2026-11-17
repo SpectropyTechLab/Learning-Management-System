@@ -516,7 +516,7 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   const player = readFrontend('StudioSessionPlayerPage.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const runtime = readFrontend('components/studioClickerRuntime.ts');
-  const retreatStart = player.indexOf('const retreatPresenter');
+  const retreatStart = player.indexOf('const retreatPresenter =');
   const retreatEnd = player.indexOf('useEffect(() => {', retreatStart);
   const retreatImplementation = player.slice(retreatStart, retreatEnd);
   assert.match(player, /<PublishedCanvas key=\{screen\.screen_id\}/);
@@ -548,14 +548,15 @@ test('Transitions keep their complete PowerPoint-style workflow in the ribbon', 
 
   assert.match(editor, /<StudioTransitionRibbon/);
   assert.doesNotMatch(editor, /<StudioTransitionsPanel/);
-  assert.match(transitionRibbon, /Transition category/);
+  assert.match(transitionRibbon, /STUDIO_TRANSITION_GROUPS/);
+  assert.match(transitionRibbon, /All transitions/);
   assert.match(transitionRibbon, /Transition direction/);
   assert.match(transitionRibbon, /Transition duration/);
   assert.match(transitionRibbon, /Motion intensity/);
   assert.match(transitionRibbon, /Transition easing/);
   assert.match(transitionRibbon, /Transition sound/);
-  assert.match(transitionRibbon, /Respect reduced motion/);
-  assert.match(transitionRibbon, /Apply to all/);
+  assert.match(transitionRibbon, /Reduced motion/);
+  assert.match(transitionRibbon, /Apply all/);
 });
 
 test('Canvas elements support direct pointer dragging as well as resize handles', () => {
@@ -578,6 +579,7 @@ test('Adaptive ribbon exposes PowerPoint-style collapse, contextual crop, shape 
   const editor = readFrontend('TeachingStudioPage.tsx');
   const ribbon = readFrontend('components/StudioAdaptiveRibbon.tsx');
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const shapeRibbon = readFrontend('components/StudioShapeFormatRibbon.tsx');
 
   assert.match(ribbon, /aria-label=\{collapsed \? 'Show ribbon commands' : 'Hide ribbon commands'\}/);
   assert.match(ribbon, /height: collapsed \? '2rem' : '6\.35rem'/);
@@ -591,12 +593,16 @@ test('Adaptive ribbon exposes PowerPoint-style collapse, contextual crop, shape 
   const shapeFormatStart = editor.indexOf("case 'shape-format':");
   const nextContextualTabStart = editor.indexOf("case 'diagram-design':", shapeFormatStart);
   const shapeFormat = editor.slice(shapeFormatStart, nextContextualTabStart);
-  assert.match(shapeFormat, /RIBBON_VISIBLE_SHAPES/);
-  assert.match(shapeFormat, /Shape fill/);
-  assert.match(shapeFormat, /Shape outline/);
-  assert.match(shapeFormat, /Shape effect/);
-  assert.match(shapeFormat, /Selection Pane/);
-  assert.match(shapeFormat, /Rotate/);
+  assert.match(shapeFormat, /ShapeGalleryDropdown/);
+  assert.match(shapeFormat, /ShapeAppearanceControls/);
+  assert.match(shapeFormat, /ShapeArrangeControls/);
+  assert.match(shapeFormat, /ShapeSizeControls/);
+  assert.match(shapeFormat, /STUDIO_SHAPE_GROUPS/);
+  assert.match(shapeRibbon, /Shape Fill/);
+  assert.match(shapeRibbon, /Shape Outline/);
+  assert.match(shapeRibbon, /Shape effect/);
+  assert.match(shapeRibbon, /onSelectionPane/);
+  assert.match(shapeRibbon, /Rotate/);
   assert.doesNotMatch(shapeFormat, /openRibbonTool\('shapes'\)/);
 
   for (const group of [
@@ -608,7 +614,8 @@ test('Adaptive ribbon exposes PowerPoint-style collapse, contextual crop, shape 
     'animation-reorder',
   ]) assert.match(editor, new RegExp(`id: '${group}'`));
   assert.match(editor, /const openAnimationPane = \(\) => \{[\s\S]*setPanel\('animations'\);[\s\S]*setRightPanelOpen\(true\)/);
-  assert.match(editor, /moveSelectedAnimation\(-1, selectedAnimationEffects\.length - 1\)/);
+  assert.match(editor, /onClick=\{\(\) => moveSelectedAnimation\(-1\)\}/);
+  assert.match(editor, /onClick=\{\(\) => moveSelectedAnimation\(1\)\}/);
 });
 
 test('3D contextual controls stay in the ribbon and activate interaction inside the model', () => {

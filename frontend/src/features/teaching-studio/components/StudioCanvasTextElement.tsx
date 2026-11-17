@@ -1,12 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import katex from 'katex';
+import { stripEquationEditingPlaceholders } from './studioEquationPlaceholders';
 import { renderToStaticMarkup } from 'react-dom/server';
 import StudioRichTextElement, { hasInlineEquation, inlineEquationParts } from './StudioRichTextElement';
 import StudioShapeElement from './StudioShapeElement';
 import type { InlineShapeData } from './studioInlineShape';
 import { STUDIO_TEXT_COMMAND_EVENT, type StudioTextCommand } from './studioTextCommands';
 import MathLiveEquationEditor from './MathLiveEquationEditor';
+import { inlineEquationEditorBounds } from './studioInlineEquationEditor';
 
 interface Props {
   elementId?: string; text: string; richTextHtml?: string; color?: string; backgroundColor?: string; borderColor?: string; borderWidth?: number; fontSize?: number; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean;
@@ -23,7 +25,7 @@ const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll(
 const editableHtml = (value: string) => inlineEquationParts(value).map((part) => part.kind === 'text'
   ? escapeHtml(part.value).replaceAll('\n', '<br>')
   : part.kind === 'math'
-    ? `<span contenteditable="false" data-inline-latex="${encodeURIComponent(part.value)}" class="studio-inline-equation">${katex.renderToString(part.value, { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' })}</span>`
+    ? `<span contenteditable="false" data-inline-latex="${encodeURIComponent(stripEquationEditingPlaceholders(part.value))}" class="studio-inline-equation">${katex.renderToString(stripEquationEditingPlaceholders(part.value), { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' })}</span>`
     : (() => {
         try {
           const shape = JSON.parse(decodeURIComponent(part.value)) as InlineShapeData;
@@ -349,7 +351,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
   const onCommitRef = useRef(onCommit);
   onCommitRef.current = onCommit;
   const [editing, setEditing] = useState(false);
-  const [inlineEquationEditor, setInlineEquationEditor] = useState<{ latex: string; start: number; end: number; left: number; top: number; width: number; height: number } | null>(null);
+  const [inlineEquationEditor, setInlineEquationEditor] = useState<{ controlId: string; latex: string; start: number; end: number; left: number; top: number; width: number; height: number } | null>(null);
   const inlineEquationTargetRef = useRef<HTMLElement | null>(null);
   const renderedRichTextHtml = consistentRichTextHtml(richTextHtml, text);
   const textStyle: StudioTextStyle = {
@@ -482,6 +484,23 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     selection?.addRange(range);
     savedRangeRef.current = range.cloneRange();
   };
+  const boundsForInlineEquation = (equation: HTMLElement) => {
+    const container = containerRef.current;
+    if (!container) return { left: equation.offsetLeft, top: equation.offsetTop, width: Math.max(36, equation.offsetWidth), height: Math.max(32, equation.offsetHeight) };
+    return inlineEquationEditorBounds(
+      equation.getBoundingClientRect(),
+      container.getBoundingClientRect(),
+      { left: container.clientLeft, top: container.clientTop },
+    );
+  };
+  const updateInlineEquationTarget = (latex: string) => {
+    const target = inlineEquationTargetRef.current;
+    if (!target) return;
+    const cleanLatex = stripEquationEditingPlaceholders(latex);
+    target.dataset.inlineLatex = encodeURIComponent(cleanLatex);
+    target.innerHTML = katex.renderToString(cleanLatex, { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' });
+    target.style.visibility = 'hidden';
+  };
   const runTextCommand = (command: StudioTextCommand) => {
     const editor = editorRef.current;
     if (!editor) {
@@ -514,7 +533,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
       nextRange.collapse(true);
       restoreRange(nextRange);
       if (command.openControl && elementId) {
-        const inlineEditorId = `${elementId}:inline-equation`;
+        const inlineEditorId = `${elementId}:inline-equation:${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
         const token = `\\(${command.latex}\\)`;
         inlineEquationTargetRef.current = equation;
         equation.style.visibility = 'hidden';
@@ -525,13 +544,11 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
         };
         (window as Window & { __studioPendingEquationControl?: typeof detail }).__studioPendingEquationControl = detail;
         setInlineEquationEditor({
+          controlId: inlineEditorId,
           latex: command.latex,
           start: command.offset,
           end: command.offset + token.length,
-          left: equation.offsetLeft,
-          top: equation.offsetTop,
-          width: Math.max(36, equation.offsetWidth),
-          height: Math.max(32, equation.offsetHeight),
+          ...boundsForInlineEquation(equation),
         });
       }
     } else if (command.type === 'style') {
@@ -739,11 +756,11 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     return () => cancelAnimationFrame(frame);
   }, [editable, editing, onEditingChange, selected, startEditing]);
   return <div ref={containerRef} className={`relative flex h-full w-full flex-col overflow-visible ${editing ? 'cursor-text' : ''}`} style={{ backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}`, justifyContent: verticalAlignment === 'middle' ? 'center' : verticalAlignment === 'bottom' ? 'flex-end' : 'flex-start' }} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
-    {editing ? <div ref={(node) => { editorRef.current = node; contentRef.current = node; }} contentEditable suppressContentEditableWarning className="studio-canvas-rich-text min-h-0 w-full cursor-text overflow-visible whitespace-pre-wrap p-3 outline-none" style={textStyle} onPaste={handlePaste} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-latex],[data-inline-shape]'); if (!target || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; if (target.dataset.inlineLatex) { const latex = decodeURIComponent(target.dataset.inlineLatex); const token = `\\(${latex}\\)`; inlineEquationTargetRef.current = target; target.style.visibility = 'hidden'; setInlineEquationEditor({ latex, start, end: start + token.length, left: target.offsetLeft, top: target.offsetTop, width: Math.max(36, target.offsetWidth), height: Math.max(32, target.offsetHeight) }); return; } if (!target.dataset.inlineShape) return; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); scheduleEditorCommit(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={handleEditorBlur} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
+    {editing ? <div ref={(node) => { editorRef.current = node; contentRef.current = node; }} contentEditable suppressContentEditableWarning className="studio-canvas-rich-text min-h-0 w-full cursor-text overflow-visible whitespace-pre-wrap p-3 outline-none" style={textStyle} onPaste={handlePaste} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-latex],[data-inline-shape]'); if (!target || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; if (target.dataset.inlineLatex) { const latex = decodeURIComponent(target.dataset.inlineLatex); const token = `\\(${latex}\\)`; inlineEquationTargetRef.current = target; target.style.visibility = 'hidden'; setInlineEquationEditor({ controlId: `${elementId ?? 'text'}:inline-equation:${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`, latex, start, end: start + token.length, ...boundsForInlineEquation(target) }); return; } if (!target.dataset.inlineShape) return; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); scheduleEditorCommit(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={handleEditorBlur} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
       : renderedRichTextHtml ? <div ref={(node) => { contentRef.current = node; }} className="studio-canvas-rich-text min-h-0 w-full overflow-visible whitespace-pre-wrap p-3" style={textStyle} dangerouslySetInnerHTML={{ __html: renderedRichTextHtml }} />
       : <div ref={(node) => { contentRef.current = node; }} className="min-h-0 w-full overflow-visible" style={textStyle}>{list
         ? <ul className="list-disc space-y-1 p-3 pl-8">{text.split('\n').filter(Boolean).map((line, index) => <li key={index}>{hasInlineEquation(line) ? <StudioRichTextElement text={line} color={color} fontSize={fontSize} /> : line}</li>)}</ul>
         : hasInlineEquation(text) ? <StudioRichTextElement text={text} color={color} fontSize={fontSize} /> : <div className="whitespace-pre-wrap p-3">{text}</div>}</div>}
-    {inlineEquationEditor ? <div className="studio-inline-equation-editor absolute z-50" style={{ left: inlineEquationEditor.left, top: inlineEquationEditor.top, width: 'max-content', minWidth: inlineEquationEditor.width, height: inlineEquationEditor.height, color, fontSize, lineHeight }} onPointerDown={(event) => event.stopPropagation()}><MathLiveEquationEditor value={inlineEquationEditor.latex} onChange={(latex) => { const current = inlineEquationEditor; onInlineEquationEdit?.(latex, current.start, current.end); setInlineEquationEditor({ ...current, latex, end: current.start + `\\(${latex}\\)`.length }); }} ariaLabel="Edit inline equation on canvas" elementId={elementId ? `${elementId}:inline-equation` : undefined} canvas /></div> : null}
+    {inlineEquationEditor ? <div className="studio-inline-equation-editor absolute z-50" style={{ left: inlineEquationEditor.left, top: inlineEquationEditor.top, width: 'max-content', minWidth: inlineEquationEditor.width, height: inlineEquationEditor.height, color, fontSize, lineHeight }} onPointerDown={(event) => event.stopPropagation()}><MathLiveEquationEditor value={inlineEquationEditor.latex} onChange={(latex) => { const cleanLatex = stripEquationEditingPlaceholders(latex); updateInlineEquationTarget(cleanLatex); setInlineEquationEditor((current) => { if (!current) return current; const target = inlineEquationTargetRef.current; return { ...current, latex: cleanLatex, end: current.start + `\\(${cleanLatex}\\)`.length, ...(target ? boundsForInlineEquation(target) : {}) }; }); commitEditorAfterLayout(); }} ariaLabel="Edit inline equation on canvas" elementId={inlineEquationEditor.controlId} canvas /></div> : null}
   </div>;
 }

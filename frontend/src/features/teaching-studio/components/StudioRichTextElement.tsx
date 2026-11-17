@@ -1,4 +1,5 @@
 import katex from 'katex';
+import { stripEquationEditingPlaceholders } from './studioEquationPlaceholders';
 import 'katex/dist/katex.min.css';
 import StudioShapeElement from './StudioShapeElement';
 import type { InlineShapeData } from './studioInlineShape';
@@ -36,7 +37,7 @@ export default function StudioRichTextElement({ text, color = '#25436b', fontSiz
   return <div className="pointer-events-none h-full w-full overflow-visible p-3 font-medium leading-relaxed" style={{ color, fontSize }}>
     {parts.map((part, index) => {
       if (part.kind === 'text') return <span key={index} className="whitespace-pre-wrap">{part.value}</span>;
-      if (part.kind === 'math') return <span key={index} className="studio-inline-equation" dangerouslySetInnerHTML={{ __html: katex.renderToString(part.value, { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' }) }} />;
+      if (part.kind === 'math') return <span key={index} className="studio-inline-equation" dangerouslySetInnerHTML={{ __html: katex.renderToString(stripEquationEditingPlaceholders(part.value), { displayMode: false, throwOnError: false, strict: 'ignore', trust: false, output: 'htmlAndMathml' }) }} />;
       try {
         const shape = JSON.parse(decodeURIComponent(part.value)) as InlineShapeData;
         return <span key={index} className="mx-1 inline-block h-[1.5em] w-[2.5em] align-middle"><StudioShapeElement {...shape} /></span>;
