@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Fragment, type ReactNode } from 'react';
 import type { StudioRibbonTab, StudioRibbonTabId } from './studioRibbonModel';
 
 export type StudioRibbonCommand = {
@@ -17,6 +17,10 @@ export type StudioRibbonGroup = {
   label: string;
   commands?: StudioRibbonCommand[];
   content?: ReactNode;
+  launcher?: {
+    label: string;
+    onExecute: () => void;
+  };
 };
 
 type Props = {
@@ -73,9 +77,11 @@ export default function StudioAdaptiveRibbon({
           </button>
         ) : null}
       </div>
-      <div id="studio-ribbon-command-panel" role="tabpanel" aria-hidden={collapsed} className={`studio-ribbon-groups h-[4.3rem] min-w-0 items-stretch gap-1 overflow-hidden px-2 py-1 ${collapsed ? 'hidden' : 'flex'}`}>
+      <div id="studio-ribbon-command-panel" role="tabpanel" aria-hidden={collapsed} tabIndex={collapsed ? -1 : 0} className={`studio-ribbon-groups h-[4.3rem] min-w-0 items-stretch gap-1 overflow-hidden px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 ${collapsed ? 'hidden' : 'flex'}`}>
         {groups.length ? groups.map((group) => (
-          <div key={group.id} className="studio-ribbon-group flex min-w-0 shrink flex-col border-r border-slate-200 pr-1 last:border-r-0">
+          <Fragment key={group.id}>
+          {activeTab === 'home' && group.id === 'selection' ? <div id="studio-contextual-toolbar-host" className="flex min-w-0 empty:hidden shrink-0 items-stretch overflow-hidden [&>*]:w-full" aria-live="polite" /> : null}
+          <div className="studio-ribbon-group flex min-w-0 shrink-0 flex-col border-r border-slate-200 pr-1 last:border-r-0">
             <div className="flex min-h-0 flex-1 items-center gap-0.5 overflow-hidden">
               {group.content}
               {(group.commands ?? []).map((command) => (
@@ -94,12 +100,20 @@ export default function StudioAdaptiveRibbon({
                 </button>
               ))}
             </div>
-            <span className="mt-0.5 text-center text-[9px] font-medium text-slate-400">{group.label}</span>
+            <div className="relative mt-0.5 min-h-3 text-center text-[9px] font-medium text-slate-400">
+              <span>{group.label}</span>
+              {group.launcher ? (
+                <button type="button" onClick={group.launcher.onExecute} title={group.launcher.label} aria-label={group.launcher.label} className="absolute bottom-0 right-0 grid h-3.5 w-3.5 place-items-center rounded-sm text-slate-500 hover:bg-blue-100 hover:text-blue-900">
+                  <ArrowUpRight size={10} strokeWidth={2.5} />
+                </button>
+              ) : null}
+            </div>
           </div>
+          </Fragment>
         )) : (
           <p className="flex items-center px-2 text-xs text-slate-500">No commands are available for this selection.</p>
         )}
-        <div id="studio-contextual-toolbar-host" className={`${activeTab === 'home' || activeTab === 'text-format' ? 'flex' : 'hidden'} min-w-0 empty:hidden shrink items-stretch overflow-hidden [&>*]:w-full`} aria-live="polite" />
+        {activeTab === 'home' && !groups.some((group) => group.id === 'selection') ? <div id="studio-contextual-toolbar-host" className="flex min-w-0 empty:hidden shrink-0 items-stretch overflow-hidden [&>*]:w-full" aria-live="polite" /> : null}
       </div>
     </section>
   );

@@ -6,11 +6,22 @@ export type StudioTextCommand =
   | { type: 'format'; command: 'bold' | 'italic' | 'underline' }
   | { type: 'style'; property: 'fontSize' | 'fontFamily' | 'color'; value: string }
   | {
+      type: 'apply-character-format';
+      styles: Record<string, string>;
+      range?: { start: number; end: number };
+    }
+  | {
       type: 'block-style';
       property: 'lineHeight' | 'marginTop' | 'marginBottom' | 'textAlign';
       value: string;
     }
-  | { type: 'insert-equation'; latex: string; offset: number };
+  | {
+      type: 'insert-equation';
+      latex: string;
+      offset: number;
+      openControl?: 'keyboard' | 'menu';
+      controlLocation?: { x: number; y: number };
+    };
 
 export const STUDIO_TEXT_COMMAND_EVENT = 'studio:text-command';
 

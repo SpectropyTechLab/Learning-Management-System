@@ -9,7 +9,7 @@ import { targetLayouts } from './targetLayouts';
 import SlideCanvas from './SlideCanvas';
 import StudioShell from './components/StudioShell';
 import { downloadPublishedSessionPlan, getPublishedTeachingMaterials, getPublishedRelease, getSessionPlayerPreview, launchPublishedResource, previewPublishedObject, previewPublishedResource } from './api/studioPublishedApi';
-import { getStudioObjectPreview, getStudioResourcePreview, launchStudioResourceVersion, type StudioObjectPreviewDescriptor } from './api/studioResourcesApi';
+import { commitStudioScormAttempt, getStudioObjectPreview, getStudioResourcePreview, launchStudioResourceVersion, startStudioScormAttempt, type StudioObjectPreviewDescriptor } from './api/studioResourcesApi';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
 import CurriculumDocumentViewer from './components/CurriculumDocumentViewer';
@@ -106,6 +106,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   const [source, setSource] = useState(mapping.external_url || '');
   const [error, setError] = useState('');
   const [objectPreview, setObjectPreview] = useState<StudioObjectPreviewDescriptor | null>(null);
+  const [scormAttemptId, setScormAttemptId] = useState<number | null>(null);
 
   useEffect(() => {
     if (mapping.external_url) return;
@@ -117,7 +118,13 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
           if (active) setObjectPreview(descriptor);
           return descriptor.url || 'embedded-object-ready';
         })
-      : ['html', 'zip', 'scorm', 'simulation'].includes(mapping.resource_type)
+      : mapping.resource_type === 'scorm'
+      ? startStudioScormAttempt(mapping.resource_version_id, previewMode ? undefined : releaseId).then((attempt) => {
+          if (active) setScormAttemptId(attempt.id);
+          if (!attempt.launch.launchable || !attempt.launch.launch_url) throw new Error(attempt.launch.message || 'SCORM Resource cannot be launched.');
+          return resolveAssetUrl(attempt.launch.launch_url) || attempt.launch.launch_url;
+        })
+      : ['html', 'zip', 'simulation'].includes(mapping.resource_type)
       ? (previewMode
           ? launchStudioResourceVersion(mapping.resource_version_id)
           : launchPublishedResource(releaseId, mapping.resource_version_id)).then((result) => {
@@ -160,7 +167,12 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
       </div>
     );
   if (mapping.resource_type === 'external_link') return <ExternalLinkFrame source={source} title={mapping.name} className="h-full w-full" openLinkLabel="Open" width={mapping.width} height={mapping.height} />;
-  return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} />;
+  return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} onRuntimeMessage={mapping.resource_type === 'scorm' && scormAttemptId ? (data) => {
+    if (data.source !== 'spectropy-scorm' || data.type !== 'STUDIO_SCORM_COMMIT' || Number(data.attemptId) !== scormAttemptId) return;
+    const values = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data as Record<string, string> : {};
+    const event = data.event === 'suspend' || data.event === 'terminate' ? data.event : 'commit';
+    void commitStudioScormAttempt(scormAttemptId, String(data.scoIdentifier || ''), values, event).catch(() => undefined);
+  } : undefined} />;
 }
 
 function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null }) {

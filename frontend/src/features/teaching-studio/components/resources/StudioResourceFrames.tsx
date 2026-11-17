@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ExternalLink } from 'lucide-react';
 
 interface ResourceFrameProps {
@@ -8,6 +8,7 @@ interface ResourceFrameProps {
   frameKey?: string;
   width?: number | null;
   height?: number | null;
+  onRuntimeMessage?: (data: Record<string, unknown>) => void;
 }
 
 interface ExternalLinkFrameProps extends ResourceFrameProps {
@@ -95,15 +96,27 @@ export function ExecutableResourceFrame({
   frameKey,
   width,
   height,
+  onRuntimeMessage,
 }: ResourceFrameProps) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    if (!onRuntimeMessage) return;
+    const receive = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow || !event.data || typeof event.data !== 'object') return;
+      onRuntimeMessage(event.data as Record<string, unknown>);
+    };
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
+  }, [onRuntimeMessage]);
   return (
     <FittedFrameViewport width={width} height={height} className={className}>
       <iframe
+        ref={frameRef}
         key={frameKey ?? source}
         src={source}
         title={title}
         className="h-full w-full border-0 bg-white"
-        sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock"
+        sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock allow-forms allow-modals allow-downloads allow-presentation"
         allow="fullscreen"
         allowFullScreen
       />

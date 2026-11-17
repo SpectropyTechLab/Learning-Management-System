@@ -24,6 +24,13 @@ export interface StudioRequestErrorDetails {
 
 const unwrap = <T>(response: { data: DataEnvelope<T> }) => response.data.data;
 
+const restoreTableElementTypes = <T extends StudioScreen>(screen: T): T => ({
+  ...screen,
+  elements: screen.elements.map((element) => element.type === 'data' && element.content.visualType === 'table'
+    ? { ...element, type: 'table' }
+    : element),
+});
+
 export const getStudioErrorDetails = (error: unknown): StudioRequestErrorDetails => {
   if (!isAxiosError<StudioErrorEnvelope>(error)) {
     return {
@@ -52,9 +59,12 @@ export const getStudioErrorDetails = (error: unknown): StudioRequestErrorDetails
 
 export const getStudioErrorMessage = (error: unknown) => getStudioErrorDetails(error).message;
 
-export const listStudioScreens = async (sessionId: number) => unwrap<StudioScreenList>(await api.get(`/studio/sessions/${sessionId}/screens`));
+export const listStudioScreens = async (sessionId: number) => {
+  const result = unwrap<StudioScreenList>(await api.get(`/studio/sessions/${sessionId}/screens`));
+  return { ...result, screens: result.screens.map(restoreTableElementTypes) };
+};
 
-export const getStudioScreen = async (screenId: number) => unwrap<StudioScreen>(await api.get(`/studio/screens/${screenId}`));
+export const getStudioScreen = async (screenId: number) => restoreTableElementTypes(unwrap<StudioScreen>(await api.get(`/studio/screens/${screenId}`)));
 
 export const createBlankStudioScreen = async (sessionId: number, title = 'Untitled Screen') =>
   unwrap<StudioScreen>(
@@ -74,9 +84,14 @@ export const updateStudioScreen = async (
     tags: string[];
     screen_settings?: StudioScreen['screen_settings_json'];
   },
-) => unwrap<StudioScreen & { session_revision_no: number }>(
-  await api.patch(`/studio/screens/${screenId}`, payload),
-);
+) => restoreTableElementTypes(unwrap<StudioScreen & { session_revision_no: number }>(
+  await api.patch(`/studio/screens/${screenId}`, {
+    ...payload,
+    elements: payload.elements.map((element) => element.type === 'table'
+      ? { ...element, type: 'data', content: { ...element.content, visualType: 'table' } }
+      : element),
+  }),
+));
 
 export const deleteStudioScreen = async (screenId: number) =>
   unwrap<{ id: number; session_revision_no: number }>(await api.delete(`/studio/screens/${screenId}`));

@@ -199,10 +199,14 @@ export const replayStudioTransition = (
   transition?: Record<string, unknown>,
 ) => {
   if (!element) return;
+  const animationTarget = element.dataset.testid === 'slide-surface'
+    ? element.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]')
+    : element;
+  if (!animationTarget) return;
   void playStudioTransitionSound(transition?.sound).catch(() => undefined);
   const style = studioTransitionStyle(transition);
-  element.style.animation = 'none';
-  void element.offsetWidth;
-  element.style.animation = '';
-  Object.assign(element.style, style);
+  animationTarget.style.animation = 'none';
+  void animationTarget.offsetWidth;
+  animationTarget.style.animation = '';
+  Object.assign(animationTarget.style, style);
 };

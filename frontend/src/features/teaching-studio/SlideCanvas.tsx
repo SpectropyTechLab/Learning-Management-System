@@ -77,6 +77,34 @@ type PendingMove = {
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), maximum);
 
+function DrawingStrokeMark({ stroke, keyPrefix = '' }: { stroke: AuthorDrawingStroke; keyPrefix?: string }) {
+  if (stroke.tool === 'laser') return null;
+  const points = stroke.points.map((point) => `${point.x},${point.y}`).join(' ');
+  if (stroke.tool === 'fountain' && stroke.points.length > 1) {
+    return <g>
+      {stroke.points.slice(1).map((point, index) => {
+        const previous = stroke.points[index];
+        const progress = (index + 1) / Math.max(1, stroke.points.length - 1);
+        const edgeTaper = Math.min(1, progress * 5, (1 - progress) * 5 + 0.2);
+        const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+        const speedFactor = Math.max(0.55, Math.min(1.25, 18 / Math.max(6, distance)));
+        return <line key={`${keyPrefix}${stroke.id}-segment-${index}`} x1={previous.x} y1={previous.y} x2={point.x} y2={point.y} stroke={stroke.color} strokeWidth={Math.max(1, stroke.width * edgeTaper * speedFactor)} strokeOpacity={stroke.opacity ?? 1} strokeLinecap="round" />;
+      })}
+    </g>;
+  }
+  return <polyline
+    points={points}
+    fill="none"
+    stroke={stroke.color}
+    strokeWidth={stroke.width}
+    strokeOpacity={stroke.tool === 'pencil' ? Math.min(stroke.opacity ?? 1, 0.68) : stroke.opacity ?? 1}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeDasharray={stroke.tool === 'pencil' ? `${Math.max(1, stroke.width * 0.75)} ${Math.max(0.5, stroke.width * 0.22)}` : undefined}
+    style={stroke.tool === 'highlighter' ? { mixBlendMode: 'multiply' } : undefined}
+  />;
+}
+
 export default function SlideCanvas({
   layout,
   slide,
@@ -87,6 +115,8 @@ export default function SlideCanvas({
   showTextEditorOutlines = false,
   selectedObjectId,
   selectedObjectIds = [],
+  geometryControlsHiddenForObjectId,
+  overflowVisibleForObjectId,
   selectedSlotId,
   onSelectObject,
   onSelectSlot,
@@ -106,9 +136,11 @@ export default function SlideCanvas({
   drawingWidth = 6,
   drawingOpacity = 1,
   onDrawingChange,
+  onRemoveObject,
   zoom = 1,
   backgroundColor = '#f9fcff',
   onCanvasDoubleClick,
+  onCanvasClick,
 }: {
   layout: Layout | null;
   slide: Slide;
@@ -119,6 +151,8 @@ export default function SlideCanvas({
   showTextEditorOutlines?: boolean;
   selectedObjectId?: string | null;
   selectedObjectIds?: string[];
+  geometryControlsHiddenForObjectId?: string | null;
+  overflowVisibleForObjectId?: string | null;
   selectedSlotId?: string | null;
   onSelectObject?: (objectId: string, additive?: boolean) => void;
   onSelectSlot?: (slotId: string) => void;
@@ -138,15 +172,18 @@ export default function SlideCanvas({
   drawingWidth?: number;
   drawingOpacity?: number;
   onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
+  onRemoveObject?: (objectId: string) => void;
   zoom?: number;
   backgroundColor?: string;
   onCanvasDoubleClick?: (point: { x: number; y: number }) => void;
+  onCanvasClick?: (point: { x: number; y: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [interaction, setInteraction] = useState<GeometryInteraction | null>(null);
   const pendingMoveRef = useRef<PendingMove | null>(null);
   const [currentStroke, setCurrentStroke] = useState<AuthorDrawingStroke | null>(null);
+  const [laserPoint, setLaserPoint] = useState<{ x: number; y: number } | null>(null);
   const [drawingPointerActive, setDrawingPointerActive] = useState(false);
   const geometryGestureActive = interaction !== null;
   useEffect(() => {
@@ -210,14 +247,30 @@ export default function SlideCanvas({
         const west = direction.includes('w');
         const right = start.x + start.width;
         const bottom = start.y + start.height;
-        const x = west ? clamp(start.x + deltaX, 0, right - 80) : start.x;
-        const y = north ? clamp(start.y + deltaY, 0, bottom - 60) : start.y;
-        const width = west
+        let x = west ? clamp(start.x + deltaX, 0, right - 80) : start.x;
+        let y = north ? clamp(start.y + deltaY, 0, bottom - 60) : start.y;
+        let width = west
           ? right - x
           : east ? clamp(start.width + deltaX, 80, MASTER.width - start.x) : start.width;
-        const height = north
+        let height = north
           ? bottom - y
           : south ? clamp(start.height + deltaY, 60, MASTER.height - start.y) : start.height;
+        if (event.shiftKey) {
+          const horizontalScale = width / start.width;
+          const verticalScale = height / start.height;
+          const scaleFromHorizontal = east || west;
+          const scaleFromVertical = north || south;
+          const scaleFactor = scaleFromHorizontal && scaleFromVertical
+            ? (Math.abs(horizontalScale - 1) >= Math.abs(verticalScale - 1) ? horizontalScale : verticalScale)
+            : scaleFromHorizontal ? horizontalScale : verticalScale;
+          const maximumWidth = west ? right : MASTER.width - start.x;
+          const maximumHeight = north ? bottom : MASTER.height - start.y;
+          const constrainedScale = clamp(scaleFactor, Math.max(80 / start.width, 60 / start.height), Math.min(maximumWidth / start.width, maximumHeight / start.height));
+          width = Math.round(start.width * constrainedScale);
+          height = Math.round(start.height * constrainedScale);
+          x = west ? right - width : east ? start.x : Math.round(start.x + (start.width - width) / 2);
+          y = north ? bottom - height : south ? start.y : Math.round(start.y + (start.height - height) / 2);
+        }
         currentBounds = {
           x: Math.round(x),
           y: Math.round(y),
@@ -377,6 +430,19 @@ export default function SlideCanvas({
     if (next.length !== drawingStrokes.length) onDrawingChange?.(next);
   };
 
+  const eraseObjectAt = (point: { x: number; y: number }) => {
+    const target = [...slide.objects]
+      .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))
+      .find((object) => {
+        if (object.locked) return false;
+        const slot = layout?.slots.find((candidate) => candidate.id === object.slotId);
+        if (!slot) return false;
+        const bounds = boundsFor(object, slot);
+        return point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
+      });
+    if (target) onRemoveObject?.(target.id);
+  };
+
   const beginDrawing = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!drawingEnabled) return;
     event.preventDefault();
@@ -384,11 +450,13 @@ export default function SlideCanvas({
     const point = drawingPoint(event);
     setDrawingPointerActive(true);
     if (drawingTool === 'eraser') eraseAt(point);
+    else if (drawingTool === 'object-eraser') eraseObjectAt(point);
+    else if (drawingTool === 'laser') setLaserPoint(point);
     else
       setCurrentStroke({
         id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         color: drawingColor,
-        width: drawingTool === 'highlighter' ? drawingWidth * 3 : drawingWidth,
+        width: drawingTool === 'highlighter' ? drawingWidth * 3 : drawingTool === 'pencil' ? Math.max(1, drawingWidth * 0.65) : drawingWidth,
         tool: drawingTool,
         opacity: drawingTool === 'highlighter' ? Math.min(drawingOpacity, 0.35) : drawingOpacity,
         points: [point],
@@ -399,6 +467,8 @@ export default function SlideCanvas({
     if (!drawingPointerActive) return;
     const point = drawingPoint(event);
     if (drawingTool === 'eraser') eraseAt(point);
+    else if (drawingTool === 'object-eraser') return;
+    else if (drawingTool === 'laser') setLaserPoint(point);
     else
       setCurrentStroke((stroke) =>
         stroke ? { ...stroke, points: [...stroke.points, point] } : null,
@@ -411,13 +481,14 @@ export default function SlideCanvas({
       event.currentTarget.releasePointerCapture(event.pointerId);
     if (currentStroke?.points.length) onDrawingChange?.([...drawingStrokes, currentStroke]);
     setCurrentStroke(null);
+    setLaserPoint(null);
     setDrawingPointerActive(false);
   };
 
   return (
     <div
       ref={containerRef}
-      className={`flex h-full min-h-[240px] w-full items-center justify-center ${zoom > 1 || allowCanvasOverflow ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
+      className={`flex h-full min-h-[240px] w-full ${zoom > 1 ? 'items-start justify-start' : 'items-center justify-center'} ${zoom > 1 || allowCanvasOverflow ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
       data-testid="slide-viewport"
     >
       {scale > 0 && (
@@ -431,6 +502,11 @@ export default function SlideCanvas({
           onClick={(event) => {
             const target = event.target;
             if (target instanceof Element && target.closest('[data-element-id]')) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            onCanvasClick?.({
+              x: Math.round(((event.clientX - rect.left) / rect.width) * MASTER.width),
+              y: Math.round(((event.clientY - rect.top) / rect.height) * MASTER.height),
+            });
             onClearSelection?.();
           }}
           onDoubleClick={(event) => {
@@ -464,16 +540,6 @@ export default function SlideCanvas({
             data-scale={scale}
           >
             <rect width={MASTER.width} height={MASTER.height} fill={backgroundColor} />
-            <rect
-              x="45"
-              y="30"
-              width="1830"
-              height="1020"
-              rx="24"
-              fill={backgroundColor}
-              stroke="#d6e3f0"
-              strokeWidth="3"
-            />
             {showGuides && (
               <>
                 <rect
@@ -567,7 +633,7 @@ export default function SlideCanvas({
                       y={bounds.y + 12}
                       width={bounds.width - 24}
                       height={bounds.height - (object.caption ? 70 : 24)}
-                      preserveAspectRatio="xMidYMid meet"
+                      preserveAspectRatio="none"
                     >
                       <title>{object.altText || object.text || field.label}</title>
                     </image>
@@ -626,7 +692,7 @@ export default function SlideCanvas({
                   onSelectObject?.(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
                 }}
                 onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds, object.locked)}
-                className={`absolute touch-none rounded-md border-solid ${allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'} ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
+                className={`absolute touch-none rounded-md border-solid ${object.id === overflowVisibleForObjectId || allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'} ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -653,36 +719,16 @@ export default function SlideCanvas({
             onPointerCancel={finishDrawing}
             aria-label="Authored drawing layer"
           >
-            {fixedDrawingStrokes.map((stroke) => (
-              <polyline
-                key={`fixed-${stroke.id}`}
-                points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')}
-                fill="none"
-                stroke={stroke.color}
-                strokeWidth={stroke.width}
-                strokeOpacity={stroke.opacity ?? 1}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-            {[...drawingStrokes, ...(currentStroke ? [currentStroke] : [])].map((stroke) => (
-              <polyline
-                key={stroke.id}
-                points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')}
-                fill="none"
-                stroke={stroke.color}
-                strokeWidth={stroke.width}
-                strokeOpacity={stroke.opacity ?? 1}
-                strokeLinecap={stroke.tool === 'fountain' ? 'square' : 'round'}
-                strokeLinejoin="round"
-              />
-            ))}
+            {fixedDrawingStrokes.map((stroke) => <DrawingStrokeMark key={`fixed-${stroke.id}`} keyPrefix="fixed-" stroke={stroke} />)}
+            {[...drawingStrokes, ...(currentStroke ? [currentStroke] : [])].map((stroke) => <DrawingStrokeMark key={stroke.id} stroke={stroke} />)}
+            {laserPoint ? <g pointerEvents="none"><circle cx={laserPoint.x} cy={laserPoint.y} r={Math.max(18, drawingWidth * 2.5)} fill={drawingColor} opacity={0.2} /><circle cx={laserPoint.x} cy={laserPoint.y} r={Math.max(6, drawingWidth)} fill={drawingColor} opacity={0.95} /></g> : null}
           </svg>
           {!drawingEnabled &&
             onChangeObjectBounds &&
             (layout?.slots ?? []).map((slot) => {
               const object = slide.objects.find((item) => item.slotId === slot.id);
               if (!object || object.id !== selectedObjectId) return null;
+              if (object.id === geometryControlsHiddenForObjectId) return null;
               if (object.locked) return null;
               const bounds = boundsFor(object, slot);
               return (

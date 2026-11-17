@@ -215,6 +215,10 @@ test('runtime launch serves a prepared package asset with isolation headers', as
     'allow-popups',
     'allow-top-navigation-by-user-activation',
     'allow-pointer-lock',
+    'allow-forms',
+    'allow-modals',
+    'allow-downloads',
+    'allow-presentation',
   ]);
   const match = launch.launch_url.match(/^\/api\/studio\/runtime\/([^/]+)\/(.+)$/);
   assert.ok(match);
