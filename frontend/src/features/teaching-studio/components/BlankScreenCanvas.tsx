@@ -43,6 +43,7 @@ interface BlankScreenCanvasProps {
   onCloseDiagramTextPane?: () => void;
   selectedSlotId?: string | null;
   onSelectElement?: (elementId: string, additive?: boolean) => void;
+  onSelectElements?: (elementIds: string[], additive?: boolean) => void;
   onSelectDiagramNode?: (elementId: string, nodeId: string) => void;
   onSelectSlot?: (slotId: string) => void;
   onClearElementSelection?: () => void;
@@ -91,7 +92,7 @@ const elementText = (content: Record<string, unknown>) => {
 
 type MediaTransform = { fit: 'contain' | 'cover'; scale: number; x: number; y: number; cropped: boolean; edgeCrop: boolean; cropGeometry: boolean; cropLeft: number; cropRight: number; cropTop: number; cropBottom: number; cropScaleX: number; cropScaleY: number; cropOffsetX: number; cropOffsetY: number };
 
-function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: () => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void }) {
+function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: (additive?: boolean) => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -327,7 +328,7 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     );
 
   return (
-    <div ref={containerRef} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={onSelect}>
+    <div ref={containerRef} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }}>
       <StudioResourcePlayer
         resourceType={resource.resource_type}
         version={version}
@@ -461,6 +462,7 @@ export default function BlankScreenCanvas({
   onCloseDiagramTextPane,
   selectedSlotId,
   onSelectElement,
+  onSelectElements,
   onSelectDiagramNode,
   onSelectSlot,
   onClearElementSelection,
@@ -575,6 +577,18 @@ export default function BlankScreenCanvas({
   useEffect(() => {
     if (editingElementId && selectedElementId !== editingElementId) setEditingElementId(null);
   }, [editingElementId, selectedElementId]);
+  useEffect(() => {
+    if (previewMode) return;
+    const startTextEditing = (event: Event) => {
+      const elementId = String((event as CustomEvent<{ elementId?: string }>).detail?.elementId || '');
+      const element = screen?.elements.find((candidate) => candidate.id === elementId);
+      if (!element || !['shape', 'text', 'title', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type)) return;
+      onSelectElement?.(elementId);
+      setEditingElementId(elementId);
+    };
+    window.addEventListener('studio-edit-element-text', startTextEditing);
+    return () => window.removeEventListener('studio-edit-element-text', startTextEditing);
+  }, [onSelectElement, previewMode, screen?.elements]);
   useEffect(() => {
     const syncToolbarHost = () => {
       const nextHost = document.getElementById('studio-contextual-toolbar-host');
@@ -811,20 +825,55 @@ export default function BlankScreenCanvas({
     }
     if (element.type === 'shape') {
       objectOverlays[element.id] = (
-        <StudioShapeElement
-          kind={String(element.content.kind || 'rectangle')}
-          fill={typeof element.content.fill === 'string' ? element.content.fill : undefined}
-          stroke={typeof element.content.stroke === 'string' ? element.content.stroke : undefined}
-          strokeWidth={Number(element.content.strokeWidth) || undefined}
-          opacity={Number(element.content.opacity) || undefined}
-          strokeDash={
-            typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined
-          }
-          customPath={
-            typeof element.content.customPath === 'string' ? element.content.customPath : undefined
-          }
-          effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
-        />
+        <div className="relative h-full w-full overflow-hidden">
+          <div className="pointer-events-none absolute inset-0">
+            <StudioShapeElement
+              elementId={element.id}
+              kind={String(element.content.kind || 'rectangle')}
+              fill={typeof element.content.fill === 'string' ? element.content.fill : undefined}
+              stroke={typeof element.content.stroke === 'string' ? element.content.stroke : undefined}
+              strokeWidth={Number(element.content.strokeWidth) || undefined}
+              opacity={Number(element.content.opacity) || undefined}
+              strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
+              customPath={typeof element.content.customPath === 'string' ? element.content.customPath : undefined}
+              effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
+            />
+          </div>
+          <div className="absolute inset-[8%] overflow-hidden">
+            <StudioCanvasTextElement
+              elementId={element.id}
+              text={typeof element.content.text === 'string' ? element.content.text : ''}
+              richTextHtml={typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : undefined}
+              color={typeof element.content.color === 'string' ? element.content.color : '#0f2747'}
+              fontSize={Number(element.content.fontSize) || 24}
+              fontFamily={typeof element.content.fontFamily === 'string' ? element.content.fontFamily : undefined}
+              bold={element.content.bold === true}
+              italic={element.content.italic === true}
+              underline={element.content.underline === true}
+              alignment={element.content.alignment === 'left' || element.content.alignment === 'right' || element.content.alignment === 'justify' ? element.content.alignment : 'center'}
+              verticalAlignment={element.content.verticalAlignment === 'top' || element.content.verticalAlignment === 'bottom' ? element.content.verticalAlignment : 'middle'}
+              list={element.content.list === true}
+              lineHeight={Number(element.content.lineHeight) || undefined}
+              paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
+              paragraphSpacingAfter={Number(element.content.paragraphSpacingAfter) || undefined}
+              editable={!previewMode && Boolean(onChangeElementContent)}
+              selected={selectedElementId === element.id}
+              startEditing={editingElementId === element.id}
+              onSelect={onSelectElement ? (additive) => onSelectElement(element.id, additive) : undefined}
+              onCommit={onChangeElementContent ? ({ text, richTextHtml, formatting }) => onChangeElementContent(element.id, { text, ...(richTextHtml !== undefined ? { richTextHtml } : {}), ...formatting }) : undefined}
+              onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
+              onSelectionFontSizeChange={(value) => setTextSelectionFontSize({ elementId: element.id, value })}
+              onSelectionSpacingChange={(value) => setTextSelectionSpacing({ elementId: element.id, value })}
+              onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
+              onInlineEquationEdit={(latex, start, end) => onEditInlineEquation?.(element.id, latex, start, end)}
+              onEditingChange={(editing) => {
+                setEditingElementId(editing ? element.id : (current) => current === element.id ? null : current);
+                if (!editing) setTextSelectionFontSize((current) => current?.elementId === element.id ? null : current);
+                if (!editing) setTextSelectionSpacing((current) => current?.elementId === element.id ? null : current);
+              }}
+            />
+          </div>
+        </div>
       );
       continue;
     }
@@ -864,14 +913,28 @@ export default function BlankScreenCanvas({
         'data',
       ].includes(element.type)
     ) {
+      const textFrameKind = typeof element.content.kind === 'string' ? element.content.kind : '';
       objectOverlays[element.id] = (
-        <StudioCanvasTextElement
+        <div className="relative h-full w-full overflow-visible">
+        {textFrameKind ? <div className="pointer-events-none absolute inset-0"><StudioShapeElement
+          elementId={element.id}
+          kind={textFrameKind}
+          fill={typeof element.content.fill === 'string' ? element.content.fill : 'transparent'}
+          stroke={typeof element.content.stroke === 'string' ? element.content.stroke : 'transparent'}
+          strokeWidth={Number(element.content.strokeWidth) || undefined}
+          opacity={Number(element.content.opacity) || undefined}
+          strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
+          effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
+        /></div> : null}
+        <div className={textFrameKind ? 'absolute inset-[3%]' : 'h-full w-full'}><StudioCanvasTextElement
           key={element.id}
           elementId={element.id}
           text={text}
           richTextHtml={typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : undefined}
           color={typeof element.content.color === 'string' ? element.content.color : undefined}
-          backgroundColor={typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
+          backgroundColor={textFrameKind ? 'transparent' : typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
+          borderColor={textFrameKind ? 'transparent' : typeof element.content.borderColor === 'string' ? element.content.borderColor : undefined}
+          borderWidth={textFrameKind ? 0 : Number(element.content.borderWidth) || undefined}
           fontSize={Number(element.content.fontSize) || undefined}
           fontFamily={
             typeof element.content.fontFamily === 'string' ? element.content.fontFamily : undefined
@@ -886,6 +949,7 @@ export default function BlankScreenCanvas({
               ? element.content.alignment
               : 'left'
           }
+          verticalAlignment={element.content.verticalAlignment === 'middle' || element.content.verticalAlignment === 'bottom' ? element.content.verticalAlignment : 'top'}
           list={element.content.list === true}
           lineHeight={Number(element.content.lineHeight) || undefined}
           paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
@@ -893,7 +957,7 @@ export default function BlankScreenCanvas({
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
           startEditing={editingElementId === element.id}
-          onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+          onSelect={onSelectElement ? (additive) => onSelectElement(element.id, additive) : undefined}
           onCommit={onChangeElement ? ({ text: value, richTextHtml: richText, formatting, requiredHeight }) => {
             const currentBounds =
               elementBounds(element.position) ??
@@ -937,7 +1001,7 @@ export default function BlankScreenCanvas({
             if (!editing) setTextSelectionFontSize((current) => current?.elementId === element.id ? null : current);
             if (!editing) setTextSelectionSpacing((current) => current?.elementId === element.id ? null : current);
           }}
-        />
+        /></div></div>
       );
       continue;
     }
@@ -947,19 +1011,19 @@ export default function BlankScreenCanvas({
       const name = String(element.content.text || 'Dropped file');
       if (element.type === 'visual' || mimeType.startsWith('image/')) {
         objectOverlays[element.id] = (
-          <div className="group relative h-full w-full bg-slate-100" onClick={() => onSelectElement?.(element.id)}>
+          <div className="group relative h-full w-full bg-slate-100" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}>
             <img src={droppedUrl} alt={String(element.content.altText || name)} className="h-full w-full object-fill" />
             <span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span>
           </div>
         );
       } else if (mimeType.startsWith('video/')) {
-        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={() => onSelectElement?.(element.id)}><video src={droppedUrl} controls className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
+        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><video src={droppedUrl} controls className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
       } else if (mimeType.startsWith('audio/')) {
-        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={() => onSelectElement?.(element.id)}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls className="mt-4 w-full"/></div></div>;
+        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls className="mt-4 w-full"/></div></div>;
       } else if (mimeType === 'application/pdf') {
-        objectOverlays[element.id] = <div className="relative h-full w-full bg-slate-200" onClick={() => onSelectElement?.(element.id)}><iframe src={droppedUrl} title={name} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>;
+        objectOverlays[element.id] = <div className="relative h-full w-full bg-slate-200" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><iframe src={droppedUrl} title={name} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>;
       } else {
-        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center" onClick={() => onSelectElement?.(element.id)}><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{mimeType || 'Document'}</p><a href={droppedUrl} download={name} onClick={(event) => event.stopPropagation()} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>;
+        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{mimeType || 'Document'}</p><a href={droppedUrl} download={name} onClick={(event) => event.stopPropagation()} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>;
       }
       continue;
     }
@@ -972,7 +1036,7 @@ export default function BlankScreenCanvas({
         selected={selectedElementId === element.id}
         cropRequestToken={cropRequest?.elementId === element.id ? cropRequest.token : undefined}
         model3DModeRequestToken={model3DModeRequest?.elementId === element.id ? model3DModeRequest.token : undefined}
-        onSelect={onSelectElement ? () => onSelectElement(element.id) : undefined}
+        onSelect={onSelectElement ? (additive) => onSelectElement(element.id, additive) : undefined}
         onCroppingChange={(cropping) => setCroppingElementId((current) => cropping ? element.id : current === element.id ? null : current)}
         onCommitCrop={onCommitElementChange || onChangeElement ? (bounds, mediaTransform) => (onCommitElementChange || onChangeElement)?.({ ...element, position: { ...element.position, ...bounds }, content: { ...element.content, mediaTransform } }) : undefined}
         onModel3DSettingsChange={onChangeElementContent ? (settings) => onChangeElementContent(element.id, { model3d: settings }) : undefined}
@@ -1133,6 +1197,7 @@ export default function BlankScreenCanvas({
             overflowVisibleForObjectId={croppingElementId}
             selectedSlotId={selectedSlotId}
             onSelectObject={onSelectElement}
+            onSelectObjects={onSelectElements}
             onSelectSlot={onSelectSlot}
             onClearSelection={onClearElementSelection}
             onChangeObjectBounds={onChangeElementBounds}
