@@ -122,13 +122,13 @@ test('submitSession rejects access to a session from another tenant', async (t) 
   assert.ok(!calls.includes('commit'));
 });
 
-test('modern imported Screen Scripts require a current script revision for every Screen', async (t) => {
+test('missing modern Screen Scripts are warnings and do not block submission', async (t) => {
   const calls = [];
   const client = {
     async query(text) {
       const sql = normalizedSql(text);
       calls.push(sql);
-      if (sql === 'begin' || sql === 'rollback') return { rows: [] };
+      if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
       if (sql.includes('from sessions') && sql.includes('for update')) {
         return { rows: [{
           id: 41, client_id: 12, subtopic_id: 9, title: 'Fractions',
@@ -160,9 +160,12 @@ test('modern imported Screen Scripts require a current script revision for every
         }] };
       }
       if (sql.startsWith('insert into session_validations')) {
-        return { rows: [{ id: 201, session_id: 41, session_revision_no: 3, is_valid: false }] };
+        return { rows: [{ id: 201, session_id: 41, session_revision_no: 3, is_valid: true }] };
       }
-      throw new Error(`Incomplete modern scripts must stop before this query: ${sql}`);
+      if (sql.startsWith("update sessions set status = 'submitted'")) {
+        return { rows: [{ session_id: 41, status: 'submitted', submitted_by: 8 }] };
+      }
+      throw new Error(`Unhandled query: ${sql}`);
     },
     release() {},
   };
@@ -170,16 +173,17 @@ test('modern imported Screen Scripts require a current script revision for every
   pool.connect = async () => client;
   t.after(() => { pool.connect = originalConnect; });
 
-  await assert.rejects(
-    submitSession({
-      sessionId: 41,
-      user: { id: 8, role: 'content_authorizer', client_id: 12 },
-    }),
-    (error) => error?.status === 422 &&
-      error?.details?.some((detail) => detail.code === 'SCREEN_SCRIPT_MISSING' && detail.screen_id === 72),
-  );
+  const result = await submitSession({
+    sessionId: 41,
+    user: { id: 8, role: 'content_authorizer', client_id: 12 },
+  });
+  assert.equal(result.status, 'submitted');
+  assert.equal(result.validation.valid, true);
+  assert.equal(result.validation.errors.length, 0);
+  assert.ok(result.validation.warnings.some((warning) =>
+    warning.code === 'SCREEN_SCRIPT_MISSING' && warning.screen_id === 72));
   assert.ok(calls.some((sql) => sql.includes('from screen_script_revisions')));
-  assert.ok(calls.includes('rollback'));
+  assert.ok(calls.includes('commit'));
 });
 
 test('startSessionRevision preserves a published release while creating a new draft revision', async (t) => {

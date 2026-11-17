@@ -10,8 +10,9 @@ import MathLiveEquationEditor from './MathLiveEquationEditor';
 
 interface Props {
   elementId?: string; text: string; richTextHtml?: string; color?: string; backgroundColor?: string; borderColor?: string; borderWidth?: number; fontSize?: number; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean;
+  verticalAlignment?: 'top' | 'middle' | 'bottom';
   alignment?: 'left' | 'center' | 'right' | 'justify'; list?: boolean; lineHeight?: number; paragraphSpacingBefore?: number; paragraphSpacingAfter?: number; editable?: boolean; selected?: boolean; startEditing?: boolean;
-  onSelect?: () => void; onCommit?: (change: { text: string; richTextHtml?: string; formatting: Record<string, unknown>; requiredHeight: number }) => void; onCaretChange?: (offset: number) => void; onEditingChange?: (editing: boolean) => void;
+  onSelect?: (additive?: boolean) => void; onCommit?: (change: { text: string; richTextHtml?: string; formatting: Record<string, unknown>; requiredHeight: number }) => void; onCaretChange?: (offset: number) => void; onEditingChange?: (editing: boolean) => void;
   onSelectionFontSizeChange?: (fontSize: number | 'mixed' | null) => void;
   onSelectionSpacingChange?: (spacing: SelectionSpacing) => void;
   onInlineShapeEdit?: (shape: InlineShapeData, start: number, end: number) => void;
@@ -336,7 +337,7 @@ type StudioTextStyle = CSSProperties & {
   '--studio-paragraph-after': string;
 };
 
-export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionSpacingChange, onInlineShapeEdit, onInlineEquationEdit }: Props) {
+export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', verticalAlignment = 'top', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionSpacingChange, onInlineShapeEdit, onInlineEquationEdit }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement | null>(null);
   const initializedEditorRef = useRef<HTMLDivElement | null>(null);
@@ -719,13 +720,25 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
   };
   const beginEditing = () => { setEditing(true); onEditingChange?.(true); requestAnimationFrame(() => editorRef.current?.focus()); };
   useEffect(() => {
+    if (!editable || !elementId) return;
+    const handleEditRequest = (event: Event) => {
+      const requestedId = String((event as CustomEvent<{ elementId?: string }>).detail?.elementId || '');
+      if (requestedId !== elementId) return;
+      setEditing(true);
+      onEditingChange?.(true);
+      requestAnimationFrame(() => editorRef.current?.focus());
+    };
+    window.addEventListener('studio-edit-element-text', handleEditRequest);
+    return () => window.removeEventListener('studio-edit-element-text', handleEditRequest);
+  }, [editable, elementId, onEditingChange]);
+  useEffect(() => {
     if (!startEditing || !editable || !selected || editing) return;
     setEditing(true);
     onEditingChange?.(true);
     const frame = requestAnimationFrame(() => editorRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [editable, editing, onEditingChange, selected, startEditing]);
-  return <div ref={containerRef} className={`relative h-full w-full overflow-visible ${editing ? 'cursor-text' : ''}`} style={{ backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}` }} onClick={(event) => { event.stopPropagation(); onSelect?.(); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
+  return <div ref={containerRef} className={`relative flex h-full w-full flex-col overflow-visible ${editing ? 'cursor-text' : ''}`} style={{ backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}`, justifyContent: verticalAlignment === 'middle' ? 'center' : verticalAlignment === 'bottom' ? 'flex-end' : 'flex-start' }} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
     {editing ? <div ref={(node) => { editorRef.current = node; contentRef.current = node; }} contentEditable suppressContentEditableWarning className="studio-canvas-rich-text min-h-0 w-full cursor-text overflow-visible whitespace-pre-wrap p-3 outline-none" style={textStyle} onPaste={handlePaste} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-latex],[data-inline-shape]'); if (!target || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; if (target.dataset.inlineLatex) { const latex = decodeURIComponent(target.dataset.inlineLatex); const token = `\\(${latex}\\)`; inlineEquationTargetRef.current = target; target.style.visibility = 'hidden'; setInlineEquationEditor({ latex, start, end: start + token.length, left: target.offsetLeft, top: target.offsetTop, width: Math.max(36, target.offsetWidth), height: Math.max(32, target.offsetHeight) }); return; } if (!target.dataset.inlineShape) return; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); scheduleEditorCommit(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={handleEditorBlur} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
       : renderedRichTextHtml ? <div ref={(node) => { contentRef.current = node; }} className="studio-canvas-rich-text min-h-0 w-full overflow-visible whitespace-pre-wrap p-3" style={textStyle} dangerouslySetInnerHTML={{ __html: renderedRichTextHtml }} />
       : <div ref={(node) => { contentRef.current = node; }} className="min-h-0 w-full overflow-visible" style={textStyle}>{list

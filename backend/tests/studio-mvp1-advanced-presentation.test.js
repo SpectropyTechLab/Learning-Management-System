@@ -27,6 +27,7 @@ test('runtime HTML bridge forwards clicker input and completion without authorin
   assert.match(controller, /STUDIO_CLICKER_INPUT/);
   assert.match(controller, /STUDIO_RUNTIME_COMMAND/);
   assert.match(controller, /STUDIO_RUNTIME_COMPLETE/);
+  assert.match(controller, /STUDIO_RUNTIME_POINTER/);
   assert.match(controller, /spectropy:complete/);
 });
 

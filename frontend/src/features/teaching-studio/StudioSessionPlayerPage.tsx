@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, Music, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, MousePointer2, Music, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -8,7 +8,7 @@ import type { Layout, ObjectType, Rect, Slide } from './layouts';
 import { targetLayouts } from './targetLayouts';
 import SlideCanvas from './SlideCanvas';
 import StudioShell from './components/StudioShell';
-import { downloadPublishedSessionPlan, getPublishedTeachingMaterials, getPublishedRelease, getSessionPlayerPreview, launchPublishedResource, previewPublishedObject, previewPublishedResource } from './api/studioPublishedApi';
+import { downloadPublishedSessionPlan, getPublishedPresenterData, getPublishedTeachingMaterials, getPublishedRelease, getSessionPlayerPreview, launchPublishedResource, previewPublishedObject, previewPublishedResource } from './api/studioPublishedApi';
 import { commitStudioScormAttempt, getStudioObjectPreview, getStudioResourcePreview, launchStudioResourceVersion, startStudioScormAttempt, type StudioObjectPreviewDescriptor } from './api/studioResourcesApi';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
@@ -35,7 +35,7 @@ import StudioSmartDiagram from './components/StudioSmartDiagram';
 import StudioHyperlinkOverlay from './components/studioHyperlink';
 import { isSmartDiagramContent } from './components/smartDiagramModel';
 import StudioBranchDiscoveryPanel from './components/StudioBranchDiscoveryPanel';
-import type { PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
+import type { PublishedPresenterData, PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
@@ -49,6 +49,22 @@ const textFrom = (content: Record<string, unknown>) => {
 };
 
 type PresenterAnnotationTool = 'pointer' | 'laser' | 'pen' | 'highlighter' | 'eraser';
+
+type PresenterSyncState = {
+  screenId: number | null;
+  animationStep: number;
+  playbackCycle: number;
+  annotations: AuthorDrawingStroke[];
+  blankMode: 'black' | 'white' | null;
+  presentationZoom: number;
+};
+
+const presenterText = (value: unknown) => {
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const record = value as Record<string, unknown>;
+  return String(record.word_for_word ?? record.text ?? record.value ?? '').trim();
+};
 
 const displayValue = (value: unknown) => {
   if (value === null || value === undefined || value === '') return '—';
@@ -102,6 +118,40 @@ const freeformLayoutFor = (screen: PublishedScreen): Layout => ({
   }),
 });
 
+function PublishedImage({ source, alt, content, children }: { source: string; alt: string; content?: Record<string, unknown>; children?: ReactNode }) {
+  const mediaTransform = content?.mediaTransform && typeof content.mediaTransform === 'object' && !Array.isArray(content.mediaTransform)
+    ? content.mediaTransform as Record<string, unknown>
+    : null;
+  const cropped = mediaTransform?.cropped === true || mediaTransform?.edgeCrop === true || mediaTransform?.cropGeometry === true;
+  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><img src={source} alt={alt} className="h-full w-full object-contain" />{children}</div>;
+  const hasEdgeCrop = mediaTransform?.edgeCrop === true;
+  const hasCropGeometry = mediaTransform?.cropGeometry === true;
+  const cropScaleX = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleX) || 1) : 1;
+  const cropScaleY = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleY) || 1) : 1;
+  return <div
+    className={`relative h-full w-full ${hasEdgeCrop ? 'overflow-visible' : 'overflow-hidden'}`}
+    style={hasEdgeCrop ? { clipPath: `inset(${Number(mediaTransform?.cropTop) || 0}% ${Number(mediaTransform?.cropRight) || 0}% ${Number(mediaTransform?.cropBottom) || 0}% ${Number(mediaTransform?.cropLeft) || 0}%)` } : undefined}
+  >
+    <img
+      src={source}
+      alt={alt}
+      className="absolute max-h-none max-w-none"
+      style={{
+        width: `${cropScaleX * 100}%`,
+        height: `${cropScaleY * 100}%`,
+        objectFit: 'fill',
+        left: `${(hasCropGeometry ? Number(mediaTransform?.cropOffsetX) || 0 : 0) * 100}%`,
+        top: `${(hasCropGeometry ? Number(mediaTransform?.cropOffsetY) || 0 : 0) * 100}%`,
+        transform: hasEdgeCrop || hasCropGeometry
+          ? `translate(${Number(mediaTransform?.x) || 0}%, ${Number(mediaTransform?.y) || 0}%) scale(${Math.max(1, Number(mediaTransform?.scale) || 1)})`
+          : 'none',
+        transformOrigin: 'center',
+      }}
+    />
+    {children}
+  </div>;
+}
+
 function PublishedResource({ releaseId, mapping, previewMode = false, elementContent }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean; elementContent?: Record<string, unknown> }) {
   const [source, setSource] = useState(mapping.external_url || '');
   const [error, setError] = useState('');
@@ -149,7 +199,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   if (error) return <div className="grid h-full place-items-center bg-slate-950 p-3 text-center text-xs text-white">{error}</div>;
   if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
   if (mapping.resource_type === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} className="h-full w-full" />;
-  if (mapping.resource_type === 'image') return <img src={source} alt={mapping.name} className="h-full w-full object-contain" />;
+  if (mapping.resource_type === 'image') return <PublishedImage source={source} alt={mapping.name} content={elementContent} />;
   if (mapping.resource_type === 'video' || mapping.mime_type?.startsWith('video/')) return <video src={source} controls className="h-full w-full" />;
   if (mapping.resource_type === 'model_3d') return <Model3DViewer src={source} alt={mapping.name} className="h-full w-full" mode="runtime" settings={model3DSettingsFrom(elementContent)} />;
   if (mapping.resource_type === 'presentation')
@@ -175,7 +225,47 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   } : undefined} />;
 }
 
-function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null }) {
+function PublishedTextFrame({ element, shape = false }: { element: PublishedScreen['elements'][number]; shape?: boolean }) {
+  const content = element.content_json ?? {};
+  const text = shape ? (typeof content.text === 'string' ? content.text : '') : textFrom(content);
+  const kind = shape ? String(content.kind || 'rectangle') : typeof content.kind === 'string' ? content.kind : '';
+  const textElement = <StudioCanvasTextElement
+    elementId={element.element_key}
+    text={text}
+    richTextHtml={typeof content.richTextHtml === 'string' ? content.richTextHtml : undefined}
+    color={typeof content.color === 'string' ? content.color : shape ? '#0f2747' : undefined}
+    backgroundColor={kind ? 'transparent' : typeof content.backgroundColor === 'string' ? content.backgroundColor : undefined}
+    borderColor={kind ? 'transparent' : typeof content.borderColor === 'string' ? content.borderColor : undefined}
+    borderWidth={kind ? 0 : Number(content.borderWidth) || undefined}
+    fontSize={Number(content.fontSize) || (shape ? 24 : undefined)}
+    fontFamily={typeof content.fontFamily === 'string' ? content.fontFamily : undefined}
+    bold={content.bold === true}
+    italic={content.italic === true}
+    underline={content.underline === true}
+    alignment={content.alignment === 'center' || content.alignment === 'right' || content.alignment === 'justify' ? content.alignment : shape ? 'center' : 'left'}
+    verticalAlignment={content.verticalAlignment === 'middle' || content.verticalAlignment === 'bottom' ? content.verticalAlignment : shape ? 'middle' : 'top'}
+    list={content.list === true}
+    lineHeight={Number(content.lineHeight) || undefined}
+    paragraphSpacingBefore={Number(content.paragraphSpacingBefore) || undefined}
+    paragraphSpacingAfter={Number(content.paragraphSpacingAfter) || undefined}
+  />;
+  if (!kind) return textElement;
+  return <div className="relative h-full w-full overflow-hidden">
+    <div className="pointer-events-none absolute inset-0"><StudioShapeElement
+      kind={kind}
+      fill={typeof content.fill === 'string' ? content.fill : 'transparent'}
+      stroke={typeof content.stroke === 'string' ? content.stroke : 'transparent'}
+      strokeWidth={Number(content.strokeWidth) || undefined}
+      opacity={Number(content.opacity) || undefined}
+      strokeDash={typeof content.strokeDash === 'string' ? content.strokeDash : undefined}
+      customPath={typeof content.customPath === 'string' ? content.customPath : undefined}
+      effect={typeof content.shapeEffect === 'string' ? content.shapeEffect : undefined}
+    /></div>
+    <div className={shape ? 'absolute inset-[8%] overflow-hidden' : 'absolute inset-[3%] overflow-hidden'}>{textElement}</div>
+  </div>;
+}
+
+function PublishedCanvas({ releaseId, screen, previewMode = false, passivePreview = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onLiveAnnotationChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; passivePreview?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onLiveAnnotationChange?: (stroke: AuthorDrawingStroke | null) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null }) {
   const layout = layoutFor(screen) ?? freeformLayoutFor(screen);
   const slide: Slide = {
     title: screen.title,
@@ -211,21 +301,24 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
       return [[element.element_key, <StudioSmartDiagram key={element.element_key} content={element.content_json} visibleNodeIds={visibleNodeIds} />]];
     }
     if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
-    if (element.element_type === 'shape') return [[element.element_key, <StudioShapeElement key={element.element_key} kind={String(element.content_json?.kind || 'rectangle')} fill={typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined} stroke={typeof element.content_json?.stroke === 'string' ? element.content_json.stroke : undefined} strokeWidth={Number(element.content_json?.strokeWidth) || undefined} opacity={Number(element.content_json?.opacity) || undefined} customPath={typeof element.content_json?.customPath === 'string' ? element.content_json.customPath : undefined} />]];
+    if (element.element_type === 'shape') return [[element.element_key, <PublishedTextFrame key={element.element_key} element={element} shape />]];
     if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full touch-manipulation place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.content_json?.zoom_summary_group ? 'Summary Zoom' : element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select once to explore · returns here</span></span></button>]];
     const droppedUrl = typeof element.content_json?.url === 'string' ? element.content_json.url : '';
     const droppedMime = typeof element.content_json?.mimeType === 'string' ? element.content_json.mimeType : '';
     if (droppedUrl && element.content_json?.source === 'drag-drop') {
       const name = textFrom(element.content_json || {}) || 'Dropped file';
-      if (element.element_type === 'visual' || droppedMime.startsWith('image/')) return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-slate-100"><img src={droppedUrl} alt={String(element.content_json?.altText || name)} className="h-full w-full object-contain"/><span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span></div>]];
+      if (element.element_type === 'visual' || droppedMime.startsWith('image/')) return [[element.element_key, <PublishedImage key={element.element_key} source={droppedUrl} alt={String(element.content_json?.altText || name)} content={element.content_json}><span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span></PublishedImage>]];
       if (droppedMime.startsWith('video/')) return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-black"><video src={droppedUrl} controls className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>]];
       if (droppedMime.startsWith('audio/')) return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white"><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls className="mt-4 w-full"/></div></div>]];
       if (droppedMime === 'application/pdf') return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-slate-200"><iframe src={droppedUrl} title={name} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>]];
       return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center"><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{droppedMime || 'Document'}</p><a href={droppedUrl} download={name} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>]];
     }
-    const text = textFrom(element.content_json || {});
-    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <StudioCanvasTextElement key={element.element_key} elementId={element.element_key} text={text} richTextHtml={typeof element.content_json?.richTextHtml === 'string' ? element.content_json.richTextHtml : undefined} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} fontFamily={typeof element.content_json?.fontFamily === 'string' ? element.content_json.fontFamily : undefined} bold={element.content_json?.bold === true} italic={element.content_json?.italic === true} underline={element.content_json?.underline === true} alignment={element.content_json?.alignment === 'center' || element.content_json?.alignment === 'right' || element.content_json?.alignment === 'justify' ? element.content_json.alignment : 'left'} list={element.content_json?.list === true} lineHeight={Number(element.content_json?.lineHeight) || undefined} paragraphSpacingBefore={Number(element.content_json?.paragraphSpacingBefore) || undefined} paragraphSpacingAfter={Number(element.content_json?.paragraphSpacingAfter) || undefined} />]];
-    return element.resource_mapping ? [[element.element_key, <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} elementContent={element.content_json} />]] : [];
+    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <PublishedTextFrame key={element.element_key} element={element} />]];
+    if (!element.resource_mapping) return [];
+    const executablePreview = passivePreview && ['scorm', 'html', 'zip', 'simulation'].includes(element.resource_mapping.resource_type);
+    return [[element.element_key, executablePreview
+      ? <div key={element.element_key} className="grid h-full w-full place-items-center bg-slate-900 p-4 text-center text-white"><div><Presentation className="mx-auto text-cyan-300" size={34} /><p className="mt-2 font-semibold">{element.resource_mapping.name}</p><p className="mt-1 text-xs uppercase text-slate-400">{element.resource_mapping.resource_type} activity</p></div></div>
+      : <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} elementContent={element.content_json} />]];
   }));
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
@@ -266,7 +359,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, immersiveView
 
   const drawingEnabled = annotationTool === 'pen' || annotationTool === 'highlighter' || annotationTool === 'eraser';
   const drawingTool = annotationTool === 'eraser' ? 'eraser' : annotationTool === 'highlighter' ? 'highlighter' : 'pen';
-  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} />;
+  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} onDrawingPreviewChange={onLiveAnnotationChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -278,6 +371,22 @@ export default function StudioSessionPlayerPage() {
   const suppressAutoRuntimeRef = useRef(false);
   const previousFullScreenRef = useRef(false);
   const advancePresenterRef = useRef<() => void>(() => undefined);
+  const retreatPresenterRef = useRef<() => void>(() => undefined);
+  const toggleFullScreenRef = useRef<() => void>(() => undefined);
+  const screenIdRef = useRef<number | null>(null);
+  const presenterChannelRef = useRef<BroadcastChannel | null>(null);
+  const presenterWindowRef = useRef<Window | null>(null);
+  const presenterWindowWatchRef = useRef<number | null>(null);
+  const presenterStateRef = useRef<PresenterSyncState | null>(null);
+  const remotePresenterStateRef = useRef<PresenterSyncState | null>(null);
+  const presenterPointerDotRef = useRef<HTMLSpanElement | null>(null);
+  const presenterSlideRef = useRef<HTMLDivElement | null>(null);
+  const audienceSlideHostRef = useRef<HTMLElement | null>(null);
+  const audiencePointerDotRef = useRef<HTMLSpanElement | null>(null);
+  const audienceLiveSvgRef = useRef<SVGSVGElement | null>(null);
+  const audienceLiveInkRef = useRef<SVGPolylineElement | null>(null);
+  const liveAnnotationFrameRef = useRef<number | null>(null);
+  const latestLiveAnnotationRef = useRef<AuthorDrawingStroke | null>(null);
   const [release, setRelease] = useState<PublishedRelease | null>(null);
   const [screenId, setScreenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -310,6 +419,9 @@ export default function StudioSessionPlayerPage() {
   const [zoomHubRun, setZoomHubRun] = useState<null | { originScreenId: number; elementKeys: string[]; index: number }>(null);
   const [activeRuntimeElement, setActiveRuntimeElement] = useState<PublishedScreen['elements'][number] | null>(null);
   const [shortcutGuideOpen, setShortcutGuideOpen] = useState(false);
+  const [presenterMode, setPresenterMode] = useState(false);
+  const [presenterData, setPresenterData] = useState<PublishedPresenterData | null>(null);
+  const [presenterDataBusy, setPresenterDataBusy] = useState(false);
 
   const sessionId = Number(params.sessionId);
   const releaseNumber = Number(params.releaseNumber);
@@ -332,11 +444,13 @@ export default function StudioSessionPlayerPage() {
       .then((data) => {
         setRelease(data);
         const first = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0];
-        setScreenId(first?.screen_id ?? null);
+        setScreenId(audienceMode && remotePresenterStateRef.current?.screenId
+          ? remotePresenterStateRef.current.screenId
+          : first?.screen_id ?? null);
       })
       .catch((requestError) => setError(getApiErrorDetails(requestError).message))
       .finally(() => setLoading(false));
-  }, [previewMode, releaseNumber, sessionId]);
+  }, [audienceMode, previewMode, releaseNumber, sessionId]);
 
   const screens = useMemo(() => [...(release?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [release]);
   const currentIndex = screens.findIndex((screen) => screen.screen_id === screenId);
@@ -355,6 +469,41 @@ export default function StudioSessionPlayerPage() {
   const discoveryScreen = discoveryIndex >= 0 ? discoveryScreens[discoveryIndex] : null;
   const isTrackedBranchUser = user?.role === 'teacher';
   const teacherAnnotations = screenId ? (annotationsByScreen[screenId] ?? []) : [];
+  screenIdRef.current = screenId;
+  const nextScreen = currentIndex >= 0 ? screens[currentIndex + 1] ?? null : null;
+  const currentPresenterScript = presenterData?.screen_scripts.find((item) => item.screen_id === screenId);
+  const teacherNarration = presenterText(currentPresenterScript?.content.teacher_narration);
+  const presenterNotes = presenterText(currentPresenterScript?.content.teacher_presenter_notes_production_checks);
+  presenterStateRef.current = {
+    screenId,
+    animationStep,
+    playbackCycle,
+    annotations: teacherAnnotations,
+    blankMode,
+    presentationZoom,
+  };
+
+  const audienceSlideBounds = () => {
+    const host = audienceSlideHostRef.current;
+    const surface = host?.querySelector<HTMLElement>('[data-testid="slide-surface"]');
+    if (!host || !surface) return null;
+    const hostBounds = host.getBoundingClientRect();
+    const surfaceBounds = surface.getBoundingClientRect();
+    const bounds = {
+      left: surfaceBounds.left - hostBounds.left,
+      top: surfaceBounds.top - hostBounds.top,
+      width: surfaceBounds.width,
+      height: surfaceBounds.height,
+    };
+    const liveSvg = audienceLiveSvgRef.current;
+    if (liveSvg) {
+      liveSvg.style.left = `${bounds.left}px`;
+      liveSvg.style.top = `${bounds.top}px`;
+      liveSvg.style.width = `${bounds.width}px`;
+      liveSvg.style.height = `${bounds.height}px`;
+    }
+    return bounds;
+  };
 
   useEffect(() => {
     const unlock = () => void unlockStudioTransitionAudio();
@@ -376,13 +525,22 @@ export default function StudioSessionPlayerPage() {
   useEffect(() => () => stopStudioTransitionSound(), []);
 
   useEffect(() => {
-    setAnimationStep(enterScreenAtEndRef.current ? animationTimeline.maxStep : 0);
+    const remoteState = audienceMode ? remotePresenterStateRef.current : null;
+    if (audienceLiveInkRef.current) audienceLiveInkRef.current.style.display = 'none';
+    if (audiencePointerDotRef.current) audiencePointerDotRef.current.style.display = 'none';
+    setAnimationStep(remoteState?.screenId === screenId
+      ? remoteState.animationStep
+      : enterScreenAtEndRef.current ? animationTimeline.maxStep : 0);
     enterScreenAtEndRef.current = false;
     setAnimationNavigation(null);
-    setPlaybackCycle((value) => value + 1);
-    setBlankMode(null);
-    setPresentationZoom(1);
-  }, [animationTimeline.maxStep, screenId]);
+    setPlaybackCycle(remoteState?.screenId === screenId
+      ? remoteState.playbackCycle
+      : (value) => value + 1);
+    setBlankMode(remoteState?.screenId === screenId ? remoteState.blankMode : null);
+    setPresentationZoom(remoteState?.screenId === screenId ? remoteState.presentationZoom : 1);
+    if (remoteState?.screenId === screenId && screenId)
+      setAnnotationsByScreen((current) => ({ ...current, [screenId]: remoteState.annotations }));
+  }, [animationTimeline.maxStep, audienceMode, screenId]);
 
   useEffect(() => {
     if (!screen) return;
@@ -421,13 +579,17 @@ export default function StudioSessionPlayerPage() {
   }, [fullScreen]);
 
   useEffect(() => {
-    if (annotationTool !== 'laser') setLaserPoint(null);
-  }, [annotationTool]);
+    if (annotationTool === 'laser') return;
+    setLaserPoint(null);
+    if (presenterPointerDotRef.current) presenterPointerDotRef.current.style.display = 'none';
+    if (presenterMode) presenterChannelRef.current?.postMessage({ type: 'pointer', screenId, point: null });
+  }, [annotationTool, presenterMode, screenId]);
 
   const toggleFullScreen = async () => {
     if (document.fullscreenElement === playerRef.current) await document.exitFullscreen();
     else await playerRef.current?.requestFullscreen();
   };
+  toggleFullScreenRef.current = () => { void toggleFullScreen(); };
 
   const setTeacherAnnotations = (strokes: AuthorDrawingStroke[]) => {
     if (!screenId) return;
@@ -618,18 +780,79 @@ export default function StudioSessionPlayerPage() {
       setScreenId(screens[currentIndex - 1]?.screen_id ?? null);
     }
   };
+  retreatPresenterRef.current = retreatPresenter;
 
   useEffect(() => {
     if (!presentationChannel || typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel(presentationChannel);
-    channel.onmessage = (event: MessageEvent<{ command?: string }>) => {
+    channel.onmessage = (event: MessageEvent<{ command?: string; type?: string; state?: PresenterSyncState; screenId?: number | null; stroke?: AuthorDrawingStroke | null; point?: { x: number; y: number } | null }>) => {
+      if (event.data?.type === 'live-annotation') {
+        const line = audienceLiveInkRef.current;
+        if (!line) return;
+        audienceSlideBounds();
+        const stroke = event.data.screenId === screenIdRef.current ? event.data.stroke : null;
+        line.style.display = stroke?.points.length ? 'block' : 'none';
+        if (stroke?.points.length) {
+          line.setAttribute('points', stroke.points.map((point) => `${point.x},${point.y}`).join(' '));
+          line.setAttribute('stroke', stroke.color);
+          line.setAttribute('stroke-width', String(stroke.width));
+          line.setAttribute('stroke-opacity', String(stroke.opacity ?? 1));
+          line.style.mixBlendMode = stroke.tool === 'highlighter' ? 'multiply' : 'normal';
+        }
+        return;
+      }
+      if (event.data?.type === 'pointer') {
+        const dot = audiencePointerDotRef.current;
+        if (!dot) return;
+        const point = event.data.screenId === screenIdRef.current ? event.data.point : null;
+        const bounds = point ? audienceSlideBounds() : null;
+        dot.style.display = point ? 'block' : 'none';
+        if (point && bounds) {
+          dot.style.left = `${bounds.left + point.x * bounds.width}px`;
+          dot.style.top = `${bounds.top + point.y * bounds.height}px`;
+        }
+        return;
+      }
+      if (event.data?.type === 'state' && event.data.state) {
+        const state = event.data.state;
+        remotePresenterStateRef.current = state;
+        if (state.screenId !== screenIdRef.current) {
+          if (audienceLiveInkRef.current) audienceLiveInkRef.current.style.display = 'none';
+          setScreenId(state.screenId);
+        }
+        else {
+          setAnimationStep(state.animationStep);
+          setPlaybackCycle(state.playbackCycle);
+          setBlankMode(state.blankMode);
+          setPresentationZoom(state.presentationZoom);
+          if (state.screenId)
+            setAnnotationsByScreen((current) => ({ ...current, [state.screenId as number]: state.annotations }));
+          window.requestAnimationFrame(() => {
+            if (audienceLiveInkRef.current) audienceLiveInkRef.current.style.display = 'none';
+          });
+        }
+        return;
+      }
       if (event.data?.command === 'next') advancePresenterRef.current();
-      if (event.data?.command === 'previous') retreatPresenter();
-      if (event.data?.command === 'fullscreen') void toggleFullScreen();
+      if (event.data?.command === 'previous') retreatPresenterRef.current();
+      if (event.data?.command === 'fullscreen') toggleFullScreenRef.current();
       if (event.data?.command === 'close') window.close();
     };
+    channel.postMessage({ type: 'ready' });
     return () => channel.close();
-  }, [presentationChannel, retreatPresenter]);
+  }, [presentationChannel]);
+
+  useEffect(() => {
+    if (!presenterMode || !presenterChannelRef.current || !presenterStateRef.current) return;
+    presenterChannelRef.current.postMessage({ type: 'state', state: presenterStateRef.current });
+  }, [animationStep, blankMode, playbackCycle, presentationZoom, presenterMode, screenId, teacherAnnotations]);
+
+  useEffect(() => () => {
+    if (presenterWindowWatchRef.current !== null) window.clearInterval(presenterWindowWatchRef.current);
+    presenterChannelRef.current?.postMessage({ command: 'close' });
+    presenterChannelRef.current?.close();
+    if (presenterWindowRef.current && !presenterWindowRef.current.closed) presenterWindowRef.current.close();
+  }, []);
 
   const openZoom = (element: PublishedScreen['elements'][number], queueIndex?: number, queueKeys?: string[]) => {
     if (!screen || !element.zoom) return;
@@ -652,8 +875,27 @@ export default function StudioSessionPlayerPage() {
 
   useEffect(() => {
     const receiveRuntimeClicker = (event: MessageEvent) => {
-      const data = event.data as { source?: string; type?: string; key?: string } | null;
+      const data = event.data as { source?: string; type?: string; key?: string; point?: { x: number; y: number } | null } | null;
       if (data?.source !== 'spectropy-runtime') return;
+      if (data.type === 'STUDIO_RUNTIME_POINTER') {
+        if (!presenterMode || annotationTool !== 'pointer') return;
+        if (!data.point) {
+          publishPointerPoint(null);
+          return;
+        }
+        const host = presenterSlideRef.current;
+        const frame = Array.from(playerRef.current?.querySelectorAll('iframe') ?? [])
+          .find((candidate) => candidate.contentWindow === event.source);
+        if (!host || !frame) return;
+        const surface = host.querySelector<HTMLElement>('[data-testid="slide-surface"]');
+        if (!surface) return;
+        const surfaceBounds = surface.getBoundingClientRect();
+        const frameBounds = frame.getBoundingClientRect();
+        const x = (frameBounds.left + data.point.x * frameBounds.width - surfaceBounds.left) / Math.max(1, surfaceBounds.width);
+        const y = (frameBounds.top + data.point.y * frameBounds.height - surfaceBounds.top) / Math.max(1, surfaceBounds.height);
+        publishPointerPoint(x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null);
+        return;
+      }
       if (data.type === 'STUDIO_RUNTIME_COMPLETE') {
         if (document.fullscreenElement) void document.exitFullscreen();
         setActiveRuntimeElement(null);
@@ -682,6 +924,7 @@ export default function StudioSessionPlayerPage() {
   };
 
   useEffect(() => {
+    if (audienceMode) return;
     const handleClicker = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
@@ -770,7 +1013,7 @@ export default function StudioSessionPlayerPage() {
       } else if (event.key.toLowerCase() === 'v' && isTrackedBranchUser) {
         event.preventDefault();
         setAnnotationTool('pointer');
-      } else if (event.key.toLowerCase() === 'l' && isTrackedBranchUser) {
+      } else if (event.key.toLowerCase() === 'l' && isTrackedBranchUser && !presenterMode) {
         event.preventDefault();
         setAnnotationTool('laser');
       } else if (event.key.toLowerCase() === 'p' && isTrackedBranchUser) {
@@ -792,7 +1035,7 @@ export default function StudioSessionPlayerPage() {
     };
     window.addEventListener('keydown', handleClicker);
     return () => window.removeEventListener('keydown', handleClicker);
-  }, [animationStep, animationTimeline.maxStep, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, previewMode, screens, shortcutGuideOpen, teacherAnnotations.length, zoomElements]);
+  }, [animationStep, animationTimeline.maxStep, audienceMode, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, previewMode, screens, shortcutGuideOpen, teacherAnnotations.length, zoomElements]);
 
   const downloadPlan = async () => {
     if (!release) return;
@@ -822,6 +1065,168 @@ export default function StudioSessionPlayerPage() {
       setError(getApiErrorDetails(requestError).message);
     }
   };
+
+  const broadcastLiveAnnotation = (stroke: AuthorDrawingStroke | null) => {
+    latestLiveAnnotationRef.current = stroke;
+    if (!stroke) {
+      if (liveAnnotationFrameRef.current !== null) window.cancelAnimationFrame(liveAnnotationFrameRef.current);
+      liveAnnotationFrameRef.current = null;
+      return;
+    }
+    if (liveAnnotationFrameRef.current !== null) return;
+    liveAnnotationFrameRef.current = window.requestAnimationFrame(() => {
+      liveAnnotationFrameRef.current = null;
+      presenterChannelRef.current?.postMessage({
+        type: 'live-annotation',
+        screenId,
+        stroke: latestLiveAnnotationRef.current,
+      });
+    });
+  };
+
+  const publishPointerPoint = (point: { x: number; y: number } | null) => {
+    const dot = presenterPointerDotRef.current;
+    if (dot) {
+      const host = presenterSlideRef.current;
+      const surface = host?.querySelector<HTMLElement>('[data-testid="slide-surface"]');
+      const hostBounds = host?.getBoundingClientRect();
+      const surfaceBounds = surface?.getBoundingClientRect();
+      dot.style.display = point && hostBounds && surfaceBounds ? 'block' : 'none';
+      if (point && hostBounds && surfaceBounds) {
+        dot.style.left = `${surfaceBounds.left - hostBounds.left + point.x * surfaceBounds.width}px`;
+        dot.style.top = `${surfaceBounds.top - hostBounds.top + point.y * surfaceBounds.height}px`;
+      }
+    }
+    presenterChannelRef.current?.postMessage({ type: 'pointer', screenId, point });
+  };
+
+  const broadcastPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    const surface = event.currentTarget.querySelector<HTMLElement>('[data-testid="slide-surface"]');
+    if (!surface) return publishPointerPoint(null);
+    const bounds = surface.getBoundingClientRect();
+    const x = (event.clientX - bounds.left) / Math.max(1, bounds.width);
+    const y = (event.clientY - bounds.top) / Math.max(1, bounds.height);
+    publishPointerPoint(x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null);
+  };
+
+  const clearBroadcastPointer = () => publishPointerPoint(null);
+
+  const closePresenterMode = () => {
+    if (liveAnnotationFrameRef.current !== null) window.cancelAnimationFrame(liveAnnotationFrameRef.current);
+    liveAnnotationFrameRef.current = null;
+    if (presenterWindowWatchRef.current !== null) {
+      window.clearInterval(presenterWindowWatchRef.current);
+      presenterWindowWatchRef.current = null;
+    }
+    presenterChannelRef.current?.postMessage({ command: 'close' });
+    presenterChannelRef.current?.close();
+    presenterChannelRef.current = null;
+    if (presenterWindowRef.current && !presenterWindowRef.current.closed) presenterWindowRef.current.close();
+    presenterWindowRef.current = null;
+    setPresenterMode(false);
+    setAnnotationTool('pointer');
+  };
+
+  const openPresenterMode = () => {
+    if (!release || !isTrackedBranchUser || previewMode || audienceMode) return;
+    if (presenterMode) {
+      presenterWindowRef.current?.focus();
+      return;
+    }
+    const channelName = `spectropy-player-presenter-${sessionId}-${Date.now()}`;
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(channelName) : null;
+    if (!channel) {
+      setError('Presenter Mode requires BroadcastChannel support in this browser.');
+      return;
+    }
+    const audienceUrl = new URL(window.location.href);
+    audienceUrl.searchParams.set('mode', 'audience');
+    audienceUrl.searchParams.set('channel', channelName);
+    const audience = window.open(
+      audienceUrl.toString(),
+      `spectropy-player-audience-${sessionId}`,
+      'popup=yes,width=1440,height=900,left=40,top=40,resizable=yes,scrollbars=no',
+    );
+    if (!audience) {
+      channel.close();
+      setError('Allow pop-ups for this site, then open Presenter Mode again.');
+      return;
+    }
+    presenterChannelRef.current = channel;
+    presenterWindowRef.current = audience;
+    channel.onmessage = (event: MessageEvent<{ type?: string }>) => {
+      if (event.data?.type === 'ready' && presenterStateRef.current)
+        channel.postMessage({ type: 'state', state: presenterStateRef.current });
+    };
+    setAnnotationTool('pointer');
+    setPresenterMode(true);
+    audience.focus();
+    presenterWindowWatchRef.current = window.setInterval(() => {
+      if (!presenterWindowRef.current?.closed) return;
+      if (presenterWindowWatchRef.current !== null) window.clearInterval(presenterWindowWatchRef.current);
+      presenterWindowWatchRef.current = null;
+      presenterWindowRef.current = null;
+      presenterChannelRef.current?.close();
+      presenterChannelRef.current = null;
+      setPresenterMode(false);
+      setAnnotationTool('pointer');
+    }, 750);
+    setPresenterDataBusy(true);
+    void getPublishedPresenterData(release.id)
+      .then(setPresenterData)
+      .catch((requestError) => setError(getApiErrorDetails(requestError).message))
+      .finally(() => setPresenterDataBusy(false));
+  };
+
+  if (presenterMode && release && screen && !audienceMode) {
+    return (
+      <StudioShell title="Presenter View" subtitle={release.manifest.session?.title || `Release ${release.release_number}`} hideHeader scrollContent={false} wrapContent={false}>
+        <div ref={playerRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-950 text-white">
+          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/15 px-4 py-2">
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-bold">Presenter View</h1>
+              <p className="truncate text-xs text-slate-300">Screen {screen.screen_number}: {screen.title} · Audience window connected</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => presenterWindowRef.current?.focus()} className="rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold hover:bg-white/10">Show audience</button>
+              <button type="button" onClick={closePresenterMode} className="inline-flex items-center gap-1 rounded-lg border border-red-400/50 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/15"><X size={15} />End Presenter View</button>
+            </div>
+          </header>
+          <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.65fr)_minmax(17rem,0.85fr)] gap-3 p-3">
+            <section className="flex min-h-0 flex-col gap-2">
+              <div className="flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">Current slide</h2><span className="text-xs text-slate-400">{currentIndex + 1} / {screens.length} · Build {animationStep}/{animationTimeline.maxStep}</span></div>
+              <div ref={presenterSlideRef} className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/20 bg-slate-900" onPointerMove={(event) => { if (annotationTool === 'pointer') broadcastPointer(event); }} onPointerLeave={() => { if (annotationTool === 'pointer') clearBroadcastPointer(); }}>
+                <PublishedCanvas releaseId={release.id} screen={screen} teacherAnnotations={teacherAnnotations} annotationTool={annotationTool} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onLiveAnnotationChange={broadcastLiveAnnotation} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} />
+                {annotationTool === 'pointer' ? <span ref={presenterPointerDotRef} className="pointer-events-none absolute z-[65] hidden h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-md" /> : null}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-white/15 bg-slate-900 p-2">
+                <div className="flex items-center gap-1" role="toolbar" aria-label="Presenter drawing tools">
+                  <button type="button" onClick={() => { clearBroadcastPointer(); setAnnotationTool('pointer'); }} className={`rounded-lg p-2 ${annotationTool === 'pointer' ? 'bg-blue-600' : 'hover:bg-white/10'}`} title="Pointer"><MousePointer2 size={18} /></button>
+                  <button type="button" onClick={() => setAnnotationTool('pen')} className={`rounded-lg p-2 ${annotationTool === 'pen' ? 'bg-blue-600' : 'hover:bg-white/10'}`} title="Pen"><PenLine size={18} /></button>
+                  <button type="button" onClick={() => setAnnotationTool('highlighter')} className={`rounded-lg p-2 ${annotationTool === 'highlighter' ? 'bg-amber-500 text-slate-950' : 'hover:bg-white/10'}`} title="Highlighter"><Highlighter size={18} /></button>
+                  <button type="button" onClick={() => setAnnotationTool('eraser')} className={`rounded-lg p-2 ${annotationTool === 'eraser' ? 'bg-blue-600' : 'hover:bg-white/10'}`} title="Eraser"><Eraser size={18} /></button>
+                  <label className="relative grid h-9 w-9 cursor-pointer place-items-center rounded-lg hover:bg-white/10" title="Ink colour"><Palette size={18} /><span className="absolute bottom-1 h-1 w-5 rounded-full" style={{ backgroundColor: annotationColor }} /><input type="color" value={annotationColor} onChange={(event) => setAnnotationColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" /></label>
+                  <button type="button" disabled={teacherAnnotations.length === 0} onClick={() => setTeacherAnnotations([])} className="rounded-lg p-2 text-red-300 hover:bg-red-500/15 disabled:opacity-30" title="Clear ink"><Trash2 size={18} /></button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-white/25 px-3 text-sm font-semibold hover:bg-white/10 disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
+                  <button type="button" disabled={animationStep >= animationTimeline.maxStep && currentIndex >= screens.length - 1} onClick={advancePresenter} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-bold hover:bg-blue-500 disabled:opacity-30">Next<ChevronRight size={18} /></button>
+                </div>
+              </div>
+            </section>
+            <aside className="grid min-h-0 grid-rows-[minmax(11rem,0.8fr)_minmax(0,1.2fr)] gap-3">
+              <section className="flex min-h-0 flex-col"><h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-300">Next slide</h2><div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-white/20 bg-slate-900">{nextScreen ? <PublishedCanvas releaseId={release.id} screen={nextScreen} passivePreview teacherAnnotations={[]} annotationTool="pointer" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} /> : <div className="grid h-full place-items-center text-sm text-slate-400">End of presentation</div>}</div></section>
+              <section className="min-h-0 overflow-y-auto rounded-xl border border-white/15 bg-slate-900 p-4">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-cyan-300">Teacher narration</h2>
+                {presenterDataBusy ? <p className="mt-3 text-sm text-slate-400">Loading narration…</p> : <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-slate-100">{teacherNarration || 'No teacher narration is available for this screen.'}</p>}
+                {presenterNotes ? <><h3 className="mt-5 border-t border-white/10 pt-4 text-xs font-bold uppercase tracking-wider text-slate-400">Presenter notes</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{presenterNotes}</p></> : null}
+              </section>
+            </aside>
+          </main>
+        </div>
+      </StudioShell>
+    );
+  }
   return (
     <StudioShell title="Session Player" subtitle={previewMode ? 'Live authoring preview' : release ? `Published Release ${release.release_number}` : undefined} hideHeader scrollContent={false} wrapContent={false} presentationMode={audienceMode}>
       <div ref={playerRef} className={`relative flex h-full min-h-0 flex-col overflow-hidden text-slate-900 ${fullScreen || audienceMode ? 'bg-blue-50' : isTrackedBranchUser ? 'bg-slate-100' : 'bg-white'}`}>
@@ -837,6 +1242,7 @@ export default function StudioSessionPlayerPage() {
           </div>
           <div className="flex items-center gap-2">
             {discoveryItem && <button type="button" onClick={closeDiscoveredContent} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400"><X size={16} />Close Branching</button>}
+            {isTrackedBranchUser && !previewMode && !discoveryItem ? <button type="button" onClick={openPresenterMode} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><Presentation size={16} />Presenter View</button> : null}
             {previewMode && <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">Unpublished preview</span>}
           </div>
         </header> : null}
@@ -974,10 +1380,11 @@ export default function StudioSessionPlayerPage() {
             </aside>
           ) : null}
           <section
+            ref={audienceSlideHostRef}
             className="relative min-h-0 min-w-0 transition-[margin] duration-300"
             style={isTrackedBranchUser && !discoveryItem && (discoveryPanelOpen || materialsOpen || curriculumPreview) ? { marginLeft: 'min(20.25rem, calc(100vw - 7rem))' } : undefined}
             onClick={(event) => {
-              if (discoveryItem || annotationTool !== 'pointer') return;
+              if (audienceMode || discoveryItem || annotationTool !== 'pointer') return;
               const target = event.target as HTMLElement;
               if (target.closest('button, a, input, select, textarea, video, audio, iframe')) return;
               const transition = screen?.screen_settings_json?.transition;
@@ -1002,6 +1409,7 @@ export default function StudioSessionPlayerPage() {
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-600">This release contains no Screens.</div>}
           {annotationTool === 'laser' ? <div className="absolute inset-0 z-[60] cursor-crosshair" onPointerMove={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); setLaserPoint({ x: event.clientX - bounds.left, y: event.clientY - bounds.top }); }} onPointerLeave={() => setLaserPoint(null)} aria-label="Laser pointer surface">{laserPoint ? <span className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-[0_0_18px_6px_rgba(239,68,68,0.75)]" style={{ left: laserPoint.x, top: laserPoint.y }} aria-hidden="true" /> : null}</div> : null}
+          {audienceMode ? <><svg ref={audienceLiveSvgRef} viewBox="0 0 1920 1080" preserveAspectRatio="none" className="pointer-events-none absolute z-[64]" aria-hidden="true"><polyline ref={audienceLiveInkRef} className="hidden" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg><span ref={audiencePointerDotRef} className="pointer-events-none absolute z-[65] hidden h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-[0_0_18px_6px_rgba(239,68,68,0.75)]" aria-label="Presenter pointer" /></> : null}
           </section>
         </main>
         {error && release && <p className="mx-4 mb-2 rounded-lg bg-red-950/70 px-3 py-2 text-sm text-red-100">{error}</p>}

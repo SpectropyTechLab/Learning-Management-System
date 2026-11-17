@@ -16,6 +16,9 @@ export interface StudioWorkflowStatus {
   submitted_at?: string | null;
   approved_by?: number | null;
   approved_at?: string | null;
+  reviewer_name?: string | null;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
   approval_comment?: string | null;
   published_at?: string | null;
   can_submit: boolean;
@@ -24,6 +27,7 @@ export interface StudioWorkflowStatus {
   validation: {
     valid: boolean;
     errors: StudioValidationProblem[];
+    warnings: StudioValidationProblem[];
     screen_count: number;
   };
 }
