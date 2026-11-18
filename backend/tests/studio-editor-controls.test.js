@@ -9,6 +9,8 @@ const readFrontend = (relativePath) =>
   );
 const readFrontendAsset = (relativePath) =>
   fs.readFileSync(new URL(`../../frontend/src/assets/${relativePath}`, import.meta.url), 'utf8');
+const readFrontendPublic = (relativePath) =>
+  fs.readFileSync(new URL(`../../frontend/public/${relativePath}`, import.meta.url), 'utf8');
 
 test('AutoSave preserves Screen undo and redo history', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
@@ -624,7 +626,7 @@ test('3D contextual controls stay in the ribbon and activate interaction inside 
   const player = readFrontend('components/resources/StudioResourcePlayer.tsx');
   const model = readFrontend('components/resources/Model3DViewer.tsx');
   const start = editor.indexOf("case '3d-model':");
-  const end = editor.indexOf("case 'simulation-format':", start);
+  const end = editor.indexOf("case 'drawing-format':", start);
   const modelRibbon = editor.slice(start, end);
   for (const capability of ['3D Model Views', 'Alt Text', 'Bring Forward', 'Send Backward', 'Selection Pane', 'Align Center', 'Group', 'Pan & Zoom', 'Auto Rotate', 'Size']) {
     assert.match(modelRibbon, new RegExp(capability.replace(/[&]/g, '\\&')));
@@ -636,4 +638,57 @@ test('3D contextual controls stay in the ribbon and activate interaction inside 
   assert.match(player, /panZoomRequestToken=\{model3DModeRequestToken\}/);
   assert.match(model, /setPanZoomMode\(true\)/);
   assert.match(model, /setControlsVisible\(true\)/);
+});
+
+test('Simulation is a permanent native PCMB workspace with JSON import and full-canvas output', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const ribbonModel = readFrontend('components/studioRibbonModel.ts');
+  const creator = readFrontend('components/PhysicsSimulationStudio.tsx');
+  const model = readFrontend('components/simulationStudioModel.ts');
+  const preview = readFrontend('components/SimulationPreviewCanvas.tsx');
+  const exported = readFrontend('components/simulationExport.ts');
+  assert.match(ribbonModel, /id: 'simulation', label: 'Simulation'/);
+  assert.doesNotMatch(ribbonModel, /simulation-format/);
+  assert.match(editor, /case 'simulation':/);
+  assert.match(editor, /createStudioResourceVersion/);
+  assert.match(editor, /simulationProject: project/);
+  assert.match(editor, /metadataJson/);
+  assert.match(editor, /kind: 'spectropy_simulation_studio'/);
+  assert.match(editor, /x: 0,[\s\S]*y: 0,[\s\S]*width: 1920,[\s\S]*height: 1080/);
+  assert.match(creator, /Simulation Creator/);
+  assert.match(creator, /Import Simulation JSON/);
+  assert.match(creator, /Export &amp; Insert/);
+  assert.match(creator, /Live lesson controls/);
+  assert.match(editor, /Quick Start from a Template/);
+  assert.match(editor, /listStudioResources\(\{ resourceType: 'simulation' \}\)/);
+  assert.match(editor, /registerImportedSimulation/);
+  assert.match(editor, /quickStartResourceId/);
+  assert.match(creator, /Adding to Quick Start/);
+  assert.match(editor, /simulationRibbonSubject/);
+  assert.match(editor, /simulationRibbonCategory/);
+  assert.match(editor, /Filter Simulation templates by topic/);
+  assert.match(editor, /resolveSimulationTopicIcon/);
+  assert.match(editor, /searchStudioAssetCatalog/);
+  assert.match(editor, /importStudioAssetCatalogItem/);
+  assert.match(editor, /entry\.iconUrl/);
+  assert.doesNotMatch(creator, /aria-label="Simulation subjects"|Quick Simulations/);
+  assert.doesNotMatch(creator, /iframe|\/simulation-studio\//);
+  assert.match(model, /spectropy\.simulation\.v1/);
+  assert.equal((model.match(/subject: '(physics|chemistry|biology|mathematics)'/g) || []).length, 20);
+  for (const kind of ['ohm', 'free-fall', 'planetary-orbit', 'kinetic-energy']) {
+    assert.match(model, new RegExp(`kind: '${kind}'`));
+  }
+  assert.match(model, /simulationCategory/);
+  assert.match(model, /kind: 'periodic-table'/);
+  assert.match(model, /validatePeriodicElements/);
+  assert.match(model, /kind: 'scene'/);
+  assert.match(model, /validateScene/);
+  assert.match(preview, /Interactive Periodic Table/);
+  assert.match(preview, /simulation\.kind === 'scene'/);
+  assert.match(preview, /drawNativeSimulation/);
+  assert.match(preview, /requestAnimationFrame/);
+  assert.match(exported, /drawNativeSimulation/);
+  assert.match(exported, /Spectropy AI Classroom Standards - Optimized for Smart Boards/);
+  assert.match(exported, /parameterControls/);
+  assert.match(exported, /Hide controls/);
 });

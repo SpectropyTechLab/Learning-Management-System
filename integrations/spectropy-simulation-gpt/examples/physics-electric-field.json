@@ -1,0 +1,33 @@
+{
+  "schema": "spectropy.simulation.v1",
+  "version": 1,
+  "subject": "physics",
+  "templateId": "universal-scene",
+  "kind": "scene",
+  "title": "Electric Field Explorer",
+  "caption": "Observe how field strength and test-charge motion change around a positive source charge.",
+  "speed": 1,
+  "metadata": { "category": "Electricity", "icon": { "query": "electric field positive charge scientific illustration", "alt": "Electric field around a positive source charge", "preferredProvider": "scidraw" } },
+  "parameters": { "fieldStrength": 5, "orbitRadius": 0.22 },
+  "controls": [
+    { "key": "fieldStrength", "label": "Field strength", "unit": "×", "min": 1, "max": 10, "step": 1, "defaultValue": 5 },
+    { "key": "orbitRadius", "label": "Test-charge radius", "unit": "", "min": 0.12, "max": 0.34, "step": 0.01, "defaultValue": 0.22 }
+  ],
+  "options": { "vectors": true, "labels": true, "trail": true, "grid": true },
+  "scene": {
+    "background": "#07111f",
+    "nodes": [
+      { "id": "title", "type": "text", "x": 0.5, "y": 0.09, "text": "ELECTRIC FIELD", "fontSize": 34, "fill": "#ffffff" },
+      { "id": "source-glow", "type": "circle", "x": 0.5, "y": 0.5, "radius": 0.13, "fill": "#f1c40f", "stroke": "#fff3a3", "lineWidth": 4, "opacity": 0.25, "motion": { "type": "pulse", "speed": 2, "amplitude": 0.18 } },
+      { "id": "source", "type": "circle", "x": 0.5, "y": 0.5, "radius": 0.065, "fill": "#f97316", "stroke": "#ffffff", "lineWidth": 5 },
+      { "id": "plus", "type": "text", "x": 0.5, "y": 0.5, "text": "+", "fontSize": 52, "fill": "#ffffff" },
+      { "id": "field-1", "type": "arrow", "x": 0.57, "y": 0.5, "x2": 0.82, "y2": 0.5, "stroke": "#00d2ff", "lineWidth": 4 },
+      { "id": "field-2", "type": "arrow", "x": 0.43, "y": 0.5, "x2": 0.18, "y2": 0.5, "stroke": "#00d2ff", "lineWidth": 4 },
+      { "id": "field-3", "type": "arrow", "x": 0.5, "y": 0.43, "x2": 0.5, "y2": 0.18, "stroke": "#00d2ff", "lineWidth": 4 },
+      { "id": "field-4", "type": "arrow", "x": 0.5, "y": 0.57, "x2": 0.5, "y2": 0.82, "stroke": "#00d2ff", "lineWidth": 4 },
+      { "id": "test-charge", "type": "circle", "x": 0.72, "y": 0.5, "radius": 0.025, "fill": "#2ecc71", "stroke": "#ffffff", "lineWidth": 3, "motion": { "type": "orbit", "speed": 1, "centerX": 0.5, "centerY": 0.5, "radius": 0.22 }, "bindings": [ { "property": "motionSpeed", "parameter": "fieldStrength", "outputMin": 0.3, "outputMax": 2.5 }, { "property": "radius", "parameter": "orbitRadius", "outputMin": 0.02, "outputMax": 0.04 } ] },
+      { "id": "label", "type": "text", "x": 0.5, "y": 0.91, "text": "Field direction points away from a positive charge", "fontSize": 24, "fill": "#cbd5e1" }
+    ]
+  }
+}
+

@@ -1,6 +1,7 @@
 export type StudioRibbonTabId =
   | 'home'
   | 'insert'
+  | 'simulation'
   | 'equation'
   | 'draw'
   | 'design'
@@ -16,7 +17,6 @@ export type StudioRibbonTabId =
   | 'diagram-design'
   | 'diagram-format'
   | '3d-model'
-  | 'simulation-format'
   | 'group-format'
   | 'drawing-format';
 
@@ -37,6 +37,7 @@ export type StudioRibbonSelection = {
 export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
   { id: 'home', label: 'Home' },
   { id: 'insert', label: 'Insert' },
+  { id: 'simulation', label: 'Simulation' },
   { id: 'equation', label: 'Equations' },
   { id: 'draw', label: 'Draw' },
   { id: 'design', label: 'Design' },
@@ -48,7 +49,6 @@ export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
 ];
 
 const mediaResourceTypes = new Set(['image', 'animation', 'video']);
-const simulationTypes = new Set(['simulation', 'embedded_object']);
 
 export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): StudioRibbonTab[] => {
   const elementType = String(selection.elementType || '');
@@ -87,17 +87,6 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
       label: resourceType === 'video' ? 'Media Format' : 'Picture Format',
       contextual: true,
       accent: 'emerald',
-    });
-  }
-  if (
-    simulationTypes.has(elementType) ||
-    ['simulation', 'html', 'zip', 'scorm'].includes(resourceType)
-  ) {
-    tabs.push({
-      id: 'simulation-format',
-      label: 'Simulation Format',
-      contextual: true,
-      accent: 'blue',
     });
   }
   return tabs;
