@@ -1,9 +1,0 @@
-interface:
-  display_name: "SPECTROPY Simulation Generator"
-  short_description: "Create cinematic LMS simulation JSON"
-  icon_small: "./assets/plugin-icon.svg"
-  icon_large: "./assets/plugin-icon.svg"
-  brand_color: "#0B5FFF"
-  default_prompt: "Use $spectropy-simulation-generator to create an import-ready subject-specific classroom simulation JSON."
-policy:
-  allow_implicit_invocation: true

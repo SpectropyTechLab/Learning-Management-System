@@ -1,8 +1,0 @@
-{
-  "skill_name": "spectropy-simulation-generator",
-  "evals": [
-    { "id": 1, "prompt": "Create a Grade 10 Physics simulation showing electromagnetic induction when a bar magnet moves through a coil.", "expected_output": "A valid scene simulation JSON with physics styling, useful controls, coil/magnet visuals, and bound motion.", "files": [] },
-    { "id": 2, "prompt": "Make an interactive NEET Biology simulation explaining active and passive transport across a cell membrane.", "expected_output": "A valid scene simulation JSON with biological styling, membrane/particle visuals, controls, and scientifically meaningful motion.", "files": [] },
-    { "id": 3, "prompt": "Generate a Class 9 Mathematics simulation that demonstrates the Pythagorean theorem visually.", "expected_output": "A valid scene simulation JSON using mathematical styling, geometric nodes, labels, and a meaningful control.", "files": [] }
-  ]
-}
