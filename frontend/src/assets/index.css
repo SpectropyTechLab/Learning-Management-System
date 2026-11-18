@@ -176,12 +176,16 @@
 }
 @keyframes studio-bounce {
   0% {
-    transform: translateY(-25%);
-    opacity: 0;
+    transform: translateY(0);
   }
-  60% {
-    transform: translateY(8%);
-    opacity: 1;
+  30% {
+    transform: translateY(-14%);
+  }
+  55% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(-7%);
   }
   100% {
     transform: translateY(0);
@@ -217,7 +221,7 @@
   }
   to {
     opacity: 0;
-    transform: translateX(35%);
+    transform: translate(var(--studio-exit-x, 0%), var(--studio-exit-y, 35%));
   }
 }
 @keyframes studio-zoom-out {
@@ -233,7 +237,7 @@
 @keyframes studio-float-in {
   from {
     opacity: 0;
-    transform: translateY(22%);
+    transform: translate(var(--studio-enter-x, 0%), var(--studio-enter-y, 22%));
   }
   to {
     opacity: 1;
@@ -298,6 +302,20 @@
     clip-path: circle(75% at 50% 50%);
     transform: rotate(0) scale(1);
   }
+}
+@keyframes studio-shape {
+  from { opacity: 0; clip-path: circle(0% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
+  to { opacity: 1; clip-path: circle(150% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
+}
+@keyframes studio-swivel {
+  from { opacity: 0; transform: perspective(900px) translate(var(--studio-enter-x, 0%), var(--studio-enter-y, 0%)) rotateY(-90deg) scale(0.75); transform-origin: var(--studio-origin-x, 50%) var(--studio-origin-y, 50%); }
+  to { opacity: 1; transform: perspective(900px) rotateY(0) scale(1); }
+}
+@keyframes studio-bounce-in {
+  0% { opacity: 0; transform: translate(var(--studio-enter-x, 0%), var(--studio-enter-y, 35%)) scale(0.8); }
+  60% { opacity: 1; transform: translate(0, -7%) scale(1.04); }
+  80% { transform: translate(0, 3%) scale(0.98); }
+  100% { opacity: 1; transform: translate(0) scale(1); }
 }
 @keyframes studio-shape-reveal {
   from { opacity: 0; clip-path: circle(0% at 50% 50%); }
@@ -385,6 +403,40 @@
     box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--studio-pulse-color, #2563eb) 24%, transparent);
   }
 }
+@keyframes studio-grow-shrink {
+  50% { transform: scale(1.2); }
+}
+@keyframes studio-desaturate {
+  50%, 100% { filter: grayscale(1) saturate(0); }
+}
+@keyframes studio-darken {
+  50%, 100% { filter: brightness(0.55); }
+}
+@keyframes studio-lighten {
+  50%, 100% { filter: brightness(1.55); }
+}
+@keyframes studio-transparency {
+  50% { opacity: 0.3; }
+}
+@keyframes studio-object-color {
+  50%, 100% { filter: sepia(1) saturate(5) hue-rotate(175deg); }
+}
+@keyframes studio-complementary-color {
+  50%, 100% { filter: hue-rotate(180deg) saturate(1.4); }
+}
+@keyframes studio-line-color {
+  50%, 100% { outline: 4px solid var(--studio-pulse-color, #2563eb); outline-offset: -4px; }
+}
+@keyframes studio-fill-color {
+  50%, 100% { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--studio-pulse-color, #2563eb) 35%, transparent); }
+}
+@keyframes studio-brush-color {
+  0% { clip-path: inset(0 100% 0 0); filter: sepia(1) saturate(5); }
+  100% { clip-path: inset(0); filter: sepia(1) saturate(5) hue-rotate(175deg); }
+}
+@keyframes studio-font-color {
+  50%, 100% { color: var(--studio-pulse-color, #2563eb); }
+}
 @keyframes studio-bold-flash {
   0%, 100% {
     filter: contrast(1);
@@ -395,6 +447,10 @@
     transform: scale(1.035, 1.08);
     text-shadow: 0 0 0.6px currentColor, 0 0 0.6px currentColor;
   }
+}
+@keyframes studio-bold-reveal {
+  0% { filter: contrast(1); transform: scaleX(0.92); opacity: 0.35; }
+  100% { filter: contrast(1.65); transform: scaleX(1); opacity: 1; text-shadow: 0 0 0.7px currentColor; }
 }
 @keyframes studio-underline {
   50% {
@@ -416,7 +472,7 @@
   }
   to {
     opacity: 0;
-    transform: translateY(-22%);
+    transform: translate(var(--studio-exit-x, 0%), var(--studio-exit-y, -22%));
   }
 }
 @keyframes studio-split-out {
@@ -445,6 +501,31 @@
     visibility: hidden;
   }
 }
+@keyframes studio-shape-out {
+  from { opacity: 1; clip-path: circle(150% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
+  to { opacity: 0; clip-path: circle(0% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
+}
+@keyframes studio-wheel-out {
+  from { opacity: 1; clip-path: circle(75% at 50% 50%); transform: rotate(0) scale(1); }
+  to { opacity: 0; clip-path: circle(0% at 50% 50%); transform: rotate(120deg) scale(0.72); }
+}
+@keyframes studio-random-bars-out {
+  from { opacity: 1; clip-path: inset(0); }
+  to { opacity: 0; clip-path: polygon(0 0, 15% 0, 15% 100%, 30% 100%, 30% 0, 45% 0, 45% 100%, 60% 100%, 60% 0, 75% 0, 75% 100%, 90% 100%, 90% 0, 100% 0, 100% 0, 0 0); }
+}
+@keyframes studio-shrink-turn {
+  from { opacity: 1; transform: scale(1) rotate(0); }
+  to { opacity: 0; transform: scale(0.25) rotate(160deg); }
+}
+@keyframes studio-swivel-out {
+  from { opacity: 1; transform: perspective(900px) rotateY(0) scale(1); }
+  to { opacity: 0; transform: perspective(900px) translate(var(--studio-exit-x, 0%), var(--studio-exit-y, 0%)) rotateY(90deg) scale(0.75); transform-origin: var(--studio-origin-x, 50%) var(--studio-origin-y, 50%); }
+}
+@keyframes studio-bounce-out {
+  0% { opacity: 1; transform: translate(0) scale(1); }
+  30% { transform: translate(0, -8%) scale(1.04); }
+  100% { opacity: 0; transform: translate(var(--studio-exit-x, 0%), var(--studio-exit-y, 35%)) scale(0.75); }
+}
 @keyframes studio-path-line {
   to {
     transform: translateX(35%);
@@ -465,6 +546,13 @@
   100% {
     transform: translate(25%, 25%);
   }
+}
+@keyframes studio-path-shape {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(22%, -18%); }
+  50% { transform: translate(44%, 0); }
+  75% { transform: translate(22%, 18%); }
+  100% { transform: translate(0, 0); }
 }
 @keyframes studio-path-circle {
   to {
@@ -615,6 +703,37 @@
   font-size: 1em;
   line-height: normal;
 }
+
+.studio-inline-equation-editor > [data-canvas-interactive] {
+  display: inline-flex;
+  width: max-content;
+  height: auto;
+}
+
+.studio-equation-keyboard-close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 30;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #94a3b8;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 25px;
+  line-height: 1;
+  box-shadow: 0 2px 7px rgb(15 23 42 / 0.16);
+}
+
+.studio-equation-keyboard-close:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
 
 .studio-equation-ribbon-action {
   display: inline-flex;

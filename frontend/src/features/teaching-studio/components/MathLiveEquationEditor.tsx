@@ -23,6 +23,37 @@ const nextAnimationFrame = () => new Promise<void>((resolve) => {
   window.requestAnimationFrame(() => resolve());
 });
 
+const removeKeyboardCloseButton = () => document.getElementById('studio-equation-keyboard-close')?.remove();
+
+const showKeyboardCloseButton = (mathfield: MathfieldElement, elementId: string) => {
+  removeKeyboardCloseButton();
+  window.requestAnimationFrame(() => {
+    const keyboard = document.querySelector<HTMLElement>('.ML__keyboard.is-visible');
+    if (!keyboard) return;
+    const close = document.createElement('button');
+    close.id = 'studio-equation-keyboard-close';
+    close.type = 'button';
+    close.className = 'studio-equation-keyboard-close';
+    close.title = 'Close equation keyboard';
+    close.setAttribute('aria-label', 'Close equation keyboard');
+    close.textContent = '\u00d7';
+    close.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    close.addEventListener('click', (event) => {
+      event.stopPropagation();
+      mathfield.executeCommand('hideVirtualKeyboard');
+      window.mathVirtualKeyboard?.hide({ animate: true });
+      delete (window as EquationControlWindow).__studioKeyboardEquationElementId;
+      removeKeyboardCloseButton();
+    });
+    const keyboardPlate = keyboard.querySelector<HTMLElement>('.MLK__plate');
+    if (!keyboardPlate) return;
+    keyboardPlate.appendChild(close);
+  });
+};
+
 async function runEquationControl(mathfield: MathfieldElement, detail: EquationControlDetail) {
   if (detail.action === 'insert' && detail.latex) {
     mathfield.focus();
@@ -34,6 +65,7 @@ async function runEquationControl(mathfield: MathfieldElement, detail: EquationC
     mathfield.executeCommand('hideVirtualKeyboard');
     window.mathVirtualKeyboard.hide({ animate: true });
     delete controlWindow.__studioKeyboardEquationElementId;
+    removeKeyboardCloseButton();
     return true;
   }
   if (detail.action === 'keyboard' && equationMenuIsOpen(mathfield)) {
@@ -57,10 +89,12 @@ async function runEquationControl(mathfield: MathfieldElement, detail: EquationC
       mathfield.executeCommand('showVirtualKeyboard');
       window.mathVirtualKeyboard?.show({ animate: true });
       controlWindow.__studioKeyboardEquationElementId = detail.elementId;
+      showKeyboardCloseButton(mathfield, detail.elementId);
       return true;
     }
     window.mathVirtualKeyboard?.hide({ animate: true });
     delete controlWindow.__studioKeyboardEquationElementId;
+    removeKeyboardCloseButton();
     const opened = mathfield.showMenu({
       location: { x: detail.x ?? 0, y: detail.y ?? 0 },
       modifiers: { alt: false, control: false, meta: false, shift: false },
@@ -179,6 +213,7 @@ export default function MathLiveEquationEditor({
       const controlWindow = window as EquationControlWindow;
       if (elementId && controlWindow.__studioActiveEquationElementId === elementId) delete controlWindow.__studioActiveEquationElementId;
       if (elementId && controlWindow.__studioKeyboardEquationElementId === elementId) delete controlWindow.__studioKeyboardEquationElementId;
+      if (elementId) removeKeyboardCloseButton();
       mathfield?.remove();
       mathfieldRef.current = null;
     };

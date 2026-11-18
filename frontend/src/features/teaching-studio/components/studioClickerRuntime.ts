@@ -82,6 +82,9 @@ const entranceEffects = new Set([
   'wheel',
   'random-bars',
   'grow-turn',
+  'shape',
+  'swivel',
+  'bounce-in',
 ]);
 
 const exitEffects = new Set([
@@ -93,6 +96,12 @@ const exitEffects = new Set([
   'split-out',
   'disappear',
   'sink',
+  'shape-out',
+  'wheel-out',
+  'random-bars-out',
+  'shrink-turn',
+  'swivel-out',
+  'bounce-out',
 ]);
 
 const effectsFor = (element: ClickerElement): Array<Record<string, unknown>> => {

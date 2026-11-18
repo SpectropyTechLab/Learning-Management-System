@@ -11,18 +11,20 @@ export default function StudioAnimationIcon({ effect, size = 18, className }: { 
     case 'zoom': return <Search {...props}/>;
     case 'float-in': return <ArrowUp {...props}/>;
     case 'split': return <Split {...props}/>;
-    case 'wheel': return <Aperture {...props}/>;
+    case 'wheel': case 'wheel-out': return <Aperture {...props}/>;
     case 'random-bars': return <Barcode {...props}/>;
-    case 'grow-turn': return <RotateCw {...props}/>;
+    case 'grow-turn': case 'shrink-turn': case 'swivel': case 'swivel-out': return <RotateCw {...props}/>;
+    case 'shape': case 'shape-out': return <Circle {...props}/>;
+    case 'bounce-in': case 'bounce-out': return <ArrowDown {...props}/>;
     case 'pulse': return <HeartPulse {...props}/>;
     case 'spin': return <RotateCcw {...props}/>;
-    case 'grow': return <Expand {...props}/>;
-    case 'bounce': return <ArrowDown {...props}/>;
+    case 'grow-shrink': return <Expand {...props}/>;
     case 'teeter': return <Activity {...props}/>;
-    case 'flash': return <Zap {...props}/>;
+    case 'desaturate': case 'darken': case 'lighten': case 'transparency': return <Blend {...props}/>;
+    case 'object-color': case 'complementary-color': case 'line-color': case 'fill-color': case 'brush-color': case 'font-color': return <Palette {...props}/>;
     case 'wave': return <Waves {...props}/>;
     case 'color-pulse': return <Palette {...props}/>;
-    case 'bold-flash': return <Bold {...props}/>;
+    case 'bold-flash': case 'bold-reveal': return <Bold {...props}/>;
     case 'underline': return <Underline {...props}/>;
     case 'fade-out': return <LogOut {...props}/>;
     case 'fly-out': return <ArrowRight {...props}/>;
@@ -31,13 +33,13 @@ export default function StudioAnimationIcon({ effect, size = 18, className }: { 
     case 'float-out': return <MoveDown {...props}/>;
     case 'split-out': return <Split {...props}/>;
     case 'disappear': return <CircleDot {...props}/>;
+    case 'random-bars-out': return <Barcode {...props}/>;
     case 'sink': return <ArrowDown {...props}/>;
     case 'path-line': return <Move {...props}/>;
     case 'path-arc': return <Redo2 {...props}/>;
     case 'path-turn': return <CornerDownRight {...props}/>;
-    case 'path-circle': return <Circle {...props}/>;
+    case 'path-shape': return <Circle {...props}/>;
     case 'path-loop': return <InfinityIcon {...props}/>;
-    case 'path-zigzag': return <Zap {...props}/>;
     default: return <Activity {...props}/>;
   }
 }
