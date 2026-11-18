@@ -2,6 +2,8 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  Atom,
+  BookOpenCheck,
   Brush,
   Boxes,
   Check,
@@ -17,6 +19,8 @@ import {
   Eraser,
   Focus,
   FileText,
+  FlaskConical,
+  Dna,
   GalleryHorizontalEnd,
   Grid3X3,
   GripVertical,
@@ -28,6 +32,8 @@ import {
   Maximize2,
   Minimize2,
   MousePointer2,
+  Microscope,
+  Orbit,
   Paintbrush,
   PenLine,
   Pencil as PencilIcon,
@@ -38,9 +44,11 @@ import {
   Redo2,
   RefreshCw,
   Save,
+  Sigma,
   Shapes,
   SlidersHorizontal,
   Sparkles,
+  WandSparkles,
   Trash2,
   Undo2,
   Unlink,
@@ -110,6 +118,12 @@ import {
 } from './components/StudioShapeFormatRibbon';
 import StudioZoomPanel, { type StudioZoomMode, type ZoomInsert } from './components/StudioZoomPanel';
 import StudioZoomMenu from './components/StudioZoomMenu';
+import PhysicsSimulationStudio, {
+  type PhysicsSimulationInsert,
+  type PhysicsSimulationProject,
+} from './components/PhysicsSimulationStudio';
+import { SIMULATION_TEMPLATES, simulationCategory, validateSimulationDocument, type SimulationDocument, type SimulationSubject } from './components/simulationStudioModel';
+import { buildStandaloneSimulationHtml } from './components/simulationExport';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
 import StudioDiagramChooser from './components/StudioDiagramChooser';
 import StudioDiagramThumbnail from './components/StudioDiagramThumbnail';
@@ -136,8 +150,15 @@ import StudioResourceInsertUpload from './components/StudioResourceInsertUpload'
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import { ensureTargetStudioLayouts } from './api/studioEditorApi';
 import type { StudioLayoutSummary } from './api/studioEditorApi';
-import { getStudioResourcePreview } from './api/studioResourcesApi';
-import type { StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
+import {
+  createStudioResource,
+  createStudioResourceVersion,
+  getStudioResourcePreview,
+  importStudioAssetCatalogItem,
+  listStudioResources,
+  searchStudioAssetCatalog,
+} from './api/studioResourcesApi';
+import type { StudioAssetCatalogItem, StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
 import {
   approveStudioSession,
   getStudioWorkflowStatus,
@@ -174,6 +195,108 @@ const positiveInteger = (value: string | undefined) => {
 };
 
 const RIBBON_VISIBLE_SHAPES = ['line', 'rectangle', 'rounded-rectangle', 'circle', 'triangle', 'arrow', 'diamond', 'star', 'heart', 'cloud'];
+
+type QuickStartSimulation = {
+  resourceId: number;
+  versionId: number;
+  project: SimulationDocument;
+  iconUrl?: string;
+};
+
+type SimulationIconMetadata = {
+  query: string;
+  alt: string;
+  preferredProvider?: StudioAssetCatalogItem['provider'];
+  provider?: StudioAssetCatalogItem['provider'];
+  providerAssetId?: string;
+  resourceId?: number;
+  resourceVersionId?: number;
+  license?: StudioAssetCatalogItem['license'];
+  attribution?: string;
+  sourceUrl?: string;
+};
+
+const simulationIconMetadata = (project: SimulationDocument): SimulationIconMetadata => {
+  const source = project.metadata?.icon;
+  const value = source && typeof source === 'object' ? source as Partial<SimulationIconMetadata> : {};
+  return {
+    query: typeof value.query === 'string' && value.query.trim() ? value.query.trim() : project.title,
+    alt: typeof value.alt === 'string' && value.alt.trim() ? value.alt.trim() : `${project.title} simulation`,
+    ...(typeof value.preferredProvider === 'string' ? { preferredProvider: value.preferredProvider } : {}),
+    ...(typeof value.provider === 'string' ? { provider: value.provider } : {}),
+    ...(Number.isInteger(value.resourceId) ? { resourceId: value.resourceId } : {}),
+    ...(Number.isInteger(value.resourceVersionId) ? { resourceVersionId: value.resourceVersionId } : {}),
+    ...(value.providerAssetId ? { providerAssetId: value.providerAssetId } : {}),
+    ...(value.license ? { license: value.license } : {}),
+    ...(value.attribution ? { attribution: value.attribution } : {}),
+    ...(value.sourceUrl ? { sourceUrl: value.sourceUrl } : {}),
+  };
+};
+
+const resolveSimulationTopicIcon = async (project: SimulationDocument) => {
+  const current = simulationIconMetadata(project);
+  if (current.resourceVersionId) {
+    try {
+      const preview = await getStudioResourcePreview(current.resourceVersionId);
+      return { project, iconUrl: preview.url };
+    } catch {
+      // Re-resolve a missing or expired catalog asset below.
+    }
+  }
+  const subjectProviders: Record<SimulationSubject, StudioAssetCatalogItem['provider'][]> = {
+    physics: ['fluent-emoji', 'kitbitz', 'scidraw'],
+    chemistry: ['scidraw', 'fluent-emoji', 'kitbitz'],
+    biology: ['bioicons', 'scidraw', 'fluent-emoji'],
+    mathematics: ['fluent-emoji', 'kitbitz'],
+  };
+  const providers = [current.preferredProvider, ...subjectProviders[project.subject]]
+    .filter((provider, index, all): provider is StudioAssetCatalogItem['provider'] => Boolean(provider) && all.indexOf(provider) === index);
+  let chosen: StudioAssetCatalogItem | undefined;
+  for (const provider of providers) {
+    try {
+      const result = await searchStudioAssetCatalog({
+        search: current.query,
+        kind: 'all',
+        composition: 'component',
+        provider,
+        limit: 12,
+      });
+      chosen = result.results.find((asset) => asset.importable && ['image', 'animation'].includes(asset.resource_type));
+      if (chosen) break;
+    } catch {
+      // A provider outage must not prevent the Simulation itself from importing.
+    }
+  }
+  if (!chosen) return { project };
+  try {
+    const iconResource = await importStudioAssetCatalogItem(chosen);
+    const iconVersion = iconResource.latest_version;
+    if (!iconVersion) return { project };
+    const preview = await getStudioResourcePreview(iconVersion.id);
+    return {
+      iconUrl: preview.url,
+      project: {
+        ...project,
+        metadata: {
+          ...project.metadata,
+          category: simulationCategory(project),
+          icon: {
+            ...current,
+            provider: chosen.provider,
+            providerAssetId: chosen.provider_asset_id,
+            resourceId: iconResource.id,
+            resourceVersionId: iconVersion.id,
+            license: chosen.license,
+            attribution: chosen.attribution,
+            sourceUrl: chosen.source_url,
+          },
+        },
+      } satisfies SimulationDocument,
+    };
+  } catch {
+    return { project };
+  }
+};
 
 const screenScriptEntries = (
   content: ScreenScriptRow['content_json'] | undefined,
@@ -290,6 +413,56 @@ export default function TeachingStudioPage() {
     });
   }, [selectedElementId]);
   const [activeRibbonTab, setActiveRibbonTab] = useState<StudioRibbonTabId>('home');
+  const [simulationStudio, setSimulationStudio] = useState<{
+    subject?: SimulationSubject;
+    templateId?: string;
+    elementId?: string;
+    project?: PhysicsSimulationProject;
+  } | null>(null);
+  const [simulationRibbonSubject, setSimulationRibbonSubject] = useState<SimulationSubject>('physics');
+  const [simulationRibbonCategory, setSimulationRibbonCategory] = useState('all');
+  const [quickStartSimulations, setQuickStartSimulations] = useState<QuickStartSimulation[]>([]);
+  const [simulationSaving, setSimulationSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void listStudioResources({ resourceType: 'simulation' }).then(async (resources) => {
+      if (!active) return;
+      const entries = (await Promise.all(resources.map(async (resource): Promise<QuickStartSimulation | null> => {
+        const authoring = resource.latest_version?.metadata_json?.authoring;
+        if (!authoring || typeof authoring !== 'object') return null;
+        const project = (authoring as Record<string, unknown>).project;
+        try {
+          const validated = validateSimulationDocument(project);
+          const registeredProject: SimulationDocument = {
+            ...validated,
+            metadata: {
+              ...validated.metadata,
+              quickStartResourceId: resource.id,
+              quickStartResourceVersionId: resource.latest_version.id,
+            },
+          };
+          const iconVersionId = simulationIconMetadata(registeredProject).resourceVersionId;
+          let iconUrl: string | undefined;
+          if (iconVersionId) {
+            try { iconUrl = (await getStudioResourcePreview(iconVersionId)).url; } catch { /* Use fallback icon. */ }
+          }
+          return {
+            resourceId: resource.id,
+            versionId: resource.latest_version.id,
+            project: registeredProject,
+            ...(iconUrl ? { iconUrl } : {}),
+          };
+        } catch {
+          return null;
+        }
+      }))).filter((entry): entry is QuickStartSimulation => Boolean(entry));
+      if (!active) return;
+      setQuickStartSimulations(entries);
+    }).catch(() => {
+      if (active) setQuickStartSimulations([]);
+    });
+    return () => { active = false; };
+  }, []);
   const [ribbonCollapsed, setRibbonCollapsed] = useState(false);
   const [selectedLayoutSlotId, setSelectedLayoutSlotId] = useState<string | null>(null);
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
@@ -1777,7 +1950,14 @@ export default function TeachingStudioPage() {
         : { x: 480, y: 270, width: 960, height: 540 }
       : type === 'media'
         ? { x: 400, y: 225, width: 1120, height: 630 }
-        : { x: 320, y: 180, width: 1280, height: 720 };
+        : resource.resource_type === 'simulation'
+          ? { x: 0, y: 0, width: 1920, height: 1080 }
+          : { x: 320, y: 180, width: 1280, height: 720 };
+    const authoring = version.metadata_json?.authoring;
+    const editableSimulation = authoring && typeof authoring === 'object'
+      && (authoring as Record<string, unknown>).kind === 'spectropy_simulation_studio'
+      ? authoring as Record<string, unknown>
+      : null;
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -1788,6 +1968,13 @@ export default function TeachingStudioPage() {
         altText: resource.description || resource.name,
         source: resource.name,
         mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
+        ...(editableSimulation && editableSimulation.project && typeof editableSimulation.project === 'object'
+          ? {
+              simulationProject: editableSimulation.project,
+              simulationTitle: resource.name,
+              simulationSubject: editableSimulation.subject || null,
+            }
+          : {}),
       },
       position: { ...size, zIndex: selectedScreen.elements.length + 1 },
       resource: {
@@ -1800,6 +1987,245 @@ export default function TeachingStudioPage() {
     setPanel('elements');
     setRightPanelOpen(true);
     toast.success(`${resource.name} added directly to the current Screen.`);
+  };
+
+  const registerImportedSimulation = async (project: SimulationDocument): Promise<SimulationDocument> => {
+    const existingResourceId = Number(project.metadata?.quickStartResourceId);
+    if (Number.isInteger(existingResourceId) && existingResourceId > 0) return project;
+    const resolvedIcon = await resolveSimulationTopicIcon({
+      ...project,
+      metadata: { ...project.metadata, category: simulationCategory(project) },
+    });
+    const enrichedProject = resolvedIcon.project;
+    const cleanTitle = enrichedProject.title.trim() || 'Interactive Simulation';
+    const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-simulation'}.html`;
+    const html = buildStandaloneSimulationHtml(enrichedProject);
+    const file = new File([html], fileName, { type: 'text/html' });
+    const resource = await createStudioResource({
+      name: cleanTitle,
+      description: `Quick Start SPECTROPY ${project.subject} Simulation`,
+      resourceType: 'simulation',
+      file,
+      width: 1920,
+      height: 1080,
+      entryPoint: fileName,
+      metadataJson: {
+        authoring: {
+          kind: 'spectropy_simulation_studio',
+          schema: 'spectropy.simulation.v1',
+          subject: enrichedProject.subject,
+          project: enrichedProject,
+          quickStart: true,
+        },
+      },
+    });
+    const version = resource.latest_version;
+    if (!version) throw new Error('The imported Simulation could not be added to Quick Start.');
+    const registered: SimulationDocument = {
+      ...enrichedProject,
+      metadata: {
+        ...enrichedProject.metadata,
+        quickStartResourceId: resource.id,
+        quickStartResourceVersionId: version.id,
+      },
+    };
+    setQuickStartSimulations((current) => [
+      { resourceId: resource.id, versionId: version.id, project: registered, ...(resolvedIcon.iconUrl ? { iconUrl: resolvedIcon.iconUrl } : {}) },
+      ...current.filter((entry) => entry.resourceId !== resource.id),
+    ]);
+    setSimulationRibbonSubject(enrichedProject.subject);
+    setSimulationRibbonCategory('all');
+    toast.success(`${cleanTitle} was added to ${enrichedProject.subject} Quick Start.`);
+    return registered;
+  };
+
+  const openSimulationCreator = (subject: SimulationSubject = simulationRibbonSubject, templateId?: string) => {
+    if (editorReadOnly) {
+      toast.error('Start an update before creating a Simulation.');
+      return;
+    }
+    if (!selectedScreen) {
+      toast.error('Select a Screen before creating a Simulation.');
+      return;
+    }
+    setSimulationStudio({ subject, ...(templateId ? { templateId } : {}) });
+  };
+
+  const editSelectedSimulation = () => {
+    if (editorReadOnly || !selectedScreen || !selectedElementId) {
+      toast.error('Select an editable SPECTROPY Simulation first.');
+      return;
+    }
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    const project = element?.content.simulationProject;
+    if (!element || element.type !== 'simulation' || !project || typeof project !== 'object') {
+      toast.error('This item is not an editable SPECTROPY Simulation.');
+      return;
+    }
+    try {
+      const validated = validateSimulationDocument(project);
+      setSimulationStudio({ elementId: element.id, subject: validated.subject, project: validated });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'This Simulation uses an unsupported schema.');
+    }
+  };
+
+  const insertSimulation = async ({ project, title, html }: PhysicsSimulationInsert) => {
+    if (!selectedScreen || !simulationStudio || simulationSaving) return;
+    const cleanTitle = title.trim() || 'Interactive Simulation';
+    const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-simulation'}.html`;
+    const file = new File([html], fileName, { type: 'text/html' });
+    const metadataJson = {
+      authoring: {
+        kind: 'spectropy_simulation_studio',
+        schema: 'spectropy.simulation.v1',
+        subject: project.subject,
+        project,
+      },
+    };
+    const quickStartResourceId = Number(project.metadata?.quickStartResourceId);
+    setSimulationSaving(true);
+    try {
+      const existing = simulationStudio.elementId
+        ? selectedScreen.elements.find((element) => element.id === simulationStudio.elementId)
+        : null;
+      if (existing?.resource?.resource_id) {
+        const created = await createStudioResourceVersion(existing.resource.resource_id, {
+          file,
+          width: 1920,
+          height: 1080,
+          entryPoint: fileName,
+          metadataJson,
+        });
+        const updated: StudioElement = {
+          ...existing,
+          position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
+          content: {
+            ...existing.content,
+            text: cleanTitle,
+            altText: `${cleanTitle} interactive ${project.subject} Simulation`,
+            simulationProject: project,
+            simulationTitle: cleanTitle,
+            simulationSubject: project.subject,
+          },
+          resource: {
+            ...existing.resource,
+            resource_version_id: created.version.id,
+          },
+        };
+        commitElements(
+          selectedScreen.elements.map((element) => element.id === updated.id ? updated : element),
+          updated.id,
+        );
+        toast.success(`${cleanTitle} updated and saved as a new Resource version.`);
+      } else if (Number.isInteger(quickStartResourceId) && quickStartResourceId > 0) {
+        const created = await createStudioResourceVersion(quickStartResourceId, {
+          file,
+          width: 1920,
+          height: 1080,
+          entryPoint: fileName,
+          metadataJson,
+        });
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}`;
+        const id = `simulation-${token}`;
+        const registeredProject: SimulationDocument = {
+          ...project,
+          metadata: {
+            ...project.metadata,
+            quickStartResourceId,
+            quickStartResourceVersionId: created.version.id,
+          },
+        };
+        const element: StudioElement = {
+          id,
+          slotId: `free-${id}`,
+          type: 'simulation',
+          content: {
+            text: cleanTitle,
+            url: '',
+            altText: `${cleanTitle} interactive ${project.subject} Simulation`,
+            source: 'SPECTROPY Simulation Creator',
+            simulationProject: registeredProject,
+            simulationTitle: cleanTitle,
+            simulationSubject: project.subject,
+          },
+          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
+          resource: {
+            resource_id: quickStartResourceId,
+            resource_version_id: created.version.id,
+            usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
+          },
+        };
+        commitElements([...selectedScreen.elements, element], element.id);
+        setQuickStartSimulations((current) => [
+          {
+            resourceId: quickStartResourceId,
+            versionId: created.version.id,
+            project: registeredProject,
+            ...(current.find((entry) => entry.resourceId === quickStartResourceId)?.iconUrl
+              ? { iconUrl: current.find((entry) => entry.resourceId === quickStartResourceId)?.iconUrl }
+              : {}),
+          },
+          ...current.filter((entry) => entry.resourceId !== quickStartResourceId),
+        ]);
+        toast.success(`${cleanTitle} inserted from Quick Start and saved as its latest version.`);
+      } else {
+        const resource = await createStudioResource({
+          name: cleanTitle,
+          description: `Editable SPECTROPY ${project.subject} Simulation`,
+          resourceType: 'simulation',
+          file,
+          width: 1920,
+          height: 1080,
+          entryPoint: fileName,
+          metadataJson,
+        });
+        const version = resource.latest_version;
+        if (!version) throw new Error('The Simulation Resource was created without a version.');
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}`;
+        const id = `simulation-${token}`;
+        const element: StudioElement = {
+          id,
+          slotId: `free-${id}`,
+          type: 'simulation',
+          content: {
+            text: cleanTitle,
+            url: '',
+            altText: `${cleanTitle} interactive ${project.subject} Simulation`,
+            source: 'SPECTROPY Simulation Creator',
+            simulationProject: project,
+            simulationTitle: cleanTitle,
+            simulationSubject: project.subject,
+          },
+          position: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            zIndex: selectedScreen.elements.length + 1,
+          },
+          resource: {
+            resource_id: resource.id,
+            resource_version_id: version.id,
+            usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
+          },
+        };
+        commitElements([...selectedScreen.elements, element], element.id);
+        toast.success(`${cleanTitle} inserted and saved to the Resource Library.`);
+      }
+      setSimulationStudio(null);
+    } catch (simulationError) {
+      const message = simulationError instanceof Error
+        ? simulationError.message
+        : 'Unable to save the Simulation.';
+      toast.error(message);
+    } finally {
+      setSimulationSaving(false);
+    }
   };
 
   const bindResourceToSelectedElement = (
@@ -2869,6 +3295,78 @@ export default function TeachingStudioPage() {
               { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: () => setDiagramChooserOpen(true), active: diagramChooserOpen },
           ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes and Zoom"><div className="flex items-center gap-0.5" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div><StudioZoomMenu disabled={editorReadOnly || !selectedScreen} active={Boolean(zoomDialogMode)} onSelect={setZoomDialogMode} /></div> },
         ];
+      case 'simulation': {
+        const subjectTemplates = SIMULATION_TEMPLATES.filter(
+          (template) => template.subject === simulationRibbonSubject && template.kind !== 'scene',
+        );
+        const subjectImports = quickStartSimulations.filter((entry) => entry.project.subject === simulationRibbonSubject);
+        const categories = Array.from(new Set([
+          ...subjectTemplates.map((template) => simulationCategory(template)),
+          ...subjectImports.map((entry) => simulationCategory(entry.project)),
+        ])).sort((left, right) => left.localeCompare(right));
+        const quickTemplates = subjectTemplates.filter(
+          (template) => simulationRibbonCategory === 'all' || simulationCategory(template) === simulationRibbonCategory,
+        );
+        const importedQuickStarts = subjectImports.filter(
+          (entry) => simulationRibbonCategory === 'all' || simulationCategory(entry.project) === simulationRibbonCategory,
+        );
+        const selectSimulationSubject = (subject: SimulationSubject) => {
+          setSimulationRibbonSubject(subject);
+          setSimulationRibbonCategory('all');
+        };
+        return [
+          {
+            id: 'simulation-create', label: 'Creator', commands: [
+              { id: 'simulation-new', label: 'Open Simulation Creator', icon: simulationSaving ? <LoaderCircle size={17} className="animate-spin" /> : <WandSparkles size={17} />, disabled: editorReadOnly || !selectedScreen || simulationSaving, onExecute: () => openSimulationCreator() },
+              { id: 'simulation-edit', label: 'Edit Current Simulation', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.simulationProject !== 'object', onExecute: editSelectedSimulation },
+              { id: 'simulation-library', label: 'Resource Library', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
+            ],
+          },
+          {
+            id: 'simulation-subjects', label: 'Subject Studios', commands: [
+              { id: 'simulation-physics', label: 'Physics', icon: <Orbit size={18} />, active: simulationRibbonSubject === 'physics', onExecute: () => selectSimulationSubject('physics') },
+              { id: 'simulation-chemistry', label: 'Chemistry', icon: <FlaskConical size={18} />, active: simulationRibbonSubject === 'chemistry', onExecute: () => selectSimulationSubject('chemistry') },
+              { id: 'simulation-biology', label: 'Biology', icon: <Dna size={18} />, active: simulationRibbonSubject === 'biology', onExecute: () => selectSimulationSubject('biology') },
+              { id: 'simulation-maths', label: 'Mathematics', icon: <Sigma size={18} />, active: simulationRibbonSubject === 'mathematics', onExecute: () => selectSimulationSubject('mathematics') },
+            ],
+          },
+          {
+            id: 'simulation-categories',
+            label: 'Topic',
+            content: (
+              <select
+                aria-label="Filter Simulation templates by topic"
+                value={simulationRibbonCategory}
+                onChange={(event) => setSimulationRibbonCategory(event.target.value)}
+                className="h-9 min-w-32 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700"
+              >
+                <option value="all">All topics</option>
+                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            ),
+          },
+          {
+            id: 'simulation-quick-start', label: 'Quick Start from a Template', commands: [
+              ...importedQuickStarts.map((entry) => ({
+                id: `simulation-imported-${entry.resourceId}`,
+                label: entry.project.title,
+                icon: entry.iconUrl
+                  ? <img src={entry.iconUrl} alt="" className="h-6 w-6 rounded object-contain" />
+                  : <Sparkles size={17} />,
+                disabled: editorReadOnly || !selectedScreen || simulationSaving,
+                onExecute: () => setSimulationStudio({ subject: entry.project.subject, project: entry.project }),
+              })),
+              ...quickTemplates.map((template) => ({
+                id: `simulation-template-${template.id}`,
+                label: template.title,
+                icon: <span className="text-base" aria-hidden="true">{template.icon}</span>,
+                disabled: editorReadOnly || !selectedScreen || simulationSaving,
+                onExecute: () => openSimulationCreator(template.subject, template.id),
+              })),
+            ],
+          },
+        ];
+      }
       case 'equation':
         return [
           ...STUDIO_EQUATION_GROUPS.map((group) => ({
@@ -3121,8 +3619,6 @@ export default function TeachingStudioPage() {
           ] },
           { id: 'model-size', label: 'Size', content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="3D model width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="3D model height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
         ];
-      case 'simulation-format':
-        return elementCommands('elements');
       case 'drawing-format':
         return drawingRibbonGroups;
       case 'group-format':
@@ -3169,6 +3665,29 @@ export default function TeachingStudioPage() {
           </p>
         </section>
       </StudioShell>
+    );
+  }
+
+  if (simulationStudio) {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden">
+        <PhysicsSimulationStudio
+          initialProject={simulationStudio.project}
+          initialSubject={simulationStudio.subject}
+          initialTemplateId={simulationStudio.templateId}
+          onBack={() => setSimulationStudio(null)}
+          onImport={registerImportedSimulation}
+          onInsert={(simulation) => void insertSimulation(simulation)}
+        />
+        {simulationSaving ? (
+          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
+            <div className="flex items-center gap-3 rounded-xl border border-cyan-300/30 bg-slate-950 px-5 py-3 font-semibold text-cyan-50 shadow-2xl">
+              <LoaderCircle size={20} className="animate-spin text-cyan-300" />
+              Saving Simulation and inserting it into the Screen…
+            </div>
+          </div>
+        ) : null}
+      </div>
     );
   }
 
