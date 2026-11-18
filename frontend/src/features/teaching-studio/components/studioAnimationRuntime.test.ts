@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { STUDIO_ANIMATION_CATEGORIES } from './studioAnimationCatalog.ts';
 import {
   STUDIO_ANIMATION_NAMES,
   studioAnimationName,
@@ -8,7 +10,7 @@ import {
 
 test('every exposed animation effect has a dedicated runtime animation', () => {
   const names = Object.values(STUDIO_ANIMATION_NAMES);
-  assert.equal(names.length, 35);
+  assert.equal(names.length, 51);
   assert.equal(new Set(names).size, names.length);
   for (const effect of Object.keys(STUDIO_ANIMATION_NAMES)) {
     if (effect === 'appear') continue;
@@ -19,6 +21,23 @@ test('every exposed animation effect has a dedicated runtime animation', () => {
     );
   }
   assert.equal(studioAnimationName('appear'), 'studio-appear');
+});
+
+test('every animation shown in the four galleries has a matching CSS keyframe', () => {
+  const css = readFileSync(new URL('../../../assets/index.css', import.meta.url), 'utf8');
+  const catalogEffects = STUDIO_ANIMATION_CATEGORIES.flatMap((category) => category.effects);
+  assert.equal(catalogEffects.length, 50);
+  for (const category of STUDIO_ANIMATION_CATEGORIES) {
+    for (const [effect, name] of category.effects) {
+      const animationName = studioAnimationName(effect);
+      assert.match(css, new RegExp(`@keyframes\\s+${animationName}\\b`), `${category.name} / ${name} needs its named keyframe`);
+      assert.equal(
+        studioAnimationStyle({ effects: [{ effect }] }).animationName,
+        animationName,
+        `${category.name} / ${name} must select its own runtime`,
+      );
+    }
+  }
 });
 test('named animation choices do not silently reuse the previously duplicated runtime', () => {
   assert.notEqual(studioAnimationName('fade'), studioAnimationName('appear'));
@@ -49,6 +68,11 @@ test('animation directions produce different entrance and wipe geometry', () => 
     effects: [{ effect: 'wipe', direction: 'horizontal' }],
   }) as Record<string, unknown>;
   assert.notEqual(vertical['--studio-clip-from'], horizontal['--studio-clip-from']);
+  const defaultFly = studioAnimationStyle({ effects: [{ effect: 'fly-in' }] }) as Record<string, unknown>;
+  assert.equal(defaultFly['--studio-enter-y'], '35%');
+  const leftExit = studioAnimationStyle({ effects: [{ effect: 'fly-out', direction: 'left' }] }) as Record<string, unknown>;
+  assert.equal(leftExit['--studio-exit-x'], '-35%');
+  assert.equal(leftExit['--studio-origin-x'], '0%');
 });
 
 test('Colour Pulse carries its selected colour into the runtime style', () => {

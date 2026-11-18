@@ -750,6 +750,22 @@ export default function BlankScreenCanvas({
   const objectAnimationKeys: Record<string, string | number> = {};
   for (const element of screen?.elements ?? []) {
     if (element.position.hidden === true) continue;
+    const savedAnimation = element.content.animation && typeof element.content.animation === 'object'
+      ? element.content.animation as Record<string, unknown>
+      : undefined;
+    const savedEffects = Array.isArray(savedAnimation?.effects)
+      ? savedAnimation.effects as Array<Record<string, unknown>>
+      : savedAnimation && String(savedAnimation.effect || 'none') !== 'none' ? [savedAnimation] : [];
+    const textPlaybackEffects = previewMode
+      ? presenterElementPlaybackState(animationTimeline, element.id, previewStep, previewCycle, previewNavigation).activeEffects
+      : animationPreview?.elementId === element.id ? savedEffects : [];
+    const textSequenceValue = String(textPlaybackEffects[0]?.textSequence || 'object');
+    const animationTextSequence = textSequenceValue === 'paragraph' || textSequenceValue === 'word' || textSequenceValue === 'letter'
+      ? textSequenceValue
+      : undefined;
+    const textAnimationStyle = animationTextSequence && textPlaybackEffects.length
+      ? studioAnimationStyle({ effects: textPlaybackEffects })
+      : undefined;
     if (isSmartDiagramContent(element.content)) {
       const diagramContent = element.content;
       const visibleNodeIds = previewMode
@@ -856,6 +872,8 @@ export default function BlankScreenCanvas({
               lineHeight={Number(element.content.lineHeight) || undefined}
               paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
               paragraphSpacingAfter={Number(element.content.paragraphSpacingAfter) || undefined}
+              animationTextSequence={animationTextSequence}
+              animationStyle={textAnimationStyle}
               editable={!previewMode && Boolean(onChangeElementContent)}
               selected={selectedElementId === element.id}
               startEditing={editingElementId === element.id}
@@ -954,6 +972,8 @@ export default function BlankScreenCanvas({
           lineHeight={Number(element.content.lineHeight) || undefined}
           paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
           paragraphSpacingAfter={Number(element.content.paragraphSpacingAfter) || undefined}
+          animationTextSequence={animationTextSequence}
+          animationStyle={textAnimationStyle}
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
           startEditing={editingElementId === element.id}
@@ -1079,7 +1099,9 @@ export default function BlankScreenCanvas({
       const activeStyle = playbackState.activeEffects.length
         ? studioAnimationStyle({ effects: playbackState.activeEffects })
         : null;
-      objectAnimationStyles[element.id] = activeStyle
+      const sequenceRunsInsideText = playbackState.activeEffects.some((effect) => ['paragraph', 'word', 'letter'].includes(String(effect.textSequence || 'object')))
+        && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
+      objectAnimationStyles[element.id] = activeStyle && !sequenceRunsInsideText
         ? {
             ...activeStyle,
             ...(playbackState.reverse
@@ -1095,7 +1117,9 @@ export default function BlankScreenCanvas({
           : { opacity: 0 };
       objectAnimationKeys[element.id] = `${screen?.id ?? 'screen'}-${playbackState.identity}`;
     } else if (animationPreview?.elementId === element.id) {
-      objectAnimationStyles[element.id] = studioAnimationStyle(animation);
+      const sequenceRunsInsideText = effects.some((effect) => effect && typeof effect === 'object' && ['paragraph', 'word', 'letter'].includes(String((effect as Record<string, unknown>).textSequence || 'object')))
+        && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
+      objectAnimationStyles[element.id] = sequenceRunsInsideText ? {} : studioAnimationStyle(animation);
       objectAnimationKeys[element.id] = animationPreview.token;
     } else {
       objectAnimationStyles[element.id] = {};
