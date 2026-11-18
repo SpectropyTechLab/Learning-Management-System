@@ -93,7 +93,7 @@ export default function StudioAdaptiveRibbon({
                   title={command.label}
                   aria-label={command.label}
                   aria-pressed={command.active || undefined}
-                  className={`studio-ribbon-command inline-flex min-h-9 min-w-9 max-w-16 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-0.5 text-[9px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${command.danger ? 'border-red-200 text-red-700 hover:bg-red-50' : command.active ? 'border-blue-300 bg-blue-50 text-blue-950' : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50'}`}
+                  className={`studio-ribbon-command inline-flex min-h-9 min-w-8 max-w-16 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-0.5 text-[9px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${command.danger ? 'border-red-200 text-red-700 hover:bg-red-50' : command.active ? 'border-blue-300 bg-blue-50 text-blue-950' : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50'}`}
                 >
                   <span aria-hidden="true">{command.icon}</span>
                   <span className="max-w-14 truncate">{command.label}</span>

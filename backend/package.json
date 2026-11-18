@@ -6,7 +6,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "node --watch server.js",
     "test": "node --test --test-concurrency=1 --experimental-test-isolation=none",
     "test:ci": "node scripts/run-ci-tests.mjs",
     "studio:day1:fixtures": "node scripts/build-studio-day1-fixtures.mjs",
@@ -58,7 +58,6 @@
   },
   "devDependencies": {
     "eslint": "^9.39.5",
-    "nodemon": "3.1.11",
     "prettier": "^3.9.10"
   },
   "overrides": {
@@ -68,7 +67,6 @@
       "uuid": "11.1.1"
     },
     "flatted": "3.4.4",
-    "picomatch": "2.3.2",
     "undici": "7.30.1"
   }
 }
