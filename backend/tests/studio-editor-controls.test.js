@@ -53,6 +53,11 @@ test('Selected-element formatting is hosted by the ribbon instead of floating ov
 test('Cursor-aware lists and element hyperlinks reach authoring and playback', () => {
   const toolbar = readFrontend('components/StudioElementToolbar.tsx');
   const canvasText = readFrontend('components/StudioCanvasTextElement.tsx');
+  assert.match(canvasText, /\.ML__keyboard/);
+  assert.match(canvasText, /\.MLK__plate/);
+  assert.match(canvasText, /\.ML__keyboard\.is-visible, \.ui-menu-container/);
+  assert.match(canvasText, /createPortal\(/);
+  assert.match(canvasText, /equation\.replaceChildren\(\)/);
   const canvas = readFrontend('components/BlankScreenCanvas.tsx');
   const player = readFrontend('StudioSessionPlayerPage.tsx');
   assert.match(toolbar, /Bullet and numbering styles/);
