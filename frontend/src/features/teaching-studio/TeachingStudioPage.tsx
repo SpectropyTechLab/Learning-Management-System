@@ -62,9 +62,12 @@ import BlankScreenCanvas from './components/BlankScreenCanvas';
 import StudioScreenNavigator from './components/StudioScreenNavigator';
 import StudioShell from './components/StudioShell';
 import StudioLayoutGallery from './components/StudioLayoutGallery';
+import StudioLayoutRibbon from './components/StudioLayoutRibbon';
 import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
 import StudioAnimationsPanel from './components/StudioAnimationsPanel';
+import StudioAnimationRibbonGallery from './components/StudioAnimationRibbonGallery';
+import StudioAnimationMenu from './components/StudioAnimationMenu';
 import { STUDIO_EQUATION_GROUPS } from './components/StudioMathPanel';
 import StudioEquationRibbon from './components/StudioEquationRibbon';
 import { dispatchStudioTextCommand } from './components/studioTextCommands';
@@ -105,7 +108,8 @@ import {
   ShapeGalleryDropdown,
   ShapeSizeControls,
 } from './components/StudioShapeFormatRibbon';
-import StudioZoomPanel, { type ZoomInsert } from './components/StudioZoomPanel';
+import StudioZoomPanel, { type StudioZoomMode, type ZoomInsert } from './components/StudioZoomPanel';
+import StudioZoomMenu from './components/StudioZoomMenu';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
 import StudioDiagramChooser from './components/StudioDiagramChooser';
 import StudioDiagramThumbnail from './components/StudioDiagramThumbnail';
@@ -238,7 +242,6 @@ export default function TeachingStudioPage() {
   const [screenRequestVersion, setScreenRequestVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<
-    | 'layouts'
     | 'script'
     | 'resources'
     | 'insert-resources'
@@ -246,7 +249,6 @@ export default function TeachingStudioPage() {
     | 'shapes'
     | 'animations'
     | 'transitions'
-    | 'zoom'
     | 'diagrams'
     | 'layers'
     | null
@@ -255,10 +257,13 @@ export default function TeachingStudioPage() {
   const [insertResourceFilter, setInsertResourceFilter] = useState<InsertResourceType | null>(null);
   const [resourceUploadOpen, setResourceUploadOpen] = useState(false);
   const [assetCatalogOpen, setAssetCatalogOpen] = useState(false);
+  const [layoutGalleryOpen, setLayoutGalleryOpen] = useState(false);
+  const [zoomDialogMode, setZoomDialogMode] = useState<StudioZoomMode | null>(null);
   const [animationPreview, setAnimationPreview] = useState<{
     elementId: string;
     token: number;
   } | null>(null);
+  const [selectedAnimationEffectId, setSelectedAnimationEffectId] = useState<string | null>(null);
   const [cropRequest, setCropRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [model3DModeRequest, setModel3DModeRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
@@ -2551,25 +2556,34 @@ export default function TeachingStudioPage() {
       : {};
     const existingEffects = Array.isArray(saved.effects) ? saved.effects as Array<Record<string, unknown>> : [];
     const screenSequenceLength = buildStudioAnimationSequence(selectedScreen?.elements ?? []).length;
+    const selectedIndex = Math.max(0, existingEffects.findIndex((candidate) => String(candidate.id) === selectedAnimationEffectId));
+    const currentEffect = existingEffects[selectedIndex];
     const nextEffect = {
+      ...(!append && currentEffect ? currentEffect : {}),
       id: `animation-${Date.now()}`,
       effect,
-      duration: 0.8,
-      delay: 0,
-      start: 'on-click',
+      duration: !append && currentEffect ? Number(currentEffect.duration) || 0.8 : 0.8,
+      delay: !append && currentEffect ? Number(currentEffect.delay) || 0 : 0,
+      start: !append && currentEffect ? String(currentEffect.start || 'on-click') : 'on-click',
       sequenceOrder: append
         ? screenSequenceLength
-        : Number.isFinite(Number(existingEffects[0]?.sequenceOrder))
-          ? Number(existingEffects[0]?.sequenceOrder)
+        : Number.isFinite(Number(currentEffect?.sequenceOrder))
+          ? Number(currentEffect?.sequenceOrder)
           : screenSequenceLength,
     };
+    const nextEffects = append
+      ? [...existingEffects, nextEffect]
+      : existingEffects.length
+        ? existingEffects.map((candidate, index) => index === selectedIndex ? nextEffect : candidate)
+        : [nextEffect];
     updateElement({
       ...selectedElement,
       content: {
         ...selectedElement.content,
-        animation: { ...saved, effects: append ? [...existingEffects, nextEffect] : [nextEffect], effect, duration: 0.8, delay: 0 },
+        animation: { ...saved, effects: nextEffects, effect: String(nextEffects[0]?.effect || 'none'), duration: Number(nextEffects[0]?.duration) || 0.8, delay: Number(nextEffects[0]?.delay) || 0 },
       },
     });
+    setSelectedAnimationEffectId(String(nextEffect.id));
     setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
   };
   const selectedAnimationEffects = (() => {
@@ -2580,13 +2594,22 @@ export default function TeachingStudioPage() {
     const effect = String(saved.effect || 'none');
     return effect === 'none' ? [] : [{ id: 'legacy', effect, duration: Number(saved.duration) || 0.8, delay: Number(saved.delay) || 0, start: 'on-click' }];
   })();
-  const updateSelectedAnimationEffect = (changes: Record<string, unknown>, index = 0) => {
+  const selectedAnimationEffectIndex = Math.max(0, selectedAnimationEffects.findIndex((effect) => String(effect.id) === selectedAnimationEffectId));
+  const activeSelectedAnimationEffect = selectedAnimationEffects[selectedAnimationEffectIndex];
+  const updateSelectedAnimationEffect = (changes: Record<string, unknown>, index = selectedAnimationEffectIndex) => {
     if (!selectedElement || !selectedAnimationEffects[index]) return;
     const effects = selectedAnimationEffects.map((effect, effectIndex) => effectIndex === index ? { ...effect, ...changes } : effect);
     const first = effects[0];
     updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
   };
-  const moveSelectedAnimation = (delta: number, index = 0) => {
+  const removeSelectedAnimation = () => {
+    if (!selectedElement || !activeSelectedAnimationEffect) return;
+    const effects = selectedAnimationEffects.filter((_, index) => index !== selectedAnimationEffectIndex);
+    const first = effects[0];
+    updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
+    setSelectedAnimationEffectId(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)]?.id ? String(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)].id) : null);
+  };
+  const moveSelectedAnimation = (delta: number, index = selectedAnimationEffectIndex) => {
     if (!selectedElement) return;
     const target = index + delta;
     if (target < 0 || target >= selectedAnimationEffects.length) return;
@@ -2594,6 +2617,7 @@ export default function TeachingStudioPage() {
     [effects[index], effects[target]] = [effects[target], effects[index]];
     const first = effects[0];
     updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
+    setSelectedAnimationEffectId(String(effects[target].id));
   };
   const openAnimationPane = () => {
     setPanel('animations');
@@ -2690,7 +2714,6 @@ export default function TeachingStudioPage() {
   const selectedHasGroup = Boolean(selectedScreen?.elements.some((element) =>
     selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string'));
   const studioTools = [
-    { id: 'layouts', label: 'Layouts', icon: <LayoutTemplate size={17} /> },
     { id: 'resources', label: 'Resources', icon: <Upload size={17} /> },
     { id: 'elements', label: 'Elements', icon: <Boxes size={17} /> },
     { id: 'animations', label: 'Animations', icon: <Sparkles size={17} /> },
@@ -2698,7 +2721,6 @@ export default function TeachingStudioPage() {
     { id: 'shapes', label: 'Shapes', icon: <Shapes size={17} /> },
     { id: 'diagrams', label: 'Smart Diagram', icon: <Network size={17} /> },
     { id: 'drawing', label: 'Drawing', icon: <Paintbrush size={17} /> },
-    { id: 'zoom', label: 'Zoom navigation', icon: <Focus size={17} /> },
   ] as const;
   const toggleStudioTool = (tool: (typeof studioTools)[number]['id']) => {
     setPanel(tool);
@@ -2794,7 +2816,7 @@ export default function TeachingStudioPage() {
               { id: 'screen-metadata', label: 'Metadata', icon: <SlidersHorizontal size={17} />, disabled: editorReadOnly || !selectedScreenId, onExecute: () => void openScreenMetadata() },
               { id: 'rename-screen', label: 'Rename', icon: <Pencil size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => void openRenameScreen() },
               { id: 'delete-screen', label: 'Delete', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen, onExecute: () => void requestScreenAction('delete-screen') },
-              { id: 'edit-layout', label: 'Edit Layout', icon: <LayoutTemplate size={17} />, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => { if (!selectedScreen?.layout_id) return; setPanel('layouts'); setRightPanelOpen(true); setLayoutEditRequest({ layoutId: selectedScreen.layout_id, requestId: Date.now() }); } },
+              { id: 'edit-layout', label: 'Edit Layout', icon: <LayoutTemplate size={17} />, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => { if (!selectedScreen?.layout_id) return; setLayoutGalleryOpen(true); setLayoutEditRequest({ layoutId: selectedScreen.layout_id, requestId: Date.now() }); } },
               { id: 'remove-layout', label: 'Remove Layout', icon: <Unlink size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => void requestScreenAction('remove-layout') },
             ],
           },
@@ -2845,8 +2867,7 @@ export default function TeachingStudioPage() {
           { id: 'insert-illustrations', label: 'Illustrations', commands: [
               { id: 'discover-assets', label: 'Discover Assets', icon: <Sparkles size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => setAssetCatalogOpen(true) },
               { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: () => setDiagramChooserOpen(true), active: diagramChooserOpen },
-              { id: 'insert-zoom', label: 'Zoom', icon: <Focus size={17} />, onExecute: openRibbonTool('zoom'), active: rightPanelOpen && panel === 'zoom' },
-          ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div> },
+          ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes and Zoom"><div className="flex items-center gap-0.5" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div><StudioZoomMenu disabled={editorReadOnly || !selectedScreen} active={Boolean(zoomDialogMode)} onSelect={setZoomDialogMode} /></div> },
         ];
       case 'equation':
         return [
@@ -2877,6 +2898,7 @@ export default function TeachingStudioPage() {
                 readOnly={editorReadOnly}
                 onDuplicate={duplicateElement}
                 onRemove={removeElement}
+                preferInlineControl={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type) && inlineEquationCaretRef.current?.elementId === selectedElement.id)}
                 onRequestControl={(action, location) => {
                   const caret = inlineEquationCaretRef.current;
                   const textTarget = selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type)
@@ -2914,11 +2936,9 @@ export default function TeachingStudioPage() {
       case 'design':
         return [
           {
-            id: 'screen-design', label: 'Screen', commands: [
-              { id: 'screen-layout', label: 'Layouts', icon: <LayoutTemplate size={17} />, onExecute: openRibbonTool('layouts'), active: rightPanelOpen && panel === 'layouts' },
-            ],
+            id: 'screen-layouts', label: 'Layouts', content: <StudioLayoutRibbon layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} disabled={editorReadOnly || !selectedScreen} onApply={requestLayoutApplication} onMore={() => setLayoutGalleryOpen(true)} />,
           },
-          { id: 'screen-background', label: 'Background', content: <label className="relative inline-flex h-9 cursor-pointer items-center gap-1 rounded-lg border px-2 text-[10px] font-semibold"><span className="h-5 w-5 rounded border" style={{ backgroundColor: String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff') }} />Background<input type="color" value={String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')} disabled={editorReadOnly || !selectedScreen} onChange={(event) => setScreenBackgroundColor(event.target.value)} className="absolute inset-0 opacity-0" aria-label="Screen background colour" /></label> },
+          { id: 'screen-background', label: 'Background', content: <StudioColourMenu label="Screen background colour" noColourLabel="No Fill" value={String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')} disabled={editorReadOnly || !selectedScreen} onChange={setScreenBackgroundColor} /> },
         ];
       case 'transitions':
         return [
@@ -2934,24 +2954,16 @@ export default function TeachingStudioPage() {
         ];
       case 'animations':
         return [
-          { id: 'animation-preview', label: 'Preview', commands: [
-            { id: 'preview-animation', label: 'Preview', icon: <Eye size={17} />, disabled: !selectedElement || selectedAnimationEffects.length === 0, onExecute: () => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() }) },
-          ] },
+          { id: 'animation-preview', label: 'Preview', content: <button type="button" title="Preview animation" aria-label="Preview animation" disabled={!selectedElement || selectedAnimationEffects.length === 0} onClick={() => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() })} className="grid h-10 w-10 place-items-center rounded-lg text-blue-900 hover:bg-blue-50 disabled:opacity-35"><Eye size={18}/></button> },
           {
-            id: 'animation-gallery', label: 'Animation', commands: [
-              ...[['none', 'None'], ['appear', 'Appear'], ['fade', 'Fade'], ['fly-in', 'Fly In'], ['float-in', 'Float In'], ['split', 'Split'], ['wipe', 'Wipe'], ['zoom', 'Zoom']].map(([effect, label]) => ({ id: `animation-${effect}`, label, icon: <Sparkles size={17} />, disabled: !selectedElement, active: String(selectedAnimationEffects[0]?.effect || 'none') === effect, onExecute: () => effect === 'none' ? selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { effect: 'none', effects: [] } } }) : applyQuickAnimation(effect) })),
-            ],
+            id: 'animation-gallery', label: 'Animation', content: <StudioAnimationRibbonGallery activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')} disabled={!selectedElement || editorReadOnly} onSelect={(effect) => applyQuickAnimation(effect)} onRemove={removeSelectedAnimation} />,
           },
-          { id: 'animation-effect-options', label: 'Effect Options', content: <select aria-label="Animation effect direction" disabled={!selectedAnimationEffects[0]} value={String(selectedAnimationEffects[0]?.direction || 'default')} onChange={(event) => updateSelectedAnimationEffect({ direction: event.target.value })} className="h-9 w-24 rounded-lg border px-1 text-[10px]"><option value="default">Default</option><option value="left">From left</option><option value="right">From right</option><option value="top">From top</option><option value="bottom">From bottom</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select> },
+          { id: 'animation-effect-options', label: 'Effect Options', content: <div className="grid gap-0.5"><select aria-label="Animation effect direction" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.direction || 'default')} onChange={(event) => updateSelectedAnimationEffect({ direction: event.target.value })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[9px] outline-none hover:bg-slate-100"><option value="default">Default</option><option value="left">From left</option><option value="right">From right</option><option value="top">From top</option><option value="bottom">From bottom</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select><select aria-label="Animate text" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.textSequence || 'object')} onChange={(event) => updateSelectedAnimationEffect({ textSequence: event.target.value })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[9px] outline-none hover:bg-slate-100"><option value="object">As object</option><option value="paragraph">Paragraph</option><option value="word">By word</option><option value="letter">By letter</option></select>{activeSelectedAnimationEffect?.effect === 'color-pulse' ? <input type="color" aria-label="Colour Pulse colour" value={String(activeSelectedAnimationEffect.color || '#2563eb')} onChange={(event) => updateSelectedAnimationEffect({ color: event.target.value })} className="h-5 w-24 rounded p-0.5"/> : null}</div> },
           { id: 'advanced-animation', label: 'Advanced Animation', commands: [
-            { id: 'add-animation', label: 'Add Animation', icon: <Plus size={17} />, disabled: !selectedElement, onExecute: () => applyQuickAnimation('fade', true) },
             { id: 'animation-pane', label: 'Animation Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, active: rightPanelOpen && panel === 'animations', onExecute: openAnimationPane },
-          ], content: <select aria-label="Animation trigger" disabled={!selectedAnimationEffects[0]} value={String(selectedAnimationEffects[0]?.triggerElementId || '')} onChange={(event) => updateSelectedAnimationEffect({ triggerElementId: event.target.value || undefined, start: event.target.value ? 'trigger' : 'on-click' })} className="h-9 w-20 rounded-lg border px-1 text-[10px]"><option value="">Trigger</option>{selectedScreen?.elements.filter((element) => element.id !== selectedElementId).map((element, index) => <option key={element.id} value={element.id}>On {String(element.content.layerName || element.content.text || `${element.type} ${index + 1}`).slice(0, 20)}</option>)}</select> },
-          { id: 'animation-timing', label: 'Timing', content: <div className="flex items-center gap-1"><select aria-label="Animation start" disabled={!selectedAnimationEffects[0]} value={String(selectedAnimationEffects[0]?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="h-9 w-24 rounded-lg border px-1 text-[10px]"><option value="on-click">On Click</option><option value="with-previous">With Previous</option><option value="after-previous">After Previous</option><option value="trigger">Trigger</option></select><label className="grid text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!selectedAnimationEffects[0]} value={Number(selectedAnimationEffects[0]?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label><label className="grid text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!selectedAnimationEffects[0]} value={Number(selectedAnimationEffects[0]?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> },
-          { id: 'animation-reorder', label: 'Reorder Animation', commands: [
-            { id: 'animation-earlier', label: 'Move Earlier', icon: <ChevronUp size={17} />, disabled: selectedAnimationEffects.length < 2, onExecute: () => moveSelectedAnimation(-1, selectedAnimationEffects.length - 1) },
-            { id: 'animation-later', label: 'Move Later', icon: <ChevronDown size={17} />, disabled: selectedAnimationEffects.length < 2, onExecute: () => moveSelectedAnimation(1) },
-          ] },
+          ], content: <div className="flex items-center gap-1"><StudioAnimationMenu label="Add Animation" addMode disabled={!selectedElement || editorReadOnly} onSelect={(effect) => applyQuickAnimation(effect, true)}/><label title={activeSelectedAnimationEffect?.triggerElementId ? 'Change animation trigger' : 'Choose animation trigger'} className="relative flex h-10 w-14 cursor-pointer flex-col items-center justify-center rounded-lg text-[9px] font-semibold text-slate-700 hover:bg-slate-50"><MousePointer2 size={16}/><span>Trigger</span><select aria-label="Animation trigger" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.triggerElementId || '')} onChange={(event) => updateSelectedAnimationEffect({ triggerElementId: event.target.value || undefined, start: event.target.value ? 'trigger' : 'on-click' })} className="absolute inset-0 cursor-pointer opacity-0"><option value="">No trigger</option>{selectedScreen?.elements.filter((element) => element.id !== selectedElementId).map((element, index) => <option key={element.id} value={element.id}>On {String(element.content.layerName || element.content.text || `${element.type} ${index + 1}`).slice(0, 20)}</option>)}</select></label></div> },
+          { id: 'animation-timing', label: 'Timing', content: <div className="grid gap-0.5"><select aria-label="Animation start" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="h-5 w-28 rounded border px-1 text-[9px]"><option value="on-click">Start: On Click</option><option value="with-previous">Start: With Previous</option><option value="after-previous">Start: After Previous</option><option value="trigger">Start: Trigger</option></select><label className="flex items-center justify-between gap-1 text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Repeat<select aria-label="Animation repeat" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.repeat) || 1} onChange={(event) => updateSelectedAnimationEffect({ repeat: Number(event.target.value) })} className="h-5 w-14 rounded border px-1 text-[9px]"><option value="1">Once</option><option value="2">2x</option><option value="3">3x</option><option value="999">Until click</option></select></label></div> },
+          { id: 'animation-reorder', label: 'Reorder Animation', content: <div className="grid gap-0.5"><button type="button" disabled={selectedAnimationEffectIndex <= 0} onClick={() => moveSelectedAnimation(-1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronUp size={13}/>Move Earlier</button><button type="button" disabled={selectedAnimationEffectIndex >= selectedAnimationEffects.length - 1} onClick={() => moveSelectedAnimation(1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronDown size={13}/>Move Later</button></div> },
         ];
       case 'present':
         return [
@@ -3401,7 +3413,7 @@ export default function TeachingStudioPage() {
           </div>
         )}
         <div
-          className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel has-compact-right-panel' : ''} ${toolPanelOpen && panel === 'layers' ? 'has-layers-panel' : ''}`}
+          className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel has-compact-right-panel' : ''} ${toolPanelOpen && panel === 'layers' ? 'has-layers-panel' : ''} ${toolPanelOpen && panel === 'animations' ? 'has-animation-panel' : ''}`}
         >
           <aside className={`studio-editor-left-panel ${leftPanelOpen ? 'is-expanded' : ''} flex min-h-0 overflow-visible`}>
             {!leftPanelOpen ? <nav aria-label="Open Screen navigation" className="flex shrink-0 items-center">
@@ -3574,7 +3586,7 @@ export default function TeachingStudioPage() {
             ) : null}
           </main>
           {!editorReadOnly && rightPanelOpen && (
-            <aside className={`studio-editor-tools-panel ${toolPanelOpen ? 'is-expanded is-compact' : ''} ${panel === 'layers' ? 'is-layers' : ''} flex min-h-0 overflow-visible`}>
+            <aside className={`studio-editor-tools-panel ${toolPanelOpen ? 'is-expanded is-compact' : ''} ${panel === 'layers' ? 'is-layers' : ''} ${panel === 'animations' ? 'is-animation' : ''} flex min-h-0 overflow-visible`}>
               <nav aria-label="Studio tools" className="hidden">
                 {studioTools.filter((tool) => !('hidden' in tool && tool.hidden)).map((tool) => (
                   <button
@@ -3590,20 +3602,10 @@ export default function TeachingStudioPage() {
                   </button>
                 ))}
               </nav>
-              <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain ${panel === 'layers' ? 'p-1.5' : 'p-2'} [scrollbar-gutter:stable]`}>
-                {panel !== 'insert-resources' ? <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div> : null}
+              <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} relative min-h-0 min-w-0 flex-1 overscroll-contain ${panel === 'animations' ? 'overflow-hidden p-2' : 'overflow-auto [scrollbar-gutter:stable]'} ${panel === 'layers' ? 'p-1.5' : panel === 'animations' ? '' : 'p-2'}`}>
+                {panel !== 'insert-resources' ? panel === 'animations' ? <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"><X size={13} /></button> : <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div> : null}
                 {panel === 'layers' && (
                   <StudioLayersPanel screen={selectedScreen} selectedElementId={selectedElementId} readOnly={editorReadOnly} onSelect={selectElementAndOpenControls} onCommit={commitElements} />
-                )}
-                {panel === 'layouts' && (
-                  <StudioLayoutGallery
-                    layouts={layouts}
-                    selectedLayoutId={selectedScreen?.layout_id ?? null}
-                    applying={applyingLayout}
-                    onApply={requestLayoutApplication}
-                    onLayoutsChanged={loadLayouts}
-                    editRequest={layoutEditRequest}
-                  />
                 )}
                 {panel === 'resources' && (
                   <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />
@@ -3640,15 +3642,6 @@ export default function TeachingStudioPage() {
                     availableScreens={screenList.screens}
                   />
                 )}
-                {panel === 'zoom' && sessionId && selectedScreen ? (
-                  <StudioZoomPanel
-                    sessionId={sessionId}
-                    screens={screenList.screens}
-                    currentScreenId={selectedScreen.id}
-                    disabled={editorReadOnly}
-                    onInsert={addZoomElements}
-                  />
-                ) : null}
                 {panel === 'shapes' && (
                   <StudioShapesPanel
                     screen={selectedScreen}
@@ -3678,10 +3671,9 @@ export default function TeachingStudioPage() {
                   <StudioAnimationsPanel
                     screen={selectedScreen}
                     selectedElementId={selectedElementId}
-                    onUpdate={updateElement}
                     onCommit={commitElements}
-                    onPreview={(elementId) => setAnimationPreview({ elementId, token: Date.now() })}
                     onSelectElement={selectElementAndOpenControls}
+                    onSelectAnimation={setSelectedAnimationEffectId}
                   />
                 )}
                 {panel === 'drawing' && (
@@ -3712,7 +3704,7 @@ export default function TeachingStudioPage() {
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
             <button
               type="button"
-              onClick={() => setPanel(panel === 'layouts' ? null : 'layouts')}
+              onClick={() => setLayoutGalleryOpen(true)}
               className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50"
             >
               <LayoutTemplate size={17} />
@@ -3804,15 +3796,6 @@ export default function TeachingStudioPage() {
 
           {panel && (
             <section className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              {panel === 'layouts' && (
-                <StudioLayoutGallery
-                  layouts={layouts}
-                  selectedLayoutId={selectedScreen?.layout_id ?? null}
-                  applying={applyingLayout}
-                  onApply={requestLayoutApplication}
-                  onLayoutsChanged={loadLayouts}
-                />
-              )}
               {panel === 'resources' && (
                 <>
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -4276,6 +4259,43 @@ export default function TeachingStudioPage() {
       ) : null}
       {diagramChooserOpen ? <StudioDiagramChooser onInsert={addSmartDiagram} onClose={() => setDiagramChooserOpen(false)} /> : null}
       {diagramLayoutGalleryOpen ? <StudioDiagramChooser onInsert={(layoutId) => { const layout = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === layoutId); if (layout) updateSelectedDiagram({ layout: layout.id, category: layout.category }); setDiagramLayoutGalleryOpen(false); }} onClose={() => setDiagramLayoutGalleryOpen(false)} /> : null}
+      {layoutGalleryOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Layouts"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setLayoutGalleryOpen(false);
+          }}
+        >
+          <section className="flex h-[min(90dvh,780px)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-slate-900">Layouts</h2>
+                <p className="truncate text-xs text-slate-500">Choose a reusable Screen layout or manage custom layouts.</p>
+              </div>
+              <button type="button" onClick={() => setLayoutGalleryOpen(false)} className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close layouts">
+                <X size={16} />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <StudioLayoutGallery
+                layouts={layouts}
+                selectedLayoutId={selectedScreen?.layout_id ?? null}
+                applying={applyingLayout}
+                onApply={(row, layout) => {
+                  requestLayoutApplication(row, layout);
+                  setLayoutGalleryOpen(false);
+                }}
+                onLayoutsChanged={loadLayouts}
+                onCancel={() => setLayoutGalleryOpen(false)}
+                editRequest={layoutEditRequest}
+              />
+            </div>
+          </section>
+        </div>
+      )}
       {rejectionDetailsOpen && workflowStatus?.status === 'rejected' ? <StudioRejectionDetailsDialog status={workflowStatus} onClose={() => setRejectionDetailsOpen(false)} /> : null}
       {workflowDetailsOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Publication issue details">
@@ -4346,6 +4366,28 @@ export default function TeachingStudioPage() {
                   setAssetCatalogOpen(false);
                   placeResourceDirectly(resource);
                 }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {zoomDialogMode && sessionId && selectedScreen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label={`${zoomDialogMode} Zoom`} onPointerDown={(event) => { if (event.target === event.currentTarget) setZoomDialogMode(null); }}>
+          <div className="relative flex h-[84dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 px-4 py-2.5">
+              <h2 className="shrink-0 text-base font-semibold text-slate-900">{zoomDialogMode === 'summary' ? 'Insert Summary Zoom' : zoomDialogMode === 'section' ? 'Insert Section Zoom' : 'Insert Screen (Slide) Zoom'}</h2>
+              <p className="min-w-0 flex-1 truncate text-xs text-slate-500">{zoomDialogMode === 'summary' ? 'Select the Sections to include in the ordered Summary Zoom.' : zoomDialogMode === 'section' ? 'Select a Section, or create one from Screens.' : 'Select the Screen to open before returning to this Screen.'}</p>
+              <button type="button" onClick={() => setZoomDialogMode(null)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Zoom window"><X size={14} /></button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+              <StudioZoomPanel
+                mode={zoomDialogMode}
+                sessionId={sessionId}
+                screens={screenList.screens}
+                currentScreenId={selectedScreen.id}
+                disabled={editorReadOnly}
+                onInsert={addZoomElements}
+                onCancel={() => setZoomDialogMode(null)}
               />
             </div>
           </div>

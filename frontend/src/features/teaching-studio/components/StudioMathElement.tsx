@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { stripEquationEditingPlaceholders } from './studioEquationPlaceholders';
 
 interface Props {
   latex: string;
@@ -27,9 +28,10 @@ export default function StudioMathElement({
   const contentRef = useRef<HTMLDivElement>(null);
   const requestSizeRef = useRef(onRequestSize);
   requestSizeRef.current = onRequestSize;
+  const displayLatex = stripEquationEditingPlaceholders(latex);
   const markup = useMemo(() => {
     try {
-      return katex.renderToString(latex || String.raw`\square`, {
+      return katex.renderToString(displayLatex || String.raw`\square`, {
         displayMode: true,
         throwOnError: false,
         strict: 'ignore',
@@ -39,7 +41,7 @@ export default function StudioMathElement({
     } catch {
       return '';
     }
-  }, [latex]);
+  }, [displayLatex]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -71,17 +73,17 @@ export default function StudioMathElement({
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [color, fontSize, latex, markup]);
+  }, [color, displayLatex, fontSize, markup]);
 
   return (
     <div
       ref={containerRef}
       className={`pointer-events-none flex h-full w-full items-center overflow-hidden p-3 ${alignment === 'left' ? 'justify-start' : alignment === 'right' ? 'justify-end' : 'justify-center'}`}
       style={{ color, backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}`, fontSize }}
-      aria-label={`Equation: ${latex}`}
+      aria-label={`Equation: ${displayLatex}`}
     >
       <div ref={contentRef} className="max-w-full overflow-hidden">
-        {markup ? <div dangerouslySetInnerHTML={{ __html: markup }} /> : <span>{latex}</span>}
+        {markup ? <div dangerouslySetInnerHTML={{ __html: markup }} /> : <span>{displayLatex}</span>}
       </div>
     </div>
   );

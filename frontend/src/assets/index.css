@@ -820,6 +820,10 @@
   padding-right: min(280px, 34vw);
 }
 
+.studio-editor-viewport .studio-editor-workspace.has-animation-panel .studio-editor-canvas {
+  padding-right: min(280px, 33vw);
+}
+
 .studio-editor-viewport .studio-editor-left-panel,
 .studio-editor-viewport .studio-editor-tools-panel {
   position: absolute;
@@ -855,6 +859,10 @@
 
 .studio-editor-viewport .studio-editor-tools-panel.is-expanded.is-compact.is-layers {
   width: min(276px, 34vw);
+}
+
+.studio-editor-viewport .studio-editor-tools-panel.is-expanded.is-compact.is-animation {
+  width: min(276px, 33vw);
 }
 
 .studio-editor-viewport .studio-editor-left-panel > nav,
