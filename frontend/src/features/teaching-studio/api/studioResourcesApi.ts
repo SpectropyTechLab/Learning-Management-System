@@ -135,6 +135,7 @@ export interface StudioResourceUploadInput {
   height?: number | null;
   durationSeconds?: number | null;
   entryPoint?: string;
+  metadataJson?: Record<string, unknown>;
 }
 
 export type StudioAssetCatalogKind = 'all' | 'icon' | 'illustration' | 'animation' | 'model_3d';
@@ -248,6 +249,7 @@ const resourceFormData = (input: StudioResourceUploadInput, includeIdentity: boo
   appendNumber(formData, 'height', input.height);
   appendNumber(formData, 'duration_seconds', input.durationSeconds);
   if (input.entryPoint?.trim()) formData.append('entry_point', input.entryPoint.trim());
+  if (input.metadataJson) formData.append('metadata_json', JSON.stringify(input.metadataJson));
   return formData;
 };
 
