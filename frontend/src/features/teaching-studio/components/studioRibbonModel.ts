@@ -2,6 +2,7 @@ export type StudioRibbonTabId =
   | 'home'
   | 'insert'
   | 'simulation'
+  | 'activity'
   | 'equation'
   | 'draw'
   | 'design'
@@ -38,6 +39,7 @@ export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
   { id: 'home', label: 'Home' },
   { id: 'insert', label: 'Insert' },
   { id: 'simulation', label: 'Simulation' },
+  { id: 'activity', label: 'Activity' },
   { id: 'equation', label: 'Equations' },
   { id: 'draw', label: 'Draw' },
   { id: 'design', label: 'Design' },

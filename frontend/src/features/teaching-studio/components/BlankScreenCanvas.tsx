@@ -201,6 +201,15 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     return () => container.removeEventListener('wheel', handleCropWheel);
   }, [cropping]);
 
+  const isExecutableResource = resource
+    ? ['html', 'zip', 'scorm', 'simulation'].includes(resource.resource_type)
+    : false;
+
+  useEffect(() => {
+    if (!selected || !isExecutableResource || fullScreen) return;
+    containerRef.current?.focus({ preventScroll: true });
+  }, [fullScreen, isExecutableResource, selected]);
+
   const toggleFullScreen = async () => {
     const container = containerRef.current;
     if (document.fullscreenElement === container) {
@@ -328,7 +337,7 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     );
 
   return (
-    <div ref={containerRef} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }}>
+    <div ref={containerRef} tabIndex={-1} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); if (isExecutableResource && !fullScreen) containerRef.current?.focus({ preventScroll: true }); }}>
       <StudioResourcePlayer
         resourceType={resource.resource_type}
         version={version}
@@ -338,7 +347,7 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
         model3DSettings={resource.resource_type === 'model_3d' ? model3DSettingsFrom(element.content) : undefined}
         model3DModeRequestToken={resource.resource_type === 'model_3d' ? model3DModeRequestToken : undefined}
         onModel3DSettingsChange={resource.resource_type === 'model_3d' ? onModel3DSettingsChange : undefined}
-        className="h-full w-full"
+        className={`h-full w-full ${isExecutableResource && !fullScreen ? 'pointer-events-none' : ''}`}
       />
       {selected && onMediaTransformChange && ['image', 'animation', 'video'].includes(resource.resource_type) ? (
         <>
