@@ -9,7 +9,7 @@ import {
 test('permanent tabs remain available without a selection', () => {
   assert.deepEqual(
     studioRibbonTabs({}).map((tab) => tab.id),
-    ['home', 'insert', 'simulation', 'equation', 'draw', 'design', 'transitions', 'animations', 'present', 'review', 'view'],
+    ['home', 'insert', 'simulation', 'activity', 'equation', 'draw', 'design', 'transitions', 'animations', 'present', 'review', 'view'],
   );
 });
 test('element selection exposes only its applicable contextual tabs', () => {

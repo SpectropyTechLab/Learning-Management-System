@@ -9,7 +9,7 @@ const { default: pool } = await import('../config/db.js');
 const { default: resourceRouter } = await import('../routes/studioResources.routes.js');
 const { default: screenRouter } = await import('../routes/studioScreens.routes.js');
 const { getResourceUsages } = await import('../services/studioResources.service.js');
-const { saveScreen } = await import('../services/studioScreens.service.js');
+const { deleteScreen, saveScreen } = await import('../services/studioScreens.service.js');
 const { submitSession } = await import('../services/studioSessionWorkflow.service.js');
 
 const normalizedSql = (value) => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
@@ -131,6 +131,45 @@ test('screen save persists editable drawing data and Resource bindings in one tr
   assert.ok(calls.some(({ sql }) => sql.startsWith('insert into resource_mappings')));
   assert.ok(calls.some(({ sql, params }) => sql.startsWith('insert into screen_elements') && params[1] === 'text-overflow' && JSON.parse(params[5]).height === 720));
   assert.ok(calls.some(({ sql }) => sql === 'commit'));
+});
+
+test('screen deletion removes its Session Script revisions in the same transaction', async (t) => {
+  const calls = [];
+  const client = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      calls.push(sql);
+      if (['begin', 'commit', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('from screens s join sessions se') && sql.includes('for update')) {
+        return { rows: [{
+          id: 31, session_id: 21, client_id: 12, title: 'Screen with script', layout_id: null,
+          revision_no: 4, screen_settings_json: {}, session_status: 'draft', session_revision_no: 6,
+        }] };
+      }
+      if (sql.includes('from screen_branches') && sql.includes('from screen_zoom_links')) {
+        return { rows: [{ count: 0 }] };
+      }
+      if (sql.startsWith('delete from screen_script_revisions')) return { rows: [] };
+      if (sql.startsWith('delete from screens')) return { rows: [] };
+      if (sql.startsWith('update sessions set status')) {
+        return { rows: [{ id: 21, status: 'draft', revision_no: 7 }] };
+      }
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  const result = await deleteScreen({ screenId: 31, user: author });
+  const scriptDelete = calls.findIndex((sql) => sql.startsWith('delete from screen_script_revisions'));
+  const screenDelete = calls.findIndex((sql) => sql.startsWith('delete from screens'));
+
+  assert.deepEqual(result, { id: 31, session_revision_no: 7 });
+  assert.ok(scriptDelete >= 0);
+  assert.ok(screenDelete > scriptDelete);
+  assert.ok(calls.includes('commit'));
 });
 
 test('a stale concurrent Screen save returns conflict without overwriting the newer revision', async (t) => {
