@@ -38,6 +38,9 @@ export default defineConfig({
         // The production bundle is slightly above 4 MiB. Keep the ceiling
         // explicit and bounded while still allowing Workbox to precache it.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Subject simulation engines are fetched only when that subject opens.
+        // Keeping them out of the install precache preserves subject-level lazy loading.
+        globIgnores: ['**/simulation-runtimes/**'],
       },
     }),
   ],

@@ -1,3 +1,5 @@
+import { GENERATED_SIMULATION_TEMPLATES } from '../simulation-catalog/simulationCatalog';
+
 export type SimulationSubject = 'physics' | 'chemistry' | 'biology' | 'mathematics';
 
 export type SimulationParameterDefinition = {
@@ -17,8 +19,16 @@ export type SimulationTemplate = {
   title: string;
   description: string;
   icon: string;
+  iconKey?: string;
   category?: string;
   parameters: SimulationParameterDefinition[];
+  variables?: SimulationVariable[];
+  equations?: SimulationEquation[];
+  objects?: SimulationObject[];
+  results?: SimulationResult[];
+  playback?: Partial<SimulationDocument['playback']>;
+  view?: Partial<SimulationDocument['view']>;
+  metadata?: Record<string, unknown>;
 };
 
 export type PeriodicElement = {
@@ -67,9 +77,51 @@ export type SimulationSceneNode = {
   };
 };
 
+type SimulationSceneBinding = NonNullable<SimulationSceneNode['bindings']>[number];
+
 export type SimulationScene = {
   background: string;
   nodes: SimulationSceneNode[];
+};
+
+export type SimulationVariable = {
+  id: string;
+  symbol: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  learnerEditable: boolean;
+};
+
+export type SimulationEquation = {
+  id: string;
+  output: string;
+  expression: string;
+  enabled: boolean;
+  role?: 'derived' | 'state';
+  initialValue?: string;
+};
+
+export type SimulationObject = {
+  id: string;
+  name: string;
+  type: string;
+  visible: boolean;
+  nodeId?: string;
+  properties?: Record<string, string | number | boolean>;
+};
+
+export type SimulationResult = {
+  id: string;
+  label: string;
+  expression: string;
+  unit: string;
+  precision: number;
+  display: 'label' | 'card' | 'graph' | 'table';
+  visible: boolean;
 };
 
 export type SimulationDocument = {
@@ -93,6 +145,12 @@ export type SimulationDocument = {
   metadata?: Record<string, unknown>;
   controls?: SimulationParameterDefinition[];
   scene?: SimulationScene;
+  variables: SimulationVariable[];
+  equations: SimulationEquation[];
+  objects: SimulationObject[];
+  results: SimulationResult[];
+  playback: { duration: number; loop: boolean };
+  view: { background: string };
 };
 
 const parameter = (
@@ -117,9 +175,26 @@ export const SIMULATION_SUBJECTS: ReadonlyArray<{
   { id: 'mathematics', label: 'Mathematics', icon: '∑', color: '#f1c40f' },
 ];
 
-export const SIMULATION_TEMPLATES: readonly SimulationTemplate[] = [
+const LEGACY_SIMULATION_TEMPLATES: readonly SimulationTemplate[] = [
   { id: 'universal-scene', subject: 'physics', kind: 'scene', title: 'Custom Interactive Simulation', description: 'A safe declarative scene generated for SPECTROPY.', icon: '✨', parameters: [] },
-  { id: 'physics-projectile', subject: 'physics', kind: 'projectile', title: 'Projectile Motion', description: 'Explore range, height and time of flight.', icon: '🎯', parameters: [parameter('v', 'Initial speed', 'm/s', 5, 60, 1, 25), parameter('a', 'Launch angle', '°', 5, 85, 1, 45), parameter('g', 'Gravity', 'm/s²', 1.6, 25, 0.1, 9.8)] },
+  {
+    id: 'physics-projectile', subject: 'physics', kind: 'projectile', title: 'Projectile Motion',
+    description: 'Explore range, height and time of flight.', icon: '🎯', category: 'Mechanics',
+    parameters: [parameter('v', 'Initial speed', 'm/s', 5, 60, 1, 25), parameter('a', 'Launch angle', '°', 5, 85, 1, 45), parameter('g', 'Gravity', 'm/s²', 1.6, 25, 0.1, 9.8)],
+    equations: [
+      { id: 'horizontal-position', output: 'x', expression: 'v * cos(a) * t', enabled: true },
+      { id: 'vertical-position', output: 'y', expression: 'v * sin(a) * t - 0.5 * g * t^2', enabled: true },
+    ],
+    objects: [
+      { id: 'projectile', name: 'Projectile', type: 'projectile', visible: true },
+      { id: 'trajectory', name: 'Trajectory', type: 'path', visible: true },
+      { id: 'velocity-vector', name: 'Velocity vector', type: 'vector', visible: true },
+    ],
+    results: [
+      { id: 'range', label: 'Range', expression: 'v^2 * sin(2 * a) / g', unit: 'm', precision: 2, display: 'card', visible: true },
+      { id: 'maximum-height', label: 'Maximum height', expression: '(v * sin(a))^2 / (2 * g)', unit: 'm', precision: 2, display: 'card', visible: true },
+    ],
+  },
   { id: 'physics-pendulum', subject: 'physics', kind: 'pendulum', title: 'Simple Pendulum', description: 'Investigate period, length and gravitational field.', icon: '🕰', parameters: [parameter('L', 'Length', 'm', 0.3, 4, 0.1, 1.5), parameter('th', 'Amplitude', '°', 3, 45, 1, 20), parameter('g', 'Gravity', 'm/s²', 1.6, 25, 0.1, 9.8)] },
   { id: 'physics-spring', subject: 'physics', kind: 'spring', title: 'Spring–Mass SHM', description: 'Connect spring constant, mass and oscillation.', icon: '〰', parameters: [parameter('k', 'Spring constant', 'N/m', 5, 100, 1, 40), parameter('m', 'Mass', 'kg', 0.2, 5, 0.1, 1), parameter('A', 'Amplitude', 'cm', 2, 20, 1, 12)] },
   { id: 'physics-wave', subject: 'physics', kind: 'wave', title: 'Transverse Wave', description: 'Visualize amplitude, wavelength, frequency and speed.', icon: '🌊', parameters: [parameter('A', 'Amplitude', 'cm', 1, 10, 0.5, 6), parameter('lam', 'Wavelength', 'm', 0.5, 4, 0.1, 1.6), parameter('f', 'Frequency', 'Hz', 0.1, 2, 0.05, 0.5)] },
@@ -139,6 +214,11 @@ export const SIMULATION_TEMPLATES: readonly SimulationTemplate[] = [
   { id: 'math-quadratic', subject: 'mathematics', kind: 'quadratic', title: 'Quadratic Function', description: 'Investigate roots, vertex and axis of symmetry.', icon: '📈', parameters: [parameter('a', 'Coefficient a', '', -4, 4, 0.1, 1), parameter('b', 'Coefficient b', '', -8, 8, 0.1, 0), parameter('c', 'Coefficient c', '', -8, 8, 0.1, -4)] },
   { id: 'math-circle', subject: 'mathematics', kind: 'circle', title: 'Circle Geometry', description: 'Explore radius, circumference and area.', icon: '◯', parameters: [parameter('r', 'Radius', 'units', 0.5, 8, 0.1, 4), parameter('angle', 'Sector angle', '°', 0, 360, 1, 120)] },
 ] as const;
+
+export const SIMULATION_TEMPLATES: readonly SimulationTemplate[] = [
+  ...LEGACY_SIMULATION_TEMPLATES.filter((template) => template.id === 'universal-scene'),
+  ...GENERATED_SIMULATION_TEMPLATES,
+];
 
 const SIMULATION_KIND_CATEGORIES: Record<string, string> = {
   projectile: 'Mechanics', pendulum: 'Mechanics', spring: 'Mechanics', circular: 'Mechanics',
@@ -171,6 +251,23 @@ export const createSimulationDocument = (template: SimulationTemplate): Simulati
   parameters: Object.fromEntries(template.parameters.map((item) => [item.key, item.defaultValue])),
   controls: template.parameters,
   options: { vectors: true, labels: true, trail: true, grid: true },
+  variables: (template.variables || template.parameters.map((item) => ({
+    id: item.key,
+    symbol: item.key,
+    label: item.label,
+    value: item.defaultValue,
+    min: item.min,
+    max: item.max,
+    step: item.step,
+    unit: item.unit,
+    learnerEditable: true,
+  }))).map((item) => ({ ...item })),
+  equations: (template.equations || []).map((item) => ({ ...item })),
+  objects: (template.objects || []).map((item) => ({ ...item })),
+  results: (template.results || []).map((item) => ({ ...item })),
+  playback: { duration: template.playback?.duration ?? 10, loop: template.playback?.loop ?? true },
+  view: { background: template.view?.background || '#09111d' },
+  ...(template.metadata ? { metadata: { ...template.metadata } } : {}),
 });
 
 export const validateSimulationDocument = (input: unknown): SimulationDocument => {
@@ -196,6 +293,9 @@ export const validateSimulationDocument = (input: unknown): SimulationDocument =
     ? validatePeriodicElements((value as SimulationDocument).elements)
     : undefined;
   const scene = template.kind === 'scene' ? validateScene((value as SimulationDocument).scene) : undefined;
+  const variables = validateVariables(value.variables, base.variables, parameters);
+  const synchronizedParameters = { ...parameters };
+  variables.forEach((variable) => { if (variable.id in synchronizedParameters) synchronizedParameters[variable.id] = variable.value; });
   const extraOptions = value.options && typeof value.options === 'object'
     ? Object.fromEntries(Object.entries(value.options).filter(([, optionValue]) => typeof optionValue === 'boolean'))
     : {};
@@ -209,7 +309,7 @@ export const validateSimulationDocument = (input: unknown): SimulationDocument =
     title: typeof value.title === 'string' && value.title.trim() ? value.title.trim() : base.title,
     caption: typeof value.caption === 'string' ? value.caption.trim() : base.caption,
     speed: Number.isFinite(Number(value.speed)) ? Math.min(3, Math.max(0.25, Number(value.speed))) : 1,
-    parameters,
+    parameters: synchronizedParameters,
     options: {
       ...extraOptions,
       vectors: value.options?.vectors !== false,
@@ -219,6 +319,12 @@ export const validateSimulationDocument = (input: unknown): SimulationDocument =
     },
     ...(elements ? { elements } : {}),
     controls,
+    variables,
+    equations: validateEquations(value.equations, base.equations),
+    objects: validateObjects(value.objects, base.objects, scene),
+    results: validateResults(value.results, base.results),
+    playback: validatePlayback(value.playback, base.playback),
+    view: validateView(value.view, base.view),
     ...(scene ? { scene } : {}),
     ...(value.metadata && typeof value.metadata === 'object' ? { metadata: value.metadata } : {}),
   };
@@ -227,6 +333,40 @@ export const validateSimulationDocument = (input: unknown): SimulationDocument =
 const finite = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const clamp = (value: unknown, minimum: number, maximum: number, fallback = minimum) => Math.min(maximum, Math.max(minimum, finite(value, fallback)));
 const safeColour = (value: unknown, fallback: string) => typeof value === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]{3,20})$/i.test(value) ? value : fallback;
+const safeId = (value: unknown, fallback: string) => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/i.test(value.trim()) ? value.trim() : fallback;
+const safeExpression = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 500) : '';
+
+const validateVariables = (input: unknown, fallback: SimulationVariable[], parameters: Record<string, number>): SimulationVariable[] => {
+  if (!Array.isArray(input)) return fallback.map((variable) => ({ ...variable, value: finite(parameters[variable.id], variable.value) }));
+  const seen = new Set<string>();
+  return input.slice(0, 64).map((entry, index) => {
+    const value = entry && typeof entry === 'object' ? entry as Partial<SimulationVariable> : {};
+    let id = safeId(value.id, `variable_${index + 1}`);
+    while (seen.has(id)) id = `${id}_${index + 1}`;
+    seen.add(id);
+    const min = finite(value.min, 0); const max = Math.max(min, finite(value.max, min + 1));
+    return { id, symbol: typeof value.symbol === 'string' && value.symbol.trim() ? value.symbol.trim().slice(0, 20) : id, label: typeof value.label === 'string' && value.label.trim() ? value.label.trim().slice(0, 80) : id, value: clamp(value.value, min, max, min), min, max, step: Math.max(0.0001, finite(value.step, (max - min) / 100)), unit: typeof value.unit === 'string' ? value.unit.slice(0, 24) : '', learnerEditable: value.learnerEditable !== false };
+  });
+};
+
+const validateEquations = (input: unknown, fallback: SimulationEquation[]): SimulationEquation[] => {
+  if (!Array.isArray(input)) return fallback;
+  return input.slice(0, 256).map((entry, index) => { const value = entry && typeof entry === 'object' ? entry as Partial<SimulationEquation> : {}; return { id: safeId(value.id, `equation_${index + 1}`), output: safeId(value.output, `output_${index + 1}`), expression: safeExpression(value.expression), enabled: value.enabled !== false, ...(value.role === 'state' ? { role: 'state' as const, initialValue: safeExpression(value.initialValue) } : { role: 'derived' as const }) }; });
+};
+
+const validateObjects = (input: unknown, fallback: SimulationObject[], scene?: SimulationScene): SimulationObject[] => {
+  if (!Array.isArray(input)) return fallback.length ? fallback : (scene?.nodes || []).map((node) => ({ id: node.id, name: node.text || node.id, type: node.type, visible: node.opacity !== 0, nodeId: node.id }));
+  return input.slice(0, 500).map((entry, index) => { const value = entry && typeof entry === 'object' ? entry as Partial<SimulationObject> : {}; const properties = value.properties && typeof value.properties === 'object' ? Object.fromEntries(Object.entries(value.properties).slice(0, 64).flatMap(([key, propertyValue]) => ['string', 'number', 'boolean'].includes(typeof propertyValue) ? [[key.slice(0, 40), propertyValue as string | number | boolean]] : [])) : undefined; return { id: safeId(value.id, `object_${index + 1}`), name: typeof value.name === 'string' && value.name.trim() ? value.name.trim().slice(0, 80) : `Object ${index + 1}`, type: typeof value.type === 'string' ? value.type.slice(0, 40) : 'object', visible: value.visible !== false, ...(typeof value.nodeId === 'string' ? { nodeId: value.nodeId.slice(0, 60) } : {}), ...(properties ? { properties } : {}) }; });
+};
+
+const validateResults = (input: unknown, fallback: SimulationResult[]): SimulationResult[] => {
+  if (!Array.isArray(input)) return fallback;
+  const displays = new Set<SimulationResult['display']>(['label', 'card', 'graph', 'table']);
+  return input.slice(0, 64).map((entry, index) => { const value = entry && typeof entry === 'object' ? entry as Partial<SimulationResult> : {}; return { id: safeId(value.id, `result_${index + 1}`), label: typeof value.label === 'string' && value.label.trim() ? value.label.trim().slice(0, 80) : `Result ${index + 1}`, expression: safeExpression(value.expression), unit: typeof value.unit === 'string' ? value.unit.slice(0, 24) : '', precision: Math.round(clamp(value.precision, 0, 8, 2)), display: displays.has(value.display as SimulationResult['display']) ? value.display as SimulationResult['display'] : 'card', visible: value.visible !== false }; });
+};
+
+const validatePlayback = (input: unknown, fallback: SimulationDocument['playback']): SimulationDocument['playback'] => { const value = input && typeof input === 'object' ? input as Partial<SimulationDocument['playback']> : {}; return { duration: clamp(value.duration, 0.1, 3600, fallback.duration), loop: typeof value.loop === 'boolean' ? value.loop : fallback.loop }; };
+const validateView = (input: unknown, fallback: SimulationDocument['view']): SimulationDocument['view'] => { const value = input && typeof input === 'object' ? input as Partial<SimulationDocument['view']> : {}; return { background: safeColour(value.background, fallback.background) }; };
 
 const validateSceneControls = (input: unknown): SimulationParameterDefinition[] => {
   if (!Array.isArray(input)) return [];
@@ -277,10 +417,10 @@ const validateScene = (input: unknown): SimulationScene => {
         lineWidth: clamp(node.lineWidth, 1, 20, 3), fontSize: clamp(node.fontSize, 12, 80, 24), opacity: clamp(node.opacity, 0, 1, 1), motion,
         bindings: Array.isArray(node.bindings) ? node.bindings.slice(0, 8).flatMap((binding) => {
           if (!binding || typeof binding !== 'object') return [];
-          const candidate = binding as SimulationSceneNode['bindings'] extends Array<infer Item> ? Partial<Item> : never;
-          const properties = ['x', 'y', 'x2', 'y2', 'width', 'height', 'radius', 'opacity', 'motionSpeed', 'motionAmplitude'];
-          if (!properties.includes(String(candidate.property)) || typeof candidate.parameter !== 'string') return [];
-          return [{ property: candidate.property as NonNullable<SimulationSceneNode['bindings']>[number]['property'], parameter: candidate.parameter.slice(0, 32), outputMin: finite(candidate.outputMin, 0), outputMax: finite(candidate.outputMax, 1) }];
+          const candidate = binding as Partial<SimulationSceneBinding>;
+          const properties = new Set<string>(['x', 'y', 'x2', 'y2', 'width', 'height', 'radius', 'opacity', 'motionSpeed', 'motionAmplitude']);
+          if (typeof candidate.property !== 'string' || !properties.has(candidate.property) || typeof candidate.parameter !== 'string') return [];
+          return [{ property: candidate.property as SimulationSceneBinding['property'], parameter: candidate.parameter.slice(0, 32), outputMin: finite(candidate.outputMin, 0), outputMax: finite(candidate.outputMax, 1) }];
         }) : undefined,
       };
     }),

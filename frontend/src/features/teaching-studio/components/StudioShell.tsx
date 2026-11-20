@@ -34,6 +34,7 @@ export default function StudioShell({
   subtitle,
   actions,
   hideHeader = false,
+  compactHeader = false,
   scrollContent = true,
   wrapContent = true,
   presentationMode = false,
@@ -43,6 +44,7 @@ export default function StudioShell({
   subtitle?: string;
   actions?: ReactNode;
   hideHeader?: boolean;
+  compactHeader?: boolean;
   scrollContent?: boolean;
   wrapContent?: boolean;
   presentationMode?: boolean;
@@ -162,20 +164,20 @@ export default function StudioShell({
         />
       }
       header={hideHeader ? undefined : (
-        <div className={`${theme.headerClass} !px-3 !py-2 sm:!px-6 lg:!py-2`}>
+        <div className={`${theme.headerClass} !px-3 ${compactHeader ? '!py-1 sm:!px-4 lg:!py-1' : '!py-2 sm:!px-6 lg:!py-2'}`}>
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border text-slate-700 hover:bg-slate-50 md:hidden ${theme.secondaryBorderClass}`}
+                className={`inline-flex shrink-0 items-center justify-center rounded-lg border text-slate-700 hover:bg-slate-50 md:hidden ${compactHeader ? 'h-8 w-8' : 'h-11 w-11'} ${theme.secondaryBorderClass}`}
                 aria-label="Open Digital Studio menu"
               >
                 <Menu size={20} />
               </button>
               <div className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg md:text-xl">{title}</h1>
-                {subtitle && <span className="truncate text-xs text-slate-600 sm:text-sm">{subtitle}</span>}
+                <h1 className={`truncate font-bold text-slate-900 ${compactHeader ? 'text-sm sm:text-base' : 'text-base sm:text-lg md:text-xl'}`}>{title}</h1>
+                {subtitle && <span className={`truncate text-slate-600 ${compactHeader ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'}`}>{subtitle}</span>}
               </div>
             </div>
             {actions && (

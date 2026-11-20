@@ -1,0 +1,5371 @@
+[
+  {
+    "id": "chemistry-bohrspec",
+    "subject": "chemistry",
+    "kind": "chemistry-bohrspec",
+    "title": "Bohr model & hydrogen spectrum",
+    "description": "Electron jumps n₂ → n₁ emit a photon: 1/λ = R Z²(1/n₁² − 1/n₂²). Balmer lines are visible.",
+    "icon": "atom",
+    "iconKey": "atom",
+    "category": "Atomic Structure",
+    "parameters": [
+      {
+        "key": "n1",
+        "label": "Lower level n₁",
+        "defaultValue": 2,
+        "min": 1,
+        "max": 5,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "n2",
+        "label": "Upper level n₂",
+        "defaultValue": 3,
+        "min": 2,
+        "max": 7,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "Z",
+        "label": "Nuclear charge Z",
+        "defaultValue": 1,
+        "min": 1,
+        "max": 3,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "n1",
+        "symbol": "n1",
+        "label": "Lower level n₁",
+        "value": 2,
+        "min": 1,
+        "max": 5,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "n2",
+        "symbol": "n2",
+        "label": "Upper level n₂",
+        "value": 3,
+        "min": 2,
+        "max": 7,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "Z",
+        "symbol": "Z",
+        "label": "Nuclear charge Z",
+        "value": 1,
+        "min": 1,
+        "max": 3,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "dE_1",
+        "output": "dE",
+        "expression": "n2 > n1 ? 13.6 Z^2 (1/n1^2 - 1/n2^2) : 0/0",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "lambda_2",
+        "output": "lambda",
+        "expression": "1240/dE",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "E1_3",
+        "output": "E1",
+        "expression": "-13.6 Z^2/n1^2",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "E2_4",
+        "output": "E2",
+        "expression": "-13.6 Z^2/n2^2",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "atom-1",
+        "name": "H",
+        "type": "atom",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-6",
+          "y": "0.5",
+          "n": "mod(t, 2) < 1 ? n2 : n1",
+          "levels": "7",
+          "r1": "0.11",
+          "phase": "300 t"
+        }
+      },
+      {
+        "id": "photon-2",
+        "name": "",
+        "type": "photon",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "-6 + 5.5 mod(t, 2) + 0.5",
+          "y": "0.5",
+          "len": "2",
+          "wl": "λ",
+          "show": "mod(t, 2) >= 1 ? 1 : 0"
+        }
+      },
+      {
+        "id": "spectrum-3",
+        "name": "",
+        "type": "spectrum",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "5",
+          "y": "1",
+          "w": "11",
+          "h": "1.6",
+          "lines": "λ"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "λ",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "5",
+          "y": "-1.6",
+          "value": "λ",
+          "unit": "nm"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "ΔE",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "5",
+          "y": "-3",
+          "value": "dE",
+          "unit": "eV"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "dE",
+        "expression": "n2 > n1 ? 13.6 Z^2 (1/n1^2 - 1/n2^2) : 0/0",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "λ",
+        "expression": "1240/dE",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "E1",
+        "expression": "-13.6 Z^2/n1^2",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "E2",
+        "expression": "-13.6 Z^2/n2^2",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "bohrspec",
+      "category": "Atomic Structure",
+      "graphOutputs": [
+        "E1",
+        "E2"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-econf",
+    "subject": "chemistry",
+    "kind": "chemistry-econf",
+    "title": "Electron configuration (Aufbau, Hund, Pauli)",
+    "description": "Orbital box diagram for Z = 1–54 with Cr, Cu, Mo, Ag exceptions.",
+    "icon": "econfig",
+    "iconKey": "econfig",
+    "category": "Atomic Structure",
+    "parameters": [
+      {
+        "key": "Z",
+        "label": "Atomic number Z",
+        "defaultValue": 8,
+        "min": 1,
+        "max": 54,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "Z",
+        "symbol": "Z",
+        "label": "Atomic number Z",
+        "value": 8,
+        "min": 1,
+        "max": 54,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "M_1",
+        "output": "M",
+        "expression": "MASS(Z)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "econfig-1",
+        "name": "",
+        "type": "econfig",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-9",
+          "y": "5.2",
+          "Z": "Z",
+          "size": "0.85"
+        }
+      },
+      {
+        "id": "element-2",
+        "name": "",
+        "type": "element",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "7",
+          "y": "-3",
+          "Z": "Z",
+          "size": "1.6"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "M",
+        "expression": "MASS(Z)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "econf",
+      "category": "Atomic Structure",
+      "graphOutputs": [
+        "M"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-orb",
+    "subject": "chemistry",
+    "kind": "chemistry-orb",
+    "title": "Shapes of atomic orbitals",
+    "description": "1: s · 2–4: p_x, p_y, p_z · 5: d_xy · 6: d_xz · 7: d_x²−y² · 8: d_z². Rotate to see 3D lobes and phases.",
+    "icon": "orbital",
+    "iconKey": "orbital",
+    "category": "Atomic Structure",
+    "parameters": [
+      {
+        "key": "type",
+        "label": "Orbital (1–8)",
+        "defaultValue": 2,
+        "min": 1,
+        "max": 8,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "yaw",
+        "label": "Rotate",
+        "defaultValue": 30,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°"
+      },
+      {
+        "key": "pitch",
+        "label": "Tilt",
+        "defaultValue": 20,
+        "min": -60,
+        "max": 60,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "type",
+        "symbol": "type",
+        "label": "Orbital (1–8)",
+        "value": 2,
+        "min": 1,
+        "max": 8,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "yaw",
+        "symbol": "yaw",
+        "label": "Rotate",
+        "value": 30,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      },
+      {
+        "id": "pitch",
+        "symbol": "pitch",
+        "label": "Tilt",
+        "value": 20,
+        "min": -60,
+        "max": 60,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [],
+    "objects": [
+      {
+        "id": "orbital-1",
+        "name": "",
+        "type": "orbital",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "type": "type",
+          "yaw": "yaw",
+          "pitch": "pitch",
+          "size": "3"
+        }
+      }
+    ],
+    "results": [],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "orb",
+      "category": "Atomic Structure",
+      "graphOutputs": []
+    }
+  },
+  {
+    "id": "chemistry-ptrend",
+    "subject": "chemistry",
+    "kind": "chemistry-ptrend",
+    "title": "Periodic table & periodic trends",
+    "description": "Categories or heat maps of electronegativity, ionisation energy and atomic radius (Z ≤ 36).",
+    "icon": "ptable",
+    "iconKey": "ptable",
+    "category": "Periodic Table",
+    "parameters": [
+      {
+        "key": "Z",
+        "label": "Element Z",
+        "defaultValue": 11,
+        "min": 1,
+        "max": 118,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "prop",
+        "label": "Show 0 category · 1 EN · 2 IE · 3 radius",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 3,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "Z",
+        "symbol": "Z",
+        "label": "Element Z",
+        "value": 11,
+        "min": 1,
+        "max": 118,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "prop",
+        "symbol": "prop",
+        "label": "Show 0 category · 1 EN · 2 IE · 3 radius",
+        "value": 0,
+        "min": 0,
+        "max": 3,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "EN_1",
+        "output": "EN",
+        "expression": "EN(Z)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "IE_2",
+        "output": "IE",
+        "expression": "IE(Z)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "r_3",
+        "output": "r",
+        "expression": "RAD(Z)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "M_4",
+        "output": "M",
+        "expression": "MASS(Z)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ptable-1",
+        "name": "",
+        "type": "ptable",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-9.5",
+          "y": "5.6",
+          "Z": "Z",
+          "prop": "prop",
+          "cell": "1.05"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "EN",
+        "expression": "EN(Z)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "IE",
+        "expression": "IE(Z)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "r",
+        "expression": "RAD(Z)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "M",
+        "expression": "MASS(Z)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "ptrend",
+      "category": "Periodic Table",
+      "graphOutputs": [
+        "EN"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-pgraph",
+    "subject": "chemistry",
+    "kind": "chemistry-pgraph",
+    "title": "Trend graph across periods",
+    "description": "Bars of the chosen property for Z = 1–36; note the peaks at noble gases and dips at alkali metals.",
+    "icon": "bars",
+    "iconKey": "bars",
+    "category": "Periodic Table",
+    "parameters": [
+      {
+        "key": "prop",
+        "label": "Property 1 EN · 2 IE · 3 radius",
+        "defaultValue": 2,
+        "min": 1,
+        "max": 3,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "Z",
+        "label": "Highlight Z",
+        "defaultValue": 11,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "prop",
+        "symbol": "prop",
+        "label": "Property 1 EN · 2 IE · 3 radius",
+        "value": 2,
+        "min": 1,
+        "max": 3,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "Z",
+        "symbol": "Z",
+        "label": "Highlight Z",
+        "value": 11,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "val_1",
+        "output": "val",
+        "expression": "prop == 1 ? EN(Z) : prop == 2 ? IE(Z) : RAD(Z)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "bars-1",
+        "name": "",
+        "type": "bars",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "prop == 1 ? EN(k) : prop == 2 ? IE(k)/1000 : RAD(k)/100",
+          "kmin": "1",
+          "kmax": "36",
+          "ys": "prop == 1 ? 2 : prop == 2 ? 3.4 : 4",
+          "hl": "Z",
+          "w": "0.8"
+        }
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0",
+          "y": "0",
+          "x2": "37",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "element-3",
+        "name": "",
+        "type": "element",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3",
+          "y": "8",
+          "Z": "Z",
+          "size": "1.2"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "value",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "12",
+          "y": "8.4",
+          "value": "val"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "val",
+        "expression": "prop == 1 ? EN(Z) : prop == 2 ? IE(Z) : RAD(Z)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "pgraph",
+      "category": "Periodic Table",
+      "graphOutputs": [
+        "val"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-mole",
+    "subject": "chemistry",
+    "kind": "chemistry-mole",
+    "title": "Moles, molar mass & Avogadro number",
+    "description": "n = m / M and N = n·Nₐ for a sample of an element.",
+    "icon": "element",
+    "iconKey": "element",
+    "category": "Periodic Table",
+    "parameters": [
+      {
+        "key": "Z",
+        "label": "Element Z",
+        "defaultValue": 6,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "m",
+        "label": "Sample mass m",
+        "defaultValue": 12,
+        "min": 1,
+        "max": 100,
+        "step": 1,
+        "unit": "g"
+      }
+    ],
+    "variables": [
+      {
+        "id": "Z",
+        "symbol": "Z",
+        "label": "Element Z",
+        "value": 6,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "m",
+        "symbol": "m",
+        "label": "Sample mass m",
+        "value": 12,
+        "min": 1,
+        "max": 100,
+        "step": 1,
+        "unit": "g",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "M_1",
+        "output": "M",
+        "expression": "MASS(Z)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "n_2",
+        "output": "n",
+        "expression": "m/M",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "N_3",
+        "output": "N",
+        "expression": "n 6.022e23",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "element-1",
+        "name": "",
+        "type": "element",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-5",
+          "y": "1",
+          "Z": "Z",
+          "size": "2"
+        }
+      },
+      {
+        "id": "dots-2",
+        "name": "",
+        "type": "dots",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "3",
+          "y": "1",
+          "w": "5",
+          "n": "min(round(40 n) + 1, 400)",
+          "frac": "1"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "M",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-5",
+          "y": "-2.2",
+          "value": "M",
+          "unit": "g/mol"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "n",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "3",
+          "y": "-2.2",
+          "value": "n",
+          "unit": "mol"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "N",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "3",
+          "y": "-3.4",
+          "value": "N",
+          "unit": "atoms"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "M",
+        "expression": "MASS(Z)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "n",
+        "expression": "m/M",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "N",
+        "expression": "n 6.022e23",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "mole",
+      "category": "Periodic Table",
+      "graphOutputs": [
+        "n"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-vsepr",
+    "subject": "chemistry",
+    "kind": "chemistry-vsepr",
+    "title": "VSEPR molecular shapes",
+    "description": "13 shapes from linear to octahedral with lone pairs and bond angles; rotate in 3D.",
+    "icon": "molecule",
+    "iconKey": "molecule",
+    "category": "Chemical Bonding",
+    "parameters": [
+      {
+        "key": "geom",
+        "label": "Shape (1–13)",
+        "defaultValue": 3,
+        "min": 1,
+        "max": 13,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "yaw",
+        "label": "Rotate",
+        "defaultValue": 30,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°"
+      },
+      {
+        "key": "pitch",
+        "label": "Tilt",
+        "defaultValue": 15,
+        "min": -60,
+        "max": 60,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "geom",
+        "symbol": "geom",
+        "label": "Shape (1–13)",
+        "value": 3,
+        "min": 1,
+        "max": 13,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "yaw",
+        "symbol": "yaw",
+        "label": "Rotate",
+        "value": 30,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      },
+      {
+        "id": "pitch",
+        "symbol": "pitch",
+        "label": "Tilt",
+        "value": 15,
+        "min": -60,
+        "max": 60,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [],
+    "objects": [
+      {
+        "id": "molecule-1",
+        "name": "",
+        "type": "molecule",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "geom": "geom",
+          "yaw": "yaw",
+          "pitch": "pitch",
+          "size": "1.4"
+        }
+      }
+    ],
+    "results": [],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "vsepr",
+      "category": "Chemical Bonding",
+      "graphOutputs": []
+    }
+  },
+  {
+    "id": "chemistry-polar",
+    "subject": "chemistry",
+    "kind": "chemistry-polar",
+    "title": "Bond polarity & ionic character",
+    "description": "ΔEN between two atoms; % ionic ≈ 100(1 − e^(−ΔEN²/4)) (Pauling).",
+    "icon": "element",
+    "iconKey": "element",
+    "category": "Chemical Bonding",
+    "parameters": [
+      {
+        "key": "ZA",
+        "label": "Atom A (Z)",
+        "defaultValue": 1,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "ZB",
+        "label": "Atom B (Z)",
+        "defaultValue": 17,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "ZA",
+        "symbol": "ZA",
+        "label": "Atom A (Z)",
+        "value": 1,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "ZB",
+        "symbol": "ZB",
+        "label": "Atom B (Z)",
+        "value": 17,
+        "min": 1,
+        "max": 36,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "dEN_1",
+        "output": "dEN",
+        "expression": "abs(EN(ZA) - EN(ZB))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "ion_2",
+        "output": "ion",
+        "expression": "100 (1 - exp(-dEN^2/4))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "dir_3",
+        "output": "dir",
+        "expression": "EN(ZB) >= EN(ZA) ? 1 : -1",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "segment-1",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-2.5",
+          "y": "0",
+          "x2": "2.5",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "element-2",
+        "name": "",
+        "type": "element",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-2.5",
+          "y": "0",
+          "Z": "ZA",
+          "size": "1.4"
+        }
+      },
+      {
+        "id": "element-3",
+        "name": "",
+        "type": "element",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "2.5",
+          "y": "0",
+          "Z": "ZB",
+          "size": "1.4"
+        }
+      },
+      {
+        "id": "vector-4",
+        "name": "dipole",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "-2 dir",
+          "y": "2.4",
+          "dx": "4 dir",
+          "dy": "0",
+          "k": "1",
+          "show": "dEN > 0.05 ? 1 : 0"
+        }
+      },
+      {
+        "id": "note-5",
+        "name": "δ+",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-2.5 dir",
+          "y": "1.8"
+        }
+      },
+      {
+        "id": "note-6",
+        "name": "δ−",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "2.5 dir",
+          "y": "1.8"
+        }
+      },
+      {
+        "id": "label-7",
+        "name": "ΔEN",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-4",
+          "y": "-3.2",
+          "value": "dEN"
+        }
+      },
+      {
+        "id": "label-8",
+        "name": "ionic",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "3",
+          "y": "-3.2",
+          "value": "ion",
+          "unit": "%"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "dEN",
+        "expression": "abs(EN(ZA) - EN(ZB))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "ion",
+        "expression": "100 (1 - exp(-dEN^2/4))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "dir",
+        "expression": "EN(ZB) >= EN(ZA) ? 1 : -1",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "polar",
+      "category": "Chemical Bonding",
+      "graphOutputs": [
+        "ion"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-gas",
+    "subject": "chemistry",
+    "kind": "chemistry-gas",
+    "title": "Gas laws  PV = nRT",
+    "description": "Charles (V ∝ T), Boyle (V ∝ 1/P) and Avogadro (V ∝ n) in a piston.",
+    "icon": "piston",
+    "iconKey": "piston",
+    "category": "States of Matter",
+    "parameters": [
+      {
+        "key": "T",
+        "label": "Temperature",
+        "defaultValue": 300,
+        "min": 100,
+        "max": 800,
+        "step": 5,
+        "unit": "K"
+      },
+      {
+        "key": "n",
+        "label": "Amount",
+        "defaultValue": 1,
+        "min": 0.5,
+        "max": 3,
+        "step": 0.1,
+        "unit": "mol"
+      },
+      {
+        "key": "P",
+        "label": "Pressure",
+        "defaultValue": 100,
+        "min": 50,
+        "max": 300,
+        "step": 5,
+        "unit": "kPa"
+      }
+    ],
+    "variables": [
+      {
+        "id": "T",
+        "symbol": "T",
+        "label": "Temperature",
+        "value": 300,
+        "min": 100,
+        "max": 800,
+        "step": 5,
+        "unit": "K",
+        "learnerEditable": true
+      },
+      {
+        "id": "n",
+        "symbol": "n",
+        "label": "Amount",
+        "value": 1,
+        "min": 0.5,
+        "max": 3,
+        "step": 0.1,
+        "unit": "mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "P",
+        "symbol": "P",
+        "label": "Pressure",
+        "value": 100,
+        "min": 50,
+        "max": 300,
+        "step": 5,
+        "unit": "kPa",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "V_1",
+        "output": "V",
+        "expression": "n 8.314 T/P",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "flame-1",
+        "name": "Burner",
+        "type": "flame",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "-1.2",
+          "power": "(T - 100)/700",
+          "size": "1.2"
+        }
+      },
+      {
+        "id": "piston-2",
+        "name": "Gas",
+        "type": "piston",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "0",
+          "w": "3",
+          "ph": "V/40",
+          "n": "20 n",
+          "speed": "sqrt(T/300)"
+        }
+      },
+      {
+        "id": "thermometer-3",
+        "name": "T",
+        "type": "thermometer",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3",
+          "y": "0",
+          "h": "4",
+          "level": "(T - 100)/700",
+          "value": "T",
+          "unit": "K"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "V",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "-4.5",
+          "y": "3",
+          "value": "V",
+          "unit": "L"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "V",
+        "expression": "n 8.314 T/P",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "gas",
+      "category": "States of Matter",
+      "graphOutputs": [
+        "V"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-maxwell",
+    "subject": "chemistry",
+    "kind": "chemistry-maxwell",
+    "title": "Maxwell–Boltzmann speed distribution",
+    "description": "f(v) at two temperatures; hotter gas spreads to higher speeds, peak at v_mp = √(2RT/M).",
+    "icon": "particles",
+    "iconKey": "particles",
+    "category": "States of Matter",
+    "parameters": [
+      {
+        "key": "T1",
+        "label": "Temperature T₁",
+        "defaultValue": 300,
+        "min": 100,
+        "max": 1500,
+        "step": 10,
+        "unit": "K"
+      },
+      {
+        "key": "T2",
+        "label": "Temperature T₂",
+        "defaultValue": 900,
+        "min": 100,
+        "max": 1500,
+        "step": 10,
+        "unit": "K"
+      },
+      {
+        "key": "M",
+        "label": "Molar mass",
+        "defaultValue": 28,
+        "min": 2,
+        "max": 200,
+        "step": 1,
+        "unit": "g/mol"
+      },
+      {
+        "key": "v",
+        "label": "Speed probe v",
+        "defaultValue": 500,
+        "min": 0,
+        "max": 2500,
+        "step": 10,
+        "unit": "m/s"
+      }
+    ],
+    "variables": [
+      {
+        "id": "T1",
+        "symbol": "T1",
+        "label": "Temperature T₁",
+        "value": 300,
+        "min": 100,
+        "max": 1500,
+        "step": 10,
+        "unit": "K",
+        "learnerEditable": true
+      },
+      {
+        "id": "T2",
+        "symbol": "T2",
+        "label": "Temperature T₂",
+        "value": 900,
+        "min": 100,
+        "max": 1500,
+        "step": 10,
+        "unit": "K",
+        "learnerEditable": true
+      },
+      {
+        "id": "M",
+        "symbol": "M",
+        "label": "Molar mass",
+        "value": 28,
+        "min": 2,
+        "max": 200,
+        "step": 1,
+        "unit": "g/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "v",
+        "symbol": "v",
+        "label": "Speed probe v",
+        "value": 500,
+        "min": 0,
+        "max": 2500,
+        "step": 10,
+        "unit": "m/s",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "f1_1",
+        "output": "f1",
+        "expression": "1000 4 pi (M/1000/(2 pi 8.314 T1))^1.5 v^2 exp(-(M/1000) v^2/(2 8.314 T1))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "f2_2",
+        "output": "f2",
+        "expression": "1000 4 pi (M/1000/(2 pi 8.314 T2))^1.5 v^2 exp(-(M/1000) v^2/(2 8.314 T2))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "vmp1_3",
+        "output": "vmp1",
+        "expression": "sqrt(2 8.314 T1/(M/1000))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "vmp2_4",
+        "output": "vmp2",
+        "expression": "sqrt(2 8.314 T2/(M/1000))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "molecules-1",
+        "name": "T₁, ,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-4",
+          "y": "0",
+          "w": "6",
+          "h": "4",
+          "nA": "40",
+          "nB": "0",
+          "nC": "0",
+          "speed": "vmp1/250"
+        }
+      },
+      {
+        "id": "molecules-2",
+        "name": "T₂, ,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "4",
+          "y": "0",
+          "w": "6",
+          "h": "4",
+          "nA": "40",
+          "nB": "0",
+          "nC": "0",
+          "speed": "vmp2/250"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "v_mp",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-4",
+          "y": "2.9",
+          "value": "vmp1",
+          "unit": "m/s"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "v_mp",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "4",
+          "y": "2.9",
+          "value": "vmp2",
+          "unit": "m/s"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "f1",
+        "expression": "1000 4 pi (M/1000/(2 pi 8.314 T1))^1.5 v^2 exp(-(M/1000) v^2/(2 8.314 T1))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "f2",
+        "expression": "1000 4 pi (M/1000/(2 pi 8.314 T2))^1.5 v^2 exp(-(M/1000) v^2/(2 8.314 T2))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "vmp1",
+        "expression": "sqrt(2 8.314 T1/(M/1000))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "vmp2",
+        "expression": "sqrt(2 8.314 T2/(M/1000))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "maxwell",
+      "category": "States of Matter",
+      "graphOutputs": [
+        "f1",
+        "f2"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-vdw",
+    "subject": "chemistry",
+    "kind": "chemistry-vdw",
+    "title": "Real gas: van der Waals isotherm",
+    "description": "P = RT/(V − b) − a/V² compared with the ideal gas (CO₂ default a, b).",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "States of Matter",
+    "parameters": [
+      {
+        "key": "T",
+        "label": "Temperature",
+        "defaultValue": 290,
+        "min": 200,
+        "max": 600,
+        "step": 1,
+        "unit": "K"
+      },
+      {
+        "key": "a",
+        "label": "a",
+        "defaultValue": 3.64,
+        "min": 0,
+        "max": 10,
+        "step": 0.01,
+        "unit": "L²·bar/mol²"
+      },
+      {
+        "key": "b",
+        "label": "b",
+        "defaultValue": 0.04267,
+        "min": 0,
+        "max": 0.2,
+        "step": 0.001,
+        "unit": "L/mol"
+      },
+      {
+        "key": "V",
+        "label": "Molar volume V",
+        "defaultValue": 0.5,
+        "min": 0.07,
+        "max": 1.5,
+        "step": 0.005,
+        "unit": "L/mol"
+      }
+    ],
+    "variables": [
+      {
+        "id": "T",
+        "symbol": "T",
+        "label": "Temperature",
+        "value": 290,
+        "min": 200,
+        "max": 600,
+        "step": 1,
+        "unit": "K",
+        "learnerEditable": true
+      },
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "a",
+        "value": 3.64,
+        "min": 0,
+        "max": 10,
+        "step": 0.01,
+        "unit": "L²·bar/mol²",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "b",
+        "value": 0.04267,
+        "min": 0,
+        "max": 0.2,
+        "step": 0.001,
+        "unit": "L/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "V",
+        "symbol": "V",
+        "label": "Molar volume V",
+        "value": 0.5,
+        "min": 0.07,
+        "max": 1.5,
+        "step": 0.005,
+        "unit": "L/mol",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "Preal_1",
+        "output": "Preal",
+        "expression": "0.08314 T/(V - b) - a/V^2",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Pideal_2",
+        "output": "Pideal",
+        "expression": "0.08314 T/V",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Z_3",
+        "output": "Z",
+        "expression": "Preal V/(0.08314 T)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "Preal",
+        "expression": "0.08314 T/(V - b) - a/V^2",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "Pideal",
+        "expression": "0.08314 T/V",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "Z",
+        "expression": "Preal V/(0.08314 T)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "vdw",
+      "category": "States of Matter",
+      "graphOutputs": [
+        "Preal",
+        "Pideal"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-graham",
+    "subject": "chemistry",
+    "kind": "chemistry-graham",
+    "title": "Graham's law of diffusion",
+    "description": "Rate ∝ 1/√M: lighter gases spread faster along the tube.",
+    "icon": "molecules",
+    "iconKey": "molecules",
+    "category": "States of Matter",
+    "parameters": [
+      {
+        "key": "M1",
+        "label": "Molar mass gas 1",
+        "defaultValue": 2,
+        "min": 2,
+        "max": 100,
+        "step": 1,
+        "unit": "g/mol"
+      },
+      {
+        "key": "M2",
+        "label": "Molar mass gas 2",
+        "defaultValue": 32,
+        "min": 2,
+        "max": 100,
+        "step": 1,
+        "unit": "g/mol"
+      }
+    ],
+    "variables": [
+      {
+        "id": "M1",
+        "symbol": "M1",
+        "label": "Molar mass gas 1",
+        "value": 2,
+        "min": 2,
+        "max": 100,
+        "step": 1,
+        "unit": "g/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "M2",
+        "symbol": "M2",
+        "label": "Molar mass gas 2",
+        "value": 32,
+        "min": 2,
+        "max": 100,
+        "step": 1,
+        "unit": "g/mol",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "ratio_1",
+        "output": "ratio",
+        "expression": "sqrt(M2/M1)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "s1_2",
+        "output": "s1",
+        "expression": "min(16, 0.25 t sqrt(320/M1))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "s2_3",
+        "output": "s2",
+        "expression": "min(16, 0.25 t sqrt(320/M2))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "surface-1",
+        "name": "",
+        "type": "surface",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0",
+          "y": "2.4",
+          "w": "16.4",
+          "h": "0.2"
+        }
+      },
+      {
+        "id": "surface-2",
+        "name": "",
+        "type": "surface",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0",
+          "y": "0",
+          "w": "16.4",
+          "h": "0.2"
+        }
+      },
+      {
+        "id": "surface-3",
+        "name": "",
+        "type": "surface",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0",
+          "y": "-2.4",
+          "w": "16.4",
+          "h": "0.2"
+        }
+      },
+      {
+        "id": "molecules-4",
+        "name": "gas 1, ,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-8 + s1/2",
+          "y": "1.2",
+          "w": "max(s1, 0.05)",
+          "h": "2",
+          "nA": "round(2 s1) + 1",
+          "nB": "0",
+          "nC": "0",
+          "speed": "2 sqrt(32/M1)"
+        }
+      },
+      {
+        "id": "molecules-5",
+        "name": " ,gas 2,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-8 + s2/2",
+          "y": "-1.2",
+          "w": "max(s2, 0.05)",
+          "h": "2",
+          "nA": "0",
+          "nB": "round(2 s2) + 1",
+          "nC": "0",
+          "speed": "2 sqrt(32/M2)"
+        }
+      },
+      {
+        "id": "label-6",
+        "name": "rate₁/rate₂",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "5",
+          "y": "3.1",
+          "value": "ratio"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "ratio",
+        "expression": "sqrt(M2/M1)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "s1",
+        "expression": "min(16, 0.25 t sqrt(320/M1))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "s2",
+        "expression": "min(16, 0.25 t sqrt(320/M2))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "graham",
+      "category": "States of Matter",
+      "graphOutputs": [
+        "s1",
+        "s2"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-profile",
+    "subject": "chemistry",
+    "kind": "chemistry-profile",
+    "title": "Energy profile: exo/endothermic & catalyst",
+    "description": "ΔH = E(products) − E(reactants); activation energy Eₐ and the lower catalysed path.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Thermodynamics",
+    "parameters": [
+      {
+        "key": "Er",
+        "label": "Reactant energy",
+        "defaultValue": 60,
+        "min": 0,
+        "max": 120,
+        "step": 1,
+        "unit": "kJ/mol"
+      },
+      {
+        "key": "Ep",
+        "label": "Product energy",
+        "defaultValue": 20,
+        "min": 0,
+        "max": 120,
+        "step": 1,
+        "unit": "kJ/mol"
+      },
+      {
+        "key": "Ea",
+        "label": "Activation energy",
+        "defaultValue": 80,
+        "min": 10,
+        "max": 120,
+        "step": 1,
+        "unit": "kJ/mol"
+      },
+      {
+        "key": "cat",
+        "label": "Catalyst 0/1",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "rc",
+        "label": "Reaction progress",
+        "defaultValue": 2,
+        "min": 0,
+        "max": 10,
+        "step": 0.05,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "Er",
+        "symbol": "Er",
+        "label": "Reactant energy",
+        "value": 60,
+        "min": 0,
+        "max": 120,
+        "step": 1,
+        "unit": "kJ/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "Ep",
+        "symbol": "Ep",
+        "label": "Product energy",
+        "value": 20,
+        "min": 0,
+        "max": 120,
+        "step": 1,
+        "unit": "kJ/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "Ea",
+        "symbol": "Ea",
+        "label": "Activation energy",
+        "value": 80,
+        "min": 10,
+        "max": 120,
+        "step": 1,
+        "unit": "kJ/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "cat",
+        "symbol": "cat",
+        "label": "Catalyst 0/1",
+        "value": 0,
+        "min": 0,
+        "max": 1,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "rc",
+        "symbol": "rc",
+        "label": "Reaction progress",
+        "value": 2,
+        "min": 0,
+        "max": 10,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "dH_1",
+        "output": "dH",
+        "expression": "Ep - Er",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Ec_2",
+        "output": "Ec",
+        "expression": "Ea (1 - 0.45 cat)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "E_3",
+        "output": "E",
+        "expression": "Er + (Ep - Er)/(1 + exp(-2 (rc - 5))) + (Er + Ec - (Er + Ep)/2) exp(-((rc - 5)/1.1)^2)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "axes-1",
+        "name": "",
+        "type": "axes",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "xmin": "-0.5",
+          "xmax": "10.8",
+          "ymin": "-0.5",
+          "ymax": "8.2",
+          "step": "20",
+          "xl": "progress",
+          "yl": "E"
+        }
+      },
+      {
+        "id": "fplot-2",
+        "name": "uncatalysed",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "f": "(Er + (Ep - Er)/(1 + exp(-2 (x - 5))) + (Er + Ea - (Er + Ep)/2) exp(-((x - 5)/1.1)^2))/20",
+          "from": "0",
+          "to": "10",
+          "dash": "cat"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "catalysed",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "f": "(Er + (Ep - Er)/(1 + exp(-2 (x - 5))) + (Er + Ec - (Er + Ep)/2) exp(-((x - 5)/1.1)^2))/20",
+          "from": "0",
+          "to": "10",
+          "show": "cat"
+        }
+      },
+      {
+        "id": "ball-4",
+        "name": "",
+        "type": "ball",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "rc",
+          "y": "E/20 + 0.25",
+          "size": "0.6"
+        }
+      },
+      {
+        "id": "segment-5",
+        "name": "ΔH",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "9",
+          "y": "Er/20",
+          "x2": "9",
+          "y2": "Ep/20",
+          "len": "0"
+        }
+      },
+      {
+        "id": "segment-6",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0",
+          "y": "Er/20",
+          "x2": "9.3",
+          "y2": "Er/20",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "label-7",
+        "name": "ΔH",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "7.6",
+          "y": "(Er + Ep)/40",
+          "value": "dH",
+          "unit": "kJ/mol"
+        }
+      },
+      {
+        "id": "label-8",
+        "name": "Eₐ",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "2.5",
+          "y": "7.5",
+          "value": "Ec",
+          "unit": "kJ/mol"
+        }
+      },
+      {
+        "id": "note-9",
+        "name": "Exothermic",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "8",
+          "y": "7.5",
+          "show": "dH < 0 ? 1 : 0"
+        }
+      },
+      {
+        "id": "note-10",
+        "name": "Endothermic",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "8",
+          "y": "7.5",
+          "show": "dH > 0 ? 1 : 0"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "dH",
+        "expression": "Ep - Er",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "Ec",
+        "expression": "Ea (1 - 0.45 cat)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "E",
+        "expression": "Er + (Ep - Er)/(1 + exp(-2 (rc - 5))) + (Er + Ec - (Er + Ep)/2) exp(-((rc - 5)/1.1)^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "profile",
+      "category": "Thermodynamics",
+      "graphOutputs": [
+        "E"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-gibbs",
+    "subject": "chemistry",
+    "kind": "chemistry-gibbs",
+    "title": "Gibbs free energy & spontaneity",
+    "description": "ΔG = ΔH − TΔS; the reaction becomes (non-)spontaneous at T = ΔH/ΔS.",
+    "icon": "thermometer",
+    "iconKey": "thermometer",
+    "category": "Thermodynamics",
+    "parameters": [
+      {
+        "key": "dH",
+        "label": "ΔH",
+        "defaultValue": -50,
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "unit": "kJ/mol"
+      },
+      {
+        "key": "dS",
+        "label": "ΔS",
+        "defaultValue": -100,
+        "min": -300,
+        "max": 300,
+        "step": 1,
+        "unit": "J/(mol·K)"
+      },
+      {
+        "key": "T",
+        "label": "Temperature",
+        "defaultValue": 298,
+        "min": 1,
+        "max": 1000,
+        "step": 1,
+        "unit": "K"
+      }
+    ],
+    "variables": [
+      {
+        "id": "dH",
+        "symbol": "dH",
+        "label": "ΔH",
+        "value": -50,
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "unit": "kJ/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "dS",
+        "symbol": "dS",
+        "label": "ΔS",
+        "value": -100,
+        "min": -300,
+        "max": 300,
+        "step": 1,
+        "unit": "J/(mol·K)",
+        "learnerEditable": true
+      },
+      {
+        "id": "T",
+        "symbol": "T",
+        "label": "Temperature",
+        "value": 298,
+        "min": 1,
+        "max": 1000,
+        "step": 1,
+        "unit": "K",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "dG_1",
+        "output": "dG",
+        "expression": "dH - T dS/1000",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Tc_2",
+        "output": "Tc",
+        "expression": "dS != 0 ? 1000 dH/dS : 0/0",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "lgK_3",
+        "output": "lgK",
+        "expression": "-dG 1000/(2.303 8.314 T)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "thermometer-1",
+        "name": "T",
+        "type": "thermometer",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-4",
+          "y": "-2",
+          "h": "4.5",
+          "level": "T/1000",
+          "value": "T",
+          "unit": "K"
+        }
+      },
+      {
+        "id": "label-2",
+        "name": "ΔG",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "1.5",
+          "y": "2",
+          "value": "dG",
+          "unit": "kJ/mol"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "log K",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "1.5",
+          "y": "0.6",
+          "value": "lgK"
+        }
+      },
+      {
+        "id": "note-4",
+        "name": "Spontaneous (ΔG < 0)",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "1.5",
+          "y": "-1.2",
+          "size": "1.2",
+          "show": "dG < 0 ? 1 : 0"
+        }
+      },
+      {
+        "id": "note-5",
+        "name": "Non-spontaneous (ΔG > 0)",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "1.5",
+          "y": "-1.2",
+          "size": "1.2",
+          "show": "dG > 0 ? 1 : 0"
+        }
+      },
+      {
+        "id": "label-6",
+        "name": "T* = ΔH/ΔS",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "1.5",
+          "y": "-2.6",
+          "value": "Tc",
+          "unit": "K"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "dG",
+        "expression": "dH - T dS/1000",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "Tc",
+        "expression": "dS != 0 ? 1000 dH/dS : 0/0",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "lgK",
+        "expression": "-dG 1000/(2.303 8.314 T)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "gibbs",
+      "category": "Thermodynamics",
+      "graphOutputs": [
+        "dG"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-calor",
+    "subject": "chemistry",
+    "kind": "chemistry-calor",
+    "title": "Heating water (calorimetry, engine)",
+    "description": "dT/dt = P/(mc); temperature plateaus at the boiling point.",
+    "icon": "flame",
+    "iconKey": "flame",
+    "category": "Thermodynamics",
+    "parameters": [
+      {
+        "key": "P",
+        "label": "Heater power",
+        "defaultValue": 500,
+        "min": 50,
+        "max": 2000,
+        "step": 10,
+        "unit": "W"
+      },
+      {
+        "key": "m",
+        "label": "Mass of water",
+        "defaultValue": 0.2,
+        "min": 0.05,
+        "max": 1,
+        "step": 0.01,
+        "unit": "kg"
+      },
+      {
+        "key": "T0",
+        "label": "Initial temperature",
+        "defaultValue": 25,
+        "min": 0,
+        "max": 90,
+        "step": 1,
+        "unit": "°C"
+      }
+    ],
+    "variables": [
+      {
+        "id": "P",
+        "symbol": "P",
+        "label": "Heater power",
+        "value": 500,
+        "min": 50,
+        "max": 2000,
+        "step": 10,
+        "unit": "W",
+        "learnerEditable": true
+      },
+      {
+        "id": "m",
+        "symbol": "m",
+        "label": "Mass of water",
+        "value": 0.2,
+        "min": 0.05,
+        "max": 1,
+        "step": 0.01,
+        "unit": "kg",
+        "learnerEditable": true
+      },
+      {
+        "id": "T0",
+        "symbol": "T0",
+        "label": "Initial temperature",
+        "value": 25,
+        "min": 0,
+        "max": 90,
+        "step": 1,
+        "unit": "°C",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "Q_1",
+        "output": "Q",
+        "expression": "m 4186 (T - T0)/1000",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "T_2",
+        "output": "T",
+        "expression": "T < 100 ? P/(m 4186) : 0",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "T0"
+      }
+    ],
+    "objects": [
+      {
+        "id": "flame-1",
+        "name": "",
+        "type": "flame",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "-1.4",
+          "power": "1",
+          "size": "1.1"
+        }
+      },
+      {
+        "id": "solution-2",
+        "name": "Water",
+        "type": "solution",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "0",
+          "w": "2.6",
+          "h": "3",
+          "level": "2.2"
+        }
+      },
+      {
+        "id": "particles-3",
+        "name": "",
+        "type": "particles",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "1.1",
+          "w": "2.4",
+          "h": "2",
+          "n": "25",
+          "speed": "(T + 10)/40"
+        }
+      },
+      {
+        "id": "thermometer-4",
+        "name": "T",
+        "type": "thermometer",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "0.6",
+          "y": "0.3",
+          "h": "4",
+          "level": "T/110",
+          "value": "T",
+          "unit": "°C"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "Q",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "3.4",
+          "y": "3.5",
+          "value": "Q",
+          "unit": "kJ"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "Q",
+        "expression": "m 4186 (T - T0)/1000",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "state-result-1",
+        "label": "T",
+        "expression": "T",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 180,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "calor",
+      "category": "Thermodynamics",
+      "graphOutputs": [
+        "T"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-first",
+    "subject": "chemistry",
+    "kind": "chemistry-first",
+    "title": "First-order reaction A → B (engine)",
+    "description": "d[A]/dt = −k[A]; half-life t½ = ln 2/k is constant.",
+    "icon": "molecules",
+    "iconKey": "molecules",
+    "category": "Chemical Kinetics",
+    "parameters": [
+      {
+        "key": "A0",
+        "label": "Initial [A]₀",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L"
+      },
+      {
+        "key": "k",
+        "label": "Rate constant k",
+        "defaultValue": 0.2,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": "1/s"
+      }
+    ],
+    "variables": [
+      {
+        "id": "A0",
+        "symbol": "A0",
+        "label": "Initial [A]₀",
+        "value": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "k",
+        "symbol": "k",
+        "label": "Rate constant k",
+        "value": 0.2,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": "1/s",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "B_1",
+        "output": "B",
+        "expression": "A0 - A",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "th_2",
+        "output": "th",
+        "expression": "ln(2)/k",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "A_3",
+        "output": "A",
+        "expression": "-k A",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "A0"
+      }
+    ],
+    "objects": [
+      {
+        "id": "molecules-1",
+        "name": "A, B,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "w": "7",
+          "h": "4.5",
+          "nA": "40 A/A0",
+          "nB": "40 B/A0",
+          "nC": "0"
+        }
+      },
+      {
+        "id": "label-2",
+        "name": "t½",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "3.2",
+          "value": "th",
+          "unit": "s"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "B",
+        "expression": "A0 - A",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "th",
+        "expression": "ln(2)/k",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "state-result-1",
+        "label": "A",
+        "expression": "A",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 20,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "first",
+      "category": "Chemical Kinetics",
+      "graphOutputs": [
+        "A",
+        "B"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-order",
+    "subject": "chemistry",
+    "kind": "chemistry-order",
+    "title": "Zero, first & second order rate laws",
+    "description": "d[A]/dt = −k[A]ⁿ; compare [A], ln[A] and 1/[A] for the straight-line test.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Chemical Kinetics",
+    "parameters": [
+      {
+        "key": "n",
+        "label": "Order n",
+        "defaultValue": 1,
+        "min": 0,
+        "max": 3,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "A0",
+        "label": "Initial [A]₀",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L"
+      },
+      {
+        "key": "k",
+        "label": "Rate constant k",
+        "defaultValue": 0.2,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "n",
+        "symbol": "n",
+        "label": "Order n",
+        "value": 1,
+        "min": 0,
+        "max": 3,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "A0",
+        "symbol": "A0",
+        "label": "Initial [A]₀",
+        "value": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "k",
+        "symbol": "k",
+        "label": "Rate constant k",
+        "value": 0.2,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "lnA_1",
+        "output": "lnA",
+        "expression": "ln(max(A, 1e-9))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "invA_2",
+        "output": "invA",
+        "expression": "1/max(A, 1e-3)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "A_3",
+        "output": "A",
+        "expression": "A > 0 ? -k A^n : 0",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "A0"
+      }
+    ],
+    "objects": [],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "lnA",
+        "expression": "ln(max(A, 1e-9))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "invA",
+        "expression": "1/max(A, 1e-3)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "state-result-1",
+        "label": "A",
+        "expression": "A",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 20,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "order",
+      "category": "Chemical Kinetics",
+      "graphOutputs": [
+        "A"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-arrh",
+    "subject": "chemistry",
+    "kind": "chemistry-arrh",
+    "title": "Arrhenius equation",
+    "description": "k = A e^(−Eₐ/RT); a 10 K rise roughly doubles k for typical Eₐ.",
+    "icon": "flame",
+    "iconKey": "flame",
+    "category": "Chemical Kinetics",
+    "parameters": [
+      {
+        "key": "T",
+        "label": "Temperature",
+        "defaultValue": 300,
+        "min": 250,
+        "max": 600,
+        "step": 1,
+        "unit": "K"
+      },
+      {
+        "key": "Ea",
+        "label": "Activation energy",
+        "defaultValue": 50,
+        "min": 10,
+        "max": 150,
+        "step": 1,
+        "unit": "kJ/mol"
+      },
+      {
+        "key": "lgA",
+        "label": "log₁₀ A",
+        "defaultValue": 10,
+        "min": 5,
+        "max": 15,
+        "step": 0.5,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "T",
+        "symbol": "T",
+        "label": "Temperature",
+        "value": 300,
+        "min": 250,
+        "max": 600,
+        "step": 1,
+        "unit": "K",
+        "learnerEditable": true
+      },
+      {
+        "id": "Ea",
+        "symbol": "Ea",
+        "label": "Activation energy",
+        "value": 50,
+        "min": 10,
+        "max": 150,
+        "step": 1,
+        "unit": "kJ/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "lgA",
+        "symbol": "lgA",
+        "label": "log₁₀ A",
+        "value": 10,
+        "min": 5,
+        "max": 15,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "k_1",
+        "output": "k",
+        "expression": "10^lgA exp(-Ea 1000/(8.314 T))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "frac_2",
+        "output": "frac",
+        "expression": "exp(-Ea 1000/(8.314 T))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "k10_3",
+        "output": "k10",
+        "expression": "exp(-Ea 1000/(8.314 (T + 10)))/frac",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "flame-1",
+        "name": "",
+        "type": "flame",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "-3",
+          "y": "-2.6",
+          "power": "(T - 250)/350",
+          "size": "1"
+        }
+      },
+      {
+        "id": "molecules-2",
+        "name": "reactants, ,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-3",
+          "y": "0.6",
+          "w": "5",
+          "h": "3.6",
+          "nA": "30",
+          "nB": "0",
+          "nC": "0",
+          "speed": "sqrt(T/300)"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "k",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "3",
+          "y": "2",
+          "value": "k",
+          "unit": "1/s"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "k(T+10)/k(T)",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3",
+          "y": "0.6",
+          "value": "k10"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "k",
+        "expression": "10^lgA exp(-Ea 1000/(8.314 T))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "frac",
+        "expression": "exp(-Ea 1000/(8.314 T))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "k10",
+        "expression": "exp(-Ea 1000/(8.314 (T + 10)))/frac",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "arrh",
+      "category": "Chemical Kinetics",
+      "graphOutputs": [
+        "k"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-collide",
+    "subject": "chemistry",
+    "kind": "chemistry-collide",
+    "title": "A + B → C (second order, engine)",
+    "description": "d[C]/dt = k[A][B]; the limiting reagent runs out first.",
+    "icon": "molecules",
+    "iconKey": "molecules",
+    "category": "Chemical Kinetics",
+    "parameters": [
+      {
+        "key": "A0",
+        "label": "[A]₀",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L"
+      },
+      {
+        "key": "B0",
+        "label": "[B]₀",
+        "defaultValue": 0.7,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L"
+      },
+      {
+        "key": "k",
+        "label": "k",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 3,
+        "step": 0.05,
+        "unit": "L/(mol·s)"
+      }
+    ],
+    "variables": [
+      {
+        "id": "A0",
+        "symbol": "A0",
+        "label": "[A]₀",
+        "value": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "B0",
+        "symbol": "B0",
+        "label": "[B]₀",
+        "value": 0.7,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "k",
+        "symbol": "k",
+        "label": "k",
+        "value": 1,
+        "min": 0.1,
+        "max": 3,
+        "step": 0.05,
+        "unit": "L/(mol·s)",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "A_1",
+        "output": "A",
+        "expression": "-k A B",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "A0"
+      },
+      {
+        "id": "B_2",
+        "output": "B",
+        "expression": "-k A B",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "B0"
+      },
+      {
+        "id": "C_3",
+        "output": "C",
+        "expression": "k A B",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "0"
+      }
+    ],
+    "objects": [
+      {
+        "id": "molecules-1",
+        "name": "A, B, C",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "w": "7",
+          "h": "4.5",
+          "nA": "25 A",
+          "nB": "25 B",
+          "nC": "25 C"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "state-result-1",
+        "label": "A",
+        "expression": "A",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "state-result-2",
+        "label": "B",
+        "expression": "B",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "state-result-3",
+        "label": "C",
+        "expression": "C",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 15,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "collide",
+      "category": "Chemical Kinetics",
+      "graphOutputs": [
+        "A",
+        "B",
+        "C"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-rev",
+    "subject": "chemistry",
+    "kind": "chemistry-rev",
+    "title": "Reversible reaction A ⇌ B (engine)",
+    "description": "Forward and backward rates become equal; Q → K = k_f/k_b.",
+    "icon": "molecules",
+    "iconKey": "molecules",
+    "category": "Equilibrium",
+    "parameters": [
+      {
+        "key": "kf",
+        "label": "Forward k_f",
+        "defaultValue": 0.5,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s"
+      },
+      {
+        "key": "kb",
+        "label": "Backward k_b",
+        "defaultValue": 0.25,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s"
+      },
+      {
+        "key": "A0",
+        "label": "[A]₀",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L"
+      }
+    ],
+    "variables": [
+      {
+        "id": "kf",
+        "symbol": "kf",
+        "label": "Forward k_f",
+        "value": 0.5,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s",
+        "learnerEditable": true
+      },
+      {
+        "id": "kb",
+        "symbol": "kb",
+        "label": "Backward k_b",
+        "value": 0.25,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s",
+        "learnerEditable": true
+      },
+      {
+        "id": "A0",
+        "symbol": "A0",
+        "label": "[A]₀",
+        "value": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "K_1",
+        "output": "K",
+        "expression": "kf/kb",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Q_2",
+        "output": "Q",
+        "expression": "B/max(A, 1e-9)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "A_3",
+        "output": "A",
+        "expression": "-kf A + kb B",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "A0"
+      },
+      {
+        "id": "B_4",
+        "output": "B",
+        "expression": "kf A - kb B",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "0"
+      }
+    ],
+    "objects": [
+      {
+        "id": "molecules-1",
+        "name": "A, B,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "w": "7",
+          "h": "4.5",
+          "nA": "40 A/A0",
+          "nB": "40 B/A0",
+          "nC": "0"
+        }
+      },
+      {
+        "id": "label-2",
+        "name": "K",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "-2",
+          "y": "3.2",
+          "value": "K"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "Q",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "2",
+          "y": "3.2",
+          "value": "Q"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "K",
+        "expression": "kf/kb",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "Q",
+        "expression": "B/max(A, 1e-9)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "state-result-1",
+        "label": "A",
+        "expression": "A",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "state-result-2",
+        "label": "B",
+        "expression": "B",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 20,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "rev",
+      "category": "Equilibrium",
+      "graphOutputs": [
+        "A",
+        "B"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-lechat",
+    "subject": "chemistry",
+    "kind": "chemistry-lechat",
+    "title": "Le Chatelier's principle (add reactant)",
+    "description": "At time t₁ extra A is added; the system shifts forward to restore Q = K.",
+    "icon": "molecules",
+    "iconKey": "molecules",
+    "category": "Equilibrium",
+    "parameters": [
+      {
+        "key": "kf",
+        "label": "Forward k_f",
+        "defaultValue": 0.5,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s"
+      },
+      {
+        "key": "kb",
+        "label": "Backward k_b",
+        "defaultValue": 0.25,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s"
+      },
+      {
+        "key": "A0",
+        "label": "[A]₀",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L"
+      },
+      {
+        "key": "add",
+        "label": "Extra A added",
+        "defaultValue": 0.8,
+        "min": 0,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L"
+      },
+      {
+        "key": "t1",
+        "label": "Time of addition",
+        "defaultValue": 10,
+        "min": 2,
+        "max": 25,
+        "step": 0.5,
+        "unit": "s"
+      }
+    ],
+    "variables": [
+      {
+        "id": "kf",
+        "symbol": "kf",
+        "label": "Forward k_f",
+        "value": 0.5,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s",
+        "learnerEditable": true
+      },
+      {
+        "id": "kb",
+        "symbol": "kb",
+        "label": "Backward k_b",
+        "value": 0.25,
+        "min": 0.05,
+        "max": 2,
+        "step": 0.05,
+        "unit": "1/s",
+        "learnerEditable": true
+      },
+      {
+        "id": "A0",
+        "symbol": "A0",
+        "label": "[A]₀",
+        "value": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "add",
+        "symbol": "add",
+        "label": "Extra A added",
+        "value": 0.8,
+        "min": 0,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "t1",
+        "symbol": "t1",
+        "label": "Time of addition",
+        "value": 10,
+        "min": 2,
+        "max": 25,
+        "step": 0.5,
+        "unit": "s",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "Q_1",
+        "output": "Q",
+        "expression": "B/max(A, 1e-9)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "K_2",
+        "output": "K",
+        "expression": "kf/kb",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "A_3",
+        "output": "A",
+        "expression": "-kf A + kb B",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "A0"
+      },
+      {
+        "id": "B_4",
+        "output": "B",
+        "expression": "kf A - kb B",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "0"
+      },
+      {
+        "id": "done_5",
+        "output": "done",
+        "expression": "0",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "0"
+      }
+    ],
+    "objects": [
+      {
+        "id": "molecules-1",
+        "name": "A, B,",
+        "type": "molecules",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "w": "7",
+          "h": "4.5",
+          "nA": "30 A",
+          "nB": "30 B",
+          "nC": "0"
+        }
+      },
+      {
+        "id": "note-2",
+        "name": "Extra A added → shifts forward",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "3.2",
+          "show": "done"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "Q",
+        "expression": "B/max(A, 1e-9)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "K",
+        "expression": "kf/kb",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "state-result-1",
+        "label": "A",
+        "expression": "A",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "state-result-2",
+        "label": "B",
+        "expression": "B",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "state-result-3",
+        "label": "done",
+        "expression": "done",
+        "unit": "",
+        "precision": 3,
+        "display": "label",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 30,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "lechat",
+      "category": "Equilibrium",
+      "graphOutputs": [
+        "A",
+        "B"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-ice",
+    "subject": "chemistry",
+    "kind": "chemistry-ice",
+    "title": "ICE table: H₂ + I₂ ⇌ 2HI",
+    "description": "Solves (2x)² / ((a − x)(b − x)) = K for the equilibrium amounts.",
+    "icon": "bars",
+    "iconKey": "bars",
+    "category": "Equilibrium",
+    "parameters": [
+      {
+        "key": "K",
+        "label": "Kc",
+        "defaultValue": 50,
+        "min": 1,
+        "max": 100,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "a",
+        "label": "Initial H₂",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol"
+      },
+      {
+        "key": "b",
+        "label": "Initial I₂",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol"
+      }
+    ],
+    "variables": [
+      {
+        "id": "K",
+        "symbol": "K",
+        "label": "Kc",
+        "value": 50,
+        "min": 1,
+        "max": 100,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Initial H₂",
+        "value": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "Initial I₂",
+        "value": 1,
+        "min": 0.1,
+        "max": 2,
+        "step": 0.05,
+        "unit": "mol",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "q_1",
+        "output": "q",
+        "expression": "4 - K",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "x_2",
+        "output": "x",
+        "expression": "abs(q) < 1e-6 ? a b/(a + b) : (-K (a + b) + sqrt(K^2 (a + b)^2 + 4 q K a b))/(2 q)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "H2_3",
+        "output": "H2",
+        "expression": "a - x",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "I2_4",
+        "output": "I2",
+        "expression": "b - x",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "HI_5",
+        "output": "HI",
+        "expression": "2 x",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "bars-1",
+        "name": "",
+        "type": "bars",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "k == 0 ? H2 : k == 1 ? I2 : HI",
+          "kmin": "0",
+          "kmax": "2",
+          "x0": "1",
+          "dx": "2",
+          "w": "0.6",
+          "ys": "2"
+        }
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "-0.5",
+          "y": "0",
+          "x2": "7",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "note-3",
+        "name": "H₂",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "1",
+          "y": "-0.6"
+        }
+      },
+      {
+        "id": "note-4",
+        "name": "I₂",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3",
+          "y": "-0.6"
+        }
+      },
+      {
+        "id": "note-5",
+        "name": "HI",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "5",
+          "y": "-0.6"
+        }
+      },
+      {
+        "id": "label-6",
+        "name": "x",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "5.5",
+          "y": "5",
+          "value": "x",
+          "unit": "mol"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "q",
+        "expression": "4 - K",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "x",
+        "expression": "abs(q) < 1e-6 ? a b/(a + b) : (-K (a + b) + sqrt(K^2 (a + b)^2 + 4 q K a b))/(2 q)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "H2",
+        "expression": "a - x",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "I2",
+        "expression": "b - x",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-5",
+        "label": "HI",
+        "expression": "2 x",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "ice",
+      "category": "Equilibrium",
+      "graphOutputs": [
+        "H2",
+        "I2",
+        "HI"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-ph",
+    "subject": "chemistry",
+    "kind": "chemistry-ph",
+    "title": "pH scale & universal indicator",
+    "description": "Strong acid or base of concentration C (water autoionisation included).",
+    "icon": "phscale",
+    "iconKey": "phscale",
+    "category": "Acids, Bases & Electrochemistry",
+    "parameters": [
+      {
+        "key": "type",
+        "label": "1 strong acid · 2 strong base",
+        "defaultValue": 1,
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "lc",
+        "label": "log₁₀ C",
+        "defaultValue": -2,
+        "min": -8,
+        "max": 0,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "type",
+        "symbol": "type",
+        "label": "1 strong acid · 2 strong base",
+        "value": 1,
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "lc",
+        "symbol": "lc",
+        "label": "log₁₀ C",
+        "value": -2,
+        "min": -8,
+        "max": 0,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "C_1",
+        "output": "C",
+        "expression": "10^lc",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "h0_2",
+        "output": "h0",
+        "expression": "(C + sqrt(C^2 + 4e-14))/2",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "H_3",
+        "output": "H",
+        "expression": "type == 1 ? h0 : 1e-14/h0",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "pH_4",
+        "output": "pH",
+        "expression": "-log10(H)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "pOH_5",
+        "output": "pOH",
+        "expression": "14 - pH",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "solution-1",
+        "name": "",
+        "type": "solution",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-3",
+          "y": "-2.5",
+          "w": "3",
+          "h": "3.6",
+          "level": "2.6",
+          "pH": "pH"
+        }
+      },
+      {
+        "id": "meter-2",
+        "name": "pH",
+        "type": "meter",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3",
+          "y": "0",
+          "size": "1.6",
+          "value": "pH",
+          "max": "14"
+        }
+      },
+      {
+        "id": "phscale-3",
+        "name": "",
+        "type": "phscale",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "0",
+          "y": "3.4",
+          "w": "12",
+          "h": "0.7",
+          "pH": "pH"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "C",
+        "expression": "10^lc",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "h0",
+        "expression": "(C + sqrt(C^2 + 4e-14))/2",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "H",
+        "expression": "type == 1 ? h0 : 1e-14/h0",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "pH",
+        "expression": "-log10(H)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-5",
+        "label": "pOH",
+        "expression": "14 - pH",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "ph",
+      "category": "Acids, Bases & Electrochemistry",
+      "graphOutputs": [
+        "pH"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-titr",
+    "subject": "chemistry",
+    "kind": "chemistry-titr",
+    "title": "Acid–base titration",
+    "description": "NaOH from the burette into acid: strong (HCl) or weak (CH₃COOH, pKa 4.76) titration curve and indicator colour.",
+    "icon": "burette",
+    "iconKey": "burette",
+    "category": "Acids, Bases & Electrochemistry",
+    "parameters": [
+      {
+        "key": "type",
+        "label": "Acid 1 strong · 2 weak",
+        "defaultValue": 1,
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "Ca",
+        "label": "Acid conc.",
+        "defaultValue": 0.1,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": "mol/L"
+      },
+      {
+        "key": "Va",
+        "label": "Acid volume",
+        "defaultValue": 25,
+        "min": 5,
+        "max": 50,
+        "step": 1,
+        "unit": "mL"
+      },
+      {
+        "key": "Cb",
+        "label": "NaOH conc.",
+        "defaultValue": 0.1,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": "mol/L"
+      },
+      {
+        "key": "Vb",
+        "label": "NaOH added",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 50,
+        "step": 0.1,
+        "unit": "mL"
+      },
+      {
+        "key": "pKa",
+        "label": "pKa (weak)",
+        "defaultValue": 4.76,
+        "min": 2,
+        "max": 10,
+        "step": 0.01,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "type",
+        "symbol": "type",
+        "label": "Acid 1 strong · 2 weak",
+        "value": 1,
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "Ca",
+        "symbol": "Ca",
+        "label": "Acid conc.",
+        "value": 0.1,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "Va",
+        "symbol": "Va",
+        "label": "Acid volume",
+        "value": 25,
+        "min": 5,
+        "max": 50,
+        "step": 1,
+        "unit": "mL",
+        "learnerEditable": true
+      },
+      {
+        "id": "Cb",
+        "symbol": "Cb",
+        "label": "NaOH conc.",
+        "value": 0.1,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "Vb",
+        "symbol": "Vb",
+        "label": "NaOH added",
+        "value": 0,
+        "min": 0,
+        "max": 50,
+        "step": 0.1,
+        "unit": "mL",
+        "learnerEditable": true
+      },
+      {
+        "id": "pKa",
+        "symbol": "pKa",
+        "label": "pKa (weak)",
+        "value": 4.76,
+        "min": 2,
+        "max": 10,
+        "step": 0.01,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "nA_1",
+        "output": "nA",
+        "expression": "Ca Va",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "nB_2",
+        "output": "nB",
+        "expression": "Cb Vb",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Vt_3",
+        "output": "Vt",
+        "expression": "Va + Vb",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "D_4",
+        "output": "D",
+        "expression": "(nA - nB)/Vt",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Hs_5",
+        "output": "Hs",
+        "expression": "(D + sqrt(D^2 + 4e-14))/2",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Ka_6",
+        "output": "Ka",
+        "expression": "10^(-pKa)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Hw_7",
+        "output": "Hw",
+        "expression": "nB == 0 ? (-Ka + sqrt(Ka^2 + 4 Ka Ca))/2 : nB < nA ? Ka (nA - nB)/nB : nB == nA ? 1e-14/sqrt((1e-14/Ka) (nA/Vt)) : 1e-14/((nB - nA)/Vt)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "pH_8",
+        "output": "pH",
+        "expression": "-log10(type == 1 ? Hs : Hw)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Veq_9",
+        "output": "Veq",
+        "expression": "Ca Va/Cb",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "burette-1",
+        "name": "NaOH",
+        "type": "burette",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "4.4",
+          "h": "5",
+          "level": "1 - Vb/50",
+          "drip": "Vb < 50 ? 1 : 0"
+        }
+      },
+      {
+        "id": "solution-2",
+        "name": "",
+        "type": "solution",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "0",
+          "w": "3",
+          "h": "3.6",
+          "level": "1.2 + 1.6 Vb/50",
+          "pH": "pH"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "pH",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "3.1",
+          "y": "1.5",
+          "value": "pH"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "V_eq",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3.1",
+          "y": "0.3",
+          "value": "Veq",
+          "unit": "mL"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "nA",
+        "expression": "Ca Va",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "nB",
+        "expression": "Cb Vb",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "Vt",
+        "expression": "Va + Vb",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "D",
+        "expression": "(nA - nB)/Vt",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-5",
+        "label": "Hs",
+        "expression": "(D + sqrt(D^2 + 4e-14))/2",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-6",
+        "label": "Ka",
+        "expression": "10^(-pKa)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-7",
+        "label": "Hw",
+        "expression": "nB == 0 ? (-Ka + sqrt(Ka^2 + 4 Ka Ca))/2 : nB < nA ? Ka (nA - nB)/nB : nB == nA ? 1e-14/sqrt((1e-14/Ka) (nA/Vt)) : 1e-14/((nB - nA)/Vt)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-8",
+        "label": "pH",
+        "expression": "-log10(type == 1 ? Hs : Hw)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-9",
+        "label": "Veq",
+        "expression": "Ca Va/Cb",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "titr",
+      "category": "Acids, Bases & Electrochemistry",
+      "graphOutputs": [
+        "pH"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-buffer",
+    "subject": "chemistry",
+    "kind": "chemistry-buffer",
+    "title": "Buffer: Henderson–Hasselbalch",
+    "description": "pH = pKa + log([A⁻]/[HA]); the buffer works best near pH = pKa.",
+    "icon": "solution",
+    "iconKey": "solution",
+    "category": "Acids, Bases & Electrochemistry",
+    "parameters": [
+      {
+        "key": "pKa",
+        "label": "pKa",
+        "defaultValue": 4.76,
+        "min": 2,
+        "max": 12,
+        "step": 0.01,
+        "unit": ""
+      },
+      {
+        "key": "lr",
+        "label": "log₁₀([A⁻]/[HA])",
+        "defaultValue": 0,
+        "min": -2,
+        "max": 2,
+        "step": 0.05,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "pKa",
+        "symbol": "pKa",
+        "label": "pKa",
+        "value": 4.76,
+        "min": 2,
+        "max": 12,
+        "step": 0.01,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "lr",
+        "symbol": "lr",
+        "label": "log₁₀([A⁻]/[HA])",
+        "value": 0,
+        "min": -2,
+        "max": 2,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "r_1",
+        "output": "r",
+        "expression": "10^lr",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "pH_2",
+        "output": "pH",
+        "expression": "pKa + lr",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "fA_3",
+        "output": "fA",
+        "expression": "r/(1 + r)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "solution-1",
+        "name": "",
+        "type": "solution",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-3.5",
+          "y": "-2.6",
+          "w": "3",
+          "h": "3.6",
+          "level": "2.6",
+          "pH": "pH"
+        }
+      },
+      {
+        "id": "bars-2",
+        "name": "",
+        "type": "bars",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "k == 0 ? 1 - fA : fA",
+          "kmin": "0",
+          "kmax": "1",
+          "x0": "1.5",
+          "dx": "2",
+          "w": "0.7",
+          "ys": "4.5",
+          "hl": "-1"
+        }
+      },
+      {
+        "id": "segment-3",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0.5",
+          "y": "0",
+          "x2": "6",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "note-4",
+        "name": "[HA]",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "1.5",
+          "y": "-0.6"
+        }
+      },
+      {
+        "id": "note-5",
+        "name": "[A⁻]",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3.5",
+          "y": "-0.6"
+        }
+      },
+      {
+        "id": "phscale-6",
+        "name": "",
+        "type": "phscale",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "0",
+          "y": "3.6",
+          "w": "12",
+          "h": "0.6",
+          "pH": "pH"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "r",
+        "expression": "10^lr",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "pH",
+        "expression": "pKa + lr",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "fA",
+        "expression": "r/(1 + r)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "buffer",
+      "category": "Acids, Bases & Electrochemistry",
+      "graphOutputs": [
+        "pH"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-daniell",
+    "subject": "chemistry",
+    "kind": "chemistry-daniell",
+    "title": "Daniell cell & Nernst equation",
+    "description": "Zn | Zn²⁺ ‖ Cu²⁺ | Cu: E = E° − (RT/2F) ln([Zn²⁺]/[Cu²⁺]); electrons flow Zn → Cu.",
+    "icon": "bridge",
+    "iconKey": "bridge",
+    "category": "Acids, Bases & Electrochemistry",
+    "parameters": [
+      {
+        "key": "cZn",
+        "label": "[Zn²⁺]",
+        "defaultValue": 1,
+        "min": 0.001,
+        "max": 2,
+        "step": 0.001,
+        "unit": "mol/L"
+      },
+      {
+        "key": "cCu",
+        "label": "[Cu²⁺]",
+        "defaultValue": 1,
+        "min": 0.001,
+        "max": 2,
+        "step": 0.001,
+        "unit": "mol/L"
+      },
+      {
+        "key": "T",
+        "label": "Temperature",
+        "defaultValue": 298,
+        "min": 273,
+        "max": 373,
+        "step": 1,
+        "unit": "K"
+      }
+    ],
+    "variables": [
+      {
+        "id": "cZn",
+        "symbol": "cZn",
+        "label": "[Zn²⁺]",
+        "value": 1,
+        "min": 0.001,
+        "max": 2,
+        "step": 0.001,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "cCu",
+        "symbol": "cCu",
+        "label": "[Cu²⁺]",
+        "value": 1,
+        "min": 0.001,
+        "max": 2,
+        "step": 0.001,
+        "unit": "mol/L",
+        "learnerEditable": true
+      },
+      {
+        "id": "T",
+        "symbol": "T",
+        "label": "Temperature",
+        "value": 298,
+        "min": 273,
+        "max": 373,
+        "step": 1,
+        "unit": "K",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "E_1",
+        "output": "E",
+        "expression": "1.10 - (8.314 T/(2 96485)) ln(cZn/cCu)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "solution-1",
+        "name": "ZnSO₄",
+        "type": "solution",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "-4.5",
+          "y": "-4",
+          "w": "4",
+          "h": "4",
+          "level": "3"
+        }
+      },
+      {
+        "id": "solution-2",
+        "name": "CuSO₄",
+        "type": "solution",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "4.5",
+          "y": "-4",
+          "w": "4",
+          "h": "4",
+          "level": "3"
+        }
+      },
+      {
+        "id": "block-3",
+        "name": "Zn",
+        "type": "block",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "-4.5",
+          "y": "-1.6",
+          "w": "0.6",
+          "h": "4"
+        }
+      },
+      {
+        "id": "block-4",
+        "name": "Cu",
+        "type": "block",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "4.5",
+          "y": "-1.6",
+          "w": "0.6",
+          "h": "4"
+        }
+      },
+      {
+        "id": "bridge-5",
+        "name": "",
+        "type": "bridge",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-3",
+          "x2": "3",
+          "y": "0.2",
+          "depth": "2.4"
+        }
+      },
+      {
+        "id": "rope-6",
+        "name": "",
+        "type": "rope",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "-4.5",
+          "y": "0.4",
+          "x2": "-4.5",
+          "y2": "3.6"
+        }
+      },
+      {
+        "id": "rope-7",
+        "name": "",
+        "type": "rope",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "-4.5",
+          "y": "3.6",
+          "x2": "4.5",
+          "y2": "3.6"
+        }
+      },
+      {
+        "id": "rope-8",
+        "name": "",
+        "type": "rope",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "4.5",
+          "y": "3.6",
+          "x2": "4.5",
+          "y2": "0.4"
+        }
+      },
+      {
+        "id": "meter-9",
+        "name": "V",
+        "type": "meter",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "0",
+          "y": "3.6",
+          "size": "1.2",
+          "value": "E",
+          "max": "1.5",
+          "unit": "V"
+        }
+      },
+      {
+        "id": "object-10",
+        "name": "Object 10",
+        "type": "object",
+        "visible": true
+      },
+      {
+        "id": "note-11",
+        "name": "Anode (−) oxidation",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-4.5",
+          "y": "-4.6"
+        }
+      },
+      {
+        "id": "note-12",
+        "name": "Cathode (+) reduction",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "4.5",
+          "y": "-4.6"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "E",
+        "expression": "1.10 - (8.314 T/(2 96485)) ln(cZn/cCu)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "daniell",
+      "category": "Acids, Bases & Electrochemistry",
+      "graphOutputs": [
+        "E"
+      ]
+    }
+  },
+  {
+    "id": "chemistry-faraday",
+    "subject": "chemistry",
+    "kind": "chemistry-faraday",
+    "title": "Electrolysis: Faraday's laws",
+    "description": "Mass deposited m = M·I·t / (z·F); copper plates the cathode.",
+    "icon": "battery",
+    "iconKey": "battery",
+    "category": "Acids, Bases & Electrochemistry",
+    "parameters": [
+      {
+        "key": "I",
+        "label": "Current I",
+        "defaultValue": 2,
+        "min": 0.1,
+        "max": 10,
+        "step": 0.1,
+        "unit": "A"
+      },
+      {
+        "key": "M",
+        "label": "Molar mass of metal",
+        "defaultValue": 63.5,
+        "min": 1,
+        "max": 200,
+        "step": 0.5,
+        "unit": "g/mol"
+      },
+      {
+        "key": "z",
+        "label": "Charge z",
+        "defaultValue": 2,
+        "min": 1,
+        "max": 3,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "I",
+        "symbol": "I",
+        "label": "Current I",
+        "value": 2,
+        "min": 0.1,
+        "max": 10,
+        "step": 0.1,
+        "unit": "A",
+        "learnerEditable": true
+      },
+      {
+        "id": "M",
+        "symbol": "M",
+        "label": "Molar mass of metal",
+        "value": 63.5,
+        "min": 1,
+        "max": 200,
+        "step": 0.5,
+        "unit": "g/mol",
+        "learnerEditable": true
+      },
+      {
+        "id": "z",
+        "symbol": "z",
+        "label": "Charge z",
+        "value": 2,
+        "min": 1,
+        "max": 3,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "Q_1",
+        "output": "Q",
+        "expression": "I t",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "m_2",
+        "output": "m",
+        "expression": "M Q/(z 96485)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "solution-1",
+        "name": "CuSO₄",
+        "type": "solution",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "-4",
+          "w": "7",
+          "h": "4",
+          "level": "3"
+        }
+      },
+      {
+        "id": "block-2",
+        "name": "anode (+)",
+        "type": "block",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "-2",
+          "y": "-1.6",
+          "w": "0.5",
+          "h": "4"
+        }
+      },
+      {
+        "id": "block-3",
+        "name": "cathode (−)",
+        "type": "block",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "2",
+          "y": "-1.6",
+          "w": "0.5 + 0.4 m",
+          "h": "4"
+        }
+      },
+      {
+        "id": "rope-4",
+        "name": "",
+        "type": "rope",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "-2",
+          "y": "0.4",
+          "x2": "-2",
+          "y2": "2.6"
+        }
+      },
+      {
+        "id": "rope-5",
+        "name": "",
+        "type": "rope",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "2",
+          "y": "0.4",
+          "x2": "2",
+          "y2": "2.6"
+        }
+      },
+      {
+        "id": "rope-6",
+        "name": "",
+        "type": "rope",
+        "visible": true,
+        "properties": {
+          "color": "Copper",
+          "x": "-2",
+          "y": "2.6",
+          "x2": "2",
+          "y2": "2.6"
+        }
+      },
+      {
+        "id": "battery-7",
+        "name": "",
+        "type": "battery",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "0",
+          "y": "2.6",
+          "size": "1"
+        }
+      },
+      {
+        "id": "label-8",
+        "name": "m",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "3.8",
+          "y": "3.4",
+          "value": "m",
+          "unit": "g"
+        }
+      },
+      {
+        "id": "label-9",
+        "name": "Q",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-3.8",
+          "y": "3.4",
+          "value": "Q",
+          "unit": "C"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "Q",
+        "expression": "I t",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "m",
+        "expression": "M Q/(z 96485)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 600,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "faraday",
+      "category": "Acids, Bases & Electrochemistry",
+      "graphOutputs": [
+        "m"
+      ]
+    }
+  }
+]
