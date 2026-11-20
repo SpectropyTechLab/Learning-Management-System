@@ -1,4 +1,4 @@
-import generatedSimulationCatalog from './simulationCatalog.generated.json';
+import { GENERATED_SIMULATION_TEMPLATES } from '../simulation-catalog/simulationCatalog';
 
 export type SimulationSubject = 'physics' | 'chemistry' | 'biology' | 'mathematics';
 
@@ -19,6 +19,7 @@ export type SimulationTemplate = {
   title: string;
   description: string;
   icon: string;
+  iconKey?: string;
   category?: string;
   parameters: SimulationParameterDefinition[];
   variables?: SimulationVariable[];
@@ -216,7 +217,7 @@ const LEGACY_SIMULATION_TEMPLATES: readonly SimulationTemplate[] = [
 
 export const SIMULATION_TEMPLATES: readonly SimulationTemplate[] = [
   ...LEGACY_SIMULATION_TEMPLATES.filter((template) => template.id === 'universal-scene'),
-  ...(generatedSimulationCatalog as SimulationTemplate[]),
+  ...GENERATED_SIMULATION_TEMPLATES,
 ];
 
 const SIMULATION_KIND_CATEGORIES: Record<string, string> = {

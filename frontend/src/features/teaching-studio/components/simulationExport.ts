@@ -1,5 +1,15 @@
-import type { SimulationDocument } from './simulationStudioModel';
-import { drawNativeSimulation } from './nativeSimulationRenderers';
+import type { SimulationDocument } from './simulationStudioModel.ts';
+import { drawNativeSimulation } from './nativeSimulationRenderers.ts';
+import { injectPhysicsProject } from './physics-runtime/physicsRuntimeProject.ts';
+
+export const buildSimulationHtml = async (simulation: SimulationDocument) => {
+  if (simulation.subject === 'physics' && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML') {
+    const response = await fetch('/simulation-runtimes/physics.html');
+    if (!response.ok) throw new Error(`Physics runtime could not be loaded (${response.status}).`);
+    return injectPhysicsProject(await response.text(), simulation);
+  }
+  return buildStandaloneSimulationHtml(simulation);
+};
 
 export const buildStandaloneSimulationHtml = (simulation: SimulationDocument) => {
   const data = JSON.stringify(simulation).replace(/</g, '\\u003c');

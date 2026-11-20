@@ -3,9 +3,9 @@ const path = require('node:path');
 const parser = require('../frontend/node_modules/@babel/parser');
 
 const sourceRoot = process.argv[2];
-const outputFile = process.argv[3];
-if (!sourceRoot || !outputFile) {
-  throw new Error('Usage: node scripts/extract-simulation-catalog.cjs <source-directory> <output-json>');
+const outputDirectory = process.argv[3];
+if (!sourceRoot || !outputDirectory) {
+  throw new Error('Usage: node scripts/extract-simulation-catalog.cjs <source-directory> <output-directory>');
 }
 
 const subjects = {
@@ -20,9 +20,27 @@ const slug = (value) => String(value).normalize('NFKD').replace(/[^a-zA-Z0-9]+/g
 const nativeKinds = new Map([
   ['Projectile Motion', 'projectile'], ['Free Fall', 'free-fall'], ['Kinetic Energy – Cart', 'kinetic-energy'],
   ["Ohm's Law – Bulb", 'ohm'], ['Spring–Mass SHM', 'spring'], ['Simple Pendulum', 'pendulum'],
-  ['Uniform Circular Motion', 'circular'], ['Planetary Orbit – Newton Gravity (engine)', 'planetary-orbit'],
+  ['Uniform Circular Motion', 'circular'],
   ['Travelling Wave on a String', 'wave'], ['Interactive Periodic Table', 'periodic-table'],
 ]);
+const greekNames = new Map(Object.entries({
+  'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta', 'ε': 'epsilon',
+  'θ': 'theta', 'κ': 'kappa', 'λ': 'lambda', 'μ': 'mu', 'ν': 'nu',
+  'ξ': 'xi', 'π': 'pi', 'ρ': 'rho', 'σ': 'sigma', 'τ': 'tau',
+  'φ': 'phi', 'ϕ': 'phi', 'χ': 'chi', 'ψ': 'psi', 'ω': 'omega',
+  'Δ': 'Delta', 'Θ': 'Theta', 'Ω': 'Omega',
+}));
+const safeKey = (source, fallback) => {
+  const expanded = [...String(source)].map((character) => greekNames.get(character) || character).join('');
+  const cleaned = expanded.normalize('NFKD').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  return /^[A-Za-z]/.test(cleaned) ? cleaned : fallback;
+};
+const parameterAliases = {
+  projectile: { u: 'v', 'θ': 'a' },
+  pendulum: { 'θ0': 'th' },
+  circular: { 'ω': 'w' },
+  wave: { 'λ': 'lam' },
+};
 const text = (node, fallback = '') => node?.type === 'StringLiteral' ? node.value : fallback;
 const number = (node, fallback = 0) => node?.type === 'NumericLiteral' ? node.value : node?.type === 'UnaryExpression' && node.operator === '-' && node.argument.type === 'NumericLiteral' ? -node.argument.value : fallback;
 
@@ -89,31 +107,41 @@ function generatedParts(model, ast) {
   return { equations, states, graphOutputs, objects };
 }
 
-function buildTemplate({ subject, category, id, name, description, icon, parameters, parts, background, duration }) {
+function buildTemplate({ subject, category, id, name, description, icon, parameters, parameterStyle = 'model', parts, background, duration, runtime }) {
+  const kind = nativeKinds.get(name) || `${subject}-${slug(id || name)}`;
   const usedEquationIds = new Set();
   const equations = [...parts.equations, ...parts.states].map((entry, index) => {
     const output = String(entry?.[0] ?? `output_${index + 1}`);
-    let equationId = slug(`${output}-${index + 1}`);
+    let equationId = safeKey(`${output}_${index + 1}`, `equation_${index + 1}`);
     while (usedEquationIds.has(equationId)) equationId += '-copy';
     usedEquationIds.add(equationId);
     const isState = index >= parts.equations.length;
-    return { id: equationId, output: slug(output).replace(/-/g, '_'), expression: String(entry?.[1] ?? '0'), enabled: true, role: isState ? 'state' : 'derived', ...(isState ? { initialValue: String(entry?.[2] ?? '0') } : {}) };
+    return { id: equationId, output: safeKey(output, `output_${index + 1}`), expression: String(entry?.[1] ?? '0'), enabled: true, role: isState ? 'state' : 'derived', ...(isState ? { initialValue: String(entry?.[2] ?? '0') } : {}) };
   });
   const results = [
     ...parts.equations.map((entry, index) => ({ id: `equation-result-${index + 1}`, label: String(entry?.[0] ?? `Result ${index + 1}`), expression: String(entry?.[1] ?? '0'), unit: '', precision: 3, display: parts.graphOutputs.includes(entry?.[0]) ? 'graph' : 'card', visible: true })),
     ...parts.states.map((entry, index) => ({ id: `state-result-${index + 1}`, label: String(entry?.[0] ?? `State ${index + 1}`), expression: String(entry?.[0] ?? '0'), unit: '', precision: 3, display: parts.graphOutputs.includes(entry?.[0]) ? 'graph' : 'label', visible: true })),
   ];
+  const usedKeys = new Set();
   const controls = parameters.map((entry, index) => {
     const key = String(entry?.[0] ?? `variable_${index + 1}`);
-    return { key: slug(key).replace(/-/g, '_'), sourceKey: key, label: String(entry?.[1] ?? key), defaultValue: Number(entry?.[2] ?? 0), min: Number(entry?.[3] ?? 0), max: Number(entry?.[4] ?? 100), step: Math.max(Number(entry?.[5] ?? 1), 0.0001), unit: String(entry?.[6] ?? '') };
+    const alias = parameterAliases[kind]?.[key];
+    let internalKey = alias || safeKey(key, `variable_${index + 1}`);
+    while (usedKeys.has(internalKey)) internalKey = `${internalKey}_${index + 1}`;
+    usedKeys.add(internalKey);
+    if (parameterStyle === 'physics') {
+      return { key: internalKey, sourceKey: key, label: key, defaultValue: Number(entry?.[4] ?? 0), min: Number(entry?.[1] ?? 0), max: Number(entry?.[2] ?? 100), step: Math.max(Number(entry?.[3] ?? 1), 0.0001), unit: String(entry?.[5] ?? '') };
+    }
+    return { key: internalKey, sourceKey: key, label: String(entry?.[1] ?? key), defaultValue: Number(entry?.[2] ?? 0), min: Number(entry?.[3] ?? 0), max: Number(entry?.[4] ?? 100), step: Math.max(Number(entry?.[5] ?? 1), 0.0001), unit: String(entry?.[6] ?? '') };
   });
   return {
     id: `${subject}-${slug(id || name)}`,
     subject,
-    kind: nativeKinds.get(name) || `${subject}-${slug(id || name)}`,
+    kind,
     title: name,
     description: description || name,
-    icon: icon || '◈',
+    icon: icon || 'sparkles',
+    iconKey: icon || slug(`${category}-${name}`),
     category,
     parameters: controls.map(({ sourceKey, ...entry }) => entry),
     variables: controls.map((entry) => ({ id: entry.key, symbol: entry.sourceKey, label: entry.label, value: entry.defaultValue, min: entry.min, max: entry.max, step: entry.step, unit: entry.unit, learnerEditable: true })),
@@ -122,7 +150,7 @@ function buildTemplate({ subject, category, id, name, description, icon, paramet
     results,
     playback: { duration: Number(duration || 10), loop: true },
     view: { background: background === 'paper' ? '#f8fafc' : background === 'space' ? '#020617' : '#09111d' },
-    metadata: { source: 'SPECTROPY Activity Studio HTML', sourceId: id, graphOutputs: parts.graphOutputs },
+    metadata: { source: 'SPECTROPY Activity Studio HTML', sourceId: id, category, graphOutputs: parts.graphOutputs, ...(runtime ? { physicsRuntime: runtime } : {}) },
   };
 }
 
@@ -130,6 +158,7 @@ function extractPhysics(ast) {
   const declaration = lookupConst(ast, 'NEW');
   if (declaration?.type !== 'ArrayExpression') throw new Error('Physics NEW catalog was not found.');
   const legacyDeclaration = lookupConst(ast, 'PRESETS');
+  const graphSeries = value(lookupConst(ast, 'GS'), ast) || {};
   const legacyModels = new Map((legacyDeclaration?.type === 'ArrayExpression' ? legacyDeclaration.elements : []).flatMap((entry) => {
     if (entry?.type !== 'ObjectExpression') return [];
     const name = text(objectProperty(entry, 'name'));
@@ -145,7 +174,17 @@ function extractPhysics(ast) {
       model = legacyModels.get(legacyName);
     }
     if (!name || model?.type !== 'ObjectExpression') return [];
-    return [buildTemplate({ subject: 'physics', category, id: name, name, description: text(objectProperty(model, 'desc'), name), icon: text(objectProperty(model, 'icon'), '◈'), parameters: value(objectProperty(model, 'vars'), ast) || [], parts: generatedParts(model, ast), background: text(objectProperty(model, 'bg')), duration: number(objectProperty(model, 'tmax'), 10) })];
+    const parts = generatedParts(model, ast);
+    const registeredSeries = graphSeries[name];
+    if (Array.isArray(registeredSeries)) parts.graphOutputs = registeredSeries;
+    const runtime = {
+      bg: text(objectProperty(model, 'bg'), 'neutral'), unit: value(objectProperty(model, 'unit'), ast) || '',
+      x: text(objectProperty(model, 'x')), tv: text(objectProperty(model, 'tv')),
+      px: text(objectProperty(model, 'px')), py: text(objectProperty(model, 'py')),
+      layout: text(objectProperty(model, 'layout')), view: value(objectProperty(model, 'view'), ast),
+      graph: value(objectProperty(model, 'G'), ast), events: value(objectProperty(model, 'ev'), ast) || [],
+    };
+    return [buildTemplate({ subject: 'physics', category, id: name, name, description: text(objectProperty(model, 'desc'), name), icon: text(objectProperty(model, 'icon'), 'sparkles'), parameters: value(objectProperty(model, 'vars'), ast) || [], parameterStyle: 'physics', parts, background: text(objectProperty(model, 'bg')), duration: number(objectProperty(model, 'tmax'), 10), runtime })];
   });
 }
 
@@ -167,7 +206,7 @@ function extractModels(ast, subject, allowedCategories) {
     if (!category) return [];
     const id = text(call.arguments[1]); const name = text(call.arguments[2]); const model = call.arguments[3];
     if (!id || !name || model?.type !== 'ObjectExpression') return [];
-    return [buildTemplate({ subject, category, id, name, description: text(objectProperty(model, 'desc'), name), icon: text(objectProperty(model, 'icon'), '◈'), parameters: value(objectProperty(model, 'prm'), ast) || [], parts: generatedParts(model, ast), background: text(objectProperty(model, 'bg')), duration: number(objectProperty(model, 'tmax'), 10) })];
+    return [buildTemplate({ subject, category, id, name, description: text(objectProperty(model, 'desc'), name), icon: text(objectProperty(model, 'icon'), 'sparkles'), parameters: value(objectProperty(model, 'prm'), ast) || [], parts: generatedParts(model, ast), background: text(objectProperty(model, 'bg')), duration: number(objectProperty(model, 'tmax'), 10) })];
   });
 }
 
@@ -178,7 +217,10 @@ for (const [subject, config] of Object.entries(subjects)) {
   catalog.push(...(subject === 'physics' ? extractPhysics(ast) : extractModels(ast, subject, config.categories)));
 }
 
-fs.mkdirSync(path.dirname(outputFile), { recursive: true });
-fs.writeFileSync(outputFile, `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
+fs.mkdirSync(outputDirectory, { recursive: true });
+for (const subject of Object.keys(subjects)) {
+  const fileName = subject === 'mathematics' ? 'mathematics.generated.json' : `${subject}.generated.json`;
+  fs.writeFileSync(path.join(outputDirectory, fileName), `${JSON.stringify(catalog.filter((entry) => entry.subject === subject), null, 2)}\n`, 'utf8');
+}
 const summary = Object.fromEntries(Object.keys(subjects).map((subject) => [subject, catalog.filter((entry) => entry.subject === subject).length]));
-console.log(JSON.stringify({ outputFile, total: catalog.length, subjects: summary }, null, 2));
+console.log(JSON.stringify({ outputDirectory, total: catalog.length, subjects: summary }, null, 2));

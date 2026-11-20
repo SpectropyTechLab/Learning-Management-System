@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { SimulationDocument } from './simulationStudioModel';
 import { drawNativeSimulation } from './nativeSimulationRenderers';
+import { drawCatalogSimulation } from './catalogSimulationRenderer';
 
 type Props = { simulation: SimulationDocument; paused?: boolean; resetToken?: number; onChange?: (simulation: SimulationDocument) => void };
 type Palette = { accent: string; text: string; muted: string; red: string; green: string; yellow: string };
@@ -39,6 +40,7 @@ const drawSimulation = (context: CanvasRenderingContext2D, width: number, height
   const cx = width / 2; const cy = height / 2;
 
   if (drawNativeSimulation(context, width, height, time, simulation)) return;
+  if (drawCatalogSimulation(context, width, height, time, simulation)) return;
 
   if (simulation.kind === 'scene' && simulation.scene) {
     context.fillStyle = simulation.scene.background; context.fillRect(0, 0, width, height);

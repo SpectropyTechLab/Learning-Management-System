@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Download,
@@ -13,7 +13,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import SimulationPreviewCanvas from './SimulationPreviewCanvas';
-import { buildStandaloneSimulationHtml } from './simulationExport';
+import { buildSimulationHtml } from './simulationExport';
 import { calculateSimulationValues, evaluateSimulationExpression } from './simulationExpression';
 import {
   SIMULATION_TEMPLATES,
@@ -24,6 +24,7 @@ import {
   type SimulationDocument,
   type SimulationSubject,
 } from './simulationStudioModel';
+import { PHYSICS_OBJECT_CATEGORIES, PHYSICS_OBJECT_LIBRARY, type PhysicsObjectLibraryEntry } from '../simulation-catalog/physicsObjectLibrary';
 
 export type PhysicsSimulationProject = SimulationDocument;
 export type PhysicsSimulationInsert = { project: SimulationDocument; title: string; html: string };
@@ -36,12 +37,39 @@ type Props = {
   onImport?: (simulation: SimulationDocument) => Promise<SimulationDocument>;
 };
 type EditorTab = 'variables' | 'equations' | 'objects' | 'results';
+const SUBJECT_OBJECT_LIBRARY: Record<SimulationSubject, ReadonlyArray<{ type: string; name: string }>> = {
+  physics: [
+    { type: 'ball', name: 'Ball / particle' }, { type: 'vector', name: 'Vector arrow' },
+    { type: 'ray', name: 'Light ray' }, { type: 'lens', name: 'Lens' },
+    { type: 'spring', name: 'Spring' }, { type: 'label', name: 'Value label' },
+    { type: 'curve', name: 'Graph curve' }, { type: 'cannon', name: 'Launcher' },
+  ],
+  chemistry: [
+    { type: 'atom', name: 'Atom' }, { type: 'electron', name: 'Electron' },
+    { type: 'molecule', name: 'Molecule' }, { type: 'bond', name: 'Chemical bond' },
+    { type: 'beaker', name: 'Beaker' }, { type: 'particle', name: 'Particle' },
+    { type: 'label', name: 'Value label' }, { type: 'curve', name: 'Result curve' },
+  ],
+  biology: [
+    { type: 'cell', name: 'Cell' }, { type: 'organelle', name: 'Organelle' },
+    { type: 'membrane', name: 'Membrane' }, { type: 'molecule', name: 'Biomolecule' },
+    { type: 'organism', name: 'Organism' }, { type: 'arrow', name: 'Process arrow' },
+    { type: 'label', name: 'Value label' }, { type: 'curve', name: 'Result curve' },
+  ],
+  mathematics: [
+    { type: 'point', name: 'Point' }, { type: 'line', name: 'Line' },
+    { type: 'vector', name: 'Vector' }, { type: 'curve', name: 'Function curve' },
+    { type: 'shape', name: 'Geometric shape' }, { type: 'axis', name: 'Axis' },
+    { type: 'label', name: 'Value label' }, { type: 'region', name: 'Shaded region' },
+  ],
+};
 const firstTemplate = (subject: SimulationSubject) =>
   SIMULATION_TEMPLATES.find(
     (item) => item.subject === subject && !['scene', 'periodic-table'].includes(item.kind),
   ) || SIMULATION_TEMPLATES[1];
 const fieldClass =
   'h-9 min-w-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs text-white outline-none focus:border-cyan-300';
+const PhysicsRuntimePreview = lazy(() => import('./physics-runtime/PhysicsRuntimePreview'));
 // Stable workspace copy retained for acceptance checks and assistive descriptions.
 const workspaceLabel = 'Simulation Creator';
 const importProgressLabel = 'Adding to Quick Start';
@@ -73,6 +101,8 @@ export default function PhysicsSimulationStudio({
   const fileRef = useRef<HTMLInputElement>(null);
   const calculated = useMemo(() => calculateSimulationValues(simulation), [simulation]);
   const definition = templateById(simulation.templateId) || firstTemplate(simulation.subject);
+  // Keep rendering, editing, playback, and persistence on one shared state.
+  const usesOriginalPhysicsRuntime = false;
   const controls = simulation.kind === 'scene' ? simulation.controls || [] : definition.parameters;
   const subjectTemplates = SIMULATION_TEMPLATES.filter(
     (template) => template.subject === simulation.subject && template.kind !== 'scene',
@@ -91,10 +121,8 @@ export default function PhysicsSimulationStudio({
       const previous = current.variables[index];
       const next = { ...previous, ...patch };
       const parameters = { ...current.parameters };
-      if (previous.id in parameters && previous.id !== next.id) {
-        delete parameters[previous.id];
-        parameters[next.id] = next.value;
-      } else if (next.id in parameters) parameters[next.id] = next.value;
+      if (previous.id !== next.id) delete parameters[previous.id];
+      parameters[next.id] = next.value;
       return {
         ...current,
         variables: current.variables.map((item, itemIndex) => (itemIndex === index ? next : item)),
@@ -160,6 +188,27 @@ export default function PhysicsSimulationStudio({
           onChange={(event) => setSimulation({ ...simulation, title: event.target.value })}
           className="ml-3 h-8 min-w-0 flex-1 border-0 bg-transparent text-xs font-semibold outline-none"
         />
+        <label className="flex shrink-0 items-center">
+          <span className="sr-only">Insert template</span>
+          <select
+            aria-label="Insert template"
+            value={simulation.templateId}
+            onChange={(event) => openTemplate(event.target.value)}
+            className="h-8 max-w-64 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs font-semibold text-white"
+          >
+            {subjectCategories.map((category) => (
+              <optgroup key={category} label={category}>
+                {subjectTemplates
+                  .filter((template) => simulationCategory(template) === category)
+                  .map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.title}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           onClick={() => setImportOpen(true)}
@@ -176,11 +225,11 @@ export default function PhysicsSimulationStudio({
         </button>
         <button
           type="button"
-          onClick={() =>
+          onClick={async () =>
             onInsert({
               project: simulation,
               title: simulation.title,
-              html: buildStandaloneSimulationHtml(simulation),
+              html: await buildSimulationHtml(simulation),
             })
           }
           className="flex h-8 items-center gap-1.5 rounded-lg bg-cyan-400 px-3 text-xs font-bold text-slate-950"
@@ -188,7 +237,8 @@ export default function PhysicsSimulationStudio({
           <WandSparkles size={17} /> Export &amp; Insert
         </button>
       </header>
-      <section className="shrink-0 border-b border-slate-700 bg-[#091523] px-3 py-2">
+      {/* Template selection is kept in the primary header to preserve vertical canvas space. */}
+      {/*
         <div className="flex items-center gap-3 rounded-lg border border-slate-700 bg-[#0b1728] px-3 py-2">
           <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
             Insert template
@@ -216,7 +266,7 @@ export default function PhysicsSimulationStudio({
             {simulationCategory(definition)} · {simulation.title}
           </span>
         </div>
-      </section>
+      */}
       <section className="grid min-h-0 flex-1 grid-cols-[1fr_3fr] gap-3 p-3">
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#0b1728]">
           <div className="grid grid-cols-4 border-b border-slate-700">
@@ -266,14 +316,20 @@ export default function PhysicsSimulationStudio({
             </div>
             <span className="text-[10px] font-semibold text-cyan-300">Interactive output</span>
           </div>
-          <div className="grid min-h-0 flex-1 place-items-center p-3">
+          <div className="grid min-h-0 flex-1 place-items-center p-2">
             <div className="aspect-video max-h-full w-full overflow-hidden rounded-lg border border-slate-600 bg-[#09111d]">
-              <SimulationPreviewCanvas
-                simulation={simulation}
-                paused={paused}
-                resetToken={resetToken}
-                onChange={setSimulation}
-              />
+              {usesOriginalPhysicsRuntime ? (
+                <Suspense fallback={<div className="grid h-full place-items-center text-sm text-cyan-200">Loading Physics runtime…</div>}>
+                  <PhysicsRuntimePreview simulation={simulation} resetToken={resetToken} />
+                </Suspense>
+              ) : (
+                <SimulationPreviewCanvas
+                  simulation={simulation}
+                  paused={paused}
+                  resetToken={resetToken}
+                  onChange={setSimulation}
+                />
+              )}
               <aside className="hidden">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-cyan-300">
                   Live lesson controls
@@ -316,11 +372,11 @@ export default function PhysicsSimulationStudio({
               </aside>
             </div>
           </div>
-          <footer className="flex h-11 shrink-0 items-center gap-2 border-t border-slate-700 bg-slate-950/70 px-3">
+          {!usesOriginalPhysicsRuntime ? <footer className="flex h-9 shrink-0 items-center gap-1.5 border-t border-slate-700 bg-slate-950/90 px-2">
             <button
               type="button"
               onClick={() => setResetToken((value) => value + 1)}
-              className="grid h-7 w-7 place-items-center rounded border border-slate-600"
+              className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Restart"
             >
               <RefreshCcw size={13} />
@@ -330,7 +386,7 @@ export default function PhysicsSimulationStudio({
               onClick={() =>
                 setSimulation({ ...simulation, speed: Math.max(0.25, simulation.speed - 0.25) })
               }
-              className="grid h-7 w-7 place-items-center rounded border border-slate-600"
+              className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Slower"
             >
               <Rewind size={13} />
@@ -338,7 +394,7 @@ export default function PhysicsSimulationStudio({
             <button
               type="button"
               onClick={() => setPaused((value) => !value)}
-              className="grid h-8 w-9 place-items-center rounded bg-cyan-400 text-slate-950"
+              className="grid h-7 w-8 place-items-center rounded bg-cyan-400 text-slate-950"
               aria-label={paused ? 'Play' : 'Pause'}
             >
               {paused ? <Play size={15} /> : <Pause size={15} />}
@@ -348,26 +404,26 @@ export default function PhysicsSimulationStudio({
               onClick={() =>
                 setSimulation({ ...simulation, speed: Math.min(3, simulation.speed + 0.25) })
               }
-              className="grid h-7 w-7 place-items-center rounded border border-slate-600"
+              className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Faster"
             >
               <FastForward size={13} />
             </button>
-            <label className="ml-2 flex min-w-40 flex-1 items-center gap-2 text-[10px]">
-              Speed
-              <input
-                type="range"
-                min="0.25"
-                max="3"
-                step="0.25"
-                value={simulation.speed}
-                onChange={(event) =>
-                  setSimulation({ ...simulation, speed: Number(event.target.value) })
-                }
-                className="w-full accent-cyan-400"
-              />
-              <b className="w-10 text-cyan-300">{simulation.speed.toFixed(2)}×</b>
-            </label>
+            <div className="ml-1 flex items-center gap-0.5 text-[9px]">
+              <span className="mr-0.5 font-semibold">Speed</span>
+              {[1, 2, 3, 4, 5].map((speed) => (
+                <button
+                  key={speed}
+                  type="button"
+                  onClick={() => setSimulation({ ...simulation, speed })}
+                  className={`h-6 min-w-6 rounded px-1 font-semibold ${simulation.speed === speed ? 'bg-cyan-400 text-slate-950' : 'border border-slate-600 text-slate-300'}`}
+                  aria-label={`${speed} times speed`}
+                >
+                  {speed}×
+                </button>
+              ))}
+              <b className="ml-1 min-w-7 text-cyan-300">{simulation.speed}×</b>
+            </div>
             {(
               [
                 ['vectors', 'Vectors'],
@@ -391,7 +447,7 @@ export default function PhysicsSimulationStudio({
                 {label}
               </label>
             ))}
-          </footer>
+          </footer> : null}
         </section>
       </section>
       {importOpen ? (
@@ -467,112 +523,104 @@ function VariableEditor({
 }: EditorProps & {
   setVariable: (index: number, patch: Partial<SimulationDocument['variables'][number]>) => void;
 }) {
+  const removeVariable = (index: number) => setSimulation((current) => {
+    const removed = current.variables[index];
+    const parameters = { ...current.parameters };
+    if (removed) delete parameters[removed.id];
+    return {
+      ...current,
+      parameters,
+      variables: current.variables.filter((_, itemIndex) => itemIndex !== index),
+    };
+  });
+  const addVariable = () => setSimulation((current) => {
+    const sequence = current.variables.length + 1;
+    const id = `variable_${sequence}`;
+    return {
+      ...current,
+      parameters: { ...current.parameters, [id]: 0 },
+      variables: [...current.variables, {
+        id,
+        symbol: `x${sequence}`,
+        label: `Variable ${sequence}`,
+        value: 0,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: '',
+        learnerEditable: true,
+      }],
+    };
+  });
   return (
-    <>
+    <div className="space-y-2 overflow-x-hidden">
       {simulation.variables.map((variable, index) => (
         <section
           key={`${variable.id}-${index}`}
-          className="rounded-lg border border-slate-700 bg-slate-900/70 p-2"
+          className="rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1.5"
         >
-          <div className="flex gap-2">
+          <label className="block text-[11px] font-semibold text-slate-200">
+            <span className="flex items-center justify-between gap-2">
+              <b>{variable.symbol || variable.id}</b>
+              <strong className="truncate font-mono text-cyan-300">{variable.value} {variable.unit}</strong>
+            </span>
             <input
-              value={variable.label}
-              onChange={(event) => setVariable(index, { label: event.target.value })}
-              className={`${fieldClass} flex-1 font-semibold`}
-            />
-            <button
-              type="button"
-              onClick={() =>
-                setSimulation({
-                  ...simulation,
-                  variables: simulation.variables.filter((_, itemIndex) => itemIndex !== index),
-                })
-              }
-              className="text-red-300"
-            >
-              <Trash2 size={15} />
-            </button>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <input
-              value={variable.id}
-              onChange={(event) =>
-                setVariable(index, { id: event.target.value.replace(/[^a-z0-9_-]/gi, '') })
-              }
-              className={fieldClass}
-            />
-            <input
-              value={variable.symbol}
-              onChange={(event) => setVariable(index, { symbol: event.target.value })}
-              className={fieldClass}
-            />
-            <input
-              type="number"
-              value={variable.value}
+              type="range"
+              min={variable.min}
+              max={variable.max}
+              step={variable.step || 1}
+              value={Math.min(variable.max, Math.max(variable.min, variable.value))}
               onChange={(event) => setVariable(index, { value: Number(event.target.value) })}
-              className={fieldClass}
+              className="mt-1 h-4 w-full accent-amber-400"
             />
-            <input
-              value={variable.unit}
-              onChange={(event) => setVariable(index, { unit: event.target.value })}
-              className={fieldClass}
-            />
-            <input
-              type="number"
-              value={variable.min}
-              onChange={(event) => setVariable(index, { min: Number(event.target.value) })}
-              className={fieldClass}
-            />
-            <input
-              type="number"
-              value={variable.max}
-              onChange={(event) => setVariable(index, { max: Number(event.target.value) })}
-              className={fieldClass}
-            />
-          </div>
-          <label className="mt-2 flex items-center gap-2 text-[11px]">
-            <input
-              type="checkbox"
-              checked={variable.learnerEditable}
-              onChange={(event) => setVariable(index, { learnerEditable: event.target.checked })}
-            />{' '}
-            Learner editable
           </label>
         </section>
       ))}
-      <button
-        type="button"
-        onClick={() =>
-          setSimulation({
-            ...simulation,
-            variables: [
-              ...simulation.variables,
-              {
-                id: `variable_${simulation.variables.length + 1}`,
-                symbol: 'x',
-                label: 'New variable',
-                value: 0,
-                min: 0,
-                max: 100,
-                step: 1,
-                unit: '',
-                learnerEditable: true,
-              },
-            ],
-          })
-        }
-        className="flex w-full justify-center gap-2 rounded-lg border border-dashed border-cyan-400/60 py-2 text-xs font-bold text-cyan-200"
-      >
-        <Plus size={15} /> Add variable
-      </button>
-    </>
+      <details className="rounded-md text-[10px] text-slate-300">
+        <summary className="cursor-pointer select-none py-1 font-semibold">Edit variables (name · min · max · step · unit)</summary>
+        <div className="mt-1 overflow-hidden rounded-md border border-slate-700 bg-slate-950/50 p-1.5">
+          <div className="grid grid-cols-[1.25fr_.8fr_.8fr_.7fr_.85fr_18px] gap-1 px-0.5 text-[8px] text-slate-500">
+            <span>Name</span><span>Min</span><span>Max</span><span>Step</span><span>Unit</span><span />
+          </div>
+          {simulation.variables.map((variable, index) => (
+            <div key={`edit-${variable.id}-${index}`} className="mt-1 grid grid-cols-[1.25fr_.8fr_.8fr_.7fr_.85fr_18px] gap-1">
+              <input
+                value={variable.id}
+                aria-label="Variable name"
+                onChange={(event) => {
+                  const id = event.target.value.replace(/[^a-z0-9_-]/gi, '');
+                  setVariable(index, { id, symbol: id, label: id });
+                }}
+                className="min-w-0 rounded border border-slate-600 bg-slate-900 px-1 py-1 text-[9px]"
+              />
+              <input type="number" value={variable.min} aria-label="Minimum" onChange={(event) => setVariable(index, { min: Number(event.target.value) })} className="min-w-0 rounded border border-slate-600 bg-slate-900 px-1 text-[9px]" />
+              <input type="number" value={variable.max} aria-label="Maximum" onChange={(event) => setVariable(index, { max: Number(event.target.value) })} className="min-w-0 rounded border border-slate-600 bg-slate-900 px-1 text-[9px]" />
+              <input type="number" min="0.000001" value={variable.step} aria-label="Step" onChange={(event) => setVariable(index, { step: Math.max(0.000001, Number(event.target.value) || 1) })} className="min-w-0 rounded border border-slate-600 bg-slate-900 px-1 text-[9px]" />
+              <input value={variable.unit} aria-label="Unit" onChange={(event) => setVariable(index, { unit: event.target.value })} className="min-w-0 rounded border border-slate-600 bg-slate-900 px-1 text-[9px]" />
+              <button type="button" onClick={() => removeVariable(index)} className="text-slate-400 hover:text-red-300" aria-label={`Remove ${variable.id}`}>×</button>
+            </div>
+          ))}
+          <button type="button" onClick={addVariable} className="mt-2 rounded border border-slate-600 px-2 py-1 text-[10px] font-bold hover:border-cyan-400">
+            + Variable
+          </button>
+        </div>
+      </details>
+    </div>
   );
 }
-function EquationEditor({
+function LegacyEquationEditor({
   simulation,
   setSimulation,
   calculated,
 }: EditorProps & { calculated: ReturnType<typeof calculateSimulationValues> }) {
+  const equationKeys = ['+', '-', '*', '/', '^2', '(', ')', 'sin(', 'cos(', 'sqrt(', 'abs(', 'pi'];
+  const updateEquation = (index: number, patch: Partial<SimulationDocument['equations'][number]>) =>
+    setSimulation({
+      ...simulation,
+      equations: simulation.equations.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item,
+      ),
+    });
   return (
     <>
       {simulation.equations.map((equation, index) => (
@@ -582,27 +630,19 @@ function EquationEditor({
         >
           <div className="flex gap-2">
             <input
+              type="checkbox"
+              checked={equation.enabled}
+              onChange={(event) => updateEquation(index, { enabled: event.target.checked })}
+              aria-label={`Enable ${equation.output}`}
+            />
+            <input
               value={equation.output}
-              onChange={(event) =>
-                setSimulation({
-                  ...simulation,
-                  equations: simulation.equations.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, output: event.target.value } : item,
-                  ),
-                })
-              }
+              onChange={(event) => updateEquation(index, { output: event.target.value })}
               className={`${fieldClass} w-16`}
             />
             <input
               value={equation.expression}
-              onChange={(event) =>
-                setSimulation({
-                  ...simulation,
-                  equations: simulation.equations.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, expression: event.target.value } : item,
-                  ),
-                })
-              }
+              onChange={(event) => updateEquation(index, { expression: event.target.value })}
               className={`${fieldClass} flex-1 font-mono`}
             />
             <button
@@ -617,6 +657,40 @@ function EquationEditor({
             >
               <Trash2 size={15} />
             </button>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <select
+              value={equation.role || 'derived'}
+              onChange={(event) => updateEquation(index, { role: event.target.value as 'derived' | 'state' })}
+              className={`${fieldClass} h-7 w-24`}
+            >
+              <option value="derived">Relation</option>
+              <option value="state">State d/dt</option>
+            </select>
+            {equation.role === 'state' ? (
+              <input
+                value={equation.initialValue || '0'}
+                onChange={(event) => updateEquation(index, { initialValue: event.target.value })}
+                className={`${fieldClass} h-7 flex-1`}
+                aria-label="Initial value"
+                placeholder="Initial value"
+              />
+            ) : null}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {equationKeys.map((key) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => updateEquation(index, { expression: `${equation.expression}${key}` })}
+                className="min-w-7 rounded border border-slate-600 bg-slate-950 px-1.5 py-1 text-[10px] text-slate-200"
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 rounded border border-slate-700 bg-slate-950/70 px-2 py-1.5 font-mono text-xs text-slate-200">
+            {equation.output || '?'} = {equation.expression || '0'}
           </div>
           <p
             className={`mt-2 text-[10px] ${calculated.errors[equation.id] ? 'text-red-300' : 'text-emerald-300'}`}
@@ -649,40 +723,176 @@ function EquationEditor({
     </>
   );
 }
-function ObjectEditor({ simulation, setSimulation }: EditorProps) {
+function EquationEditor({ simulation, setSimulation, calculated }: EditorProps & { calculated: ReturnType<typeof calculateSimulationValues> }) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [draft, setDraft] = useState<SimulationDocument['equations'][number] | null>(null);
+  const keys = ['7', '8', '9', '+', '-', '(', ')', '4', '5', '6', '*', '/', '^2', '^', '1', '2', '3', '0', '.', 'sqrt(', 'abs(', 'sin(', 'cos(', 'pi'];
+  const colors = ['#fb7185', '#86efac', '#c4b5fd', '#f9a8d4', '#fbbf24', '#7dd3fc'];
+  const closeEditor = () => { setSelectedIndex(null); setDraft(null); };
+  const openEquation = (index: number) => { setSelectedIndex(index); setDraft({ ...simulation.equations[index] }); };
+  const addEquation = (role: 'derived' | 'state') => {
+    const index = simulation.equations.length;
+    const equation: SimulationDocument['equations'][number] = {
+      id: `equation_${index + 1}`,
+      output: role === 'state' ? `state_${index + 1}` : `result_${index + 1}`,
+      expression: '0', enabled: true, role,
+      ...(role === 'state' ? { initialValue: '0' } : {}),
+    };
+    setSimulation({ ...simulation, equations: [...simulation.equations, equation] });
+    setSelectedIndex(index); setDraft(equation);
+  };
+  const applyDraft = () => {
+    if (selectedIndex === null || !draft) return;
+    setSimulation((current) => ({ ...current, equations: current.equations.map((item, index) => index === selectedIndex ? draft : item) }));
+    closeEditor();
+  };
+  return (
+    <div className="space-y-2">
+      {simulation.equations.map((equation, index) => (
+        <div key={`${equation.id}-${index}`} className="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/70 px-2 py-2">
+          <button type="button" onClick={() => openEquation(index)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colors[index % colors.length] }} />
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{equation.output} = {equation.expression}</span>
+            <span className={`text-[9px] ${calculated.errors[equation.id] ? 'text-red-300' : 'text-emerald-300'}`}>
+              {calculated.errors[equation.id] ? '!' : calculated.values[equation.output]?.toFixed(2) ?? ''}
+            </span>
+          </button>
+          <button type="button" onClick={() => setSimulation({ ...simulation, equations: simulation.equations.filter((_, itemIndex) => itemIndex !== index) })} className="text-slate-500 hover:text-red-300" aria-label={`Remove ${equation.output}`}>×</button>
+        </div>
+      ))}
+      <section className="border-t border-amber-400/40 pt-2">
+        <p className="text-[9px] font-bold uppercase tracking-wide text-amber-400">Simulation engine</p>
+        <label className="mt-2 flex items-center gap-2 text-[10px] text-slate-300">Time variable
+          <select value={String(simulation.metadata?.timeVariable || simulation.variables.find((item) => /^(t|time)$/i.test(item.id))?.id || simulation.variables[0]?.id || '')} onChange={(event) => setSimulation({ ...simulation, metadata: { ...simulation.metadata, timeVariable: event.target.value } })} className="rounded border border-slate-600 bg-slate-900 px-2 py-1">
+            {simulation.variables.map((variable) => <option key={variable.id} value={variable.id}>{variable.symbol || variable.id}</option>)}
+          </select>
+        </label>
+        <div className="mt-2 flex flex-wrap gap-1">
+          <button type="button" onClick={() => addEquation('derived')} className="rounded border border-slate-600 px-2 py-1 text-[10px] font-bold">+ Relation</button>
+          <button type="button" onClick={() => addEquation('state')} className="rounded border border-slate-600 px-2 py-1 text-[10px] font-bold">+ State d/dt</button>
+        </div>
+      </section>
+      {draft && selectedIndex !== null ? (
+        <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/65 p-6 pt-[8vh]" role="dialog" aria-modal="true" aria-label="Equation editor">
+          <section className="w-full max-w-2xl overflow-hidden rounded-lg border border-slate-600 bg-[#111827] shadow-2xl">
+            <header className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
+              <b className="text-xs uppercase tracking-wide text-amber-400">Equation editor · {draft.role === 'state' ? 'State' : 'Relation'}</b>
+              <button type="button" onClick={closeEditor} className="text-slate-400">×</button>
+            </header>
+            <div className="p-3">
+              <div className="flex items-center gap-2">
+                <input value={draft.output} onChange={(event) => setDraft({ ...draft, output: event.target.value })} className={`${fieldClass} w-24 font-mono`} aria-label="Equation output" />
+                <span>=</span>
+                <input autoFocus value={draft.expression} onChange={(event) => setDraft({ ...draft, expression: event.target.value })} className={`${fieldClass} flex-1 font-mono`} placeholder="Type or tap keys…" />
+              </div>
+              <div className="mt-3 grid min-h-16 place-items-center rounded border border-slate-700 bg-slate-950 px-3 font-mono text-sm">{draft.output || '?'} = {draft.expression || '0'}</div>
+              <div className="mt-3 grid grid-cols-7 gap-1">
+                {keys.map((key) => <button type="button" key={key} onClick={() => setDraft({ ...draft, expression: `${draft.expression}${key}` })} className="rounded border border-slate-600 bg-slate-900 px-2 py-2 text-xs font-bold">{key}</button>)}
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <select value={draft.role || 'derived'} onChange={(event) => setDraft({ ...draft, role: event.target.value as 'derived' | 'state' })} className={`${fieldClass} h-8`}><option value="derived">Relation</option><option value="state">State d/dt</option></select>
+                {draft.role === 'state' ? <input value={draft.initialValue || '0'} onChange={(event) => setDraft({ ...draft, initialValue: event.target.value })} className={`${fieldClass} h-8`} placeholder="Initial value" /> : null}
+                <label className="ml-auto flex items-center gap-1 text-[10px]"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} /> Enabled</label>
+              </div>
+              <footer className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={closeEditor} className="rounded border border-slate-600 px-3 py-1.5 text-xs">Cancel</button>
+                <button type="button" onClick={applyDraft} className="rounded bg-amber-400 px-3 py-1.5 text-xs font-bold text-slate-950">✓ Apply</button>
+              </footer>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LegacyObjectEditor({ simulation, setSimulation }: EditorProps) {
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const updateObject = (index: number, patch: Partial<SimulationDocument['objects'][number]>) =>
+    setSimulation({
+      ...simulation,
+      objects: simulation.objects.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item,
+      ),
+    });
+  const addObject = (entry: { type: string; name: string }) => {
+    const sequence = simulation.objects.length + 1;
+    setSimulation({
+      ...simulation,
+      objects: [...simulation.objects, {
+        id: `${entry.type}-${sequence}`,
+        name: entry.name,
+        type: entry.type,
+        visible: true,
+        properties: {},
+      }],
+    });
+    setLibraryOpen(false);
+  };
   return (
     <>
       {simulation.objects.length ? (
         simulation.objects.map((object, index) => (
           <section
             key={`${object.id}-${index}`}
-            className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 p-2"
+            className="rounded-lg border border-slate-700 bg-slate-900/70 p-2"
           >
-            <input
-              type="checkbox"
-              checked={object.visible}
-              onChange={(event) =>
-                setSimulation({
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={object.visible}
+                onChange={(event) => updateObject(index, { visible: event.target.checked })}
+                aria-label={`Show ${object.name}`}
+              />
+              <input
+                value={object.name}
+                onChange={(event) => updateObject(index, { name: event.target.value })}
+                className={`${fieldClass} flex-1`}
+              />
+              <button
+                type="button"
+                onClick={() => setSimulation({
                   ...simulation,
-                  objects: simulation.objects.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, visible: event.target.checked } : item,
-                  ),
-                })
-              }
-            />
-            <input
-              value={object.name}
-              onChange={(event) =>
-                setSimulation({
-                  ...simulation,
-                  objects: simulation.objects.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, name: event.target.value } : item,
-                  ),
-                })
-              }
-              className={`${fieldClass} flex-1`}
-            />
-            <span className="text-[9px] uppercase text-slate-500">{object.type}</span>
+                  objects: simulation.objects.filter((_, itemIndex) => itemIndex !== index),
+                })}
+                className="text-red-300"
+                aria-label={`Remove ${object.name}`}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="text-[9px] text-slate-400">Object ID
+                <input
+                  value={object.id}
+                  onChange={(event) => updateObject(index, { id: event.target.value.replace(/[^a-z0-9_-]/gi, '') })}
+                  className={`${fieldClass} w-full`}
+                />
+              </label>
+              <label className="text-[9px] text-slate-400">Type
+                <input value={object.type} readOnly className={`${fieldClass} w-full text-slate-400`} />
+              </label>
+            </div>
+            {object.properties && Object.keys(object.properties).length ? (
+              <details className="mt-2 text-[10px] text-slate-400">
+                <summary className="cursor-pointer">Object properties ({Object.keys(object.properties).length})</summary>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {Object.entries(object.properties).map(([key, value]) => (
+                    <label key={key} className="text-[9px]">{key}
+                      <input
+                        value={String(value)}
+                        onChange={(event) => {
+                          const raw = event.target.value;
+                          const nextValue = typeof value === 'number' && raw !== '' ? Number(raw) : raw;
+                          updateObject(index, { properties: { ...object.properties, [key]: nextValue } });
+                        }}
+                        className={`${fieldClass} w-full`}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </details>
+            ) : null}
           </section>
         ))
       ) : (
@@ -691,10 +901,163 @@ function ObjectEditor({ simulation, setSimulation }: EditorProps) {
           automatically.
         </p>
       )}
+      <button
+        type="button"
+        onClick={() => setLibraryOpen((value) => !value)}
+        className="flex w-full justify-center gap-2 rounded-lg bg-amber-400 py-2 text-xs font-bold text-slate-950"
+      >
+        <Plus size={15} /> Add object from library
+      </button>
+      {libraryOpen ? (
+        <section className="grid grid-cols-2 gap-2 rounded-lg border border-amber-400/50 bg-slate-950 p-2">
+          <div className="grid min-h-0 flex-1 grid-cols-4 content-start gap-2 overflow-y-auto p-3">
+          {SUBJECT_OBJECT_LIBRARY[simulation.subject].map((entry) => (
+            <button
+              type="button"
+              key={entry.type}
+              onClick={() => addObject(entry)}
+              className="rounded-lg border border-slate-700 bg-slate-900 p-2 text-left hover:border-cyan-400"
+            >
+              <span className="block text-lg text-cyan-300">{entry.type === 'label' ? 'Aa' : entry.type === 'curve' ? '∿' : '◇'}</span>
+              <b className="text-[10px]">{entry.name}</b>
+              <span className="block text-[9px] text-slate-500">{entry.type}</span>
+            </button>
+          ))}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }
-function ResultEditor({
+function ObjectEditor({ simulation, setSimulation }: EditorProps) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryCategory, setLibraryCategory] = useState<string>('All');
+  const selected = selectedIndex === null ? null : simulation.objects[selectedIndex];
+  const iconFor = (type: string) => {
+    if (/label|text/i.test(type)) return 'x=1';
+    if (/vector|arrow/i.test(type)) return '→';
+    if (/ray|line|curve/i.test(type)) return '╱';
+    if (/ball|particle|electron|atom/i.test(type)) return '●';
+    if (/lens/i.test(type)) return '◐';
+    if (/spring|wave/i.test(type)) return '∿';
+    return '◇';
+  };
+  const updateObject = (index: number, patch: Partial<SimulationDocument['objects'][number]>) =>
+    setSimulation((current) => ({
+      ...current,
+      objects: current.objects.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
+    }));
+  const removeObject = (index: number) => {
+    setSimulation((current) => ({ ...current, objects: current.objects.filter((_, itemIndex) => itemIndex !== index) }));
+    setSelectedIndex((current) => current === index ? null : current !== null && current > index ? current - 1 : current);
+  };
+  const addObject = (entry: { type: string; name: string; properties?: Record<string, string | number>; defaultColor?: string; defaultTrail?: string }) => {
+    const index = simulation.objects.length;
+    const object = { id: `${entry.type}-${index + 1}`, name: entry.name, type: entry.type, visible: true, properties: { ...(entry.properties || {}), ...(entry.defaultColor ? { color: entry.defaultColor } : {}), ...(entry.defaultTrail ? { trail: entry.defaultTrail } : {}) } };
+    setSimulation({ ...simulation, objects: [...simulation.objects, object] });
+    setSelectedIndex(index);
+    setLibraryOpen(false);
+  };
+  const libraryEntries = simulation.subject === 'physics'
+    ? PHYSICS_OBJECT_LIBRARY.filter((entry) => libraryCategory === 'All' || entry.category === libraryCategory)
+    : SUBJECT_OBJECT_LIBRARY[simulation.subject];
+  return (
+    <div className="space-y-2 overflow-x-hidden">
+      {simulation.objects.length ? simulation.objects.map((object, index) => (
+        <div key={`${object.id}-${index}`} className={`flex flex-wrap items-center gap-2 rounded-md border px-2 py-2 ${selectedIndex === index ? 'border-amber-400 bg-amber-400/10' : 'border-slate-700 bg-slate-900/70'}`}>
+          <button type="button" onClick={() => setSelectedIndex(selectedIndex === index ? null : index)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <span className="w-5 shrink-0 text-center text-sm text-cyan-300">{iconFor(object.type)}</span>
+            <b className="min-w-0 flex-1 truncate text-[10px]">{object.name}</b>
+            <span className="text-[8px] uppercase text-slate-500">{object.type}</span>
+            <span className="text-slate-500">{selectedIndex === index ? '⌄' : '›'}</span>
+          </button>
+          <button type="button" onClick={() => removeObject(index)} className="text-slate-500 hover:text-red-300" aria-label={`Remove ${object.name}`}>×</button>
+          {selectedIndex === index ? (
+            <section className="w-full border-t border-amber-400/40 pt-2">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" checked={object.visible} onChange={(event) => updateObject(index, { visible: event.target.checked })} aria-label={`Show ${object.name}`} />
+                <input value={object.name} onChange={(event) => updateObject(index, { name: event.target.value })} className="h-7 min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-2 text-[10px] font-semibold" />
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="text-[8px] text-slate-500">Object ID<input value={object.id} onChange={(event) => updateObject(index, { id: event.target.value.replace(/[^a-z0-9_-]/gi, '') })} className="mt-0.5 h-7 w-full rounded border border-slate-600 bg-slate-900 px-2 text-[9px]" /></label>
+                <label className="text-[8px] text-slate-500">Type<input value={object.type} readOnly className="mt-0.5 h-7 w-full rounded border border-slate-600 bg-slate-900 px-2 text-[9px] text-slate-400" /></label>
+              </div>
+              {object.properties && Object.keys(object.properties).length ? (
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  {Object.entries(object.properties).map(([key, value]) => (
+                    <label key={key} className="text-[8px] text-slate-500">{key}<input value={String(value)} onChange={(event) => {
+                      const raw = event.target.value;
+                      updateObject(index, { properties: { ...object.properties, [key]: typeof value === 'number' && raw !== '' ? Number(raw) : raw } });
+                    }} className="mt-0.5 h-7 w-full rounded border border-slate-600 bg-slate-900 px-2 text-[9px] text-slate-100" /></label>
+                  ))}
+                </div>
+              ) : <p className="mt-2 text-[9px] text-slate-500">This object has no additional stored properties.</p>}
+            </section>
+          ) : null}
+        </div>
+      )) : <p className="rounded border border-dashed border-slate-600 p-3 text-[10px] text-slate-400">No objects in this simulation.</p>}
+
+      {false && selected && selectedIndex !== null ? (
+        <section className="rounded-md border border-amber-400/50 bg-slate-950/70 p-2">
+          <div className="flex items-center gap-2">
+            <input type="checkbox" checked={selected.visible} onChange={(event) => updateObject(selectedIndex, { visible: event.target.checked })} aria-label={`Show ${selected.name}`} />
+            <input value={selected.name} onChange={(event) => updateObject(selectedIndex, { name: event.target.value })} className="h-7 min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-2 text-[10px] font-semibold" />
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <label className="text-[8px] text-slate-500">Object ID<input value={selected.id} onChange={(event) => updateObject(selectedIndex, { id: event.target.value.replace(/[^a-z0-9_-]/gi, '') })} className="mt-0.5 h-7 w-full rounded border border-slate-600 bg-slate-900 px-2 text-[9px]" /></label>
+            <label className="text-[8px] text-slate-500">Type<input value={selected.type} readOnly className="mt-0.5 h-7 w-full rounded border border-slate-600 bg-slate-900 px-2 text-[9px] text-slate-400" /></label>
+          </div>
+          {selected.properties && Object.keys(selected.properties).length ? (
+            <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-slate-700 pt-2">
+              {Object.entries(selected.properties).map(([key, value]) => (
+                <label key={key} className="text-[8px] text-slate-500">{key}
+                  <input value={String(value)} onChange={(event) => {
+                    const raw = event.target.value;
+                    updateObject(selectedIndex, { properties: { ...selected.properties, [key]: typeof value === 'number' && raw !== '' ? Number(raw) : raw } });
+                  }} className="mt-0.5 h-7 w-full rounded border border-slate-600 bg-slate-900 px-2 text-[9px] text-slate-100" />
+                </label>
+              ))}
+            </div>
+          ) : <p className="mt-2 text-[9px] text-slate-500">This object has no additional stored properties.</p>}
+        </section>
+      ) : null}
+
+      <button type="button" onClick={() => setLibraryOpen((value) => !value)} className="flex w-full justify-center gap-2 rounded-md bg-amber-400 py-2 text-xs font-bold text-slate-950">
+        <Plus size={14} /> Add object from library
+      </button>
+      {libraryOpen ? (
+        <div className="fixed inset-0 z-[95] flex items-start justify-center bg-black/65 p-6 pt-[8vh]" role="dialog" aria-modal="true" aria-label="Object library">
+          <section className="flex max-h-[86vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-amber-400/50 bg-slate-950 shadow-2xl">
+          <header className="flex shrink-0 items-center justify-between border-b border-slate-700 px-3 py-2">
+            <b className="text-xs uppercase tracking-wide text-amber-400">Object library</b>
+            <button type="button" onClick={() => setLibraryOpen(false)} className="text-slate-400 hover:text-white" aria-label="Close object library">×</button>
+          </header>
+          {simulation.subject === 'physics' ? (
+            <div className="flex shrink-0 flex-wrap gap-1 border-b border-slate-700 px-3 py-2">
+              {['All', ...PHYSICS_OBJECT_CATEGORIES].map((category) => (
+                <button type="button" key={category} onClick={() => setLibraryCategory(category)} className={`rounded-full px-2 py-1 text-[9px] font-semibold ${libraryCategory === category ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                  {category}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className={`grid min-h-0 flex-1 content-start gap-1.5 overflow-y-auto p-2 ${simulation.subject === 'physics' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : 'grid-cols-2 sm:grid-cols-4'}`}>
+          {libraryEntries.map((entry) => (
+            <button type="button" key={entry.type} onClick={() => addObject(entry)} className="group flex min-h-16 flex-col items-center justify-center rounded-md border border-slate-700 bg-[#111827] px-1.5 py-1.5 text-center transition hover:border-cyan-300 hover:bg-cyan-400/10">
+              <span className="mb-0.5 grid h-7 w-7 place-items-center rounded bg-slate-800 text-base text-cyan-300">{'icon' in entry ? entry.icon : iconFor(entry.type)}</span><b className="line-clamp-2 text-[8px] leading-tight text-slate-100">{entry.name}</b>
+              {'category' in entry ? <span className="ml-2 block text-[8px] text-slate-500">{entry.category} · {entry.dimension}</span> : null}
+            </button>
+          ))}
+          </div>
+        </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LegacyResultEditor({
   simulation,
   setSimulation,
   values,
@@ -717,6 +1080,19 @@ function ResultEditor({
             className="rounded-lg border border-slate-700 bg-slate-900/70 p-2"
           >
             <div className="flex gap-2">
+              <input
+                type="checkbox"
+                checked={result.visible}
+                onChange={(event) =>
+                  setSimulation({
+                    ...simulation,
+                    results: simulation.results.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, visible: event.target.checked } : item,
+                    ),
+                  })
+                }
+                aria-label={`Show ${result.label}`}
+              />
               <input
                 value={result.label}
                 onChange={(event) =>
@@ -754,6 +1130,52 @@ function ResultEditor({
               }
               className={`${fieldClass} mt-2 w-full font-mono`}
             />
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <label className="text-[9px] text-slate-400">Unit
+                <input
+                  value={result.unit}
+                  onChange={(event) => setSimulation({
+                    ...simulation,
+                    results: simulation.results.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, unit: event.target.value } : item,
+                    ),
+                  })}
+                  className={`${fieldClass} w-full`}
+                />
+              </label>
+              <label className="text-[9px] text-slate-400">Precision
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  value={result.precision}
+                  onChange={(event) => setSimulation({
+                    ...simulation,
+                    results: simulation.results.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, precision: Math.max(0, Math.min(10, Number(event.target.value))) } : item,
+                    ),
+                  })}
+                  className={`${fieldClass} w-full`}
+                />
+              </label>
+              <label className="text-[9px] text-slate-400">Display
+                <select
+                  value={result.display}
+                  onChange={(event) => setSimulation({
+                    ...simulation,
+                    results: simulation.results.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, display: event.target.value as typeof result.display } : item,
+                    ),
+                  })}
+                  className={`${fieldClass} w-full`}
+                >
+                  <option value="label">Label</option>
+                  <option value="card">Card</option>
+                  <option value="graph">Graph</option>
+                  <option value="table">Table</option>
+                </select>
+              </label>
+            </div>
             <p className={`mt-2 text-xs ${error ? 'text-red-300' : 'text-yellow-300'}`}>
               {error || `${output} ${result.unit}`}
             </p>
@@ -784,5 +1206,40 @@ function ResultEditor({
         <Plus size={15} /> Add result
       </button>
     </>
+  );
+}
+
+function ResultEditor({
+  simulation,
+  values,
+}: EditorProps & { values: Record<string, number> }) {
+  const colors = ['#fbbf24', '#7dd3fc', '#fb7185', '#86efac', '#c4b5fd', '#f9a8d4'];
+  const visibleResults = simulation.results.filter((result) => result.visible);
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-700 bg-slate-950/30">
+      {visibleResults.length ? visibleResults.map((result, index) => {
+        let output = '—';
+        let error = '';
+        try {
+          output = evaluateSimulationExpression(result.expression, values).toFixed(result.precision);
+        } catch (caught) {
+          error = caught instanceof Error ? caught.message : 'Invalid result.';
+        }
+        return (
+          <div key={`${result.id}-${index}`} className="flex min-h-8 items-center gap-2 border-b border-slate-700 px-2 py-1.5 last:border-b-0">
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-semibold" style={{ color: colors[index % colors.length] }} title={result.expression}>
+              {result.label}
+            </span>
+            {error ? (
+              <span className="max-w-[65%] truncate text-right text-[9px] text-red-300" title={error}>Unavailable</span>
+            ) : (
+              <strong className="shrink-0 font-mono text-sm text-slate-100">{output}{result.unit ? ` ${result.unit}` : ''}</strong>
+            )}
+          </div>
+        );
+      }) : (
+        <p className="p-3 text-[10px] text-slate-400">This simulation has no visible calculated results.</p>
+      )}
+    </div>
   );
 }

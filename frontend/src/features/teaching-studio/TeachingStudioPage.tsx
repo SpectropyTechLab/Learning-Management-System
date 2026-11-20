@@ -126,7 +126,8 @@ import PhysicsSimulationStudio, {
 import ActivityBuilderStudio, { type ActivityBuilderInsert } from './components/ActivityBuilderStudio';
 import { ACTIVITY_TEMPLATES, validateActivityDocument, type ActivityDocument, type ActivityType } from './components/activityBuilderModel';
 import { SIMULATION_TEMPLATES, simulationCategory, validateSimulationDocument, type SimulationDocument, type SimulationSubject } from './components/simulationStudioModel';
-import { buildStandaloneSimulationHtml } from './components/simulationExport';
+import { SimulationCatalogIcon } from './simulation-catalog/simulationIcons';
+import { buildSimulationHtml } from './components/simulationExport';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
 import StudioDiagramChooser from './components/StudioDiagramChooser';
 import StudioDiagramThumbnail from './components/StudioDiagramThumbnail';
@@ -433,6 +434,7 @@ export default function TeachingStudioPage() {
   } | null>(null);
   const [simulationRibbonSubject, setSimulationRibbonSubject] = useState<SimulationSubject>('physics');
   const [simulationRibbonCategory, setSimulationRibbonCategory] = useState('all');
+  const [simulationRibbonPage, setSimulationRibbonPage] = useState(0);
   const [quickStartSimulations, setQuickStartSimulations] = useState<QuickStartSimulation[]>([]);
   const [simulationSaving, setSimulationSaving] = useState(false);
   const [activityStudio, setActivityStudio] = useState<{
@@ -2029,7 +2031,7 @@ export default function TeachingStudioPage() {
     const enrichedProject = resolvedIcon.project;
     const cleanTitle = enrichedProject.title.trim() || 'Interactive Simulation';
     const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-simulation'}.html`;
-    const html = buildStandaloneSimulationHtml(enrichedProject);
+    const html = await buildSimulationHtml(enrichedProject);
     const file = new File([html], fileName, { type: 'text/html' });
     const resource = await createStudioResource({
       name: cleanTitle,
@@ -3456,9 +3458,27 @@ export default function TeachingStudioPage() {
         const importedQuickStarts = subjectImports.filter(
           (entry) => simulationRibbonCategory === 'all' || simulationCategory(entry.project) === simulationRibbonCategory,
         );
+        const simulationRibbonEntries = [
+          ...importedQuickStarts.map((entry) => ({ kind: 'imported' as const, entry })),
+          ...quickTemplates.map((template) => ({ kind: 'template' as const, template })),
+        ];
+        const simulationRibbonPageSize = 15;
+        const simulationRibbonPageCount = Math.max(1, Math.ceil(simulationRibbonEntries.length / simulationRibbonPageSize));
+        const visibleSimulationRibbonPage = Math.min(simulationRibbonPage, simulationRibbonPageCount - 1);
+        const visibleSimulationRibbonEntries = simulationRibbonEntries.slice(
+          visibleSimulationRibbonPage * simulationRibbonPageSize,
+          (visibleSimulationRibbonPage + 1) * simulationRibbonPageSize,
+        );
+        const simulationSubjectButtonColour = {
+          physics: 'hover:border-blue-300 hover:bg-blue-50',
+          chemistry: 'hover:border-emerald-300 hover:bg-emerald-50',
+          biology: 'hover:border-rose-300 hover:bg-rose-50',
+          mathematics: 'hover:border-amber-300 hover:bg-amber-50',
+        }[simulationRibbonSubject];
         const selectSimulationSubject = (subject: SimulationSubject) => {
           setSimulationRibbonSubject(subject);
           setSimulationRibbonCategory('all');
+          setSimulationRibbonPage(0);
         };
         return [
           {
@@ -3483,8 +3503,11 @@ export default function TeachingStudioPage() {
               <select
                 aria-label="Filter Simulation templates by topic"
                 value={simulationRibbonCategory}
-                onChange={(event) => setSimulationRibbonCategory(event.target.value)}
-                className="h-9 min-w-32 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700"
+                onChange={(event) => {
+                  setSimulationRibbonCategory(event.target.value);
+                  setSimulationRibbonPage(0);
+                }}
+                className="h-9 w-36 min-w-36 max-w-36 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700"
               >
                 <option value="all">All topics</option>
                 {categories.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -3492,24 +3515,71 @@ export default function TeachingStudioPage() {
             ),
           },
           {
-            id: 'simulation-quick-start', label: 'Quick Start from a Template', commands: [
-              ...importedQuickStarts.map((entry) => ({
-                id: `simulation-imported-${entry.resourceId}`,
-                label: entry.project.title,
-                icon: entry.iconUrl
-                  ? <img src={entry.iconUrl} alt="" className="h-6 w-6 rounded object-contain" />
-                  : <Sparkles size={17} />,
-                disabled: editorReadOnly || !selectedScreen || simulationSaving,
-                onExecute: () => setSimulationStudio({ subject: entry.project.subject, project: entry.project }),
-              })),
-              ...quickTemplates.map((template) => ({
-                id: `simulation-template-${template.id}`,
-                label: template.title,
-                icon: <span className="text-base" aria-hidden="true">{template.icon}</span>,
-                disabled: editorReadOnly || !selectedScreen || simulationSaving,
-                onExecute: () => openSimulationCreator(template.subject, template.id),
-              })),
-            ],
+            id: 'simulation-quick-start',
+            label: 'Quick Start from a Template',
+            content: (
+              <div className="flex w-[44rem] min-w-[44rem] items-center gap-0.5" aria-label="Simulation templates">
+                {simulationRibbonPageCount > 1 ? (
+                  <div className="mr-0.5 flex h-12 w-5 shrink-0 flex-col overflow-hidden rounded border border-slate-300 bg-white">
+                    <button
+                      type="button"
+                      aria-label="Show previous simulations"
+                      title="Previous simulations"
+                      disabled={visibleSimulationRibbonPage === 0}
+                      onClick={() => setSimulationRibbonPage((page) => Math.max(0, page - 1))}
+                      className="grid flex-1 place-items-center text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
+                    >
+                      <ChevronUp size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Show next simulations"
+                      title="Next simulations"
+                      disabled={visibleSimulationRibbonPage >= simulationRibbonPageCount - 1}
+                      onClick={() => setSimulationRibbonPage((page) => Math.min(simulationRibbonPageCount - 1, page + 1))}
+                      className="grid flex-1 place-items-center border-t border-slate-200 text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
+                ) : <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />}
+                {Array.from({ length: simulationRibbonPageSize }, (_, index) => visibleSimulationRibbonEntries[index] ?? null).map((item, index) => {
+                  if (!item) {
+                    return <div key={`empty-simulation-slot-${index}`} className="h-12 w-11 shrink-0" aria-hidden="true" />;
+                  }
+                  const imported = item.kind === 'imported' ? item.entry : null;
+                  const template = item.kind === 'template' ? item.template : null;
+                  const title = imported?.project.title ?? template?.title ?? '';
+                  return (
+                    <button
+                      key={imported ? `imported-${imported.resourceId}` : `template-${template?.id}`}
+                      type="button"
+                      title={title}
+                      disabled={editorReadOnly || !selectedScreen || simulationSaving}
+                      onClick={() => {
+                        if (imported) {
+                          setSimulationStudio({ subject: imported.project.subject, project: imported.project });
+                        } else if (template) {
+                          openSimulationCreator(template.subject, template.id);
+                        }
+                      }}
+                      className={`flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-45 ${simulationSubjectButtonColour}`}
+                    >
+                      <span className="grid h-5 w-5 place-items-center" aria-hidden="true">
+                        {imported?.iconUrl
+                          ? <img src={imported.iconUrl} alt="" className="h-5 w-5 rounded object-contain" />
+                          : template
+                            ? <SimulationCatalogIcon simulation={template} size={18} />
+                            : imported
+                              ? <SimulationCatalogIcon simulation={{ icon: 'sparkles', title: imported.project.title, subject: imported.project.subject }} size={18} />
+                              : <Sparkles size={17} />}
+                      </span>
+                      <span className="block w-full truncate text-center">{title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ),
           },
         ];
       }
