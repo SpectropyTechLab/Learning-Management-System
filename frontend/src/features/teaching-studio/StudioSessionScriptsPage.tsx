@@ -187,6 +187,8 @@ export default function StudioSessionScriptsPage() {
     <StudioShell
       title="Screen Scripts"
       scrollContent={false}
+      compactHeader
+      wrapContent={false}
       subtitle={
         session ? `Session ${session.session_number}: ${session.title}` : 'Loading Session…'
       }
@@ -196,13 +198,13 @@ export default function StudioSessionScriptsPage() {
           onClick={() =>
             navigate(returnToLibrary ? '/studio/sessions' : `/studio/sessions/${sessionId}/plan`)
           }
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-blue-900"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-900"
         >
           <ArrowLeft size={16} /> {returnToLibrary ? 'Session Library' : 'Session Plan'}
         </button>
       }
     >
-      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-gray-50 px-1 pt-1 text-slate-900 sm:px-2">
         {loading ? (
           <p className="shrink-0 border-b py-12 text-center text-sm text-slate-500">
             Loading Screens…
@@ -215,17 +217,26 @@ export default function StudioSessionScriptsPage() {
         ) : null}
         {!loading && session ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <header className="flex shrink-0 flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
+            <header className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200 pb-1.5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold text-slate-950">{session.title}</h1>
-                  <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">
+                  <h1 className="text-lg font-bold text-slate-950">{session.title}</h1>
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
                     Optional
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-slate-600">
+                <span className="truncate text-xs text-slate-600">
                   {session.chapter_name} / {session.topic_name} / {session.subtopic_name}
-                </p>
+                </span>
+                {editable ? (
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-blue-500 hover:text-blue-900">
+                    <FileUp size={14} /> {busy ? 'Loadingâ€¦' : 'Upload DOCX'}
+                    <input type="file" accept=".docx" disabled={busy} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewUpload(file); event.target.value = ''; }} />
+                  </label>
+                ) : null}
+                <span className="text-[11px] text-slate-600"><strong className="text-slate-900">{scripts.length}</strong> Screens</span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-slate-600"><CheckCircle2 size={12} className="text-emerald-600" /><strong className="text-slate-900">{completedCount}</strong> with Scripts</span>
+                <span className="text-[11px] text-slate-500">Blank Scripts do not block the Editor.</span>
               </div>
               <button
                 type="button"
@@ -236,7 +247,7 @@ export default function StudioSessionScriptsPage() {
                       : `/studio/editor/${sessionId}${selectedScreenId ? `?screen=${selectedScreenId}` : ''}`,
                   )
                 }
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white"
               >
                 {returnToLibrary
                   ? 'Back to Session Library'
@@ -245,9 +256,9 @@ export default function StudioSessionScriptsPage() {
               </button>
             </header>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-slate-200 py-4">
+            {false ? <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 py-2">
               {editable ? (
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-blue-500 hover:text-blue-900">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:border-blue-500 hover:text-blue-900">
                   <FileUp size={16} /> {busy ? 'Loading…' : 'Upload DOCX'}
                   <input
                     type="file"
@@ -270,7 +281,7 @@ export default function StudioSessionScriptsPage() {
                 <strong className="text-slate-900">{completedCount}</strong> with Scripts
               </span>
               <span className="text-xs text-slate-500">Blank Scripts do not block the Editor.</span>
-            </div>
+            </div> : null}
 
             {scripts.length === 0 ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center border-b border-dashed py-16 text-center">
@@ -280,9 +291,9 @@ export default function StudioSessionScriptsPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid min-h-0 flex-1 grid-rows-[minmax(150px,35%)_minmax(0,1fr)] overflow-hidden border-b lg:grid-cols-[230px_minmax(0,1fr)] lg:grid-rows-1">
-                <aside className="flex min-h-0 flex-col overflow-hidden border-b py-3 lg:border-b-0 lg:border-r">
-                  <p className="px-3 pb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <div className="grid min-h-0 flex-1 grid-rows-[minmax(120px,28%)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[180px_minmax(0,1fr)] lg:grid-rows-1">
+                <aside className="flex min-h-0 flex-col overflow-hidden py-1.5">
+                  <p className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                     Session Screens
                   </p>
                   <div className="min-h-0 flex-1 overflow-y-auto">
@@ -294,17 +305,17 @@ export default function StudioSessionScriptsPage() {
                           key={script.screen_id}
                           type="button"
                           onClick={() => setSelectedScreenId(script.screen_id)}
-                          className={`flex w-full items-center gap-3 border-l-2 px-3 py-3 text-left ${active ? 'border-blue-800 bg-blue-50' : 'border-transparent hover:bg-slate-50'}`}
+                          className={`flex w-full items-center gap-2 border-l-2 px-2 py-2 text-left ${active ? 'border-blue-800 bg-blue-50' : 'border-transparent hover:bg-slate-50'}`}
                         >
-                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-bold">
+                          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-100 text-[10px] font-bold">
                             {script.screen_number}
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate text-sm font-semibold">
+                            <span className="block truncate text-xs font-semibold">
                               {script.title}
                             </span>
                             <span
-                              className={`text-xs ${complete ? 'text-emerald-700' : 'text-slate-400'}`}
+                              className={`text-[10px] ${complete ? 'text-emerald-700' : 'text-slate-400'}`}
                             >
                               {complete ? 'Script saved' : 'Blank · optional'}
                             </span>
@@ -315,13 +326,13 @@ export default function StudioSessionScriptsPage() {
                   </div>
                 </aside>
                 {selected ? (
-                  <section className="flex min-h-0 min-w-0 flex-col overflow-hidden p-4  sm:p-5">
-                    <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b pb-4">
+                  <section className="flex min-h-0 min-w-0 flex-col overflow-hidden px-2 py-1.5 sm:px-3">
+                    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-1.5">
                       <div>
-                        <h2 className="text-lg font-bold">
+                        <h2 className="text-base font-bold">
                           Screen {selected.screen_number}: {selected.title}
                         </h2>
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-0.5 text-xs text-slate-500">
                           Add only what you need. Leaving this Screen blank is allowed.
                         </p>
                       </div>
@@ -330,14 +341,14 @@ export default function StudioSessionScriptsPage() {
                           type="button"
                           disabled={busy || !hasContent(content)}
                           onClick={() => void saveScript()}
-                          className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
                         >
                           <Save size={15} />
                           {busy ? 'Saving…' : 'Save Script'}
                         </button>
                       ) : null}
                     </div>
-                    <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                       {content.schema_version === 2 && content.sections?.length ? <StructuredScreenScriptEditor content={content} editable={editable} onChange={setContent} /> : <div className="grid gap-5 xl:grid-cols-2">
                         {SCREEN_SCRIPT_FIELDS.map(([key, label]) => (
                           <label
