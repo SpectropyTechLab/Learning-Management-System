@@ -110,6 +110,7 @@ import {
 import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionRibbon from './components/StudioTransitionRibbon';
 import StudioRejectionDetailsDialog from './components/StudioRejectionDetailsDialog';
+import StudioTaxonomySelect from './components/StudioTaxonomySelect';
 import {
   ShapeAppearanceControls,
   ShapeArrangeControls,
@@ -122,6 +123,8 @@ import PhysicsSimulationStudio, {
   type PhysicsSimulationInsert,
   type PhysicsSimulationProject,
 } from './components/PhysicsSimulationStudio';
+import ActivityBuilderStudio, { type ActivityBuilderInsert } from './components/ActivityBuilderStudio';
+import { ACTIVITY_TEMPLATES, validateActivityDocument, type ActivityDocument, type ActivityType } from './components/activityBuilderModel';
 import { SIMULATION_TEMPLATES, simulationCategory, validateSimulationDocument, type SimulationDocument, type SimulationSubject } from './components/simulationStudioModel';
 import { buildStandaloneSimulationHtml } from './components/simulationExport';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
@@ -391,6 +394,15 @@ export default function TeachingStudioPage() {
   const [model3DModeRequest, setModel3DModeRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
+  const reloadScreenScripts = useCallback(async () => {
+    if (!sessionId) {
+      setScripts([]);
+      return;
+    }
+
+    const rows = await studioDocumentsApi.screenScripts(sessionId);
+    setScripts(rows);
+  }, [sessionId]);
   const [workflowStatus, setWorkflowStatus] = useState<StudioWorkflowStatus | null>(null);
   const [workflowProblems, setWorkflowProblems] = useState<StudioValidationProblem[]>([]);
   const [workflowDetailsOpen, setWorkflowDetailsOpen] = useState(false);
@@ -423,6 +435,12 @@ export default function TeachingStudioPage() {
   const [simulationRibbonCategory, setSimulationRibbonCategory] = useState('all');
   const [quickStartSimulations, setQuickStartSimulations] = useState<QuickStartSimulation[]>([]);
   const [simulationSaving, setSimulationSaving] = useState(false);
+  const [activityStudio, setActivityStudio] = useState<{
+    initialType?: ActivityType;
+    elementId?: string;
+    project?: ActivityDocument;
+  } | null>(null);
+  const [activitySaving, setActivitySaving] = useState(false);
   useEffect(() => {
     let active = true;
     void listStudioResources({ resourceType: 'simulation' }).then(async (resources) => {
@@ -825,7 +843,8 @@ export default function TeachingStudioPage() {
     setError(null);
     try {
       setTaxonomyTerms(await studioTaxonomyApi.list());
-    } catch {
+    } catch (taxonomyError) {
+      console.error('[Teaching Studio] Failed to load taxonomy values for Add Screen.', taxonomyError);
       setTaxonomyTerms([]);
     }
     setCreateScreenOpen(true);
@@ -846,7 +865,7 @@ export default function TeachingStudioPage() {
         pedagogy: pedagogy ? [pedagogy] : [],
         bloom: bloom ? [bloom] : [],
       });
-      await loadScreens();
+      await Promise.all([loadScreens(), reloadScreenScripts()]);
       setSearchParams({ screen: String(created.id) }, { replace: true });
       setCreateScreenOpen(false);
       setNewScreenTitle('Untitled Screen');
@@ -1101,7 +1120,7 @@ export default function TeachingStudioPage() {
       return;
     }
     if (problem.code === 'SCREENS_MISSING') {
-      setCreateScreenOpen(true);
+      await createBlankScreen();
       return;
     }
     if (problem.code === 'SCREEN_SCRIPT_MISSING' && problem.screen_id) {
@@ -1958,6 +1977,10 @@ export default function TeachingStudioPage() {
       && (authoring as Record<string, unknown>).kind === 'spectropy_simulation_studio'
       ? authoring as Record<string, unknown>
       : null;
+    const editableActivity = authoring && typeof authoring === 'object'
+      && (authoring as Record<string, unknown>).kind === 'spectropy_activity_builder'
+      ? authoring as Record<string, unknown>
+      : null;
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -1973,6 +1996,13 @@ export default function TeachingStudioPage() {
               simulationProject: editableSimulation.project,
               simulationTitle: resource.name,
               simulationSubject: editableSimulation.subject || null,
+            }
+          : {}),
+        ...(editableActivity && editableActivity.project && typeof editableActivity.project === 'object'
+          ? {
+              activityProject: editableActivity.project,
+              activityTitle: resource.name,
+              activityType: (editableActivity.project as Record<string, unknown>).activityType || null,
             }
           : {}),
       },
@@ -2225,6 +2255,121 @@ export default function TeachingStudioPage() {
       toast.error(message);
     } finally {
       setSimulationSaving(false);
+    }
+  };
+
+  const openActivityBuilder = (initialType: ActivityType = 'mcq') => {
+    if (editorReadOnly) {
+      toast.error('Start an update before creating an Activity.');
+      return;
+    }
+    if (!selectedScreen) {
+      toast.error('Select a Screen before creating an Activity.');
+      return;
+    }
+    setActivityStudio({ initialType });
+  };
+
+  const editSelectedActivity = () => {
+    if (editorReadOnly || !selectedScreen || !selectedElementId) {
+      toast.error('Select an editable SPECTROPY Activity first.');
+      return;
+    }
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    const project = element?.content.activityProject;
+    if (!element || element.type !== 'simulation' || !project || typeof project !== 'object') {
+      toast.error('This item was not created with the Activity Builder.');
+      return;
+    }
+    try {
+      setActivityStudio({ elementId: element.id, project: validateActivityDocument(project) });
+    } catch (activityError) {
+      toast.error(activityError instanceof Error ? activityError.message : 'This Activity uses an unsupported format.');
+    }
+  };
+
+  const insertActivity = async ({ project, title, html }: ActivityBuilderInsert) => {
+    if (!selectedScreen || !activityStudio || activitySaving) return;
+    const cleanTitle = title.trim() || 'Interactive Activity';
+    const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-activity'}.html`;
+    const file = new File([html], fileName, { type: 'text/html' });
+    const authoringProject: ActivityDocument = project.sceneSource === 'resource'
+      ? { ...project, sceneUrl: '' }
+      : project;
+    const metadataJson = {
+      authoring: {
+        kind: 'spectropy_activity_builder',
+        schema: 'spectropy.activity.v1',
+        project: authoringProject,
+      },
+    };
+    setActivitySaving(true);
+    try {
+      const existing = activityStudio.elementId
+        ? selectedScreen.elements.find((element) => element.id === activityStudio.elementId)
+        : null;
+      if (existing?.resource?.resource_id) {
+        const created = await createStudioResourceVersion(existing.resource.resource_id, {
+          file, width: 1920, height: 1080, entryPoint: fileName, metadataJson,
+        });
+        const updated: StudioElement = {
+          ...existing,
+          position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
+          content: {
+            ...existing.content,
+            text: cleanTitle,
+            altText: `${cleanTitle} interactive Activity`,
+            source: 'SPECTROPY Activity Builder',
+            activityProject: authoringProject,
+            activityTitle: cleanTitle,
+            activityType: project.activityType,
+          },
+          resource: { ...existing.resource, resource_version_id: created.version.id },
+        };
+        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+        toast.success(`${cleanTitle} updated and saved as a new Resource version.`);
+      } else {
+        const resource = await createStudioResource({
+          name: cleanTitle,
+          description: `Editable SPECTROPY ${ACTIVITY_TEMPLATES.find((item) => item.id === project.activityType)?.label || 'Activity'}`,
+          resourceType: 'simulation',
+          file,
+          width: 1920,
+          height: 1080,
+          entryPoint: fileName,
+          metadataJson,
+        });
+        const version = resource.latest_version;
+        if (!version) throw new Error('The Activity Resource was created without a version.');
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const id = `activity-${token}`;
+        const element: StudioElement = {
+          id,
+          slotId: `free-${id}`,
+          type: 'simulation',
+          content: {
+            text: cleanTitle,
+            altText: `${cleanTitle} interactive Activity`,
+            source: 'SPECTROPY Activity Builder',
+            activityProject: authoringProject,
+            activityTitle: cleanTitle,
+            activityType: project.activityType,
+          },
+          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
+          resource: {
+            resource_id: resource.id,
+            resource_version_id: version.id,
+            usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
+          },
+        };
+        commitElements([...selectedScreen.elements, element], element.id);
+        toast.success(`${cleanTitle} exported, inserted, and saved as a Simulation Resource.`);
+      }
+      setActivityStudio(null);
+    } catch (activityError) {
+      toast.error(activityError instanceof Error ? activityError.message : 'Unable to export the Activity.');
+    } finally {
+      setActivitySaving(false);
     }
   };
 
@@ -2779,6 +2924,7 @@ export default function TeachingStudioPage() {
         const deleted = await deleteStudioScreen(selectedScreen.id);
         const remaining = screenList.screens.filter((screen) => screen.id !== selectedScreen.id);
         setScreenList({ session_revision_no: deleted.session_revision_no, screens: remaining });
+        await reloadScreenScripts();
         setSelectedScreen(null);
         setSelectedElementId(null);
         setElementPast([]);
@@ -3238,7 +3384,7 @@ export default function TeachingStudioPage() {
           },
           {
             id: 'screen', label: 'Screen', commands: [
-              { id: 'add-screen', label: 'Add Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => setCreateScreenOpen(true) },
+              { id: 'add-screen', label: 'Add Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => void createBlankScreen() },
               { id: 'screen-metadata', label: 'Metadata', icon: <SlidersHorizontal size={17} />, disabled: editorReadOnly || !selectedScreenId, onExecute: () => void openScreenMetadata() },
               { id: 'rename-screen', label: 'Rename', icon: <Pencil size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => void openRenameScreen() },
               { id: 'delete-screen', label: 'Delete', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen, onExecute: () => void requestScreenAction('delete-screen') },
@@ -3260,7 +3406,7 @@ export default function TeachingStudioPage() {
       case 'insert':
         return [
           { id: 'insert-screen', label: 'Slides', commands: [
-            { id: 'insert-new-screen', label: 'New Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => setCreateScreenOpen(true) },
+            { id: 'insert-new-screen', label: 'New Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => void createBlankScreen() },
           ] },
           {
             id: 'insert-text', label: 'Text', commands: [
@@ -3365,6 +3511,29 @@ export default function TeachingStudioPage() {
               })),
             ],
           },
+        ];
+      }
+      case 'activity': {
+        const groups = ['Questions', 'Thinking', 'Games', 'Visual'] as const;
+        return [
+          {
+            id: 'activity-builder', label: 'Builder', commands: [
+              { id: 'activity-new', label: 'Build an Activity', icon: activitySaving ? <LoaderCircle size={17} className="animate-spin" /> : <WandSparkles size={17} />, disabled: editorReadOnly || !selectedScreen || activitySaving, onExecute: () => openActivityBuilder() },
+              { id: 'activity-edit', label: 'Edit Current Activity', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.activityProject !== 'object', onExecute: editSelectedActivity },
+              { id: 'activity-library', label: 'Activity Resources', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
+            ],
+          },
+          ...groups.map((group) => ({
+            id: `activity-${group.toLowerCase()}`,
+            label: group,
+            commands: ACTIVITY_TEMPLATES.filter((template) => template.group === group).map((template) => ({
+              id: `activity-template-${template.id}`,
+              label: template.label,
+              icon: <span className="text-base" aria-hidden="true">{template.icon}</span>,
+              disabled: editorReadOnly || !selectedScreen || activitySaving,
+              onExecute: () => openActivityBuilder(template.id),
+            })),
+          })),
         ];
       }
       case 'equation':
@@ -3665,6 +3834,27 @@ export default function TeachingStudioPage() {
           </p>
         </section>
       </StudioShell>
+    );
+  }
+
+  if (activityStudio) {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden">
+        <ActivityBuilderStudio
+          initialProject={activityStudio.project}
+          initialType={activityStudio.initialType}
+          onBack={() => setActivityStudio(null)}
+          onInsert={(activity) => void insertActivity(activity)}
+        />
+        {activitySaving ? (
+          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
+            <div className="flex items-center gap-3 rounded-xl border border-blue-300/30 bg-slate-950 px-5 py-3 font-semibold text-blue-50 shadow-2xl">
+              <LoaderCircle size={20} className="animate-spin text-blue-300" />
+              Exporting Activity and inserting it as a Simulation Resource…
+            </div>
+          </div>
+        ) : null}
+      </div>
     );
   }
 
@@ -4708,40 +4898,27 @@ export default function TeachingStudioPage() {
               Screen values override optional Topic defaults. Screen Scripts remain optional.
             </p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-semibold text-slate-700">
+              <div className="text-sm font-semibold text-slate-700">
                 Pedagogy <span className="text-red-600">*</span>
-                <select
+                <StudioTaxonomySelect
+                  terms={taxonomyTerms}
+                  type="pedagogy"
                   value={newScreenPedagogyId}
-                  onChange={(event) => setNewScreenPedagogyId(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
-                >
-                  <option value="">Select pedagogy</option>
-                  {taxonomyTerms
-                    .filter((term) => term.type === 'pedagogy')
-                    .map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.label}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="text-sm font-semibold text-slate-700">
+                  onChange={setNewScreenPedagogyId}
+                  placeholder="Select pedagogy"
+                />
+              </div>
+              <div className="text-sm font-semibold text-slate-700">
                 Bloom <span className="font-normal text-slate-500">(optional)</span>
-                <select
+                <StudioTaxonomySelect
+                  terms={taxonomyTerms}
+                  type="bloom"
                   value={newScreenBloomId}
-                  onChange={(event) => setNewScreenBloomId(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
-                >
-                  <option value="">Use Topic default / none</option>
-                  {taxonomyTerms
-                    .filter((term) => term.type === 'bloom')
-                    .map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.label}
-                      </option>
-                    ))}
-                </select>
-              </label>
+                  onChange={setNewScreenBloomId}
+                  placeholder="Use Topic default / none"
+                  emptyLabel="Use Topic default / none"
+                />
+              </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button
@@ -4974,40 +5151,27 @@ export default function TeachingStudioPage() {
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
                 />
               </label>
-              <label className="text-sm font-semibold text-slate-700">
+              <div className="text-sm font-semibold text-slate-700">
                 Pedagogy <span className="text-red-600">*</span>
-                <select
+                <StudioTaxonomySelect
+                  terms={taxonomyTerms}
+                  type="pedagogy"
                   value={newScreenPedagogyId}
-                  onChange={(event) => setNewScreenPedagogyId(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
-                >
-                  <option value="">Select pedagogy</option>
-                  {taxonomyTerms
-                    .filter((term) => term.type === 'pedagogy')
-                    .map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.label}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="text-sm font-semibold text-slate-700">
+                  onChange={setNewScreenPedagogyId}
+                  placeholder="Select pedagogy"
+                />
+              </div>
+              <div className="text-sm font-semibold text-slate-700">
                 Bloom <span className="font-normal text-slate-500">(optional)</span>
-                <select
+                <StudioTaxonomySelect
+                  terms={taxonomyTerms}
+                  type="bloom"
                   value={newScreenBloomId}
-                  onChange={(event) => setNewScreenBloomId(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
-                >
-                  <option value="">No Screen override</option>
-                  {taxonomyTerms
-                    .filter((term) => term.type === 'bloom')
-                    .map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.label}
-                      </option>
-                    ))}
-                </select>
-              </label>
+                  onChange={setNewScreenBloomId}
+                  placeholder="No Screen override"
+                  emptyLabel="No Screen override"
+                />
+              </div>
               <div className="hidden sm:block" />
             </div>
             <div className="mt-6 flex justify-end gap-2">
