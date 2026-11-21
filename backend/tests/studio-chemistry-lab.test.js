@@ -32,6 +32,7 @@ test('Chemistry Lab preserves all reference experiments, classes, topics, and te
 });
 
 test('Chemistry Lab is connected to the editor, responsive ribbon, resources, and published playback', () => {
+  const viteConfig = fs.readFileSync(path.join(root, 'frontend', 'vite.config.ts'), 'utf8');
   const editor = fs.readFileSync(frontend('TeachingStudioPage.tsx'), 'utf8');
   const studio = fs.readFileSync(frontend('components', 'ChemistryLabStudio.tsx'), 'utf8');
   const model = fs.readFileSync(frontend('components', 'chemistryLabModel.ts'), 'utf8');
@@ -67,4 +68,7 @@ test('Chemistry Lab is connected to the editor, responsive ribbon, resources, an
   assert.match(page, /main\+aside\{display:block!important;position:static!important;flex:0 0 min\(380px,36vw\)/);
   assert.doesNotMatch(page, /main\+aside\{[^}]*position:fixed/);
   assert.ok(fs.existsSync(publicLab('LabItem.dc.html')), 'the Chemistry apparatus Design Component is available under its requested filename');
+  assert.match(viteConfig, /navigateFallbackDenylist/);
+  assert.match(viteConfig, /\^\\\/studio-labs\\\//);
+  assert.match(viteConfig, /\^\\\/simulation-runtimes\\\//);
 });
