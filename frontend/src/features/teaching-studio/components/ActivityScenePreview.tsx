@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import type { ActivityDocument } from './activityBuilderModel';
 import { drawActivityScene } from './activitySceneRenderer';
 
-type Props = Pick<ActivityDocument, 'scene' | 'sceneSource' | 'sceneUrl' | 'sceneMediaType' | 'sceneMediaFit' | 'sceneResourceName' | 'accent' | 'ambientAnimation' | 'subject'>;
+type Props = Pick<ActivityDocument, 'scene' | 'sceneSource' | 'sceneUrl' | 'sceneMediaType' | 'sceneMediaFit' | 'sceneResourceName' | 'accent' | 'ambientAnimation' | 'subject'> & {
+  fullPane?: boolean;
+};
 
-export default function ActivityScenePreview({ scene, sceneSource, sceneUrl, sceneMediaType, sceneMediaFit, sceneResourceName, accent, ambientAnimation, subject }: Props) {
+export default function ActivityScenePreview({ scene, sceneSource, sceneUrl, sceneMediaType, sceneMediaFit, sceneResourceName, accent, ambientAnimation, subject, fullPane = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -37,15 +39,19 @@ export default function ActivityScenePreview({ scene, sceneSource, sceneUrl, sce
     return () => { stopped = true; cancelAnimationFrame(frame); observer.disconnect(); };
   }, [accent, ambientAnimation, scene, sceneSource, subject]);
 
+  const sceneSurface = <div className={fullPane ? 'relative h-full min-h-0 w-full' : 'relative aspect-video w-full'}>
+    {sceneSource === 'built-in' ? <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" /> : null}
+    {sceneSource !== 'built-in' && sceneUrl && sceneMediaType === 'video' ? <video className="absolute inset-0 h-full w-full" style={{ objectFit: sceneMediaFit }} src={sceneUrl} autoPlay muted loop playsInline /> : null}
+    {sceneSource !== 'built-in' && sceneUrl && sceneMediaType === 'image' ? <img className="absolute inset-0 h-full w-full" style={{ objectFit: sceneMediaFit }} src={sceneUrl} alt="Selected activity scene" /> : null}
+    {sceneSource !== 'built-in' && !sceneUrl ? <div className="absolute inset-0 grid place-items-center px-6 text-center text-xs text-slate-400">Choose a Resource or enter an external URL to preview this scene.</div> : null}
+  </div>;
+
+  if (fullPane) return <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0d0e10]">{sceneSurface}</div>;
+
   return <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-lg border border-slate-300 bg-[#0d0e10]">
     <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-300">
       <span>Scene preview</span><span className="max-w-[65%] truncate text-slate-500">{sceneSource === 'built-in' ? scene : sceneResourceName || sceneSource}</span>
     </div>
-    <div className="relative aspect-video w-full">
-      {sceneSource === 'built-in' ? <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" /> : null}
-      {sceneSource !== 'built-in' && sceneUrl && sceneMediaType === 'video' ? <video className="absolute inset-0 h-full w-full" style={{ objectFit: sceneMediaFit }} src={sceneUrl} autoPlay muted loop playsInline /> : null}
-      {sceneSource !== 'built-in' && sceneUrl && sceneMediaType === 'image' ? <img className="absolute inset-0 h-full w-full" style={{ objectFit: sceneMediaFit }} src={sceneUrl} alt="Selected activity scene" /> : null}
-      {sceneSource !== 'built-in' && !sceneUrl ? <div className="absolute inset-0 grid place-items-center px-6 text-center text-xs text-slate-400">Choose a Resource or enter an external URL to preview this scene.</div> : null}
-    </div>
+    {sceneSurface}
   </div>;
 }
