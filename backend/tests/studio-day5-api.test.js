@@ -119,6 +119,14 @@ test('screen save persists editable drawing data and Resource bindings in one tr
           text: 'JavaScript: basics',
           richTextHtml: '<p>JavaScript: basics</p>',
           lineHeight: 1.5,
+          animation: {
+            effects: [{
+              id: 'animation-persistence-check', effect: 'fly-in', direction: 'bottom-left',
+              start: 'with-previous', duration: 1.2, delay: 0.3, repeat: 2,
+              afterAnimation: 'dim', afterAnimationColor: '#64748b',
+              textSequence: 'word', textDelay: 0.07, sequenceOrder: 3,
+            }],
+          },
         },
         position: { x: 100, y: 900, width: 600, height: 720 },
       }],
@@ -130,6 +138,13 @@ test('screen save persists editable drawing data and Resource bindings in one tr
   assert.deepEqual(result.elements[0].content.drawing.strokes[0].points[1], [3, 4]);
   assert.ok(calls.some(({ sql }) => sql.startsWith('insert into resource_mappings')));
   assert.ok(calls.some(({ sql, params }) => sql.startsWith('insert into screen_elements') && params[1] === 'text-overflow' && JSON.parse(params[5]).height === 720));
+  const savedAnimatedElement = calls.find(({ sql, params }) => sql.startsWith('insert into screen_elements') && params[1] === 'text-overflow');
+  assert.deepEqual(JSON.parse(savedAnimatedElement.params[4]).animation.effects[0], {
+    id: 'animation-persistence-check', effect: 'fly-in', direction: 'bottom-left',
+    start: 'with-previous', duration: 1.2, delay: 0.3, repeat: 2,
+    afterAnimation: 'dim', afterAnimationColor: '#64748b',
+    textSequence: 'word', textDelay: 0.07, sequenceOrder: 3,
+  });
   assert.ok(calls.some(({ sql }) => sql === 'commit'));
 });
 

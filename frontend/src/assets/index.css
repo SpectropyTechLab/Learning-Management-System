@@ -134,26 +134,28 @@
     opacity: 1;
   }
 }
+@keyframes studio-after-hide {
+  to { opacity: 0; visibility: hidden; }
+}
+@keyframes studio-after-dim {
+  to { color: var(--studio-after-color, #94a3b8); opacity: 0.72; }
+}
 @keyframes studio-fade {
   from {
     opacity: 0;
-    filter: blur(4px);
-    transform: scale(0.985);
   }
   to {
     opacity: 1;
-    filter: blur(0);
-    transform: scale(1);
   }
 }
 @keyframes studio-fly-in {
   from {
-    opacity: 0;
+    opacity: 1;
     transform: translate(var(--studio-enter-x, -35%), var(--studio-enter-y, 0%));
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate(0, 0);
   }
 }
 @keyframes studio-wipe {
@@ -167,7 +169,7 @@
 @keyframes studio-zoom {
   from {
     opacity: 0;
-    transform: scale(0.5);
+    transform: scale(var(--studio-zoom-start-scale, 0.5));
   }
   to {
     opacity: 1;
@@ -193,12 +195,12 @@
 }
 @keyframes studio-pulse {
   50% {
-    transform: scale(1.08);
+    transform: scale(var(--studio-effect-scale, 1.08));
   }
 }
 @keyframes studio-spin {
   to {
-    transform: rotate(360deg);
+    transform: rotate(var(--studio-spin-rotation, 360deg));
   }
 }
 @keyframes studio-grow {
@@ -231,13 +233,13 @@
   }
   to {
     opacity: 0;
-    transform: scale(0.5);
+    transform: scale(var(--studio-zoom-end-scale, 0.5));
   }
 }
 @keyframes studio-float-in {
   from {
     opacity: 0;
-    transform: translate(var(--studio-enter-x, 0%), var(--studio-enter-y, 22%));
+    transform: translate(var(--studio-float-x, 0%), var(--studio-float-y, 18%));
   }
   to {
     opacity: 1;
@@ -247,7 +249,7 @@
 @keyframes studio-split {
   from {
     opacity: 0;
-    clip-path: inset(50% 0);
+    clip-path: var(--studio-clip-from, inset(50% 0));
   }
   to {
     opacity: 1;
@@ -257,24 +259,7 @@
 @keyframes studio-random-bars {
   from {
     opacity: 0;
-    clip-path: polygon(
-      0 0,
-      15% 0,
-      15% 100%,
-      30% 100%,
-      30% 0,
-      45% 0,
-      45% 100%,
-      60% 100%,
-      60% 0,
-      75% 0,
-      75% 100%,
-      90% 100%,
-      90% 0,
-      100% 0,
-      100% 0,
-      0 0
-    );
+    clip-path: var(--studio-bars-clip-from);
   }
   to {
     opacity: 1;
@@ -291,24 +276,39 @@
     transform: scale(1) rotate(0);
   }
 }
+@property --studio-wheel-sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
 @keyframes studio-wheel {
   from {
-    opacity: 0;
-    clip-path: circle(0% at 50% 50%);
-    transform: rotate(-120deg) scale(0.72);
+    opacity: 1;
+    --studio-wheel-sweep: 0deg;
+    -webkit-mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
+    mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
   }
   to {
     opacity: 1;
-    clip-path: circle(75% at 50% 50%);
-    transform: rotate(0) scale(1);
+    --studio-wheel-sweep: var(--studio-wheel-sector, 360deg);
+    -webkit-mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
+    mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
   }
 }
+/* Use fixed-angle endpoints for every PowerPoint spoke option. Chromium can
+   interpolate a registered angle to a literal reliably; using another custom
+   property as the endpoint caused the reveal to remain at zero on some GPUs. */
+@keyframes studio-wheel-1 { from { opacity: 1; --studio-wheel-sweep: 0deg; } to { opacity: 1; --studio-wheel-sweep: 360deg; } }
+@keyframes studio-wheel-2 { from { opacity: 1; --studio-wheel-sweep: 0deg; } to { opacity: 1; --studio-wheel-sweep: 180deg; } }
+@keyframes studio-wheel-3 { from { opacity: 1; --studio-wheel-sweep: 0deg; } to { opacity: 1; --studio-wheel-sweep: 120deg; } }
+@keyframes studio-wheel-4 { from { opacity: 1; --studio-wheel-sweep: 0deg; } to { opacity: 1; --studio-wheel-sweep: 90deg; } }
+@keyframes studio-wheel-8 { from { opacity: 1; --studio-wheel-sweep: 0deg; } to { opacity: 1; --studio-wheel-sweep: 45deg; } }
 @keyframes studio-shape {
-  from { opacity: 0; clip-path: circle(0% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
-  to { opacity: 1; clip-path: circle(150% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
+  from { opacity: 0; clip-path: var(--studio-shape-clip-from, circle(0% at 50% 50%)); }
+  to { opacity: 1; clip-path: var(--studio-shape-clip-to, circle(150% at 50% 50%)); }
 }
 @keyframes studio-swivel {
-  from { opacity: 0; transform: perspective(900px) translate(var(--studio-enter-x, 0%), var(--studio-enter-y, 0%)) rotateY(-90deg) scale(0.75); transform-origin: var(--studio-origin-x, 50%) var(--studio-origin-y, 50%); }
+  from { opacity: 0; transform: var(--studio-swivel-from, perspective(900px) rotateY(-90deg) scale(0.75)); transform-origin: 50% 50%; }
   to { opacity: 1; transform: perspective(900px) rotateY(0) scale(1); }
 }
 @keyframes studio-bounce-in {
@@ -326,11 +326,11 @@
   to { opacity: 1; filter: blur(0) contrast(1); }
 }
 @keyframes studio-blinds {
-  from { opacity: 0; clip-path: polygon(0 0, 100% 0, 100% 8%, 0 8%, 0 20%, 100% 20%, 100% 28%, 0 28%, 0 40%, 100% 40%, 100% 48%, 0 48%, 0 60%, 100% 60%, 100% 68%, 0 68%, 0 80%, 100% 80%, 100% 88%, 0 88%); }
+  from { opacity: 0; clip-path: var(--studio-blinds-clip-from); }
   to { opacity: 1; clip-path: inset(0); }
 }
 @keyframes studio-clock {
-  from { opacity: 0; transform: scale(0.05) rotate(-180deg); border-radius: 50%; }
+  from { opacity: 0; transform: scale(0.05) rotate(var(--studio-clock-rotation, -180deg)); border-radius: 50%; }
   to { opacity: 1; transform: scale(1) rotate(0); border-radius: 0; }
 }
 @keyframes studio-ripple {
@@ -360,11 +360,11 @@
   to { opacity: 1; transform: perspective(1600px) rotateY(0); }
 }
 @keyframes studio-box {
-  from { opacity: 0; transform: scale(0.15); clip-path: inset(35%); }
+  from { opacity: 0; transform: scale(var(--studio-box-start-scale, 0.15)); clip-path: var(--studio-box-start-clip, inset(35%)); }
   to { opacity: 1; transform: scale(1); clip-path: inset(0); }
 }
 @keyframes studio-comb {
-  from { opacity: 0; clip-path: polygon(0 0, 14% 0, 14% 100%, 28% 100%, 28% 0, 42% 0, 42% 100%, 56% 100%, 56% 0, 70% 0, 70% 100%, 84% 100%, 84% 0, 100% 0, 100% 10%, 0 10%); transform: translate(var(--studio-enter-x, 12%), var(--studio-enter-y, 0)); }
+  from { opacity: 0; clip-path: var(--studio-bars-clip-from); transform: translate(var(--studio-comb-x, 12%), var(--studio-comb-y, 0)); }
   to { opacity: 1; clip-path: inset(0); transform: translate(0); }
 }
 @keyframes studio-fly-through {
@@ -404,7 +404,7 @@
   }
 }
 @keyframes studio-grow-shrink {
-  50% { transform: scale(1.2); }
+  50% { transform: scale(var(--studio-effect-scale, 1.2)); }
 }
 @keyframes studio-desaturate {
   50%, 100% { filter: grayscale(1) saturate(0); }
@@ -416,7 +416,7 @@
   50%, 100% { filter: brightness(1.55); }
 }
 @keyframes studio-transparency {
-  50% { opacity: 0.3; }
+  50% { opacity: var(--studio-effect-opacity, 0.3); }
 }
 @keyframes studio-object-color {
   50%, 100% { filter: sepia(1) saturate(5) hue-rotate(175deg); }
@@ -472,7 +472,7 @@
   }
   to {
     opacity: 0;
-    transform: translate(var(--studio-exit-x, 0%), var(--studio-exit-y, -22%));
+    transform: translate(var(--studio-float-x, 0%), var(--studio-float-y, -18%));
   }
 }
 @keyframes studio-split-out {
@@ -482,7 +482,7 @@
   }
   to {
     opacity: 0;
-    clip-path: inset(50% 0);
+    clip-path: var(--studio-clip-to, inset(50% 0));
   }
 }
 @keyframes studio-sink {
@@ -492,26 +492,41 @@
   }
 }
 @keyframes studio-disappear {
-  0%, 82% {
+  from {
     opacity: 1;
     visibility: visible;
   }
-  100% {
+  to {
     opacity: 0;
     visibility: hidden;
   }
 }
 @keyframes studio-shape-out {
-  from { opacity: 1; clip-path: circle(150% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
-  to { opacity: 0; clip-path: circle(0% at var(--studio-origin-x, 50%) var(--studio-origin-y, 50%)); }
+  from { opacity: 1; clip-path: var(--studio-shape-clip-to, circle(150% at 50% 50%)); }
+  to { opacity: 0; clip-path: var(--studio-shape-clip-from, circle(0% at 50% 50%)); }
 }
 @keyframes studio-wheel-out {
-  from { opacity: 1; clip-path: circle(75% at 50% 50%); transform: rotate(0) scale(1); }
-  to { opacity: 0; clip-path: circle(0% at 50% 50%); transform: rotate(120deg) scale(0.72); }
+  from {
+    opacity: 1;
+    --studio-wheel-sweep: var(--studio-wheel-sector, 360deg);
+    -webkit-mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
+    mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
+  }
+  to {
+    opacity: 1;
+    --studio-wheel-sweep: 0deg;
+    -webkit-mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
+    mask-image: repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg));
+  }
 }
+@keyframes studio-wheel-out-1 { from { opacity: 1; --studio-wheel-sweep: 360deg; } to { opacity: 0; --studio-wheel-sweep: 0deg; } }
+@keyframes studio-wheel-out-2 { from { opacity: 1; --studio-wheel-sweep: 180deg; } to { opacity: 0; --studio-wheel-sweep: 0deg; } }
+@keyframes studio-wheel-out-3 { from { opacity: 1; --studio-wheel-sweep: 120deg; } to { opacity: 0; --studio-wheel-sweep: 0deg; } }
+@keyframes studio-wheel-out-4 { from { opacity: 1; --studio-wheel-sweep: 90deg; } to { opacity: 0; --studio-wheel-sweep: 0deg; } }
+@keyframes studio-wheel-out-8 { from { opacity: 1; --studio-wheel-sweep: 45deg; } to { opacity: 0; --studio-wheel-sweep: 0deg; } }
 @keyframes studio-random-bars-out {
   from { opacity: 1; clip-path: inset(0); }
-  to { opacity: 0; clip-path: polygon(0 0, 15% 0, 15% 100%, 30% 100%, 30% 0, 45% 0, 45% 100%, 60% 100%, 60% 0, 75% 0, 75% 100%, 90% 100%, 90% 0, 100% 0, 100% 0, 0 0); }
+  to { opacity: 0; clip-path: var(--studio-bars-clip-from); }
 }
 @keyframes studio-shrink-turn {
   from { opacity: 1; transform: scale(1) rotate(0); }
@@ -587,9 +602,26 @@
 /* Backward-compatible playback for old documents. New Custom Path authoring stays hidden
    until path geometry can be stored and edited instead of pretending a line is custom. */
 @keyframes studio-path-custom-legacy {
-  to {
-    transform: translateX(35%);
-  }
+  from { offset-distance: 0%; }
+  to { offset-distance: 100%; }
+}
+@keyframes studio-3d-arrive {
+  from { opacity: 0; transform: perspective(900px) translateZ(-650px) rotateX(28deg) rotateY(-35deg); }
+  to { opacity: 1; transform: perspective(900px) translateZ(0) rotateX(0) rotateY(0); }
+}
+@keyframes studio-3d-turntable {
+  from { transform: perspective(900px) rotateY(0); }
+  to { transform: perspective(900px) rotateY(var(--studio-3d-rotation, 360deg)); }
+}
+@keyframes studio-3d-swing {
+  0%, 100% { transform: perspective(900px) rotateY(0) rotateX(0); }
+  25% { transform: perspective(900px) rotateY(-24deg) rotateX(6deg); }
+  75% { transform: perspective(900px) rotateY(24deg) rotateX(-6deg); }
+}
+@keyframes studio-3d-jump-turn {
+  0%, 100% { transform: perspective(900px) translateY(0) rotateY(0); }
+  45% { transform: perspective(900px) translateY(-20%) rotateY(170deg) scale(1.08); }
+  70% { transform: perspective(900px) translateY(0) rotateY(300deg); }
 }
 .studio-animate-appear,
 .studio-animate-fade {
