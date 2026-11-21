@@ -1,0 +1,4090 @@
+{
+  "schema": "spectropy.physics-lab-catalog.v1",
+  "topics": {
+    "mech": {
+      "label": "Mechanics",
+      "colour": "#ffb547"
+    },
+    "light": {
+      "label": "Light & Optics",
+      "colour": "#4fd6ff"
+    },
+    "elec": {
+      "label": "Electricity",
+      "colour": "#b6f35c"
+    },
+    "mag": {
+      "label": "Magnetism",
+      "colour": "#ff6b9a"
+    },
+    "sound": {
+      "label": "Sound & Waves",
+      "colour": "#b18cff"
+    },
+    "heat": {
+      "label": "Heat & Matter",
+      "colour": "#ff8a5c"
+    },
+    "meas": {
+      "label": "Measurement",
+      "colour": "#3ee0c0"
+    },
+    "modern": {
+      "label": "Modern Physics",
+      "colour": "#a78bfa"
+    },
+    "math": {
+      "label": "Mathematical Tools",
+      "colour": "#38bdf8"
+    }
+  },
+  "labs": [
+    {
+      "id": "pendulum",
+      "subject": "physics",
+      "title": "Simple Pendulum",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        7,
+        9,
+        11
+      ],
+      "aim": "Measure the time period of a simple pendulum, study how it depends on length, and find g from the L–T² graph.",
+      "apparatus": [
+        "Clamp stand & split cork",
+        "Metallic bob with thread",
+        "Stopwatch",
+        "Metre scale",
+        "Protractor"
+      ],
+      "formula": "T = 2π √(L / g)     g = 4π² L / T²",
+      "procedure": [
+        "Set the effective length L with the slider.",
+        "Drag the bob sideways (keep amplitude small) or tap “Release bob”.",
+        "The stopwatch starts as the bob first passes the mean position.",
+        "After at least 10 oscillations tap “Record reading”.",
+        "Repeat for 5–6 lengths. The L–T² graph is a straight line."
+      ],
+      "controlCount": 3,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "spring",
+      "subject": "physics",
+      "title": "Hooke's Law — Spring Constant",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Verify Hooke’s law and find the spring constant of a helical spring from its load–extension graph.",
+      "apparatus": [
+        "Helical spring on rigid stand",
+        "Slotted masses with hanger (50 g each)",
+        "Vertical metre scale",
+        "Pointer"
+      ],
+      "formula": "F = k x     k = F / x = mg / x",
+      "procedure": [
+        "Note the pointer position with no load (zero).",
+        "Add slotted masses in steps of 50 g.",
+        "Wait until the spring comes to rest and read the extension.",
+        "Tap “Record reading” for each load.",
+        "Plot F against x; the slope gives k."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "inclined",
+      "subject": "physics",
+      "title": "Friction on an Inclined Plane",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        8,
+        11
+      ],
+      "aim": "Find the angle of repose and the coefficient of static friction between a block and different surfaces.",
+      "apparatus": [
+        "Adjustable inclined plane with protractor",
+        "Wooden block",
+        "Glass, wood and sandpaper surfaces"
+      ],
+      "formula": "Block slides when tan θ > μs      μs = tan θ(repose)",
+      "procedure": [
+        "Choose a surface and keep the plane horizontal.",
+        "Increase the angle slowly, 1° at a time.",
+        "Record a reading at each angle: does the block stay or slide?",
+        "The smallest angle at which it slides is the angle of repose.",
+        "Repeat for other surfaces and compare."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "buoyancy",
+      "subject": "physics",
+      "title": "Archimedes' Principle",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "Show that the loss in weight of a solid immersed in a liquid equals the weight of the liquid it displaces.",
+      "apparatus": [
+        "Spring balance (0–10 N)",
+        "Solid of volume 100 cm³",
+        "Overflow can",
+        "Measuring cylinder",
+        "Stand, thread, liquids"
+      ],
+      "formula": "Loss of weight = Buoyant force = ρ(liquid) · V(immersed) · g",
+      "procedure": [
+        "Hang the solid from the spring balance and note its weight in air.",
+        "Fill the overflow can up to the spout.",
+        "Lower the solid gradually into the liquid.",
+        "At each step read the balance and the displaced liquid in the cylinder.",
+        "Compare loss of weight with weight of displaced liquid."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "vernier",
+      "subject": "physics",
+      "title": "Vernier Callipers",
+      "topic": "meas",
+      "topicLabel": "Measurement",
+      "topicColour": "#3ee0c0",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Use Vernier callipers to measure the diameter of a small spherical or cylindrical body.",
+      "apparatus": [
+        "Vernier callipers (LC 0.1 mm)",
+        "Steel ball",
+        "Metal cylinder",
+        "Glass marble"
+      ],
+      "formula": "LC = 1 MSD − 1 VSD = 0.1 mm     D = MSR + (VSC × LC)",
+      "procedure": [
+        "Close the jaws with nothing between them and check for zero error.",
+        "Place the object and slide the movable jaw until it grips the object.",
+        "Read the main scale just before the vernier zero (MSR).",
+        "Find the vernier division that coincides with a main scale mark (VSC).",
+        "Record; repeat 3 times and take the mean."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "resonance",
+      "subject": "physics",
+      "title": "Resonance Tube — Speed of Sound",
+      "topic": "sound",
+      "topicLabel": "Sound & Waves",
+      "topicColour": "#b18cff",
+      "classes": [
+        8,
+        9,
+        11
+      ],
+      "aim": "Find the speed of sound in air at room temperature using a resonance tube and two resonance positions.",
+      "apparatus": [
+        "Resonance tube with water reservoir",
+        "Tuning forks (288–512 Hz)",
+        "Rubber pad",
+        "Metre scale"
+      ],
+      "formula": "l₂ − l₁ = λ/2     v = 2 f (l₂ − l₁)",
+      "procedure": [
+        "Choose a tuning fork and tap “Strike tuning fork” (turn sound on to hear it).",
+        "Slowly change the air-column length by moving the water level.",
+        "Find the position of loudest sound (first resonance l₁) and record.",
+        "Increase the length to find the second resonance l₂ and record.",
+        "Speed of sound v = 2f(l₂ − l₁). Repeat with another fork."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "screwGauge",
+      "subject": "physics",
+      "title": "Screw Gauge",
+      "topic": "meas",
+      "topicLabel": "Measurement",
+      "topicColour": "#3ee0c0",
+      "classes": [
+        11
+      ],
+      "aim": "Use a screw gauge to measure the diameter of a wire and the thickness of a sheet, correcting for zero error.",
+      "apparatus": [
+        "Screw gauge (pitch 0.5 mm, 50 divisions)",
+        "Copper wire",
+        "Steel sheet",
+        "Thick wire"
+      ],
+      "formula": "LC = pitch ÷ circular divisions = 0.5 ÷ 50 = 0.01 mm\nReading = PSR + (CSR × LC)\nCorrected = Observed − Zero error",
+      "procedure": [
+        "Close the gauge with nothing between the studs (Object: None) and note the zero error.",
+        "Place the object and turn the thimble (drag it, or use − / +) until the spindle just touches it.",
+        "Read the pitch scale (PSR) visible on the sleeve.",
+        "Read the circular-scale division (CSR) on the reference line.",
+        "Record; subtract the zero error to get the corrected reading."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "vectors",
+      "subject": "physics",
+      "title": "Parallelogram Law of Vectors",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Verify the parallelogram law of vector addition with Gravesand’s apparatus.",
+      "apparatus": [
+        "Gravesand's apparatus (board with two pulleys)",
+        "Slotted weights with hangers",
+        "Thread, white sheet",
+        "Protractor & scale"
+      ],
+      "formula": "R = √(P² + Q² + 2PQ cos θ)\nThe diagonal of the parallelogram on P and Q equals R and points vertically up.",
+      "procedure": [
+        "Hang weights P and Q over the pulleys and R at the central knot.",
+        "Let the knot come to rest; mark the directions of the three threads.",
+        "Draw OA = P and OB = Q to scale along the threads; complete the parallelogram.",
+        "Measure the diagonal OC — compare with R (vertically upward).",
+        "Record and repeat with different weights."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "moments",
+      "subject": "physics",
+      "title": "Principle of Moments — Mass of a Body",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Find the mass of a given body using a metre scale balanced on a knife edge (principle of moments).",
+      "apparatus": [
+        "Metre scale",
+        "Knife edge (fulcrum)",
+        "Known slotted mass",
+        "Unknown body with thread"
+      ],
+      "formula": "Anticlockwise moment = Clockwise moment\nM × d₁ = m × d₂     →     m = M d₁ / d₂",
+      "procedure": [
+        "Balance the metre scale at its 50 cm mark on the knife edge.",
+        "Hang the known mass on the left and the unknown body on the right.",
+        "Slide them (drag) until the scale is horizontal again.",
+        "Record d₁ and d₂ measured from the fulcrum.",
+        "Repeat for 3 positions; find the mean mass."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "boyle",
+      "subject": "physics",
+      "title": "Boyle's Law",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        11
+      ],
+      "aim": "Study how the pressure of a fixed mass of air varies with its volume at constant temperature and plot P against 1/V.",
+      "apparatus": [
+        "Boyle's law apparatus (closed & open tubes)",
+        "Mercury with rubber tubing",
+        "Vertical metre scale",
+        "Barometer (P₀ = 76 cm of Hg)"
+      ],
+      "formula": "P = P₀ + h      P × V = constant      (V ∝ l in a uniform tube)",
+      "procedure": [
+        "Note the atmospheric pressure P₀ from the barometer.",
+        "Raise or lower the open tube (drag it) and wait for the mercury to settle.",
+        "Read the difference in mercury levels h (+ if open side is higher) and the air column l.",
+        "Record 6–8 readings above and below the starting level.",
+        "Plot P against 1/l — a straight line shows P ∝ 1/V."
+      ],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "capillary",
+      "subject": "physics",
+      "title": "Surface Tension — Capillary Rise",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        11
+      ],
+      "aim": "Determine the surface tension of water (and other liquids) by the capillary rise method.",
+      "apparatus": [
+        "Capillary tubes of known radius",
+        "Beaker with liquid",
+        "Travelling microscope / scale",
+        "Stand & clamp"
+      ],
+      "formula": "T = r h ρ g / 2      (contact angle ≈ 0°)      h ∝ 1/r",
+      "procedure": [
+        "Dip clean capillary tubes vertically into the liquid.",
+        "Wait for the liquid to rise and settle.",
+        "Measure the height h of the meniscus above the liquid surface in the selected tube.",
+        "Record for each tube radius.",
+        "Compute T; plot h against 1/r."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "viscosity",
+      "subject": "physics",
+      "title": "Viscosity — Stokes' Law (Terminal Velocity)",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        11
+      ],
+      "aim": "Determine the coefficient of viscosity of a liquid by measuring the terminal velocity of steel balls falling through it.",
+      "apparatus": [
+        "Tall glass jar with glycerine / castor oil",
+        "Steel balls of different radii",
+        "Stopwatch",
+        "Rubber bands as marks A and B (30 cm apart)"
+      ],
+      "formula": "v = 2 r² (ρ − σ) g / 9η      η = 2 r² (ρ − σ) g / 9v      (ρ steel = 7800 kg/m³)",
+      "procedure": [
+        "Choose a ball radius and tap “Drop ball”.",
+        "The ball reaches terminal velocity before mark A.",
+        "The stopwatch runs from mark A to mark B automatically.",
+        "Record t; v = 30 cm / t.",
+        "Repeat for other radii; plot v against r² and compute η."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "cooling",
+      "subject": "physics",
+      "title": "Thermometer & Newton's Law of Cooling",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        7,
+        11
+      ],
+      "aim": "Read a laboratory thermometer and study how hot water cools with time; plot the cooling curve.",
+      "apparatus": [
+        "Copper calorimeter with stirrer",
+        "Double-walled enclosure",
+        "Laboratory thermometer (0–110 °C)",
+        "Stopwatch",
+        "Hot water"
+      ],
+      "formula": "Rate of cooling ∝ (T − Ts)      T = Ts + (T₀ − Ts) e^(−kt)",
+      "procedure": [
+        "Pour hot water into the calorimeter and place it in the enclosure.",
+        "Start the stopwatch.",
+        "Read the thermometer at regular intervals (e.g. every minute) and record.",
+        "Continue until the temperature falls by about 30 °C.",
+        "Plot temperature against time — the cooling curve."
+      ],
+      "controlCount": 4,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "specificHeat",
+      "subject": "physics",
+      "title": "Specific Heat — Method of Mixtures",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        11
+      ],
+      "aim": "Determine the specific heat capacity of a solid by the method of mixtures.",
+      "apparatus": [
+        "Steam heater with boiler",
+        "Copper calorimeter (60 g) with stirrer",
+        "Thermometers",
+        "Solid (metal) and water",
+        "Beam balance"
+      ],
+      "formula": "Heat lost by solid = Heat gained by water + calorimeter\nm c (T₁ − T) = (M × 4.18 + 60 × 0.385)(T − T₂)",
+      "procedure": [
+        "Choose the metal and the masses of solid and water.",
+        "Heat the solid in steam until it reaches 100 °C (T₁).",
+        "Note the water temperature T₂ (room temperature).",
+        "Drop the solid quickly into the calorimeter, stir, and wait for the final steady temperature T.",
+        "Record and compute c."
+      ],
+      "controlCount": 3,
+      "actionCount": 3,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "thirdLaw",
+      "subject": "physics",
+      "title": "Newton's Third Law — Two Spring Balances",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9
+      ],
+      "aim": "Verify Newton’s third law of motion using two spring balances pulling on each other.",
+      "apparatus": [
+        "Two identical spring balances (0–10 N)",
+        "Rigid hook on wall",
+        "String"
+      ],
+      "formula": "Force of A on B = − Force of B on A      (action = reaction, opposite in direction)",
+      "procedure": [
+        "Hook balance A to the wall and balance B to A.",
+        "Pull B (drag the hand) to different forces.",
+        "Read both balances each time.",
+        "Try the arrangement where both ends are pulled.",
+        "Record and compare."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "liquidPressure",
+      "subject": "physics",
+      "title": "Liquid Pressure Increases with Depth",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "Show that pressure in a liquid increases with depth, using water jets from holes at different heights.",
+      "apparatus": [
+        "Plastic bottle with 3 holes at different heights",
+        "Adhesive tape",
+        "Water supply (tap)",
+        "Stand, measuring scale"
+      ],
+      "formula": "P = h ρ g      Jet speed v = √(2 g h)\nRange on table R = 2 √(h × H)   (H = height of hole above table)",
+      "procedure": [
+        "Fill the bottle and keep the tap running to hold the level constant.",
+        "Remove the tape from the holes (switch).",
+        "Observe which jet reaches farthest.",
+        "Measure the horizontal range of each jet on the table and record.",
+        "Repeat with a different water level."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "motion",
+      "subject": "physics",
+      "title": "Uniform & Non-uniform Motion",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        6,
+        7,
+        9
+      ],
+      "aim": "Measure the distance covered by a toy car in equal time intervals and plot a distance–time graph to tell uniform from non-uniform motion.",
+      "apparatus": [
+        "Toy car on a 2 m track",
+        "Measuring scale on the track",
+        "Stopwatch",
+        "Chalk for marking"
+      ],
+      "formula": "Speed = distance ÷ time      Uniform motion → straight-line distance–time graph",
+      "procedure": [
+        "Choose the type of motion and tap “Start / pause car”.",
+        "A chalk mark appears every second.",
+        "Pause and record time and distance at several moments (or record while it runs).",
+        "Plot distance against time.",
+        "A straight line means uniform motion; a curve means non-uniform."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "reflection",
+      "subject": "physics",
+      "title": "Laws of Reflection (Plane Mirror)",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        6,
+        7,
+        8
+      ],
+      "aim": "Verify that the angle of reflection equals the angle of incidence, and that incident ray, normal and reflected ray lie in one plane.",
+      "apparatus": [
+        "Plane mirror strip with holder",
+        "Drawing board & white sheet",
+        "Pins",
+        "Protractor"
+      ],
+      "formula": "∠ i = ∠ r",
+      "procedure": [
+        "Draw the normal at the point where the ray meets the mirror.",
+        "Set the angle of incidence (or drag the incident ray).",
+        "Observe the reflected ray through the pins.",
+        "Measure ∠r with the protractor and record.",
+        "Repeat for 5 different angles."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "glassSlab",
+      "subject": "physics",
+      "title": "Refraction through a Glass Slab",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "Trace the path of a ray of light through a rectangular glass slab and measure ∠i, ∠r, ∠e and the lateral shift.",
+      "apparatus": [
+        "Rectangular glass slab",
+        "Drawing board & sheet",
+        "Pins",
+        "Protractor"
+      ],
+      "formula": "n = sin i / sin r      ∠e = ∠i      d = t sin(i − r) / cos r",
+      "procedure": [
+        "Outline the slab and draw the normal at the entry point.",
+        "Choose ∠i (or drag the incident ray).",
+        "Look through the slab and fix pins in line with the emergent ray.",
+        "Join the points and measure ∠r and ∠e.",
+        "Record for 4–5 angles and compute n."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "lens",
+      "subject": "physics",
+      "title": "Convex Lens — Image Formation & f",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        7,
+        10,
+        12
+      ],
+      "aim": "Obtain real images of a candle with a convex lens for different object distances and find its focal length.",
+      "apparatus": [
+        "Optical bench with scale",
+        "Convex lens on holder",
+        "Candle (object)",
+        "White screen"
+      ],
+      "formula": "1/v − 1/u = 1/f      f = uv / (u + v)   (magnitudes)",
+      "procedure": [
+        "Place the lens on the bench and choose u (or drag the candle).",
+        "Move the screen (slider or drag) until the image is sharp.",
+        "When sharpness > 80 %, tap “Record reading”.",
+        "Repeat for 5 object distances beyond F.",
+        "Compute f for each; plot 1/u against 1/v."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "mirror",
+      "subject": "physics",
+      "title": "Concave Mirror — Focal Length",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        7,
+        10,
+        12
+      ],
+      "aim": "Obtain real images of a candle with a concave mirror for different object distances and find its focal length.",
+      "apparatus": [
+        "Optical bench with scale",
+        "Concave mirror on holder",
+        "Candle (object)",
+        "White screen"
+      ],
+      "formula": "1/v + 1/u = 1/f      f = uv / (u + v)   (magnitudes)",
+      "procedure": [
+        "Place the mirror on the bench and choose u (or drag the candle).",
+        "Move the screen (slider or drag) until the image is sharp.",
+        "When sharpness > 80 %, tap “Record reading”.",
+        "Repeat for 5 object distances beyond F.",
+        "Compute f for each; plot 1/u against 1/v."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "prism",
+      "subject": "physics",
+      "title": "Prism — Angle of Deviation",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Trace rays through a glass prism, draw the i–D curve and find the angle of minimum deviation and refractive index.",
+      "apparatus": [
+        "Equilateral glass prism (A = 60°)",
+        "Drawing board & sheet",
+        "Pins",
+        "Protractor"
+      ],
+      "formula": "D = i + e − A      n = sin((A + Dm)/2) / sin(A/2)",
+      "procedure": [
+        "Place the prism and draw the normal on the first face.",
+        "Set ∠i (or drag the incident ray) and look for the emergent ray through the other face.",
+        "Record ∠e and the deviation D.",
+        "Repeat from 30° to 70° in steps of 5°.",
+        "Plot i against D and find Dm from the lowest point."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "shadow",
+      "subject": "physics",
+      "title": "Light, Shadows & Umbra",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        6
+      ],
+      "aim": "Show that light travels in straight lines and study how the size of a shadow changes with the position of the object.",
+      "apparatus": [
+        "Torch with pin-hole / frosted bulb",
+        "Ball on a stand",
+        "White screen",
+        "Metre scale"
+      ],
+      "formula": "Shadow size = object size × (source-to-screen ÷ source-to-object)",
+      "procedure": [
+        "Keep the source and the screen 60 cm apart in a dark room.",
+        "Place the ball between them; note the shadow on the screen.",
+        "Move the ball closer to the source and record the shadow size.",
+        "Move it towards the screen and record again.",
+        "Switch to the frosted bulb to see umbra (dark) and penumbra (partial) shadow."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "ohm",
+      "subject": "physics",
+      "title": "Ohm's Law — V–I Graph",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Study the dependence of current (I) on potential difference (V) across a resistor and find its resistance; verify series and parallel combinations.",
+      "apparatus": [
+        "Battery eliminator / cells",
+        "Resistor(s)",
+        "Ammeter (0–2 A)",
+        "Voltmeter (0–6 V)",
+        "Rheostat",
+        "Plug key, connecting wires"
+      ],
+      "formula": "V = I R      R(series) = R₁ + R₂      1/R(parallel) = 1/R₁ + 1/R₂",
+      "procedure": [
+        "Close the plug key (tap it on the board).",
+        "Adjust the rheostat (drag its slider) to change the current.",
+        "Read the ammeter and voltmeter and record.",
+        "Take 5–6 readings; plot V against I.",
+        "Change to series / parallel combination and repeat."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "meterBridge",
+      "subject": "physics",
+      "title": "Metre Bridge — Unknown Resistance",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Find the resistance of a given wire using a metre bridge (Wheatstone bridge principle) and hence its resistivity.",
+      "apparatus": [
+        "Metre bridge",
+        "Resistance box",
+        "Unknown wire (X)",
+        "Galvanometer (centre-zero)",
+        "Jockey, cell, key"
+      ],
+      "formula": "R / X = l / (100 − l)      X = R (100 − l) / l",
+      "procedure": [
+        "Choose a value R from the resistance box.",
+        "Slide the jockey along the wire (drag it) while watching the galvanometer.",
+        "Find the null point where the deflection is zero.",
+        "Record l; repeat with 3 values of R.",
+        "Compute X for each and take the mean."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "diode",
+      "subject": "physics",
+      "title": "P–N Junction Diode Characteristics",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Draw the I–V characteristic curves of a p–n junction diode in forward and reverse bias.",
+      "apparatus": [
+        "Silicon p–n junction diode",
+        "Battery & potential divider",
+        "Milliammeter / microammeter",
+        "Voltmeter",
+        "Key, wires"
+      ],
+      "formula": "Forward: I rises sharply after the knee (~0.6–0.7 V)      Reverse: tiny saturation current (µA)",
+      "procedure": [
+        "Connect the diode in forward bias.",
+        "Increase V in small steps with the potential divider.",
+        "Record V and I (mA) at each step.",
+        "Switch to reverse bias; record V and I (µA).",
+        "Plot I against V for both."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "conductors",
+      "subject": "physics",
+      "title": "Conductors & Insulators",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "Test which materials allow electric current to pass through them using a simple circuit with a bulb.",
+      "apparatus": [
+        "Electric cell",
+        "Torch bulb with holder",
+        "Switch",
+        "Connecting wires with clips",
+        "Test materials"
+      ],
+      "formula": "Bulb glows → conductor      Bulb does not glow → insulator",
+      "procedure": [
+        "Make the circuit with a gap between the two clips.",
+        "Place a material in the gap.",
+        "Close the switch (tap it) and watch the bulb.",
+        "Record whether the bulb glows.",
+        "Repeat for all materials and classify them."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "magnet",
+      "subject": "physics",
+      "title": "Magnetic Field Lines of a Bar Magnet",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        6,
+        10,
+        12
+      ],
+      "aim": "Map the magnetic field around a bar magnet (and pairs of magnets) using a compass and iron filings.",
+      "apparatus": [
+        "Bar magnets",
+        "Magnetic compass",
+        "Iron filings",
+        "Drawing board & sheet"
+      ],
+      "formula": "Field lines leave N and enter S; they never cross. Closer lines → stronger field.",
+      "procedure": [
+        "Place the magnet at the centre of the sheet.",
+        "Sprinkle iron filings and tap the board — watch the pattern.",
+        "Move the compass (drag on the sheet) and note the needle direction.",
+        "Try two magnets with like and unlike poles facing.",
+        "Sketch the field lines in your notebook."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": false,
+      "hasGraph": false
+    },
+    {
+      "id": "induction",
+      "subject": "physics",
+      "title": "Electromagnetic Induction",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Show that a changing magnetic field through a coil induces a current, and study how its direction and size depend on motion, pole and number of turns.",
+      "apparatus": [
+        "Coil of insulated copper wire",
+        "Bar magnet",
+        "Centre-zero galvanometer",
+        "Connecting wires"
+      ],
+      "formula": "e = − N dΦ/dt   (Faraday & Lenz)",
+      "procedure": [
+        "Connect the coil to the galvanometer.",
+        "Push the magnet into the coil (drag it) — note the deflection.",
+        "Hold it still — note the reading. Pull it out — note the direction.",
+        "Move it faster; change the pole facing the coil; change turns.",
+        "Record each case."
+      ],
+      "controlCount": 2,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "sonometer",
+      "subject": "physics",
+      "title": "Sonometer — Frequency & Length",
+      "topic": "sound",
+      "topicLabel": "Sound & Waves",
+      "topicColour": "#b18cff",
+      "classes": [
+        11,
+        12
+      ],
+      "aim": "Study how the resonant length of a stretched wire depends on frequency (law of length) and on tension.",
+      "apparatus": [
+        "Sonometer box with bridges",
+        "Steel wire, pulley & hanger",
+        "Slotted kg weights",
+        "Tuning forks (256–512 Hz)",
+        "Paper rider"
+      ],
+      "formula": "f = (1 / 2l) √(T / μ)      f × l = constant (T fixed)      l ∝ √T (f fixed)",
+      "procedure": [
+        "Hang a load to set the tension; place the paper rider in the middle of the wire.",
+        "Tap “Strike fork & place on box”.",
+        "Move the bridge (drag it) until the rider flutters and falls — resonance.",
+        "Record l; repeat for each tuning fork, then for other loads.",
+        "Check f × l is constant; plot l against 1/f."
+      ],
+      "controlCount": 4,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "slinky",
+      "subject": "physics",
+      "title": "Speed of a Pulse in a Slinky",
+      "topic": "sound",
+      "topicLabel": "Sound & Waves",
+      "topicColour": "#b18cff",
+      "classes": [
+        9
+      ],
+      "aim": "Determine the speed of a pulse travelling along a stretched slinky.",
+      "apparatus": [
+        "Slinky (long spring)",
+        "Stopwatch",
+        "Measuring tape",
+        "Smooth floor"
+      ],
+      "formula": "v = distance ÷ time = (number of trips × L) ÷ t",
+      "procedure": [
+        "Stretch the slinky to length L; the far end is held fixed.",
+        "Tap “Send pulse” — a sharp jerk at the free end.",
+        "The stopwatch counts trips as the pulse reflects back and forth.",
+        "After a few trips, record the trips and the time.",
+        "Repeat for other lengths and pulse types."
+      ],
+      "controlCount": 2,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "soundReflection",
+      "subject": "physics",
+      "title": "Laws of Reflection of Sound",
+      "topic": "sound",
+      "topicLabel": "Sound & Waves",
+      "topicColour": "#b18cff",
+      "classes": [
+        9
+      ],
+      "aim": "Verify that sound reflects from a hard surface with the angle of reflection equal to the angle of incidence.",
+      "apparatus": [
+        "Two long tubes",
+        "Hard reflecting board",
+        "Ticking clock",
+        "Screen between tubes",
+        "Protractor"
+      ],
+      "formula": "∠ i = ∠ r      (incident sound, normal and reflected sound in one plane)",
+      "procedure": [
+        "Fix tube 1 at an angle ∠i to the normal with the clock at its end.",
+        "Listen through tube 2 and turn it (drag) until the ticking is loudest.",
+        "Read ∠r from the protractor.",
+        "Record; repeat for other angles of incidence.",
+        "Compare ∠i and ∠r."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "cro",
+      "subject": "physics",
+      "title": "Sound on an Oscilloscope — Pitch & Loudness",
+      "topic": "sound",
+      "topicLabel": "Sound & Waves",
+      "topicColour": "#b18cff",
+      "classes": [
+        8,
+        9,
+        11
+      ],
+      "aim": "Display sound waves on a CRO; relate frequency to pitch, amplitude to loudness, and measure the time period.",
+      "apparatus": [
+        "Signal generator & loudspeaker",
+        "Microphone",
+        "Cathode-ray oscilloscope (CRO)"
+      ],
+      "formula": "f = 1 / T      T = (divisions per cycle) × (time-base ms/div)",
+      "procedure": [
+        "Set a frequency and amplitude; switch on sound to hear it.",
+        "Count the horizontal divisions for one complete wave on the CRO.",
+        "T = divisions × time-base; f = 1/T.",
+        "Raise the frequency — waves crowd together and the pitch rises.",
+        "Raise the amplitude — waves grow taller and the sound is louder."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "pinhole",
+      "subject": "physics",
+      "title": "Pinhole Camera",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        6
+      ],
+      "aim": "Make a pinhole camera and study the image of a candle: its nature and how its size changes.",
+      "apparatus": [
+        "Box with a pinhole at one end",
+        "Tracing-paper screen at the other end",
+        "Candle",
+        "Metre scale"
+      ],
+      "formula": "Image height ÷ Object height = Box length ÷ Object distance",
+      "procedure": [
+        "Light the candle in a dark room and point the pinhole at it.",
+        "Look at the image on the tracing-paper screen.",
+        "Move the candle closer / farther and note the image size.",
+        "Change the box length and the size of the hole.",
+        "Record the image height each time."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "travellingMicroscope",
+      "subject": "physics",
+      "title": "Refractive Index — Travelling Microscope",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        12
+      ],
+      "aim": "Find the refractive index of a glass slab using a travelling microscope (real depth ÷ apparent depth).",
+      "apparatus": [
+        "Travelling microscope",
+        "Glass slab",
+        "Lycopodium powder",
+        "Paper with ink cross mark"
+      ],
+      "formula": "n = real depth ÷ apparent depth = (R₃ − R₁) ÷ (R₃ − R₂)",
+      "procedure": [
+        "With no slab, focus the microscope on the cross mark — R₁.",
+        "Place the slab over the mark; raise the microscope until the mark is sharp again — R₂.",
+        "Focus on the powder on top of the slab — R₃.",
+        "Record each reading when the eyepiece image is sharp.",
+        "n = (R₃ − R₁)/(R₃ − R₂)."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "potentiometer",
+      "subject": "physics",
+      "title": "Potentiometer — Compare EMFs & Internal Resistance",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Compare the EMFs of two primary cells, and find the internal resistance of a cell, using a potentiometer.",
+      "apparatus": [
+        "Potentiometer (4 wires × 100 cm)",
+        "2 V accumulator, rheostat, key",
+        "Leclanché & Daniell cells",
+        "Galvanometer & jockey",
+        "Resistance box (shunt)"
+      ],
+      "formula": "E₁ / E₂ = l₁ / l₂      r = R (l₁ − l₂) / l₂",
+      "procedure": [
+        "Keep the rheostat fixed throughout so the potential gradient stays the same.",
+        "Choose a cell; slide the jockey (drag it on the wires) until the galvanometer reads zero.",
+        "Record balancing lengths for Leclanché (l₁) and Daniell (l₂) → E₁/E₂.",
+        "Connect a shunt R across the Leclanché cell and find the new length.",
+        "Compute r = R(l₁ − l₂)/l₂ for each R."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "galvanometer",
+      "subject": "physics",
+      "title": "Galvanometer — Half-deflection Method",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Find the resistance of a galvanometer by the half-deflection method and its figure of merit.",
+      "apparatus": [
+        "Moving-coil galvanometer",
+        "Battery (2 V)",
+        "High resistance box R",
+        "Low resistance box S (shunt)",
+        "Keys K₁ and K₂"
+      ],
+      "formula": "G = R S / (R − S)      Figure of merit k = E / ((R + G) θ)",
+      "procedure": [
+        "With K₂ open, set R for a large deflection θ (note it).",
+        "Close K₂ (tap it) and adjust the shunt S until the deflection becomes θ/2.",
+        "Record R, θ and S.",
+        "Repeat for 3–4 values of R.",
+        "Compute G and the figure of merit k."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "zener",
+      "subject": "physics",
+      "title": "Zener Diode — Reverse Breakdown",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Draw the reverse-bias I–V characteristic of a Zener diode and find its breakdown voltage.",
+      "apparatus": [
+        "Zener diode (5.1 V)",
+        "DC supply 0–10 V with potential divider",
+        "Series resistor 200 Ω",
+        "Milliammeter",
+        "Voltmeter"
+      ],
+      "formula": "Below Vz: almost no current      At Vz: current rises sharply, voltage stays ≈ Vz",
+      "procedure": [
+        "Connect the Zener in reverse bias with the 200 Ω resistor.",
+        "Increase the supply in small steps (drag the divider slider).",
+        "Record V across the diode and the current I at each step.",
+        "Note where the current suddenly rises — the breakdown voltage.",
+        "Plot I against V."
+      ],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "electromagnet",
+      "subject": "physics",
+      "title": "Electromagnet",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        7,
+        10
+      ],
+      "aim": "Make an electromagnet and study how its strength depends on the current, the number of turns and the core.",
+      "apparatus": [
+        "Iron nail (core)",
+        "Insulated copper wire",
+        "Cells",
+        "Switch",
+        "Steel pins"
+      ],
+      "formula": "Strength ∝ current × number of turns (much stronger with an iron core)",
+      "procedure": [
+        "Wind the wire on the nail and connect it to the cells through the switch.",
+        "Close the switch (tap it) and watch the pins below.",
+        "Count the pins lifted; open the switch and watch them drop.",
+        "Change cells, turns and core; record each time.",
+        "Compare the strengths."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "projectile",
+      "subject": "physics",
+      "title": "Projectile Motion — Range & Angle",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Launch a projectile at different angles with the same speed; find the angle of maximum range and verify R = u² sin 2θ / g.",
+      "apparatus": [
+        "Projectile launcher with protractor",
+        "Steel ball",
+        "Measuring tape",
+        "Stopwatch"
+      ],
+      "formula": "R = u² sin 2θ / g      H = u² sin² θ / 2g      T = 2u sin θ / g",
+      "procedure": [
+        "Set the launch speed u.",
+        "Set the launch angle θ.",
+        "Tap “Launch” and let the ball land.",
+        "Record θ, range R and maximum height H.",
+        "Repeat for 15°, 30°, 45°, 60°, 75°. Complementary angles give the same range."
+      ],
+      "controlCount": 4,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "circular",
+      "subject": "physics",
+      "title": "Uniform Circular Motion — Centripetal Force",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Measure the centripetal force needed to keep a body in a circle and verify F = m v² / r.",
+      "apparatus": [
+        "Whirling apparatus (top view)",
+        "Force sensor in the string",
+        "Masses",
+        "Stopwatch",
+        "Metre scale"
+      ],
+      "formula": "F = m v² / r = m ω² r      v = 2π r / T",
+      "procedure": [
+        "Choose the mass m and radius r.",
+        "Set the speed v.",
+        "Read the string tension F on the force sensor.",
+        "Record and repeat for several speeds.",
+        "Plot F against v²; slope = m / r. Tap “Cut the string” to see the direction the body leaves."
+      ],
+      "controlCount": 3,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "collision",
+      "subject": "physics",
+      "title": "Collisions — Conservation of Momentum",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Study elastic and perfectly inelastic collisions of two gliders on an air track; show that total momentum is conserved while kinetic energy may not be.",
+      "apparatus": [
+        "Air track",
+        "Two gliders with masses",
+        "Velocity sensors (photogates)",
+        "Velcro pad for sticking"
+      ],
+      "formula": "m₁u₁ + m₂u₂ = m₁v₁ + m₂v₂      Elastic: KE conserved      Perfectly inelastic: v = m₁u₁ / (m₁ + m₂)",
+      "procedure": [
+        "Choose the masses and the type of collision.",
+        "Set the speed of glider A (B starts at rest).",
+        "Tap “Launch”.",
+        "After the collision, record the velocities.",
+        "Compare total momentum and kinetic energy before and after."
+      ],
+      "controlCount": 4,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "shm",
+      "subject": "physics",
+      "title": "Spring–Mass Oscillator (SHM)",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Study simple harmonic motion of a mass on a spring; show that T² ∝ m and find the spring constant k.",
+      "apparatus": [
+        "Spring with frictionless trolley",
+        "Slotted masses",
+        "Stopwatch",
+        "Displacement sensor"
+      ],
+      "formula": "T = 2π √(m / k)      T² = (4π² / k) m      x = A sin(ωt)",
+      "procedure": [
+        "Choose the spring and the mass.",
+        "Tap “Pull & release”. The stopwatch counts 10 oscillations.",
+        "Record when 10 oscillations are complete.",
+        "Repeat for 4–5 masses.",
+        "Plot T² against m; k = 4π² / slope."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "doppler",
+      "subject": "physics",
+      "title": "Doppler Effect in Sound",
+      "topic": "sound",
+      "topicLabel": "Sound & Waves",
+      "topicColour": "#b18cff",
+      "classes": [
+        11
+      ],
+      "aim": "Observe how the frequency heard by a stationary listener changes when a sound source moves towards or away from them.",
+      "apparatus": [
+        "Sound source (siren) on a track",
+        "Stationary microphone with frequency counter",
+        "Speed control"
+      ],
+      "formula": "Source approaching: f′ = f v / (v − vₛ)      Source receding: f′ = f v / (v + vₛ)      v (sound) = 340 m/s",
+      "procedure": [
+        "Choose the source frequency f.",
+        "Set the source speed vₛ and direction.",
+        "Watch the wavefronts bunch up in front and spread out behind.",
+        "Read f′ on the counter and record.",
+        "Repeat for several speeds."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "coulomb",
+      "subject": "physics",
+      "title": "Coulomb's Law — Force Between Charges",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Measure the electrostatic force between two point charges and show that F ∝ q₁q₂ and F ∝ 1/r².",
+      "apparatus": [
+        "Two small charged conducting spheres",
+        "Insulated stands on a scale",
+        "Force sensor (torsion balance)"
+      ],
+      "formula": "F = k q₁ q₂ / r²      k = 1 / (4πε₀) = 9 × 10⁹ N·m²/C²",
+      "procedure": [
+        "Choose the charges q₁ and q₂ (sign included).",
+        "Set the separation r.",
+        "Read the force and its direction (attraction or repulsion).",
+        "Record for 5–6 separations.",
+        "Plot F against 1/r²; the line passes through the origin."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "rc",
+      "subject": "physics",
+      "title": "Charging & Discharging a Capacitor (RC)",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Record the voltage across a capacitor while it charges through a resistor and find the time constant τ = RC.",
+      "apparatus": [
+        "Battery (6 V)",
+        "Resistor R",
+        "Electrolytic capacitor C",
+        "Two-way key",
+        "Voltmeter",
+        "Stopwatch"
+      ],
+      "formula": "Charging: V = E (1 − e^(−t/RC))      Discharging: V = V₀ e^(−t/RC)      τ = RC (V reaches 63 % of E)",
+      "procedure": [
+        "Choose R and C. Note τ = RC.",
+        "Tap “Charge” — the stopwatch starts.",
+        "Record V every few seconds.",
+        "After about 5τ, tap “Discharge” and record again.",
+        "Plot V against t; read τ where V = 0.63 E."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "photoelectric",
+      "subject": "physics",
+      "title": "Photoelectric Effect — Planck’s Constant",
+      "topic": "modern",
+      "topicLabel": "Modern Physics",
+      "topicColour": "#a78bfa",
+      "classes": [
+        12
+      ],
+      "aim": "Find the stopping potential for light of different frequencies; determine Planck’s constant and the work function of the metal.",
+      "apparatus": [
+        "Vacuum photocell",
+        "Monochromatic light source with filters",
+        "Variable retarding voltage",
+        "Micro-ammeter",
+        "Voltmeter"
+      ],
+      "formula": "h f = φ + e V₀      V₀ = (h / e) f − φ / e      f = c / λ",
+      "procedure": [
+        "Choose the metal and the wavelength λ.",
+        "Increase the retarding voltage until the photocurrent just becomes zero.",
+        "Record this stopping potential V₀.",
+        "Repeat for 4–5 wavelengths. Change intensity: V₀ does not change.",
+        "Plot V₀ against f: slope = h/e, x-intercept = threshold frequency."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "decay",
+      "subject": "physics",
+      "title": "Radioactive Decay — Half-life",
+      "topic": "modern",
+      "topicLabel": "Modern Physics",
+      "topicColour": "#a78bfa",
+      "classes": [
+        12
+      ],
+      "aim": "Watch a sample of unstable nuclei decay at random; record the number left with time and find the half-life.",
+      "apparatus": [
+        "Sample of 400 unstable nuclei (model)",
+        "Counter",
+        "Stopwatch"
+      ],
+      "formula": "N = N₀ e^(−λt)      T½ = ln 2 / λ = 0.693 / λ",
+      "procedure": [
+        "Choose the isotope (half-life).",
+        "Tap “Start”. Each nucleus decays at random.",
+        "Record N at regular time intervals.",
+        "Plot N against t (curve) — or ln N against t (straight line).",
+        "Find the time for N to halve. Reset and repeat: each run differs slightly — decay is random."
+      ],
+      "controlCount": 1,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "lcr",
+      "subject": "physics",
+      "title": "Series LCR Circuit — Resonance",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Vary the frequency of an AC source in a series LCR circuit, plot current against frequency and find the resonant frequency.",
+      "apparatus": [
+        "AC signal generator (5 V rms)",
+        "Inductor L = 100 mH",
+        "Capacitor C",
+        "Resistor R",
+        "AC milliammeter"
+      ],
+      "formula": "Z = √(R² + (X_L − X_C)²)      X_L = 2πfL      X_C = 1 / (2πfC)      f₀ = 1 / (2π√(LC))",
+      "procedure": [
+        "Choose C and R.",
+        "Vary the frequency f in steps.",
+        "Record the current at each frequency.",
+        "Plot I against f; the peak is at resonance f₀.",
+        "Compare with 1/(2π√LC). A larger R makes the peak flatter (lower Q)."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "newton2",
+      "subject": "physics",
+      "title": "Newton's Second Law — F = ma",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Pull a trolley with different hanging weights, measure its acceleration and show that a ∝ F (mass fixed), i.e. F = ma.",
+      "apparatus": [
+        "Low-friction trolley on a track",
+        "Pulley, string and slotted masses (hanger)",
+        "Two light gates 1 m apart / stopwatch",
+        "Metre scale"
+      ],
+      "formula": "F = m a      a = 2s / t²      1 N = 1 kg·m/s²   ·   1 dyne = 1 g·cm/s² = 10⁻⁵ N",
+      "procedure": [
+        "Choose the trolley mass.",
+        "Choose the hanging mass — its weight is the pulling force F.",
+        "Tap “Release” and time the trolley over 1 m.",
+        "Record t; a = 2s/t² is calculated.",
+        "Repeat for 5 forces and plot F against a. Slope = total mass."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "inertia",
+      "subject": "physics",
+      "title": "Inertia — Passenger in a Braking Bus",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9
+      ],
+      "aim": "See why a passenger lurches forward when a bus brakes: the body tends to continue its motion (Newton’s first law). Find the braking rate at which a block on the floor starts to slide.",
+      "apparatus": [
+        "Trolley (bus) carrying a loose block (passenger)",
+        "Brake control",
+        "Surfaces of different friction"
+      ],
+      "formula": "Block stays with the bus if a ≤ μ g      Block slides forward if a > μ g      (no forward force acts on it!)",
+      "procedure": [
+        "Choose the floor surface (μ).",
+        "Set the braking deceleration a.",
+        "Tap “Drive & brake”.",
+        "Record whether the block slides forward.",
+        "Find the smallest a at which it slides; compare with μg. Try “Start suddenly”: the block slides backward."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "lift",
+      "subject": "physics",
+      "title": "Apparent Weight in a Lift",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Read a spring balance holding a mass inside a lift that accelerates up, down, moves uniformly or falls freely; relate the reading to R = m(g ± a).",
+      "apparatus": [
+        "Lift (elevator) model",
+        "Spring balance (newton scale)",
+        "Known mass"
+      ],
+      "formula": "Accelerating up: R = m(g + a)      Accelerating down: R = m(g − a)      Uniform velocity: R = mg      Free fall: R = 0",
+      "procedure": [
+        "Choose the mass m.",
+        "Choose the motion of the lift and its acceleration a.",
+        "Read the spring balance (apparent weight).",
+        "Record and repeat for each motion.",
+        "Plot R against a (up = +, down = −); slope = m, intercept = mg."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "forces",
+      "subject": "physics",
+      "title": "Fundamental Forces — Gravity vs Electric",
+      "topic": "modern",
+      "topicLabel": "Modern Physics",
+      "topicColour": "#a78bfa",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Compare the gravitational and electrostatic forces between two particles at the same distance, and see how much stronger the electric force is.",
+      "apparatus": [
+        "Two particles (choose type)",
+        "Variable separation (log scale)"
+      ],
+      "formula": "F_g = G m₁m₂ / r²   (G = 6.67×10⁻¹¹)      F_e = k q₁q₂ / r²   (k = 9×10⁹)      Both ∝ 1/r², so F_e / F_g is the same at every distance",
+      "procedure": [
+        "Choose a pair of particles.",
+        "Change the separation r (powers of ten).",
+        "Read F_g, F_e and their ratio.",
+        "Record for 4–5 distances.",
+        "Plot log F against log r: slope −2 for both (inverse-square law)."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "charging",
+      "subject": "physics",
+      "title": "Charging by Rubbing & the Electroscope",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        8,
+        12
+      ],
+      "aim": "Charge objects by rubbing, find the sign of each charge, check that the charge is a whole number of electrons (Q = ne) and that total charge is conserved.",
+      "apparatus": [
+        "Glass rod & silk",
+        "Ebonite rod & fur",
+        "Balloon & hair",
+        "Polythene & wool",
+        "Gold-leaf electroscope"
+      ],
+      "formula": "Q = ± n e   (e = 1.6 × 10⁻¹⁹ C, n a whole number)      Charge gained by one = charge lost by the other (conservation)",
+      "procedure": [
+        "Choose the pair of materials.",
+        "Tap “Rub 10 times”. Electrons move from one material to the other.",
+        "Touch the rod to the electroscope — the leaves diverge.",
+        "Record the charge on each object.",
+        "Rub more: Q grows in steps of e; the two charges are always equal and opposite."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "drift",
+      "subject": "physics",
+      "title": "Drift Velocity of Electrons",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "See electrons drifting slowly through a wire while moving randomly at high speed; relate current to drift velocity: I = n e A v_d.",
+      "apparatus": [
+        "Copper / aluminium wire (magnified)",
+        "Battery with variable current",
+        "Ammeter"
+      ],
+      "formula": "I = n e A v_d      J = I / A = n e v_d      v_d = e E τ / m      mobility μ = v_d / E",
+      "procedure": [
+        "Choose the material and the wire thickness.",
+        "Set the current I.",
+        "Watch the slow drift (orange) against the fast random motion.",
+        "Read v_d and record.",
+        "Plot v_d against I: straight line. Thicker wire → smaller v_d for the same I."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "resistivity",
+      "subject": "physics",
+      "title": "Resistance of a Wire — Length, Area, Material, Temperature",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Measure how the resistance of a wire depends on its length, thickness, material and temperature, and find the resistivity ρ.",
+      "apparatus": [
+        "Wires of constantan, nichrome and copper",
+        "Metre scale with sliding jockey",
+        "Ohmmeter",
+        "Water bath (temperature)"
+      ],
+      "formula": "R = ρ L / A      A = π d² / 4      R_T = R₀ (1 + α ΔT)      Stretched to n× length (same volume): R → n² R",
+      "procedure": [
+        "Choose the material and the diameter.",
+        "Set the length L with the jockey.",
+        "Read R and record. Repeat for 5 lengths — R ∝ L.",
+        "Change the diameter: R ∝ 1/d².",
+        "Heat the wire: R rises for metals (almost none for constantan). Try “Stretch 2×”."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "seriesParallel",
+      "subject": "physics",
+      "title": "Resistors in Series & Parallel — Voltage and Current Division",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Connect three resistors in series or in parallel; measure the voltage across and current through each and verify the combination rules.",
+      "apparatus": [
+        "Battery (12 V)",
+        "Three resistors",
+        "Ammeters in each branch",
+        "Voltmeter",
+        "Connecting wires"
+      ],
+      "formula": "Series: R = R₁ + R₂ + R₃, same I, V = V₁ + V₂ + V₃, Vᵢ = I Rᵢ      Parallel: 1/R = 1/R₁ + 1/R₂ + 1/R₃, same V, I = I₁ + I₂ + I₃, Iᵢ = V / Rᵢ",
+      "procedure": [
+        "Choose the three resistors.",
+        "Choose series or parallel.",
+        "Read the total current and every voltage / branch current.",
+        "Record.",
+        "Check: series voltages add up to 12 V; parallel currents add up to the total."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "kirchhoff",
+      "subject": "physics",
+      "title": "Kirchhoff's Laws — Two-loop Circuit",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        12
+      ],
+      "aim": "Measure the currents in a two-source network and verify Kirchhoff's junction law (ΣI = 0) and loop law (ΣE = ΣIR).",
+      "apparatus": [
+        "Two cells E₁ and E₂",
+        "Three resistors",
+        "Three ammeters",
+        "Connecting wires"
+      ],
+      "formula": "Junction law: I₁ + I₂ = I₃   (charge conservation)      Loop law: E₁ − I₁R₁ − I₃R₃ = 0,  E₂ − I₂R₂ − I₃R₃ = 0   (energy conservation)",
+      "procedure": [
+        "Set E₁, E₂ and the three resistors.",
+        "Read I₁, I₂ and I₃ (a negative value means opposite to the arrow).",
+        "Record.",
+        "Check I₁ + I₂ − I₃ = 0 at the junction.",
+        "Check the sum of EMFs equals the sum of IR drops in each loop."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "joule",
+      "subject": "physics",
+      "title": "Joule's Law of Heating — H = I²Rt",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Heat water with a resistance coil and show that the heat produced is proportional to I² (for fixed R and t).",
+      "apparatus": [
+        "Calorimeter with 200 g water and stirrer",
+        "Heating coil (R)",
+        "Rheostat, ammeter, battery",
+        "Thermometer",
+        "Stopwatch"
+      ],
+      "formula": "H = I² R t  (joules)      H = (m c + C_cal) ΔT      P = I²R = V²/R      1 kWh = 3.6 × 10⁶ J",
+      "procedure": [
+        "Choose R and set the current I.",
+        "Tap “Switch on”. The clock runs 10× faster.",
+        "After 2 minutes (120 s) record the temperature rise ΔT.",
+        "Cool the water (“New water”) and repeat for other currents.",
+        "Plot ΔT against I²: a straight line → H ∝ I²."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "bulbs",
+      "subject": "physics",
+      "title": "Electric Bulbs in Series & Parallel",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Connect two bulbs of different power ratings to the 220 V mains in series and in parallel; compare their brightness (actual power).",
+      "apparatus": [
+        "220 V supply",
+        "Bulbs rated 40 W, 60 W and 100 W at 220 V",
+        "Wattmeters"
+      ],
+      "formula": "R = V_rated² / P_rated   (R₄₀W > R₁₀₀W)      Series: same I → P = I²R → higher-R (lower-watt) bulb glows brighter      Parallel: same V → each gives its rated power",
+      "procedure": [
+        "Choose the ratings of bulbs A and B.",
+        "Choose series or parallel.",
+        "Compare the glow and read each bulb’s actual power.",
+        "Record.",
+        "Explain: in series the 40 W bulb is brighter than the 100 W bulb!"
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "household",
+      "subject": "physics",
+      "title": "Household Circuit — Power, Fuse & Energy Bill",
+      "topic": "elec",
+      "topicLabel": "Electricity",
+      "topicColour": "#b6f35c",
+      "classes": [
+        10
+      ],
+      "aim": "Switch on appliances in a domestic parallel circuit, find the current drawn, see when the fuse blows, and calculate energy used in kWh.",
+      "apparatus": [
+        "220 V mains with live, neutral and earth",
+        "Fuse / MCB",
+        "Appliances: bulb, fan, TV, iron, heater",
+        "Energy meter"
+      ],
+      "formula": "I = P / V      Fuse blows if I > rated current      Energy (kWh) = P(kW) × t(h)      1 kWh = 1 unit = 3.6 × 10⁶ J",
+      "procedure": [
+        "Choose the fuse rating.",
+        "Switch appliances on one by one; watch the total current.",
+        "Find the combination that blows the fuse (overloading).",
+        "Set hours of use per day and read the units consumed and the cost.",
+        "Record. Try “Short circuit” — the fuse protects the wiring."
+      ],
+      "controlCount": 7,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "fieldWire",
+      "subject": "physics",
+      "title": "Magnetic Field of a Straight Wire & a Circular Loop",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Measure the magnetic field produced by a current in a long straight wire, at the centre of a circular coil, and on its axis (Biot–Savart law).",
+      "apparatus": [
+        "Long straight conductor / circular coil",
+        "DC supply & ammeter",
+        "Magnetic field sensor (teslameter)",
+        "Compass needle"
+      ],
+      "formula": "Straight wire: B = μ₀ I / (2π r)      Coil centre: B = μ₀ N I / (2R)      Coil axis: B = μ₀ N I R² / [2 (R² + x²)^(3/2)]      μ₀ = 4π × 10⁻⁷ T·m/A",
+      "procedure": [
+        "Choose the conductor.",
+        "Set the current I.",
+        "Set the distance d (r from wire / R of coil / x along axis).",
+        "Read B and record.",
+        "For the wire, plot B against 1/r — a straight line. Reverse I: the compass reverses."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "currentForce",
+      "subject": "physics",
+      "title": "Force on a Current-carrying Conductor",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Measure the force on a wire carrying current in a magnetic field (F = BIL sin θ), find its direction by Fleming’s left-hand rule, and measure the force between two parallel currents.",
+      "apparatus": [
+        "Current balance with horseshoe magnet",
+        "Rigid wire (L = 5 cm)",
+        "DC supply & ammeter",
+        "Pair of long parallel wires"
+      ],
+      "formula": "Wire in field: F = B I L sin θ   (Fleming’s left-hand rule)      Parallel wires: F / L = μ₀ I₁ I₂ / (2π d) — like currents attract, unlike repel",
+      "procedure": [
+        "Choose the arrangement.",
+        "Set the current (and B, θ or the second current and spacing).",
+        "Read the force on the balance.",
+        "Record for 5 currents — F ∝ I.",
+        "Reverse the current: the force reverses. For parallel wires, reverse one current: attraction becomes repulsion."
+      ],
+      "controlCount": 6,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "chargeB",
+      "subject": "physics",
+      "title": "Charged Particle in a Magnetic Field",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        12
+      ],
+      "aim": "Fire charged particles into a uniform magnetic field; measure the radius of the circular path and the time period, and see helical motion when entering at an angle.",
+      "apparatus": [
+        "Particle source (proton / electron / alpha)",
+        "Uniform magnetic field region (into the page)",
+        "Track detector"
+      ],
+      "formula": "r = m v sinθ / (q B)      T = 2π m / (q B)  (independent of speed!)      pitch p = 2π m v cosθ / (q B)      F = q v B sinθ ⟂ v → no work done",
+      "procedure": [
+        "Choose the particle.",
+        "Set the speed v and the field B.",
+        "Fire at θ = 90°: the track is a circle — read r and T.",
+        "Record for 4–5 speeds; plot r against v.",
+        "Set θ < 90°: the path becomes a helix; read the pitch."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "acGenerator",
+      "subject": "physics",
+      "title": "Magnetic Flux & the AC Generator (Faraday’s Law)",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Rotate a coil in a magnetic field; watch the flux ϕ = NBA cos ωt change and the induced EMF e = NBAω sin ωt appear. Measure how the peak EMF depends on speed.",
+      "apparatus": [
+        "Rectangular coil on an axle",
+        "Strong magnets (uniform field B)",
+        "Slip rings and brushes",
+        "CRO / voltmeter"
+      ],
+      "formula": "ϕ = N B A cos θ   (θ = ωt)      e = − dϕ/dt = N B A ω sin ωt      e₀ = N B A ω = 2π f N B A",
+      "procedure": [
+        "Choose the number of turns N, field B and coil area A.",
+        "Set the rotation frequency f.",
+        "Watch the ϕ – t and e – t graphs: e is maximum when ϕ is zero.",
+        "Record the peak EMF e₀.",
+        "Repeat for 4–5 speeds and plot e₀ against f."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "cavendish",
+      "subject": "physics",
+      "title": "Newton's Law of Gravitation — Cavendish Balance",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Measure the tiny attraction between lead spheres with a torsion balance; show F ∝ 1/r² and find the universal constant G.",
+      "apparatus": [
+        "Torsion balance with small spheres (m)",
+        "Large lead spheres (M)",
+        "Light beam & scale (deflection)"
+      ],
+      "formula": "F = G M m / r²      G = 6.67 × 10⁻¹¹ N·m²/kg²   [M⁻¹ L³ T⁻²]      Gravity is always attractive, acts along the line joining the masses",
+      "procedure": [
+        "Choose the large mass M (small mass m = 0.73 kg).",
+        "Set the centre-to-centre distance r.",
+        "Read the force from the deflection of the light spot.",
+        "Record for 5 distances.",
+        "Plot F against 1/r²; G = slope / (M m)."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "gVariation",
+      "subject": "physics",
+      "title": "Variation of g — Height, Depth & Latitude",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Find how the acceleration due to gravity changes as you go up from, or down into, the Earth, and with latitude because of Earth’s rotation.",
+      "apparatus": [
+        "Model Earth (R = 6400 km)",
+        "Spring balance with a 60 kg person",
+        "Altitude / depth control"
+      ],
+      "formula": "g = G M / R² ≈ 9.8 m/s²      Height: g_h = g R² / (R + h)² ≈ g (1 − 2h/R)      Depth: g_d = g (1 − d/R)  (zero at the centre)      Latitude: g_λ = g − ω² R cos² λ",
+      "procedure": [
+        "Choose height or depth.",
+        "Move the person up or down with the slider.",
+        "Read g and the person’s weight.",
+        "Record for several values; plot g against the distance.",
+        "Compare: g falls with both height and depth; it is greatest at the poles."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "gravPotential",
+      "subject": "physics",
+      "title": "Gravitational Field & Potential — Shell and Solid Sphere",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Plot the gravitational field E and potential V around a hollow shell and a solid sphere as you move from the centre to far outside.",
+      "apparatus": [
+        "Spherical shell / solid sphere of mass M, radius R",
+        "Test mass (probe)"
+      ],
+      "formula": "Outside (r ≥ R): E = GM/r², V = −GM/r      Shell inside: E = 0, V = −GM/R (constant)      Solid inside: E = GMr/R³, V = −GM(3R² − r²)/(2R³)      V(∞) = 0",
+      "procedure": [
+        "Choose shell or solid sphere.",
+        "Move the probe with the r/R slider.",
+        "Read E and V (in units of GM/R² and GM/R).",
+        "Record from the centre to 4R.",
+        "Note: inside a shell E = 0 but V is NOT zero; V is most negative at the centre of a solid sphere (−1.5 GM/R)."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "satellite",
+      "subject": "physics",
+      "title": "Satellites — Orbital & Escape Velocity",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Launch a satellite horizontally at different speeds and heights: see it fall back, orbit in a circle, go into an ellipse, or escape. Measure orbital speed, period and energies.",
+      "apparatus": [
+        "Model Earth (R = 6400 km, g = 9.8 m/s²)",
+        "Launcher at chosen height",
+        "Satellite of mass 1000 kg"
+      ],
+      "formula": "v₀ = √(GM/r) = √(gR²/r)  (≈ 7.9 km/s near the surface)      T = 2π r / v₀      KE = GMm/2r,  PE = −GMm/r,  TE = −GMm/2r = PE/2      vₑ = √(2GM/R) ≈ 11.2 km/s",
+      "procedure": [
+        "Set the height h of the launch point.",
+        "Set the launch speed as a multiple of the circular speed v₀.",
+        "Tap “Launch”.",
+        "At 1.0 × v₀ the orbit is a circle — record h, v₀ and T.",
+        "Try < 1 (falls back / ellipse inside), between 1 and 1.41 (ellipse) and ≥ 1.41 (escapes: v ≥ √2 v₀)."
+      ],
+      "controlCount": 2,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "kepler",
+      "subject": "physics",
+      "title": "Kepler's Laws of Planetary Motion",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Watch a planet on an elliptical orbit: verify equal areas in equal times (2nd law) and T² ∝ a³ (3rd law).",
+      "apparatus": [
+        "Sun at one focus",
+        "Planet on an elliptical orbit",
+        "Timer (years)"
+      ],
+      "formula": "1st law: orbit is an ellipse with the Sun at one focus      2nd law: equal areas in equal times (dA/dt = L/2m = constant)      3rd law: T² ∝ a³  (T in years, a in AU: T² = a³)",
+      "procedure": [
+        "Set the semi-major axis a and the eccentricity e.",
+        "Watch the coloured sectors: each is swept in the same time interval.",
+        "Note the planet is fastest at perihelion, slowest at aphelion.",
+        "Record a and T for 4–5 orbits.",
+        "Plot T² against a³: a straight line of slope 1."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "tempScales",
+      "subject": "physics",
+      "title": "Temperature Scales & Thermometry",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        7,
+        11
+      ],
+      "aim": "Read one temperature on the Celsius, Fahrenheit, Kelvin and Reaumur scales and on a scale you design yourself from two fixed points; find the general conversion rule.",
+      "apparatus": [
+        "Thermometers marked in °C, °F, K, °R",
+        "Custom scale with your own fixed points"
+      ],
+      "formula": "(C − 0)/100 = (F − 32)/180 = (K − 273.15)/100 = (R − 0)/80 = (X − LFP)/(UFP − LFP)      −40 °C = −40 °F",
+      "procedure": [
+        "Set the temperature with the slider.",
+        "Read all four thermometers.",
+        "Set the lower and upper fixed points of your own scale X.",
+        "Record readings at 5 temperatures.",
+        "Plot F against C: slope 1.8, intercept 32. Find where C = F."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "expansion",
+      "subject": "physics",
+      "title": "Linear Expansion of a Metal Rod",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        8,
+        11
+      ],
+      "aim": "Heat metal rods in a steam jacket, measure the increase in length with a dial gauge and find the coefficient of linear expansion α (and β, γ).",
+      "apparatus": [
+        "Metal rods (L₀ = 50 cm): aluminium, brass, copper, steel",
+        "Steam jacket with thermometer",
+        "Dial gauge (least count 0.01 mm)"
+      ],
+      "formula": "ΔL = α L₀ ΔT      α = ΔL / (L₀ ΔT)      β = 2α (area)      γ = 3α (volume)      ρ′ = ρ / (1 + γ ΔT)",
+      "procedure": [
+        "Choose the rod.",
+        "Raise the temperature with the steam control.",
+        "Read ΔL on the dial gauge.",
+        "Record at 5 temperatures.",
+        "Plot ΔL against ΔT; α = slope / L₀. Compare the metals."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "bimetal",
+      "subject": "physics",
+      "title": "Bimetallic Strip & Thermostat",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        8,
+        11
+      ],
+      "aim": "Heat a bimetallic strip and measure how it bends; find the radius of the arc and use the strip as a thermostat switch.",
+      "apparatus": [
+        "Brass–invar steel / aluminium–steel bimetallic strip (10 cm, each layer 0.5 mm)",
+        "Heater with thermometer",
+        "Contact screw and bulb (thermostat)"
+      ],
+      "formula": "Radius of the bent strip: R = d / [(α₁ − α₂) ΔT]   (d = thickness of each strip)      Tip deflection y ≈ L² / (2R)      Heated: brass (higher α) on the outside (convex side); cooled: brass on the inside",
+      "procedure": [
+        "Choose the pair of metals.",
+        "Raise or lower the temperature.",
+        "Read R and the tip deflection y.",
+        "Record at 5 temperatures; y ∝ ΔT.",
+        "Set the contact gap: the bulb switches off when the strip touches — a thermostat."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "distDisp",
+      "subject": "physics",
+      "title": "Distance vs Displacement",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        6,
+        9,
+        11
+      ],
+      "aim": "Move along different paths and compare the distance travelled (scalar, path length) with the displacement (vector, shortest straight line from start to finish).",
+      "apparatus": [
+        "Straight track",
+        "Circular running track (radius 20 m)",
+        "Rectangular field (40 m × 30 m)"
+      ],
+      "formula": "Distance = total path length (≥ 0, never decreases)      Displacement = change in position (has direction; can be zero)      |displacement| ≤ distance",
+      "procedure": [
+        "Choose the path.",
+        "Move along it with the “Progress” slider.",
+        "Compare distance and displacement (arrow).",
+        "Record at several points: half-way, full circle etc.",
+        "Note: after one full lap the displacement is zero but the distance is 2πR."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "avgSpeed",
+      "subject": "physics",
+      "title": "Average Speed — Equal Distances vs Equal Times",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        7,
+        9,
+        11
+      ],
+      "aim": "A car covers a journey in two parts at different speeds. Find its average speed when the parts are equal in distance and when they are equal in time.",
+      "apparatus": [
+        "Car on a 120 km road",
+        "Speedometer",
+        "Clock"
+      ],
+      "formula": "Average speed = total distance / total time      Equal distances: v = 2v₁v₂ / (v₁ + v₂)  (harmonic mean)      Equal times: v = (v₁ + v₂) / 2  (arithmetic mean)",
+      "procedure": [
+        "Choose “equal distances” or “equal times”.",
+        "Set the two speeds v₁ and v₂.",
+        "Tap “Drive” and read the total time.",
+        "Record the average speed.",
+        "Compare: with equal distances the average is less than (v₁ + v₂)/2 — the car spends longer at the lower speed."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "motionGraphs",
+      "subject": "physics",
+      "title": "Equations of Motion & Motion Graphs",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Drive a car with constant acceleration, watch its x–t and v–t graphs build up, and verify v = u + at, s = ut + ½at² and v² = u² + 2as.",
+      "apparatus": [
+        "Car on a straight road with position sensor",
+        "Speedometer",
+        "Stopwatch"
+      ],
+      "formula": "v = u + a t      s = u t + ½ a t²      v² = u² + 2 a s      slope of v–t = a,  area under v–t = displacement",
+      "procedure": [
+        "Set the initial velocity u and acceleration a (negative a = retardation).",
+        "Tap “Start”. Pause at any moment.",
+        "Record t, v and s.",
+        "Repeat at 4–5 times.",
+        "Plot v against t: slope = a, intercept = u. Check the three equations in the table."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "stopping",
+      "subject": "physics",
+      "title": "Stopping Distance — Reaction & Braking",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Find the total stopping distance of a car: the distance covered during the driver’s reaction time plus the braking distance (third equation of motion).",
+      "apparatus": [
+        "Car on a road",
+        "Speed control",
+        "Reaction-time setting",
+        "Road surface (braking deceleration)"
+      ],
+      "formula": "Reaction distance = u × t_r      Braking distance = u² / (2a)   (from v² = u² − 2as with v = 0)      Doubling the speed → 4× braking distance",
+      "procedure": [
+        "Set the speed, the driver’s reaction time and the road surface.",
+        "Tap “Obstacle!”.",
+        "Read the reaction distance, braking distance and total.",
+        "Record for 5 speeds.",
+        "Plot stopping distance against speed — a curve (∝ u²), not a straight line."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "verticalThrow",
+      "subject": "physics",
+      "title": "Motion under Gravity — Ball Thrown Upward",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Throw a ball straight up; follow its velocity and height, find the maximum height and time of flight, and show that the acceleration is g downward all the time (even at the top).",
+      "apparatus": [
+        "Ball and launcher",
+        "Height scale",
+        "Stopwatch / velocity sensor"
+      ],
+      "formula": "v = u − g t      h = u t − ½ g t²      H_max = u² / 2g      t_up = u / g      T = 2u / g      At the top: v = 0 but a = g",
+      "procedure": [
+        "Set the launch speed u.",
+        "Tap “Throw”. Pause (“Start / pause”) at several moments.",
+        "Record t, h and v (+ up, − down).",
+        "Plot v against t: a straight line of slope −g.",
+        "Note H_max and the total time; the ball returns with the same speed."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "relative",
+      "subject": "physics",
+      "title": "Rest, Motion & Relative Velocity",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        6,
+        9,
+        11
+      ],
+      "aim": "Watch two objects from the ground and from a moving frame: rest and motion depend on the observer. Find the relative velocity and when one catches or meets the other.",
+      "apparatus": [
+        "Two vehicles A and B on a straight road",
+        "Observer on the ground / riding with A"
+      ],
+      "formula": "v_BA = v_B − v_A   (velocity of B as seen from A)      Meeting / catching time t = initial separation / |relative speed of approach|      In A’s own frame, A is at rest",
+      "procedure": [
+        "Set the velocities of A and B (+ right, − left) and their separation.",
+        "Choose the frame: ground or riding with A.",
+        "Tap “Go” and watch.",
+        "Record v_BA and the meeting time.",
+        "Switch frames: the meeting time is the same in both — only the description of motion changes."
+      ],
+      "controlCount": 4,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "freeFall",
+      "subject": "physics",
+      "title": "Free Fall — Bouncing Ball & Two Bodies Meeting",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Drop a ball and follow its successive rebounds; then drop one ball from height H while throwing another up from the ground and find where and when they meet.",
+      "apparatus": [
+        "Balls of different bounciness (coefficient of restitution e)",
+        "Tower of height H with scale",
+        "Launcher at the ground",
+        "Stopwatch"
+      ],
+      "formula": "Dropped from h: t = √(2h/g), v = √(2gh)      After a bounce: v′ = e v, h′ = e² h      Meeting: one dropped from H, one thrown up with u → t = H / u, meeting height = H − ½ g t²",
+      "procedure": [
+        "Choose the experiment.",
+        "Bounce: set the drop height and the ball (e). Tap “Start” and record the height of each rebound.",
+        "Meeting: set H and u. Tap “Start”; record the meeting time and height.",
+        "Compare with t = H/u (the relative acceleration is zero!).",
+        "If u < √(gH/2)… the second ball falls back before they meet — try it."
+      ],
+      "controlCount": 4,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "graphs3",
+      "subject": "physics",
+      "title": "Graphical Study of Motion — s–t, v–t, a–t",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Play a journey and see its displacement–time, velocity–time and acceleration–time graphs together; read slopes and areas at any instant.",
+      "apparatus": [
+        "Car on a straight road",
+        "Motion sensor",
+        "Three linked graphs"
+      ],
+      "formula": "Slope of s–t = velocity      Slope of v–t = acceleration      Area under v–t = displacement      Area under a–t = change in velocity      Stationary: s–t horizontal; uniform v: s–t straight; accelerated: s–t curved",
+      "procedure": [
+        "Choose a journey.",
+        "Drag the time cursor (or tap “Play”).",
+        "Read v from the slope of s–t, a from the slope of v–t.",
+        "Record readings at several times.",
+        "Check: area under v–t up to t equals the displacement s."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "horizontalProjectile",
+      "subject": "physics",
+      "title": "Horizontal Projection — Cliff & Staircase",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Throw a ball horizontally from a height; verify the parabolic path y = g x² / 2u², time of flight √(2h/g) and range u√(2h/g). Then roll a ball down a staircase and predict which step it hits first.",
+      "apparatus": [
+        "Ball launcher at the edge of a cliff / table",
+        "Height scale",
+        "Staircase (step height & width)",
+        "Stroboscopic camera"
+      ],
+      "formula": "x = u t,  y = ½ g t²   →   y = g x² / (2u²)      T = √(2h/g)  (independent of u!)      R = u √(2h/g)      v = √(u² + g²t²),  tan θ = g t / u      Staircase: first step hit n = ⌈2 h u² / (g b²)⌉",
+      "procedure": [
+        "Choose cliff or staircase.",
+        "Set the launch speed u and the height h (or the step size).",
+        "Tap “Launch”. Strobe images are taken every 0.1 s — equal horizontal gaps, growing vertical gaps.",
+        "Record T and R for 4–5 speeds: T stays the same, R ∝ u.",
+        "Staircase: compare the predicted step with the one hit."
+      ],
+      "controlCount": 5,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "magMaterials",
+      "subject": "physics",
+      "title": "Magnetic Materials — Dia, Para, Ferro, Domains & Hysteresis",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        8,
+        12
+      ],
+      "aim": "Place samples in a strong non-uniform field to classify them; watch the domains of a ferromagnet line up; trace the B–H hysteresis loop of soft iron and steel.",
+      "apparatus": [
+        "Strong electromagnet with pointed pole pieces",
+        "Samples: bismuth, copper, water, aluminium, platinum, iron, nickel, steel",
+        "B–H loop tracer"
+      ],
+      "formula": "Diamagnetic: weakly repelled (moves to weaker field)      Paramagnetic: weakly attracted      Ferromagnetic: strongly attracted (domains)      Soft iron: low retentivity & coercivity (electromagnets)      Steel: high retentivity & coercivity (permanent magnets)",
+      "procedure": [
+        "Choose a sample and switch the field on.",
+        "Note whether it moves towards (attracted) or away (repelled) from the strong field, and how strongly.",
+        "Record and classify.",
+        "For iron or steel, raise H and watch domains align; then reduce H to zero and reverse it to trace the loop.",
+        "Compare the retentivity (B at H = 0) and coercivity (H needed for B = 0) of soft iron and steel."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "magnetProperties",
+      "subject": "physics",
+      "title": "Properties of a Magnet — Directive, Poles & the Sure Test",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        6,
+        10
+      ],
+      "aim": "Show that a freely suspended magnet points north–south, that attraction is strongest at the poles, that like poles repel, that poles always exist in pairs, and that repulsion is the sure test for a magnet.",
+      "apparatus": [
+        "Bar magnet on a thread",
+        "Iron filings tray",
+        "Unknown bars X (magnet) and Y (iron)",
+        "Compass"
+      ],
+      "formula": "Freely suspended magnet → rests along geographic N–S (directive property)      Like poles repel, unlike poles attract      Attraction is strongest at the poles, nil at the middle      Breaking a magnet gives two complete magnets (no isolated pole)      Repulsion is the SURE test of a magnet",
+      "procedure": [
+        "Choose an activity.",
+        "Directive: turn the suspended magnet away and release — it returns to N–S.",
+        "Filings: see how many filings cling along the length of the magnet.",
+        "Sure test: bring the N pole of your magnet to each end of bars X and Y; attraction at both ends means iron, repulsion at one end means magnet.",
+        "Break: cut the magnet — each piece has N and S poles."
+      ],
+      "controlCount": 4,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "magnetize",
+      "subject": "physics",
+      "title": "Making & Destroying Magnets",
+      "topic": "mag",
+      "topicLabel": "Magnetism",
+      "topicColour": "#ff6b9a",
+      "classes": [
+        6,
+        10
+      ],
+      "aim": "Magnetise a steel bar by single touch, double touch and the electrical method; count how many pins it lifts; then demagnetise it by heating, hammering or an AC coil.",
+      "apparatus": [
+        "Steel bar (needle)",
+        "Bar magnets",
+        "Coil, DC/AC supply",
+        "Bunsen burner, hammer",
+        "Pins"
+      ],
+      "formula": "Single touch: stroke one way with one pole      Double touch: two opposite poles from the middle outwards (stronger)      Electrical: DC through a coil (strongest; pole by right-hand rule)      Demagnetise: heat above the Curie point (770 °C for iron), hammer, drop, or AC in a coil",
+      "procedure": [
+        "Choose the method and stroke / switch on as many times as you like.",
+        "Count the pins the bar lifts (strength) and record.",
+        "Compare the methods for the same number of strokes.",
+        "Choose a demagnetising treatment and apply it.",
+        "Record the pins lifted afterwards."
+      ],
+      "controlCount": 2,
+      "actionCount": 3,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "angles",
+      "subject": "physics",
+      "title": "Angles, Radians & the Small-angle Approximation",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Measure an angle as arc ÷ radius (radian), convert between degree, radian and revolution, and find how small an angle must be for sin θ ≈ tan θ ≈ θ (used for the pendulum, parallax and optics).",
+      "apparatus": [
+        "Protractor circle of radius r",
+        "Flexible arc scale",
+        "Calculator for sin, tan"
+      ],
+      "formula": "θ (rad) = arc length / radius = s / r      π rad = 180°      1 rad ≈ 57.3°      1 rev = 2π rad = 360°      Small angles (in radians!): sin θ ≈ tan θ ≈ θ,  cos θ ≈ 1 − θ²/2",
+      "procedure": [
+        "Set the angle θ.",
+        "Read the arc length s on a circle of radius r; θ = s/r in radians.",
+        "Compare θ (rad), sin θ and tan θ.",
+        "Record the percentage error of sin θ ≈ θ.",
+        "Find the largest angle for which the error stays below 1 % (≈ 14°)."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "trigRatios",
+      "subject": "physics",
+      "title": "Pythagoras & Trigonometric Ratios — Resolving a Force",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Pull a block with a force F at angle θ; read its horizontal and vertical components to discover the six trigonometric ratios, Pythagoras’ theorem and sin²θ + cos²θ = 1.",
+      "apparatus": [
+        "Block on a smooth floor",
+        "Spring balance pulling at an angle",
+        "Protractor",
+        "Two component force sensors"
+      ],
+      "formula": "Fx = F cos θ   (adjacent)      Fy = F sin θ   (opposite)      F² = Fx² + Fy²   (Pythagoras)      tan θ = Fy / Fx      sin²θ + cos²θ = 1      cosec = 1/sin,  sec = 1/cos,  cot = 1/tan",
+      "procedure": [
+        "Set the force F and the angle θ.",
+        "Read Fx and Fy on the sensors.",
+        "Record and check Fx² + Fy² = F².",
+        "Note the special angles 0°, 30°, 45°, 60°, 90° and the triplet 3-4-5 (θ ≈ 36.87°).",
+        "Watch how cos θ falls and sin θ rises as θ increases from 0° to 90°."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "unitCircle",
+      "subject": "physics",
+      "title": "Unit Circle — Quadrants, ASTC & Range of a sin θ + b cos θ",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        11
+      ],
+      "aim": "Rotate a radius around the unit circle to see the sign of sin, cos and tan in each quadrant (ASTC), the graphs of sin and cos, and find the maximum of a sin θ + b cos θ = √(a² + b²) — used in AC, SHM and projectiles.",
+      "apparatus": [
+        "Unit circle with rotating radius (phasor)",
+        "Sine and cosine graph tracer"
+      ],
+      "formula": "ASTC: Q1 All +, Q2 Sin +, Q3 Tan +, Q4 Cos +      −1 ≤ sin θ, cos θ ≤ 1      sin(90° + θ) = cos θ,  sin(180° − θ) = sin θ      a sin θ + b cos θ = √(a² + b²) sin(θ + φ),  tan φ = b/a   → max √(a² + b²)      sin θ cos θ = ½ sin 2θ (max ½)",
+      "procedure": [
+        "Set the angle θ (0° – 360°).",
+        "Read sin θ, cos θ, tan θ and the quadrant; note their signs (ASTC).",
+        "Set a and b; read y = a sin θ + b cos θ.",
+        "Record y at several angles and find its maximum.",
+        "Compare with √(a² + b²) and the angle θ = 90° − φ where it occurs."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "coordLine",
+      "subject": "physics",
+      "title": "Coordinate Geometry & the Straight Line (v = u + at)",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Plot points on the Cartesian plane, find distance, mid-point and slope, and see that a straight line y = mx + c is exactly the v–t graph of uniform acceleration (slope = a, intercept = u).",
+      "apparatus": [
+        "Cartesian graph board",
+        "Two movable points P and Q",
+        "Line tool"
+      ],
+      "formula": "Distance PQ = √[(x₂ − x₁)² + (y₂ − y₁)²]      Mid-point = ((x₁ + x₂)/2, (y₁ + y₂)/2)      Slope m = (y₂ − y₁)/(x₂ − x₁) = tan θ      y = mx + c   ↔   v = at + u      Quadrant signs: I (+,+), II (−,+), III (−,−), IV (+,−)",
+      "procedure": [
+        "Place P and Q with the sliders (or drag them on the board).",
+        "Read the quadrant of each point, the distance and the mid-point.",
+        "Read the slope m, intercept c and the equation of line PQ.",
+        "Record. A line with positive slope rises; zero slope is horizontal; undefined slope is vertical.",
+        "Treat x as time and y as velocity: m is acceleration, c is initial velocity."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "derivative",
+      "subject": "physics",
+      "title": "Differentiation — From Average to Instantaneous Velocity",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        11
+      ],
+      "aim": "Shrink the interval Δt on a position–time curve and watch the secant (average velocity) turn into the tangent (instantaneous velocity = ds/dt). Check the standard derivatives and find stationary points.",
+      "apparatus": [
+        "Position–time curve s(t)",
+        "Movable secant / tangent",
+        "Derivative tracer"
+      ],
+      "formula": "Average velocity = Δs/Δt (secant slope)      v = ds/dt = lim(Δt→0) Δs/Δt (tangent slope)      d(tⁿ)/dt = n tⁿ⁻¹      d(sin t)/dt = cos t      d(eᵗ)/dt = eᵗ      d(c·f)/dt = c·f′,  d(f+g)/dt = f′ + g′      Stationary point: ds/dt = 0",
+      "procedure": [
+        "Choose the function s(t).",
+        "Choose the instant t₀.",
+        "Reduce Δt step by step and record the secant slope each time.",
+        "Compare the limit with the formula value of ds/dt (tangent slope).",
+        "Find t₀ where the slope is zero (stationary point: body momentarily at rest)."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "integral",
+      "subject": "physics",
+      "title": "Integration — Area under a Graph (Displacement, Impulse, Work)",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        11
+      ],
+      "aim": "Fill the area under a graph with N rectangles and watch the sum approach the exact definite integral. Use it to find displacement (v–t), impulse (F–t) and work (F–x).",
+      "apparatus": [
+        "Graph of the quantity",
+        "Adjustable strips (Riemann sum)",
+        "Integration limits a and b"
+      ],
+      "formula": "∫ₐᵇ f(x) dx = lim(N→∞) Σ f(xᵢ) Δx  = area under the curve      ∫ xⁿ dx = xⁿ⁺¹/(n + 1) + C      Fundamental theorem: ∫ₐᵇ f dx = F(b) − F(a)      v–t area = displacement · F–t area = impulse = Δp · F–x area = work",
+      "procedure": [
+        "Choose the physical graph.",
+        "Set the limits a and b.",
+        "Increase the number of strips N and record the sum each time.",
+        "Compare with the exact value from F(b) − F(a).",
+        "Note: area below the axis counts as negative (e.g. displacement while moving backward)."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "roots",
+      "subject": "physics",
+      "title": "Squares, Square Roots & Approximations in Physics",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Solve a physics quadratic (a ball thrown up passing a height h) and decide which square root is physical; then use (1 + x)ⁿ ≈ 1 + nx to find how a small change in a quantity changes the result.",
+      "apparatus": [
+        "Ball thrown up with speed u",
+        "Height marker h",
+        "Pendulum of length L (for the approximation)"
+      ],
+      "formula": "h = ut − ½gt²   →   t = [u ± √(u² − 2gh)] / g      Both roots physical: going up and coming down      u² < 2gh: no real root — ball never reaches h      Approximation: (1 + x)ⁿ ≈ 1 + nx for small x;  T ∝ √L → 1 % change in L gives ≈ ½ % change in T",
+      "procedure": [
+        "Mode 1 — set u and the height h.",
+        "Read the discriminant u² − 2gh and the two roots t₁, t₂ (up and down).",
+        "Record; raise h until the discriminant becomes negative.",
+        "Mode 2 — set the percentage change in the pendulum length.",
+        "Compare the exact new period with the approximation 1 + ½ x."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "impulse",
+      "subject": "physics",
+      "title": "Impulse & Momentum — Catching a Ball",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Stop a moving ball on different surfaces (or with hands drawn back) and show that the same change in momentum produces a smaller force when the stopping time is longer: F = Δp/Δt. Relate momentum and kinetic energy.",
+      "apparatus": [
+        "Cricket ball (m = 160 g)",
+        "Force sensor plate with surfaces: concrete, sand, foam cushion",
+        "Fielder’s hands (drawn back or held stiff)",
+        "High-speed timer"
+      ],
+      "formula": "p = m v      Impulse J = F Δt = Δp      F_avg = Δp / Δt      Rebound: Δp = m(v + v′)  (larger!)      K = p² / 2m,  p = √(2mK)",
+      "procedure": [
+        "Set the ball speed and choose the stopping surface.",
+        "Choose “stop” or “bounce back”.",
+        "Tap “Throw”. Read Δp, the contact time Δt and the average force.",
+        "Record for each surface.",
+        "Compare: same Δp, longer Δt → smaller force (why fielders draw hands back, why cushions protect eggs)."
+      ],
+      "controlCount": 4,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "recoil",
+      "subject": "physics",
+      "title": "Recoil, Explosion & Rocket — Conservation of Momentum",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Show that internal forces cannot change the total momentum of a system: a gun recoils, an exploding body’s fragments fly apart with equal and opposite momenta, and a rocket is pushed forward by the gases it throws back.",
+      "apparatus": [
+        "Gun on frictionless rollers + bullet",
+        "Body at rest that splits into two fragments",
+        "Rocket with exhaust (variable mass)"
+      ],
+      "formula": "Total p before = total p after      Gun: m v + M V = 0 → V = −m v / M      Explosion from rest: m₁ v₁ = − m₂ v₂, KE shared in inverse ratio of masses      Rocket thrust F = u (dm/dt),  a = F/M − g",
+      "procedure": [
+        "Choose the system.",
+        "Set the masses and speeds.",
+        "Tap “Fire” and read the velocities.",
+        "Record and check that the total momentum after is zero (or unchanged).",
+        "Rocket: increase the exhaust rate and see the thrust and acceleration grow; the mass decreases as fuel burns."
+      ],
+      "controlCount": 5,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "connected",
+      "subject": "physics",
+      "title": "Free-body Diagrams — Contact Forces, Strings & Atwood Machine",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Draw free-body diagrams for connected bodies and verify the common acceleration, the contact forces between touching blocks, the tensions in light strings and the Atwood machine results.",
+      "apparatus": [
+        "Three blocks on a smooth table",
+        "Light inextensible strings",
+        "Frictionless pulley",
+        "Force sensors between blocks / in strings"
+      ],
+      "formula": "System: a = F_ext / (m₁ + m₂ + m₃)      Contact (push on m₁): N₁₂ = (m₂ + m₃) a,  N₂₃ = m₃ a      String train (pull on m₃): T₁ = m₁ a,  T₂ = (m₁ + m₂) a      Atwood: a = (m₁ − m₂) g / (m₁ + m₂),  T = 2 m₁ m₂ g / (m₁ + m₂),  thrust on pulley = 2T",
+      "procedure": [
+        "Choose the arrangement and set the masses (and the force F).",
+        "Read the acceleration and the force at each joint.",
+        "Draw the FBD of each block (shown) and check ΣF = ma for each.",
+        "Record and repeat for other masses.",
+        "Atwood: equal masses give a = 0; T lies between m₂g and m₁g."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "pseudoForce",
+      "subject": "physics",
+      "title": "Inertial & Non-inertial Frames — Pseudo Force",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Hang a bob from the roof of an accelerating truck. Explain its tilt from the ground (inertial frame: T and mg give ma) and from inside the truck (non-inertial frame: add a pseudo force −ma and the bob is in equilibrium). Measure a from the tilt.",
+      "apparatus": [
+        "Truck with accelerometer bob hanging from the roof",
+        "Observer on the ground and observer in the truck",
+        "Protractor"
+      ],
+      "formula": "Inertial frame: T sin θ = m a,  T cos θ = m g      Non-inertial frame: pseudo force −m a (opposite to the frame’s acceleration) → equilibrium      tan θ = a / g,   T = m √(g² + a²)      Pseudo forces have no reaction pair (Newton’s 3rd law does not apply)",
+      "procedure": [
+        "Set the truck’s acceleration a (negative = braking).",
+        "Read the tilt angle θ of the bob.",
+        "Switch the observer between the ground and the truck: compare the two FBDs.",
+        "Record θ and calculate a = g tan θ.",
+        "Note: braking tilts the bob forward; uniform velocity gives no tilt."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "frictionPull",
+      "subject": "physics",
+      "title": "Static & Kinetic Friction — Pulling a Block",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Pull a block with a spring balance at increasing force: static friction grows to a limiting value, then the block slides and the friction drops to kinetic friction. See how pushing or pulling at an angle changes the normal reaction and the friction.",
+      "apparatus": [
+        "Wooden block with masses",
+        "Spring balance (force sensor)",
+        "Surfaces: glass, wood, sandpaper, oiled wood",
+        "Rollers (rolling friction)"
+      ],
+      "formula": "Static: f_s = applied force (self-adjusting) ≤ μ_s N      Limiting friction f_L = μ_s N      Kinetic: f_k = μ_k N   (μ_k < μ_s)      Pull at angle θ above horizontal: N = mg − F sin θ;  push down at θ: N = mg + F sin θ      Rolling friction ≪ sliding friction",
+      "procedure": [
+        "Choose the surface and the mass.",
+        "Raise the applied force slowly; watch the friction force follow it.",
+        "Note the force at which the block starts sliding (limiting friction) and record it.",
+        "After it slides, read the smaller kinetic friction.",
+        "Pull at an angle: the normal reaction falls, so friction falls (why pulling a lawn roller is easier than pushing)."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "lightBasics",
+      "subject": "physics",
+      "title": "Light Travels in Straight Lines — Rays & Beams",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "Look at a candle through three cardboards with holes: you see it only when the holes are in one straight line. Identify parallel, convergent and divergent beams, and luminous and non-luminous bodies.",
+      "apparatus": [
+        "Candle (luminous source)",
+        "Three cardboards with small holes on stands",
+        "Torch, lens and mirror for beams",
+        "Moon / book (non-luminous bodies)"
+      ],
+      "formula": "Light travels in straight lines in a uniform medium (rectilinear propagation)      Ray = path of light;  beam = bundle of rays: parallel, convergent, divergent      Speed of light in vacuum c = 3 × 10⁸ m/s — sunlight takes ≈ 8 min 20 s to reach Earth",
+      "procedure": [
+        "Activity 1: line up the three holes and look at the candle.",
+        "Shift the middle cardboard sideways with the slider — the candle disappears.",
+        "Record the offset and whether the flame is seen.",
+        "Activity 2: choose each type of beam and identify where it comes from.",
+        "Note: we see non-luminous bodies only by the light they reflect."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "eclipse",
+      "subject": "physics",
+      "title": "Shadows in Space — Solar & Lunar Eclipses",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        6,
+        8
+      ],
+      "aim": "Move the Moon around the Earth and see when its shadow falls on the Earth (solar eclipse) or the Earth’s shadow falls on the Moon (lunar eclipse); identify umbra and penumbra and total, partial and annular eclipses.",
+      "apparatus": [
+        "Sun (extended source)",
+        "Earth and Moon models (opaque)",
+        "Orbit track"
+      ],
+      "formula": "Shadow needs: a source, an opaque object, a screen      Umbra: total darkness · Penumbra: partial darkness      Solar eclipse: Sun – Moon – Earth in a line (new-moon day)      Lunar eclipse: Sun – Earth – Moon in a line (full-moon day)      Annular: Moon too far — its umbra does not reach Earth",
+      "procedure": [
+        "Move the Moon around its orbit with the slider.",
+        "Find the position where the Moon’s shadow reaches the Earth.",
+        "Change the Moon’s distance: near → total, far → annular.",
+        "Find the position where the Moon enters the Earth’s shadow.",
+        "Record the type of eclipse at each position."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "planeMirror",
+      "subject": "physics",
+      "title": "Plane Mirror — Image, Lateral Inversion, Rotation & Image Speed",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        7,
+        10,
+        11
+      ],
+      "aim": "Study the image formed by a plane mirror: as far behind as the object is in front, same size, virtual and laterally inverted. See regular vs diffuse reflection, that rotating the mirror by θ turns the reflected ray by 2θ, and how fast the image moves.",
+      "apparatus": [
+        "Plane mirror on a stand",
+        "Object (letter “F”) / pin",
+        "Ray box",
+        "Metre scale"
+      ],
+      "formula": "Image distance = object distance (behind the mirror)      Image: virtual, erect, same size, laterally inverted      Mirror rotated by θ → reflected ray turns by 2θ      Deviation δ = 180° − 2i      Object moves at v towards mirror → image moves at v towards mirror; relative speed of approach = 2v      Smallest mirror to see full height = half the height",
+      "procedure": [
+        "Choose the activity.",
+        "Image: move the object; compare object and image distances and look at the letter F.",
+        "Rotate: turn the mirror by θ and measure the turn of the reflected ray.",
+        "Speed: move the object towards the mirror and compare speeds.",
+        "Surface: compare a polished and a rough surface."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "twoMirrors",
+      "subject": "physics",
+      "title": "Two Plane Mirrors — Number of Images & Periscope",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        7,
+        10,
+        11
+      ],
+      "aim": "Place an object between two plane mirrors inclined at angle θ and count the images; find the rule n = 360°/θ − 1. Build a periscope from two mirrors at 45°.",
+      "apparatus": [
+        "Two plane mirrors hinged together",
+        "Protractor",
+        "Candle / coin",
+        "Periscope tube with two mirrors"
+      ],
+      "formula": "m = 360° / θ      m even → n = m − 1      m odd: object on the bisector → n = m − 1, otherwise n = m      Parallel mirrors (θ = 0) → infinite images      Periscope: two mirrors parallel, each at 45°, deviation 90° + 90°",
+      "procedure": [
+        "Choose “angled mirrors”.",
+        "Set the angle θ; count the images (drawn on the circle).",
+        "Record θ and the number of images; compare with 360/θ − 1.",
+        "Move the object off the bisector for odd m.",
+        "Choose “periscope” to see how light is turned twice by 90°."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "rayDiagram",
+      "subject": "physics",
+      "title": "Spherical Mirrors — Ray Diagrams, Mirror Formula & Magnification",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Draw the image formed by a concave or convex mirror for any object position using principal rays; verify 1/v + 1/u = 1/f and m = −v/u with the New Cartesian sign convention.",
+      "apparatus": [
+        "Concave and convex mirrors (f = 15 cm)",
+        "Object arrow on an optical bench",
+        "Ray box"
+      ],
+      "formula": "1/v + 1/u = 1/f      f = R/2      m = h′/h = −v/u      Sign convention: distances measured from the pole; along the incident light +, against it −; upward +, downward −      Concave f < 0, convex f > 0      Real images: v < 0 (in front); virtual: v > 0 (behind)",
+      "procedure": [
+        "Choose concave or convex.",
+        "Move the object along the bench (u is negative).",
+        "Watch the three principal rays locate the image.",
+        "Read v, m and the nature of the image; record.",
+        "Cover all positions: beyond C, at C, between C and F, at F, between F and P — and the convex mirror (always virtual, diminished)."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "mirrorVelocity",
+      "subject": "physics",
+      "title": "Mirror — Velocity of Image & Longitudinal Magnification",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        12
+      ],
+      "aim": "Move an object along the axis of a concave mirror and compare the speed of its image; show that v_image = −(v/u)² v_object = −m² v_object, while sideways motion is scaled by m.",
+      "apparatus": [
+        "Concave mirror (f = −20 cm)",
+        "Object on a moving carriage",
+        "Image tracker"
+      ],
+      "formula": "1/v + 1/u = 1/f      m = −v/u      Along axis: dv/dt = −(v²/u²) du/dt = −m² du/dt      Longitudinal magnification m_L = −m²      Perpendicular to axis: v_image = m × v_object      Newton: x₁ x₂ = f²",
+      "procedure": [
+        "Set the object position u and its speed.",
+        "Choose motion along the axis or perpendicular to it.",
+        "Tap “Move” and compare object and image speeds.",
+        "Record at several positions.",
+        "Note: near F the image races away (m² large); at C both move at the same speed in opposite senses."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "snellTIR",
+      "subject": "physics",
+      "title": "Refraction — Snell's Law, Critical Angle & Total Internal Reflection",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Send a ray from one medium into another; verify n₁ sin i = n₂ sin r, see bending towards / away from the normal, find the critical angle and observe total internal reflection.",
+      "apparatus": [
+        "Semicircular glass / water block",
+        "Ray box",
+        "Protractor disc"
+      ],
+      "formula": "n₁ sin i = n₂ sin r      ₁n₂ = n₂/n₁ = v₁/v₂ = sin i / sin r      Rarer → denser: bends towards the normal      Denser → rarer: bends away      Critical angle: sin c = n₂/n₁ (n₁ > n₂)      i > c → total internal reflection (no refracted ray)",
+      "procedure": [
+        "Choose the two media.",
+        "Increase the angle of incidence i.",
+        "Record i and r; plot sin i against sin r — slope = n₂/n₁.",
+        "From a denser into a rarer medium, find the angle at which r = 90° (critical angle).",
+        "Go beyond it: all light reflects — total internal reflection."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "opticalFibre",
+      "subject": "physics",
+      "title": "Optical Fibre — Total Internal Reflection & Acceptance Angle",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Send light into an optical fibre at different angles; see it trapped by repeated total internal reflection when the entry angle is within the acceptance angle, and leak out when it is not.",
+      "apparatus": [
+        "Optical fibre: glass core (n₁) and cladding (n₂ < n₁)",
+        "Laser at adjustable entry angle"
+      ],
+      "formula": "At entry: sin θ = n₁ sin r      At the core–cladding wall the angle is (90° − r); TIR needs sin(90° − r) > n₂/n₁      Maximum acceptance angle: sin θ_max = √(n₁² − n₂²)  (numerical aperture)      Diamond sparkles because c ≈ 24° — light is trapped and reflected many times",
+      "procedure": [
+        "Choose core and cladding.",
+        "Increase the entry angle θ from 0°.",
+        "Watch the zig-zag path: trapped (TIR) or leaking.",
+        "Record θ, the angle at the wall and whether TIR occurs.",
+        "Find the largest θ that is still trapped and compare with √(n₁² − n₂²)."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "apparentDepth",
+      "subject": "physics",
+      "title": "Apparent Depth, Bird & Fish, and Normal Shift",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Find how deep an object under water appears from above (near-normal viewing), work out what a bird sees of a fish and a fish sees of a bird, and measure the normal shift produced by a glass slab.",
+      "apparatus": [
+        "Tank of water / glass slab",
+        "Coin (object)",
+        "Bird and fish models",
+        "Scale"
+      ],
+      "formula": "Viewed from the rarer medium: apparent depth = real depth / n,  shift = d (1 − 1/n)      Fish sees bird: apparent height = n H  (bird looks farther)      Bird sees fish: apparent depth = D / n  (fish looks nearer)      Glass slab of thickness t: normal shift = t (1 − 1/n)",
+      "procedure": [
+        "Choose the situation.",
+        "Set the depths / heights and the liquid.",
+        "Read the apparent position and the shift.",
+        "Record.",
+        "Compare: the shift depends only on thickness and n, not on where the object is."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "curvedSurface",
+      "subject": "physics",
+      "title": "Refraction at a Single Curved Surface",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        12
+      ],
+      "aim": "Find the image formed by refraction at one spherical surface — a glass rod with a curved end, or a fish seen in a spherical bowl — using n₂/v − n₁/u = (n₂ − n₁)/R.",
+      "apparatus": [
+        "Glass rod with convex end (R = 10 cm)",
+        "Spherical fish bowl (R = 15 cm)",
+        "Object pin / fish"
+      ],
+      "formula": "n₂/v − n₁/u = (n₂ − n₁)/R   (light travels left → right; New Cartesian signs)      m = (n₁ v)/(n₂ u)      Focal lengths: f₁ = −n₁R/(n₂ − n₁),  f₂ = n₂R/(n₂ − n₁),  f₂/f₁ = −n₂/n₁",
+      "procedure": [
+        "Choose the set-up.",
+        "Move the object (u is negative).",
+        "Read v, m and whether the image is real or virtual.",
+        "Record for several positions.",
+        "Fish bowl: the fish (at the centre) appears at the centre but magnified n times."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "lensRay",
+      "subject": "physics",
+      "title": "Thin Lenses — Ray Diagrams, Lens Formula & Lens Maker's Formula",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Draw images by convex and concave lenses for every object position; verify 1/v − 1/u = 1/f, m = v/u and the lens maker’s formula, and find the power in dioptres.",
+      "apparatus": [
+        "Biconvex / biconcave lenses (choose R and n)",
+        "Object arrow on an optical bench",
+        "Screen"
+      ],
+      "formula": "Lens maker: 1/f = (n − 1)(1/R₁ − 1/R₂)  → equi-convex: f = R / 2(n − 1)      Lens formula: 1/v − 1/u = 1/f      m = v/u      Power P = 1/f (metre) dioptre: convex +, concave −      Convex: real & inverted beyond F, virtual & magnified within F;  concave: always virtual, erect, diminished",
+      "procedure": [
+        "Choose the lens type, radius R and refractive index n — f is calculated by the lens maker’s formula.",
+        "Move the object along the bench.",
+        "Watch the two principal rays locate the image.",
+        "Record u, v, m and the nature of the image.",
+        "Change n: a lens of higher n is more powerful (shorter f)."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "displacement",
+      "subject": "physics",
+      "title": "Focal Length by the Displacement Method",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        12
+      ],
+      "aim": "Keep the object and screen a fixed distance D apart and find the two lens positions that give a sharp image; get f = (D² − d²)/4D and the object size h = √(h₁h₂).",
+      "apparatus": [
+        "Optical bench",
+        "Illuminated object (h = 4 cm)",
+        "Convex lens",
+        "Screen fixed at distance D"
+      ],
+      "formula": "Sharp image is possible only if D ≥ 4f      Two positions separated by d:  f = (D² − d²) / (4D)      Image sizes h₁ (magnified) and h₂ (diminished):  h = √(h₁ h₂)",
+      "procedure": [
+        "Set D (it must be at least 4f).",
+        "Slide the lens until the image on the screen is sharp — record.",
+        "Slide further to the second sharp position — record.",
+        "Calculate d, f and h from the two readings.",
+        "Reduce D below 4f: no sharp image can be found."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "lensCombo",
+      "subject": "physics",
+      "title": "Power of Lenses — Combinations & Silvered Lens",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Combine two thin lenses (in contact or separated) and find the equivalent power; then silver one face of a plano-convex lens and find the focal length of the resulting mirror.",
+      "apparatus": [
+        "Thin lenses of various powers",
+        "Parallel beam of light",
+        "Plano-convex lens (R = 20 cm, n = 1.5) and silvering"
+      ],
+      "formula": "P = 1/f (m) in dioptre      In contact: P = P₁ + P₂      Separated by d: P = P₁ + P₂ − d P₁ P₂      Silvered lens behaves as a mirror: P = 2P_lens + P_mirror  →  plane face silvered: F = f/2 = R/2(n − 1);  curved face silvered: F = R/2n",
+      "procedure": [
+        "Choose the combination.",
+        "Set the lens powers (and separation).",
+        "Watch the parallel beam focus and read the equivalent power.",
+        "Record and check P = P₁ + P₂ (in contact).",
+        "Silvered lens: compare F for the plane face and the curved face silvered."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "eyeDefects",
+      "subject": "physics",
+      "title": "Human Eye — Myopia, Hypermetropia & Correction",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10
+      ],
+      "aim": "See where the eye lens focuses light from near and far objects; find why a myopic eye cannot see far and a hypermetropic eye cannot see near, and calculate the power of the correcting lens.",
+      "apparatus": [
+        "Model eye (retina 2.5 cm behind the lens)",
+        "Object at adjustable distance",
+        "Corrective lenses"
+      ],
+      "formula": "Normal eye: near point 25 cm, far point ∞ (accommodation)      Myopia: far point F.P. < ∞ → image in front of the retina → concave lens, P = −100 / F.P.(cm)      Hypermetropia: near point N.P. > 25 cm → image behind the retina → convex lens, P = 100/25 − 100/N.P.(cm)      Presbyopia: both — bifocal lenses",
+      "procedure": [
+        "Choose the eye.",
+        "Move the object from far to near.",
+        "See whether the rays meet on, in front of, or behind the retina.",
+        "Record the defect and the required lens power.",
+        "Switch on the corrective lens and check that the image falls on the retina."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "instruments",
+      "subject": "physics",
+      "title": "Optical Instruments — Magnifier, Compound Microscope & Telescope",
+      "topic": "light",
+      "topicLabel": "Light & Optics",
+      "topicColour": "#4fd6ff",
+      "classes": [
+        10,
+        12
+      ],
+      "aim": "Find the magnifying power of a simple microscope, a compound microscope and an astronomical telescope, with the final image at the near point (D = 25 cm) or at infinity (normal adjustment).",
+      "apparatus": [
+        "Convex lenses of different focal lengths",
+        "Tube with adjustable length",
+        "Object (insect / distant tree)"
+      ],
+      "formula": "Simple microscope: M = 1 + D/f (image at D),  M = D/f (at ∞)      Compound microscope: M = (v₀/u₀)(1 + D/fₑ) at D;  M ≈ (L/f₀)(D/fₑ) at ∞      Telescope (normal adjustment): M = f₀/fₑ, tube length L = f₀ + fₑ;  image at D: M = (f₀/fₑ)(1 + fₑ/D)",
+      "procedure": [
+        "Choose the instrument.",
+        "Set the focal lengths (and tube length).",
+        "Choose where the final image is formed.",
+        "Read the magnifying power and the length of the instrument; record.",
+        "Compare: a short-focus eyepiece and (for a telescope) a long-focus objective give a high magnification."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "dimensions",
+      "subject": "physics",
+      "title": "Physical Quantities, Units & Dimensional Analysis",
+      "topic": "meas",
+      "topicLabel": "Measurement",
+      "topicColour": "#3ee0c0",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Classify quantities as fundamental, derived or supplementary; find their SI, CGS and FPS units and dimensional formulae; check whether an equation is dimensionally correct; and derive the formula for the period of a pendulum by dimensions.",
+      "apparatus": [
+        "Table of SI base quantities (m, kg, s, A, K, mol, cd)",
+        "Simple pendulum (length l, mass m) for the derivation"
+      ],
+      "formula": "7 SI base units: m, kg, s, A, K, mol, cd   ·   supplementary: rad, sr      Dimensional formula: [Mᵃ Lᵇ Tᶜ]      Principle of homogeneity: every term of a correct equation has the same dimensions      Pendulum: T = k lᵃ gᵇ mᶜ → [T] = [L]ᵃ[LT⁻²]ᵇ[M]ᶜ → c = 0, a = ½, b = −½  → T = k√(l/g)",
+      "procedure": [
+        "Mode 1 — choose a quantity: read its type, units in SI/CGS/FPS and dimensional formula. Record.",
+        "Mode 2 — choose an equation and check every term: is it homogeneous?",
+        "Mode 3 — choose powers a, b, c for T = k lᵃ gᵇ mᶜ until the dimensions match [T].",
+        "Note: a dimensionally correct equation may still be wrong by a pure number (k = 2π).",
+        "Dimensionless quantities (angle, strain, refractive index) have formula [M⁰L⁰T⁰]."
+      ],
+      "controlCount": 6,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "unitConvert",
+      "subject": "physics",
+      "title": "Multiples, Prefixes & Unit Conversion",
+      "topic": "meas",
+      "topicLabel": "Measurement",
+      "topicColour": "#3ee0c0",
+      "classes": [
+        6,
+        9,
+        11
+      ],
+      "aim": "Use SI prefixes to write very large and very small quantities, convert units between systems with the dimensional method n₂ = n₁ [M₁/M₂]ᵃ[L₁/L₂]ᵇ[T₁/T₂]ᶜ, and meet practical units (light year, AU, parsec, ångström, fermi).",
+      "apparatus": [
+        "Prefix ladder (10¹² … 10⁻¹⁵)",
+        "Conversion table"
+      ],
+      "formula": "kilo 10³ · mega 10⁶ · giga 10⁹ · tera 10¹²  |  centi 10⁻² · milli 10⁻³ · micro 10⁻⁶ · nano 10⁻⁹ · pico 10⁻¹²      n₂ = n₁ (M₁/M₂)ᵃ (L₁/L₂)ᵇ (T₁/T₂)ᶜ  for [Mᵃ Lᵇ Tᶜ]      1 ly = 9.46 × 10¹⁵ m · 1 AU = 1.496 × 10¹¹ m · 1 pc = 3.26 ly · 1 Å = 10⁻¹⁰ m · 1 fm = 10⁻¹⁵ m",
+      "procedure": [
+        "Mode 1 — set a value in metres with the exponent slider and read it with every prefix.",
+        "Choose the most convenient prefix (number between 1 and 1000).",
+        "Mode 2 — choose a conversion and follow the dimensional method step by step.",
+        "Record the result.",
+        "Check: 1 N = 10⁵ dyne, 1 J = 10⁷ erg, 1 g/cm³ = 1000 kg/m³, 1 km/h = 5/18 m/s."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "irregularArea",
+      "subject": "physics",
+      "title": "Area of an Irregular Shape & Volume by Displacement",
+      "topic": "meas",
+      "topicLabel": "Measurement",
+      "topicColour": "#3ee0c0",
+      "classes": [
+        6,
+        7,
+        9
+      ],
+      "aim": "Estimate the area of a leaf on centimetre graph paper by counting squares (full = 1, half or more = 1, less than half = 0), and find the volume of an irregular stone from the rise of water in a measuring cylinder.",
+      "apparatus": [
+        "Leaf on cm graph paper",
+        "Measuring cylinder (graduated in mL)",
+        "Irregular stone on a thread"
+      ],
+      "formula": "Area ≈ (number of full squares) + (number of squares at least half covered)  in cm²      Finer grid → better estimate      Volume of stone = V₂ − V₁ (water level after − before)      1 mL = 1 cm³",
+      "procedure": [
+        "Mode 1 — choose the leaf and the grid size.",
+        "Count full squares and squares at least half covered (shown in colour).",
+        "Record the estimate and compare with the true area; use a finer grid.",
+        "Mode 2 — choose the stone and lower it into the cylinder.",
+        "Record V₁ and V₂; volume = V₂ − V₁."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "vectorAdd",
+      "subject": "physics",
+      "title": "Vectors — Triangle & Parallelogram Laws, Subtraction, Components",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Add two vectors by the triangle and parallelogram laws, find the resultant’s magnitude and direction, subtract vectors, and resolve vectors into components.",
+      "apparatus": [
+        "Two vectors A and B (displacements / forces)",
+        "Protractor & scale on grid"
+      ],
+      "formula": "R = √(A² + B² + 2AB cos θ)      tan α = B sin θ / (A + B cos θ)  (angle of R with A)      |A − B| = √(A² + B² − 2AB cos θ)      Rmax = A + B (θ = 0°),  Rmin = |A − B| (θ = 180°)      Components: Ax = A cos φ, Ay = A sin φ;  R = (Ax + Bx) î + (Ay + By) ĵ",
+      "procedure": [
+        "Set the magnitudes of A and B and the angle θ between them.",
+        "Choose triangle, parallelogram or subtraction.",
+        "Read R and its direction α; check by adding components.",
+        "Record for θ = 0°, 60°, 90°, 120°, 180°.",
+        "Note the largest and smallest possible resultants."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "vectorProducts",
+      "subject": "physics",
+      "title": "Vector Products — Dot, Cross & Scalar Triple Product",
+      "topic": "math",
+      "topicLabel": "Mathematical Tools",
+      "topicColour": "#38bdf8",
+      "classes": [
+        11
+      ],
+      "aim": "Find the dot product (work = F·s) and cross product (torque, area) of two vectors as the angle between them changes; find the direction of A × B by the right-hand screw rule; and get the volume of a parallelepiped from the scalar triple product.",
+      "apparatus": [
+        "Vectors A and B in the xy-plane",
+        "Vector C with a z-component (triple product)",
+        "Right-hand screw"
+      ],
+      "formula": "A · B = AB cos θ  (scalar; zero when ⟂)      |A × B| = AB sin θ = area of parallelogram  (vector ⟂ to both; zero when ∥)      B × A = − A × B      A · (B × C) = volume of parallelepiped (zero if coplanar)      Work W = F · s,  torque τ = r × F,  L = r × p",
+      "procedure": [
+        "Set |A|, |B| and the angle θ.",
+        "Read A · B and |A × B|; note when each is maximum or zero.",
+        "Choose “A × B” or “B × A” — the direction (out of / into the page) reverses.",
+        "Mode 3: set the height of C and read the triple-product volume.",
+        "Record and plot A·B and |A×B| against θ."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "lami",
+      "subject": "physics",
+      "title": "Equilibrium of Concurrent Forces — Lami's Theorem & Tangent Law",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Hang a weight from two strings and measure the tensions; verify Lami’s theorem. Then push a hanging bob sideways with a horizontal force and verify the tangent law tan θ = F/W.",
+      "apparatus": [
+        "Weight W on a knot",
+        "Two strings with spring balances at adjustable angles",
+        "Horizontal force gauge (tangent law)"
+      ],
+      "formula": "Lami: T₁ / sin α = T₂ / sin β = W / sin γ   (each force over the sine of the angle between the OTHER two)      Equilibrium: vector sum of forces = 0 (closed triangle)      Tangent law: tan θ = F / W,  T = √(W² + F²)",
+      "procedure": [
+        "Choose Lami’s theorem or the tangent law.",
+        "Set the weight and the string angles (or the horizontal force).",
+        "Read the tensions on the spring balances.",
+        "Record and check that each T / sin(opposite angle) is the same.",
+        "Check the force triangle closes."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "waveMotion",
+      "subject": "physics",
+      "title": "Wave Motion — Transverse & Longitudinal Waves, v = fλ",
+      "topic": "sound",
+      "topicLabel": "Sound & Waves",
+      "topicColour": "#b18cff",
+      "classes": [
+        8,
+        9,
+        11
+      ],
+      "aim": "Watch particles of a medium as a wave passes: they only oscillate about their mean positions while energy travels. Compare transverse and longitudinal waves and verify v = f λ.",
+      "apparatus": [
+        "Row of particles connected by springs (medium)",
+        "Vibrator of adjustable frequency",
+        "Scale and stopwatch"
+      ],
+      "formula": "v = f λ      f = 1/T      Transverse: particles vibrate ⟂ to wave direction (crests & troughs) — e.g. string, light      Longitudinal: particles vibrate ∥ to wave direction (compressions & rarefactions) — e.g. sound      The medium does not travel with the wave; energy does",
+      "procedure": [
+        "Choose the type of wave.",
+        "Set the frequency f and the wave speed v (medium).",
+        "Measure the wavelength λ (crest to crest or compression to compression).",
+        "Record f, λ and v; check v = f λ.",
+        "Watch the red particle: it only moves to and fro."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "workDone",
+      "subject": "physics",
+      "title": "Work Done — Positive, Zero & Negative; Work–Energy Theorem",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Pull a block with a force at an angle and find the work done W = F s cos θ; see when work is positive, zero or negative; find the work done against gravity; and verify that net work equals the change in kinetic energy.",
+      "apparatus": [
+        "Block (m = 2 kg) on a floor",
+        "Force at adjustable angle",
+        "Friction surface",
+        "Metre scale"
+      ],
+      "formula": "W = F · s = F s cos θ  (joule)      θ < 90°: positive · θ = 90°: zero · θ > 90°: negative      Lifting: W = m g h      Work–energy theorem: W_net = ΔKE = ½ m v² − ½ m u²      1 J = 10⁷ erg",
+      "procedure": [
+        "Set the force F, its angle θ with the motion and the distance s.",
+        "Read the work done by F, by friction and by gravity.",
+        "Record for θ = 0°, 60°, 90°, 120°, 180°.",
+        "Turn on friction: W_net = W_F − W_friction; compare with the KE gained.",
+        "Mode “lift”: work against gravity = mgh, independent of the path."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "powerLift",
+      "subject": "physics",
+      "title": "Power — Climbing Stairs & Lifting Loads",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Measure your power by running up stairs (P = mgh/t), compare a slow and a fast lift, use P = F v for a moving vehicle, and convert between watt, horse power and kilowatt-hour.",
+      "apparatus": [
+        "Staircase (height h)",
+        "Stopwatch",
+        "Bathroom scale (mass m)",
+        "Motor lifting a load at constant speed"
+      ],
+      "formula": "P = W / t = m g h / t      P = F v  (constant velocity)      1 W = 1 J/s      1 hp = 746 W      Energy (kWh) = P (kW) × t (h);  1 kWh = 3.6 × 10⁶ J",
+      "procedure": [
+        "Set your mass, the stair height and your time.",
+        "Tap “Climb” and read the power in W and hp.",
+        "Record and compare walking and running (same work, different power).",
+        "Mode “motor”: set force and speed; P = F v.",
+        "Find the energy (kWh) used if the motor runs for the given hours."
+      ],
+      "controlCount": 7,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "energyConservation",
+      "subject": "physics",
+      "title": "Conservation of Mechanical Energy — Roller Track",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Release a ball on a smooth track and watch kinetic and potential energy change while their sum stays constant; add friction and see the “lost” energy appear as heat.",
+      "apparatus": [
+        "Curved track with height scale",
+        "Ball (m = 1 kg)",
+        "Energy meters for KE, PE and heat"
+      ],
+      "formula": "KE = ½ m v²      PE = m g h      Without friction: KE + PE = constant  →  v = √(2 g (h₀ − h))      With friction: KE + PE + heat = constant      Total energy is always conserved; it only changes form",
+      "procedure": [
+        "Set the release height h₀ and friction.",
+        "Tap “Release” and watch the energy bars.",
+        "Pause at several points; record h, v, KE, PE.",
+        "Check KE + PE = m g h₀ (no friction).",
+        "With friction the ball never regains its starting height; the difference is heat."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "energyForms",
+      "subject": "physics",
+      "title": "Energy Transformations in Everyday Devices",
+      "topic": "heat",
+      "topicLabel": "Heat & Matter",
+      "topicColour": "#ff8a5c",
+      "classes": [
+        6,
+        9
+      ],
+      "aim": "Choose a device and see which form of energy goes in and which forms come out (energy flow diagram); find its efficiency and note that the total energy out always equals the energy in.",
+      "apparatus": [
+        "Everyday devices: bulb, motor, generator, cell, solar cell, loudspeaker, microphone, heater, engine, plant, hydro plant"
+      ],
+      "formula": "Energy can neither be created nor destroyed — only transformed      Energy in = sum of all energy out      Efficiency = useful energy out / energy in × 100 %      Forms: mechanical (KE, PE), heat, light, sound, electrical, chemical, nuclear",
+      "procedure": [
+        "Choose a device and the input energy.",
+        "Read the energy flow: useful output and wasted output (mostly heat).",
+        "Record the efficiency.",
+        "Compare an LED with a filament bulb.",
+        "Check the outputs always add up to the input."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "springEnergy",
+      "subject": "physics",
+      "title": "Springs — Elastic Potential Energy & Series / Parallel Combinations",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Stretch springs singly, in series and in parallel; find the equivalent spring constant, the spring force F = −kx and the stored energy ½kx² as the area under the F–x graph.",
+      "apparatus": [
+        "Two springs k₁ and k₂",
+        "Hook, scale and force gauge"
+      ],
+      "formula": "F = − k x (restoring)      Work done in stretching = area under F–x = ½ k x² = elastic PE      Series: 1/k = 1/k₁ + 1/k₂  (softer)      Parallel: k = k₁ + k₂  (stiffer)      Spring force is conservative",
+      "procedure": [
+        "Choose the arrangement and set k₁, k₂.",
+        "Set the extension x.",
+        "Read the force and the energy stored (shaded area).",
+        "Record and plot F against x: slope = equivalent k.",
+        "Compare series (smaller k) and parallel (larger k) for the same x."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    },
+    {
+      "id": "conservative",
+      "subject": "physics",
+      "title": "Conservative & Non-conservative Forces — Path Independence",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Move a block from A to B along different paths: the work done by gravity (and a spring) is the same for every path and zero round a closed loop, but the work done against friction depends on the path.",
+      "apparatus": [
+        "Block (m = 2 kg)",
+        "Three paths from A to B: straight ramp, staircase, curved slide",
+        "Friction surface (μ)"
+      ],
+      "formula": "Conservative force (gravity, spring, electrostatic): work depends only on start and end points; round trip work = 0; has a potential energy U, F = −dU/dx      Non-conservative (friction, air drag): work depends on path; round trip work ≠ 0 (energy lost as heat)      W_gravity = − m g Δh",
+      "procedure": [
+        "Choose a path from A (top) to B (bottom).",
+        "Read the work done by gravity and by friction.",
+        "Record for all three paths.",
+        "Compare: gravity work is identical; friction work is greater for the longer path.",
+        "Choose “round trip” to go A → B → A: gravity gives zero net work, friction does not."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "equilibriumU",
+      "subject": "physics",
+      "title": "Potential-energy Curves & Types of Equilibrium",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Place a ball on a potential-energy landscape U(x); find where the force F = −dU/dx is zero and decide whether each equilibrium is stable (U minimum), unstable (U maximum) or neutral (U constant).",
+      "apparatus": [
+        "Smooth track shaped like U(x)",
+        "Ball",
+        "Force gauge (slope of U)"
+      ],
+      "formula": "F = − dU/dx      Equilibrium: F = 0 (dU/dx = 0)      Stable: U minimum (d²U/dx² > 0) — ball returns      Unstable: U maximum (d²U/dx² < 0) — ball moves away      Neutral: U constant — ball stays where placed",
+      "procedure": [
+        "Choose the landscape.",
+        "Place the ball with the slider and read U and F = −dU/dx.",
+        "Find the points where F = 0.",
+        "Tap “Nudge” at each one: does the ball come back, run away or stay?",
+        "Record the type of equilibrium."
+      ],
+      "controlCount": 2,
+      "actionCount": 2,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "machineEfficiency",
+      "subject": "physics",
+      "title": "Power & Efficiency — Crane, Water Pump & the Heart",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        9,
+        11
+      ],
+      "aim": "Find the useful (output) power of a crane, a water pump and the human heart, and compare it with the input power to get the efficiency.",
+      "apparatus": [
+        "Electric crane lifting a load",
+        "Pump lifting water to a tank",
+        "Heart (pressure × volume flow)"
+      ],
+      "formula": "Efficiency η = output power / input power × 100 % = useful work / energy supplied      Crane: P_out = m g v  (= m g h / t)      Pump: P_out = (mass per second) g h = ρ Q g h  (+ ½ (dm/dt) v² if water leaves with speed v)      Heart: P = pressure × volume pumped per second",
+      "procedure": [
+        "Choose the machine.",
+        "Set its load, rate and input power.",
+        "Read the output power and the efficiency.",
+        "Record and compare machines.",
+        "Check: η can never exceed 100 %."
+      ],
+      "controlCount": 7,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "massEnergy",
+      "subject": "physics",
+      "title": "Mass–Energy Equivalence — E = mc²",
+      "topic": "modern",
+      "topicLabel": "Modern Physics",
+      "topicColour": "#a78bfa",
+      "classes": [
+        9,
+        11,
+        12
+      ],
+      "aim": "Convert a small mass into energy with E = mc² and compare it with everyday energies: lifting work, burning coal, a household’s electricity use, and the mass lost in nuclear fission.",
+      "apparatus": [
+        "Mass converter (thought experiment)",
+        "Comparison scales"
+      ],
+      "formula": "E = m c²,  c = 3 × 10⁸ m/s      1 g of mass ≡ 9 × 10¹³ J      1 u (atomic mass unit) ≡ 931.5 MeV      In fission of U-235 about 0.1 % of the mass is converted to energy      Total (mass + energy) is conserved",
+      "procedure": [
+        "Set the mass converted.",
+        "Read the energy E = mc².",
+        "Compare: how high could it lift a 1000 kg car? how much coal would release this? how long would it power a home?",
+        "Record for several masses.",
+        "Choose “fission” to see the mass defect of 1 kg of U-235."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": false
+    },
+    {
+      "id": "penetration",
+      "subject": "physics",
+      "title": "Work–Energy Theorem — Bullet Penetration",
+      "topic": "mech",
+      "topicLabel": "Mechanics",
+      "topicColour": "#ffb547",
+      "classes": [
+        11
+      ],
+      "aim": "Fire a bullet into a wooden block: the block’s constant resistive force does negative work equal to the bullet’s kinetic energy. Find how penetration depth depends on speed, and how many planks a bullet can pass through.",
+      "apparatus": [
+        "Bullet (m = 20 g)",
+        "Wooden block / identical planks (each 2 cm thick)",
+        "Velocity gate"
+      ],
+      "formula": "Work–energy theorem: − F s = 0 − ½ m u²  →  s = m u² / 2F      s ∝ u²: double the speed → 4× the depth      Through planks: each plank removes the same energy F d; speed after n planks v² = u² − 2 n F d / m      Time of penetration t = 2s/u",
+      "procedure": [
+        "Set the bullet speed and the resistive force of the wood.",
+        "Choose a single block or a stack of planks.",
+        "Tap “Fire”. Read the penetration depth (or planks crossed).",
+        "Record for several speeds; plot s against u².",
+        "Check s = mu²/2F and t = 2s/u."
+      ],
+      "controlCount": 3,
+      "actionCount": 1,
+      "hasReadings": true,
+      "hasObservationTable": true,
+      "hasGraph": true
+    }
+  ]
+}

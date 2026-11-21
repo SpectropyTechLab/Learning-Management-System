@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { studioAnimationStyle } from './studioAnimationRuntime';
 
 export type StudioTableAction =
   | 'insert-row-above' | 'insert-row-below' | 'insert-column-left' | 'insert-column-right'
@@ -11,6 +12,12 @@ type Props = {
   content: Record<string, unknown>;
   editable: boolean;
   onChange?: (changes: Record<string, unknown>) => void;
+  animationBuildState?: {
+    sequence: string;
+    visibleItems: ReadonlySet<number>;
+    activeItem: number | null;
+    effect?: Record<string, unknown>;
+  } | null;
 };
 
 const normalizedRows = (value: unknown) => {
@@ -19,7 +26,7 @@ const normalizedRows = (value: unknown) => {
   return value.map((row) => Array.from({ length: width }, (_, column) => String(Array.isArray(row) ? row[column] ?? '' : '')));
 };
 
-export default function StudioTableElement({ elementId, content, editable, onChange }: Props) {
+export default function StudioTableElement({ elementId, content, editable, onChange, animationBuildState }: Props) {
   const rows = useMemo(() => normalizedRows(content.rows), [content.rows]);
   const merges = useMemo(() => Array.isArray(content.merges) ? content.merges as TableMerge[] : [], [content.merges]);
   const [activeCell, setActiveCell] = useState({ row: 0, column: 0 });
@@ -91,7 +98,14 @@ export default function StudioTableElement({ elementId, content, editable, onCha
               ? String(content.headerFill || '#1d4ed8')
               : bandedRow || bandedColumn ? String(content.bandFill || '#dbeafe') : String(content.cellFill || '#ffffff');
             const selected = editable && activeCell.row === row && activeCell.column === column;
-            return <td key={column} rowSpan={Math.max(1, Number(merge?.rowSpan) || 1)} colSpan={Math.max(1, Number(merge?.colSpan) || 1)} onClick={() => setActiveCell({ row, column })} style={{ border: `${borderWidth}px ${borderStyle} ${borderColor}`, backgroundColor, padding: cellMargin, textAlign: alignment, verticalAlign: verticalAlignment as 'top' | 'middle' | 'bottom', fontWeight: header || total || first || last ? 700 : 400, outline: selected ? '3px solid #2563eb' : undefined, outlineOffset: -3 }}>
+            const buildItem = animationBuildState?.sequence === 'by-row' ? row
+              : animationBuildState?.sequence === 'by-column' ? column
+                : row * columnCount + column;
+            const buildVisible = !animationBuildState || animationBuildState.visibleItems.has(buildItem);
+            const buildActive = animationBuildState?.activeItem === buildItem && animationBuildState.effect
+              ? studioAnimationStyle({ effects: [animationBuildState.effect] })
+              : {};
+            return <td key={column} rowSpan={Math.max(1, Number(merge?.rowSpan) || 1)} colSpan={Math.max(1, Number(merge?.colSpan) || 1)} onClick={() => setActiveCell({ row, column })} style={{ border: `${borderWidth}px ${borderStyle} ${borderColor}`, backgroundColor, padding: cellMargin, textAlign: alignment, verticalAlign: verticalAlignment as 'top' | 'middle' | 'bottom', fontWeight: header || total || first || last ? 700 : 400, outline: selected ? '3px solid #2563eb' : undefined, outlineOffset: -3, opacity: buildVisible ? 1 : 0, ...buildActive }}>
               <div contentEditable={editable} suppressContentEditableWarning onFocus={() => setActiveCell({ row, column })} onBlur={(event) => { const text = event.currentTarget.textContent ?? ''; if (text === value || !onChange) return; const next = rows.map((items) => [...items]); next[row][column] = text; onChange({ rows: next }); }} className="min-h-[1.4em] w-full outline-none">{value}</div>
             </td>;
           })}

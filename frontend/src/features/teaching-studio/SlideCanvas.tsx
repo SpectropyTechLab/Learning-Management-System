@@ -134,6 +134,7 @@ export default function SlideCanvas({
   objectOverlays = {},
   objectAnimationStyles = {},
   objectAnimationKeys = {},
+  selectionChromeHidden = false,
   transition,
   fixedDrawingStrokes = [],
   drawingStrokes = [],
@@ -172,6 +173,7 @@ export default function SlideCanvas({
   objectOverlays?: Record<string, ReactNode>;
   objectAnimationStyles?: Record<string, CSSProperties>;
   objectAnimationKeys?: Record<string, string | number>;
+  selectionChromeHidden?: boolean;
   transition?: Record<string, unknown>;
   fixedDrawingStrokes?: AuthorDrawingStroke[];
   drawingStrokes?: AuthorDrawingStroke[];
@@ -745,7 +747,7 @@ export default function SlideCanvas({
               const bounds = boundsFor(object, field);
               const renderedField = { ...field, bounds };
               const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
-              const objectSelected = Boolean(object && (object.id === selectedObjectId || selectedObjectIdSet.has(object.id)));
+              const objectSelected = Boolean(!selectionChromeHidden && object && (object.id === selectedObjectId || selectedObjectIdSet.has(object.id)));
               const selectedWithoutBorder = Boolean(objectSelected && !hasVisibleObjectBorder(object));
               // Resource overlays (3D, video, protected images, and packages) own
               // their complete visual surface. Rendering the legacy SVG image URL
@@ -861,34 +863,42 @@ export default function SlideCanvas({
             const overlay = object ? objectOverlays[object.id] : null;
             if (!object || !overlay) return null;
             const bounds = boundsFor(object, slot);
-            const selected = object.id === selectedObjectId || selectedObjectIdSet.has(object.id);
+            const selected = !selectionChromeHidden && (object.id === selectedObjectId || selectedObjectIdSet.has(object.id));
             const selectedWithoutBorder = selected && !hasVisibleObjectBorder(object);
             const textEditorOutline = showTextEditorOutlines && textObjectTypes.has(object.type) &&
               (selected || object.text.trim().length === 0);
             return (
               <div
-                key={`overlay-${object.id}-${objectAnimationKeys[object.id] ?? 'static'}`}
+                key={`overlay-${object.id}`}
                 data-element-id={object.id}
                 onClick={(event) => {
                   event.stopPropagation();
                   selectObject(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
                 }}
                 onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds, object.locked)}
-                className={`absolute touch-none rounded-md border-solid ${object.id === overflowVisibleForObjectId || allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'} ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
+                className={`absolute touch-none overflow-visible rounded-md border-solid ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
                   width: `${(bounds.width / MASTER.width) * 100}%`,
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
-                  backgroundColor: object.backgroundColor,
-                  borderColor: textEditorOutline || !selected ? object.borderColor ?? 'transparent' : undefined,
-                  borderWidth: textEditorOutline || !selected ? Math.max(0, object.borderWidth ?? 1) : 2,
-                  ...objectAnimationStyles[object.id],
                   rotate: `${rotationFor(object)}deg`,
                 }}
               >
-                {overlay}
+                <div
+                  key={`animated-content-${object.id}-${objectAnimationKeys[object.id] ?? 'static'}`}
+                  data-animated-content-for={object.id}
+                  className={`h-full w-full rounded-md border-solid ${object.id === overflowVisibleForObjectId || allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'}`}
+                  style={{
+                    backgroundColor: object.backgroundColor,
+                    borderColor: object.borderColor ?? 'transparent',
+                    borderWidth: Math.max(0, object.borderWidth ?? 1),
+                    ...objectAnimationStyles[object.id],
+                  }}
+                >
+                  {overlay}
+                </div>
               </div>
             );
           })}
@@ -905,7 +915,7 @@ export default function SlideCanvas({
             {[...drawingStrokes, ...(currentStroke ? [currentStroke] : [])].map((stroke) => <DrawingStrokeMark key={stroke.id} stroke={stroke} />)}
             {laserPoint ? <g pointerEvents="none"><circle cx={laserPoint.x} cy={laserPoint.y} r={Math.max(18, drawingWidth * 2.5)} fill={drawingColor} opacity={0.2} /><circle cx={laserPoint.x} cy={laserPoint.y} r={Math.max(6, drawingWidth)} fill={drawingColor} opacity={0.95} /></g> : null}
           </svg>
-          {multiSelectionBounds ? (
+          {!selectionChromeHidden && multiSelectionBounds ? (
             <div
               className="pointer-events-none absolute z-[19] border-2 border-dashed border-blue-700"
               style={{
@@ -917,7 +927,7 @@ export default function SlideCanvas({
               aria-label={`${selectedObjectIds.length} elements selected`}
             />
           ) : null}
-          {!drawingEnabled &&
+          {!selectionChromeHidden && !drawingEnabled &&
             onChangeObjectBounds &&
             (layout?.slots ?? []).map((slot) => {
               const object = objectsBySlotId.get(slot.id);

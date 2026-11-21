@@ -56,6 +56,7 @@ import {
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { sanitizeHtml } from '@/utils/htmlSanitizer';
 import {
   createBlankStudioScreen,
   deleteStudioScreen,
@@ -75,6 +76,10 @@ import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
 import StudioAnimationsPanel from './components/StudioAnimationsPanel';
 import StudioAnimationRibbonGallery from './components/StudioAnimationRibbonGallery';
+import StudioAnimationMenu from './components/StudioAnimationMenu';
+import StudioAnimationAdvancedOptions from './components/StudioAnimationAdvancedOptions';
+import StudioAnimationTriggerMenu from './components/StudioAnimationTriggerMenu';
+import { studioAnimationDefaultOptions, studioAnimationEffectSupported, type StudioAnimationEffectDefinition } from './components/studioAnimationModel';
 import { STUDIO_EQUATION_GROUPS } from './components/StudioMathPanel';
 import StudioEquationRibbon from './components/StudioEquationRibbon';
 import { inlineEquationInsertionOffset } from './components/studioEquationControlModel';
@@ -101,7 +106,7 @@ import {
 } from './components/studioClipboardModel';
 import StudioLayersPanel from './components/StudioLayersPanel';
 import { moveStudioLayer } from './components/studioLayerModel';
-import { buildStudioAnimationSequence } from './components/studioAnimationSequence';
+import { buildStudioAnimationSequence, persistStudioAnimationSequence, type StudioAnimationSequenceEntry } from './components/studioAnimationSequence';
 import { model3DSettingsFrom, standardModel3DView, type Model3DSettings } from './components/resources/model3DSettings';
 import {
   studioRibbonTabs,
@@ -123,6 +128,23 @@ import PhysicsSimulationStudio, {
   type PhysicsSimulationInsert,
   type PhysicsSimulationProject,
 } from './components/PhysicsSimulationStudio';
+import PhysicsLabStudio from './components/PhysicsLabStudio';
+import PhysicsLabIcon from './components/PhysicsLabIcon';
+import ChemistryLabStudio from './components/ChemistryLabStudio';
+import ChemistryLabIcon from './components/ChemistryLabIcon';
+import MathematicsLabStudio from './components/MathematicsLabStudio';
+import MathematicsLabIcon from './components/MathematicsLabIcon';
+import BiologyLabStudio from './components/BiologyLabStudio';
+import BiologyLabIcon from './components/BiologyLabIcon';
+import StudioTopicIcon, { simulationTopicIconKey } from './components/StudioTopicIcon';
+import { buildPhysicsLabHtml, loadPhysicsLabRuntimeSource } from './components/physicsLabExport';
+import { createPhysicsLabProject, loadPhysicsLabCatalog, loadPhysicsLabRuntime, validatePhysicsLabProject, type PhysicsLabCatalog, type PhysicsLabProject } from './components/physicsLabModel';
+import { buildChemistryLabHtml } from './components/chemistryLabExport';
+import { createChemistryLabProject, loadChemistryLabCatalog, validateChemistryLabProject, type ChemistryLabCatalog, type ChemistryLabProject } from './components/chemistryLabModel';
+import { buildMathematicsLabHtml } from './components/mathematicsLabExport';
+import { createMathematicsLabProject, loadMathematicsLabCatalog, validateMathematicsLabProject, type MathematicsLabCatalog, type MathematicsLabProject } from './components/mathematicsLabModel';
+import { buildBiologyLabHtml } from './components/biologyLabExport';
+import { createBiologyLabProject, loadBiologyLabCatalog, validateBiologyLabProject, type BiologyLabCatalog, type BiologyLabProject } from './components/biologyLabModel';
 import ActivityBuilderStudio, { type ActivityBuilderInsert } from './components/ActivityBuilderStudio';
 import { ACTIVITY_TEMPLATES, validateActivityDocument, type ActivityDocument, type ActivityType } from './components/activityBuilderModel';
 import { SIMULATION_TEMPLATES, simulationCategory, validateSimulationDocument, type SimulationDocument, type SimulationSubject } from './components/simulationStudioModel';
@@ -157,6 +179,7 @@ import type { StudioLayoutSummary } from './api/studioEditorApi';
 import {
   createStudioResource,
   createStudioResourceVersion,
+  getStudioResource,
   getStudioResourcePreview,
   importStudioAssetCatalogItem,
   listStudioResources,
@@ -205,11 +228,18 @@ type QuickStartSimulation = {
   versionId: number;
   project: SimulationDocument;
   iconUrl?: string;
+  iconKey?: string;
+};
+type QuickStartLab = {
+  resourceId: number;
+  versionId: number;
+  project: PhysicsLabProject | ChemistryLabProject | MathematicsLabProject | BiologyLabProject;
 };
 
 type SimulationIconMetadata = {
   query: string;
   alt: string;
+  key?: string;
   preferredProvider?: StudioAssetCatalogItem['provider'];
   provider?: StudioAssetCatalogItem['provider'];
   providerAssetId?: string;
@@ -226,6 +256,7 @@ const simulationIconMetadata = (project: SimulationDocument): SimulationIconMeta
   return {
     query: typeof value.query === 'string' && value.query.trim() ? value.query.trim() : project.title,
     alt: typeof value.alt === 'string' && value.alt.trim() ? value.alt.trim() : `${project.title} simulation`,
+    ...(typeof value.key === 'string' && value.key.trim() ? { key: value.key.trim() } : {}),
     ...(typeof value.preferredProvider === 'string' ? { preferredProvider: value.preferredProvider } : {}),
     ...(typeof value.provider === 'string' ? { provider: value.provider } : {}),
     ...(Number.isInteger(value.resourceId) ? { resourceId: value.resourceId } : {}),
@@ -242,7 +273,7 @@ const resolveSimulationTopicIcon = async (project: SimulationDocument) => {
   if (current.resourceVersionId) {
     try {
       const preview = await getStudioResourcePreview(current.resourceVersionId);
-      return { project, iconUrl: preview.url };
+      return { project, iconUrl: preview.url, iconKey: current.key };
     } catch {
       // Re-resolve a missing or expired catalog asset below.
     }
@@ -271,7 +302,7 @@ const resolveSimulationTopicIcon = async (project: SimulationDocument) => {
       // A provider outage must not prevent the Simulation itself from importing.
     }
   }
-  if (!chosen) return { project };
+  if (!chosen) return { project, iconKey: current.key || simulationTopicIconKey(project) };
   try {
     const iconResource = await importStudioAssetCatalogItem(chosen);
     const iconVersion = iconResource.latest_version;
@@ -279,6 +310,7 @@ const resolveSimulationTopicIcon = async (project: SimulationDocument) => {
     const preview = await getStudioResourcePreview(iconVersion.id);
     return {
       iconUrl: preview.url,
+      iconKey: current.key || simulationTopicIconKey(project),
       project: {
         ...project,
         metadata: {
@@ -298,7 +330,7 @@ const resolveSimulationTopicIcon = async (project: SimulationDocument) => {
       } satisfies SimulationDocument,
     };
   } catch {
-    return { project };
+    return { project, iconKey: current.key || simulationTopicIconKey(project) };
   }
 };
 
@@ -387,10 +419,26 @@ export default function TeachingStudioPage() {
   const [layoutGalleryOpen, setLayoutGalleryOpen] = useState(false);
   const [zoomDialogMode, setZoomDialogMode] = useState<StudioZoomMode | null>(null);
   const [animationPreview, setAnimationPreview] = useState<{
-    elementId: string;
+    elementId?: string;
     token: number;
+    mode?: 'element' | 'sequence';
+    fromEffectId?: string;
   } | null>(null);
   const [selectedAnimationEffectId, setSelectedAnimationEffectId] = useState<string | null>(null);
+  const [animationAutoPreview, setAnimationAutoPreview] = useState(true);
+  const [animationPaintSource, setAnimationPaintSource] = useState<{
+    elementId: string;
+    animation: Record<string, unknown>;
+    locked: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (!animationPaintSource) return;
+    const stopPainter = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAnimationPaintSource(null);
+    };
+    window.addEventListener('keydown', stopPainter);
+    return () => window.removeEventListener('keydown', stopPainter);
+  }, [animationPaintSource]);
   const [cropRequest, setCropRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [model3DModeRequest, setModel3DModeRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
@@ -419,6 +467,8 @@ export default function TeachingStudioPage() {
   } | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
+  const selectedHasGroup = Boolean(selectedScreen?.elements.some((element) =>
+    selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string'));
   useEffect(() => {
     setSelectedElementIds((current) => {
       if (!selectedElementId) return current.length ? [] : current;
@@ -437,12 +487,37 @@ export default function TeachingStudioPage() {
   const [simulationRibbonPage, setSimulationRibbonPage] = useState(0);
   const [quickStartSimulations, setQuickStartSimulations] = useState<QuickStartSimulation[]>([]);
   const [simulationSaving, setSimulationSaving] = useState(false);
+  const [physicsLabStudio, setPhysicsLabStudio] = useState<{ elementId?: string; project?: PhysicsLabProject } | null>(null);
+  const [chemistryLabStudio, setChemistryLabStudio] = useState<{ elementId?: string; project?: ChemistryLabProject } | null>(null);
+  const [mathematicsLabStudio, setMathematicsLabStudio] = useState<{ elementId?: string; project?: MathematicsLabProject } | null>(null);
+  const [biologyLabStudio, setBiologyLabStudio] = useState<{ elementId?: string; project?: BiologyLabProject } | null>(null);
+  const [physicsLabCatalog, setPhysicsLabCatalog] = useState<PhysicsLabCatalog | null>(null);
+  const [chemistryLabCatalog, setChemistryLabCatalog] = useState<ChemistryLabCatalog | null>(null);
+  const [mathematicsLabCatalog, setMathematicsLabCatalog] = useState<MathematicsLabCatalog | null>(null);
+  const [biologyLabCatalog, setBiologyLabCatalog] = useState<BiologyLabCatalog | null>(null);
+  const [labRibbonSubject, setLabRibbonSubject] = useState<'physics' | 'chemistry' | 'mathematics' | 'biology'>('physics');
+  const [physicsLabClassFilter, setPhysicsLabClassFilter] = useState<number | 'all'>('all');
+  const [physicsLabTopicFilter, setPhysicsLabTopicFilter] = useState('all');
+  const [quickStartLabs, setQuickStartLabs] = useState<QuickStartLab[]>([]);
+  const [physicsLabSaving, setPhysicsLabSaving] = useState(false);
   const [activityStudio, setActivityStudio] = useState<{
     initialType?: ActivityType;
     elementId?: string;
     project?: ActivityDocument;
   } | null>(null);
   const [activitySaving, setActivitySaving] = useState(false);
+  useEffect(() => {
+    const openBiology3DLibrary = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== 'spectropy-open-biology-3d-library') return;
+      setBiologyLabStudio(null);
+      setInsertResourceFilter('model_3d');
+      setPanel('insert-resources');
+      setRightPanelOpen(true);
+      toast.success('Choose a verified GLB model. It will be inserted as an interactive 3D object.');
+    };
+    window.addEventListener('message', openBiology3DLibrary);
+    return () => window.removeEventListener('message', openBiology3DLibrary);
+  }, []);
   useEffect(() => {
     let active = true;
     void listStudioResources({ resourceType: 'simulation' }).then(async (resources) => {
@@ -471,6 +546,7 @@ export default function TeachingStudioPage() {
             versionId: resource.latest_version.id,
             project: registeredProject,
             ...(iconUrl ? { iconUrl } : {}),
+            iconKey: simulationIconMetadata(registeredProject).key || simulationTopicIconKey(registeredProject),
           };
         } catch {
           return null;
@@ -481,6 +557,43 @@ export default function TeachingStudioPage() {
     }).catch(() => {
       if (active) setQuickStartSimulations([]);
     });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([loadPhysicsLabCatalog(), loadChemistryLabCatalog(), loadMathematicsLabCatalog(), loadBiologyLabCatalog(), listStudioResources({ resourceType: 'simulation' })])
+      .then(([catalog, chemistryCatalog, mathematicsCatalog, biologyCatalog, resources]) => {
+        if (!active) return;
+        setPhysicsLabCatalog(catalog);
+        setChemistryLabCatalog(chemistryCatalog);
+        setMathematicsLabCatalog(mathematicsCatalog);
+        setBiologyLabCatalog(biologyCatalog);
+        const entries = resources.flatMap((resource): QuickStartLab[] => {
+          const version = resource.latest_version;
+          const authoring = version?.metadata_json?.authoring;
+          if (!version || !authoring || typeof authoring !== 'object' || (authoring as Record<string, unknown>).kind !== 'spectropy_lab_studio') return [];
+          try {
+            const rawProject = (authoring as Record<string, unknown>).project;
+            const subject = (rawProject as { subject?: unknown })?.subject;
+            const validated = subject === 'chemistry' ? validateChemistryLabProject(rawProject)
+              : subject === 'mathematics' ? validateMathematicsLabProject(rawProject)
+                : subject === 'biology' ? validateBiologyLabProject(rawProject)
+                : validatePhysicsLabProject(rawProject);
+            return [{
+              resourceId: resource.id,
+              versionId: version.id,
+              project: {
+                ...validated,
+                metadata: { ...validated.metadata, quickStartResourceId: resource.id, quickStartResourceVersionId: version.id },
+              },
+            }];
+          } catch {
+            return [];
+          }
+        });
+        setQuickStartLabs(entries);
+      })
+      .catch(() => { if (active) setQuickStartLabs([]); });
     return () => { active = false; };
   }, []);
   const [ribbonCollapsed, setRibbonCollapsed] = useState(false);
@@ -500,8 +613,11 @@ export default function TeachingStudioPage() {
     textRangeFormat?: Record<string, string>;
     sourceSelectionText?: string;
   } | null>(null);
+  const [copiedObjectFormat, setCopiedObjectFormat] = useState<StudioCopiedFormat | null>(null);
+  const [copiedAnimation, setCopiedAnimation] = useState<Record<string, unknown> | null>(null);
   const formatPainterAppliedTargetRef = useRef<string | null>(null);
   const spectropyShortcutHeldRef = useRef(false);
+  const spectropyShortcutTimerRef = useRef<number | null>(null);
   const equationCanvasPointRef = useRef({ x: 600, y: 410 });
   const presentationChannelRef = useRef<BroadcastChannel | null>(null);
   const presentationWindowRef = useRef<Window | null>(null);
@@ -1402,7 +1518,7 @@ export default function TeachingStudioPage() {
     point?: { x: number; y: number },
     initialContent: Record<string, unknown> = { text: '' },
   ) => {
-    if (!selectedScreen || selectedScreen.layout_id || editorReadOnly) return;
+    if (!selectedScreen || editorReadOnly) return;
     const firstZoomTarget =
       type === 'zoom' ? screenList.screens.find((screen) => screen.id !== selectedScreen.id) : null;
     if (type === 'zoom' && !firstZoomTarget) {
@@ -1464,7 +1580,7 @@ export default function TeachingStudioPage() {
     return id;
   };
 
-  const addDroppedFiles = (files: File[], point: { x: number; y: number }) => {
+  const addDroppedFiles = (files: File[], point: { x: number; y: number }, source = 'drag-drop') => {
     if (editorReadOnly) return;
     files.slice(0, 10).forEach((file, index) => {
       if (file.size > 8 * 1024 * 1024) {
@@ -1484,7 +1600,8 @@ export default function TeachingStudioPage() {
           url,
           altText: file.name,
           mimeType: file.type,
-          source: 'drag-drop',
+          ...(type === 'visual' ? { visualType: 'image' } : {}),
+          source,
         });
       };
       reader.readAsDataURL(file);
@@ -1832,25 +1949,49 @@ export default function TeachingStudioPage() {
       height: Math.max(1, Number(element.position.height) || bounds.height),
     };
     const groupId = typeof element.position.groupId === 'string' ? element.position.groupId : null;
+    const preserveUnlockedMotionPath = (candidate: StudioElement, fromX: number, fromY: number, toX: number, toY: number) => {
+      const animation = candidate.content.animation;
+      if (!animation || typeof animation !== 'object' || Array.isArray(animation)) return candidate;
+      const saved = animation as Record<string, unknown>;
+      if (!Array.isArray(saved.effects)) return candidate;
+      const effects = saved.effects.map((raw) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+        const effect = raw as Record<string, unknown>;
+        if (effect.lockPathOrigin !== false || !Array.isArray(effect.motionPath)) return effect;
+        return { ...effect, motionPath: effect.motionPath.map((point) => {
+          if (!point || typeof point !== 'object' || Array.isArray(point)) return point;
+          const value = point as Record<string, unknown>;
+          return { ...value, x: (Number(value.x) || 0) + fromX - toX, y: (Number(value.y) || 0) + fromY - toY };
+        }) };
+      });
+      return { ...candidate, content: { ...candidate.content, animation: { ...saved, effects } } };
+    };
     if (!groupId) {
-      updateElement({ ...element, position: { ...element.position, ...bounds } });
+      const moved = preserveUnlockedMotionPath(element, previous.x, previous.y, bounds.x, bounds.y);
+      updateElement({ ...moved, position: { ...moved.position, ...bounds } });
       return;
     }
     const scaleX = bounds.width / previous.width;
     const scaleY = bounds.height / previous.height;
     const grouped = selectedScreen.elements.map((candidate) => {
       if (candidate.position.groupId !== groupId) return candidate;
-      if (candidate.id === elementId) return { ...candidate, position: { ...candidate.position, ...bounds } };
+      if (candidate.id === elementId) {
+        const moved = preserveUnlockedMotionPath(candidate, previous.x, previous.y, bounds.x, bounds.y);
+        return { ...moved, position: { ...moved.position, ...bounds } };
+      }
       const x = Number(candidate.position.x) || 0;
       const y = Number(candidate.position.y) || 0;
       const width = Number(candidate.position.width) || 80;
       const height = Number(candidate.position.height) || 60;
+      const nextX = Math.round(bounds.x + (x - previous.x) * scaleX);
+      const nextY = Math.round(bounds.y + (y - previous.y) * scaleY);
+      const moved = preserveUnlockedMotionPath(candidate, x, y, nextX, nextY);
       return {
-        ...candidate,
+        ...moved,
         position: {
-          ...candidate.position,
-          x: Math.round(bounds.x + (x - previous.x) * scaleX),
-          y: Math.round(bounds.y + (y - previous.y) * scaleY),
+          ...moved.position,
+          x: nextX,
+          y: nextY,
           width: Math.max(20, Math.round(width * scaleX)),
           height: Math.max(20, Math.round(height * scaleY)),
         },
@@ -1983,6 +2124,10 @@ export default function TeachingStudioPage() {
       && (authoring as Record<string, unknown>).kind === 'spectropy_activity_builder'
       ? authoring as Record<string, unknown>
       : null;
+    const editableLab = authoring && typeof authoring === 'object'
+      && (authoring as Record<string, unknown>).kind === 'spectropy_lab_studio'
+      ? authoring as Record<string, unknown>
+      : null;
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -1998,6 +2143,8 @@ export default function TeachingStudioPage() {
               simulationProject: editableSimulation.project,
               simulationTitle: resource.name,
               simulationSubject: editableSimulation.subject || null,
+              simulationBaseResourceVersionId: version.id,
+              simulationHasLocalChanges: false,
             }
           : {}),
         ...(editableActivity && editableActivity.project && typeof editableActivity.project === 'object'
@@ -2005,6 +2152,15 @@ export default function TeachingStudioPage() {
               activityProject: editableActivity.project,
               activityTitle: resource.name,
               activityType: (editableActivity.project as Record<string, unknown>).activityType || null,
+            }
+          : {}),
+        ...(editableLab && editableLab.project && typeof editableLab.project === 'object'
+          ? {
+              labProject: editableLab.project,
+              labTitle: resource.name,
+              labSubject: 'physics',
+              labBaseResourceVersionId: version.id,
+              labHasLocalChanges: false,
             }
           : {}),
       },
@@ -2062,7 +2218,13 @@ export default function TeachingStudioPage() {
       },
     };
     setQuickStartSimulations((current) => [
-      { resourceId: resource.id, versionId: version.id, project: registered, ...(resolvedIcon.iconUrl ? { iconUrl: resolvedIcon.iconUrl } : {}) },
+      {
+        resourceId: resource.id,
+        versionId: version.id,
+        project: registered,
+        ...(resolvedIcon.iconUrl ? { iconUrl: resolvedIcon.iconUrl } : {}),
+        iconKey: resolvedIcon.iconKey || simulationTopicIconKey(registered),
+      },
       ...current.filter((entry) => entry.resourceId !== resource.id),
     ]);
     setSimulationRibbonSubject(enrichedProject.subject);
@@ -2116,19 +2278,28 @@ export default function TeachingStudioPage() {
       },
     };
     const quickStartResourceId = Number(project.metadata?.quickStartResourceId);
+    const templateQuickStartEntry = !Number.isInteger(quickStartResourceId) && simulationStudio.templateId
+      ? quickStartSimulations.find((entry) =>
+          entry.project.subject === project.subject
+          && entry.project.templateId === simulationStudio.templateId)
+      : undefined;
+    const reusableQuickStartResourceId = Number.isInteger(quickStartResourceId) && quickStartResourceId > 0
+      ? quickStartResourceId
+      : templateQuickStartEntry?.resourceId;
     setSimulationSaving(true);
     try {
       const existing = simulationStudio.elementId
         ? selectedScreen.elements.find((element) => element.id === simulationStudio.elementId)
         : null;
+      if (simulationStudio.elementId && !existing) {
+        throw new Error('The Simulation being edited is no longer present on this Screen. Nothing was created.');
+      }
+      if (existing && !existing.resource?.resource_id) {
+        throw new Error('The Simulation being edited has lost its Resource link. Nothing was created.');
+      }
       if (existing?.resource?.resource_id) {
-        const created = await createStudioResourceVersion(existing.resource.resource_id, {
-          file,
-          width: 1920,
-          height: 1080,
-          entryPoint: fileName,
-          metadataJson,
-        });
+        const baseResourceVersionId = Number(existing.content.simulationBaseResourceVersionId)
+          || existing.resource.resource_version_id;
         const updated: StudioElement = {
           ...existing,
           position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
@@ -2139,25 +2310,23 @@ export default function TeachingStudioPage() {
             simulationProject: project,
             simulationTitle: cleanTitle,
             simulationSubject: project.subject,
-          },
-          resource: {
-            ...existing.resource,
-            resource_version_id: created.version.id,
+            simulationBaseResourceVersionId: baseResourceVersionId,
+            simulationHasLocalChanges: true,
           },
         };
         commitElements(
           selectedScreen.elements.map((element) => element.id === updated.id ? updated : element),
           updated.id,
         );
-        toast.success(`${cleanTitle} updated and saved as a new Resource version.`);
-      } else if (Number.isInteger(quickStartResourceId) && quickStartResourceId > 0) {
-        const created = await createStudioResourceVersion(quickStartResourceId, {
-          file,
-          width: 1920,
-          height: 1080,
-          entryPoint: fileName,
-          metadataJson,
-        });
+        toast.success(`${cleanTitle} updated only on this Screen. The Resource Library was not changed.`);
+      } else if (Number.isInteger(reusableQuickStartResourceId) && Number(reusableQuickStartResourceId) > 0) {
+        const quickStartEntry = quickStartSimulations.find((entry) => entry.resourceId === reusableQuickStartResourceId)
+          || templateQuickStartEntry;
+        const quickStartVersionId = Number(project.metadata?.quickStartResourceVersionId)
+          || quickStartEntry?.versionId;
+        if (!Number.isInteger(quickStartVersionId) || Number(quickStartVersionId) <= 0) {
+          throw new Error('The Quick Start Simulation Resource version is unavailable.');
+        }
         const token = typeof crypto !== 'undefined' && crypto.randomUUID
           ? crypto.randomUUID()
           : `${Date.now()}`;
@@ -2166,8 +2335,8 @@ export default function TeachingStudioPage() {
           ...project,
           metadata: {
             ...project.metadata,
-            quickStartResourceId,
-            quickStartResourceVersionId: created.version.id,
+            quickStartResourceId: Number(reusableQuickStartResourceId),
+            quickStartResourceVersionId: Number(quickStartVersionId),
           },
         };
         const element: StudioElement = {
@@ -2182,27 +2351,18 @@ export default function TeachingStudioPage() {
             simulationProject: registeredProject,
             simulationTitle: cleanTitle,
             simulationSubject: project.subject,
+            simulationBaseResourceVersionId: Number(quickStartVersionId),
+            simulationHasLocalChanges: false,
           },
           position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
           resource: {
-            resource_id: quickStartResourceId,
-            resource_version_id: created.version.id,
+            resource_id: Number(reusableQuickStartResourceId),
+            resource_version_id: Number(quickStartVersionId),
             usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
           },
         };
         commitElements([...selectedScreen.elements, element], element.id);
-        setQuickStartSimulations((current) => [
-          {
-            resourceId: quickStartResourceId,
-            versionId: created.version.id,
-            project: registeredProject,
-            ...(current.find((entry) => entry.resourceId === quickStartResourceId)?.iconUrl
-              ? { iconUrl: current.find((entry) => entry.resourceId === quickStartResourceId)?.iconUrl }
-              : {}),
-          },
-          ...current.filter((entry) => entry.resourceId !== quickStartResourceId),
-        ]);
-        toast.success(`${cleanTitle} inserted from Quick Start and saved as its latest version.`);
+        toast.success(`${cleanTitle} inserted from Quick Start without creating a Resource version.`);
       } else {
         const resource = await createStudioResource({
           name: cleanTitle,
@@ -2220,6 +2380,14 @@ export default function TeachingStudioPage() {
           ? crypto.randomUUID()
           : `${Date.now()}`;
         const id = `simulation-${token}`;
+        const registeredProject: SimulationDocument = {
+          ...project,
+          metadata: {
+            ...project.metadata,
+            quickStartResourceId: resource.id,
+            quickStartResourceVersionId: version.id,
+          },
+        };
         const element: StudioElement = {
           id,
           slotId: `free-${id}`,
@@ -2229,9 +2397,11 @@ export default function TeachingStudioPage() {
             url: '',
             altText: `${cleanTitle} interactive ${project.subject} Simulation`,
             source: 'SPECTROPY Simulation Creator',
-            simulationProject: project,
+            simulationProject: registeredProject,
             simulationTitle: cleanTitle,
             simulationSubject: project.subject,
+            simulationBaseResourceVersionId: version.id,
+            simulationHasLocalChanges: false,
           },
           position: {
             x: 0,
@@ -2247,6 +2417,10 @@ export default function TeachingStudioPage() {
           },
         };
         commitElements([...selectedScreen.elements, element], element.id);
+        setQuickStartSimulations((current) => [
+          { resourceId: resource.id, versionId: version.id, project: registeredProject },
+          ...current.filter((entry) => entry.resourceId !== resource.id),
+        ]);
         toast.success(`${cleanTitle} inserted and saved to the Resource Library.`);
       }
       setSimulationStudio(null);
@@ -2257,6 +2431,533 @@ export default function TeachingStudioPage() {
       toast.error(message);
     } finally {
       setSimulationSaving(false);
+    }
+  };
+
+  const updateSelectedSimulationResource = async () => {
+    if (editorReadOnly || !selectedScreen || !selectedElementId || simulationSaving) return;
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    if (!element?.resource?.resource_id || element.type !== 'simulation') {
+      toast.error('Select an editable SPECTROPY Simulation first.');
+      return;
+    }
+    try {
+      const project = validateSimulationDocument(element.content.simulationProject);
+      const cleanTitle = project.title.trim() || 'Interactive Simulation';
+      const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-simulation'}.html`;
+      const file = new File([buildStandaloneSimulationHtml(project)], fileName, { type: 'text/html' });
+      setSimulationSaving(true);
+      const created = await createStudioResourceVersion(element.resource.resource_id, {
+        file,
+        width: 1920,
+        height: 1080,
+        entryPoint: fileName,
+        metadataJson: {
+          authoring: {
+            kind: 'spectropy_simulation_studio',
+            schema: 'spectropy.simulation.v1',
+            subject: project.subject,
+            project,
+          },
+        },
+      });
+      const registeredProject: SimulationDocument = {
+        ...project,
+        metadata: {
+          ...project.metadata,
+          ...(Number(project.metadata?.quickStartResourceId) === element.resource.resource_id
+            ? {
+                quickStartResourceId: element.resource.resource_id,
+                quickStartResourceVersionId: created.version.id,
+              }
+            : {}),
+        },
+      };
+      const updated: StudioElement = {
+        ...element,
+        content: {
+          ...element.content,
+          simulationProject: registeredProject,
+          simulationTitle: cleanTitle,
+          simulationSubject: registeredProject.subject,
+          simulationBaseResourceVersionId: created.version.id,
+          simulationHasLocalChanges: false,
+        },
+        resource: { ...element.resource, resource_version_id: created.version.id },
+      };
+      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
+      setQuickStartSimulations((current) => current.map((entry) => entry.resourceId === element.resource?.resource_id
+        ? { ...entry, versionId: created.version.id, project: registeredProject }
+        : entry));
+      toast.success(`${cleanTitle} was explicitly saved as a new Resource Library version.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to update the Simulation Resource.');
+    } finally {
+      setSimulationSaving(false);
+    }
+  };
+
+  const resetSelectedSimulationToResource = async () => {
+    if (editorReadOnly || !selectedScreen || !selectedElementId || simulationSaving) return;
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    if (!element?.resource?.resource_id || element.type !== 'simulation') {
+      toast.error('Select an editable SPECTROPY Simulation first.');
+      return;
+    }
+    try {
+      setSimulationSaving(true);
+      const resource = await getStudioResource(element.resource.resource_id);
+      const baseVersionId = Number(element.content.simulationBaseResourceVersionId)
+        || element.resource.resource_version_id;
+      const version = resource.versions.find((candidate) => candidate.id === baseVersionId)
+        || resource.versions.find((candidate) => candidate.id === element.resource?.resource_version_id);
+      const authoring = version?.metadata_json?.authoring;
+      const project = authoring && typeof authoring === 'object'
+        ? (authoring as Record<string, unknown>).project
+        : null;
+      const validated = validateSimulationDocument(project);
+      const updated: StudioElement = {
+        ...element,
+        content: {
+          ...element.content,
+          text: validated.title,
+          altText: `${validated.title} interactive ${validated.subject} Simulation`,
+          simulationProject: validated,
+          simulationTitle: validated.title,
+          simulationSubject: validated.subject,
+          simulationBaseResourceVersionId: version?.id || element.resource.resource_version_id,
+          simulationHasLocalChanges: false,
+        },
+      };
+      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
+      toast.success(`${validated.title} was reset to its linked Resource version.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to reset the Simulation from its Resource.');
+    } finally {
+      setSimulationSaving(false);
+    }
+  };
+
+  const openPhysicsLab = async (labId?: string) => {
+    if (editorReadOnly || !selectedScreen) {
+      toast.error(editorReadOnly ? 'Start an update before opening Physics Lab.' : 'Select a Screen before opening Physics Lab.');
+      return;
+    }
+    if (!labId) {
+      setPhysicsLabStudio({});
+      return;
+    }
+    try {
+      const [catalog, definitions] = await Promise.all([loadPhysicsLabCatalog(), loadPhysicsLabRuntime()]);
+      const entry = catalog.labs.find((candidate) => candidate.id === labId);
+      const definition = definitions[labId];
+      if (!entry || !definition) throw new Error('The selected Physics Lab activity is unavailable.');
+      const resourceEntry = quickStartLabs.find((candidate) => candidate.project.labId === labId);
+      const base = createPhysicsLabProject(entry, definition);
+      setPhysicsLabStudio({
+        project: resourceEntry ? {
+          ...base,
+          metadata: {
+            ...base.metadata,
+            quickStartResourceId: resourceEntry.resourceId,
+            quickStartResourceVersionId: resourceEntry.versionId,
+          },
+        } : base,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to open Physics Lab.');
+    }
+  };
+
+  const openChemistryLab = async (labId?: string) => {
+    if (editorReadOnly || !selectedScreen) {
+      toast.error(editorReadOnly ? 'Start an update before opening Chemistry Lab.' : 'Select a Screen before opening Chemistry Lab.');
+      return;
+    }
+    if (!labId) {
+      setChemistryLabStudio({});
+      return;
+    }
+    try {
+      const catalog = await loadChemistryLabCatalog();
+      const entry = catalog.labs.find((candidate) => candidate.id === labId);
+      if (!entry) throw new Error('The selected Chemistry Lab activity is unavailable.');
+      const resourceEntry = quickStartLabs.find((candidate) => candidate.project.subject === 'chemistry' && candidate.project.labId === labId);
+      const base = createChemistryLabProject(entry);
+      setChemistryLabStudio({
+        project: resourceEntry ? {
+          ...base,
+          metadata: { ...base.metadata, quickStartResourceId: resourceEntry.resourceId, quickStartResourceVersionId: resourceEntry.versionId },
+        } : base,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to open Chemistry Lab.');
+    }
+  };
+
+  const openMathematicsLab = async (labId?: string) => {
+    if (editorReadOnly || !selectedScreen) {
+      toast.error(editorReadOnly ? 'Start an update before opening Mathematics Lab.' : 'Select a Screen before opening Mathematics Lab.');
+      return;
+    }
+    if (!labId) { setMathematicsLabStudio({}); return; }
+    try {
+      const catalog = await loadMathematicsLabCatalog();
+      const entry = catalog.labs.find((candidate) => candidate.id === labId);
+      if (!entry) throw new Error('The selected Mathematics Lab activity is unavailable.');
+      const resourceEntry = quickStartLabs.find((candidate) => candidate.project.subject === 'mathematics' && candidate.project.labId === labId);
+      const base = createMathematicsLabProject(entry);
+      setMathematicsLabStudio({ project: resourceEntry ? { ...base, metadata: { ...base.metadata, quickStartResourceId: resourceEntry.resourceId, quickStartResourceVersionId: resourceEntry.versionId } } : base });
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to open Mathematics Lab.'); }
+  };
+
+  const openBiologyLab = async (labId?: string) => {
+    if (editorReadOnly || !selectedScreen) {
+      toast.error(editorReadOnly ? 'Start an update before opening Biology Lab.' : 'Select a Screen before opening Biology Lab.');
+      return;
+    }
+    if (!labId) { setBiologyLabStudio({}); return; }
+    try {
+      const catalog = await loadBiologyLabCatalog();
+      const entry = catalog.labs.find((candidate) => candidate.id === labId);
+      if (!entry) throw new Error('The selected Biology Lab activity is unavailable.');
+      const resourceEntry = quickStartLabs.find((candidate) => candidate.project.subject === 'biology' && candidate.project.labId === labId);
+      const base = createBiologyLabProject(entry);
+      setBiologyLabStudio({ project: resourceEntry ? { ...base, metadata: { ...base.metadata, quickStartResourceId: resourceEntry.resourceId, quickStartResourceVersionId: resourceEntry.versionId } } : base });
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to open Biology Lab.'); }
+  };
+
+  const editSelectedPhysicsLab = () => {
+    if (editorReadOnly || !selectedScreen || !selectedElementId) {
+      toast.error('Select an editable Physics Lab first.');
+      return;
+    }
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    if (!element || element.type !== 'simulation' || !element.content.labProject) {
+      toast.error('This item is not an editable SPECTROPY Lab.');
+      return;
+    }
+    try {
+      const subject = (element.content.labProject as { subject?: unknown }).subject;
+      if (subject === 'chemistry') {
+        setChemistryLabStudio({ elementId: element.id, project: validateChemistryLabProject(element.content.labProject) });
+      } else if (subject === 'mathematics') {
+        setMathematicsLabStudio({ elementId: element.id, project: validateMathematicsLabProject(element.content.labProject) });
+      } else if (subject === 'biology') {
+        setBiologyLabStudio({ elementId: element.id, project: validateBiologyLabProject(element.content.labProject) });
+      } else {
+        setPhysicsLabStudio({ elementId: element.id, project: validatePhysicsLabProject(element.content.labProject) });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'This Lab uses an unsupported format.');
+    }
+  };
+
+  const insertPhysicsLab = async (inputProject: PhysicsLabProject) => {
+    if (!selectedScreen || !physicsLabStudio || physicsLabSaving) return;
+    const project = validatePhysicsLabProject(inputProject);
+    const cleanTitle = project.title.trim() || 'Interactive Physics Lab';
+    const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'physics-lab'}.html`;
+    const linkedResourceId = Number(project.metadata?.quickStartResourceId);
+    const knownEntry = quickStartLabs.find((entry) => entry.project.labId === project.labId);
+    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
+    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    setPhysicsLabSaving(true);
+    try {
+      const runtimeSource = await loadPhysicsLabRuntimeSource();
+      const file = new File([buildPhysicsLabHtml(project, runtimeSource)], fileName, { type: 'text/html' });
+      const existing = physicsLabStudio.elementId
+        ? selectedScreen.elements.find((element) => element.id === physicsLabStudio.elementId)
+        : null;
+      if (physicsLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
+      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      if (existing?.resource?.resource_id) {
+        const updated: StudioElement = {
+          ...existing,
+          position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
+          content: {
+            ...existing.content,
+            text: cleanTitle,
+            altText: `${cleanTitle} interactive Physics Lab`,
+            labProject: project,
+            labTitle: cleanTitle,
+            labSubject: 'physics',
+            labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id,
+            labHasLocalChanges: true,
+          },
+        };
+        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+      } else {
+        let resourceId = reusableResourceId;
+        let versionId = reusableVersionId;
+        let registeredProject = project;
+        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
+          const resource = await createStudioResource({
+            name: cleanTitle,
+            description: `SPECTROPY Physics Lab · ${project.topic} · Class ${project.classes.join(', ')}`,
+            resourceType: 'simulation',
+            file,
+            width: 1920,
+            height: 1080,
+            entryPoint: fileName,
+            metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'physics', project } },
+          });
+          if (!resource.latest_version) throw new Error('The Physics Lab Resource was created without a version.');
+          resourceId = resource.id;
+          versionId = resource.latest_version.id;
+          registeredProject = {
+            ...project,
+            metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId },
+          };
+          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => entry.project.labId !== project.labId)]);
+        } else {
+          registeredProject = {
+            ...project,
+            metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) },
+          };
+        }
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const id = `physics-lab-${token}`;
+        const element: StudioElement = {
+          id,
+          slotId: `free-${id}`,
+          type: 'simulation',
+          content: {
+            text: cleanTitle,
+            url: '',
+            altText: `${cleanTitle} interactive Physics Lab`,
+            source: 'SPECTROPY Physics Lab',
+            labProject: registeredProject,
+            labTitle: cleanTitle,
+            labSubject: 'physics',
+            labBaseResourceVersionId: Number(versionId),
+            labHasLocalChanges: false,
+          },
+          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
+          resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } },
+        };
+        commitElements([...selectedScreen.elements, element], element.id);
+        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+      }
+      setPhysicsLabStudio(null);
+    } catch (error) {
+      toast.error(getStudioErrorMessage(error) || 'Unable to save the Physics Lab.');
+    } finally {
+      setPhysicsLabSaving(false);
+    }
+  };
+
+  const insertChemistryLab = async (inputProject: ChemistryLabProject) => {
+    if (!selectedScreen || !chemistryLabStudio || physicsLabSaving) return;
+    const project = validateChemistryLabProject(inputProject);
+    const cleanTitle = project.title.trim() || 'Interactive Chemistry Lab';
+    const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'chemistry-lab'}.html`;
+    const linkedResourceId = Number(project.metadata?.quickStartResourceId);
+    const knownEntry = quickStartLabs.find((entry) => entry.project.subject === 'chemistry' && entry.project.labId === project.labId);
+    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
+    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    setPhysicsLabSaving(true);
+    try {
+      const file = new File([buildChemistryLabHtml(project)], fileName, { type: 'text/html' });
+      const existing = chemistryLabStudio.elementId
+        ? selectedScreen.elements.find((element) => element.id === chemistryLabStudio.elementId)
+        : null;
+      if (chemistryLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
+      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      if (existing?.resource?.resource_id) {
+        const updated: StudioElement = {
+          ...existing,
+          position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
+          content: {
+            ...existing.content,
+            text: cleanTitle,
+            altText: `${cleanTitle} interactive Chemistry Lab`,
+            labProject: project,
+            labTitle: cleanTitle,
+            labSubject: 'chemistry',
+            labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id,
+            labHasLocalChanges: true,
+          },
+        };
+        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+      } else {
+        let resourceId = reusableResourceId;
+        let versionId = reusableVersionId;
+        let registeredProject = project;
+        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
+          const resource = await createStudioResource({
+            name: cleanTitle,
+            description: `SPECTROPY Chemistry Lab · ${project.topic} · Class ${project.classes.join(', ')}`,
+            resourceType: 'simulation', file, width: 1920, height: 1080, entryPoint: fileName,
+            metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'chemistry', project } },
+          });
+          if (!resource.latest_version) throw new Error('The Chemistry Lab Resource was created without a version.');
+          resourceId = resource.id;
+          versionId = resource.latest_version.id;
+          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId } };
+          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => !(entry.project.subject === 'chemistry' && entry.project.labId === project.labId))]);
+        } else {
+          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) } };
+        }
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const id = `chemistry-lab-${token}`;
+        const element: StudioElement = {
+          id, slotId: `free-${id}`, type: 'simulation',
+          content: {
+            text: cleanTitle, url: '', altText: `${cleanTitle} interactive Chemistry Lab`, source: 'SPECTROPY Chemistry Lab',
+            labProject: registeredProject, labTitle: cleanTitle, labSubject: 'chemistry',
+            labBaseResourceVersionId: Number(versionId), labHasLocalChanges: false,
+          },
+          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
+          resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } },
+        };
+        commitElements([...selectedScreen.elements, element], element.id);
+        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+      }
+      setChemistryLabStudio(null);
+    } catch (error) {
+      toast.error(getStudioErrorMessage(error) || 'Unable to save the Chemistry Lab.');
+    } finally {
+      setPhysicsLabSaving(false);
+    }
+  };
+
+  const insertMathematicsLab = async (inputProject: MathematicsLabProject) => {
+    if (!selectedScreen || !mathematicsLabStudio || physicsLabSaving) return;
+    const project = validateMathematicsLabProject(inputProject);
+    const cleanTitle = project.title.trim() || 'Interactive Mathematics Lab';
+    const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'mathematics-lab'}.html`;
+    const linkedResourceId = Number(project.metadata?.quickStartResourceId);
+    const knownEntry = quickStartLabs.find((entry) => entry.project.subject === 'mathematics' && entry.project.labId === project.labId);
+    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
+    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    setPhysicsLabSaving(true);
+    try {
+      const file = new File([buildMathematicsLabHtml(project)], fileName, { type: 'text/html' });
+      const existing = mathematicsLabStudio.elementId ? selectedScreen.elements.find((element) => element.id === mathematicsLabStudio.elementId) : null;
+      if (mathematicsLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
+      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      if (existing?.resource?.resource_id) {
+        const updated: StudioElement = { ...existing, position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 }, content: { ...existing.content, text: cleanTitle, altText: `${cleanTitle} interactive Mathematics Lab`, labProject: project, labTitle: cleanTitle, labSubject: 'mathematics', labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id, labHasLocalChanges: true } };
+        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+      } else {
+        let resourceId = reusableResourceId; let versionId = reusableVersionId; let registeredProject = project;
+        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
+          const resource = await createStudioResource({ name: cleanTitle, description: `SPECTROPY Mathematics Lab · ${project.topic} · Class ${project.classes.join(', ')}`, resourceType: 'simulation', file, width: 1920, height: 1080, entryPoint: fileName, metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'mathematics', project } } });
+          if (!resource.latest_version) throw new Error('The Mathematics Lab Resource was created without a version.');
+          resourceId = resource.id; versionId = resource.latest_version.id;
+          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId } };
+          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => !(entry.project.subject === 'mathematics' && entry.project.labId === project.labId))]);
+        } else registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) } };
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const id = `mathematics-lab-${token}`;
+        const element: StudioElement = { id, slotId: `free-${id}`, type: 'simulation', content: { text: cleanTitle, url: '', altText: `${cleanTitle} interactive Mathematics Lab`, source: 'SPECTROPY Mathematics Lab', labProject: registeredProject, labTitle: cleanTitle, labSubject: 'mathematics', labBaseResourceVersionId: Number(versionId), labHasLocalChanges: false }, position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 }, resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } } };
+        commitElements([...selectedScreen.elements, element], element.id);
+        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+      }
+      setMathematicsLabStudio(null);
+    } catch (error) { toast.error(getStudioErrorMessage(error) || 'Unable to save the Mathematics Lab.'); }
+    finally { setPhysicsLabSaving(false); }
+  };
+
+  const insertBiologyLab = async (inputProject: BiologyLabProject) => {
+    if (!selectedScreen || !biologyLabStudio || physicsLabSaving) return;
+    const project = validateBiologyLabProject(inputProject);
+    const cleanTitle = project.title.trim() || 'Interactive Biology Lab';
+    const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'biology-lab'}.html`;
+    const linkedResourceId = Number(project.metadata?.quickStartResourceId);
+    const knownEntry = quickStartLabs.find((entry) => entry.project.subject === 'biology' && entry.project.labId === project.labId);
+    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
+    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    setPhysicsLabSaving(true);
+    try {
+      const file = new File([buildBiologyLabHtml(project)], fileName, { type: 'text/html' });
+      const existing = biologyLabStudio.elementId ? selectedScreen.elements.find((element) => element.id === biologyLabStudio.elementId) : null;
+      if (biologyLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
+      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      if (existing?.resource?.resource_id) {
+        const updated: StudioElement = { ...existing, position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 }, content: { ...existing.content, text: cleanTitle, altText: `${cleanTitle} interactive Biology Lab`, labProject: project, labTitle: cleanTitle, labSubject: 'biology', labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id, labHasLocalChanges: true } };
+        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+      } else {
+        let resourceId = reusableResourceId; let versionId = reusableVersionId; let registeredProject = project;
+        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
+          const resource = await createStudioResource({ name: cleanTitle, description: `SPECTROPY Biology Lab · ${project.topic} · Class ${project.classes.join(', ')}`, resourceType: 'simulation', file, width: 1920, height: 1080, entryPoint: fileName, metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'biology', project } } });
+          if (!resource.latest_version) throw new Error('The Biology Lab Resource was created without a version.');
+          resourceId = resource.id; versionId = resource.latest_version.id;
+          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId } };
+          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => !(entry.project.subject === 'biology' && entry.project.labId === project.labId))]);
+        } else registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) } };
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const id = `biology-lab-${token}`;
+        const element: StudioElement = { id, slotId: `free-${id}`, type: 'simulation', content: { text: cleanTitle, url: '', altText: `${cleanTitle} interactive Biology Lab`, source: 'SPECTROPY Biology Lab', labProject: registeredProject, labTitle: cleanTitle, labSubject: 'biology', labBaseResourceVersionId: Number(versionId), labHasLocalChanges: false }, position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 }, resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } } };
+        commitElements([...selectedScreen.elements, element], element.id);
+        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+      }
+      setBiologyLabStudio(null);
+    } catch (error) { toast.error(getStudioErrorMessage(error) || 'Unable to save the Biology Lab.'); }
+    finally { setPhysicsLabSaving(false); }
+  };
+
+  const updateSelectedPhysicsLabResource = async () => {
+    if (editorReadOnly || !selectedScreen || !selectedElementId || physicsLabSaving) return;
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    if (!element?.resource?.resource_id || !element.content.labProject) return toast.error('Select an edited Physics Lab first.');
+    try {
+      setPhysicsLabSaving(true);
+      const subject = (element.content.labProject as { subject?: unknown }).subject;
+      const project = subject === 'chemistry' ? validateChemistryLabProject(element.content.labProject)
+        : subject === 'mathematics' ? validateMathematicsLabProject(element.content.labProject)
+          : subject === 'biology' ? validateBiologyLabProject(element.content.labProject)
+          : validatePhysicsLabProject(element.content.labProject);
+      const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || `${project.subject}-lab`}.html`;
+      const html = subject === 'chemistry' ? buildChemistryLabHtml(project as ChemistryLabProject)
+        : subject === 'mathematics' ? buildMathematicsLabHtml(project as MathematicsLabProject)
+          : subject === 'biology' ? buildBiologyLabHtml(project as BiologyLabProject)
+          : buildPhysicsLabHtml(project as PhysicsLabProject, await loadPhysicsLabRuntimeSource());
+      const file = new File([html], fileName, { type: 'text/html' });
+      const created = await createStudioResourceVersion(element.resource.resource_id, {
+        file, width: 1920, height: 1080, entryPoint: fileName,
+        metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: project.subject, project } },
+      });
+      const registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: element.resource.resource_id, quickStartResourceVersionId: created.version.id } };
+      const updated: StudioElement = { ...element, content: { ...element.content, labProject: registeredProject, labBaseResourceVersionId: created.version.id, labHasLocalChanges: false }, resource: { ...element.resource, resource_version_id: created.version.id } };
+      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
+      setQuickStartLabs((current) => current.map((entry) => entry.resourceId === element.resource?.resource_id ? { ...entry, versionId: created.version.id, project: registeredProject } : entry));
+      toast.success(`${project.title} was explicitly saved as a new Lab Resource version.`);
+    } catch (error) {
+      toast.error(getStudioErrorMessage(error) || 'Unable to update the Lab Resource.');
+    } finally {
+      setPhysicsLabSaving(false);
+    }
+  };
+
+  const resetSelectedPhysicsLabToResource = async () => {
+    if (editorReadOnly || !selectedScreen || !selectedElementId || physicsLabSaving) return;
+    const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
+    if (!element?.resource?.resource_id || !element.content.labProject) return toast.error('Select an edited Physics Lab first.');
+    try {
+      setPhysicsLabSaving(true);
+      const resource = await getStudioResource(element.resource.resource_id);
+      const baseVersionId = Number(element.content.labBaseResourceVersionId) || element.resource.resource_version_id;
+      const version = resource.versions.find((candidate) => candidate.id === baseVersionId) || resource.versions.find((candidate) => candidate.id === element.resource?.resource_version_id);
+      const authoring = version?.metadata_json?.authoring;
+      const rawProject = authoring && typeof authoring === 'object' ? (authoring as Record<string, unknown>).project : null;
+      const subject = (rawProject as { subject?: unknown })?.subject;
+      const project = subject === 'chemistry' ? validateChemistryLabProject(rawProject)
+        : subject === 'mathematics' ? validateMathematicsLabProject(rawProject)
+          : subject === 'biology' ? validateBiologyLabProject(rawProject)
+          : validatePhysicsLabProject(rawProject);
+      const updated: StudioElement = { ...element, content: { ...element.content, text: project.title, labProject: project, labTitle: project.title, labBaseResourceVersionId: version?.id || element.resource.resource_version_id, labHasLocalChanges: false } };
+      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
+      toast.success(`${project.title} was reset to its linked Lab Resource version.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to reset the Physics Lab.');
+    } finally {
+      setPhysicsLabSaving(false);
     }
   };
 
@@ -2600,12 +3301,43 @@ export default function TeachingStudioPage() {
     return document.execCommand(command);
   };
 
+  const studioClipboardRepresentations = (elements: StudioElement[]) => {
+    const escapeHtml = (value: string) => value
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+    const textFor = (element: StudioElement) => String(
+      element.content.text ?? element.content.altText ?? element.content.title ?? element.content.caption ?? element.type,
+    );
+    const plain = elements.map(textFor).join('\n');
+    const html = elements.map((element) => {
+      const rich = typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : '';
+      return rich || `<p>${escapeHtml(textFor(element)).replaceAll('\n', '<br>')}</p>`;
+    }).join('');
+    return { plain, html };
+  };
+
+  const writeElementsToSystemClipboard = async (elements: StudioElement[]) => {
+    if (!elements.length || !navigator.clipboard) return;
+    const { plain, html } = studioClipboardRepresentations(elements);
+    try {
+      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/plain': new Blob([plain], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        })]);
+      } else await navigator.clipboard.writeText(plain);
+    } catch {
+      // Keyboard copy/cut still writes synchronously through ClipboardEvent.
+    }
+  };
+
   const copySelectedElements = () => {
     if (editorReadOnly) return;
     if (runNativeTextClipboardCommand('copy')) return;
     const copied = selectedElementsForClipboard();
     if (!copied.length) return;
     setEditorClipboard(copied);
+    void writeElementsToSystemClipboard(copied);
     toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} copied.`);
   };
 
@@ -2616,12 +3348,53 @@ export default function TeachingStudioPage() {
     if (!copied.length) return;
     const copiedIds = new Set(copied.map((element) => element.id));
     setEditorClipboard(copied);
-    commitElements(selectedScreen.elements.filter((element) => !copiedIds.has(element.id)), null);
-    toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} cut to the Studio clipboard.`);
+    void writeElementsToSystemClipboard(copied).finally(() => {
+      commitElements(selectedScreen.elements.filter((element) => !copiedIds.has(element.id)), null);
+      toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} cut to the clipboard.`);
+    });
+  };
+
+  const pasteExternalText = (plain: string, html = '') => {
+    const text = plain.trim();
+    if (!text || !selectedScreen || editorReadOnly) return false;
+    addBlankElement('text', 'content', { x: 360, y: 300 }, {
+      text,
+      ...(html ? { richTextHtml: sanitizeHtml(html) } : {}),
+    });
+    return true;
+  };
+
+  const pasteFromSystemClipboard = async () => {
+    if (!selectedScreen || editorReadOnly || !navigator.clipboard?.read) return false;
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((type) => type.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          addDroppedFiles([new File([blob], `Pasted image.${imageType.split('/')[1] || 'png'}`, { type: imageType })], { x: 300, y: 260 }, 'clipboard');
+          return true;
+        }
+        const html = item.types.includes('text/html') ? await (await item.getType('text/html')).text() : '';
+        const plain = item.types.includes('text/plain') ? await (await item.getType('text/plain')).text() : '';
+        if (plain || html) {
+          const template = document.createElement('template');
+          template.innerHTML = html;
+          return pasteExternalText(plain || template.content.textContent || '', html);
+        }
+      }
+    } catch {
+      toast.error('Clipboard access was blocked. Use Ctrl+V inside the Studio canvas.');
+    }
+    return false;
   };
 
   const pasteClipboard = (mode: StudioPasteMode = 'source-formatting') => {
-    if (!selectedScreen || editorReadOnly || !editorClipboard.length) return;
+    if (!selectedScreen || editorReadOnly) return;
+    if (!editorClipboard.length) {
+      void pasteFromSystemClipboard();
+      return;
+    }
     const pasted = pasteStudioClipboardElements(editorClipboard, mode);
     commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
     setSelectedElementIds(pasted.map((element) => element.id));
@@ -2708,6 +3481,14 @@ export default function TeachingStudioPage() {
     const isTypingTarget = (target: EventTarget | null) =>
       target instanceof HTMLElement &&
       Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+    const releaseSpectropyShortcut = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 's') return;
+      spectropyShortcutHeldRef.current = false;
+      if (spectropyShortcutTimerRef.current !== null) {
+        window.clearTimeout(spectropyShortcutTimerRef.current);
+        spectropyShortcutTimerRef.current = null;
+      }
+    };
     const commands = (event: KeyboardEvent) => {
       const typingTarget = isTypingTarget(event.target);
       const modifier = event.ctrlKey || event.metaKey;
@@ -2716,6 +3497,11 @@ export default function TeachingStudioPage() {
 
       if (!typingTarget && !modifier && !event.altKey && key === 's' && !spectropyShortcutHeldRef.current) {
         spectropyShortcutHeldRef.current = true;
+        if (spectropyShortcutTimerRef.current !== null) window.clearTimeout(spectropyShortcutTimerRef.current);
+        spectropyShortcutTimerRef.current = window.setTimeout(() => {
+          spectropyShortcutHeldRef.current = false;
+          spectropyShortcutTimerRef.current = null;
+        }, 1500);
         event.preventDefault();
         return;
       }
@@ -2723,13 +3509,26 @@ export default function TeachingStudioPage() {
       if (!typingTarget && spectropyShortcutHeldRef.current && key !== 's') {
         event.preventDefault();
         spectropyShortcutHeldRef.current = false;
+        if (spectropyShortcutTimerRef.current !== null) window.clearTimeout(spectropyShortcutTimerRef.current);
+        spectropyShortcutTimerRef.current = null;
         if (key === 'a' && selectedScreen) {
           const ids = selectedScreen.elements.map((element) => element.id);
           setSelectedElementIds(ids);
           setSelectedElementId(ids.at(-1) ?? null);
-        } else if (key === 'c' && selected) copySelectedElements();
+        } else if (key === 'c' && event.shiftKey && selected) {
+          setCopiedObjectFormat(copyStudioElementFormat(selected));
+          toast.success('Object formatting copied.');
+        }
+        else if (key === 'v' && event.shiftKey && selected && copiedObjectFormat) {
+          if (studioElementFormatFamily(selected) !== copiedObjectFormat.family) toast.error('The copied formatting is not compatible with this element.');
+          else updateElementPreservingSelection(applyStudioElementFormat(selected, copiedObjectFormat));
+        }
+        else if (key === 'c' && selected) copySelectedElements();
         else if (key === 'x' && selected && !editorReadOnly) cutSelectedElements();
-        else if (key === 'v' && editorClipboard.length && selectedScreen && !editorReadOnly) pasteClipboard('source-formatting');
+        else if (key === 'v' && selectedScreen && !editorReadOnly) {
+          if (editorClipboard.length) pasteClipboard('source-formatting');
+          else void pasteFromSystemClipboard();
+        }
         else if (key === 'd' && selected && !editorReadOnly) duplicateElement(selected.id);
         else if (key === 'g' && selectedElementIds.length > 1 && !editorReadOnly) groupSelectedElements();
         else if (key === 'u' && selectedHasGroup && !editorReadOnly) ungroupSelectedElements();
@@ -2741,23 +3540,46 @@ export default function TeachingStudioPage() {
         }
         else if (key === 'r') openScreenScript();
         else if (key === 'l') openSelectionPane();
+        else if (key === 'm' && !editorReadOnly) void createBlankScreen();
+        else if (key === 'n' && selectedScreen) {
+          const index = screenList.screens.findIndex((screen) => screen.id === selectedScreen.id);
+          const next = screenList.screens[index + 1];
+          if (next) void selectScreen(next.id);
+        }
+        else if (key === 'b' && selectedScreen) {
+          const index = screenList.screens.findIndex((screen) => screen.id === selectedScreen.id);
+          const previous = screenList.screens[index - 1];
+          if (previous) void selectScreen(previous.id);
+        }
+        else if (key === 'f') void toggleEditorFocusMode();
+        else if (key === 'h') toast('Spectropy shortcuts: S+A select all · S+C/X/V clipboard · S+Shift+C/V copy/apply formatting · S+D duplicate · S+G/U group/ungroup · S+Z/Y undo/redo · S+M new Screen · S+N/B next/previous Screen · S+P preview · S+L layers · S+F fullscreen');
         else if (key === 'enter' && !editorReadOnly) void saveDraftRef.current('manual');
         return;
       }
 
-      if (typingTarget || editorReadOnly) return;
+      if (typingTarget) return;
+
+      if (modifier && key === 'a' && selectedScreen) {
+        event.preventDefault();
+        event.stopPropagation();
+        const ids = selectedScreen.elements.map((element) => element.id);
+        setSelectedElementIds(ids);
+        setSelectedElementId(ids.at(-1) ?? null);
+        return;
+      }
+
+      if (modifier && key === 's') {
+        event.preventDefault();
+        if (!editorReadOnly) void saveDraftRef.current('manual');
+        return;
+      }
+
+      if (editorReadOnly) return;
 
       if (event.key === 'F5') {
         event.preventDefault();
         if (event.shiftKey) void openPresentation();
         else void openPreview();
-        return;
-      }
-      if (modifier && key === 'a' && selectedScreen) {
-        event.preventDefault();
-        const ids = selectedScreen.elements.map((element) => element.id);
-        setSelectedElementIds(ids);
-        setSelectedElementId(ids.at(-1) ?? null);
         return;
       }
       if (key === 'escape') {
@@ -2769,24 +3591,90 @@ export default function TeachingStudioPage() {
         setSelectedElementId(null);
         return;
       }
-      if (modifier && key === 'c' && selected) {
+      if (modifier && event.shiftKey && key === 'c' && selected) {
         event.preventDefault();
-        copySelectedElements();
+        setCopiedObjectFormat(copyStudioElementFormat(selected));
+        toast.success('Object formatting copied.');
         return;
       }
-      if (modifier && key === 'x' && selected) {
+      if (modifier && event.shiftKey && key === 'v' && selected && copiedObjectFormat) {
         event.preventDefault();
-        cutSelectedElements();
+        if (studioElementFormatFamily(selected) !== copiedObjectFormat.family) toast.error('The copied formatting is not compatible with this element.');
+        else updateElementPreservingSelection(applyStudioElementFormat(selected, copiedObjectFormat));
         return;
       }
-      if (modifier && key === 'v' && editorClipboard.length && selectedScreen) {
+      if (event.altKey && event.shiftKey && key === 'c' && selected) {
         event.preventDefault();
-        pasteClipboard('source-formatting');
+        const animation = selected.content.animation;
+        if (animation && typeof animation === 'object' && !Array.isArray(animation)) {
+          setCopiedAnimation(structuredClone(animation as Record<string, unknown>));
+          toast.success('Animation copied.');
+        }
         return;
       }
+      if (event.altKey && event.shiftKey && key === 'v' && selected && copiedAnimation) {
+        event.preventDefault();
+        const effects = (Array.isArray(copiedAnimation.effects) ? copiedAnimation.effects as Array<Record<string, unknown>> : []).map((effect, index) => ({ ...effect, id: `animation-${Date.now()}-${index}` }));
+        updateElementPreservingSelection({ ...selected, content: { ...selected.content, animation: { ...structuredClone(copiedAnimation), effects } } });
+        toast.success('Animation pasted.');
+        return;
+      }
+      // Copy, cut and paste are handled by ClipboardEvent so the operating-system
+      // clipboard remains interoperable with PowerPoint, Word and browsers.
       if (modifier && key === 'd' && selected) {
         event.preventDefault();
         duplicateElement(selected.id);
+        return;
+      }
+      if (modifier && key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redoElementChange();
+        else undoElementChange();
+        return;
+      }
+      if (modifier && key === 'y') {
+        event.preventDefault();
+        redoElementChange();
+        return;
+      }
+      if (modifier && key === 'm') {
+        event.preventDefault();
+        void createBlankScreen();
+        return;
+      }
+      if (modifier && !event.shiftKey && key === 'g' && selectedElementIds.length > 1) {
+        event.preventDefault();
+        groupSelectedElements();
+        return;
+      }
+      if (modifier && event.shiftKey && key === 'g' && selectedHasGroup) {
+        event.preventDefault();
+        ungroupSelectedElements();
+        return;
+      }
+      if (event.altKey && key === 'f10') {
+        event.preventDefault();
+        openSelectionPane();
+        return;
+      }
+      if ((key === 'pagedown' || key === 'pageup') && selectedScreen) {
+        event.preventDefault();
+        const index = screenList.screens.findIndex((screen) => screen.id === selectedScreen.id);
+        const target = screenList.screens[index + (key === 'pagedown' ? 1 : -1)];
+        if (target) void selectScreen(target.id);
+        return;
+      }
+      if (key === 'tab' && selectedScreen.elements.length) {
+        event.preventDefault();
+        const currentIndex = selectedScreen.elements.findIndex((element) => element.id === selectedElementId);
+        const offset = event.shiftKey ? -1 : 1;
+        const nextIndex = (currentIndex + offset + selectedScreen.elements.length) % selectedScreen.elements.length;
+        selectElementAndOpenControls(selectedScreen.elements[nextIndex].id);
+        return;
+      }
+      if (modifier && event.shiftKey && (key === '[' || key === ']') && selected) {
+        event.preventDefault();
+        commitElements(moveStudioLayer(selectedScreen.elements, selected.id, key === ']' ? 'forward' : 'backward'), selected.id);
         return;
       }
       if ((key === 'delete' || key === 'backspace') && selected) {
@@ -2810,29 +3698,65 @@ export default function TeachingStudioPage() {
         changeElementBounds(selected.id, bounds);
       }
     };
-    const releaseSpectropyShortcut = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === 's') spectropyShortcutHeldRef.current = false;
+    const writeClipboardEvent = (event: ClipboardEvent, cut: boolean) => {
+      if (isTypingTarget(event.target)) return;
+      const copied = selectedElementsForClipboard();
+      if (!copied.length || !event.clipboardData) return;
+      const { plain, html } = studioClipboardRepresentations(copied);
+      event.preventDefault();
+      event.clipboardData.setData('text/plain', plain);
+      event.clipboardData.setData('text/html', html);
+      event.clipboardData.setData('application/x-spectropy-studio-elements', JSON.stringify(copied));
+      setEditorClipboard(copied);
+      if (cut && selectedScreen && !editorReadOnly) {
+        const copiedIds = new Set(copied.map((element) => element.id));
+        commitElements(selectedScreen.elements.filter((element) => !copiedIds.has(element.id)), null);
+      }
     };
     const pasteExternal = (event: ClipboardEvent) => {
-      if (isTypingTarget(event.target) || editorClipboard.length) return;
-      const images = Array.from(event.clipboardData?.files ?? []).filter((file) =>
-        file.type.startsWith('image/'),
-      );
-      if (!images.length) return;
-      event.preventDefault();
-      addDroppedFiles(images, { x: 300, y: 260 });
+      if (isTypingTarget(event.target) || editorReadOnly || !selectedScreen || !event.clipboardData) return;
+      const studioPayload = event.clipboardData.getData('application/x-spectropy-studio-elements');
+      if (studioPayload) {
+        event.preventDefault();
+        try {
+          const parsed = JSON.parse(studioPayload) as StudioElement[];
+          const pasted = pasteStudioClipboardElements(parsed, 'source-formatting');
+          commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
+          setSelectedElementIds(pasted.map((element) => element.id));
+          return;
+        } catch { /* Fall through to standard clipboard formats. */ }
+      }
+      const files = Array.from(event.clipboardData.files ?? []);
+      if (files.length) {
+        event.preventDefault();
+        addDroppedFiles(files, { x: 300, y: 260 }, 'clipboard');
+        return;
+      }
+      const html = event.clipboardData.getData('text/html');
+      const plain = event.clipboardData.getData('text/plain');
+      if (!plain && !html) return;
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      if (pasteExternalText(plain || template.content.textContent || '', html)) event.preventDefault();
     };
-    window.addEventListener('keydown', commands);
+    const copyExternal = (event: ClipboardEvent) => writeClipboardEvent(event, false);
+    const cutExternal = (event: ClipboardEvent) => writeClipboardEvent(event, true);
+    document.addEventListener('keydown', commands, true);
     window.addEventListener('keyup', releaseSpectropyShortcut);
-    window.addEventListener('paste', pasteExternal);
+    document.addEventListener('copy', copyExternal, true);
+    document.addEventListener('cut', cutExternal, true);
+    document.addEventListener('paste', pasteExternal, true);
     return () => {
-      window.removeEventListener('keydown', commands);
+      document.removeEventListener('keydown', commands, true);
       window.removeEventListener('keyup', releaseSpectropyShortcut);
-      window.removeEventListener('paste', pasteExternal);
+      document.removeEventListener('copy', copyExternal, true);
+      document.removeEventListener('cut', cutExternal, true);
+      document.removeEventListener('paste', pasteExternal, true);
+      if (spectropyShortcutTimerRef.current !== null) window.clearTimeout(spectropyShortcutTimerRef.current);
     };
     // Command callbacks intentionally refresh with the editor state dependencies below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorClipboard, editorReadOnly, formatPainter, selectedElementId, selectedElementIds, selectedScreen]);
+  }, [copiedAnimation, copiedObjectFormat, editorClipboard, editorReadOnly, formatPainter, screenList, selectedElementId, selectedElementIds, selectedHasGroup, selectedScreen]);
 
   useEffect(() => {
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -3019,6 +3943,9 @@ export default function TeachingStudioPage() {
   const selectedElementType = selectedElement?.type ?? null;
   const selectedResourceType = String(selectedElement?.resource?.usage?.resource_type || '');
   const selectedVisualType = String(selectedElement?.content?.visualType || '');
+  const isSelectedAnimationEffectDisabled = (effect: string) => !studioAnimationEffectSupported(
+    String(selectedElementType || ''), selectedVisualType, selectedResourceType, effect,
+  );
   const selectedModel3DSettings = model3DSettingsFrom(selectedElement?.content);
   const selectedDiagramContent = selectedElement && isSmartDiagramContent(selectedElement.content) ? selectedElement.content : null;
   const selectedDiagramNode = selectedDiagramContent?.nodes.find((node) => node.id === selectedDiagramNodeId)
@@ -3125,6 +4052,36 @@ export default function TeachingStudioPage() {
   };
   const applyQuickAnimation = (effect: string, append = false) => {
     if (!selectedElement || editorReadOnly) return;
+    const groupedTargets = (selectedScreen?.elements ?? []).filter((candidate) => selectedElementIds.includes(candidate.id));
+    if (groupedTargets.length > 1 && selectedScreen) {
+      const baseOrder = buildStudioAnimationSequence(selectedScreen.elements).length;
+      const batchId = Date.now();
+      const updated = selectedScreen.elements.map((candidate) => {
+        const groupedIndex = groupedTargets.findIndex((target) => target.id === candidate.id);
+        if (groupedIndex < 0) return candidate;
+        const savedAnimation = candidate.content.animation && typeof candidate.content.animation === 'object'
+          ? candidate.content.animation as Record<string, unknown>
+          : {};
+        const existing = Array.isArray(savedAnimation.effects) ? savedAnimation.effects as Array<Record<string, unknown>> : [];
+        const next = {
+          id: `animation-${batchId}-${groupedIndex}`,
+          effect,
+          ...studioAnimationDefaultOptions(effect),
+          duration: 0.8,
+          delay: 0,
+          start: groupedIndex === 0 ? 'on-click' : 'with-previous',
+          buildSequence: 'all-at-once',
+          sequenceOrder: baseOrder + groupedIndex,
+        };
+        const effects = append ? [...existing, next] : [next];
+        return { ...candidate, content: { ...candidate.content, animation: { ...savedAnimation, effects, effect, duration: 0.8, delay: 0 } } };
+      });
+      setSelectedScreen({ ...selectedScreen, elements: updated });
+      setHasUnsavedChanges(true);
+      setSelectedAnimationEffectId(`animation-${batchId}-${Math.max(0, groupedTargets.findIndex((target) => target.id === selectedElement.id))}`);
+      if (animationAutoPreview) setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
+      return;
+    }
     const saved = selectedElement.content.animation && typeof selectedElement.content.animation === 'object'
       ? selectedElement.content.animation as Record<string, unknown>
       : {};
@@ -3136,6 +4093,7 @@ export default function TeachingStudioPage() {
       ...(!append && currentEffect ? currentEffect : {}),
       id: `animation-${Date.now()}`,
       effect,
+      ...studioAnimationDefaultOptions(effect),
       duration: !append && currentEffect ? Number(currentEffect.duration) || 0.8 : 0.8,
       delay: !append && currentEffect ? Number(currentEffect.delay) || 0 : 0,
       start: !append && currentEffect ? String(currentEffect.start || 'on-click') : 'on-click',
@@ -3158,7 +4116,7 @@ export default function TeachingStudioPage() {
       },
     });
     setSelectedAnimationEffectId(String(nextEffect.id));
-    setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
+    if (animationAutoPreview) setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
   };
   const selectedAnimationEffects = (() => {
     const animation = selectedElement?.content.animation;
@@ -3170,6 +4128,10 @@ export default function TeachingStudioPage() {
   })();
   const selectedAnimationEffectIndex = Math.max(0, selectedAnimationEffects.findIndex((effect) => String(effect.id) === selectedAnimationEffectId));
   const activeSelectedAnimationEffect = selectedAnimationEffects[selectedAnimationEffectIndex];
+  const globalAnimationSequence = buildStudioAnimationSequence(selectedScreen?.elements ?? []);
+  const selectedAnimationSequenceIndex = selectedElement && activeSelectedAnimationEffect
+    ? globalAnimationSequence.findIndex((entry) => entry.key === `${selectedElement.id}:${String(activeSelectedAnimationEffect.id)}`)
+    : -1;
   const updateSelectedAnimationEffect = (changes: Record<string, unknown>, index = selectedAnimationEffectIndex) => {
     if (!selectedElement || !selectedAnimationEffects[index]) return;
     const effects = selectedAnimationEffects.map((effect, effectIndex) => effectIndex === index ? { ...effect, ...changes } : effect);
@@ -3184,14 +4146,59 @@ export default function TeachingStudioPage() {
     setSelectedAnimationEffectId(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)]?.id ? String(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)].id) : null);
   };
   const moveSelectedAnimation = (delta: number, index = selectedAnimationEffectIndex) => {
-    if (!selectedElement) return;
-    const target = index + delta;
-    if (target < 0 || target >= selectedAnimationEffects.length) return;
-    const effects = [...selectedAnimationEffects];
-    [effects[index], effects[target]] = [effects[target], effects[index]];
-    const first = effects[0];
-    updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
-    setSelectedAnimationEffectId(String(effects[target].id));
+    if (!selectedElement || !selectedScreen || !selectedAnimationEffects[index]) return;
+    const sequence = buildStudioAnimationSequence(selectedScreen.elements);
+    const key = `${selectedElement.id}:${String(selectedAnimationEffects[index].id)}`;
+    const from = sequence.findIndex((entry) => entry.key === key);
+    const target = from + delta;
+    if (from < 0 || target < 0 || target >= sequence.length) return;
+    const keys = sequence.map((entry) => entry.key);
+    [keys[from], keys[target]] = [keys[target], keys[from]];
+    commitElements(persistStudioAnimationSequence(selectedScreen.elements, keys), selectedElement.id);
+    setSelectedAnimationEffectId(String(selectedAnimationEffects[index].id));
+  };
+  const updateAnimationEffectById = (elementId: string, effectId: string, changes: Record<string, unknown>) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const elements = selectedScreen.elements.map((element) => {
+      if (element.id !== elementId) return element;
+      const animation = element.content.animation && typeof element.content.animation === 'object' && !Array.isArray(element.content.animation)
+        ? element.content.animation as Record<string, unknown>
+        : {};
+      const effects = Array.isArray(animation.effects) ? animation.effects as Array<Record<string, unknown>> : [];
+      const nextEffects = effects.map((effect) => String(effect.id) === effectId ? { ...effect, ...changes } : effect);
+      const first = nextEffects[0];
+      return { ...element, content: { ...element.content, animation: { ...animation, effects: nextEffects, effect: first?.effect || 'none', duration: Number(first?.duration) || 0.8, delay: Number(first?.delay) || 0 } } };
+    });
+    commitElements(elements, elementId);
+    setSelectedAnimationEffectId(effectId);
+  };
+  const removeAnimationEffectById = (elementId: string, effectId: string) => {
+    if (!selectedScreen || editorReadOnly) return;
+    const elements = selectedScreen.elements.map((element) => {
+      if (element.id !== elementId) return element;
+      const animation = element.content.animation && typeof element.content.animation === 'object' && !Array.isArray(element.content.animation)
+        ? element.content.animation as Record<string, unknown>
+        : {};
+      const effects = (Array.isArray(animation.effects) ? animation.effects as Array<Record<string, unknown>> : [])
+        .filter((effect) => String(effect.id) !== effectId);
+      const first = effects[0];
+      return { ...element, content: { ...element.content, animation: { ...animation, effects, effect: first?.effect || 'none', duration: Number(first?.duration) || 0.8, delay: Number(first?.delay) || 0 } } };
+    });
+    commitElements(elements, elementId);
+    setSelectedAnimationEffectId(null);
+  };
+  const previewAnimationFrom = (entry: StudioAnimationSequenceEntry) => {
+    setSelectedElementId(entry.elementId);
+    setSelectedElementIds([entry.elementId]);
+    setSelectedAnimationEffectId(String(entry.effect.id));
+    setAnimationPreview({ mode: 'sequence', fromEffectId: String(entry.effect.id), token: Date.now() });
+  };
+  const startAnimationPainter = (locked = false) => {
+    if (!selectedElement || !selectedAnimationEffects.length) return;
+    const animation = selectedElement.content.animation;
+    if (!animation || typeof animation !== 'object' || Array.isArray(animation)) return;
+    setAnimationPaintSource({ elementId: selectedElement.id, animation: structuredClone(animation as Record<string, unknown>), locked });
+    toast.success(locked ? 'Animation Painter locked. Apply it to multiple components; press Escape to stop.' : 'Animation Painter active. Select another component.');
   };
   const openAnimationPane = () => {
     setPanel('animations');
@@ -3216,6 +4223,22 @@ export default function TeachingStudioPage() {
   };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string, additive = false) => {
+    if (!additive && animationPaintSource && animationPaintSource.elementId !== elementId && selectedScreen && !editorReadOnly) {
+      const baseOrder = buildStudioAnimationSequence(selectedScreen.elements).length;
+      const copied = structuredClone(animationPaintSource.animation);
+      const copiedEffects = (Array.isArray(copied.effects) ? copied.effects as Array<Record<string, unknown>> : []).map((effect, index) => ({
+        ...effect,
+        id: `animation-${Date.now()}-${index}`,
+        sequenceOrder: baseOrder + index,
+      }));
+      const first = copiedEffects[0];
+      const animation = { ...copied, effects: copiedEffects, effect: first?.effect || copied.effect || 'none' };
+      commitElements(selectedScreen.elements.map((candidate) => candidate.id === elementId
+        ? { ...candidate, content: { ...candidate.content, animation } }
+        : candidate), elementId);
+      if (!animationPaintSource.locked) setAnimationPaintSource(null);
+      toast.success('Animation formatting copied.');
+    }
     if (additive) {
       setSelectedElementIds((current) => {
         const next = current.includes(elementId)
@@ -3285,8 +4308,6 @@ export default function TeachingStudioPage() {
     }));
     toast.success('Elements ungrouped.');
   };
-  const selectedHasGroup = Boolean(selectedScreen?.elements.some((element) =>
-    selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string'));
   const studioTools = [
     { id: 'resources', label: 'Resources', icon: <Upload size={17} /> },
     { id: 'elements', label: 'Elements', icon: <Boxes size={17} /> },
@@ -3362,7 +4383,7 @@ export default function TeachingStudioPage() {
             label: 'Clipboard',
             content: (
               <StudioClipboardGroup
-                canPaste={!editorReadOnly && editorClipboard.length > 0 && Boolean(selectedScreen)}
+                canPaste={!editorReadOnly && Boolean(selectedScreen)}
                 canCopy={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
                 canCut={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
                 formatPainterActive={Boolean(formatPainter)}
@@ -3485,6 +4506,8 @@ export default function TeachingStudioPage() {
             id: 'simulation-create', label: 'Creator', commands: [
               { id: 'simulation-new', label: 'Open Simulation Creator', icon: simulationSaving ? <LoaderCircle size={17} className="animate-spin" /> : <WandSparkles size={17} />, disabled: editorReadOnly || !selectedScreen || simulationSaving, onExecute: () => openSimulationCreator() },
               { id: 'simulation-edit', label: 'Edit Current Simulation', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.simulationProject !== 'object', onExecute: editSelectedSimulation },
+              { id: 'simulation-update-resource', label: 'Update Resource Library', icon: <Save size={17} />, disabled: editorReadOnly || simulationSaving || selectedElement?.type !== 'simulation' || selectedElement.content.simulationHasLocalChanges !== true || !selectedElement.resource?.resource_id, onExecute: updateSelectedSimulationResource },
+              { id: 'simulation-reset-resource', label: 'Reset to Resource', icon: <RefreshCw size={17} />, disabled: editorReadOnly || simulationSaving || selectedElement?.type !== 'simulation' || selectedElement.content.simulationHasLocalChanges !== true || !selectedElement.resource?.resource_id, onExecute: resetSelectedSimulationToResource },
               { id: 'simulation-library', label: 'Resource Library', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
             ],
           },
@@ -3517,6 +4540,7 @@ export default function TeachingStudioPage() {
           {
             id: 'simulation-quick-start',
             label: 'Quick Start from a Template',
+            fitAvailableSpace: true,
             content: (
               <div className="flex w-[44rem] min-w-[44rem] items-center gap-0.5" aria-label="Simulation templates">
                 {simulationRibbonPageCount > 1 ? (
@@ -3570,9 +4594,11 @@ export default function TeachingStudioPage() {
                           ? <img src={imported.iconUrl} alt="" className="h-5 w-5 rounded object-contain" />
                           : template
                             ? <SimulationCatalogIcon simulation={template} size={18} />
-                            : imported
-                              ? <SimulationCatalogIcon simulation={{ icon: 'sparkles', title: imported.project.title, subject: imported.project.subject }} size={18} />
-                              : <Sparkles size={17} />}
+                            : imported?.iconKey
+                              ? <StudioTopicIcon iconKey={imported.iconKey} className="h-5 w-5" />
+                              : imported
+                                ? <SimulationCatalogIcon simulation={{ icon: 'sparkles', title: imported.project.title, subject: imported.project.subject }} size={18} />
+                                : <Sparkles size={17} />}
                       </span>
                       <span className="block w-full truncate text-center">{title}</span>
                     </button>
@@ -3584,7 +4610,7 @@ export default function TeachingStudioPage() {
         ];
       }
       case 'activity': {
-        const groups = ['Questions', 'Thinking', 'Games', 'Visual'] as const;
+        const quickActivities = ACTIVITY_TEMPLATES;
         return [
           {
             id: 'activity-builder', label: 'Builder', commands: [
@@ -3593,17 +4619,69 @@ export default function TeachingStudioPage() {
               { id: 'activity-library', label: 'Activity Resources', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
             ],
           },
-          ...groups.map((group) => ({
-            id: `activity-${group.toLowerCase()}`,
-            label: group,
-            commands: ACTIVITY_TEMPLATES.filter((template) => template.group === group).map((template) => ({
+          {
+            id: 'activity-quick-start',
+            label: 'Quick Start from a Template',
+            fitAvailableSpace: true,
+            commands: quickActivities.map((template) => ({
               id: `activity-template-${template.id}`,
               label: template.label,
               icon: <span className="text-base" aria-hidden="true">{template.icon}</span>,
               disabled: editorReadOnly || !selectedScreen || activitySaving,
               onExecute: () => openActivityBuilder(template.id),
             })),
-          })),
+          },
+        ];
+      }
+      case 'lab': {
+        const activeLabCatalog = labRibbonSubject === 'chemistry' ? chemistryLabCatalog : labRibbonSubject === 'mathematics' ? mathematicsLabCatalog : labRibbonSubject === 'biology' ? biologyLabCatalog : physicsLabCatalog;
+        const labs = (activeLabCatalog?.labs || []).filter((entry) =>
+          (physicsLabClassFilter === 'all' || entry.classes.includes(physicsLabClassFilter))
+          && (physicsLabTopicFilter === 'all' || entry.topic === physicsLabTopicFilter));
+        const openActiveLab = (labId?: string) => labRibbonSubject === 'chemistry' ? void openChemistryLab(labId) : labRibbonSubject === 'mathematics' ? void openMathematicsLab(labId) : labRibbonSubject === 'biology' ? void openBiologyLab(labId) : void openPhysicsLab(labId);
+        return [
+          {
+            id: 'lab-workspace', label: 'Lab Workspace', commands: [
+              { id: 'lab-open', label: 'Open Lab', icon: physicsLabSaving ? <LoaderCircle size={17} className="animate-spin" /> : <FlaskConical size={17} />, disabled: editorReadOnly || !selectedScreen || physicsLabSaving, onExecute: () => openActiveLab() },
+              { id: 'lab-edit', label: 'Edit Current Lab', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.labProject !== 'object', onExecute: editSelectedPhysicsLab },
+              { id: 'lab-update-resource', label: 'Update Resource Library', icon: <Save size={17} />, disabled: editorReadOnly || physicsLabSaving || selectedElement?.content.labHasLocalChanges !== true || !selectedElement?.resource?.resource_id, onExecute: updateSelectedPhysicsLabResource },
+              { id: 'lab-reset-resource', label: 'Reset to Resource', icon: <RefreshCw size={17} />, disabled: editorReadOnly || physicsLabSaving || selectedElement?.content.labHasLocalChanges !== true || !selectedElement?.resource?.resource_id, onExecute: resetSelectedPhysicsLabToResource },
+              { id: 'lab-library', label: 'Lab Resource Library', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
+            ],
+          },
+          {
+            id: 'lab-subjects', label: 'Subject Labs', commands: [
+              { id: 'lab-physics', label: 'Physics Lab', icon: <Orbit size={18} />, active: labRibbonSubject === 'physics', onExecute: () => { setLabRibbonSubject('physics'); setPhysicsLabTopicFilter('all'); } },
+              { id: 'lab-chemistry', label: 'Chemistry Lab', icon: <FlaskConical size={18} />, active: labRibbonSubject === 'chemistry', onExecute: () => { setLabRibbonSubject('chemistry'); setPhysicsLabTopicFilter('all'); } },
+              { id: 'lab-biology', label: 'Biology Lab', icon: <Dna size={18} />, active: labRibbonSubject === 'biology', onExecute: () => { setLabRibbonSubject('biology'); setPhysicsLabTopicFilter('all'); } },
+              { id: 'lab-mathematics', label: 'Mathematics Lab', icon: <Sigma size={18} />, active: labRibbonSubject === 'mathematics', onExecute: () => { setLabRibbonSubject('mathematics'); setPhysicsLabTopicFilter('all'); } },
+            ],
+          },
+          {
+            id: 'lab-filters', label: 'Class & Topic Filters', content: <div className="flex items-center gap-2 px-1">
+              <select aria-label={`Filter ${labRibbonSubject} Labs by class`} value={physicsLabClassFilter} onChange={(event) => setPhysicsLabClassFilter(event.target.value === 'all' ? 'all' : Number(event.target.value))} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
+                <option value="all">All classes</option>{[6, 7, 8, 9, 10, 11, 12].map((grade) => <option key={grade} value={grade}>Class {grade}</option>)}
+              </select>
+              <select aria-label={`Filter ${labRibbonSubject} Labs by topic`} value={physicsLabTopicFilter} onChange={(event) => setPhysicsLabTopicFilter(event.target.value)} className="h-9 min-w-36 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
+                <option value="all">All topics</option>{Object.entries(activeLabCatalog?.topics || {}).map(([id, topic]) => <option key={id} value={id}>{topic.label}</option>)}
+              </select>
+            </div>,
+          },
+          {
+            id: 'lab-quick-start', label: 'Quick Start from a Template', fitAvailableSpace: true, commands: labs.map((entry) => ({
+              id: `${labRibbonSubject}-lab-${entry.id}`,
+              label: entry.title,
+              icon: labRibbonSubject === 'chemistry'
+                ? <ChemistryLabIcon entry={entry as import('./components/chemistryLabModel').ChemistryLabCatalogEntry} className="h-7 w-7" />
+                : labRibbonSubject === 'mathematics'
+                  ? <MathematicsLabIcon entry={entry as import('./components/mathematicsLabModel').MathematicsLabCatalogEntry} className="h-7 w-7" />
+                  : labRibbonSubject === 'biology'
+                    ? <BiologyLabIcon entry={entry as import('./components/biologyLabModel').BiologyLabCatalogEntry} className="h-7 w-7" />
+                : <PhysicsLabIcon entry={entry as import('./components/physicsLabModel').PhysicsLabCatalogEntry} className="h-7 w-7" />,
+              disabled: editorReadOnly || !selectedScreen || physicsLabSaving,
+              onExecute: () => openActiveLab(entry.id),
+            })),
+          },
         ];
       }
       case 'equation':
@@ -3704,16 +4782,17 @@ export default function TeachingStudioPage() {
         ];
       case 'animations':
         return [
-          { id: 'animation-preview', label: 'Preview', content: <button type="button" title="Preview animation" aria-label="Preview animation" disabled={!selectedElement || selectedAnimationEffects.length === 0} onClick={() => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() })} className="grid h-10 w-10 place-items-center rounded-lg text-blue-900 hover:bg-blue-50 disabled:opacity-35"><Eye size={18}/></button> },
+          { id: 'animation-preview', label: 'Preview', content: <div className="flex h-full items-center gap-1 px-1"><button type="button" title="Preview selected animation" aria-label="Preview selected animation" disabled={!selectedElement || selectedAnimationEffects.length === 0} onClick={() => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() })} className="grid h-10 w-10 place-items-center rounded-lg text-blue-900 hover:bg-blue-50 disabled:opacity-35"><Eye size={18}/></button><label className="flex h-10 cursor-pointer flex-col items-center justify-center rounded px-1 text-[8px] font-semibold text-slate-600 hover:bg-slate-50"><input type="checkbox" checked={animationAutoPreview} onChange={(event) => setAnimationAutoPreview(event.target.checked)} className="h-3 w-3"/><span>AutoPreview</span></label></div> },
           {
-            id: 'animation-gallery', label: 'Animation', content: <StudioAnimationRibbonGallery activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')} disabled={!selectedElement || editorReadOnly} onSelect={(effect) => applyQuickAnimation(effect)} onRemove={removeSelectedAnimation} />,
+            id: 'animation-gallery', label: 'Animation', content: <StudioAnimationRibbonGallery activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')} disabled={!selectedElement || editorReadOnly} isEffectDisabled={isSelectedAnimationEffectDisabled} onSelect={(effect) => applyQuickAnimation(effect)} onRemove={removeSelectedAnimation} />,
           },
-          { id: 'animation-effect-options', label: 'Effect Options', content: <div data-studio-animation-effect-options className="grid gap-0.5"><select aria-label="Animation effect direction" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.direction || 'default')} onChange={(event) => updateSelectedAnimationEffect({ direction: event.target.value })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[9px] outline-none hover:bg-slate-100"><option value="default">Default</option><option value="left">From left</option><option value="right">From right</option><option value="top">From top</option><option value="bottom">From bottom</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select><select aria-label="Animate text" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.textSequence || 'object')} onChange={(event) => updateSelectedAnimationEffect({ textSequence: event.target.value })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[9px] outline-none hover:bg-slate-100"><option value="object">As object</option><option value="paragraph">By paragraph</option><option value="word">By word</option><option value="letter">By letter</option></select>{['color-pulse', 'object-color', 'line-color', 'fill-color', 'brush-color', 'font-color'].includes(String(activeSelectedAnimationEffect?.effect || '')) ? <input type="color" aria-label="Animation effect colour" value={String(activeSelectedAnimationEffect?.color || '#2563eb')} onChange={(event) => updateSelectedAnimationEffect({ color: event.target.value })} className="h-5 w-24 rounded p-0.5"/> : null}</div> },
+          { id: 'animation-effect-options', label: 'Effect Options', content: <div data-studio-animation-effect-options><StudioAnimationAdvancedOptions effect={(activeSelectedAnimationEffect as StudioAnimationEffectDefinition | undefined) ?? null} element={selectedElement ?? null} onChange={updateSelectedAnimationEffect}/></div> },
           { id: 'advanced-animation', label: 'Advanced Animation', commands: [
             { id: 'animation-pane', label: 'Animation Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, active: rightPanelOpen && panel === 'animations', onExecute: openAnimationPane },
-          ], content: <div className="flex items-center"><label title={activeSelectedAnimationEffect?.triggerElementId ? 'Change animation trigger' : 'Choose animation trigger'} className="relative flex h-10 w-14 cursor-pointer flex-col items-center justify-center rounded-lg text-[9px] font-semibold text-slate-700 hover:bg-slate-50"><MousePointer2 size={16}/><span>Trigger</span><select aria-label="Animation trigger" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.triggerElementId || '')} onChange={(event) => updateSelectedAnimationEffect({ triggerElementId: event.target.value || undefined, start: event.target.value ? 'trigger' : 'on-click' })} className="absolute inset-0 cursor-pointer opacity-0"><option value="">No trigger</option>{selectedScreen?.elements.filter((element) => element.id !== selectedElementId).map((element, index) => <option key={element.id} value={element.id}>On {String(element.content.layerName || element.content.text || `${element.type} ${index + 1}`).slice(0, 20)}</option>)}</select></label></div> },
-          { id: 'animation-timing', label: 'Timing', content: <div className="grid gap-0.5"><select aria-label="Animation start" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="h-5 w-28 rounded border px-1 text-[9px]"><option value="on-click">Start: On Click</option><option value="with-previous">Start: With Previous</option><option value="after-previous">Start: After Previous</option><option value="trigger">Start: Trigger</option></select><label className="flex items-center justify-between gap-1 text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Repeat<select aria-label="Animation repeat" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.repeat) || 1} onChange={(event) => updateSelectedAnimationEffect({ repeat: Number(event.target.value) })} className="h-5 w-14 rounded border px-1 text-[9px]"><option value="1">Once</option><option value="2">2x</option><option value="3">3x</option><option value="999">Until click</option></select></label></div> },
-          { id: 'animation-reorder', label: 'Reorder Animation', content: <div className="grid gap-0.5"><button type="button" disabled={selectedAnimationEffectIndex <= 0} onClick={() => moveSelectedAnimation(-1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronUp size={13}/>Move Earlier</button><button type="button" disabled={selectedAnimationEffectIndex >= selectedAnimationEffects.length - 1} onClick={() => moveSelectedAnimation(1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronDown size={13}/>Move Later</button></div> },
+            { id: 'animation-painter', label: animationPaintSource?.locked ? 'Painter Locked' : 'Animation Painter', icon: <Paintbrush size={17} />, disabled: !selectedElement || selectedAnimationEffects.length === 0, active: Boolean(animationPaintSource), onExecute: () => animationPaintSource ? setAnimationPaintSource(null) : startAnimationPainter(false), onDoubleClick: () => startAnimationPainter(true) },
+          ], content: <div className="flex h-full items-center"><StudioAnimationMenu label="Add Animation" addMode disabled={!selectedElement || editorReadOnly} isEffectDisabled={isSelectedAnimationEffectDisabled} onSelect={(effect) => applyQuickAnimation(effect, true)}/><StudioAnimationTriggerMenu effect={(activeSelectedAnimationEffect as StudioAnimationEffectDefinition | undefined) ?? null} element={selectedElement ?? null} elements={selectedScreen?.elements ?? []} disabled={!activeSelectedAnimationEffect || editorReadOnly} onChange={updateSelectedAnimationEffect}/></div> },
+          { id: 'animation-timing', label: 'Timing', content: <div className="grid gap-0.5"><select aria-label="Animation start" disabled={!activeSelectedAnimationEffect || activeSelectedAnimationEffect?.start === 'trigger'} value={String(activeSelectedAnimationEffect?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="h-5 w-28 rounded border px-1 text-[9px]"><option value="on-click">Start: On Click</option><option value="with-previous">Start: With Previous</option><option value="after-previous">Start: After Previous</option>{activeSelectedAnimationEffect?.start === 'trigger' ? <option value="trigger">Start: Trigger</option> : null}</select><select aria-label="Animation repeat" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.repeat || 1)} onChange={(event) => updateSelectedAnimationEffect({ repeat: /^\d+$/.test(event.target.value) ? Number(event.target.value) : event.target.value })} className="h-5 w-28 rounded border px-1 text-[9px]"><option value="1">Repeat: Once</option><option value="2">Repeat: Twice</option><option value="3">Repeat: 3 times</option><option value="5">Repeat: 5 times</option><option value="10">Repeat: 10 times</option><option value="until-next-click">Until next click</option><option value="until-end">Until end of Screen</option></select><label className="flex items-center justify-between gap-1 text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label></div> },
+          { id: 'animation-reorder', label: 'Reorder Animation', content: <div className="grid gap-0.5"><button type="button" disabled={selectedAnimationSequenceIndex <= 0} onClick={() => moveSelectedAnimation(-1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronUp size={13}/>Move Earlier</button><button type="button" disabled={selectedAnimationSequenceIndex < 0 || selectedAnimationSequenceIndex >= globalAnimationSequence.length - 1} onClick={() => moveSelectedAnimation(1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronDown size={13}/>Move Later</button></div> },
         ];
       case 'present':
         return [
@@ -3907,6 +4986,60 @@ export default function TeachingStudioPage() {
     );
   }
 
+  if (physicsLabStudio) {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden">
+        <PhysicsLabStudio
+          initialProject={physicsLabStudio.project}
+          editingExisting={Boolean(physicsLabStudio.elementId)}
+          onBack={() => setPhysicsLabStudio(null)}
+          onInsert={(project) => void insertPhysicsLab(project)}
+        />
+        {physicsLabSaving ? (
+          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
+            <div className="flex items-center gap-3 rounded-xl border border-cyan-300/30 bg-slate-950 px-5 py-3 font-semibold text-cyan-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-cyan-300" />Saving the Physics Lab activity…</div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (chemistryLabStudio) {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden">
+        <ChemistryLabStudio
+          initialProject={chemistryLabStudio.project}
+          editingExisting={Boolean(chemistryLabStudio.elementId)}
+          onBack={() => setChemistryLabStudio(null)}
+          onInsert={(project) => void insertChemistryLab(project)}
+        />
+        {physicsLabSaving ? (
+          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-300/30 bg-slate-950 px-5 py-3 font-semibold text-emerald-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-emerald-300" />Saving the Chemistry Lab activity…</div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (mathematicsLabStudio) {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden">
+        <MathematicsLabStudio initialProject={mathematicsLabStudio.project} editingExisting={Boolean(mathematicsLabStudio.elementId)} onBack={() => setMathematicsLabStudio(null)} onInsert={(project) => void insertMathematicsLab(project)} />
+        {physicsLabSaving ? <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite"><div className="flex items-center gap-3 rounded-xl border border-amber-300/30 bg-slate-950 px-5 py-3 font-semibold text-amber-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-amber-300"/>Saving the Mathematics Lab activity…</div></div> : null}
+      </div>
+    );
+  }
+
+  if (biologyLabStudio) {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden">
+        <BiologyLabStudio initialProject={biologyLabStudio.project} editingExisting={Boolean(biologyLabStudio.elementId)} onBack={() => setBiologyLabStudio(null)} onInsert={(project) => void insertBiologyLab(project)} />
+        {physicsLabSaving ? <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite"><div className="flex items-center gap-3 rounded-xl border border-emerald-300/30 bg-slate-950 px-5 py-3 font-semibold text-emerald-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-emerald-300"/>Saving the Biology Lab activity…</div></div> : null}
+      </div>
+    );
+  }
+
   if (activityStudio) {
     return (
       <div className="relative h-dvh w-full overflow-hidden">
@@ -3935,6 +5068,7 @@ export default function TeachingStudioPage() {
           initialProject={simulationStudio.project}
           initialSubject={simulationStudio.subject}
           initialTemplateId={simulationStudio.templateId}
+          editingExisting={Boolean(simulationStudio.elementId)}
           onBack={() => setSimulationStudio(null)}
           onImport={registerImportedSimulation}
           onInsert={(simulation) => void insertSimulation(simulation)}
@@ -4466,6 +5600,10 @@ export default function TeachingStudioPage() {
                     onCommit={commitElements}
                     onSelectElement={selectElementAndOpenControls}
                     onSelectAnimation={setSelectedAnimationEffectId}
+                    onPreviewAll={() => setAnimationPreview({ mode: 'sequence', token: Date.now() })}
+                    onPreviewFrom={previewAnimationFrom}
+                    onUpdateEffect={updateAnimationEffectById}
+                    onRemoveEffect={removeAnimationEffectById}
                   />
                 )}
                 {panel === 'drawing' && (

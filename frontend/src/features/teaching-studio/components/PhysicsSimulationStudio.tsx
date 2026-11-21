@@ -38,6 +38,7 @@ type Props = {
   initialProject?: SimulationDocument | null;
   initialSubject?: SimulationSubject;
   initialTemplateId?: string;
+  editingExisting?: boolean;
   onBack: () => void;
   onInsert: (simulation: PhysicsSimulationInsert) => void;
   onImport?: (simulation: SimulationDocument) => Promise<SimulationDocument>;
@@ -84,6 +85,7 @@ export default function PhysicsSimulationStudio({
   initialProject,
   initialSubject = 'physics',
   initialTemplateId,
+  editingExisting = false,
   onBack,
   onInsert,
   onImport,
@@ -267,7 +269,7 @@ export default function PhysicsSimulationStudio({
           }
           className="flex h-8 items-center gap-1.5 rounded-lg bg-cyan-400 px-3 text-xs font-bold text-slate-950"
         >
-          <WandSparkles size={17} /> Export &amp; Insert
+          <WandSparkles size={17} /> {editingExisting ? 'Apply to this Screen' : 'Export & Insert'}
         </button>
       </header>
       {/* Template selection is kept in the primary header to preserve vertical canvas space. */}

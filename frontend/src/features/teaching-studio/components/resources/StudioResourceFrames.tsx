@@ -9,6 +9,7 @@ interface ResourceFrameProps {
   width?: number | null;
   height?: number | null;
   onRuntimeMessage?: (data: Record<string, unknown>) => void;
+  onReady?: () => void;
 }
 
 interface ExternalLinkFrameProps extends ResourceFrameProps {
@@ -62,6 +63,7 @@ export function ExternalLinkFrame({
   openLinkLabel = 'Open in new tab',
   width,
   height,
+  onReady,
 }: ExternalLinkFrameProps) {
   return (
     <div className={`relative overflow-hidden bg-slate-950 ${className}`}>
@@ -74,6 +76,7 @@ export function ExternalLinkFrame({
           sandbox="allow-scripts allow-same-origin X-Frame-Options"
           allow="fullscreen"
           allowFullScreen
+          onLoad={onReady}
         />
       </FittedFrameViewport>
       <a
@@ -97,6 +100,7 @@ export function ExecutableResourceFrame({
   width,
   height,
   onRuntimeMessage,
+  onReady,
 }: ResourceFrameProps) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
@@ -119,6 +123,7 @@ export function ExecutableResourceFrame({
         sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation allow-pointer-lock allow-forms allow-modals allow-downloads allow-presentation"
         allow="fullscreen"
         allowFullScreen
+        onLoad={onReady}
       />
     </FittedFrameViewport>
   );
