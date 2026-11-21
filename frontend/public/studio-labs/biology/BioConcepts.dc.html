@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<style>
+.spectropy-bio-concept{width:100%;max-width:none;box-sizing:border-box;display:grid!important;grid-template-columns:minmax(190px,260px) minmax(420px,1fr) minmax(220px,340px);gap:12px!important;align-items:start!important;padding:0!important}
+.spectropy-bio-concept>div{max-width:none!important;min-width:0!important;box-sizing:border-box}
+.spectropy-bio-concept>div:first-child{max-height:calc(100vh - 32px)!important;overflow-y:auto!important;scrollbar-gutter:stable}
+@media(max-width:1100px){.spectropy-bio-concept{grid-template-columns:minmax(180px,230px) minmax(0,1fr)}.spectropy-bio-concept>div:last-child{grid-column:1/-1;display:grid!important;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px!important}}
+@media(max-width:760px){.spectropy-bio-concept{display:flex!important;flex-direction:column}.spectropy-bio-concept>div{width:100%!important}.spectropy-bio-concept>div:first-child{max-height:260px!important}}
+</style></head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f3f0e8;color:#1c211f;font-family:'Instrument Sans',system-ui,sans-serif}
+a{color:#2f6b4f}a:hover{color:#1c211f}
+input[type=range]{accent-color:#2f6b4f;width:100%;margin:0}
+button{font-family:inherit}
+</style>
+<script src="./sims-core.js"></script>
+<script src="./sims-a.js"></script>
+<script src="./sims-b.js"></script>
+<script src="./sims-c.js"></script>
+<script src="./sims-d.js"></script>
+</helmet>
+<div class="spectropy-bio-concept" style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;font-family:'Instrument Sans',system-ui,sans-serif;color:#1c211f">
+  <div style="flex:1 1 220px;max-width:290px;background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:14px;max-height:1100px;overflow-y:auto;box-sizing:border-box">
+    <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="3">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">{{ g.label }}</div>
+        <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+          <button onClick="{{ it.on }}" style="text-align:left;padding:9px 11px;border-radius:8px;border:1px solid {{ it.bd }};background:{{ it.bg }};color:{{ it.fg }};cursor:pointer;display:flex;flex-direction:column;gap:2px">
+            <span style="font-weight:600;font-size:14px;line-height:1.3">{{ it.title }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.75">{{ it.cls }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="flex:3 1 560px;min-width:0;background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">{{ cls }}</span>
+      <span style="font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1.2">{{ title }}</span>
+      <span style="font-size:14px;line-height:1.5;color:#3d423e;text-wrap:pretty"><b>Aim:</b> {{ aim }}</span>
+    </div>
+    <canvas ref="{{ cvRef }}" width="960" height="540" onClick="{{ onCv }}" style="width:100%;height:auto;display:block;border-radius:8px;background:#f3f0e8;cursor:{{ cursor }}"></canvas>
+    <sc-for list="{{ groups }}" as="gr" hint-placeholder-count="1">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <span style="font-size:13px;font-weight:600;min-width:96px">{{ gr.label }}</span>
+        <sc-for list="{{ gr.opts }}" as="op" hint-placeholder-count="3">
+          <button onClick="{{ op.on }}" style="padding:6px 12px;border-radius:999px;border:1px solid {{ op.bd }};background:{{ op.bg }};color:{{ op.fg }};cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap">{{ op.label }}</button>
+        </sc-for>
+      </div>
+    </sc-for>
+    <sc-if value="{{ hasSliders }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 20px">
+        <sc-for list="{{ sliders }}" as="sd" hint-placeholder-count="2">
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span style="font-weight:600">{{ sd.label }}</span><span style="font-family:'JetBrains Mono',monospace;color:#5f655f">{{ sd.text }}</span></span>
+            <input type="range" min="{{ sd.min }}" max="{{ sd.max }}" step="{{ sd.step }}" value="{{ sd.value }}" onChange="{{ sd.onChange }}">
+          </label>
+        </sc-for>
+      </div>
+    </sc-if>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <sc-for list="{{ actions }}" as="ac" hint-placeholder-count="4">
+        <button onClick="{{ ac.on }}" style="flex:none;max-width:100%;padding:9px 14px;border-radius:8px;border:1px solid {{ ac.bd }};background:{{ ac.bg }};color:{{ ac.fg }};opacity:{{ ac.op }};cursor:pointer;font-size:13px;font-weight:600;text-align:left;line-height:1.3;white-space:nowrap">{{ ac.label }}</button>
+      </sc-for>
+    </div>
+    <div style="padding:10px 12px;border-radius:8px;background:{{ msgBg }};color:{{ msgFg }};font-size:14px;line-height:1.5;text-wrap:pretty">{{ msgText }}</div>
+    <sc-if value="{{ hasTable }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:none;display:flex;flex-direction:column;border:1px solid #e6e1d4;border-radius:8px;overflow-x:auto">
+        <div style="display:grid;grid-template-columns:{{ gridCols }};gap:8px;padding:8px 10px;background:#f1eee5;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#5f655f;min-width:520px">
+          <sc-for list="{{ cols }}" as="cl" hint-placeholder-count="4"><span>{{ cl }}</span></sc-for>
+        </div>
+        <sc-for list="{{ rows }}" as="rw" hint-placeholder-count="0">
+          <div style="display:grid;grid-template-columns:{{ gridCols }};gap:8px;padding:7px 10px;border-top:1px solid #ebe6da;font-size:13px;min-width:520px">
+            <sc-for list="{{ rw.cells }}" as="ce" hint-placeholder-count="4"><span>{{ ce }}</span></sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="flex:1 1 260px;max-width:360px;display:flex;flex-direction:column;gap:14px">
+    <div style="background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">Key concepts</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <sc-for list="{{ ideas }}" as="m" hint-placeholder-count="5">
+          <span style="padding:4px 9px;border-radius:999px;background:#efece4;font-size:12px">{{ m }}</span>
+        </sc-for>
+      </div>
+    </div>
+    <sc-if value="{{ hasSteps }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:9px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">Procedure</div>
+        <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+          <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.4;color:{{ st.fg }}">
+            <span style="width:14px;height:14px;border-radius:50%;flex:none;margin-top:2px;border:1.5px solid {{ st.bd }};background:{{ st.dot }}"></span><span>{{ st.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasResult }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#e2ebe3;border:1px solid #bcd3c2;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;color:#24553e">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">Conclusion</div>
+        <div style="font-size:14px;line-height:1.55;text-wrap:pretty">{{ resultText }}</div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;sim&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;living&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { sim: null, v: 0 };
+  cv = React.createRef();
+  sims = {};
+  t = 0;
+  get E() { return window.BioSims || {}; }
+  componentDidMount() {
+    this.last = performance.now();
+    const loop = () => { this.raf = requestAnimationFrame(loop); const now = performance.now(), dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.t += dt; if (window.BioK) window.BioK.bump = this.bump; if (!this.ready && window.BioSims && Object.keys(window.BioSims).length) { this.ready = 1; this.bump(); } try { this.frame(dt); } catch (e) { if (!this.errd) { this.errd = 1; console.error(e); } } };
+    this.raf = requestAnimationFrame(loop);
+    this.poll = setInterval(() => { if (window.BioSims && Object.keys(window.BioSims).length) { if (window.BioK) window.BioK.bump = this.bump; if (!this.ready) { this.ready = 1; this.bump(); } clearInterval(this.poll); } }, 100);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); clearInterval(this.poll); }
+  componentDidUpdate(p) { try { this.frame(0); } catch (e) {} if ((p.sim !== this.props.sim || p.nonce !== this.props.nonce) && this.props.sim && this.E[this.props.sim]) this.setState({ sim: this.props.sim }); }
+  cur() { const ids = Object.keys(this.E); const id = this.state.sim || this.props.sim; return this.E[id] ? id : ids[0]; }
+  sim(id) { return this.sims[id] || (this.sims[id] = this.E[id].init()); }
+  bump = () => this.setState(s => ({ v: s.v + 1 }));
+  frame(dt) {
+    const id = this.cur(); if (!id) return; const E = this.E[id], s = this.sim(id);
+    if (E.tick && E.tick(s, dt)) { this.acc = (this.acc || 0) + dt; if (this.acc > 0.15) { this.acc = 0; this.bump(); } }
+    const c = this.cv.current; if (!c) return;
+    const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.fillStyle = '#f3f0e8'; x.fillRect(0, 0, 960, 540); x.lineCap = 'round'; x.lineJoin = 'round';
+    x.save(); E.draw(x, s, this.t); x.restore();
+  }
+  onCv = ev => { const id = this.cur(); if (!id) return; const E = this.E[id]; if (!E.click) return; const r = this.cv.current.getBoundingClientRect(); E.click(this.sim(id), (ev.clientX - r.left) * 960 / r.width, (ev.clientY - r.top) * 540 / r.height); this.bump(); };
+  renderVals() {
+    const id = this.cur(), act = on => on ? { bg: '#1c211f', fg: '#f3f0e8', bd: '#1c211f' } : { bg: '#fbfaf6', fg: '#1c211f', bd: '#d6cfbf' };
+    if (!id) return { navGroups: [], title: 'Loading simulations…', cls: '', aim: '', cvRef: this.cv, onCv: this.onCv, cursor: 'default', groups: [], sliders: [], hasSliders: false, actions: [], msgText: 'Loading…', msgBg: '#ecebe4', msgFg: '#3d423e', hasTable: false, cols: [], rows: [], gridCols: '1fr', ideas: [], steps: [], hasSteps: false, hasResult: false, resultText: '' };
+    const E = this.E[id], s = this.sim(id), wrap = fn => () => { fn(); this.bump(); };
+    const order = ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
+    const navGroups = order.map(g => ({ label: g, items: Object.entries(this.E).filter(([k, e]) => e.group === g).map(([k, e]) => Object.assign({ title: e.title, cls: e.cls, on: () => this.setState({ sim: k }) }, act(k === id))) })).filter(g => g.items.length);
+    const groups = (E.groups ? E.groups(s) : []).map(g => ({ label: g.label, opts: g.opts.map(o => Object.assign({ label: o.label, on: wrap(o.on) }, act(o.active))) }));
+    const sliders = (E.sliders ? E.sliders(s) : []).map(x => ({ label: x.label, min: x.min, max: x.max, step: x.step, value: x.value, text: x.text, onChange: e => { x.set(+e.target.value); this.bump(); } }));
+    const actions = (E.actions ? E.actions(s) : []).map(a => ({ label: (a.done ? '✓ ' : '') + a.label, on: () => { if (a.dis) return; a.on(); this.bump(); }, op: a.dis || a.done ? .5 : 1, bg: a.primary && !a.dis ? '#2f6b4f' : '#fbfaf6', fg: a.primary && !a.dis ? '#ffffff' : '#1c211f', bd: a.primary && !a.dis ? '#2f6b4f' : '#d6cfbf' }));
+    const tb = E.table ? E.table(s) : null, m = (E.msgOf ? E.msgOf(s) : s.msg) || { t: 'info', s: '' }, mc = m.t === 'ok' ? ['#e2ebe3', '#24553e'] : m.t === 'warn' ? ['#f5e3da', '#8f3620'] : ['#ecebe4', '#3d423e'];
+    const steps = (E.steps ? E.steps(s) : []).map(([label, d]) => ({ label, dot: d ? '#2f6b4f' : 'transparent', bd: d ? '#2f6b4f' : '#9aa39c', fg: d ? '#1c211f' : '#5f655f' }));
+    const res = E.result ? E.result(s) : '';
+    return {
+      navGroups, title: E.title, cls: E.cls, aim: E.aim, cvRef: this.cv, onCv: this.onCv, cursor: E.cursor || 'default',
+      groups, sliders, hasSliders: sliders.length > 0, actions, msgText: m.s, msgBg: mc[0], msgFg: mc[1],
+      hasTable: !!tb, cols: tb ? tb.cols : [], rows: tb ? tb.rows.map(r => ({ cells: r.map(String) })) : [], gridCols: tb ? 'repeat(' + tb.cols.length + ',minmax(0,1fr))' : '1fr',
+      ideas: E.ideas || [], steps, hasSteps: steps.length > 0, hasResult: !!res, resultText: res
+    };
+  }
+}
+</script>
+</body>
+</html>

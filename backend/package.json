@@ -58,7 +58,8 @@
   },
   "devDependencies": {
     "eslint": "^9.39.5",
-    "prettier": "^3.9.10"
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3"
   },
   "overrides": {
     "@humanfs/node": "0.16.8",

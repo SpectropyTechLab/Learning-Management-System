@@ -1,0 +1,6546 @@
+[
+  {
+    "id": "mathematics-linear",
+    "subject": "mathematics",
+    "kind": "mathematics-linear",
+    "title": "Straight line y = mx + c",
+    "description": "Slope m and intercept c; slope triangle and x-intercept.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Algebra",
+    "parameters": [
+      {
+        "key": "m",
+        "label": "Slope m",
+        "defaultValue": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "c",
+        "label": "y-intercept c",
+        "defaultValue": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "m",
+        "symbol": "m",
+        "label": "Slope m",
+        "value": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "c",
+        "symbol": "c",
+        "label": "y-intercept c",
+        "value": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "xi_1",
+        "output": "xi",
+        "expression": "m != 0 ? -c/m : 0/0",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "theta_2",
+        "output": "theta",
+        "expression": "rad2deg(atan(m))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "y = mx + c",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "m x + c"
+        }
+      },
+      {
+        "id": "segment-3",
+        "name": "run",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "2",
+          "y": "2 m + c",
+          "x2": "3",
+          "y2": "2 m + c",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "segment-4",
+        "name": "rise",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "3",
+          "y": "2 m + c",
+          "x2": "3",
+          "y2": "3 m + c",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "label-7",
+        "name": "slope m",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "-6",
+          "y": "6",
+          "value": "m"
+        }
+      },
+      {
+        "id": "label-8",
+        "name": "θ",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-6",
+          "y": "4.6",
+          "value": "θ",
+          "unit": "°"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "xi",
+        "expression": "m != 0 ? -c/m : 0/0",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "θ",
+        "expression": "rad2deg(atan(m))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "linear",
+      "category": "Algebra",
+      "graphOutputs": [
+        "xi"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-quad",
+    "subject": "mathematics",
+    "kind": "mathematics-quad",
+    "title": "Quadratic function & its roots",
+    "description": "Vertex, axis of symmetry, discriminant D and real roots.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Algebra",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "Coefficient a",
+        "defaultValue": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "b",
+        "label": "Coefficient b",
+        "defaultValue": -2,
+        "min": -10,
+        "max": 10,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "c",
+        "label": "Constant c",
+        "defaultValue": -3,
+        "min": -10,
+        "max": 10,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Coefficient a",
+        "value": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "Coefficient b",
+        "value": -2,
+        "min": -10,
+        "max": 10,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "c",
+        "symbol": "c",
+        "label": "Constant c",
+        "value": -3,
+        "min": -10,
+        "max": 10,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "D_1",
+        "output": "D",
+        "expression": "b^2 - 4 a c",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "xv_2",
+        "output": "xv",
+        "expression": "-b/(2 a)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "yv_3",
+        "output": "yv",
+        "expression": "c - b^2/(4 a)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "r1_4",
+        "output": "r1",
+        "expression": "D >= 0 ? (-b - sqrt(D))/(2 a) : 0/0",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "r2_5",
+        "output": "r2",
+        "expression": "D >= 0 ? (-b + sqrt(D))/(2 a) : 0/0",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "xv",
+          "y": "-50",
+          "x2": "xv",
+          "y2": "50",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "a x^2 + b x + c"
+        }
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "label-7",
+        "name": "D",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-6.5",
+          "y": "7",
+          "value": "D"
+        }
+      },
+      {
+        "id": "note-8",
+        "name": "No real roots (D < 0)",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-6",
+          "y": "5.6",
+          "show": "D < 0 ? 1 : 0"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "D",
+        "expression": "b^2 - 4 a c",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "xv",
+        "expression": "-b/(2 a)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "yv",
+        "expression": "c - b^2/(4 a)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "r1",
+        "expression": "D >= 0 ? (-b - sqrt(D))/(2 a) : 0/0",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-5",
+        "label": "r2",
+        "expression": "D >= 0 ? (-b + sqrt(D))/(2 a) : 0/0",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "quad",
+      "category": "Algebra",
+      "graphOutputs": [
+        "D"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-cubic",
+    "subject": "mathematics",
+    "kind": "mathematics-cubic",
+    "title": "Cubic polynomial from its roots",
+    "description": "y = a(x − p)(x − q)(x − r): drag a root and watch the graph.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Algebra",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "Leading coefficient",
+        "defaultValue": 0.5,
+        "min": -2,
+        "max": 2,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "p",
+        "label": "Root p",
+        "defaultValue": -3,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "q",
+        "label": "Root q",
+        "defaultValue": 0,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "r",
+        "label": "Root r",
+        "defaultValue": 2,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Leading coefficient",
+        "value": 0.5,
+        "min": -2,
+        "max": 2,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "p",
+        "symbol": "p",
+        "label": "Root p",
+        "value": -3,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "q",
+        "symbol": "q",
+        "label": "Root q",
+        "value": 0,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "r",
+        "symbol": "r",
+        "label": "Root r",
+        "value": 2,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "yint_1",
+        "output": "yint",
+        "expression": "-a p q r",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "a (x - p) (x - q) (x - r)"
+        }
+      },
+      {
+        "id": "pt-3",
+        "name": "PT 3",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "yint",
+        "expression": "-a p q r",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "cubic",
+      "category": "Algebra",
+      "graphOutputs": [
+        "yint"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-system",
+    "subject": "mathematics",
+    "kind": "mathematics-system",
+    "title": "Two linear equations (intersection)",
+    "description": "a₁x + b₁y = c₁ and a₂x + b₂y = c₂: unique, none or infinite solutions.",
+    "icon": "line",
+    "iconKey": "line",
+    "category": "Algebra",
+    "parameters": [
+      {
+        "key": "a1",
+        "label": "a₁",
+        "defaultValue": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "b1",
+        "label": "b₁",
+        "defaultValue": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "c1",
+        "label": "c₁",
+        "defaultValue": 4,
+        "min": -10,
+        "max": 10,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "a2",
+        "label": "a₂",
+        "defaultValue": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "b2",
+        "label": "b₂",
+        "defaultValue": -1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "c2",
+        "label": "c₂",
+        "defaultValue": 0,
+        "min": -10,
+        "max": 10,
+        "step": 0.5,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a1",
+        "symbol": "a1",
+        "label": "a₁",
+        "value": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b1",
+        "symbol": "b1",
+        "label": "b₁",
+        "value": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "c1",
+        "symbol": "c1",
+        "label": "c₁",
+        "value": 4,
+        "min": -10,
+        "max": 10,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "a2",
+        "symbol": "a2",
+        "label": "a₂",
+        "value": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b2",
+        "symbol": "b2",
+        "label": "b₂",
+        "value": -1,
+        "min": -5,
+        "max": 5,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "c2",
+        "symbol": "c2",
+        "label": "c₂",
+        "value": 0,
+        "min": -10,
+        "max": 10,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "det_1",
+        "output": "det",
+        "expression": "a1 b2 - a2 b1",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "xs_2",
+        "output": "xs",
+        "expression": "(c1 b2 - c2 b1)/det",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "ys_3",
+        "output": "ys",
+        "expression": "(a1 c2 - a2 c1)/det",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "line-2",
+        "name": "",
+        "type": "line",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "b1 != 0 ? -10 : c1/a1",
+          "y": "b1 != 0 ? (c1 + 10 a1)/b1 : -10",
+          "x2": "b1 != 0 ? 10 : c1/a1",
+          "y2": "b1 != 0 ? (c1 - 10 a1)/b1 : 10"
+        }
+      },
+      {
+        "id": "line-3",
+        "name": "",
+        "type": "line",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "b2 != 0 ? -10 : c2/a2",
+          "y": "b2 != 0 ? (c2 + 10 a2)/b2 : -10",
+          "x2": "b2 != 0 ? 10 : c2/a2",
+          "y2": "b2 != 0 ? (c2 - 10 a2)/b2 : 10"
+        }
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "note-5",
+        "name": "Parallel / coincident lines: det = 0",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-4",
+          "y": "6",
+          "show": "abs(det) < 1e-9 ? 1 : 0"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "det",
+        "expression": "a1 b2 - a2 b1",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "xs",
+        "expression": "(c1 b2 - c2 b1)/det",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "ys",
+        "expression": "(a1 c2 - a2 c1)/det",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "system",
+      "category": "Algebra",
+      "graphOutputs": [
+        "det"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-complex",
+    "subject": "mathematics",
+    "kind": "mathematics-complex",
+    "title": "Complex numbers on the Argand plane",
+    "description": "z = r(cos φ + i sin φ), conjugate and De Moivre power zⁿ.",
+    "icon": "vector",
+    "iconKey": "vector",
+    "category": "Algebra",
+    "parameters": [
+      {
+        "key": "r",
+        "label": "Modulus |z|",
+        "defaultValue": 1.6,
+        "min": 0.2,
+        "max": 3,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "phi",
+        "label": "Argument φ",
+        "defaultValue": 30,
+        "min": -180,
+        "max": 180,
+        "step": 1,
+        "unit": "°"
+      },
+      {
+        "key": "n",
+        "label": "Power n",
+        "defaultValue": 3,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "r",
+        "symbol": "r",
+        "label": "Modulus |z|",
+        "value": 1.6,
+        "min": 0.2,
+        "max": 3,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "phi",
+        "symbol": "φ",
+        "label": "Argument φ",
+        "value": 30,
+        "min": -180,
+        "max": 180,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      },
+      {
+        "id": "n",
+        "symbol": "n",
+        "label": "Power n",
+        "value": 3,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "a_1",
+        "output": "a",
+        "expression": "r cos(deg(φ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "b_2",
+        "output": "b",
+        "expression": "r sin(deg(φ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "pa_3",
+        "output": "pa",
+        "expression": "r^n cos(deg(n φ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "pb_4",
+        "output": "pb",
+        "expression": "r^n sin(deg(n φ))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "circle-2",
+        "name": "",
+        "type": "circle",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "r": "r",
+          "fill": "0",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "vector-3",
+        "name": "z",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "0",
+          "dx": "a",
+          "dy": "b",
+          "k": "1"
+        }
+      },
+      {
+        "id": "vector-4",
+        "name": "z̄",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "0",
+          "dx": "a",
+          "dy": "-b",
+          "k": "1"
+        }
+      },
+      {
+        "id": "vector-5",
+        "name": "zⁿ",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "0",
+          "y": "0",
+          "dx": "pa",
+          "dy": "pb",
+          "k": "1"
+        }
+      },
+      {
+        "id": "anglemark-6",
+        "name": "φ",
+        "type": "anglemark",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "a1": "0",
+          "a2": "φ",
+          "r": "0.7"
+        }
+      },
+      {
+        "id": "pt-7",
+        "name": "PT 7",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "a",
+        "expression": "r cos(deg(φ))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "b",
+        "expression": "r sin(deg(φ))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "pa",
+        "expression": "r^n cos(deg(n φ))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "pb",
+        "expression": "r^n sin(deg(n φ))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "complex",
+      "category": "Algebra",
+      "graphOutputs": [
+        "a",
+        "b"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-transform",
+    "subject": "mathematics",
+    "kind": "mathematics-transform",
+    "title": "Transformations  a·f(b(x − h)) + k",
+    "description": "Parent 1:x² 2:|x| 3:√x 4:x³ 5:sin x 6:2ˣ — stretch, shift and reflect.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Functions & Graphs",
+    "parameters": [
+      {
+        "key": "type",
+        "label": "Parent function (1–6)",
+        "defaultValue": 1,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "a",
+        "label": "Vertical stretch a",
+        "defaultValue": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "b",
+        "label": "Horizontal stretch b",
+        "defaultValue": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "h",
+        "label": "Horizontal shift h",
+        "defaultValue": 0,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "k",
+        "label": "Vertical shift k",
+        "defaultValue": 0,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "type",
+        "symbol": "type",
+        "label": "Parent function (1–6)",
+        "value": 1,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Vertical stretch a",
+        "value": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "Horizontal stretch b",
+        "value": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "h",
+        "symbol": "h",
+        "label": "Horizontal shift h",
+        "value": 0,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "k",
+        "symbol": "k",
+        "label": "Vertical shift k",
+        "value": 0,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "parent",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "transformed",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "w": "1.3"
+        }
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "transform",
+      "category": "Functions & Graphs",
+      "graphOutputs": []
+    }
+  },
+  {
+    "id": "mathematics-inverse",
+    "subject": "mathematics",
+    "kind": "mathematics-inverse",
+    "title": "Exponential & logarithm (inverse functions)",
+    "description": "y = aˣ and y = logₐx are mirror images in y = x.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Functions & Graphs",
+    "parameters": [
+      {
+        "key": "A",
+        "label": "Base a",
+        "defaultValue": 2,
+        "min": 0.2,
+        "max": 5,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "x0",
+        "label": "Point x₀",
+        "defaultValue": 1,
+        "min": -3,
+        "max": 2.5,
+        "step": 0.05,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "A",
+        "symbol": "A",
+        "label": "Base a",
+        "value": 2,
+        "min": 0.2,
+        "max": 5,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "x0",
+        "symbol": "x0",
+        "label": "Point x₀",
+        "value": 1,
+        "min": -3,
+        "max": 2.5,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "y0_1",
+        "output": "y0",
+        "expression": "A^x0",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "y = x",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "f": "x",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "aˣ",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "A^x"
+        }
+      },
+      {
+        "id": "fplot-4",
+        "name": "logₐx",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "f": "log(x, A)",
+          "from": "0.001",
+          "to": "10"
+        }
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "segment-7",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "x0",
+          "y": "y0",
+          "x2": "y0",
+          "y2": "x0",
+          "dash": "1"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "y0",
+        "expression": "A^x0",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "inverse",
+      "category": "Functions & Graphs",
+      "graphOutputs": [
+        "y0"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-rational",
+    "subject": "mathematics",
+    "kind": "mathematics-rational",
+    "title": "Rational function & asymptotes",
+    "description": "y = (ax + b)/(cx + d): vertical asymptote x = −d/c, horizontal y = a/c.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Functions & Graphs",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "a",
+        "defaultValue": 2,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "b",
+        "label": "b",
+        "defaultValue": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "c",
+        "label": "c",
+        "defaultValue": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "d",
+        "label": "d",
+        "defaultValue": -2,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "a",
+        "value": 2,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "b",
+        "value": 1,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "c",
+        "symbol": "c",
+        "label": "c",
+        "value": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "d",
+        "symbol": "d",
+        "label": "d",
+        "value": -2,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "va_1",
+        "output": "va",
+        "expression": "-d/c",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "ha_2",
+        "output": "ha",
+        "expression": "a/c",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "va",
+          "y": "-50",
+          "x2": "va",
+          "y2": "50",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "segment-3",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-50",
+          "y": "ha",
+          "x2": "50",
+          "y2": "ha",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-4",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "(a x + b)/(c x + d)"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "va",
+        "expression": "-d/c",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "ha",
+        "expression": "a/c",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "rational",
+      "category": "Functions & Graphs",
+      "graphOutputs": [
+        "va",
+        "ha"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-modulus",
+    "subject": "mathematics",
+    "kind": "mathematics-modulus",
+    "title": "Modulus of a function |f(x)|",
+    "description": "Parts below the x-axis are reflected upward.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Functions & Graphs",
+    "parameters": [
+      {
+        "key": "p",
+        "label": "p",
+        "defaultValue": 0,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "q",
+        "label": "q",
+        "defaultValue": -4,
+        "min": -8,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "p",
+        "symbol": "p",
+        "label": "p",
+        "value": 0,
+        "min": -5,
+        "max": 5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "q",
+        "symbol": "q",
+        "label": "q",
+        "value": -4,
+        "min": -8,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "f",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "f": "x^2 + p x + q",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "|f|",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "f": "abs(x^2 + p x + q)",
+          "w": "1.3"
+        }
+      }
+    ],
+    "results": [],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "modulus",
+      "category": "Functions & Graphs",
+      "graphOutputs": []
+    }
+  },
+  {
+    "id": "mathematics-unit",
+    "subject": "mathematics",
+    "kind": "mathematics-unit",
+    "title": "Unit circle → sine graph",
+    "description": "sin θ, cos θ, tan θ on the unit circle, traced out as the sine curve.",
+    "icon": "unitcircle",
+    "iconKey": "unitcircle",
+    "category": "Trigonometry",
+    "parameters": [
+      {
+        "key": "theta",
+        "label": "Angle θ",
+        "defaultValue": 30,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "theta",
+        "symbol": "θ",
+        "label": "Angle θ",
+        "value": 30,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "s_1",
+        "output": "s",
+        "expression": "sin(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "c_2",
+        "output": "c",
+        "expression": "cos(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "tn_3",
+        "output": "tn",
+        "expression": "tan(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "unitcircle-1",
+        "name": "",
+        "type": "unitcircle",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "θ": "θ",
+          "tan": "0"
+        }
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "1.5",
+          "y": "0",
+          "x2": "8",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "sin",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "f": "sin(x - 1.5)",
+          "from": "1.5",
+          "to": "1.5 + 2 pi",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-4",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "f": "sin(x - 1.5)",
+          "from": "1.5",
+          "to": "1.5 + deg(θ)",
+          "w": "1.4"
+        }
+      },
+      {
+        "id": "segment-5",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "c",
+          "y": "s",
+          "x2": "1.5 + deg(θ)",
+          "y2": "s",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "s",
+        "expression": "sin(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "c",
+        "expression": "cos(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "tn",
+        "expression": "tan(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "unit",
+      "category": "Trigonometry",
+      "graphOutputs": [
+        "s",
+        "c"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-wave",
+    "subject": "mathematics",
+    "kind": "mathematics-wave",
+    "title": "y = A sin(Bx + C) + D",
+    "description": "Amplitude, period 2π/B, phase shift and vertical shift.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Trigonometry",
+    "parameters": [
+      {
+        "key": "A",
+        "label": "Amplitude A",
+        "defaultValue": 2,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "B",
+        "label": "Frequency B",
+        "defaultValue": 1,
+        "min": 0.2,
+        "max": 4,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "C",
+        "label": "Phase C",
+        "defaultValue": 0,
+        "min": -6.28,
+        "max": 6.28,
+        "step": 0.05,
+        "unit": "rad"
+      },
+      {
+        "key": "D",
+        "label": "Vertical shift D",
+        "defaultValue": 0,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "A",
+        "symbol": "A",
+        "label": "Amplitude A",
+        "value": 2,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "B",
+        "symbol": "B",
+        "label": "Frequency B",
+        "value": 1,
+        "min": 0.2,
+        "max": 4,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "C",
+        "symbol": "C",
+        "label": "Phase C",
+        "value": 0,
+        "min": -6.28,
+        "max": 6.28,
+        "step": 0.05,
+        "unit": "rad",
+        "learnerEditable": true
+      },
+      {
+        "id": "D",
+        "symbol": "D",
+        "label": "Vertical shift D",
+        "value": 0,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "T_1",
+        "output": "T",
+        "expression": "2 pi/abs(B)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "ps_2",
+        "output": "ps",
+        "expression": "-C/B",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "sin x",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "f": "sin(x)",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "f": "A sin(B x + C) + D",
+          "w": "1.3"
+        }
+      },
+      {
+        "id": "segment-4",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-50",
+          "y": "D",
+          "x2": "50",
+          "y2": "D",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "Period",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-4.5",
+          "y": "4.2",
+          "value": "T"
+        }
+      },
+      {
+        "id": "label-6",
+        "name": "Phase shift",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-4.5",
+          "y": "3.1",
+          "value": "ps"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "T",
+        "expression": "2 pi/abs(B)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "ps",
+        "expression": "-C/B",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "wave",
+      "category": "Trigonometry",
+      "graphOutputs": [
+        "T"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-six",
+    "subject": "mathematics",
+    "kind": "mathematics-six",
+    "title": "Graphs of sin, cos and tan",
+    "description": "All three graphs with a moving vertical reading line.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Trigonometry",
+    "parameters": [
+      {
+        "key": "x0",
+        "label": "Reading point x",
+        "defaultValue": 1,
+        "min": -6.28,
+        "max": 6.28,
+        "step": 0.02,
+        "unit": "rad"
+      }
+    ],
+    "variables": [
+      {
+        "id": "x0",
+        "symbol": "x0",
+        "label": "Reading point x",
+        "value": 1,
+        "min": -6.28,
+        "max": 6.28,
+        "step": 0.02,
+        "unit": "rad",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "s_1",
+        "output": "s",
+        "expression": "sin(x0)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "c_2",
+        "output": "c",
+        "expression": "cos(x0)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "tn_3",
+        "output": "tn",
+        "expression": "tan(x0)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "sin",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "f": "sin(x)"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "cos",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "cos(x)"
+        }
+      },
+      {
+        "id": "fplot-4",
+        "name": "tan",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "f": "tan(x)"
+        }
+      },
+      {
+        "id": "segment-5",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "x0",
+          "y": "-50",
+          "x2": "x0",
+          "y2": "50",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-7",
+        "name": "PT 7",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-8",
+        "name": "PT 8",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "s",
+        "expression": "sin(x0)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "c",
+        "expression": "cos(x0)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "tn",
+        "expression": "tan(x0)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "six",
+      "category": "Trigonometry",
+      "graphOutputs": [
+        "s",
+        "c",
+        "tn"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-height",
+    "subject": "mathematics",
+    "kind": "mathematics-height",
+    "title": "Heights & distances",
+    "description": "Angle of elevation α = tan⁻¹(h/d) from an observer to the top of a tower.",
+    "icon": "anglemark",
+    "iconKey": "anglemark",
+    "category": "Trigonometry",
+    "parameters": [
+      {
+        "key": "h",
+        "label": "Tower height",
+        "defaultValue": 30,
+        "min": 5,
+        "max": 60,
+        "step": 1,
+        "unit": "m"
+      },
+      {
+        "key": "d",
+        "label": "Distance",
+        "defaultValue": 40,
+        "min": 5,
+        "max": 80,
+        "step": 1,
+        "unit": "m"
+      }
+    ],
+    "variables": [
+      {
+        "id": "h",
+        "symbol": "h",
+        "label": "Tower height",
+        "value": 30,
+        "min": 5,
+        "max": 60,
+        "step": 1,
+        "unit": "m",
+        "learnerEditable": true
+      },
+      {
+        "id": "d",
+        "symbol": "d",
+        "label": "Distance",
+        "value": 40,
+        "min": 5,
+        "max": 80,
+        "step": 1,
+        "unit": "m",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "alpha_1",
+        "output": "alpha",
+        "expression": "rad2deg(atan(h/d))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "L_2",
+        "output": "L",
+        "expression": "sqrt(h^2 + d^2)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "surface-1",
+        "name": "Ground",
+        "type": "surface",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "40",
+          "y": "-1",
+          "w": "90",
+          "h": "2"
+        }
+      },
+      {
+        "id": "block-2",
+        "name": "Tower",
+        "type": "block",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "d + 2",
+          "y": "h/2",
+          "w": "4",
+          "h": "h"
+        }
+      },
+      {
+        "id": "pt-3",
+        "name": "PT 3",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "segment-4",
+        "name": "line of sight",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "0",
+          "x2": "d",
+          "y2": "h",
+          "len": "1"
+        }
+      },
+      {
+        "id": "segment-5",
+        "name": "d",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "-3",
+          "x2": "d",
+          "y2": "-3",
+          "len": "1"
+        }
+      },
+      {
+        "id": "anglemark-6",
+        "name": "α",
+        "type": "anglemark",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "a1": "0",
+          "a2": "α",
+          "r": "8"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "α",
+        "expression": "rad2deg(atan(h/d))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "L",
+        "expression": "sqrt(h^2 + d^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "height",
+      "category": "Trigonometry",
+      "graphOutputs": [
+        "α"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-section",
+    "subject": "mathematics",
+    "kind": "mathematics-section",
+    "title": "Distance, midpoint & section formula",
+    "description": "AB = √((x₂−x₁)²+(y₂−y₁)²), midpoint M and the point dividing AB in m : n.",
+    "icon": "segment",
+    "iconKey": "segment",
+    "category": "Coordinate Geometry",
+    "parameters": [
+      {
+        "key": "x1",
+        "label": "x₁",
+        "defaultValue": -6,
+        "min": -9,
+        "max": 9,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "y1",
+        "label": "y₁",
+        "defaultValue": -3,
+        "min": -6,
+        "max": 6,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "x2",
+        "label": "x₂",
+        "defaultValue": 6,
+        "min": -9,
+        "max": 9,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "y2",
+        "label": "y₂",
+        "defaultValue": 4,
+        "min": -6,
+        "max": 6,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "m",
+        "label": "Ratio m",
+        "defaultValue": 1,
+        "min": 0.1,
+        "max": 5,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "n",
+        "label": "Ratio n",
+        "defaultValue": 2,
+        "min": 0.1,
+        "max": 5,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "x1",
+        "symbol": "x1",
+        "label": "x₁",
+        "value": -6,
+        "min": -9,
+        "max": 9,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "y1",
+        "symbol": "y1",
+        "label": "y₁",
+        "value": -3,
+        "min": -6,
+        "max": 6,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "x2",
+        "symbol": "x2",
+        "label": "x₂",
+        "value": 6,
+        "min": -9,
+        "max": 9,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "y2",
+        "symbol": "y2",
+        "label": "y₂",
+        "value": 4,
+        "min": -6,
+        "max": 6,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "m",
+        "symbol": "m",
+        "label": "Ratio m",
+        "value": 1,
+        "min": 0.1,
+        "max": 5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "n",
+        "symbol": "n",
+        "label": "Ratio n",
+        "value": 2,
+        "min": 0.1,
+        "max": 5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "d_1",
+        "output": "d",
+        "expression": "sqrt((x2 - x1)^2 + (y2 - y1)^2)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "sx_2",
+        "output": "sx",
+        "expression": "(m x2 + n x1)/(m + n)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "sy_3",
+        "output": "sy",
+        "expression": "(m y2 + n y1)/(m + n)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "segment-2",
+        "name": "AB",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "x1",
+          "y": "y1",
+          "x2": "x2",
+          "y2": "y2",
+          "len": "1"
+        }
+      },
+      {
+        "id": "pt-3",
+        "name": "PT 3",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "d",
+        "expression": "sqrt((x2 - x1)^2 + (y2 - y1)^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "sx",
+        "expression": "(m x2 + n x1)/(m + n)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "sy",
+        "expression": "(m y2 + n y1)/(m + n)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "section",
+      "category": "Coordinate Geometry",
+      "graphOutputs": [
+        "d"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-circle",
+    "subject": "mathematics",
+    "kind": "mathematics-circle",
+    "title": "Circle (x − h)² + (y − k)² = r²",
+    "description": "Centre, radius and a point moving on the circle.",
+    "icon": "circle",
+    "iconKey": "circle",
+    "category": "Coordinate Geometry",
+    "parameters": [
+      {
+        "key": "h",
+        "label": "Centre h",
+        "defaultValue": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "k",
+        "label": "Centre k",
+        "defaultValue": -1,
+        "min": -4,
+        "max": 4,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "r",
+        "label": "Radius r",
+        "defaultValue": 4,
+        "min": 0.5,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "theta",
+        "label": "Point angle",
+        "defaultValue": 40,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "h",
+        "symbol": "h",
+        "label": "Centre h",
+        "value": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "k",
+        "symbol": "k",
+        "label": "Centre k",
+        "value": -1,
+        "min": -4,
+        "max": 4,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "r",
+        "symbol": "r",
+        "label": "Radius r",
+        "value": 4,
+        "min": 0.5,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "theta",
+        "symbol": "θ",
+        "label": "Point angle",
+        "value": 40,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "px_1",
+        "output": "px",
+        "expression": "h + r cos(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "py_2",
+        "output": "py",
+        "expression": "k + r sin(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "circle-2",
+        "name": "",
+        "type": "circle",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "h",
+          "y": "k",
+          "r": "r"
+        }
+      },
+      {
+        "id": "pt-3",
+        "name": "PT 3",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "segment-4",
+        "name": "r",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "h",
+          "y": "k",
+          "x2": "px",
+          "y2": "py",
+          "len": "1"
+        }
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "px",
+        "expression": "h + r cos(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "py",
+        "expression": "k + r sin(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "circle",
+      "category": "Coordinate Geometry",
+      "graphOutputs": [
+        "px",
+        "py"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-parabola",
+    "subject": "mathematics",
+    "kind": "mathematics-parabola",
+    "title": "Parabola: focus & directrix",
+    "description": "x² = 4ay: every point is equidistant from focus (0, a) and directrix y = −a.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Coordinate Geometry",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "Focal length a",
+        "defaultValue": 1,
+        "min": 0.3,
+        "max": 3,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "tp",
+        "label": "Parameter t",
+        "defaultValue": 1.5,
+        "min": -3,
+        "max": 3,
+        "step": 0.05,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Focal length a",
+        "value": 1,
+        "min": 0.3,
+        "max": 3,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "tp",
+        "symbol": "tp",
+        "label": "Parameter t",
+        "value": 1.5,
+        "min": -3,
+        "max": 3,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "px_1",
+        "output": "px",
+        "expression": "2 a tp",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "py_2",
+        "output": "py",
+        "expression": "a tp^2",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "PF_3",
+        "output": "PF",
+        "expression": "sqrt(px^2 + (py - a)^2)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "PD_4",
+        "output": "PD",
+        "expression": "py + a",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "x^2/(4 a)"
+        }
+      },
+      {
+        "id": "segment-3",
+        "name": "directrix",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "-50",
+          "y": "-a",
+          "x2": "50",
+          "y2": "-a",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "segment-6",
+        "name": "PF",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "px",
+          "y": "py",
+          "x2": "0",
+          "y2": "a",
+          "len": "1"
+        }
+      },
+      {
+        "id": "segment-7",
+        "name": "PD",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "px",
+          "y": "py",
+          "x2": "px",
+          "y2": "-a",
+          "len": "1"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "px",
+        "expression": "2 a tp",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "py",
+        "expression": "a tp^2",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "PF",
+        "expression": "sqrt(px^2 + (py - a)^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "PD",
+        "expression": "py + a",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "parabola",
+      "category": "Coordinate Geometry",
+      "graphOutputs": [
+        "PF",
+        "PD"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-ellipse",
+    "subject": "mathematics",
+    "kind": "mathematics-ellipse",
+    "title": "Ellipse: sum of focal distances",
+    "description": "x²/a² + y²/b² = 1, foci (±c, 0), PF₁ + PF₂ = 2a.",
+    "icon": "ellipse",
+    "iconKey": "ellipse",
+    "category": "Coordinate Geometry",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "Semi-major a",
+        "defaultValue": 6,
+        "min": 1,
+        "max": 9,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "b",
+        "label": "Semi-minor b",
+        "defaultValue": 4,
+        "min": 0.5,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "theta",
+        "label": "Eccentric angle",
+        "defaultValue": 50,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Semi-major a",
+        "value": 6,
+        "min": 1,
+        "max": 9,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "Semi-minor b",
+        "value": 4,
+        "min": 0.5,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "theta",
+        "symbol": "θ",
+        "label": "Eccentric angle",
+        "value": 50,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "c_1",
+        "output": "c",
+        "expression": "sqrt(abs(a^2 - b^2))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "e_2",
+        "output": "e",
+        "expression": "c/a",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "px_3",
+        "output": "px",
+        "expression": "a cos(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "py_4",
+        "output": "py",
+        "expression": "b sin(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "S_5",
+        "output": "S",
+        "expression": "sqrt((px - c)^2 + py^2) + sqrt((px + c)^2 + py^2)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "ellipse-2",
+        "name": "",
+        "type": "ellipse",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "a": "a",
+          "b": "b"
+        }
+      },
+      {
+        "id": "pt-3",
+        "name": "PT 3",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "segment-6",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "px",
+          "y": "py",
+          "x2": "c",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "segment-7",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "px",
+          "y": "py",
+          "x2": "-c",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "label-8",
+        "name": "PF₁ + PF₂",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-6",
+          "y": "6.2",
+          "value": "S"
+        }
+      },
+      {
+        "id": "label-9",
+        "name": "e",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-6",
+          "y": "5",
+          "value": "e"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "c",
+        "expression": "sqrt(abs(a^2 - b^2))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "e",
+        "expression": "c/a",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "px",
+        "expression": "a cos(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "py",
+        "expression": "b sin(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-5",
+        "label": "S",
+        "expression": "sqrt((px - c)^2 + py^2) + sqrt((px + c)^2 + py^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "ellipse",
+      "category": "Coordinate Geometry",
+      "graphOutputs": [
+        "S"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-hyperbola",
+    "subject": "mathematics",
+    "kind": "mathematics-hyperbola",
+    "title": "Hyperbola: difference of focal distances",
+    "description": "x²/a² − y²/b² = 1 with asymptotes y = ±(b/a)x, |PF₁ − PF₂| = 2a.",
+    "icon": "param",
+    "iconKey": "param",
+    "category": "Coordinate Geometry",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "a",
+        "defaultValue": 3,
+        "min": 1,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "b",
+        "label": "b",
+        "defaultValue": 2,
+        "min": 0.5,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "u",
+        "label": "Parameter u",
+        "defaultValue": 0.8,
+        "min": -2,
+        "max": 2,
+        "step": 0.02,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "a",
+        "value": 3,
+        "min": 1,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "b",
+        "value": 2,
+        "min": 0.5,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "u",
+        "symbol": "u",
+        "label": "Parameter u",
+        "value": 0.8,
+        "min": -2,
+        "max": 2,
+        "step": 0.02,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "c_1",
+        "output": "c",
+        "expression": "sqrt(a^2 + b^2)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "px_2",
+        "output": "px",
+        "expression": "a cosh(u)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "py_3",
+        "output": "py",
+        "expression": "b sinh(u)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Df_4",
+        "output": "Df",
+        "expression": "abs(sqrt((px - c)^2 + py^2) - sqrt((px + c)^2 + py^2))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "param-2",
+        "name": "",
+        "type": "param",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "fx": "a cosh(s)",
+          "fy": "b sinh(s)",
+          "from": "-2.6",
+          "to": "2.6"
+        }
+      },
+      {
+        "id": "param-3",
+        "name": "",
+        "type": "param",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "fx": "-a cosh(s)",
+          "fy": "b sinh(s)",
+          "from": "-2.6",
+          "to": "2.6"
+        }
+      },
+      {
+        "id": "fplot-4",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "f": "b x/a",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-5",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "f": "-b x/a",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-7",
+        "name": "PT 7",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-8",
+        "name": "PT 8",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "segment-9",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "px",
+          "y": "py",
+          "x2": "c",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "segment-10",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "px",
+          "y": "py",
+          "x2": "-c",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "label-11",
+        "name": "|PF₁ − PF₂|",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-7",
+          "y": "7",
+          "value": "Df"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "c",
+        "expression": "sqrt(a^2 + b^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "px",
+        "expression": "a cosh(u)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "py",
+        "expression": "b sinh(u)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "Df",
+        "expression": "abs(sqrt((px - c)^2 + py^2) - sqrt((px + c)^2 + py^2))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "hyperbola",
+      "category": "Coordinate Geometry",
+      "graphOutputs": [
+        "Df"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-secant",
+    "subject": "mathematics",
+    "kind": "mathematics-secant",
+    "title": "Derivative: secant → tangent",
+    "description": "Slope of the secant (f(a+h) − f(a))/h approaches f′(a) as h → 0.",
+    "icon": "tangent",
+    "iconKey": "tangent",
+    "category": "Calculus",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "Point a",
+        "defaultValue": 1,
+        "min": -3.5,
+        "max": 3.5,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "h",
+        "label": "Step h",
+        "defaultValue": 1.5,
+        "min": 0.01,
+        "max": 3,
+        "step": 0.01,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Point a",
+        "value": 1,
+        "min": -3.5,
+        "max": 3.5,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "h",
+        "symbol": "h",
+        "label": "Step h",
+        "value": 1.5,
+        "min": 0.01,
+        "max": 3,
+        "step": 0.01,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "fa_1",
+        "output": "fa",
+        "expression": "a^3/6 - a",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "fah_2",
+        "output": "fah",
+        "expression": "(a + h)^3/6 - (a + h)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "ms_3",
+        "output": "ms",
+        "expression": "(fah - fa)/h",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "m_4",
+        "output": "m",
+        "expression": "a^2/2 - 1",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "f(x)",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "x^3/6 - x"
+        }
+      },
+      {
+        "id": "line-3",
+        "name": "",
+        "type": "line",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "a",
+          "y": "fa",
+          "x2": "a + h",
+          "y2": "fah"
+        }
+      },
+      {
+        "id": "tangent-4",
+        "name": "",
+        "type": "tangent",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "f": "x^3/6 - x",
+          "x0": "a",
+          "len": "2.5"
+        }
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-6",
+        "name": "PT 6",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "label-7",
+        "name": "secant slope",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-3.6",
+          "y": "4.3",
+          "value": "ms"
+        }
+      },
+      {
+        "id": "label-8",
+        "name": "f′(a)",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "-3.6",
+          "y": "3.2",
+          "value": "m"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "fa",
+        "expression": "a^3/6 - a",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "fah",
+        "expression": "(a + h)^3/6 - (a + h)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "ms",
+        "expression": "(fah - fa)/h",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-4",
+        "label": "m",
+        "expression": "a^2/2 - 1",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "secant",
+      "category": "Calculus",
+      "graphOutputs": [
+        "ms",
+        "m"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-riemann",
+    "subject": "mathematics",
+    "kind": "mathematics-riemann",
+    "title": "Area under a curve – Riemann sums",
+    "description": "Left, right, midpoint or trapezoid sums converge to the definite integral as n grows.",
+    "icon": "area",
+    "iconKey": "area",
+    "category": "Calculus",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "Lower limit a",
+        "defaultValue": 0,
+        "min": -1,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "b",
+        "label": "Upper limit b",
+        "defaultValue": 4,
+        "min": 1,
+        "max": 5.5,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "n",
+        "label": "Rectangles n",
+        "defaultValue": 4,
+        "min": 1,
+        "max": 60,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "M",
+        "label": "Method 0 L·1 R·2 Mid·3 Trap",
+        "defaultValue": 2,
+        "min": 0,
+        "max": 3,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "Lower limit a",
+        "value": 0,
+        "min": -1,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "Upper limit b",
+        "value": 4,
+        "min": 1,
+        "max": 5.5,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "n",
+        "symbol": "n",
+        "label": "Rectangles n",
+        "value": 4,
+        "min": 1,
+        "max": 60,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "M",
+        "symbol": "M",
+        "label": "Method 0 L·1 R·2 Mid·3 Trap",
+        "value": 2,
+        "min": 0,
+        "max": 3,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "A_1",
+        "output": "A",
+        "expression": "(b^3/6 - b^2/2 + 2 b) - (a^3/6 - a^2/2 + 2 a)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "area-2",
+        "name": "",
+        "type": "area",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "x^2/2 - x + 2",
+          "lo": "0",
+          "a": "a",
+          "b": "b",
+          "n": "n",
+          "method": "M"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "f(x)",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "f": "x^2/2 - x + 2"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "exact ∫",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "1.2",
+          "y": "7.2",
+          "value": "A"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "A",
+        "expression": "(b^3/6 - b^2/2 + 2 b) - (a^3/6 - a^2/2 + 2 a)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "riemann",
+      "category": "Calculus",
+      "graphOutputs": [
+        "A"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-maxmin",
+    "subject": "mathematics",
+    "kind": "mathematics-maxmin",
+    "title": "Maxima & minima",
+    "description": "f(x) = x³ − 3px + q: stationary points where f′(x) = 0; f′ shown dashed.",
+    "icon": "fplot",
+    "iconKey": "fplot",
+    "category": "Calculus",
+    "parameters": [
+      {
+        "key": "p",
+        "label": "p",
+        "defaultValue": 1.5,
+        "min": -1,
+        "max": 3,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "q",
+        "label": "q",
+        "defaultValue": 0,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "p",
+        "symbol": "p",
+        "label": "p",
+        "value": 1.5,
+        "min": -1,
+        "max": 3,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "q",
+        "symbol": "q",
+        "label": "q",
+        "value": 0,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "xc_1",
+        "output": "xc",
+        "expression": "p > 0 ? sqrt(p) : 0/0",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "fmax_2",
+        "output": "fmax",
+        "expression": "-xc^3 + 3 p xc + q",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "fmin_3",
+        "output": "fmin",
+        "expression": "xc^3 - 3 p xc + q",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "f′(x)",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "f": "3 x^2 - 3 p",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "f(x)",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "x^3 - 3 p x + q"
+        }
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "note-6",
+        "name": "No turning points (p ≤ 0)",
+        "type": "note",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "x": "-2",
+          "y": "7",
+          "show": "p <= 0 ? 1 : 0"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "xc",
+        "expression": "p > 0 ? sqrt(p) : 0/0",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "fmax",
+        "expression": "-xc^3 + 3 p xc + q",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "fmin",
+        "expression": "xc^3 - 3 p xc + q",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "maxmin",
+      "category": "Calculus",
+      "graphOutputs": [
+        "fmax",
+        "fmin"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-limit",
+    "subject": "mathematics",
+    "kind": "mathematics-limit",
+    "title": "Limit: sin x / x as x → 0",
+    "description": "Approach x = 0 from both sides; the value tends to 1 though f(0) is undefined.",
+    "icon": "point",
+    "iconKey": "point",
+    "category": "Calculus",
+    "parameters": [
+      {
+        "key": "d",
+        "label": "Distance from 0",
+        "defaultValue": 3,
+        "min": 0.01,
+        "max": 6,
+        "step": 0.01,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "d",
+        "symbol": "d",
+        "label": "Distance from 0",
+        "value": 3,
+        "min": 0.01,
+        "max": 6,
+        "step": 0.01,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "L_1",
+        "output": "L",
+        "expression": "sin(d)/d",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "fplot-2",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "sin(x)/x"
+        }
+      },
+      {
+        "id": "pt-3",
+        "name": "PT 3",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-4",
+        "name": "PT 4",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "pt-5",
+        "name": "PT 5",
+        "type": "PT",
+        "visible": true
+      },
+      {
+        "id": "label-6",
+        "name": "f(±d)",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-5",
+          "y": "2.1",
+          "value": "L"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "L",
+        "expression": "sin(d)/d",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "limit",
+      "category": "Calculus",
+      "graphOutputs": [
+        "L"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-de",
+    "subject": "mathematics",
+    "kind": "mathematics-de",
+    "title": "Differential equation dy/dx = ax − y",
+    "description": "Slope field with the RK4 solution curve traced from y(0) = y₀.",
+    "icon": "slopefield",
+    "iconKey": "slopefield",
+    "category": "Calculus",
+    "parameters": [
+      {
+        "key": "A",
+        "label": "Coefficient a",
+        "defaultValue": 1,
+        "min": -2,
+        "max": 2,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "y0",
+        "label": "Initial y(0)",
+        "defaultValue": 2,
+        "min": -3,
+        "max": 4,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "A",
+        "symbol": "A",
+        "label": "Coefficient a",
+        "value": 1,
+        "min": -2,
+        "max": 2,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "y0",
+        "symbol": "y0",
+        "label": "Initial y(0)",
+        "value": 2,
+        "min": -3,
+        "max": 4,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "y_1",
+        "output": "y",
+        "expression": "A x - y",
+        "enabled": true,
+        "role": "state",
+        "initialValue": "y0"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "slopefield-2",
+        "name": "",
+        "type": "slopefield",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "f": "A x - y",
+          "xmin": "-1",
+          "xmax": "6.5",
+          "ymin": "-3",
+          "ymax": "5",
+          "cols": "24"
+        }
+      },
+      {
+        "id": "pt-3",
+        "name": "PT 3",
+        "type": "PT",
+        "visible": true
+      }
+    ],
+    "results": [
+      {
+        "id": "state-result-1",
+        "label": "y",
+        "expression": "y",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "de",
+      "category": "Calculus",
+      "graphOutputs": [
+        "y"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-vadd",
+    "subject": "mathematics",
+    "kind": "mathematics-vadd",
+    "title": "Vector addition (triangle & parallelogram)",
+    "description": "a + b by the triangle law with the parallelogram completed.",
+    "icon": "vector",
+    "iconKey": "vector",
+    "category": "Vectors & 3D",
+    "parameters": [
+      {
+        "key": "ax",
+        "label": "aₓ",
+        "defaultValue": 4,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "ay",
+        "label": "a_y",
+        "defaultValue": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "bx",
+        "label": "bₓ",
+        "defaultValue": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "by",
+        "label": "b_y",
+        "defaultValue": 4,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "ax",
+        "symbol": "ax",
+        "label": "aₓ",
+        "value": 4,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "ay",
+        "symbol": "ay",
+        "label": "a_y",
+        "value": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "bx",
+        "symbol": "bx",
+        "label": "bₓ",
+        "value": 1,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "by",
+        "symbol": "by",
+        "label": "b_y",
+        "value": 4,
+        "min": -6,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "R_1",
+        "output": "R",
+        "expression": "sqrt((ax + bx)^2 + (ay + by)^2)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "theta_2",
+        "output": "theta",
+        "expression": "rad2deg(atan2(ay + by, ax + bx))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "bx",
+          "y": "by",
+          "x2": "ax + bx",
+          "y2": "ay + by",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "segment-3",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0",
+          "y": "0",
+          "x2": "bx",
+          "y2": "by",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "vector-4",
+        "name": "a",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "0",
+          "dx": "ax",
+          "dy": "ay",
+          "k": "1"
+        }
+      },
+      {
+        "id": "vector-5",
+        "name": "b",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "ax",
+          "y": "ay",
+          "dx": "bx",
+          "dy": "by",
+          "k": "1"
+        }
+      },
+      {
+        "id": "vector-6",
+        "name": "a + b",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "0",
+          "dx": "ax + bx",
+          "dy": "ay + by",
+          "k": "1"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "R",
+        "expression": "sqrt((ax + bx)^2 + (ay + by)^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "θ",
+        "expression": "rad2deg(atan2(ay + by, ax + bx))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "vadd",
+      "category": "Vectors & 3D",
+      "graphOutputs": [
+        "R"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-dot",
+    "subject": "mathematics",
+    "kind": "mathematics-dot",
+    "title": "Dot product & projection",
+    "description": "a·b = |a||b|cos θ and the projection of b on a.",
+    "icon": "vector",
+    "iconKey": "vector",
+    "category": "Vectors & 3D",
+    "parameters": [
+      {
+        "key": "A",
+        "label": "|a|",
+        "defaultValue": 5,
+        "min": 1,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "B",
+        "label": "|b|",
+        "defaultValue": 4,
+        "min": 1,
+        "max": 6,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "theta",
+        "label": "Angle θ",
+        "defaultValue": 60,
+        "min": 0,
+        "max": 180,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "A",
+        "symbol": "A",
+        "label": "|a|",
+        "value": 5,
+        "min": 1,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "B",
+        "symbol": "B",
+        "label": "|b|",
+        "value": 4,
+        "min": 1,
+        "max": 6,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "theta",
+        "symbol": "θ",
+        "label": "Angle θ",
+        "value": 60,
+        "min": 0,
+        "max": 180,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "dp_1",
+        "output": "dp",
+        "expression": "A B cos(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "pr_2",
+        "output": "pr",
+        "expression": "B cos(deg(θ))",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "vector-2",
+        "name": "a",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "0",
+          "y": "0",
+          "dx": "A",
+          "dy": "0",
+          "k": "1"
+        }
+      },
+      {
+        "id": "vector-3",
+        "name": "b",
+        "type": "vector",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "0",
+          "y": "0",
+          "dx": "B cos(deg(θ))",
+          "dy": "B sin(deg(θ))",
+          "k": "1"
+        }
+      },
+      {
+        "id": "segment-4",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "B cos(deg(θ))",
+          "y": "B sin(deg(θ))",
+          "x2": "pr",
+          "y2": "0",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "segment-5",
+        "name": "projection",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "-0.25",
+          "x2": "pr",
+          "y2": "-0.25",
+          "len": "1"
+        }
+      },
+      {
+        "id": "anglemark-6",
+        "name": "θ",
+        "type": "anglemark",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "a1": "0",
+          "a2": "θ",
+          "r": "1"
+        }
+      },
+      {
+        "id": "label-7",
+        "name": "a·b",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-3.5",
+          "y": "5",
+          "value": "dp"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "dp",
+        "expression": "A B cos(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "pr",
+        "expression": "B cos(deg(θ))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "dot",
+      "category": "Vectors & 3D",
+      "graphOutputs": [
+        "dp"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-v3",
+    "subject": "mathematics",
+    "kind": "mathematics-v3",
+    "title": "3D vector & its components",
+    "description": "v = xî + yĵ + zk̂ with |v| = √(x²+y²+z²); rotate the view.",
+    "icon": "vector3d",
+    "iconKey": "vector3d",
+    "category": "Vectors & 3D",
+    "parameters": [
+      {
+        "key": "vx",
+        "label": "x component",
+        "defaultValue": 3,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "vy",
+        "label": "y component",
+        "defaultValue": 2.5,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "vz",
+        "label": "z component",
+        "defaultValue": 2,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "yaw",
+        "label": "View rotation",
+        "defaultValue": 35,
+        "min": -180,
+        "max": 180,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "vx",
+        "symbol": "vx",
+        "label": "x component",
+        "value": 3,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "vy",
+        "symbol": "vy",
+        "label": "y component",
+        "value": 2.5,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "vz",
+        "symbol": "vz",
+        "label": "z component",
+        "value": 2,
+        "min": -4,
+        "max": 4,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "yaw",
+        "symbol": "yaw",
+        "label": "View rotation",
+        "value": 35,
+        "min": -180,
+        "max": 180,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "M_1",
+        "output": "M",
+        "expression": "sqrt(vx^2 + vy^2 + vz^2)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "axes3d-1",
+        "name": "",
+        "type": "axes3d",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "len": "3.6",
+          "yaw": "yaw",
+          "pitch": "20"
+        }
+      },
+      {
+        "id": "vector3d-2",
+        "name": "v",
+        "type": "vector3d",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "vx": "vx",
+          "vy": "vy",
+          "vz": "vz",
+          "yaw": "yaw",
+          "pitch": "20"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "M",
+        "expression": "sqrt(vx^2 + vy^2 + vz^2)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "v3",
+      "category": "Vectors & 3D",
+      "graphOutputs": [
+        "M"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-matrix",
+    "subject": "mathematics",
+    "kind": "mathematics-matrix",
+    "title": "Linear transformation by a 2×2 matrix",
+    "description": "Columns are the images of î and ĵ; the unit square maps to area |det|.",
+    "icon": "lintrans",
+    "iconKey": "lintrans",
+    "category": "Vectors & 3D",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "a (row 1)",
+        "defaultValue": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "b",
+        "label": "b (row 1)",
+        "defaultValue": 0.5,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "c",
+        "label": "c (row 2)",
+        "defaultValue": 0,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "d",
+        "label": "d (row 2)",
+        "defaultValue": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "a (row 1)",
+        "value": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "b",
+        "symbol": "b",
+        "label": "b (row 1)",
+        "value": 0.5,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "c",
+        "symbol": "c",
+        "label": "c (row 2)",
+        "value": 0,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "d",
+        "symbol": "d",
+        "label": "d (row 2)",
+        "value": 1,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "det_1",
+        "output": "det",
+        "expression": "a d - b c",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "lintrans-1",
+        "name": "",
+        "type": "lintrans",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "a": "a",
+          "b": "b",
+          "c": "c",
+          "d": "d",
+          "R": "4"
+        }
+      },
+      {
+        "id": "label-2",
+        "name": "det",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-4.5",
+          "y": "4.2",
+          "value": "det"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "det",
+        "expression": "a d - b c",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "matrix",
+      "category": "Vectors & 3D",
+      "graphOutputs": [
+        "det"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-solids",
+    "subject": "mathematics",
+    "kind": "mathematics-solids",
+    "title": "Mensuration of 3D solids",
+    "description": "Cylinder πr²h, cone ⅓πr²h, sphere ⁴⁄₃πr³ — rotate and compare.",
+    "icon": "cyl3d",
+    "iconKey": "cyl3d",
+    "category": "Vectors & 3D",
+    "parameters": [
+      {
+        "key": "r",
+        "label": "Radius r",
+        "defaultValue": 1.5,
+        "min": 0.5,
+        "max": 2.5,
+        "step": 0.1,
+        "unit": "cm"
+      },
+      {
+        "key": "h",
+        "label": "Height h",
+        "defaultValue": 3,
+        "min": 1,
+        "max": 5,
+        "step": 0.1,
+        "unit": "cm"
+      },
+      {
+        "key": "yaw",
+        "label": "Rotation",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°"
+      }
+    ],
+    "variables": [
+      {
+        "id": "r",
+        "symbol": "r",
+        "label": "Radius r",
+        "value": 1.5,
+        "min": 0.5,
+        "max": 2.5,
+        "step": 0.1,
+        "unit": "cm",
+        "learnerEditable": true
+      },
+      {
+        "id": "h",
+        "symbol": "h",
+        "label": "Height h",
+        "value": 3,
+        "min": 1,
+        "max": 5,
+        "step": 0.1,
+        "unit": "cm",
+        "learnerEditable": true
+      },
+      {
+        "id": "yaw",
+        "symbol": "yaw",
+        "label": "Rotation",
+        "value": 0,
+        "min": 0,
+        "max": 360,
+        "step": 1,
+        "unit": "°",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "Vcyl_1",
+        "output": "Vcyl",
+        "expression": "pi r^2 h",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Vcone_2",
+        "output": "Vcone",
+        "expression": "pi r^2 h/3",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Vsph_3",
+        "output": "Vsph",
+        "expression": "4/3 pi r^3",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "cyl3d-1",
+        "name": "",
+        "type": "cyl3d",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-6",
+          "y": "0.5",
+          "r": "r",
+          "h": "h",
+          "yaw": "yaw",
+          "pitch": "22"
+        }
+      },
+      {
+        "id": "cone3d-2",
+        "name": "",
+        "type": "cone3d",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "0.5",
+          "r": "r",
+          "h": "h",
+          "yaw": "yaw",
+          "pitch": "18"
+        }
+      },
+      {
+        "id": "sphere3d-3",
+        "name": "",
+        "type": "sphere3d",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "6",
+          "y": "0.5",
+          "r": "r",
+          "yaw": "yaw",
+          "pitch": "20"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "V",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "x": "-6",
+          "y": "-3.5",
+          "value": "Vcyl",
+          "unit": "cm³"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "V",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "0",
+          "y": "-3.5",
+          "value": "Vcone",
+          "unit": "cm³"
+        }
+      },
+      {
+        "id": "label-6",
+        "name": "V",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Green",
+          "x": "6",
+          "y": "-3.5",
+          "value": "Vsph",
+          "unit": "cm³"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "Vcyl",
+        "expression": "pi r^2 h",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "Vcone",
+        "expression": "pi r^2 h/3",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "Vsph",
+        "expression": "4/3 pi r^3",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "solids",
+      "category": "Vectors & 3D",
+      "graphOutputs": []
+    }
+  },
+  {
+    "id": "mathematics-ap",
+    "subject": "mathematics",
+    "kind": "mathematics-ap",
+    "title": "Arithmetic progression",
+    "description": "aₙ = a + (n − 1)d and Sₙ = n/2 (2a + (n − 1)d).",
+    "icon": "sequence",
+    "iconKey": "sequence",
+    "category": "Sequences & Series",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "First term a",
+        "defaultValue": 2,
+        "min": -10,
+        "max": 10,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "d",
+        "label": "Common difference d",
+        "defaultValue": 1.5,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": ""
+      },
+      {
+        "key": "N",
+        "label": "Number of terms n",
+        "defaultValue": 10,
+        "min": 1,
+        "max": 30,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "First term a",
+        "value": 2,
+        "min": -10,
+        "max": 10,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "d",
+        "symbol": "d",
+        "label": "Common difference d",
+        "value": 1.5,
+        "min": -3,
+        "max": 3,
+        "step": 0.1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "N",
+        "symbol": "N",
+        "label": "Number of terms n",
+        "value": 10,
+        "min": 1,
+        "max": 30,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "an_1",
+        "output": "an",
+        "expression": "a + (N - 1) d",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Sn_2",
+        "output": "Sn",
+        "expression": "N/2 (2 a + (N - 1) d)",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "sequence-2",
+        "name": "a",
+        "type": "sequence",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "a": "a + (n - 1) d",
+          "N": "N"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "Sₙ",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "8",
+          "y": "44",
+          "value": "Sn"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "an",
+        "expression": "a + (N - 1) d",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "Sn",
+        "expression": "N/2 (2 a + (N - 1) d)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "ap",
+      "category": "Sequences & Series",
+      "graphOutputs": [
+        "an",
+        "Sn"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-gp",
+    "subject": "mathematics",
+    "kind": "mathematics-gp",
+    "title": "Geometric progression & infinite sum",
+    "description": "Partial sums Sₙ of a GP; for |r| < 1 they converge to a/(1 − r).",
+    "icon": "sequence",
+    "iconKey": "sequence",
+    "category": "Sequences & Series",
+    "parameters": [
+      {
+        "key": "a",
+        "label": "First term a",
+        "defaultValue": 4,
+        "min": 0.5,
+        "max": 8,
+        "step": 0.5,
+        "unit": ""
+      },
+      {
+        "key": "r",
+        "label": "Common ratio r",
+        "defaultValue": 0.6,
+        "min": -0.95,
+        "max": 1.5,
+        "step": 0.01,
+        "unit": ""
+      },
+      {
+        "key": "N",
+        "label": "Number of terms",
+        "defaultValue": 12,
+        "min": 1,
+        "max": 25,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "a",
+        "symbol": "a",
+        "label": "First term a",
+        "value": 4,
+        "min": 0.5,
+        "max": 8,
+        "step": 0.5,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "r",
+        "symbol": "r",
+        "label": "Common ratio r",
+        "value": 0.6,
+        "min": -0.95,
+        "max": 1.5,
+        "step": 0.01,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "N",
+        "symbol": "N",
+        "label": "Number of terms",
+        "value": 12,
+        "min": 1,
+        "max": 25,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "an_1",
+        "output": "an",
+        "expression": "a r^(N - 1)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Sn_2",
+        "output": "Sn",
+        "expression": "r == 1 ? a N : a (1 - r^N)/(1 - r)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "Sinf_3",
+        "output": "Sinf",
+        "expression": "abs(r) < 1 ? a/(1 - r) : 0/0",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "sequence-2",
+        "name": "S",
+        "type": "sequence",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "a": "r == 1 ? a n : a (1 - r^n)/(1 - r)",
+          "N": "N"
+        }
+      },
+      {
+        "id": "sequence-3",
+        "name": "a",
+        "type": "sequence",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "a": "a r^(n - 1)",
+          "N": "N"
+        }
+      },
+      {
+        "id": "fplot-4",
+        "name": "S∞",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "f": "Sinf",
+          "dash": "1",
+          "show": "abs(r) < 1 ? 1 : 0"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "an",
+        "expression": "a r^(N - 1)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "Sn",
+        "expression": "r == 1 ? a N : a (1 - r^N)/(1 - r)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "Sinf",
+        "expression": "abs(r) < 1 ? a/(1 - r) : 0/0",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "gp",
+      "category": "Sequences & Series",
+      "graphOutputs": [
+        "Sn",
+        "Sinf"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-fib",
+    "subject": "mathematics",
+    "kind": "mathematics-fib",
+    "title": "Fibonacci numbers & the golden ratio",
+    "description": "Ratio Fₙ₊₁/Fₙ converges to φ = (1 + √5)/2 (Binet formula).",
+    "icon": "sequence",
+    "iconKey": "sequence",
+    "category": "Sequences & Series",
+    "parameters": [
+      {
+        "key": "N",
+        "label": "Terms",
+        "defaultValue": 10,
+        "min": 2,
+        "max": 15,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "N",
+        "symbol": "N",
+        "label": "Terms",
+        "value": 10,
+        "min": 2,
+        "max": 15,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "phig_1",
+        "output": "phig",
+        "expression": "(1 + sqrt(5))/2",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "FN_2",
+        "output": "FN",
+        "expression": "round((1.6180339887^N - (-0.6180339887)^N)/2.2360679775)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "ratio_3",
+        "output": "ratio",
+        "expression": "round((1.6180339887^(N + 1) - (-0.6180339887)^(N + 1))/2.2360679775)/FN",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "sequence-2",
+        "name": "3·ratio",
+        "type": "sequence",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "a": "3 round((((1 + sqrt(5))/2)^(n + 1) - ((1 - sqrt(5))/2)^(n + 1))/sqrt(5))/round((((1 + sqrt(5))/2)^n - ((1 - sqrt(5))/2)^n)/sqrt(5))",
+          "N": "N"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "3φ",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "f": "3 (1 + sqrt(5))/2",
+          "dash": "1"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "Fₙ",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "3",
+          "y": "6.4",
+          "value": "FN"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "ratio",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "11",
+          "y": "6.4",
+          "value": "ratio"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "φg",
+        "expression": "(1 + sqrt(5))/2",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "FN",
+        "expression": "round((1.6180339887^N - (-0.6180339887)^N)/2.2360679775)",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "ratio",
+        "expression": "round((1.6180339887^(N + 1) - (-0.6180339887)^(N + 1))/2.2360679775)/FN",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "fib",
+      "category": "Sequences & Series",
+      "graphOutputs": [
+        "FN",
+        "ratio"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-binom",
+    "subject": "mathematics",
+    "kind": "mathematics-binom",
+    "title": "Binomial distribution",
+    "description": "P(X = k) = ⁿCₖ pᵏ(1 − p)ⁿ⁻ᵏ with mean np and variance np(1 − p).",
+    "icon": "bars",
+    "iconKey": "bars",
+    "category": "Probability & Statistics",
+    "parameters": [
+      {
+        "key": "n",
+        "label": "Trials n",
+        "defaultValue": 10,
+        "min": 1,
+        "max": 20,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "p",
+        "label": "Success probability p",
+        "defaultValue": 0.5,
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "unit": ""
+      },
+      {
+        "key": "K",
+        "label": "Highlight k",
+        "defaultValue": 5,
+        "min": 0,
+        "max": 20,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "n",
+        "symbol": "n",
+        "label": "Trials n",
+        "value": 10,
+        "min": 1,
+        "max": 20,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "p",
+        "symbol": "p",
+        "label": "Success probability p",
+        "value": 0.5,
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "K",
+        "symbol": "K",
+        "label": "Highlight k",
+        "value": 5,
+        "min": 0,
+        "max": 20,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "mu_1",
+        "output": "mu",
+        "expression": "n p",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "sigma2_2",
+        "output": "sigma2",
+        "expression": "n p (1 - p)",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "PK_3",
+        "output": "PK",
+        "expression": "K <= n ? combinations(n, K) p^K (1 - p)^(n - K) : 0",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "bars-1",
+        "name": "",
+        "type": "bars",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "combinations(n, k) p^k (1 - p)^(n - k)",
+          "kmin": "0",
+          "kmax": "n",
+          "ys": "14",
+          "hl": "K"
+        }
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "-1",
+          "y": "0",
+          "x2": "21",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "label-3",
+        "name": "mean np",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "15",
+          "y": "5.5",
+          "value": "μ"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "P(X = k)",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "15",
+          "y": "4.4",
+          "value": "PK"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "μ",
+        "expression": "n p",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "σ2",
+        "expression": "n p (1 - p)",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-3",
+        "label": "PK",
+        "expression": "K <= n ? combinations(n, K) p^K (1 - p)^(n - K) : 0",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "binom",
+      "category": "Probability & Statistics",
+      "graphOutputs": [
+        "PK"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-normal",
+    "subject": "mathematics",
+    "kind": "mathematics-normal",
+    "title": "Normal distribution – area between z₁ and z₂",
+    "description": "Shaded probability P(z₁ < Z < z₂) using the error function.",
+    "icon": "area",
+    "iconKey": "area",
+    "category": "Probability & Statistics",
+    "parameters": [
+      {
+        "key": "z1",
+        "label": "z₁",
+        "defaultValue": -1,
+        "min": -3.5,
+        "max": 3.5,
+        "step": 0.05,
+        "unit": ""
+      },
+      {
+        "key": "z2",
+        "label": "z₂",
+        "defaultValue": 1,
+        "min": -3.5,
+        "max": 3.5,
+        "step": 0.05,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "z1",
+        "symbol": "z1",
+        "label": "z₁",
+        "value": -1,
+        "min": -3.5,
+        "max": 3.5,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "z2",
+        "symbol": "z2",
+        "label": "z₂",
+        "value": 1,
+        "min": -3.5,
+        "max": 3.5,
+        "step": 0.05,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "Pz_1",
+        "output": "Pz",
+        "expression": "(erf(z2/sqrt(2)) - erf(z1/sqrt(2)))/2",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "ax-1",
+        "name": "AX 1",
+        "type": "AX",
+        "visible": true
+      },
+      {
+        "id": "area-2",
+        "name": "",
+        "type": "area",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "8 exp(-x^2/2)/sqrt(2 pi)",
+          "lo": "0",
+          "a": "z1",
+          "b": "z2",
+          "n": "0"
+        }
+      },
+      {
+        "id": "fplot-3",
+        "name": "",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "f": "8 exp(-x^2/2)/sqrt(2 pi)"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "P",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "2.8",
+          "y": "3.5",
+          "value": "Pz"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "Pz",
+        "expression": "(erf(z2/sqrt(2)) - erf(z1/sqrt(2)))/2",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "normal",
+      "category": "Probability & Statistics",
+      "graphOutputs": [
+        "Pz"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-dice",
+    "subject": "mathematics",
+    "kind": "mathematics-dice",
+    "title": "Sum of two dice",
+    "description": "Probability distribution of the sum; the current outcome is highlighted.",
+    "icon": "dice",
+    "iconKey": "dice",
+    "category": "Probability & Statistics",
+    "parameters": [
+      {
+        "key": "d1",
+        "label": "Die 1",
+        "defaultValue": 3,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": ""
+      },
+      {
+        "key": "d2",
+        "label": "Die 2",
+        "defaultValue": 4,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "d1",
+        "symbol": "d1",
+        "label": "Die 1",
+        "value": 3,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      },
+      {
+        "id": "d2",
+        "symbol": "d2",
+        "label": "Die 2",
+        "value": 4,
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "s_1",
+        "output": "s",
+        "expression": "d1 + d2",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "P_2",
+        "output": "P",
+        "expression": "(6 - abs(s - 7))/36",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "bars-1",
+        "name": "",
+        "type": "bars",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "f": "(6 - abs(k - 7))/36",
+          "kmin": "2",
+          "kmax": "12",
+          "ys": "36",
+          "hl": "s"
+        }
+      },
+      {
+        "id": "segment-2",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "1",
+          "y": "0",
+          "x2": "13",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "dice-3",
+        "name": "",
+        "type": "dice",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-1.6",
+          "y": "5.5",
+          "value": "d1",
+          "size": "0.9"
+        }
+      },
+      {
+        "id": "dice-4",
+        "name": "",
+        "type": "dice",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "-1.6",
+          "y": "3",
+          "value": "d2",
+          "size": "0.9"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "P(sum)",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "10.5",
+          "y": "7.3",
+          "value": "P"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "s",
+        "expression": "d1 + d2",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "P",
+        "expression": "(6 - abs(s - 7))/36",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "dice",
+      "category": "Probability & Statistics",
+      "graphOutputs": [
+        "P"
+      ]
+    }
+  },
+  {
+    "id": "mathematics-coins",
+    "subject": "mathematics",
+    "kind": "mathematics-coins",
+    "title": "Coin tosses – law of large numbers",
+    "description": "Running percentage of heads settles near 50 % as N grows.",
+    "icon": "dots",
+    "iconKey": "dots",
+    "category": "Probability & Statistics",
+    "parameters": [
+      {
+        "key": "N",
+        "label": "Number of tosses",
+        "defaultValue": 20,
+        "min": 1,
+        "max": 200,
+        "step": 1,
+        "unit": ""
+      }
+    ],
+    "variables": [
+      {
+        "id": "N",
+        "symbol": "N",
+        "label": "Number of tosses",
+        "value": 20,
+        "min": 1,
+        "max": 200,
+        "step": 1,
+        "unit": "",
+        "learnerEditable": true
+      }
+    ],
+    "equations": [
+      {
+        "id": "H_1",
+        "output": "H",
+        "expression": "sum(map(1:N, hd))",
+        "enabled": true,
+        "role": "derived"
+      },
+      {
+        "id": "fH_2",
+        "output": "fH",
+        "expression": "H/N",
+        "enabled": true,
+        "role": "derived"
+      }
+    ],
+    "objects": [
+      {
+        "id": "fplot-1",
+        "name": "50 %",
+        "type": "fplot",
+        "visible": true,
+        "properties": {
+          "color": "Coral",
+          "f": "50",
+          "dash": "1",
+          "from": "0",
+          "to": "200"
+        }
+      },
+      {
+        "id": "sequence-2",
+        "name": "% heads",
+        "type": "sequence",
+        "visible": true,
+        "properties": {
+          "color": "Sky",
+          "a": "100 sum(map(1:n, hd))/n",
+          "N": "N"
+        }
+      },
+      {
+        "id": "segment-3",
+        "name": "",
+        "type": "segment",
+        "visible": true,
+        "properties": {
+          "color": "Steel",
+          "x": "0",
+          "y": "0",
+          "x2": "200",
+          "y2": "0"
+        }
+      },
+      {
+        "id": "label-4",
+        "name": "heads",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "White",
+          "x": "40",
+          "y": "108",
+          "value": "H"
+        }
+      },
+      {
+        "id": "label-5",
+        "name": "frequency",
+        "type": "label",
+        "visible": true,
+        "properties": {
+          "color": "Amber",
+          "x": "130",
+          "y": "108",
+          "value": "fH"
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "equation-result-1",
+        "label": "H",
+        "expression": "sum(map(1:N, hd))",
+        "unit": "",
+        "precision": 3,
+        "display": "card",
+        "visible": true
+      },
+      {
+        "id": "equation-result-2",
+        "label": "fH",
+        "expression": "H/N",
+        "unit": "",
+        "precision": 3,
+        "display": "graph",
+        "visible": true
+      }
+    ],
+    "playback": {
+      "duration": 10,
+      "loop": true
+    },
+    "view": {
+      "background": "#09111d"
+    },
+    "metadata": {
+      "source": "SPECTROPY Activity Studio HTML",
+      "sourceId": "coins",
+      "category": "Probability & Statistics",
+      "graphOutputs": [
+        "fH"
+      ]
+    }
+  }
+]

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Crop, FileText, Image as ImageIcon, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
+import { Check, Crop, FileText, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
 import { getStudioResource } from '../api/studioResourcesApi';
 import type { StudioResourceDetails, StudioResourceVersion } from '../api/studioResourcesApi';
 import type { Layout, ObjectType, Rect, Slide, Slot } from '../layouts';
@@ -15,17 +15,27 @@ import StudioCanvasTextElement from './StudioCanvasTextElement';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
 import StudioTableElement from './StudioTableElement';
+import StudioChartElement from './StudioChartElement';
+import StudioLocalSimulationFrame from './StudioLocalSimulationFrame';
+import StudioLocalPhysicsLabFrame from './StudioLocalPhysicsLabFrame';
+import StudioLocalChemistryLabFrame from './StudioLocalChemistryLabFrame';
+import StudioLocalMathematicsLabFrame from './StudioLocalMathematicsLabFrame';
+import StudioLocalBiologyLabFrame from './StudioLocalBiologyLabFrame';
 import StudioSmartDiagram from './StudioSmartDiagram';
 import StudioDiagramTextPane from './StudioDiagramTextPane';
 import StudioHyperlinkOverlay from './studioHyperlink';
 import { isSmartDiagramContent, type SmartDiagramContent } from './smartDiagramModel';
 import { studioAnimationStyle } from './studioAnimationRuntime';
+import { playStudioAnimationSound } from './studioAnimationAudio';
+import type { StudioAnimationEffectDefinition } from './studioAnimationModel';
 import type { InlineShapeData } from './studioInlineShape';
 import {
   buildPresenterAnimationTimeline,
   clickerNavigationAction,
   presenterDiagramVisibleNodes,
+  presenterComponentBuildState,
   presenterElementPlaybackState,
+  presenterTriggerCueIds,
   type PresenterAnimationNavigation,
 } from './studioClickerRuntime';
 
@@ -58,7 +68,7 @@ interface BlankScreenCanvasProps {
   onRemoveElement?: (elementId: string) => void;
   showGuides?: boolean;
   previewMode?: boolean;
-  animationPreview?: { elementId: string; token: number } | null;
+  animationPreview?: { elementId?: string; token: number; mode?: 'element' | 'sequence'; fromEffectId?: string } | null;
   cropRequest?: { elementId: string; token: number } | null;
   model3DModeRequest?: { elementId: string; token: number } | null;
   previewStartAtEnd?: boolean;
@@ -92,7 +102,7 @@ const elementText = (content: Record<string, unknown>) => {
 
 type MediaTransform = { fit: 'contain' | 'cover'; scale: number; x: number; y: number; cropped: boolean; edgeCrop: boolean; cropGeometry: boolean; cropLeft: number; cropRight: number; cropTop: number; cropBottom: number; cropScaleX: number; cropScaleY: number; cropOffsetX: number; cropOffsetY: number };
 
-function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: (additive?: boolean) => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void }) {
+function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange, onReady }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: (additive?: boolean) => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void; onReady?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
@@ -200,6 +210,15 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     container.addEventListener('wheel', handleCropWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleCropWheel);
   }, [cropping]);
+
+  const isExecutableResource = resource
+    ? ['html', 'zip', 'scorm', 'simulation'].includes(resource.resource_type)
+    : false;
+
+  useEffect(() => {
+    if (!selected || !isExecutableResource || fullScreen) return;
+    containerRef.current?.focus({ preventScroll: true });
+  }, [fullScreen, isExecutableResource, selected]);
 
   const toggleFullScreen = async () => {
     const container = containerRef.current;
@@ -328,18 +347,46 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     );
 
   return (
-    <div ref={containerRef} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }}>
-      <StudioResourcePlayer
-        resourceType={resource.resource_type}
-        version={version}
-        mode="canvas"
-        selected={selected}
-        mediaTransform={effectiveMediaTransform}
-        model3DSettings={resource.resource_type === 'model_3d' ? model3DSettingsFrom(element.content) : undefined}
-        model3DModeRequestToken={resource.resource_type === 'model_3d' ? model3DModeRequestToken : undefined}
-        onModel3DSettingsChange={resource.resource_type === 'model_3d' ? onModel3DSettingsChange : undefined}
-        className="h-full w-full"
-      />
+    <div ref={containerRef} tabIndex={-1} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); if (isExecutableResource && !fullScreen) containerRef.current?.focus({ preventScroll: true }); }}>
+      {element.type === 'simulation' && element.content.labProject && typeof element.content.labProject === 'object' ? (
+        (element.content.labProject as { subject?: unknown }).subject === 'chemistry' ? <StudioLocalChemistryLabFrame
+          project={element.content.labProject}
+          title={String(element.content.labTitle || element.content.text || resource.name)}
+          className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
+        /> : (element.content.labProject as { subject?: unknown }).subject === 'mathematics' ? <StudioLocalMathematicsLabFrame
+          project={element.content.labProject}
+          title={String(element.content.labTitle || element.content.text || resource.name)}
+          className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
+        /> : (element.content.labProject as { subject?: unknown }).subject === 'biology' ? <StudioLocalBiologyLabFrame
+          project={element.content.labProject}
+          title={String(element.content.labTitle || element.content.text || resource.name)}
+          className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
+        /> : <StudioLocalPhysicsLabFrame
+          project={element.content.labProject}
+          title={String(element.content.labTitle || element.content.text || resource.name)}
+          className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
+        />
+      ) : element.type === 'simulation' && element.content.simulationProject && typeof element.content.simulationProject === 'object' ? (
+        <StudioLocalSimulationFrame
+          project={element.content.simulationProject}
+          title={String(element.content.simulationTitle || element.content.text || resource.name)}
+          onReady={onReady}
+          className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
+        />
+      ) : (
+        <StudioResourcePlayer
+          resourceType={resource.resource_type}
+          version={version}
+          mode="canvas"
+          selected={selected}
+          mediaTransform={effectiveMediaTransform}
+          model3DSettings={resource.resource_type === 'model_3d' ? model3DSettingsFrom(element.content) : undefined}
+          model3DModeRequestToken={resource.resource_type === 'model_3d' ? model3DModeRequestToken : undefined}
+          onModel3DSettingsChange={resource.resource_type === 'model_3d' ? onModel3DSettingsChange : undefined}
+          onReady={onReady}
+          className={`h-full w-full ${isExecutableResource && !fullScreen ? 'pointer-events-none' : ''}`}
+        />
+      )}
       {selected && onMediaTransformChange && ['image', 'animation', 'video'].includes(resource.resource_type) ? (
         <>
           <button
@@ -510,12 +557,17 @@ export default function BlankScreenCanvas({
   } | null>(null);
   const [previewStep, setPreviewStep] = useState(0);
   const [previewCycle, setPreviewCycle] = useState(0);
+  const [editorPreviewStep, setEditorPreviewStep] = useState<number | null>(null);
+  const [editorPreviewCycle, setEditorPreviewCycle] = useState(0);
+  const editorPreviewStoppedRef = useRef(false);
   const [previewNavigation, setPreviewNavigation] =
     useState<PresenterAnimationNavigation | null>(null);
+  const [triggeredAnimationCueIds, setTriggeredAnimationCueIds] = useState<Set<string>>(() => new Set());
   const [lastClickerAction, setLastClickerAction] = useState<'next' | 'previous' | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
   const [croppingElementId, setCroppingElementId] = useState<string | null>(null);
+  const [readyMediaKeys, setReadyMediaKeys] = useState<Set<string>>(() => new Set());
   const slideFrameRef = useRef<HTMLDivElement>(null);
   const zoomPointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | null>(null);
@@ -529,6 +581,72 @@ export default function BlankScreenCanvas({
       ),
     [screen?.elements],
   );
+  const mediaKeyFor = (element: StudioElement) => {
+    if (element.resource) return `${element.id}:resource:${element.resource.resource_version_id}`;
+    const url = typeof element.content.url === 'string' ? element.content.url : '';
+    const mimeType = typeof element.content.mimeType === 'string' ? element.content.mimeType : '';
+    return url && (mimeType.startsWith('image/') || mimeType.startsWith('video/') || mimeType.startsWith('audio/') || mimeType === 'application/pdf')
+      ? `${element.id}:inline:${url}`
+      : null;
+  };
+  const elementMediaReady = (element: StudioElement) => {
+    const key = mediaKeyFor(element);
+    return !key || readyMediaKeys.has(key);
+  };
+  const markElementMediaReadyAfterPaint = (element: StudioElement) => {
+    const key = mediaKeyFor(element);
+    if (!key) return;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      setReadyMediaKeys((current) => current.has(key) ? current : new Set(current).add(key));
+    }));
+  };
+  const previewMediaReady = (screen?.elements ?? [])
+    .filter((element) => {
+      if (animationPreview?.mode === 'sequence') {
+        const animation = element.content.animation;
+        return Boolean(animation && typeof animation === 'object');
+      }
+      return element.id === animationPreview?.elementId;
+    })
+    .every(elementMediaReady);
+  useEffect(() => {
+    if (previewMode || animationPreview?.mode !== 'sequence' || animationTimeline.maxStep < 1 || !previewMediaReady) {
+      setEditorPreviewStep(null);
+      return;
+    }
+    let cancelled = false;
+    editorPreviewStoppedRef.current = false;
+    let timer = 0;
+    const requestedCue = animationPreview.fromEffectId
+      ? animationTimeline.cues.find((cue) => cue.cueId === animationPreview.fromEffectId && cue.step >= 0)
+      : undefined;
+    const firstStep = Math.max(1, requestedCue?.step ?? 1);
+    setEditorPreviewStep(Math.max(0, firstStep - 1));
+    setEditorPreviewCycle((value) => value + 1);
+    const playStep = (step: number) => {
+      if (cancelled || editorPreviewStoppedRef.current || step > animationTimeline.maxStep) {
+        setEditorPreviewStep(null);
+        return;
+      }
+      setEditorPreviewStep(step);
+      setEditorPreviewCycle((value) => value + 1);
+      const cues = animationTimeline.cues.filter((cue) => cue.step === step);
+      cues.forEach((cue) => void playStudioAnimationSound(cue.effect as StudioAnimationEffectDefinition).catch(() => undefined));
+      const durationMs = Math.max(250, ...cues.map((cue) => {
+        const repeat = Number(cue.effect.repeat);
+        const repeats = Number.isFinite(repeat) && repeat > 0 ? Math.min(10, repeat) : 1;
+        const autoReverseMultiplier = cue.effect.autoReverse === true ? 2 : 1;
+        return ((Number(cue.effect.runtimeDelay) || 0) + (Number(cue.effect.duration) || 0.8) * repeats * autoReverseMultiplier) * 1000;
+      }));
+      timer = window.setTimeout(() => playStep(step + 1), Math.min(15000, durationMs + 180));
+    };
+    timer = window.setTimeout(() => playStep(firstStep), 120);
+    return () => {
+      cancelled = true;
+      editorPreviewStoppedRef.current = true;
+      window.clearTimeout(timer);
+    };
+  }, [animationPreview, animationTimeline, previewMediaReady, previewMode]);
   useEffect(() => {
     setEditingElementId(null);
     setCroppingElementId(null);
@@ -539,8 +657,23 @@ export default function BlankScreenCanvas({
     setPreviewStep(previewStartAtEnd ? animationTimeline.maxStep : 0);
     setPreviewCycle((current) => current + 1);
     setPreviewNavigation(null);
+    setTriggeredAnimationCueIds(new Set());
     setLastClickerAction(null);
   }, [animationTimeline.maxStep, previewMode, previewStartAtEnd, screen?.id]);
+  useEffect(() => {
+    if (!previewMode) return;
+    const active = animationTimeline.cues.filter((cue) => cue.step === previewStep && cue.step >= 0);
+    active.forEach((cue) => void playStudioAnimationSound(cue.effect as StudioAnimationEffectDefinition).catch(() => undefined));
+  }, [animationTimeline, previewCycle, previewMode, previewStep]);
+  useEffect(() => {
+    if (previewMode || !animationPreview) return;
+    const element = screen?.elements.find((candidate) => candidate.id === animationPreview.elementId);
+    const animation = element?.content.animation;
+    if (!animation || typeof animation !== 'object' || Array.isArray(animation)) return;
+    const saved = animation as Record<string, unknown>;
+    const effect = Array.isArray(saved.effects) ? saved.effects[0] : saved;
+    if (effect && typeof effect === 'object') void playStudioAnimationSound(effect as StudioAnimationEffectDefinition).catch(() => undefined);
+  }, [animationPreview, previewMode, screen?.elements]);
   useEffect(() => {
     if (!previewMode) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -723,13 +856,19 @@ export default function BlankScreenCanvas({
             text: elementText(element.content),
             position: elementBounds(element.position),
             color: typeof element.content.color === 'string' ? element.content.color : undefined,
-            backgroundColor: element.type !== 'shape' && typeof element.content.backgroundColor === 'string'
+            backgroundColor: element.resource?.usage?.resource_type === 'model_3d'
+              ? 'transparent'
+              : element.type !== 'shape' && typeof element.content.backgroundColor === 'string'
               ? element.content.backgroundColor
               : undefined,
-            borderColor: element.type !== 'shape' && typeof element.content.borderColor === 'string'
+            borderColor: element.resource?.usage?.resource_type === 'model_3d'
+              ? 'transparent'
+              : element.type !== 'shape' && typeof element.content.borderColor === 'string'
               ? element.content.borderColor
               : undefined,
-            borderWidth: element.type !== 'shape' && Number.isFinite(Number(element.content.borderWidth))
+            borderWidth: element.resource?.usage?.resource_type === 'model_3d'
+              ? 0
+              : element.type !== 'shape' && Number.isFinite(Number(element.content.borderWidth))
               ? Number(element.content.borderWidth)
               : undefined,
             locked: element.position.locked === true,
@@ -756,23 +895,31 @@ export default function BlankScreenCanvas({
     const savedEffects = Array.isArray(savedAnimation?.effects)
       ? savedAnimation.effects as Array<Record<string, unknown>>
       : savedAnimation && String(savedAnimation.effect || 'none') !== 'none' ? [savedAnimation] : [];
+    const mediaReady = elementMediaReady(element);
+    const editorSequencePreviewing = !previewMode && animationPreview?.mode === 'sequence' && editorPreviewStep !== null && mediaReady;
+    const editorPlaybackState = editorSequencePreviewing
+      ? presenterElementPlaybackState(animationTimeline, element.id, editorPreviewStep, editorPreviewCycle)
+      : null;
     const textPlaybackEffects = previewMode
-      ? presenterElementPlaybackState(animationTimeline, element.id, previewStep, previewCycle, previewNavigation).activeEffects
-      : animationPreview?.elementId === element.id ? savedEffects : [];
+      ? presenterElementPlaybackState(animationTimeline, element.id, previewStep, previewCycle, previewNavigation, triggeredAnimationCueIds).activeEffects
+      : editorPlaybackState?.activeEffects ?? (animationPreview?.elementId === element.id && mediaReady ? savedEffects : []);
     const textSequenceValue = String(textPlaybackEffects[0]?.textSequence || 'object');
     const animationTextSequence = textSequenceValue === 'paragraph' || textSequenceValue === 'word' || textSequenceValue === 'letter'
       ? textSequenceValue
+      : undefined;
+    const animationTextDelay = Number.isFinite(Number(textPlaybackEffects[0]?.textDelay))
+      ? Math.max(0, Number(textPlaybackEffects[0]?.textDelay))
       : undefined;
     const textAnimationStyle = animationTextSequence && textPlaybackEffects.length
       ? studioAnimationStyle({ effects: textPlaybackEffects })
       : undefined;
     if (isSmartDiagramContent(element.content)) {
       const diagramContent = element.content;
-      const visibleNodeIds = previewMode
+      const visibleNodeIds = previewMode || editorSequencePreviewing
         ? presenterDiagramVisibleNodes(
             animationTimeline,
             element.id,
-            previewStep,
+            previewMode ? previewStep : editorPreviewStep ?? 0,
             diagramContent.nodes.map((node) => node.id),
           )
         : undefined;
@@ -873,6 +1020,7 @@ export default function BlankScreenCanvas({
               paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
               paragraphSpacingAfter={Number(element.content.paragraphSpacingAfter) || undefined}
               animationTextSequence={animationTextSequence}
+              animationTextDelay={animationTextDelay}
               animationStyle={textAnimationStyle}
               editable={!previewMode && Boolean(onChangeElementContent)}
               selected={selectedElementId === element.id}
@@ -895,6 +1043,10 @@ export default function BlankScreenCanvas({
       );
       continue;
     }
+    if (element.content.visualType === 'chart') {
+      objectOverlays[element.id] = <StudioChartElement content={element.content} animationBuildState={previewMode ? presenterComponentBuildState(animationTimeline, element.id, previewStep, triggeredAnimationCueIds) : editorSequencePreviewing ? presenterComponentBuildState(animationTimeline, element.id, editorPreviewStep ?? 0) : null}/>;
+      continue;
+    }
     if (element.type === 'table' || element.content.visualType === 'table') {
       objectOverlays[element.id] = (
         <StudioTableElement
@@ -902,6 +1054,7 @@ export default function BlankScreenCanvas({
           content={element.content}
           editable={!previewMode && Boolean(onChangeElementContent)}
           onChange={(changes) => onChangeElementContent?.(element.id, changes)}
+          animationBuildState={previewMode ? presenterComponentBuildState(animationTimeline, element.id, previewStep, triggeredAnimationCueIds) : editorSequencePreviewing ? presenterComponentBuildState(animationTimeline, element.id, editorPreviewStep ?? 0) : null}
         />
       );
       continue;
@@ -973,6 +1126,7 @@ export default function BlankScreenCanvas({
           paragraphSpacingBefore={Number(element.content.paragraphSpacingBefore) || undefined}
           paragraphSpacingAfter={Number(element.content.paragraphSpacingAfter) || undefined}
           animationTextSequence={animationTextSequence}
+          animationTextDelay={animationTextDelay}
           animationStyle={textAnimationStyle}
           editable={!previewMode && Boolean(onChangeElementContent)}
           selected={selectedElementId === element.id}
@@ -1027,21 +1181,20 @@ export default function BlankScreenCanvas({
     }
     const droppedUrl = typeof element.content.url === 'string' ? element.content.url : '';
     const mimeType = typeof element.content.mimeType === 'string' ? element.content.mimeType : '';
-    if (droppedUrl && element.content.source === 'drag-drop') {
+    if (droppedUrl && (element.content.source === 'drag-drop' || element.content.source === 'clipboard')) {
       const name = String(element.content.text || 'Dropped file');
       if (element.type === 'visual' || mimeType.startsWith('image/')) {
         objectOverlays[element.id] = (
           <div className="group relative h-full w-full bg-slate-100" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}>
-            <img src={droppedUrl} alt={String(element.content.altText || name)} className="h-full w-full object-fill" />
-            <span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span>
+            <img src={droppedUrl} alt={String(element.content.altText || name)} onLoad={(event) => { void event.currentTarget.decode().catch(() => undefined).finally(() => markElementMediaReadyAfterPaint(element)); }} className="h-full w-full object-fill" />
           </div>
         );
       } else if (mimeType.startsWith('video/')) {
-        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><video src={droppedUrl} controls className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
+        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><video src={droppedUrl} controls onLoadedData={() => markElementMediaReadyAfterPaint(element)} onCanPlay={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
       } else if (mimeType.startsWith('audio/')) {
-        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls className="mt-4 w-full"/></div></div>;
+        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls onCanPlay={() => markElementMediaReadyAfterPaint(element)} className="mt-4 w-full"/></div></div>;
       } else if (mimeType === 'application/pdf') {
-        objectOverlays[element.id] = <div className="relative h-full w-full bg-slate-200" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><iframe src={droppedUrl} title={name} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>;
+        objectOverlays[element.id] = <div className="relative h-full w-full bg-slate-200" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><iframe src={droppedUrl} title={name} onLoad={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>;
       } else {
         objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{mimeType || 'Document'}</p><a href={droppedUrl} download={name} onClick={(event) => event.stopPropagation()} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>;
       }
@@ -1053,7 +1206,7 @@ export default function BlankScreenCanvas({
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
         bounds={elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === (element.slotId || `free-${element.id}`))?.bounds}
-        selected={selectedElementId === element.id}
+        selected={!previewMode && selectedElementId === element.id}
         cropRequestToken={cropRequest?.elementId === element.id ? cropRequest.token : undefined}
         model3DModeRequestToken={model3DModeRequest?.elementId === element.id ? model3DModeRequest.token : undefined}
         onSelect={onSelectElement ? (additive) => onSelectElement(element.id, additive) : undefined}
@@ -1061,6 +1214,7 @@ export default function BlankScreenCanvas({
         onCommitCrop={onCommitElementChange || onChangeElement ? (bounds, mediaTransform) => (onCommitElementChange || onChangeElement)?.({ ...element, position: { ...element.position, ...bounds }, content: { ...element.content, mediaTransform } }) : undefined}
         onModel3DSettingsChange={onChangeElementContent ? (settings) => onChangeElementContent(element.id, { model3d: settings }) : undefined}
         onMediaTransformChange={onChangeElementContent ? (mediaTransform) => onChangeElementContent(element.id, { mediaTransform }) : undefined}
+        onReady={() => markElementMediaReadyAfterPaint(element)}
       />
     );
   }
@@ -1076,7 +1230,20 @@ export default function BlankScreenCanvas({
   for (const element of screen?.elements ?? []) {
     const overlay = objectOverlays[element.id];
     if (!overlay) continue;
-    objectOverlays[element.id] = <div data-element-id={element.id} className="h-full w-full">{overlay}</div>;
+    objectOverlays[element.id] = <div
+      data-element-id={element.id}
+      className="h-full w-full"
+      onClickCapture={previewMode ? (event) => {
+        const cueIds = presenterTriggerCueIds(animationTimeline, element.id);
+        if (!cueIds.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setTriggeredAnimationCueIds((current) => new Set([...current, ...cueIds]));
+        setPreviewCycle((current) => current + 1);
+        const cue = animationTimeline.cues.find((candidate) => cueIds.includes(candidate.cueId));
+        if (cue) void playStudioAnimationSound(cue.effect as StudioAnimationEffectDefinition).catch(() => undefined);
+      } : undefined}
+    >{overlay}</div>;
   }
   for (const element of screen?.elements ?? []) {
     const overlay = objectOverlays[element.id];
@@ -1088,6 +1255,11 @@ export default function BlankScreenCanvas({
     const hasAnimation =
       Boolean(animation) && (effects.length > 0 || String(animation?.effect || 'none') !== 'none');
     if (!overlay || !hasAnimation) continue;
+    if (!elementMediaReady(element)) {
+      const previewPending = previewMode || animationPreview?.mode === 'sequence' || animationPreview?.elementId === element.id;
+      objectAnimationStyles[element.id] = previewPending ? { opacity: 0 } : {};
+      continue;
+    }
     if (previewMode) {
       const playbackState = presenterElementPlaybackState(
         animationTimeline,
@@ -1095,13 +1267,15 @@ export default function BlankScreenCanvas({
         previewStep,
         previewCycle,
         previewNavigation,
+        triggeredAnimationCueIds,
       );
       const activeStyle = playbackState.activeEffects.length
         ? studioAnimationStyle({ effects: playbackState.activeEffects })
         : null;
       const sequenceRunsInsideText = playbackState.activeEffects.some((effect) => ['paragraph', 'word', 'letter'].includes(String(effect.textSequence || 'object')))
         && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
-      objectAnimationStyles[element.id] = activeStyle && !sequenceRunsInsideText
+      const sequenceRunsInsideComponent = playbackState.activeEffects.some((effect) => !['as-one-object', 'all-at-once', ''].includes(String(effect.buildSequence || '')));
+      objectAnimationStyles[element.id] = sequenceRunsInsideComponent ? {} : activeStyle && !sequenceRunsInsideText
         ? {
             ...activeStyle,
             ...(playbackState.reverse
@@ -1113,9 +1287,27 @@ export default function BlankScreenCanvas({
               : {}),
           }
         : playbackState.visible
-          ? {}
+          ? playbackState.afterStyle
           : { opacity: 0 };
       objectAnimationKeys[element.id] = `${screen?.id ?? 'screen'}-${playbackState.identity}`;
+    } else if (animationPreview?.mode === 'sequence' && editorPreviewStep !== null) {
+      const playbackState = presenterElementPlaybackState(
+        animationTimeline,
+        element.id,
+        editorPreviewStep,
+        editorPreviewCycle,
+      );
+      const sequenceRunsInsideText = playbackState.activeEffects.some((effect) => ['paragraph', 'word', 'letter'].includes(String(effect.textSequence || 'object')))
+        && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
+      const sequenceRunsInsideComponent = playbackState.activeEffects.some((effect) => !['as-one-object', 'all-at-once', ''].includes(String(effect.buildSequence || '')));
+      objectAnimationStyles[element.id] = sequenceRunsInsideComponent || sequenceRunsInsideText
+        ? {}
+        : playbackState.activeEffects.length
+          ? studioAnimationStyle({ effects: playbackState.activeEffects })
+          : playbackState.visible
+            ? playbackState.afterStyle
+            : { opacity: 0 };
+      objectAnimationKeys[element.id] = `editor-${screen?.id ?? 'screen'}-${editorPreviewCycle}-${element.id}-${editorPreviewStep}`;
     } else if (animationPreview?.elementId === element.id) {
       const sequenceRunsInsideText = effects.some((effect) => effect && typeof effect === 'object' && ['paragraph', 'word', 'letter'].includes(String((effect as Record<string, unknown>).textSequence || 'object')))
         && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
@@ -1164,6 +1356,8 @@ export default function BlankScreenCanvas({
               : ''}
           </div>
         ) : null}
+        {!previewMode && animationPreview && !previewMediaReady ? <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-semibold text-white shadow-lg">Preparing media before preview…</div> : null}
+        {!previewMode && editorPreviewStep !== null ? <div className="absolute right-3 top-3 z-30 flex items-center gap-2 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-semibold text-white shadow-lg"><span>Animation preview · Step {editorPreviewStep}/{animationTimeline.maxStep}</span><button type="button" onClick={() => { editorPreviewStoppedRef.current = true; setEditorPreviewStep(null); }} className="rounded-full bg-white/15 px-2 py-0.5 hover:bg-white/25">Stop</button></div> : null}
         {screen && slide && renderLayout && !loading ? (
           <div
             ref={slideFrameRef}
@@ -1229,6 +1423,7 @@ export default function BlankScreenCanvas({
             objectOverlays={objectOverlays}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
+            selectionChromeHidden={previewMode}
             allowCanvasOverflow={!previewMode}
             showTextEditorOutlines={!previewMode}
             transition={

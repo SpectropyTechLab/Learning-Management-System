@@ -1,0 +1,1338 @@
+{
+  "schema": "spectropy.chemistry-lab-catalog.v1",
+  "topics": {
+    "matter-and-separation": {
+      "label": "Matter & Separation",
+      "colour": "#0E7C66"
+    },
+    "acids-bases-and-salts": {
+      "label": "Acids, Bases & Salts",
+      "colour": "#C2385A"
+    },
+    "chemical-reactions": {
+      "label": "Chemical Reactions",
+      "colour": "#C77A12"
+    },
+    "metals-and-non-metals": {
+      "label": "Metals & Non-metals",
+      "colour": "#4D6A8A"
+    },
+    "carbon-compounds": {
+      "label": "Carbon Compounds",
+      "colour": "#5E8C2F"
+    },
+    "qualitative-analysis": {
+      "label": "Qualitative Analysis",
+      "colour": "#7A4FB5"
+    },
+    "volumetric-analysis": {
+      "label": "Volumetric Analysis",
+      "colour": "#2F55B8"
+    },
+    "physical-chemistry": {
+      "label": "Physical Chemistry",
+      "colour": "#118AA0"
+    },
+    "electrochemistry": {
+      "label": "Electrochemistry",
+      "colour": "#D0612A"
+    },
+    "organic-and-biomolecules": {
+      "label": "Organic & Biomolecules",
+      "colour": "#3F8F52"
+    }
+  },
+  "labs": [
+    {
+      "id": "sep-salt",
+      "subject": "chemistry",
+      "title": "Separating salt from sand",
+      "topic": "matter-and-separation",
+      "topicLabel": "Matter & Separation",
+      "topicColour": "#0E7C66",
+      "classes": [
+        6
+      ],
+      "aim": "To separate a mixture of common salt and sand by dissolution, filtration and evaporation.",
+      "theory": "Salt is soluble in water while sand is not. Filtration removes the insoluble sand; evaporation removes the water, leaving salt behind.",
+      "apparatus": [
+        "Beakers (2)",
+        "glass rod",
+        "funnel",
+        "filter paper",
+        "china dish",
+        "tripod stand",
+        "wire gauze",
+        "burner",
+        "sand–salt mixture",
+        "water"
+      ],
+      "safety": "Do not heat the china dish to complete dryness too fast — salt crystals may spatter.",
+      "procedure": [
+        "Add sand–salt mixture to water",
+        "Stir with glass rod and let it stand",
+        "Filter into Beaker B",
+        "Pour filtrate into china dish and heat",
+        "Heat to dryness, then cool"
+      ],
+      "result": "Salt and sand are separated by dissolution, filtration and evaporation. Sand is obtained as residue; salt is recovered from the filtrate.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 5,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "solubility",
+      "subject": "chemistry",
+      "title": "Soluble and insoluble substances",
+      "topic": "matter-and-separation",
+      "topicLabel": "Matter & Separation",
+      "topicColour": "#0E7C66",
+      "classes": [
+        6
+      ],
+      "aim": "To classify substances as soluble or insoluble in water.",
+      "theory": "A substance that disappears uniformly in water is soluble. Insoluble solids settle; immiscible liquids form a separate layer.",
+      "apparatus": [
+        "Test tubes (4)",
+        "test-tube stand",
+        "water",
+        "common salt",
+        "sugar",
+        "sand",
+        "cooking oil"
+      ],
+      "safety": "",
+      "procedure": [
+        "Add a spoon of salt and shake",
+        "Add a spoon of sugar and shake",
+        "Add sand and shake",
+        "Add cooking oil and shake"
+      ],
+      "result": "Salt and sugar are soluble in water; sand is insoluble; oil is immiscible and floats on water.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "nat-ind",
+      "subject": "chemistry",
+      "title": "Natural indicators: litmus, turmeric, china rose",
+      "topic": "acids-bases-and-salts",
+      "topicLabel": "Acids, Bases & Salts",
+      "topicColour": "#C2385A",
+      "classes": [
+        7
+      ],
+      "aim": "To test acidic and basic substances using natural indicators.",
+      "theory": "Indicators change colour in acidic or basic media. Litmus: acid → red, base → blue. Turmeric: base → red-brown. China rose: acid → dark pink, base → green.",
+      "apparatus": [
+        "Test tubes (6)",
+        "lemon juice",
+        "soap solution",
+        "blue & red litmus",
+        "turmeric paste",
+        "china rose extract"
+      ],
+      "safety": "",
+      "procedure": [
+        "Blue litmus → lemon juice",
+        "Red litmus → soap solution",
+        "Turmeric → lemon juice",
+        "Turmeric → soap solution",
+        "China rose → lemon juice",
+        "China rose → soap solution"
+      ],
+      "result": "Lemon juice is acidic and soap solution is basic, as shown by all three natural indicators.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 6,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "neutral",
+      "subject": "chemistry",
+      "title": "Neutralisation of an acid by a base",
+      "topic": "acids-bases-and-salts",
+      "topicLabel": "Acids, Bases & Salts",
+      "topicColour": "#C2385A",
+      "classes": [
+        7
+      ],
+      "aim": "To observe neutralisation of dilute HCl by NaOH using phenolphthalein.",
+      "theory": "An acid and a base react to form salt and water with release of heat. Phenolphthalein is colourless in acid and pink in base.",
+      "apparatus": [
+        "Conical flask",
+        "dropper",
+        "dil. HCl",
+        "dil. NaOH",
+        "phenolphthalein",
+        "thermometer",
+        "pH meter"
+      ],
+      "safety": "",
+      "procedure": [
+        "Add 2 drops phenolphthalein",
+        "Add 8 mL NaOH and swirl",
+        "Add NaOH drop by drop until pink",
+        "Add one drop of dil. HCl"
+      ],
+      "result": "Acid and base neutralise each other to form salt and water. The reaction is exothermic (temperature rose by ≈2.6 °C).",
+      "mode": "steps",
+      "meterCount": 2,
+      "actionCount": 4,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "rust",
+      "subject": "chemistry",
+      "title": "Conditions necessary for rusting",
+      "topic": "chemical-reactions",
+      "topicLabel": "Chemical Reactions",
+      "topicColour": "#C77A12",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To show that both air and water are needed for rusting of iron.",
+      "theory": "Rust is hydrated iron(III) oxide. Tube A has air and water; tube B has boiled water (no dissolved air) sealed by oil; tube C has dry air (CaCl₂ absorbs moisture).",
+      "apparatus": [
+        "Test tubes (3)",
+        "iron nails",
+        "boiled water",
+        "oil",
+        "anhydrous CaCl₂",
+        "corks"
+      ],
+      "safety": "",
+      "procedure": [
+        "Observe nails on Day 0",
+        "Leave tubes for 3 days",
+        "Examine tube B",
+        "Examine tube C"
+      ],
+      "result": "Iron rusts only when both air (oxygen) and water are present.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 4,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "crystal",
+      "subject": "chemistry",
+      "title": "Crystallisation of copper sulphate",
+      "topic": "matter-and-separation",
+      "topicLabel": "Matter & Separation",
+      "topicColour": "#0E7C66",
+      "classes": [
+        7
+      ],
+      "aim": "To obtain pure crystals of copper sulphate from an impure sample.",
+      "theory": "A hot saturated solution, on slow cooling, deposits pure crystals; impurities stay in solution. A few drops of dil. H₂SO₄ prevent hydrolysis.",
+      "apparatus": [
+        "Beaker",
+        "china dish",
+        "glass rod",
+        "funnel",
+        "filter paper",
+        "burner",
+        "impure CuSO₄",
+        "dil. H₂SO₄"
+      ],
+      "safety": "",
+      "procedure": [
+        "Heat water to about 70 °C",
+        "Add CuSO₄ powder till no more dissolves",
+        "Add few drops dil. H₂SO₄",
+        "Filter hot solution into dish",
+        "Cool slowly, undisturbed"
+      ],
+      "result": "Pure blue crystals of hydrated copper sulphate (CuSO₄·5H₂O) are obtained by crystallisation.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 5,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "oxides",
+      "subject": "chemistry",
+      "title": "Oxides of metals and non-metals",
+      "topic": "metals-and-non-metals",
+      "topicLabel": "Metals & Non-metals",
+      "topicColour": "#4D6A8A",
+      "classes": [
+        8
+      ],
+      "aim": "To study the nature of oxides of magnesium (metal) and sulphur (non-metal).",
+      "theory": "Metal oxides are basic and turn red litmus blue; non-metal oxides are acidic and turn blue litmus red.",
+      "apparatus": [
+        "Bunsen burner",
+        "tongs",
+        "deflagrating spoon",
+        "Mg ribbon",
+        "sulphur powder",
+        "test tubes",
+        "litmus"
+      ],
+      "safety": "Do not look directly at burning magnesium. Burn sulphur only in a fume hood.",
+      "procedure": [
+        "Burn magnesium ribbon",
+        "Dissolve ash in water",
+        "Test with red litmus",
+        "Burn sulphur in deflagrating spoon",
+        "Dissolve gas in water",
+        "Test with blue litmus"
+      ],
+      "result": "Oxides of metals (MgO) are basic; oxides of non-metals (SO₂) are acidic.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 6,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "displace",
+      "subject": "chemistry",
+      "title": "Displacement: iron and copper sulphate",
+      "topic": "chemical-reactions",
+      "topicLabel": "Chemical Reactions",
+      "topicColour": "#C77A12",
+      "classes": [
+        8,
+        10
+      ],
+      "aim": "To show that iron displaces copper from copper sulphate solution.",
+      "theory": "A more reactive metal displaces a less reactive metal from its salt solution. Iron is more reactive than copper.",
+      "apparatus": [
+        "Test tubes (2)",
+        "iron nails",
+        "copper strip",
+        "CuSO₄ solution",
+        "FeSO₄ solution",
+        "sand paper"
+      ],
+      "safety": "",
+      "procedure": [
+        "Dip a clean iron nail in CuSO₄",
+        "Wait 20 minutes",
+        "Dip a copper strip in FeSO₄",
+        "Wait 20 minutes"
+      ],
+      "result": "Iron displaces copper from CuSO₄, but copper cannot displace iron. Iron is more reactive than copper.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "conduct",
+      "subject": "chemistry",
+      "title": "Electrical conductivity of liquids",
+      "topic": "electrochemistry",
+      "topicLabel": "Electrochemistry",
+      "topicColour": "#D0612A",
+      "classes": [
+        8,
+        10
+      ],
+      "aim": "To test which liquids conduct electricity using a bulb-and-ammeter tester.",
+      "theory": "Solutions containing ions (electrolytes) conduct electricity. Strong electrolytes conduct well; weak ones poorly; non-electrolytes not at all.",
+      "apparatus": [
+        "Beaker",
+        "graphite electrodes",
+        "bulb",
+        "ammeter",
+        "battery",
+        "wires; test liquids"
+      ],
+      "safety": "",
+      "procedure": [
+        "Distilled water",
+        "Tap water",
+        "Salt (NaCl) solution",
+        "Dilute HCl",
+        "Vinegar (acetic acid)",
+        "Sugar solution"
+      ],
+      "result": "NaCl solution and dil. HCl are good conductors; vinegar and tap water conduct weakly; distilled water and sugar solution do not conduct.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 6,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "colloid",
+      "subject": "chemistry",
+      "title": "Solution, suspension and colloid (Tyndall effect)",
+      "topic": "matter-and-separation",
+      "topicLabel": "Matter & Separation",
+      "topicColour": "#0E7C66",
+      "classes": [
+        9
+      ],
+      "aim": "To distinguish true solution, suspension and colloid by appearance, stability and Tyndall effect.",
+      "theory": "Particles in a colloid (1–1000 nm) scatter light, making the beam path visible (Tyndall effect). Suspension particles are larger and settle.",
+      "apparatus": [
+        "Beakers (3)",
+        "torch",
+        "glass rod",
+        "salt",
+        "chalk powder",
+        "milk",
+        "water"
+      ],
+      "safety": "",
+      "procedure": [
+        "Stir salt into water",
+        "Stir chalk into water",
+        "Add a few drops of milk",
+        "Pass a torch beam through all",
+        "Leave undisturbed for 15 min"
+      ],
+      "result": "Salt solution is a true solution; chalk in water is a suspension; milk in water is a colloid that shows the Tyndall effect and does not settle.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 5,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "mp-bp",
+      "subject": "chemistry",
+      "title": "Melting point of ice & boiling point of water",
+      "topic": "matter-and-separation",
+      "topicLabel": "Matter & Separation",
+      "topicColour": "#0E7C66",
+      "classes": [
+        9
+      ],
+      "aim": "To determine the melting point of ice and the boiling point of water.",
+      "theory": "During a change of state, heat supplied is used as latent heat, so temperature stays constant — at 0 °C while ice melts and at 100 °C while water boils (at 1 atm).",
+      "apparatus": [
+        "Beaker",
+        "crushed ice",
+        "thermometer (−10 to 110 °C)",
+        "tripod",
+        "wire gauze",
+        "burner",
+        "stopwatch",
+        "glass rod"
+      ],
+      "safety": "Do not let the thermometer bulb touch the bottom of the beaker.",
+      "procedure": [
+        "Place the thermometer correctly.",
+        "Heat the sample gently.",
+        "Record temperature against time.",
+        "Identify phase-change plateaus.",
+        "Plot and interpret the heating curve."
+      ],
+      "result": "Melting point of ice = 0 °C. Boiling point of water = 100 °C. Temperature remains constant during both changes of state (latent heat).",
+      "mode": "heat",
+      "meterCount": 2,
+      "actionCount": 0,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "fe-s",
+      "subject": "chemistry",
+      "title": "Mixture vs compound: iron and sulphur",
+      "topic": "matter-and-separation",
+      "topicLabel": "Matter & Separation",
+      "topicColour": "#0E7C66",
+      "classes": [
+        9
+      ],
+      "aim": "To distinguish a mixture of iron filings and sulphur from the compound iron sulphide.",
+      "theory": "In a mixture, components retain their properties. On heating, iron and sulphur combine to form FeS, a new substance with different properties.",
+      "apparatus": [
+        "China dish",
+        "burner",
+        "magnet",
+        "test tubes",
+        "iron filings",
+        "sulphur powder",
+        "dil. HCl"
+      ],
+      "safety": "H₂S is toxic — perform in a fume hood.",
+      "procedure": [
+        "Bring magnet near A",
+        "Heat B strongly",
+        "Bring magnet near B",
+        "Add dil. HCl to A",
+        "Add dil. HCl to B"
+      ],
+      "result": "Iron and sulphur form a mixture before heating and the compound FeS after heating; the compound has properties different from its constituents.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 5,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "conserv",
+      "subject": "chemistry",
+      "title": "Law of conservation of mass",
+      "topic": "chemical-reactions",
+      "topicLabel": "Chemical Reactions",
+      "topicColour": "#C77A12",
+      "classes": [
+        9
+      ],
+      "aim": "To verify that mass is conserved in a chemical reaction.",
+      "theory": "In a closed system, the total mass of reactants equals the total mass of products.",
+      "apparatus": [
+        "Conical flask with cork",
+        "ignition tube",
+        "thread",
+        "digital balance",
+        "BaCl₂ and Na₂SO₄ solutions"
+      ],
+      "safety": "",
+      "procedure": [
+        "Place sealed flask on balance",
+        "Tilt flask to mix solutions",
+        "Weigh again"
+      ],
+      "result": "Mass before and after the reaction is the same (152.36 g). Mass is neither created nor destroyed in a chemical reaction.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 3,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "ink-chroma",
+      "subject": "chemistry",
+      "title": "Paper chromatography of ink",
+      "topic": "matter-and-separation",
+      "topicLabel": "Matter & Separation",
+      "topicColour": "#0E7C66",
+      "classes": [
+        9
+      ],
+      "aim": "To separate the coloured components (dyes) of ink by paper chromatography.",
+      "theory": "Components travel with the solvent at different rates depending on solubility and adsorption on paper. Rf = distance moved by spot ÷ distance moved by solvent.",
+      "apparatus": [
+        "Chromatography jar",
+        "filter-paper strips",
+        "pencil",
+        "capillary",
+        "black and green ink",
+        "water"
+      ],
+      "safety": "",
+      "procedure": [
+        "Prepare the baseline.",
+        "Apply small concentrated sample spots.",
+        "Place the strip in the solvent chamber.",
+        "Allow the solvent front to rise.",
+        "Calculate the Rf values."
+      ],
+      "result": "Black ink is a mixture of blue, magenta and yellow dyes; green ink contains blue and yellow dyes. More soluble dyes travel further.",
+      "mode": "chroma",
+      "meterCount": 1,
+      "actionCount": 0,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": true
+    },
+    {
+      "id": "ph10",
+      "subject": "chemistry",
+      "title": "pH of samples using universal indicator",
+      "topic": "acids-bases-and-salts",
+      "topicLabel": "Acids, Bases & Salts",
+      "topicColour": "#C2385A",
+      "classes": [
+        10
+      ],
+      "aim": "To find the pH of various solutions using universal indicator and a pH meter.",
+      "theory": "pH = −log[H⁺]. pH < 7 acidic, = 7 neutral, > 7 basic. Universal indicator shows a colour for each pH value.",
+      "apparatus": [
+        "Test tubes (6)",
+        "universal indicator",
+        "pH colour chart",
+        "pH meter",
+        "sample solutions"
+      ],
+      "safety": "",
+      "procedure": [
+        "Universal indicator → dil. HCl",
+        "Universal indicator → dil. NaOH",
+        "Universal indicator → ethanoic acid",
+        "Universal indicator → lemon juice",
+        "Universal indicator → water",
+        "Universal indicator → NaHCO₃"
+      ],
+      "result": "Order of pH: HCl (1) < lemon juice (2.4) < ethanoic acid (3) < water (7) < NaHCO₃ (8.3) < NaOH (13).",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 6,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "acid-prop",
+      "subject": "chemistry",
+      "title": "Properties of acids and bases",
+      "topic": "acids-bases-and-salts",
+      "topicLabel": "Acids, Bases & Salts",
+      "topicColour": "#C2385A",
+      "classes": [
+        10
+      ],
+      "aim": "To study the reaction of HCl and NaOH with litmus, zinc and sodium carbonate.",
+      "theory": "Acids react with metals to release H₂ and with carbonates to release CO₂. CO₂ turns lime water milky; excess CO₂ clears it.",
+      "apparatus": [
+        "Test tubes",
+        "delivery tube",
+        "litmus",
+        "zinc granules",
+        "Na₂CO₃",
+        "dil. HCl",
+        "dil. NaOH",
+        "lime water"
+      ],
+      "safety": "",
+      "procedure": [
+        "Blue litmus → dil. HCl",
+        "Red litmus → dil. NaOH",
+        "Add zinc granules to HCl",
+        "Add Na₂CO₃ to HCl",
+        "Pass the gas through lime water",
+        "Pass excess CO₂"
+      ],
+      "result": "Acids turn blue litmus red, release H₂ with zinc and CO₂ with carbonates. Bases turn red litmus blue.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 6,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "rxn-types",
+      "subject": "chemistry",
+      "title": "Types of chemical reactions",
+      "topic": "chemical-reactions",
+      "topicLabel": "Chemical Reactions",
+      "topicColour": "#C77A12",
+      "classes": [
+        10
+      ],
+      "aim": "To study combination, decomposition, double displacement and precipitation reactions.",
+      "theory": "Combination: two substances form one. Decomposition: one substance breaks into simpler ones. Double displacement: exchange of ions, often forming a precipitate.",
+      "apparatus": [
+        "Beaker",
+        "test tubes",
+        "burner",
+        "quicklime",
+        "FeSO₄ crystals",
+        "Na₂SO₄",
+        "BaCl₂",
+        "Pb(NO₃)₂",
+        "KI"
+      ],
+      "safety": "",
+      "procedure": [
+        "Add water to quicklime",
+        "Heat FeSO₄ crystals",
+        "Add BaCl₂ to Na₂SO₄",
+        "Add KI to Pb(NO₃)₂"
+      ],
+      "result": "CaO + water: combination (exothermic). FeSO₄ on heating: thermal decomposition. BaCl₂ + Na₂SO₄ and Pb(NO₃)₂ + KI: double displacement / precipitation.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "reactivity",
+      "subject": "chemistry",
+      "title": "Reactivity series of metals",
+      "topic": "metals-and-non-metals",
+      "topicLabel": "Metals & Non-metals",
+      "topicColour": "#4D6A8A",
+      "classes": [
+        10
+      ],
+      "aim": "To arrange Al, Zn, Fe and Cu in order of reactivity using displacement reactions.",
+      "theory": "A more reactive metal displaces a less reactive one from its salt solution.",
+      "apparatus": [
+        "Test tubes (4)",
+        "metal strips (Zn",
+        "Fe",
+        "Cu",
+        "Al)",
+        "FeSO₄",
+        "ZnSO₄",
+        "CuSO₄ solutions"
+      ],
+      "safety": "",
+      "procedure": [
+        "Zinc strip in FeSO₄ (20 min)",
+        "Iron nail in ZnSO₄ (20 min)",
+        "Copper strip in FeSO₄ (20 min)",
+        "Aluminium strip in CuSO₄ (20 min)"
+      ],
+      "result": "Order of reactivity: Al > Zn > Fe > Cu.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "soap",
+      "subject": "chemistry",
+      "title": "Soap in soft and hard water",
+      "topic": "carbon-compounds",
+      "topicLabel": "Carbon Compounds",
+      "topicColour": "#5E8C2F",
+      "classes": [
+        10
+      ],
+      "aim": "To compare the foaming capacity of soap in soft and hard water.",
+      "theory": "Ca²⁺/Mg²⁺ ions in hard water react with soap to form insoluble scum, reducing lather. Detergents do not form scum.",
+      "apparatus": [
+        "Test tubes (2)",
+        "distilled water",
+        "hard water",
+        "soap solution",
+        "detergent"
+      ],
+      "safety": "",
+      "procedure": [
+        "Add soap to distilled water, shake",
+        "Add soap to hard water, shake",
+        "Add detergent to hard water"
+      ],
+      "result": "Soap lathers well in soft water but forms scum in hard water. Detergents work in both.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 3,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "ethanoic",
+      "subject": "chemistry",
+      "title": "Properties of ethanoic acid",
+      "topic": "carbon-compounds",
+      "topicLabel": "Carbon Compounds",
+      "topicColour": "#5E8C2F",
+      "classes": [
+        10
+      ],
+      "aim": "To study odour, solubility, litmus test and reaction with NaHCO₃ of ethanoic acid.",
+      "theory": "Ethanoic acid (CH₃COOH) is a weak acid, miscible with water, and reacts with carbonates to release CO₂.",
+      "apparatus": [
+        "Test tubes",
+        "delivery tube",
+        "ethanoic acid",
+        "water",
+        "blue litmus",
+        "NaHCO₃",
+        "lime water"
+      ],
+      "safety": "",
+      "procedure": [
+        "Smell the acid (waft)",
+        "Add water and shake",
+        "Add blue litmus",
+        "Add NaHCO₃",
+        "Pass gas through lime water"
+      ],
+      "result": "Ethanoic acid has a vinegar smell, is miscible with water, turns blue litmus red and liberates CO₂ with NaHCO₃.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 5,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "anion",
+      "subject": "chemistry",
+      "title": "Tests for anions",
+      "topic": "qualitative-analysis",
+      "topicLabel": "Qualitative Analysis",
+      "topicColour": "#7A4FB5",
+      "classes": [
+        11
+      ],
+      "aim": "To identify CO₃²⁻, Cl⁻, SO₄²⁻ and NO₃⁻ ions in given salts.",
+      "theory": "Each anion gives a characteristic gas or precipitate with specific reagents.",
+      "apparatus": [
+        "Test tubes",
+        "dil. H₂SO₄",
+        "dil. HNO₃",
+        "AgNO₃",
+        "NH₄OH",
+        "BaCl₂",
+        "FeSO₄",
+        "conc. H₂SO₄",
+        "lime water"
+      ],
+      "safety": "Add conc. H₂SO₄ slowly along the side of the tube.",
+      "procedure": [
+        "Salt 1 + dil. H₂SO₄",
+        "Salt 2 + dil. HNO₃ + AgNO₃",
+        "Add NH₄OH to Salt 2",
+        "Salt 3 + BaCl₂",
+        "Salt 4 + FeSO₄, then conc. H₂SO₄"
+      ],
+      "result": "Salt 1 contains CO₃²⁻, Salt 2 contains Cl⁻, Salt 3 contains SO₄²⁻ and Salt 4 contains NO₃⁻.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 5,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "cation",
+      "subject": "chemistry",
+      "title": "Tests for cations",
+      "topic": "qualitative-analysis",
+      "topicLabel": "Qualitative Analysis",
+      "topicColour": "#7A4FB5",
+      "classes": [
+        11,
+        12
+      ],
+      "aim": "To identify Cu²⁺, Fe³⁺, Pb²⁺ and Zn²⁺ ions by confirmatory tests.",
+      "theory": "Cations form characteristic coloured precipitates or complexes with group reagents.",
+      "apparatus": [
+        "Test tubes",
+        "NH₄OH",
+        "K₄[Fe(CN)₆]",
+        "KSCN",
+        "KI",
+        "NaOH"
+      ],
+      "safety": "",
+      "procedure": [
+        "Cu²⁺ + few drops NH₄OH",
+        "Cu²⁺ + excess NH₄OH",
+        "Fe³⁺ + K₄[Fe(CN)₆]",
+        "Fe³⁺ + KSCN",
+        "Pb²⁺ + KI",
+        "Zn²⁺ + NaOH (few drops)",
+        "Zn²⁺ + excess NaOH"
+      ],
+      "result": "Cu²⁺: deep blue with excess NH₄OH. Fe³⁺: Prussian blue / blood red. Pb²⁺: yellow PbI₂. Zn²⁺: white ppt soluble in excess NaOH.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 7,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "flame",
+      "subject": "chemistry",
+      "title": "Flame test for metal ions",
+      "topic": "qualitative-analysis",
+      "topicLabel": "Qualitative Analysis",
+      "topicColour": "#7A4FB5",
+      "classes": [
+        11
+      ],
+      "aim": "To identify metal ions by the colour they impart to a non-luminous flame.",
+      "theory": "Heat excites electrons; as they return to lower levels they emit light of characteristic wavelengths.",
+      "apparatus": [
+        "Bunsen burner",
+        "platinum/nichrome wire",
+        "watch glass",
+        "conc. HCl",
+        "chloride salts"
+      ],
+      "safety": "Clean the wire in conc. HCl between tests.",
+      "procedure": [
+        "Sodium chloride",
+        "Potassium chloride",
+        "Calcium chloride",
+        "Strontium chloride",
+        "Barium chloride",
+        "Copper(II) chloride"
+      ],
+      "result": "Na⁺ golden yellow, K⁺ lilac, Ca²⁺ brick red, Sr²⁺ crimson, Ba²⁺ apple green, Cu²⁺ bluish green.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 6,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "titr-naoh",
+      "subject": "chemistry",
+      "title": "Titration: NaOH vs standard oxalic acid",
+      "topic": "volumetric-analysis",
+      "topicLabel": "Volumetric Analysis",
+      "topicColour": "#2F55B8",
+      "classes": [
+        11
+      ],
+      "aim": "To determine the molarity of NaOH by titrating it against 0.05 M oxalic acid.",
+      "theory": "At the end point, moles of NaOH = 2 × moles of oxalic acid. Phenolphthalein turns from colourless to pink at pH ≈ 8.2.",
+      "apparatus": [
+        "Burette",
+        "pipette (10 mL)",
+        "conical flask",
+        "white tile",
+        "stand",
+        "0.05 M oxalic acid",
+        "NaOH",
+        "phenolphthalein"
+      ],
+      "safety": "Read the lower meniscus at eye level. Remove the funnel before titrating.",
+      "procedure": [
+        "Prepare and rinse the burette.",
+        "Transfer the measured sample to the flask.",
+        "Add the specified indicator.",
+        "Titrate slowly to the end point.",
+        "Repeat until concordant readings are obtained."
+      ],
+      "result": "Molarity and strength of NaOH are calculated from the concordant titre value.",
+      "mode": "titr",
+      "meterCount": 1,
+      "actionCount": 0,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": true
+    },
+    {
+      "id": "titr-na2co3",
+      "subject": "chemistry",
+      "title": "Titration: Na₂CO₃ vs HCl (methyl orange)",
+      "topic": "volumetric-analysis",
+      "topicLabel": "Volumetric Analysis",
+      "topicColour": "#2F55B8",
+      "classes": [
+        11
+      ],
+      "aim": "To determine the molarity of Na₂CO₃ solution using 0.1 M HCl.",
+      "theory": "Na₂CO₃ reacts with HCl in 1:2 ratio. Methyl orange changes from yellow (basic) to orange-red (acidic) at pH ≈ 3.1–4.4.",
+      "apparatus": [
+        "Burette",
+        "pipette",
+        "conical flask",
+        "white tile",
+        "0.1 M HCl",
+        "Na₂CO₃ solution",
+        "methyl orange"
+      ],
+      "safety": "",
+      "procedure": [
+        "Prepare and rinse the burette.",
+        "Transfer the measured sample to the flask.",
+        "Add the specified indicator.",
+        "Titrate slowly to the end point.",
+        "Repeat until concordant readings are obtained."
+      ],
+      "result": "Molarity and strength of Na₂CO₃ are calculated from the concordant titre value.",
+      "mode": "titr",
+      "meterCount": 1,
+      "actionCount": 0,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": true
+    },
+    {
+      "id": "titr-oxalic",
+      "subject": "chemistry",
+      "title": "Redox titration: KMnO₄ vs oxalic acid",
+      "topic": "volumetric-analysis",
+      "topicLabel": "Volumetric Analysis",
+      "topicColour": "#2F55B8",
+      "classes": [
+        12
+      ],
+      "aim": "To determine the molarity of KMnO₄ using standard 0.05 M oxalic acid.",
+      "theory": "KMnO₄ acts as a self-indicator. The reaction is slow at room temperature and is carried out at 60–70 °C in acid medium.",
+      "apparatus": [
+        "Burette",
+        "pipette",
+        "conical flask",
+        "burner",
+        "thermometer",
+        "KMnO₄",
+        "0.05 M oxalic acid",
+        "dil. H₂SO₄"
+      ],
+      "safety": "Read the upper meniscus for coloured KMnO₄.",
+      "procedure": [
+        "Prepare and rinse the burette.",
+        "Transfer the measured sample to the flask.",
+        "Add the specified indicator.",
+        "Titrate slowly to the end point.",
+        "Repeat until concordant readings are obtained."
+      ],
+      "result": "Molarity and strength of KMnO₄ are calculated from the concordant titre value.",
+      "mode": "titr",
+      "meterCount": 1,
+      "actionCount": 0,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": true
+    },
+    {
+      "id": "titr-mohr",
+      "subject": "chemistry",
+      "title": "Redox titration: KMnO₄ vs Mohr’s salt",
+      "topic": "volumetric-analysis",
+      "topicLabel": "Volumetric Analysis",
+      "topicColour": "#2F55B8",
+      "classes": [
+        12
+      ],
+      "aim": "To determine the molarity of KMnO₄ using standard 0.1 M Mohr’s salt solution.",
+      "theory": "Fe²⁺ is oxidised to Fe³⁺ by MnO₄⁻ in acid medium at room temperature. KMnO₄ is the self-indicator.",
+      "apparatus": [
+        "Burette",
+        "pipette",
+        "conical flask",
+        "KMnO₄",
+        "0.1 M Mohr’s salt",
+        "dil. H₂SO₄"
+      ],
+      "safety": "",
+      "procedure": [
+        "Prepare and rinse the burette.",
+        "Transfer the measured sample to the flask.",
+        "Add the specified indicator.",
+        "Titrate slowly to the end point.",
+        "Repeat until concordant readings are obtained."
+      ],
+      "result": "Molarity and strength of KMnO₄ are calculated from the concordant titre value.",
+      "mode": "titr",
+      "meterCount": 0,
+      "actionCount": 0,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": true
+    },
+    {
+      "id": "leaf-chroma",
+      "subject": "chemistry",
+      "title": "Chromatography of leaf pigments",
+      "topic": "organic-and-biomolecules",
+      "topicLabel": "Organic & Biomolecules",
+      "topicColour": "#3F8F52",
+      "classes": [
+        11
+      ],
+      "aim": "To separate pigments from spinach leaf extract by paper chromatography and find their Rf values.",
+      "theory": "Pigments differ in solubility in the non-polar solvent and adsorption on cellulose. Carotene (least polar) moves farthest.",
+      "apparatus": [
+        "Chromatography jar",
+        "Whatman paper",
+        "capillary",
+        "spinach extract in acetone",
+        "petroleum ether : acetone (9:1)"
+      ],
+      "safety": "",
+      "procedure": [
+        "Prepare the baseline.",
+        "Apply small concentrated sample spots.",
+        "Place the strip in the solvent chamber.",
+        "Allow the solvent front to rise.",
+        "Calculate the Rf values."
+      ],
+      "result": "Four pigments separate: β-carotene (orange, Rf ≈ 0.94), xanthophyll (yellow, 0.71), chlorophyll a (blue-green, 0.47), chlorophyll b (yellow-green, 0.34).",
+      "mode": "chroma",
+      "meterCount": 1,
+      "actionCount": 0,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": true
+    },
+    {
+      "id": "enthalpy",
+      "subject": "chemistry",
+      "title": "Enthalpy of neutralisation",
+      "topic": "physical-chemistry",
+      "topicLabel": "Physical Chemistry",
+      "topicColour": "#118AA0",
+      "classes": [
+        11
+      ],
+      "aim": "To determine the enthalpy of neutralisation of HCl with NaOH.",
+      "theory": "Heat released = m·c·ΔT. For a strong acid–strong base, ΔH ≈ −57 kJ mol⁻¹.",
+      "apparatus": [
+        "Calorimeter (polystyrene cup)",
+        "thermometer",
+        "stirrer",
+        "measuring cylinder",
+        "1 M HCl",
+        "1 M NaOH"
+      ],
+      "safety": "",
+      "procedure": [
+        "Record temperature of HCl",
+        "Record temperature of NaOH",
+        "Pour NaOH into calorimeter and stir",
+        "Calculate ΔH"
+      ],
+      "result": "Enthalpy of neutralisation of HCl by NaOH ≈ −56 kJ mol⁻¹ (literature −57.1 kJ mol⁻¹).",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "equil",
+      "subject": "chemistry",
+      "title": "Shift in chemical equilibrium",
+      "topic": "physical-chemistry",
+      "topicLabel": "Physical Chemistry",
+      "topicColour": "#118AA0",
+      "classes": [
+        11
+      ],
+      "aim": "To study the shift in equilibrium by changing concentration of ions (Le Chatelier’s principle).",
+      "theory": "Adding a reactant shifts equilibrium forward; the colour of the product deepens. Diluting shifts the cobalt equilibrium back to the pink aqua complex.",
+      "apparatus": [
+        "Test tubes (4)",
+        "FeCl₃",
+        "KSCN",
+        "CoCl₂",
+        "conc. HCl",
+        "water"
+      ],
+      "safety": "",
+      "procedure": [
+        "Add FeCl₃ to tube 2",
+        "Add KSCN to tube 3",
+        "Add conc. HCl to CoCl₂",
+        "Add water to CoCl₂ tube"
+      ],
+      "result": "Increasing concentration of a reactant shifts equilibrium in the forward direction; dilution shifts the cobalt equilibrium backward, as predicted by Le Chatelier’s principle.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "kinetics",
+      "subject": "chemistry",
+      "title": "Rate of reaction: concentration & temperature",
+      "topic": "physical-chemistry",
+      "topicLabel": "Physical Chemistry",
+      "topicColour": "#118AA0",
+      "classes": [
+        12
+      ],
+      "aim": "To study the effect of concentration and temperature on the rate of reaction between Na₂S₂O₃ and HCl.",
+      "theory": "Colloidal sulphur makes the solution turbid. Time t for a cross mark to disappear is inversely related to rate. Rate rises with concentration; roughly doubles per 10 °C rise.",
+      "apparatus": [
+        "Conical flask",
+        "paper with cross mark",
+        "stopwatch",
+        "thermometer",
+        "water bath",
+        "Na₂S₂O₃ solutions",
+        "1 M HCl"
+      ],
+      "safety": "",
+      "procedure": [
+        "Choose concentration and temperature.",
+        "Prepare the reactants.",
+        "Start the reaction and stopwatch.",
+        "Stop when the visual end point is reached.",
+        "Repeat and compare reaction rates."
+      ],
+      "result": "Time for the cross to disappear decreases as concentration or temperature increases — the rate (∝ 1/t) increases.",
+      "mode": "kin",
+      "meterCount": 2,
+      "actionCount": 0,
+      "vivaCount": 2,
+      "hasObservations": true,
+      "hasCalculations": true
+    },
+    {
+      "id": "func",
+      "subject": "chemistry",
+      "title": "Tests for functional groups",
+      "topic": "organic-and-biomolecules",
+      "topicLabel": "Organic & Biomolecules",
+      "topicColour": "#3F8F52",
+      "classes": [
+        12
+      ],
+      "aim": "To identify unsaturation, alcoholic, phenolic, aldehydic, carboxylic and amino groups.",
+      "theory": "Each functional group gives a characteristic colour, precipitate or gas with specific reagents.",
+      "apparatus": [
+        "Test tubes",
+        "water bath",
+        "bromine water",
+        "CAN",
+        "neutral FeCl₃",
+        "Tollens’ reagent",
+        "Fehling A+B",
+        "NaHCO₃",
+        "NaNO₂/HCl",
+        "β-naphthol"
+      ],
+      "safety": "",
+      "procedure": [
+        "Add cyclohexene to bromine water",
+        "Add ethanol to CAN",
+        "Add neutral FeCl₃ to phenol",
+        "Add aldehyde to Tollens’, warm",
+        "Add aldehyde to Fehling’s, boil",
+        "Add NaHCO₃ to organic acid",
+        "Add alkaline β-naphthol"
+      ],
+      "result": "Sample tests confirm: C=C (bromine water), –OH alcohol (CAN), phenol (FeCl₃), aldehyde (Tollens’, Fehling’s), –COOH (NaHCO₃), aromatic amine (azo dye test).",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 7,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "biomol",
+      "subject": "chemistry",
+      "title": "Tests for carbohydrates, proteins and fats",
+      "topic": "organic-and-biomolecules",
+      "topicLabel": "Organic & Biomolecules",
+      "topicColour": "#3F8F52",
+      "classes": [
+        12
+      ],
+      "aim": "To detect carbohydrates, proteins and oils/fats in given food samples.",
+      "theory": "Iodine gives blue-black with starch; reducing sugars reduce Fehling’s to Cu₂O; peptide bonds give violet with biuret reagent; Molisch gives a violet ring with carbohydrates.",
+      "apparatus": [
+        "Test tubes",
+        "water bath",
+        "iodine solution",
+        "Fehling A+B",
+        "NaOH",
+        "CuSO₄",
+        "α-naphthol",
+        "conc. H₂SO₄",
+        "KHSO₄"
+      ],
+      "safety": "",
+      "procedure": [
+        "Add iodine to starch",
+        "Boil glucose with Fehling’s",
+        "Biuret test on albumin",
+        "Molisch test on sugar",
+        "Heat oil with KHSO₄"
+      ],
+      "result": "Starch, reducing sugar, protein, carbohydrate and oil were identified by iodine, Fehling’s, biuret, Molisch and acrolein tests respectively.",
+      "mode": "steps",
+      "meterCount": 0,
+      "actionCount": 5,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "daniell",
+      "subject": "chemistry",
+      "title": "Variation of cell EMF (Daniell cell)",
+      "topic": "electrochemistry",
+      "topicLabel": "Electrochemistry",
+      "topicColour": "#D0612A",
+      "classes": [
+        12
+      ],
+      "aim": "To study the variation of EMF of the Zn|Zn²⁺||Cu²⁺|Cu cell with change in electrolyte concentration.",
+      "theory": "By the Nernst equation, EMF decreases as [Cu²⁺] decreases and increases as [Zn²⁺] decreases. E° = 1.10 V.",
+      "apparatus": [
+        "Beakers (2)",
+        "Zn and Cu strips",
+        "salt bridge (KCl–agar)",
+        "voltmeter",
+        "ZnSO₄ and CuSO₄ solutions"
+      ],
+      "safety": "",
+      "procedure": [
+        "Connect voltmeter (no salt bridge)",
+        "Insert salt bridge",
+        "Dilute CuSO₄ to 0.01 M",
+        "Dilute ZnSO₄ to 0.01 M"
+      ],
+      "result": "EMF decreases with decrease in [Cu²⁺] and increases with decrease in [Zn²⁺], in agreement with the Nernst equation.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    },
+    {
+      "id": "sols",
+      "subject": "chemistry",
+      "title": "Lyophilic and lyophobic sols",
+      "topic": "physical-chemistry",
+      "topicLabel": "Physical Chemistry",
+      "topicColour": "#118AA0",
+      "classes": [
+        12
+      ],
+      "aim": "To prepare starch sol (lyophilic) and ferric hydroxide sol (lyophobic).",
+      "theory": "Lyophilic sols form directly on mixing. Lyophobic sols need special methods — Fe(OH)₃ sol forms by hydrolysis of FeCl₃ in boiling water.",
+      "apparatus": [
+        "Beakers (2)",
+        "burner",
+        "glass rod",
+        "starch",
+        "2% FeCl₃ solution",
+        "torch"
+      ],
+      "safety": "",
+      "procedure": [
+        "Boil water in both beakers",
+        "Add starch paste to beaker 1",
+        "Add FeCl₃ dropwise to beaker 2",
+        "Stop heating, pass torch beam"
+      ],
+      "result": "Starch sol (lyophilic) and ferric hydroxide sol (lyophobic) were prepared; both show the Tyndall effect.",
+      "mode": "steps",
+      "meterCount": 1,
+      "actionCount": 4,
+      "vivaCount": 1,
+      "hasObservations": true,
+      "hasCalculations": false
+    }
+  ]
+}

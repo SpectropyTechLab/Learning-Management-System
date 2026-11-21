@@ -20,6 +20,7 @@ interface Props {
   onInlineShapeEdit?: (shape: InlineShapeData, start: number, end: number) => void;
   onInlineEquationEdit?: (latex: string, start: number, end: number) => void;
   animationTextSequence?: 'paragraph' | 'word' | 'letter';
+  animationTextDelay?: number;
   animationStyle?: CSSProperties;
 }
 
@@ -341,7 +342,7 @@ type StudioTextStyle = CSSProperties & {
   '--studio-paragraph-after': string;
 };
 
-export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', verticalAlignment = 'top', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionSpacingChange, onInlineShapeEdit, onInlineEquationEdit, animationTextSequence, animationStyle }: Props) {
+export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', verticalAlignment = 'top', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionSpacingChange, onInlineShapeEdit, animationTextSequence, animationTextDelay, animationStyle }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement | null>(null);
   const initializedEditorRef = useRef<HTMLDivElement | null>(null);
@@ -754,7 +755,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
   }, [editable, editing, onEditingChange, selected, startEditing]);
   const sequencedText = !editing && animationTextSequence && animationStyle ? (() => {
     const delayFor = (index: number) => {
-      const stagger = animationTextSequence === 'paragraph' ? 0.18 : animationTextSequence === 'word' ? 0.07 : 0.035;
+      const stagger = Number.isFinite(animationTextDelay) ? Math.max(0, Number(animationTextDelay)) : animationTextSequence === 'paragraph' ? 0.18 : animationTextSequence === 'word' ? 0.07 : 0.035;
       return String(animationStyle.animationDelay || '0s').split(',').map((delay) => {
         const seconds = Number.parseFloat(delay) || 0;
         return `${Math.round((seconds + index * stagger) * 1000) / 1000}s`;

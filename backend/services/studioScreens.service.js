@@ -751,6 +751,10 @@ export const deleteScreen = async ({ screenId: rawScreenId, user }) => {
     if (Number(references.rows[0].count) > 0) {
       throw new AppError('Remove branches and Zoom links that point to this Screen before deleting it', 409);
     }
+    // Session Script revisions belong to the screen. Remove them in the same
+    // transaction so deleting a screen also removes it from Session Script and
+    // does not fail on the screen_script_revisions.screen_id foreign key.
+    await client.query('DELETE FROM screen_script_revisions WHERE screen_id = $1', [screen.id]);
     await client.query('DELETE FROM screens WHERE id = $1', [screen.id]);
     const session = await returnSessionToDraft(screen.session_id, client);
     await client.query('COMMIT');

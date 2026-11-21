@@ -5,7 +5,15 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import '@/assets/index.css';
 
-registerSW({ immediate: true });
+if (import.meta.env.PROD) {
+  registerSW({ immediate: true });
+} else if ('serviceWorker' in navigator) {
+  // A production service worker left on localhost can serve an old editor
+  // bundle and hide current Vite changes. Development must always use source.
+  void navigator.serviceWorker.getRegistrations().then((registrations) =>
+    Promise.all(registrations.map((registration) => registration.unregister())),
+  );
+}
 
 class AppErrorBoundary extends React.Component<
   { children: ReactNode },

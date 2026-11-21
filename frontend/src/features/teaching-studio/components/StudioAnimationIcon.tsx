@@ -1,7 +1,7 @@
-import { Activity, Aperture, ArrowDown, ArrowRight, ArrowUp, Ban, Barcode, Blend, Bold, Circle, CircleDot, CornerDownRight, Expand, Eye, HeartPulse, Infinity as InfinityIcon, LogOut, Minimize, Move, MoveDown, PanelLeft, Palette, Redo2, RotateCcw, RotateCw, Search, Split, Underline, Waves, Zap } from 'lucide-react';
+import { Activity, Aperture, ArrowDown, ArrowRight, ArrowUp, Ban, Barcode, Blend, Bold, Circle, CircleDot, CornerDownRight, Expand, Eye, HeartPulse, Infinity as InfinityIcon, LogOut, Minimize, Move, MoveDown, PanelLeft, Palette, Redo2, RotateCcw, RotateCw, Search, Split, Underline, Waves } from 'lucide-react';
 
-export default function StudioAnimationIcon({ effect, size = 18, className }: { effect: string; size?: number; className?: string }) {
-  const props = { size, className, strokeWidth: 1.8 };
+export default function StudioAnimationIcon({ effect, size = 18, className, styleColour }: { effect: string; size?: number; className?: string; styleColour?: string }) {
+  const props = { size, className, strokeWidth: 1.8, style: styleColour ? { color: styleColour } : undefined };
   switch (effect) {
     case 'none': return <Ban {...props}/>;
     case 'appear': return <Eye {...props}/>;

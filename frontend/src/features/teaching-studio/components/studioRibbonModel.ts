@@ -2,6 +2,8 @@ export type StudioRibbonTabId =
   | 'home'
   | 'insert'
   | 'simulation'
+  | 'activity'
+  | 'lab'
   | 'equation'
   | 'draw'
   | 'design'
@@ -38,6 +40,8 @@ export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
   { id: 'home', label: 'Home' },
   { id: 'insert', label: 'Insert' },
   { id: 'simulation', label: 'Simulation' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'lab', label: 'Lab' },
   { id: 'equation', label: 'Equations' },
   { id: 'draw', label: 'Draw' },
   { id: 'design', label: 'Design' },
@@ -81,7 +85,7 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
   }
   if (resourceType === 'model_3d') {
     tabs.push({ id: '3d-model', label: '3D Model', contextual: true, accent: 'amber' });
-  } else if (mediaResourceTypes.has(resourceType)) {
+  } else if (mediaResourceTypes.has(resourceType) || visualType === 'image') {
     tabs.push({
       id: 'picture-format',
       label: resourceType === 'video' ? 'Media Format' : 'Picture Format',

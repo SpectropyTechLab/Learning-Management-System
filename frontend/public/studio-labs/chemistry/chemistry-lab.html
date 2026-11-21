@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="5960439d-9769-4e17-8c59-70ce3279458b"></script>
+
+<title>ChemLab · Hands-on Virtual Practicals</title>
+<style>
+body.spectropy-embed header{display:none!important}
+body.spectropy-embed aside{display:none!important}
+body.spectropy-embed main+aside{display:block!important;position:static!important;flex:0 0 min(380px,36vw);width:min(380px,36vw);min-width:300px;padding:10px 10px 10px 0!important;overflow:auto;filter:none}
+body.spectropy-embed main+aside>div{min-height:100%;background:#FAFAF6}
+body.spectropy-embed>div,body.spectropy-embed x-dc{min-height:100vh!important}
+body.spectropy-embed main{padding-top:0!important}
+</style></head>
+<body>
+
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fcf28b55-294f-40cd-960c-bf98eee82aaa") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("683db6f0-3b7f-4a24-8112-026e6ad72d47") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("78f9338c-47eb-483c-913a-e3ea714908f3") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("d4bf0b1c-d953-4b04-ba60-43814ce8ac84") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("8826db2c-c531-4275-a019-6049f19f563a") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("e589c669-4846-4b0c-aed7-29da923bb95b") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("ef7d8729-cb54-4391-8fb6-20dae1659eb1") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("b9faa6a6-0d03-4368-b517-b4fabc8e060d") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("ffc8609e-53cf-4cb1-aec1-3f91a999213c") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("f2715008-b93b-4c46-8060-2926266a9d3c") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("6a491fc8-3265-46dd-a352-e047dcf32dca") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("b5cbf086-89be-4ed1-a764-17b50052ff2f") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("66091262-b713-43d7-a450-b7973001ec16") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("698064e1-5355-4c3b-98ce-3681c5356570") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("c1860960-88a6-4892-855a-e4ccf17591fa") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("feef5209-a139-4764-9da9-3f38ee221c60") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("953b8a0a-2a3a-4d01-958b-68ac2f284783") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("f2b195fa-7a01-48c3-8ee7-b2dd8d1abd58") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("2dcc89f7-2e73-474e-86c9-98b3b4194fb3") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("c2e6865d-71a2-4abb-9042-053fd2b51460") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("5d879e77-1342-4f98-b629-4ee9972f0e7a") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("feef5209-a139-4764-9da9-3f38ee221c60") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("953b8a0a-2a3a-4d01-958b-68ac2f284783") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("f2b195fa-7a01-48c3-8ee7-b2dd8d1abd58") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("2dcc89f7-2e73-474e-86c9-98b3b4194fb3") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("c2e6865d-71a2-4abb-9042-053fd2b51460") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("5d879e77-1342-4f98-b629-4ee9972f0e7a") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("feef5209-a139-4764-9da9-3f38ee221c60") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("953b8a0a-2a3a-4d01-958b-68ac2f284783") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("f2b195fa-7a01-48c3-8ee7-b2dd8d1abd58") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("2dcc89f7-2e73-474e-86c9-98b3b4194fb3") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("c2e6865d-71a2-4abb-9042-053fd2b51460") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("5d879e77-1342-4f98-b629-4ee9972f0e7a") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("feef5209-a139-4764-9da9-3f38ee221c60") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("953b8a0a-2a3a-4d01-958b-68ac2f284783") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("f2b195fa-7a01-48c3-8ee7-b2dd8d1abd58") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("2dcc89f7-2e73-474e-86c9-98b3b4194fb3") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("c2e6865d-71a2-4abb-9042-053fd2b51460") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("5d879e77-1342-4f98-b629-4ee9972f0e7a") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<script src="418c2b8d-8a28-4b59-a2bc-09d0429b7c07"></script>
+<style>
+body{margin:0;background:#EDEFE9;color:#1B2420;font-family:'IBM Plex Sans',system-ui,sans-serif;overscroll-behavior:none}
+a{color:#0E7C66}a:hover{color:#095a4a}
+button{font-family:inherit}
+@keyframes rise{0%{transform:translateY(0) scale(.5);opacity:0}15%{opacity:.95}100%{transform:translateY(-150px) scale(1.1);opacity:0}}
+@keyframes flick{0%{transform:scale(1,1)}100%{transform:scale(.93,1.07)}}
+@keyframes puff{0%{transform:translateY(0) scale(.5);opacity:0}30%{opacity:.6}100%{transform:translateY(-80px) scale(1.8);opacity:0}}
+@keyframes drip{0%{transform:translateY(0);opacity:1}90%{opacity:1}100%{transform:translateY(64px);opacity:0}}
+@keyframes flow{to{background-position:0 28px}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(14,124,102,.45)}50%{box-shadow:0 0 0 7px rgba(14,124,102,0)}}
+@keyframes glow{0%,100%{opacity:.55}50%{opacity:1}}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;user-select:{{userSel}}">
+  <header style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 18px;background:#FAFAF6;border-bottom:1px solid #D6DAD2">
+    <button sc-camel-on-click="{{toggleList}}" style="height:46px;padding:0 16px;border-radius:11px;border:1px solid #C9CFC6;background:{{listBtnBg}};font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:9px;color:#1B2420">
+      <span style="display:flex;flex-direction:column;gap:3px"><span style="width:16px;height:2px;background:#1B2420"></span><span style="width:16px;height:2px;background:#1B2420"></span><span style="width:16px;height:2px;background:#1B2420"></span></span>Experiments
+    </button>
+    <div style="display:flex;align-items:center;gap:11px">
+      <div style="width:40px;height:40px;border-radius:11px;background:#0E7C66;color:#fff;display:grid;place-items:center;font:600 15px 'IBM Plex Mono',monospace">Ch</div>
+      <div>
+        <div style="font-weight:700;font-size:18px;letter-spacing:-.01em;white-space:nowrap">ChemLab · Hands-on Virtual Practicals</div>
+        <div style="font-size:12.5px;color:#5F6B64">CBSE &amp; SCERT (NCERT-aligned) · Classes 6–12 · touch-panel ready</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <sc-for list="{{grades}}" as="g" hint-placeholder-count="8">
+        <button sc-camel-on-click="{{g.onClick}}" style="height:42px;padding:0 14px;border-radius:999px;border:1px solid {{g.bd}};background:{{g.bg}};color:{{g.fg}};font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap">{{g.label}}</button>
+      </sc-for>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div style="font:500 12.5px 'IBM Plex Mono',monospace;color:#5F6B64;white-space:nowrap">{{doneCount}} / {{total}} completed</div>
+      <input value="{{q}}" sc-camel-on-change="{{onSearch}}" placeholder="Search experiments" style="width:210px;height:46px;box-sizing:border-box;padding:0 14px;border-radius:11px;border:1px solid #D6DAD2;background:#fff;font:15px 'IBM Plex Sans';color:#1B2420;outline:none">
+
+      <button sc-camel-on-click="{{onFull}}" style="height:46px;padding:0 16px;border-radius:11px;border:none;background:#1B2420;color:#fff;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap">Full screen</button>
+    </div>
+  </header>
+
+  <div style="display:flex;flex:1;align-items:flex-start;min-width:0">
+    <sc-if value="{{listOpen}}" hint-placeholder-val="{{ true }}">
+      <aside style="flex:0 0 290px;box-sizing:border-box;padding:14px 12px 30px;border-right:1px solid #D6DAD2;background:#F4F5F0;align-self:stretch">
+        <sc-for list="{{groups}}" as="grp" hint-placeholder-count="5">
+          <div style="margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 8px 6px;font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#5F6B64">
+              <span style="width:9px;height:9px;border-radius:2px;background:{{grp.color}}"></span>
+              <span style="flex:1">{{grp.cat}}</span>
+              <span>{{grp.n}}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <sc-for list="{{grp.items}}" as="it">
+                <button sc-camel-on-click="{{it.onClick}}" style="display:flex;align-items:center;gap:8px;text-align:left;min-height:52px;padding:8px 11px;border-radius:10px;border:1.5px solid {{it.bd}};background:{{it.bg}};cursor:pointer;color:#1B2420">
+                  <span style="flex:1;display:flex;flex-direction:column;gap:2px">
+                    <span style="font-size:14px;font-weight:500;line-height:1.3;text-wrap:pretty">{{it.title}}</span>
+                    <span style="font:500 11px 'IBM Plex Mono',monospace;color:#7A857E">{{it.gl}}</span>
+                  </span>
+                  <sc-if value="{{it.done}}"><span style="flex:0 0 20px;height:20px;border-radius:50%;background:#0E7C66;color:#fff;display:grid;place-items:center;font-size:11px">✓</span></sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{noResults}}"><div style="padding:20px 10px;color:#5F6B64;font-size:13px">No experiments match.</div></sc-if>
+      </aside>
+    </sc-if>
+
+    <main style="flex:1 1 0;min-width:0;box-sizing:border-box;padding:14px 16px 24px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <span style="padding:3px 10px;border-radius:999px;background:{{catColor}};color:#fff;font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase">{{exp.cat}}</span>
+            <span style="padding:3px 10px;border-radius:999px;border:1px solid #C9CFC6;font:600 11px 'IBM Plex Mono',monospace;color:#3C4640">{{expGrades}}</span>
+            <span style="padding:3px 10px;border-radius:999px;border:1px solid #C9CFC6;font:600 11px 'IBM Plex Mono',monospace;color:#3C4640">{{modeLabel}}</span>
+          </div>
+          <h1 style="margin:0;font-size:26px;line-height:1.2;letter-spacing:-.015em;font-weight:700;text-wrap:pretty">{{exp.title}}</h1>
+          <div style="font-size:15px;color:#4A554F;line-height:1.45;max-width:900px;text-wrap:pretty">{{exp.aim}}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex:0 1 340px">
+          <div style="flex:1;height:8px;border-radius:4px;background:#DDE1DA;overflow:hidden"><div style="height:100%;width:{{progPct}}%;background:#0E7C66;transition:width .4s"></div></div>
+          <div style="font:600 12.5px 'IBM Plex Mono',monospace;color:#3C4640;white-space:nowrap">{{progLabel}}</div>
+          <button sc-camel-on-click="{{onReset}}" style="height:44px;padding:0 16px;border-radius:10px;border:1px solid #C9CFC6;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#1B2420">Reset</button><button sc-camel-on-click="{{toggleInfo}}" style="height:46px;padding:0 16px;border-radius:11px;border:1px solid #C9CFC6;background:{{infoBtnBg}};font-weight:600;font-size:14px;cursor:pointer;color:#1B2420;white-space:nowrap">Theory &amp; results</button>
+        </div>
+      </div>
+
+      <div style="border-radius:18px;overflow:hidden;background:#0f1519;box-shadow:0 14px 34px -20px rgba(10,30,25,.6)">
+        <div style="position:relative;height:{{stageH}}px;background:radial-gradient(ellipse 80% 70% at 50% 25%,#2d3e48,#141c22 75%);overflow:hidden;user-select:none">
+          <div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 64px),repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 64px)"></div>
+          <div sc-camel-on-pointer-down="{{onPD}}" style="position:absolute;inset:0;perspective:1400px;perspective-origin:50% 28%;cursor:grab;touch-action:none">
+            <div style="position:absolute;inset:0;transform-style:preserve-3d;transform:{{stageT}};transition:transform .3s ease-out">
+              <div style="position:absolute;left:-20%;right:-20%;bottom:70px;height:600px;transform-origin:50% 100%;transform:rotateX(90deg);background:linear-gradient(to top,#3a454c,#1b2227 85%)"></div>
+              <div style="position:absolute;left:-20%;right:-20%;bottom:70px;height:600px;transform-origin:50% 100%;transform:rotateX(90deg) translateZ(1px);background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 90px),repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 90px)"></div>
+              <div style="position:absolute;left:-20%;right:-20%;bottom:0;height:70px;background:linear-gradient(#20282d,#0c1114);border-top:2px solid #56636b"></div>
+              <div style="position:absolute;left:0;right:0;bottom:70px;display:flex;justify-content:center;align-items:flex-end;gap:{{rowGap}}px;transform:translateZ(-70px) scale({{benchScale}});transform-origin:50% 100%;transform-style:preserve-3d">
+
+                <sc-if value="{{isSteps}}" hint-placeholder-val="{{ true }}">
+                  <sc-for list="{{vessels}}" as="v" hint-placeholder-count="3">
+                    <div style="position:relative;width:{{v.slotW}}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end">
+                      <div style="position:absolute;bottom:-8px;left:50%;width:{{v.shW}}px;height:16px;margin-left:{{v.shM}}px;border-radius:50%;background:rgba(0,0,0,.45);filter:blur(6px)"></div>
+                      <div data-vt="{{v.idx}}" style="position:relative;width:{{v.w}}px;height:{{v.h}}px">
+                        <sc-if value="{{v.target}}"><div style="position:absolute;inset:-16px -14px -12px -14px;border:2px {{v.ringStyle}} rgba(127,240,207,.95);border-radius:18px;pointer-events:none;background:{{v.ringBg}};box-shadow:{{v.ringSh}};animation:glow 1.4s ease-in-out infinite"></div></sc-if>
+                        <sc-if value="{{v.hasTag}}"><div style="position:absolute;left:50%;top:-96px;transform:translateX(-50%);white-space:nowrap;padding:5px 10px;border-radius:8px;background:rgba(10,30,26,.85);border:1px solid rgba(127,240,207,.6);color:#dffcf3;font:600 12px 'IBM Plex Mono',monospace;z-index:4;pointer-events:none">{{v.tag}}</div></sc-if>
+                        <sc-if value="{{v.hasSolid}}">
+                          <div style="position:absolute;left:50%;top:-36px;width:9px;margin-left:-4px;height:{{v.solidH}}px;background:linear-gradient(90deg,{{v.solidC}},{{v.solidHi}} 45%,{{v.solidC}});border-radius:2px 2px 3px 3px;transition:background 1.2s"></div>
+                          <div style="position:absolute;left:50%;top:-56px;transform:translateX(-50%);font:600 10px 'IBM Plex Mono',monospace;color:#e8eef0;background:rgba(0,0,0,.55);padding:1px 5px;border-radius:4px">{{v.solidL}}</div>
+                        </sc-if>
+                        <sc-if value="{{v.isGlass}}">
+                          <div style="position:absolute;inset:0;border:2px solid rgba(214,232,244,.72);border-top:none;border-radius:{{v.rad}};background:{{v.wall}};overflow:hidden">
+                            <div style="position:absolute;left:0;right:0;bottom:0;height:{{v.liqH}}px;background:{{v.liq}};transition:height .25s linear,background .4s ease">
+                              <div style="position:absolute;left:0;right:0;top:-4px;height:8px;border-radius:50%;background:{{v.surf}}"></div>
+                              <sc-if value="{{v.hasTop}}"><div style="position:absolute;left:0;right:0;top:0;height:{{v.topH}}px;background:{{v.topBg}}"></div></sc-if>
+                              <sc-if value="{{v.hasRing}}"><div style="position:absolute;left:0;right:0;top:40%;height:8px;background:{{v.ring}};box-shadow:0 0 10px {{v.ring}}"></div></sc-if>
+                              <sc-if value="{{v.beam}}"><div style="position:absolute;left:0;right:0;top:44%;height:14px;background:linear-gradient(90deg,rgba(255,246,200,{{v.beamA}}),rgba(255,246,200,{{v.beamB}}));filter:blur(2px)"></div></sc-if>
+                              <sc-if value="{{v.bub}}">
+                                <sc-for list="{{bubbles}}" as="b"><span style="position:absolute;bottom:4px;left:{{b.l}};width:{{b.s}}px;height:{{b.s}}px;border-radius:50%;border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.22);animation:rise 1.8s ease-in infinite;animation-delay:{{b.d}}"></span></sc-for>
+                              </sc-if>
+                            </div>
+                            <sc-if value="{{v.hasPpt}}"><div style="position:absolute;left:0;right:0;bottom:0;height:{{v.pptH}}px;background:{{v.pptBg}};border-radius:0 0 40% 40%"></div></sc-if>
+                            <sc-if value="{{v.hasCry}}">
+                              <sc-for list="{{crystals}}" as="k"><span style="position:absolute;left:{{k.l}};bottom:{{k.b}}px;width:{{k.s}}px;height:{{k.s}}px;background:{{v.cry}};transform:rotate({{k.r}}deg);border:1px solid rgba(255,255,255,.75);box-shadow:0 0 5px rgba(255,255,255,.35)"></span></sc-for>
+                            </sc-if>
+                            <div style="position:absolute;top:8px;bottom:10px;left:16%;width:5px;border-radius:4px;background:linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.04))"></div>
+                          </div>
+                          <div style="position:absolute;left:-4px;right:-4px;top:-4px;height:8px;border-radius:50%;border:2px solid rgba(214,232,244,.8)"></div>
+                        </sc-if>
+                        <sc-if value="{{v.isFlask}}">
+                          <div style="position:absolute;inset:0;clip-path:polygon(37% 0,63% 0,63% 36%,99% 97%,96% 100%,4% 100%,1% 97%,37% 36%);background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.03) 45%,rgba(255,255,255,.1))">
+                            <div style="position:absolute;left:0;right:0;bottom:0;height:{{v.liqH}}px;background:{{v.liq}};transition:height .25s linear,background .4s">
+                              <sc-if value="{{v.bub}}">
+                                <sc-for list="{{bubbles}}" as="b"><span style="position:absolute;bottom:4px;left:{{b.l}};width:{{b.s}}px;height:{{b.s}}px;border-radius:50%;border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.22);animation:rise 1.8s ease-in infinite;animation-delay:{{b.d}}"></span></sc-for>
+                              </sc-if>
+                            </div>
+                            <sc-if value="{{v.hasPpt}}"><div style="position:absolute;left:0;right:0;bottom:0;height:{{v.pptH}}px;background:{{v.pptBg}}"></div></sc-if>
+                          </div>
+                          <sc-if value="{{v.hasSolidF}}"><div style="position:absolute;left:62px;bottom:6px;width:16px;height:40px;border:1.5px solid rgba(214,232,244,.8);border-radius:0 0 7px 7px;background:rgba(232,241,247,.5);box-sizing:border-box"></div></sc-if>
+                          <svg width="140" height="170" sc-camel-view-box="0 0 140 170" style="position:absolute;inset:0;overflow:visible"><path d="M51.8 0 L51.8 61 L1.6 164 Q0 170 6 170 L134 170 Q140 170 138.4 164 L88.2 61 L88.2 0" fill="none" stroke="rgba(214,232,244,.8)" stroke-width="2.4"></path><ellipse cx="70" cy="0" rx="19" ry="3.5" fill="none" stroke="rgba(214,232,244,.8)" stroke-width="2"></ellipse><path d="M62 70 L30 138" stroke="rgba(255,255,255,.28)" stroke-width="4" stroke-linecap="round"></path></svg>
+                        </sc-if>
+                        <sc-if value="{{v.isBurner}}">
+                          <div style="position:absolute;left:50%;bottom:0;width:86px;margin-left:-43px;height:14px;border-radius:7px 7px 3px 3px;background:linear-gradient(#6b767d,#2c3236)"></div>
+                          <div style="position:absolute;left:50%;bottom:14px;width:18px;margin-left:-9px;height:88px;background:linear-gradient(90deg,#59636a,#d4dbe0 45%,#59636a)"></div>
+                          <div style="position:absolute;left:50%;bottom:30px;width:26px;margin-left:-13px;height:11px;border-radius:3px;background:#3d464c"></div>
+                          <sc-if value="{{v.flameOn}}">
+                            <div style="position:absolute;left:50%;bottom:110px;width:130px;height:130px;margin-left:-65px;border-radius:50%;background:{{v.flameGlow}};filter:blur(28px)"></div>
+                            <div style="position:absolute;left:50%;bottom:98px;width:60px;margin-left:-30px;height:110px;transform-origin:50% 100%;animation:flick .2s ease-in-out infinite alternate;border-radius:50% 50% 45% 45% / 70% 70% 30% 30%;background:radial-gradient(ellipse 42% 58% at 50% 80%,rgba(255,255,255,.95) 0 22%,{{v.flame}} 55%,transparent 76%);transition:background .6s"></div>
+                          </sc-if>
+                          <sc-if value="{{v.unlit}}"><div style="position:absolute;left:50%;bottom:112px;transform:translateX(-50%);white-space:nowrap;font:600 11px 'IBM Plex Mono',monospace;color:#9fb0b8">gas off · needs lighter</div></sc-if>
+                        </sc-if>
+                        <sc-if value="{{v.beam}}">
+                          <div style="position:absolute;left:-62px;top:{{v.torchTop}}px;width:42px;height:18px;border-radius:5px 2px 2px 5px;background:linear-gradient(#566168,#262d31)"><div style="position:absolute;right:-3px;top:2px;width:5px;height:14px;border-radius:2px;background:#fff6c8;box-shadow:0 0 14px #fff6c8"></div></div>
+                          <div style="position:absolute;left:-18px;top:{{v.beamTop}}px;width:18px;height:12px;background:linear-gradient(90deg,rgba(255,246,200,.55),rgba(255,246,200,.12))"></div>
+                        </sc-if>
+                        <sc-if value="{{v.fume}}">
+                          <sc-for list="{{puffs}}" as="p"><span style="position:absolute;top:-14px;left:{{p.l}};width:30px;height:30px;border-radius:50%;background:{{v.fumeC}};filter:blur(6px);animation:puff 2.6s ease-out infinite;animation-delay:{{p.d}}"></span></sc-for>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{v.heatShow}}">
+                        <div style="position:relative;width:{{v.standW}}px;height:74px">
+                          <div style="position:absolute;top:0;left:-8px;right:-8px;height:4px;border-radius:2px;background:linear-gradient(#aab4ba,#6c767c)"></div>
+                          <div style="position:absolute;top:4px;left:8px;width:3px;height:72px;background:#6d777d;transform:rotate(9deg);transform-origin:top"></div>
+                          <div style="position:absolute;top:4px;right:8px;width:3px;height:72px;background:#6d777d;transform:rotate(-9deg);transform-origin:top"></div>
+                          <div data-bt="{{v.idx}}" style="position:absolute;left:50%;bottom:0;width:40px;margin-left:-20px;height:40px">
+                            <div style="position:absolute;left:2px;bottom:0;width:36px;height:6px;border-radius:3px;background:#39434a"></div>
+                            <div style="position:absolute;left:15px;bottom:6px;width:10px;height:30px;background:linear-gradient(90deg,#59636a,#cfd6db,#59636a)"></div>
+                            <sc-if value="{{v.btTarget}}"><div style="position:absolute;inset:-12px;border:2px dashed rgba(127,240,207,.95);border-radius:12px;animation:glow 1.4s ease-in-out infinite"></div></sc-if>
+                          </div>
+                          <sc-if value="{{v.flameOn}}"><div style="position:absolute;left:50%;bottom:36px;width:22px;margin-left:-11px;height:34px;transform-origin:50% 100%;animation:flick .18s ease-in-out infinite alternate;border-radius:50% 50% 45% 45% / 70% 70% 30% 30%;background:radial-gradient(ellipse 40% 55% at 50% 80%,#e9f0ff 0 22%,#4d7cff 55%,transparent 78%);box-shadow:0 0 20px 4px rgba(90,130,255,.5)"></div></sc-if>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{v.rack}}"><div style="width:66px;height:14px;border-radius:3px;background:linear-gradient(#8a6a48,#5d4630);box-shadow:inset 0 2px 0 rgba(255,255,255,.15)"></div></sc-if>
+                      <sc-if value="{{showLabels}}">
+                        <div style="position:absolute;top:100%;margin-top:9px;left:50%;transform:translateX(-50%);width:{{v.labW}}px;text-align:center;font:500 11px/1.3 'IBM Plex Mono',monospace;color:{{v.labC}};text-wrap:balance">{{v.l}}</div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </sc-if>
+
+                <sc-if value="{{isTitr}}">
+                  <div style="position:relative;width:300px;height:400px">
+                    <div style="position:absolute;left:14px;bottom:0;width:230px;height:12px;border-radius:4px;background:linear-gradient(#56626a,#2b3338)"></div>
+                    <div style="position:absolute;left:34px;bottom:12px;width:8px;height:388px;border-radius:3px;background:linear-gradient(90deg,#7c878e,#e1e7ea,#7c878e)"></div>
+                    <div style="position:absolute;left:34px;top:70px;width:92px;height:8px;border-radius:3px;background:linear-gradient(#aeb7bd,#6c767c)"></div>
+                    <div style="position:absolute;left:118px;top:62px;width:20px;height:24px;border-radius:4px;border:3px solid #9aa4aa;box-sizing:border-box"></div>
+                    <div data-tt="bur" style="position:absolute;left:117px;top:0;width:22px;height:182px;box-sizing:border-box;border:2px solid rgba(214,232,244,.75);border-radius:0 0 4px 4px;background:rgba(255,255,255,.06);overflow:hidden">
+                      <div style="position:absolute;left:0;right:0;bottom:0;height:{{titV.levelH}}px;background:{{titV.bc}};transition:height .15s linear"></div>
+                      <div style="position:absolute;left:0;width:9px;top:6px;bottom:0;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.65) 0 1px,transparent 1px 5.5px)"></div>
+                    </div>
+                    <sc-if value="{{tg.bur}}"><div style="position:absolute;left:103px;top:-18px;width:50px;height:210px;border:2px dashed rgba(127,240,207,.95);border-radius:12px;animation:glow 1.4s ease-in-out infinite;pointer-events:none"></div></sc-if>
+                    <div style="position:absolute;left:146px;top:{{titV.tagTop}}px;padding:3px 7px;border-radius:5px;background:rgba(0,0,0,.65);color:#e8f4ff;font:600 12px 'IBM Plex Mono',monospace;white-space:nowrap;transition:top .15s">{{titV.read}}</div>
+                    <div style="position:absolute;left:102px;top:4px;font:500 10px 'IBM Plex Mono',monospace;color:#9fb0b8">0</div>
+                    <div style="position:absolute;left:96px;top:164px;font:500 10px 'IBM Plex Mono',monospace;color:#9fb0b8">50</div>
+                    <div sc-camel-on-pointer-down="{{onKnob}}" style="position:absolute;left:92px;top:170px;width:72px;height:36px;cursor:ew-resize;touch-action:none;z-index:3;display:grid;place-items:center">
+                      <div style="width:44px;height:13px;border-radius:4px;background:{{titV.cockBg}};transform:rotate({{titV.cockRot}}deg);box-shadow:0 0 0 2px rgba(0,0,0,.3);transition:transform .08s"></div>
+                      <sc-if value="{{titV.knobHint}}"><div style="position:absolute;left:78px;top:6px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:rgba(127,240,207,.18);border:1px solid rgba(127,240,207,.6);color:#dffcf3;font:600 11px 'IBM Plex Mono',monospace;animation:glow 1.4s ease-in-out infinite">← drag tap to open →</div></sc-if>
+                    </div>
+                    <div style="position:absolute;left:124px;top:192px;width:8px;height:26px;border:2px solid rgba(214,232,244,.7);border-top:none;border-radius:0 0 3px 3px;box-sizing:border-box"></div>
+                    <sc-if value="{{titV.drip}}"><span style="position:absolute;left:125px;top:218px;width:6px;height:9px;border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;background:{{titV.dropC}};animation:drip .45s linear infinite"></span></sc-if>
+                    <sc-if value="{{titV.stream}}"><div style="position:absolute;left:126px;top:218px;width:4px;height:{{titV.streamH}}px;background:{{titV.dropC}};border-radius:2px"></div></sc-if>
+                    <div style="position:absolute;left:44px;bottom:12px;width:170px;height:{{titV.tileH}}px;border-radius:3px;background:{{titV.tileBg}};box-shadow:{{titV.tileSh}}"></div>
+                    <div data-tt="flask" style="position:absolute;left:58px;bottom:{{titV.flaskB}}px;width:140px;height:170px">
+                      <div style="position:absolute;inset:0;clip-path:polygon(37% 0,63% 0,63% 36%,99% 97%,96% 100%,4% 100%,1% 97%,37% 36%);background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.03) 45%,rgba(255,255,255,.1))">
+                        <div style="position:absolute;left:0;right:0;bottom:0;height:{{titV.flaskH}}px;background:{{titV.fc}};transition:height .2s,background .5s"></div>
+                      </div>
+                      <svg width="140" height="170" sc-camel-view-box="0 0 140 170" style="position:absolute;inset:0;overflow:visible"><path d="M51.8 0 L51.8 61 L1.6 164 Q0 170 6 170 L134 170 Q140 170 138.4 164 L88.2 61 L88.2 0" fill="none" stroke="rgba(214,232,244,.8)" stroke-width="2.4"></path><path d="M62 70 L30 138" stroke="rgba(255,255,255,.28)" stroke-width="4" stroke-linecap="round"></path></svg>
+                      <sc-if value="{{tg.flask}}"><div style="position:absolute;inset:-14px;border:2px dashed rgba(127,240,207,.95);border-radius:16px;animation:glow 1.4s ease-in-out infinite;pointer-events:none"></div></sc-if>
+                      <sc-if value="{{titV.hotFx}}"><sc-for list="{{puffs}}" as="p"><span style="position:absolute;top:-18px;left:{{p.l}};width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.35);filter:blur(6px);animation:puff 2.6s ease-out infinite;animation-delay:{{p.d}}"></span></sc-for></sc-if>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{isHeat}}">
+                  <div style="position:relative;width:300px;height:380px">
+                    <sc-if value="{{heatV.thermoIn}}">
+                      <div style="position:absolute;left:250px;bottom:0;width:60px;height:10px;border-radius:3px;background:#39434a"></div>
+                      <div style="position:absolute;left:272px;bottom:10px;width:7px;height:360px;background:linear-gradient(90deg,#7c878e,#e1e7ea,#7c878e)"></div>
+                      <div style="position:absolute;left:150px;top:20px;width:128px;height:6px;background:linear-gradient(#aeb7bd,#6c767c)"></div>
+                      <div style="position:absolute;left:144px;top:8px;width:12px;height:250px;border-radius:6px;border:1.5px solid rgba(214,232,244,.8);background:rgba(255,255,255,.08);box-sizing:border-box;z-index:2">
+                        <div style="position:absolute;left:2px;right:2px;bottom:2px;height:{{heatV.colH}}px;border-radius:3px;background:#e2393b;transition:height .2s"></div>
+                      </div>
+                      <div style="position:absolute;left:141px;top:250px;width:18px;height:18px;border-radius:50%;background:#e2393b;z-index:2;border:1.5px solid rgba(255,255,255,.35);box-sizing:border-box"></div>
+                    </sc-if>
+                    <div data-tt="beaker" style="position:absolute;left:50px;bottom:112px;width:170px;height:170px;border:2px solid rgba(214,232,244,.72);border-top:none;border-radius:0 0 14px 14px;background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.03) 40%,rgba(255,255,255,.11));overflow:hidden;box-sizing:border-box">
+                      <div style="position:absolute;left:0;right:0;bottom:0;height:{{heatV.liqH}}px;background:rgba(200,228,255,.34);transition:height .3s">
+                        <div style="position:absolute;left:0;right:0;top:-4px;height:8px;border-radius:50%;background:rgba(225,240,255,.5)"></div>
+                        <sc-if value="{{heatV.boil}}"><sc-for list="{{bubbles}}" as="b"><span style="position:absolute;bottom:4px;left:{{b.l}};width:{{b.s}}px;height:{{b.s}}px;border-radius:50%;border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.22);animation:rise 1.1s ease-in infinite;animation-delay:{{b.d}}"></span></sc-for></sc-if>
+                      </div>
+                      <sc-for list="{{heatV.ice}}" as="c"><span style="position:absolute;left:{{c.l}}px;bottom:{{c.b}}px;width:{{c.s}}px;height:{{c.s}}px;border-radius:5px;background:linear-gradient(135deg,rgba(255,255,255,.9),rgba(200,230,255,.55));border:1px solid rgba(255,255,255,.9);transform:rotate({{c.r}}deg);transition:width .5s,height .5s"></span></sc-for>
+                    </div>
+                    <sc-if value="{{tg.beaker}}"><div style="position:absolute;left:34px;bottom:100px;width:202px;height:200px;border:2px dashed rgba(127,240,207,.95);border-radius:18px;animation:glow 1.4s ease-in-out infinite;pointer-events:none"></div></sc-if>
+                    <div style="position:absolute;left:46px;top:94px;width:178px;height:8px;border-radius:50%;border:2px solid rgba(214,232,244,.8);box-sizing:border-box"></div>
+                    <sc-if value="{{heatV.steam}}"><sc-for list="{{puffs}}" as="p"><span style="position:absolute;top:70px;left:{{p.l}};width:40px;height:40px;margin-left:40px;border-radius:50%;background:rgba(255,255,255,.4);filter:blur(8px);animation:puff 2.4s ease-out infinite;animation-delay:{{p.d}}"></span></sc-for></sc-if>
+                    <div style="position:absolute;left:36px;bottom:106px;width:198px;height:5px;border-radius:2px;background:repeating-linear-gradient(90deg,#aab4ba 0 3px,#6c767c 3px 6px)"></div>
+                    <div style="position:absolute;left:52px;bottom:0;width:3px;height:108px;background:#6d777d;transform:rotate(-8deg)"></div>
+                    <div style="position:absolute;left:214px;bottom:0;width:3px;height:108px;background:#6d777d;transform:rotate(8deg)"></div>
+                    <sc-if value="{{heatV.burner}}">
+                      <div data-tt="burner" style="position:absolute;left:105px;bottom:0;width:60px;height:60px">
+                        <div style="position:absolute;left:7px;bottom:0;width:46px;height:8px;border-radius:3px;background:#39434a"></div>
+                        <div style="position:absolute;left:24px;bottom:8px;width:12px;height:40px;background:linear-gradient(90deg,#59636a,#cfd6db,#59636a)"></div>
+                        <sc-if value="{{tg.burner}}"><div style="position:absolute;inset:-10px;border:2px dashed rgba(127,240,207,.95);border-radius:12px;animation:glow 1.4s ease-in-out infinite"></div></sc-if>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{heatV.on}}"><div style="position:absolute;left:119px;bottom:48px;width:32px;height:52px;transform-origin:50% 100%;animation:flick .18s ease-in-out infinite alternate;border-radius:50% 50% 45% 45% / 70% 70% 30% 30%;background:radial-gradient(ellipse 40% 55% at 50% 80%,#e9f0ff 0 22%,#4d7cff 55%,transparent 78%);box-shadow:0 0 30px 6px rgba(90,130,255,.5)"></div></sc-if>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{isChroma}}">
+                  <div data-tt="jar" style="position:relative;width:{{chV.jarW}}px;height:340px">
+                    <sc-if value="{{chV.lid}}"><div style="position:absolute;left:-8px;right:-8px;top:-4px;height:12px;border-radius:5px;background:linear-gradient(#6b767d,#3b4449);z-index:2"></div></sc-if>
+                    <div style="position:absolute;inset:6px 0 0 0;border:2px solid rgba(214,232,244,.72);border-top:none;border-radius:0 0 14px 14px;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,.03) 40%,rgba(255,255,255,.1));overflow:hidden">
+                      <div style="position:absolute;left:0;right:0;bottom:0;height:34px;background:rgba(200,228,255,.35)"></div>
+                    </div>
+                    <sc-if value="{{tg.jar}}"><div style="position:absolute;inset:-14px;border:2px dashed rgba(127,240,207,.95);border-radius:18px;animation:glow 1.4s ease-in-out infinite;pointer-events:none"></div></sc-if>
+                    <div style="position:absolute;left:0;right:0;top:12px;bottom:14px;display:flex;justify-content:center;gap:34px;transform:translateY({{chV.raise}}px);transition:transform 1s ease">
+                      <sc-for list="{{chV.strips}}" as="st">
+                        <div data-st="{{st.j}}" style="position:relative;width:48px;height:314px;background:#f3f0e8;box-shadow:0 0 0 1px rgba(0,0,0,.08)">
+                          <div style="position:absolute;left:0;right:0;bottom:0;height:{{chV.frontPx}}px;background:rgba(150,180,210,.28)"></div>
+                          <div style="position:absolute;left:0;right:0;bottom:{{chV.frontPx}}px;height:1px;background:rgba(40,80,120,.55)"></div>
+                          <div style="position:absolute;left:4px;right:4px;bottom:44px;border-top:1px dashed #6b6b6b"></div>
+                          <sc-if value="{{st.spotted}}"><sc-for list="{{st.spots}}" as="sp"><span style="position:absolute;left:50%;bottom:{{sp.b}}px;width:{{sp.w}}px;height:{{sp.h}}px;margin-left:{{sp.m}}px;border-radius:50%;background:{{sp.c}};opacity:{{sp.o}};filter:blur(.6px)"></span></sc-for></sc-if>
+                          <sc-if value="{{st.target}}"><div style="position:absolute;inset:-8px;border:2px dashed rgba(14,124,102,.95);border-radius:8px;animation:glow 1.4s ease-in-out infinite"></div></sc-if>
+                          <div style="position:absolute;top:calc(100% + 24px);left:50%;transform:translateX(-50%);width:120px;text-align:center;font:500 11px 'IBM Plex Mono',monospace;color:#b9c6cc;text-wrap:balance">{{st.l}}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{isKin}}">
+                  <div style="display:flex;align-items:flex-end;gap:60px">
+                    <div style="position:relative;width:170px;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end">
+                      <div data-tt="flask" style="position:relative;width:140px;height:170px">
+                        <div style="position:absolute;inset:0;clip-path:polygon(37% 0,63% 0,63% 36%,99% 97%,96% 100%,4% 100%,1% 97%,37% 36%);background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.03) 45%,rgba(255,255,255,.1))">
+                          <div style="position:absolute;left:0;right:0;bottom:0;height:{{kinV.liqH}}px;background:{{kinV.liq}};transition:height .2s,background .2s"></div>
+                        </div>
+                        <svg width="140" height="170" sc-camel-view-box="0 0 140 170" style="position:absolute;inset:0;overflow:visible"><path d="M51.8 0 L51.8 61 L1.6 164 Q0 170 6 170 L134 170 Q140 170 138.4 164 L88.2 61 L88.2 0" fill="none" stroke="rgba(214,232,244,.8)" stroke-width="2.4"></path><path d="M62 70 L30 138" stroke="rgba(255,255,255,.28)" stroke-width="4" stroke-linecap="round"></path></svg>
+                        <sc-if value="{{tg.flask}}"><div style="position:absolute;inset:-14px;border:2px dashed rgba(127,240,207,.95);border-radius:16px;animation:glow 1.4s ease-in-out infinite;pointer-events:none"></div></sc-if>
+                      </div>
+                      <div style="width:170px;height:10px;background:#f4f1e8;border-radius:2px"></div>
+                      <div style="position:absolute;top:100%;margin-top:9px;font:500 11px 'IBM Plex Mono',monospace;color:#b9c6cc;white-space:nowrap">Side view · paper with ✕ under flask</div>
+                    </div>
+                    <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:30px">
+                      <div style="position:relative;width:160px;height:160px;border-radius:50%;background:#f4f1e8;box-shadow:0 0 0 3px rgba(214,232,244,.6);overflow:hidden">
+                        <div style="position:absolute;left:50%;top:50%;width:96px;height:11px;margin:-5px 0 0 -48px;background:#161616;transform:rotate(45deg)"></div>
+                        <div style="position:absolute;left:50%;top:50%;width:96px;height:11px;margin:-5px 0 0 -48px;background:#161616;transform:rotate(-45deg)"></div>
+                        <div style="position:absolute;inset:0;background:{{kinV.cloud}}"></div>
+                      </div>
+                      <div style="font:500 11px 'IBM Plex Mono',monospace;color:#b9c6cc">Top view (looking down)</div>
+                    </div>
+                  </div>
+                </sc-if>
+
+              </div>
+            </div>
+          </div>
+
+          <div style="position:absolute;left:14px;top:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;z-index:3">
+            <sc-for list="{{views}}" as="vw">
+              <button sc-camel-on-click="{{vw.onClick}}" style="height:38px;padding:0 13px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:{{vw.bg}};color:#e6eef1;font:500 13px 'IBM Plex Mono',monospace;cursor:pointer">{{vw.label}}</button>
+            </sc-for>
+          </div>
+          <div style="position:absolute;left:14px;bottom:12px;z-index:3;font:500 11.5px 'IBM Plex Mono',monospace;color:#8fa3ad;pointer-events:none;white-space:nowrap">drag empty bench to orbit</div>
+          <sc-if value="{{kinV.stopOn}}">
+            <button sc-camel-on-pointer-down="{{onKStop}}" style="position:absolute;right:22px;bottom:22px;z-index:5;width:132px;height:132px;border-radius:50%;border:6px solid rgba(255,255,255,.85);background:#C2385A;color:#fff;font:700 22px 'IBM Plex Sans';cursor:pointer;box-shadow:0 10px 30px rgba(194,56,90,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;touch-action:none">STOP<span style="font:600 15px 'IBM Plex Mono',monospace">{{timerVal}}</span></button>
+          </sc-if>
+        </div>
+
+        <div style="display:flex;gap:14px;align-items:baseline;padding:12px 18px;background:#131b20;border-top:1px solid #253038">
+          <span style="flex:0 0 auto;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:{{latestC}};text-transform:uppercase">{{latestTag}}</span>
+          <span style="font-size:15px;line-height:1.45;color:#eef3f5;text-wrap:pretty">{{latest}}</span>
+        </div>
+
+        <sc-if value="{{hasMeters}}">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 14px;background:#0f1519;border-top:1px solid #253038">
+            <sc-if value="{{mt.thermo}}">
+              <div style="display:flex;align-items:center;gap:14px;background:#182127;border:1px solid #2a363e;border-radius:12px;padding:10px 16px 14px;min-width:170px">
+                <div style="position:relative;width:12px;height:64px;border-radius:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28)">
+                  <div style="position:absolute;left:2px;right:2px;bottom:2px;height:{{thermoPct}}%;border-radius:4px;background:#e2393b;transition:height .4s"></div>
+                  <div style="position:absolute;left:50%;bottom:-10px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:#e2393b;border:1px solid rgba(255,255,255,.3)"></div>
+                </div>
+                <div>
+                  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8fa3ad">THERMOMETER</div>
+                  <div style="font:600 26px 'IBM Plex Mono',monospace;color:#fff">{{thermoVal}}<span style="font-size:14px;color:#8fa3ad"> °C</span></div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{mt.ph}}">
+              <div style="display:flex;flex-direction:column;gap:8px;background:#182127;border:1px solid #2a363e;border-radius:12px;padding:10px 14px;min-width:230px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8fa3ad">pH METER</div>
+                  <div style="padding:3px 10px;border-radius:5px;background:#b7d8a6;color:#1b2a17;font:600 22px 'IBM Plex Mono',monospace;box-shadow:inset 0 0 6px rgba(0,0,0,.25)">{{phVal}}</div>
+                </div>
+                <div style="position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,#c8102e,#f07a1f 21%,#f2cf1d 36%,#5cb848 50%,#2386a8 64%,#3a3aa8 86%,#5b2a86)">
+                  <div style="position:absolute;top:-4px;left:{{phPos}}%;width:4px;height:18px;margin-left:-2px;border-radius:2px;background:#fff;box-shadow:0 0 0 1px #000;transition:left .5s"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font:500 10px 'IBM Plex Mono',monospace;color:#8fa3ad"><span>0 acidic</span><span>7</span><span>basic 14</span></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{mt.balance}}">
+              <div style="display:flex;align-items:center;gap:12px;background:#182127;border:1px solid #2a363e;border-radius:12px;padding:10px 14px;min-width:190px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:56px;height:5px;border-radius:3px;background:#b8c2c8"></div><div style="width:64px;height:22px;border-radius:5px;background:linear-gradient(#e7ecee,#aeb8be)"></div></div>
+                <div>
+                  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8fa3ad">DIGITAL BALANCE</div>
+                  <div style="padding:2px 8px;border-radius:4px;background:#0a0f0d;color:#6dff9b;font:600 22px 'IBM Plex Mono',monospace">{{massVal}} g</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{mt.volt}}">
+              <div style="display:flex;align-items:center;gap:14px;background:#182127;border:1px solid #2a363e;border-radius:12px;padding:10px 14px;min-width:220px">
+                <div style="position:relative;width:110px;height:58px;border-radius:110px 110px 0 0;background:#eef1ec;overflow:hidden;border:2px solid #6c767c;border-bottom:none;box-sizing:border-box">
+                  <div style="position:absolute;left:6px;bottom:3px;font:500 9px 'IBM Plex Mono',monospace;color:#444">0</div>
+                  <div style="position:absolute;right:5px;bottom:3px;font:500 9px 'IBM Plex Mono',monospace;color:#444">1.5</div>
+                  <div style="position:absolute;left:50%;top:6px;transform:translateX(-50%);font:600 9px 'IBM Plex Mono',monospace;color:#444">V</div>
+                  <div style="position:absolute;left:50%;bottom:0;width:2px;height:48px;margin-left:-1px;background:#c0392b;transform-origin:50% 100%;transform:rotate({{needle}}deg);transition:transform .5s"></div>
+                </div>
+                <div>
+                  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8fa3ad">VOLTMETER</div>
+                  <div style="font:600 26px 'IBM Plex Mono',monospace;color:#fff">{{voltVal}}<span style="font-size:14px;color:#8fa3ad"> V</span></div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{mt.bulb}}">
+              <div style="display:flex;align-items:center;gap:14px;background:#182127;border:1px solid #2a363e;border-radius:12px;padding:10px 14px;min-width:210px">
+                <div style="width:36px;height:36px;border-radius:50%;background:{{bulbBg}};border:1.5px solid rgba(255,255,255,.4);box-shadow:0 0 {{bulbGlow}}px rgba(255,205,70,.9);transition:all .3s"></div>
+                <div>
+                  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8fa3ad">BULB · AMMETER</div>
+                  <div style="font:600 26px 'IBM Plex Mono',monospace;color:#fff">{{ampVal}}<span style="font-size:14px;color:#8fa3ad"> mA</span></div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{mt.timer}}">
+              <div style="display:flex;align-items:center;gap:12px;background:#182127;border:1px solid #2a363e;border-radius:12px;padding:10px 14px;min-width:160px">
+                <div style="width:32px;height:32px;border-radius:50%;border:2px solid #cfd8dc;position:relative;box-sizing:border-box"><div style="position:absolute;left:50%;top:3px;width:2px;height:12px;margin-left:-1px;background:#7ff0cf;transform-origin:50% 100%;transform:rotate({{timerDeg}}deg)"></div></div>
+                <div>
+                  <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#8fa3ad">STOPWATCH</div>
+                  <div style="font:600 26px 'IBM Plex Mono',monospace;color:#fff">{{timerVal}}</div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{hasCtl}}">
+        <div style="background:#FAFAF6;border:1px solid #D6DAD2;border-radius:16px;padding:14px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+          <sc-if value="{{isTitr}}">
+            <div style="flex:1 1 340px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{titV.check}}" as="ck"><span style="display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;background:{{ck.bg}};color:{{ck.fg}};font-size:13px;font-weight:600;white-space:nowrap"><span>{{ck.mark}}</span>{{ck.l}}</span></sc-for>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <div style="font:600 13px 'IBM Plex Mono',monospace;color:#3C4640;min-width:130px">{{titV.flowLabel}}</div>
+                <button sc-camel-on-click="{{onTDrop}}" style="height:48px;padding:0 16px;border-radius:11px;border:1px solid #C9CFC6;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#1B2420;white-space:nowrap">Release 1 drop</button>
+                <button sc-camel-on-click="{{onTClose}}" style="height:48px;padding:0 16px;border-radius:11px;border:1px solid #C9CFC6;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#1B2420;white-space:nowrap">Close tap</button>
+                <button sc-camel-on-click="{{onTRecord}}" style="height:48px;padding:0 16px;border-radius:11px;border:none;background:#1B2420;color:#fff;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap">Record final reading</button>
+                <button sc-camel-on-click="{{onTNew}}" style="height:48px;padding:0 16px;border-radius:11px;border:1px solid #C9CFC6;background:#fff;font-size:14px;font-weight:500;cursor:pointer;color:#1B2420;white-space:nowrap">New trial</button>
+              </div>
+              <div style="font:500 12.5px 'IBM Plex Mono',monospace;color:#5F6B64">End point: {{titr.endpoint}} · trials {{titV.nTrials}} · aim for 3 concordant (±0.1 mL)</div>
+            </div>
+            <sc-if value="{{titV.chart}}">
+              <div style="flex:1 1 300px;min-width:0">
+                <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:#5F6B64;margin-bottom:4px">TITRATION CURVE · pH vs volume</div>
+                <svg sc-camel-view-box="0 0 320 170" style="width:100%;max-width:440px;height:auto;background:#fff;border:1px solid #E1E4DD;border-radius:10px">
+                  <line x1="36" y1="15" x2="36" y2="150" stroke="#C9CFC6"></line><line x1="36" y1="150" x2="306" y2="150" stroke="#C9CFC6"></line>
+                  <line x1="36" y1="82.5" x2="306" y2="82.5" stroke="#EEF0EB" stroke-dasharray="3 3"></line>
+                  <text x="30" y="19" font-size="9" text-anchor="end" fill="#7A857E" font-family="IBM Plex Mono">14</text><text x="30" y="86" font-size="9" text-anchor="end" fill="#7A857E" font-family="IBM Plex Mono">7</text><text x="30" y="153" font-size="9" text-anchor="end" fill="#7A857E" font-family="IBM Plex Mono">0</text>
+                  <text x="36" y="164" font-size="9" fill="#7A857E" font-family="IBM Plex Mono">0</text><text x="306" y="164" font-size="9" fill="#7A857E" font-family="IBM Plex Mono" text-anchor="end">25 mL</text>
+                  <polyline points="{{titV.pts}}" fill="none" stroke="#2F55B8" stroke-width="2" stroke-linejoin="round"></polyline>
+                </svg>
+              </div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{isHeat}}">
+            <div style="flex:1 1 260px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:14px;color:#4A554F;line-height:1.5">Crushed ice at −8 °C. Place the thermometer and burner from the tray, strike the lighter, and watch where the temperature holds steady.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button sc-camel-on-click="{{onBurnerOff}}" style="height:48px;padding:0 16px;border-radius:11px;border:1px solid #C9CFC6;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#1B2420;white-space:nowrap">Turn gas off</button>
+              </div>
+              <div style="font:500 12.5px 'IBM Plex Mono',monospace;color:#5F6B64">State: {{heatV.phase}}</div>
+            </div>
+            <div style="flex:1 1 300px;min-width:0">
+              <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:#5F6B64;margin-bottom:4px">HEATING CURVE · temperature vs time</div>
+              <svg sc-camel-view-box="0 0 320 170" style="width:100%;max-width:440px;height:auto;background:#fff;border:1px solid #E1E4DD;border-radius:10px">
+                <line x1="36" y1="15" x2="36" y2="150" stroke="#C9CFC6"></line><line x1="36" y1="150" x2="306" y2="150" stroke="#C9CFC6"></line>
+                <line x1="36" y1="139.2" x2="306" y2="139.2" stroke="#9ED0E8" stroke-dasharray="3 3"></line><line x1="36" y1="26.7" x2="306" y2="26.7" stroke="#F2B8A8" stroke-dasharray="3 3"></line>
+                <text x="30" y="30" font-size="9" text-anchor="end" fill="#7A857E" font-family="IBM Plex Mono">100</text><text x="30" y="142" font-size="9" text-anchor="end" fill="#7A857E" font-family="IBM Plex Mono">0</text>
+                <text x="306" y="164" font-size="9" fill="#7A857E" font-family="IBM Plex Mono" text-anchor="end">10 min</text><text x="36" y="164" font-size="9" fill="#7A857E" font-family="IBM Plex Mono">0</text>
+                <polyline points="{{heatV.pts}}" fill="none" stroke="#C2385A" stroke-width="2" stroke-linejoin="round"></polyline>
+              </svg>
+            </div>
+          </sc-if>
+          <sc-if value="{{isKin}}">
+            <div style="flex:1 1 320px;display:flex;flex-direction:column;gap:10px">
+              <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:#5F6B64">[Na₂S₂O₃] (mol L⁻¹)</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{kinV.concs}}" as="c"><button sc-camel-on-click="{{c.onClick}}" style="height:44px;padding:0 14px;border-radius:10px;border:1px solid {{c.bd}};background:{{c.bg}};color:{{c.fg}};font:600 13.5px 'IBM Plex Mono',monospace;cursor:pointer">{{c.label}}</button></sc-for></div>
+              <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:#5F6B64">Water-bath temperature</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{kinV.temps}}" as="c"><button sc-camel-on-click="{{c.onClick}}" style="height:44px;padding:0 14px;border-radius:10px;border:1px solid {{c.bd}};background:{{c.bg}};color:{{c.fg}};font:600 13.5px 'IBM Plex Mono',monospace;cursor:pointer">{{c.label}}</button></sc-for></div>
+              <div style="font:500 12.5px 'IBM Plex Mono',monospace;color:#5F6B64">You time it: press STOP when the ✕ vanishes. Runs: {{kinV.n}}</div>
+            </div>
+            <div style="flex:1 1 280px;min-width:0">
+              <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:#5F6B64;margin-bottom:4px">RATE (1/t) vs CONCENTRATION</div>
+              <svg sc-camel-view-box="0 0 320 170" style="width:100%;max-width:440px;height:auto;background:#fff;border:1px solid #E1E4DD;border-radius:10px">
+                <line x1="40" y1="15" x2="40" y2="150" stroke="#C9CFC6"></line><line x1="40" y1="150" x2="306" y2="150" stroke="#C9CFC6"></line>
+                <text x="34" y="19" font-size="9" text-anchor="end" fill="#7A857E" font-family="IBM Plex Mono">0.12</text><text x="34" y="153" font-size="9" text-anchor="end" fill="#7A857E" font-family="IBM Plex Mono">0</text>
+                <text x="306" y="164" font-size="9" fill="#7A857E" font-family="IBM Plex Mono" text-anchor="end">0.10 M</text><text x="40" y="164" font-size="9" fill="#7A857E" font-family="IBM Plex Mono">0</text>
+                <sc-for list="{{kinV.dots}}" as="d"><circle cx="{{d.x}}" cy="{{d.y}}" r="5" fill="{{d.c}}" stroke="#fff" stroke-width="1.5"></circle></sc-for>
+              </svg>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;font:500 10.5px 'IBM Plex Mono',monospace;color:#5F6B64;margin-top:4px"><sc-for list="{{kinV.legend}}" as="lg"><span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:{{lg.c}}"></span>{{lg.l}}</span></sc-for></div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <div style="background:#FAFAF6;border:1px solid #D6DAD2;border-radius:16px;padding:14px 16px">
+        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:16px">Lab tray</div>
+          <div style="font-size:14px;color:#4A554F">Touch and drag an item onto the glowing apparatus. Pour and test actions work only while you hold the item there.</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <sc-for list="{{items}}" as="it" hint-placeholder-count="5">
+            <div sc-camel-on-pointer-down="{{it.onDown}}" style="flex:0 0 138px;box-sizing:border-box;position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px 14px;border-radius:15px;border:2px solid {{it.bd}};background:{{it.bg}};cursor:grab;touch-action:none;user-select:none;opacity:{{it.op}};animation:{{it.anim}};overflow:hidden">
+              <sc-if value="{{it.hasN}}"><span style="position:absolute;left:8px;top:8px;min-width:22px;height:22px;padding:0 4px;box-sizing:border-box;border-radius:11px;background:{{it.nbg}};color:{{it.nfg}};display:grid;place-items:center;font:600 11px 'IBM Plex Mono',monospace">{{it.n}}</span></sc-if>
+              <sc-if value="{{it.done}}"><span style="position:absolute;right:8px;top:8px;width:22px;height:22px;border-radius:50%;background:#0E7C66;color:#fff;display:grid;place-items:center;font-size:12px">✓</span></sc-if>
+              <div style="width:64px;height:96px;pointer-events:none;opacity:{{it.artOp}}"><dc-import name="LabItem" art="{{it.art}}" c="{{it.c}}" hint-size="64px,96px"></dc-import></div>
+              <div style="font-size:13px;font-weight:600;line-height:1.25;text-align:center;text-wrap:balance;pointer-events:none">{{it.name}}</div>
+              <div style="font:500 10.5px/1.3 'IBM Plex Mono',monospace;color:#0E7C66;text-align:center;text-wrap:balance;pointer-events:none">{{it.sub}}</div>
+              <span style="position:absolute;left:0;bottom:0;height:4px;width:{{it.pp}}%;background:#0E7C66"></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+
+    <sc-if value="{{infoOpen}}">
+      <aside style="flex:0 0 380px;min-width:0;box-sizing:border-box;padding:14px 16px 24px 0">
+        <div style="background:#FAFAF6;border:1px solid #D6DAD2;border-radius:16px;overflow:hidden">
+          <div style="display:flex;border-bottom:1px solid #D6DAD2">
+            <sc-for list="{{tabs}}" as="tb" hint-placeholder-count="4">
+              <button sc-camel-on-click="{{tb.onClick}}" style="flex:1;height:52px;border:none;border-bottom:3px solid {{tb.bd}};background:transparent;font-size:14px;font-weight:600;color:{{tb.fg}};cursor:pointer">{{tb.label}}</button>
+            </sc-for>
+          </div>
+          <div style="padding:16px 18px 20px;display:flex;flex-direction:column;gap:14px;font-size:14.5px;line-height:1.55">
+            <sc-if value="{{tab.theory}}" hint-placeholder-val="{{ true }}">
+              <div><div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.07em;color:#7A857E;margin-bottom:4px">PRINCIPLE</div><div style="text-wrap:pretty">{{exp.th}}</div></div>
+              <sc-if value="{{hasEq}}"><div style="padding:10px 12px;border-radius:9px;background:#EEF1EA;font:500 13px/1.6 'IBM Plex Mono',monospace;color:#1B2420">{{exp.eq}}</div></sc-if>
+              <div><div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.07em;color:#7A857E;margin-bottom:4px">APPARATUS &amp; CHEMICALS</div><div style="color:#3C4640;text-wrap:pretty">{{exp.app}}</div></div>
+              <div><div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.07em;color:#7A857E;margin-bottom:6px">PROCEDURE</div>
+                <div style="display:flex;flex-direction:column;gap:6px"><sc-for list="{{proc}}" as="p"><div style="display:flex;gap:9px"><span style="flex:0 0 22px;height:22px;border-radius:50%;background:#E3E6DF;display:grid;place-items:center;font:600 10.5px 'IBM Plex Mono',monospace;margin-top:1px">{{p.n}}</span><span style="text-wrap:pretty">{{p.t}}</span></div></sc-for></div>
+              </div>
+              <sc-if value="{{hasSafety}}"><div style="padding:10px 12px;border-radius:9px;background:#FBF1DE;color:#6B4A0E;font-size:13.5px"><strong>Safety · </strong>{{exp.safety}}</div></sc-if>
+            </sc-if>
+            <sc-if value="{{tab.obs}}">
+              <sc-if value="{{hasObs}}">
+                <div style="border:1px solid #E1E4DD;border-radius:10px;overflow:hidden;background:#fff">
+                  <div style="display:grid;grid-template-columns:{{obsCols}};gap:8px;padding:8px 10px;background:#EEF1EA;font:600 11px 'IBM Plex Mono',monospace;color:#5F6B64"><span>{{obsHead.a}}</span><span>{{obsHead.b}}</span><span>{{obsHead.c}}</span></div>
+                  <sc-for list="{{obsRows}}" as="r"><div style="display:grid;grid-template-columns:{{obsCols}};gap:8px;padding:8px 10px;border-top:1px solid #EEF0EB;font-size:13.5px"><span style="font-family:'IBM Plex Mono',monospace;color:#5F6B64">{{r.a}}</span><span style="font-weight:500">{{r.b}}</span><span style="color:#3C4640;text-wrap:pretty">{{r.c}}</span></div></sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{noObs}}"><div style="color:#5F6B64;font-size:14px">No observations yet. Work on the bench — each result is recorded here automatically.</div></sc-if>
+            </sc-if>
+            <sc-if value="{{tab.result}}">
+              <sc-if value="{{resUnlocked}}">
+                <div style="padding:12px 14px;border-radius:10px;background:#E4F1EC;color:#0b4a3d;text-wrap:pretty"><div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.07em;margin-bottom:4px">RESULT</div>{{exp.res}}</div>
+                <sc-if value="{{hasCalc}}"><div style="padding:10px 12px;border-radius:9px;background:#EEF1EA;font:500 12.5px/1.7 'IBM Plex Mono',monospace;display:flex;flex-direction:column"><sc-for list="{{calc}}" as="cl"><span>{{cl.t}}</span></sc-for></div></sc-if>
+              </sc-if>
+              <sc-if value="{{resLocked}}">
+                <div style="color:#4A554F;font-size:14px">Finish the experiment to unlock the result ({{progLabel}}).</div>
+                <button sc-camel-on-click="{{onReveal}}" style="align-self:flex-start;height:44px;padding:0 14px;border-radius:10px;border:1px solid #C9CFC6;background:#fff;font-size:14px;cursor:pointer;color:#1B2420">Show result anyway</button>
+              </sc-if>
+            </sc-if>
+            <sc-if value="{{tab.viva}}">
+              <sc-for list="{{viva}}" as="vq">
+                <div style="border:1px solid #E1E4DD;border-radius:10px;background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+                  <div style="font-weight:600;text-wrap:pretty">Q{{vq.n}}. {{vq.q}}</div>
+                  <sc-if value="{{vq.open}}"><div style="color:#0b4a3d;text-wrap:pretty">{{vq.a}}</div></sc-if>
+                  <sc-if value="{{vq.closed}}"><button sc-camel-on-click="{{vq.onClick}}" style="align-self:flex-start;height:40px;padding:0 12px;border-radius:9px;border:1px solid #C9CFC6;background:#F4F5F0;font-size:13.5px;cursor:pointer;color:#1B2420">Show answer</button></sc-if>
+                </div>
+              </sc-for>
+            </sc-if>
+          </div>
+        </div>
+      </aside>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{dgOn}}">
+    <sc-if value="{{dg.st}}"><div style="position:fixed;left:{{dg.sx}}px;top:{{dg.sy}}px;width:{{dg.sw}}px;height:{{dg.sh}}px;margin-left:{{dg.sm}}px;background:{{dg.sc}};background-size:100% 28px;animation:flow .35s linear infinite;border-radius:3px;z-index:60;pointer-events:none"></div></sc-if>
+    <div style="position:fixed;left:{{dg.x}}px;top:{{dg.y}}px;width:64px;height:96px;margin-left:-32px;transform-origin:50% 0;transform:rotate({{dg.rot}}deg) scale(1.35);z-index:61;pointer-events:none;transition:transform .2s ease-out,left .05s,top .05s;filter:drop-shadow(0 12px 16px rgba(0,0,0,.45))">
+      <dc-import name="LabItem" art="{{dg.art}}" c="{{dg.c}}" lit="{{dg.lit}}" hint-size="64px,96px"></dc-import>
+    </div>
+    <div style="position:fixed;left:{{dg.lx}}px;top:{{dg.ly}}px;z-index:62;pointer-events:none;padding:6px 11px;border-radius:9px;background:{{dg.lbg}};color:#fff;font:600 13px 'IBM Plex Mono',monospace;white-space:nowrap;box-shadow:0 6px 16px rgba(0,0,0,.3)">{{dg.label}}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;simSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:4,&quot;step&quot;:0.5,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Simulation&quot;},&quot;guided&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Simulation&quot;},&quot;autoRotate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;3D bench&quot;},&quot;showLabels&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;3D bench&quot;}}">
+const DIM={tube:{w:44,h:190,max:176,rad:'0 0 22px 22px',ppt:30,stand:60},beaker:{w:118,h:148,max:136,rad:'0 0 14px 14px',ppt:26,stand:128},dish:{w:150,h:52,max:44,rad:'0 0 75px 75px / 0 0 52px 52px',ppt:10,stand:150},flask:{w:140,h:170,max:108,ppt:16,stand:140},burner:{w:130,h:210,stand:0}};
+const hexRgb=h=>{h=(h||'#ffffff').replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');const n=parseInt(h,16);return[n>>16&255,n>>8&255,n&255]};
+const rgba=(h,a)=>{const[r,g,b]=hexRgb(h);return`rgba(${r},${g},${b},${a})`};
+const mixW=(h,t)=>'#'+hexRgb(h).map(x=>Math.round(x+(255-x)*t).toString(16).padStart(2,'0')).join('');
+const lerpC=(a,b,p)=>{const x=hexRgb(a),y=hexRgb(b);return'#'+x.map((v,i)=>Math.round(v+(y[i]-v)*p).toString(16).padStart(2,'0')).join('')};
+const BUB=[{l:'18%',d:'0s',s:6},{l:'38%',d:'.5s',s:8},{l:'58%',d:'.2s',s:5},{l:'74%',d:'.9s',s:7},{l:'28%',d:'1.2s',s:5},{l:'66%',d:'1.5s',s:6}];
+const CRY=[{l:'12%',b:2,s:8,r:15},{l:'26%',b:4,s:10,r:40},{l:'42%',b:1,s:9,r:5},{l:'56%',b:5,s:11,r:60},{l:'70%',b:2,s:8,r:25},{l:'80%',b:6,s:7,r:70},{l:'34%',b:10,s:7,r:30},{l:'62%',b:11,s:8,r:10}];
+const PUFF=[{l:'15%',d:'0s'},{l:'40%',d:'.8s'},{l:'62%',d:'1.6s'}];
+const ICE=[{l:14,b:6,r:8},{l:60,b:4,r:-6},{l:108,b:8,r:12},{l:34,b:44,r:-14},{l:84,b:42,r:5},{l:56,b:80,r:20}];
+const VIEWS={Front:[0,-12],Left:[-32,-14],Right:[32,-14],Top:[0,-30]};
+const KT={25:'#2F55B8',30:'#118AA0',35:'#5E8C2F',40:'#C77A12',45:'#C2385A'};
+const fmtT=s=>{s=Math.floor(s);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+const KEY='chemlab-v2-done';
+const NUM=['fill','a','pa','t','ph'],COL=['c','ppt','ring','cry','flame'];
+const lerpV=(f,pt,p)=>{const o={...f};for(const k in pt){const tv=pt[k],fv=f[k];
+  if(NUM.includes(k)){const a0=fv==null?(k==='fill'||k==='pa'?0:tv):fv;o[k]=tv==null?(p>=1?null:fv):a0+(tv-a0)*p}
+  else if(COL.includes(k)){if(tv==null)o[k]=p>=1?null:fv;else o[k]=fv?lerpC(fv,tv,p):(p>0.02?tv:fv)}
+  else if(k==='top'){const h0=f.top?f.top.h:0;o.top=tv?{c:tv.c,h:h0+(tv.h-h0)*p}:(p>=1?null:f.top)}
+  else if(k==='solid'){if(tv==null)o.solid=p>=1?null:f.solid;else o.solid=f.solid?{l:tv.l,c:lerpC(f.solid.c,tv.c,p)}:tv}
+  else if(k==='l')o.l=p>=1?tv:fv;
+  else o[k]=tv?(p>0.02?tv:fv):(p>=1?tv:fv)}
+  if('ppt' in pt&&pt.ppt==null&&f.ppt){o.ppt=p>=1?null:f.ppt;o.pa=(f.pa||0)*(1-p)}
+  return o};
+const HOVR={pour:.045,inspect:.07,flame:.05};
+const HINT={pour:'Drag over vessel & hold to pour',heat:'Slide under vessel, then light',wait:'Drop on vessel · time-lapse',inspect:'Drag onto vessel & hold',flame:'Hold it in the flame'};
+const SUB={bottle:'Drag over vessel · hold to pour',jar:'Drag over vessel · hold to add',cylinder:'Drag over vessel · hold to pour',dropper:'Drag over vessel · hold for drops',funnel:'Hold over vessel to filter',glassrod:'Hold in vessel to stir',rod:'Hold in vessel to dip',paper:'Hold in vessel to dip',magnet:'Hold beside the tube',torch:'Hold beside the vessels',lens:'Hold at vessel to observe',tool:'Hold at apparatus',loop:'Hold it in the flame'};
+const VERB={bottle:'Pouring',jar:'Adding solid',cylinder:'Pouring',dropper:'Adding drops',pipette:'Transferring',funnel:'Filtering',lighter:'Igniting',loop:'Heating in flame',paper:'Dipping',rod:'Dipping',glassrod:'Stirring',capillary:'Spotting'};
+const inZone=(z,r,x,y)=>z==='above'?(x>r.left-70&&x<r.right+70&&y>r.top-300&&y<r.top+r.height*.7):(x>r.left-60&&x<r.right+60&&y>r.top-160&&y<r.bottom+50);
+
+class Component extends DCLogic {
+  state={ready:false,grade:0,q:'',id:null,vs:[],done:[],log:[],m:{},active:0,tab:'theory',rotY:0,tilt:-12,view:'Front',reveal:false,viva:{},completed:{},run:null,lit:{},burn:{},ign:0,msg:null,dgT:0,titr:null,chroma:null,kin:null,heat:null,listOpen:true,infoOpen:true,vw:1400,vh:900};
+  componentDidMount(){
+    try{this.put({completed:JSON.parse(localStorage.getItem(KEY)||'{}')})}catch(e){}
+    this._rs=()=>this.put({vw:window.innerWidth,vh:window.innerHeight});window.addEventListener('resize',this._rs);this._rs();
+    if(window.innerWidth<1500)this.put({infoOpen:false});
+    const boot=()=>{if(window.LAB){let id=new URLSearchParams(location.search).get('lab')||null;try{if(!id)id=localStorage.getItem('chemlab-v2-last')}catch(e){}const ok=window.LAB.exps.find(x=>x.id===id);this.put({ready:true});this.load(ok?id:window.LAB.exps[0].id)}else setTimeout(boot,60)};
+    boot();this.ensure();
+  }
+  componentWillUnmount(){clearInterval(this.iv);this.iv=null;if(this._wl){window.removeEventListener('pointermove',this._wl[0]);window.removeEventListener('pointerup',this._wl[1]);window.removeEventListener('pointercancel',this._wl[1]);this._wl=null}if(this._rs)window.removeEventListener('resize',this._rs)}
+  ensure(){if(!this.iv)this.iv=setInterval(()=>this.tick(),100);if(!this._wl){this._wl=[e=>this.wm(e),e=>this.wu(e)];window.addEventListener('pointermove',this._wl[0]);window.addEventListener('pointerup',this._wl[1]);window.addEventListener('pointercancel',this._wl[1])}}
+  S(){return this._s||this.state}
+  put(u){this._s={...this.S(),...u};this.setState(u)}
+  exp(){const s=this.S();return window.LAB&&window.LAB.exps.find(e=>e.id===s.id)}
+  msg(t){this.put({msg:{t,u:Date.now()+3800}})}
+  logRow(r){this.put({log:[...this.S().log,r]})}
+  markDone(){const s=this.S();const c={...s.completed,[s.id]:true};this.put({completed:c});try{localStorage.setItem(KEY,JSON.stringify(c))}catch(e){}}
+  load(id){
+    const e=window.LAB.exps.find(x=>x.id===id);if(!e)return;try{window.parent.postMessage({type:'spectropy-chemistry-lab-selected',labId:id},location.origin)}catch(err){}try{localStorage.setItem('chemlab-v2-last',id)}catch(err){}
+    this.drag=null;this.knob=null;this.orb=null;const c=e.titr;
+    const st={id,vs:(e.vs||[]).map(v=>({...v})),done:[],log:[],m:{...(e.m0||{})},active:0,reveal:false,viva:{},run:null,lit:{},burn:{},ign:0,msg:null,
+      titr:e.mode==='titr'?{fill:0,pip:0,ind:c.ind==='kmno4'?1:0,hot:0,T:27,vol:0,ang:0,hist:[],trials:[],flash:0}:null,
+      chroma:e.mode==='chroma'?{spot:e.chroma.samples.map(()=>false),lid:false,p:0,run:false}:null,
+      kin:e.mode==='kin'?{conc:.1,temp:25,thio:0,hcl:0,run:false,stopped:false,t:0,tEnd:0,runs:[]}:null,
+      heat:e.mode==='heat'?{T:-8,ice:1,thermoIn:false,burner:false,on:false,t:0,pts:[[0,-8]],fill:.5,ev:{},boilT:0}:null};
+    if(this.S().vw<1300)st.listOpen=false;
+    this.put(st);
+  }
+  kindOf(e,a){const t=a.t,tv=e.vs[a.fx[a.fx.length-1][0]];
+    if((tv&&tv.type==='burner')||/^Burn/.test(t))return'flame';
+    if(/^(Heat|Boil)|Heat to/i.test(t)||(/heat/i.test(t)&&a.r==='#ff7a1a'))return'heat';
+    if(/Wait|Leave|days|min\)|Cool slowly|stand/i.test(t))return'wait';
+    if(/Observe|Examine|Compare|magnet|Smell|Record|Weigh|Calculate|Place sealed|Connect|Insert|torch|Tilt|^Dip/i.test(t))return'inspect';
+    return'pour'}
+  artOf(a,k){const t=a.t;
+    if(k==='heat')return'burner';if(k==='wait')return'clock';
+    if(k==='flame')return/magnesium/i.test(t)?'rod':'loop';
+    if(/litmus/i.test(t))return'paper';if(/magnet/i.test(t))return'magnet';if(/torch|beam/i.test(t))return'torch';
+    if(/^Filter/i.test(t))return'funnel';if(/^Stir (with|and)/i.test(t))return'glassrod';
+    if(/^Dip|nail|strip in|Zinc strip|Aluminium strip|Copper strip/i.test(t))return'rod';
+    if(k==='inspect')return/Weigh|balance|Place sealed|Tilt|Connect|salt bridge|Insert/i.test(t)?'tool':'lens';
+    if(/drop|indicator|phenolph|turmeric|china rose|universal|KSCN|K₄|iodine|biuret|molisch|Tollens|Fehling|CAN\b|FeCl₃|β-naphthol|NH₄OH|AgNO₃/i.test(t))return'dropper';
+    if(/powder|crystal|granule|sand|chalk|^Stir|mixture|Na₂CO₃|NaHCO₃|quicklime|spoon|salt\b|sugar\b|ash/i.test(t))return'jar';
+    return'bottle'}
+  tPH(e,vol){const t=e.titr;const ex=0.1*t.veq-0.1*vol,V=20+vol;let p;if(Math.abs(ex)<1e-6)p=7;else{const c=Math.abs(ex)/V;p=ex>0?-Math.log10(c):14+Math.log10(c)}p=Math.max(.6,Math.min(13.4,p));return t.flaskAcid?p:14-p}
+  tReady(e,t){const c=e.titr;return t.fill>=1&&t.pip>=1&&t.ind>=1&&(!c.heat||t.T>=60)}
+  tMissing(e,t){const c=e.titr,m=[];if(t.fill<1)m.push('fill the burette');if(t.pip<1)m.push('pipette the sample into the flask');if(t.ind<1)m.push('add indicator');if(c.heat&&t.T<60)m.push('heat the flask on the hot plate');return m.join(', ')}
+  tColor(e,t){
+    const c=e.titr;if(t.pip<=0)return'transparent';const ph=this.tPH(e,t.vol),fl=Date.now()<t.flash;
+    if(c.ind==='phph'){if(t.ind<1)return rgba('#eaf4ff',.28);if(ph>=8.2)return rgba('#ff4fae',Math.min(.78,.22+(ph-8.2)*.22));if(fl&&t.vol>c.veq-1.5)return rgba('#ff4fae',.2);return rgba(c.fc,c.fa)}
+    if(c.ind==='mo'){if(t.ind<1)return rgba('#eaf4ff',.28);const base=ph>4.4?'#f5b800':ph>3.1?'#f07a1f':'#e5392f';return rgba(t.ind<1?'#eaf4ff':lerpC('#eaf4ff',base,Math.min(1,t.ind)),.62)}
+    const ex=t.vol-c.veq;if(ex>=0)return rgba('#c2187a',Math.min(.82,.22+ex*1.1));if(fl)return rgba('#c2187a',.24);return rgba(c.fc,c.fa);
+  }
+  tagText(r,A,v,lit){if(r.kind==='heat')return lit?'Heating · '+Math.round(v&&v.t!=null?v.t:27+r.p*50)+' °C · '+Math.round(r.p*100)+'%':'Burner placed · strike the lighter';
+    return/3 days/.test(A.t)?'Time-lapse · day '+(r.p*3).toFixed(1)+' of 3':/20 min/.test(A.t)?'Time-lapse · '+Math.round(r.p*20)+' / 20 min':/15 min/.test(A.t)?'Time-lapse · '+Math.round(r.p*15)+' / 15 min':'Time-lapse · '+Math.round(r.p*100)+'%'}
+
+  items(s,e){
+    const mode=e.mode||'steps',out=[];
+    if(mode==='steps'){
+      const guided=this.props.guided??true;const nx=e.acts.findIndex((_,j)=>!s.done.includes(j));
+      e.acts.forEach((a,i)=>{const k=this.kindOf(e,a),dn=s.done.includes(i);let bl=null;
+        if(!dn){if(s.run&&s.run.p<1&&s.run.i!==i)bl='Finish step '+(s.run.i+1)+' (“'+e.acts[s.run.i].t+'”) first.';else if(guided&&i!==nx)bl='Follow the procedure — next is step '+(nx+1)+': '+e.acts[nx].t+'.'}
+        const art=this.artOf(a,k);out.push({key:'a'+i,n:String(i+1),art,c:a.r||'#eaf4ff',name:a.t,sub:['heat','wait'].includes(k)?HINT[k]:(SUB[art]||HINT[k]),drag:['pour','inspect','flame'].includes(k)?'hover':'drop',k,done:dn,next:!dn&&i===nx,bl,pp:s.run&&s.run.i===i?s.run.p:0})});
+      if(e.acts.some(a=>this.kindOf(e,a)==='heat')||s.vs.some(v=>v.type==='burner'))out.push({key:'lighter',art:'lighter',c:'#C2385A',name:'Lighter',sub:'Hold at burner to ignite',drag:'hover',k:'ignite',pp:s.ign||0,next:(s.run&&s.run.kind==='heat'&&!s.lit[s.run.vi])||s.vs.some((v,i)=>v.type==='burner'&&!s.lit[i]&&s.done.length===0)});
+    }
+    if(mode==='titr'){const c=e.titr,t=s.titr;
+      out.push({key:'fillB',n:'1',art:'bottle',c:c.bc,name:'Titrant · '+c.bl,sub:'Hold over burette to fill',drag:'hover',k:'pour',done:t.fill>=1,pp:t.fill});
+      out.push({key:'pip',n:'2',art:'pipette',c:c.fc==='#f5b800'?'#eaf4ff':c.fc,name:'Pipette · '+c.fl.split('+')[0].trim(),sub:'Hold over flask to transfer',drag:'hover',k:'pour',done:t.pip>=1,pp:t.pip});
+      let n=3;if(c.ind!=='kmno4')out.push({key:'ind',n:String(n++),art:'dropper',c:c.ind==='mo'?'#f07a1f':'#f5f5f5',name:c.ind==='mo'?'Methyl orange':'Phenolphthalein',sub:'2 drops into flask',drag:'hover',k:'pour',done:t.ind>=1,bl:t.pip<1?'Pipette the sample into the flask first.':null,pp:t.ind});
+      if(c.heat)out.push({key:'hot',n:String(n++),art:'hotplate',c:'#C77A12',name:'Hot plate',sub:'Slide under flask',drag:'drop',k:'place',done:!!t.hot,bl:t.pip<1?'Pipette the sample first.':null});
+    }
+    if(mode==='heat'){const h=s.heat;
+      out.push({key:'thermo',n:'1',art:'thermo',c:'#e2393b',name:'Thermometer',sub:'Drop into beaker',drag:'drop',k:'place',done:h.thermoIn});
+      out.push({key:'burner',n:'2',art:'burner',c:'#4d7cff',name:'Bunsen burner',sub:'Slide under tripod',drag:'drop',k:'place',done:h.burner});
+      out.push({key:'lighter',n:'3',art:'lighter',c:'#C2385A',name:'Lighter',sub:'Hold at burner to ignite',drag:'hover',k:'ignite',done:h.on,bl:!h.burner?'Place the burner under the tripod first.':null,pp:s.ign||0});
+    }
+    if(mode==='chroma'){const ch=s.chroma;
+      e.chroma.samples.forEach((sm,j)=>out.push({key:'cap'+j,n:String(j+1),art:'capillary',c:sm.comps[0].c,name:'Capillary · '+sm.l,sub:'Drop on strip '+(j+1)+' baseline',drag:'drop',k:'place',done:ch.spot[j]}));
+      out.push({key:'lid',n:String(e.chroma.samples.length+1),art:'lid',c:'#4b555c',name:'Jar lid',sub:'Lower strips & cover jar',drag:'drop',k:'place',done:ch.lid,bl:ch.spot.some(x=>!x)?'Spot every strip with its capillary first.':null});
+    }
+    if(mode==='kin'){const k=s.kin;
+      out.push({key:'thio',n:'1',art:'bottle',c:'#eef3f7',name:(k.stopped?'Fresh ':'')+'Na₂S₂O₃ '+k.conc.toFixed(2)+' M · 50 mL',sub:k.stopped?'New run · pour into flask':'Hold over flask to pour',drag:'hover',k:'pour',done:k.thio>=1&&!k.stopped,pp:k.stopped?0:k.thio,bl:k.run?'A run is in progress — press STOP first.':null});
+      out.push({key:'hcl',n:'2',art:'cylinder',c:'#eaf4ff',name:'1 M HCl · 10 mL',sub:'Pour in — stopwatch starts',drag:'hover',k:'pour',done:k.hcl>=1&&!k.stopped,pp:k.stopped?0:k.hcl,bl:k.stopped||k.thio<1?'Pour the thiosulphate into the flask first.':null});
+    }
+    let nxSet=false;
+    return out.map(o=>{const r={n:'',bl:null,next:false,pp:0,done:false,...o};if(mode!=='steps'&&!nxSet&&!r.done&&!r.bl){r.next=true;nxSet=true}return r});
+  }
+  tgtSpecs(key,s,e){
+    const mode=e.mode||'steps';
+    if(mode==='steps'){
+      if(key==='lighter'){const L=[];s.vs.forEach((v,i)=>{if(v.type==='burner'&&!s.lit[i])L.push({sel:`[data-vt="${i}"]`,id:i,z:'on'});if(s.burn[i]&&!s.lit[i])L.push({sel:`[data-bt="${i}"]`,id:i,z:'on',bt:1})});return L}
+      const i=+key.slice(1),a=e.acts[i],k=this.kindOf(e,a);return[...new Set(a.fx.map(f=>f[0]))].map(vi=>({sel:`[data-vt="${vi}"]`,id:vi,z:k==='pour'?'above':'on'}));
+    }
+    if(mode==='titr')return key==='fillB'?[{sel:'[data-tt="bur"]',id:'bur',z:'above'}]:[{sel:'[data-tt="flask"]',id:'flask',z:key==='hot'?'on':'above'}];
+    if(mode==='heat')return key==='lighter'?[{sel:'[data-tt="burner"]',id:'burner',z:'on'}]:[{sel:'[data-tt="beaker"]',id:'beaker',z:'on'}];
+    if(mode==='chroma')return key==='lid'?[{sel:'[data-tt="jar"]',id:'jar',z:'on'}]:[{sel:`[data-st="${key.slice(3)}"]`,id:+key.slice(3),z:'on'}];
+    if(mode==='kin')return[{sel:'[data-tt="flask"]',id:'flask',z:'above'}];
+    return[];
+  }
+  hitTest(x,y,specs){let best=null,bd=1e9;for(const sp of specs){const el=document.querySelector(sp.sel);if(!el)continue;const r=el.getBoundingClientRect();if(!inZone(sp.z,r,x,y))continue;const dd=Math.abs((r.left+r.right)/2-x);if(dd<bd){bd=dd;best={...sp,rect:{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}}}}return best}
+  startDrag(it,ev){
+    if(ev.button>0)return;if(ev.preventDefault)ev.preventDefault();
+    if(it.done)return this.msg('“'+it.name+'” is already done ✓');if(it.bl)return this.msg(it.bl);
+    const s=this.S(),e=this.exp();this.drag={key:it.key,art:it.art,c:it.c,drag:it.drag,k:it.k,name:it.name,x:ev.clientX,y:ev.clientY,hov:null,specs:this.tgtSpecs(it.key,s,e)};
+    this.put({dgT:Date.now(),msg:null});
+  }
+  wm(ev){
+    if(this.knob){const k=this.knob,s=this.S();const ang=Math.max(0,Math.min(90,k.a0+(ev.clientX-k.x0)*1.1));if(s.titr)this.put({titr:{...s.titr,ang}});return}
+    if(this.orb){const d=this.orb;this.put({rotY:Math.max(-40,Math.min(40,d.r+(ev.clientX-d.x)*.25)),tilt:Math.max(-32,Math.min(-4,d.t-(ev.clientY-d.y)*.15)),view:''});return}
+    if(!this.drag)return;const d=this.drag;d.x=ev.clientX;d.y=ev.clientY;d.hov=d.fin?null:this.hitTest(d.x,d.y,d.specs);this.put({dgT:Date.now()});
+  }
+  wu(ev){
+    if(this.knob){this.knob=null;return}if(this.orb){this.orb=null;return}
+    if(!this.drag)return;const d=this.drag;this.drag=null;const s=this.S(),e=this.exp();
+    if(e&&d.hov&&!d.fin)this.drop(d,s,e);else if(e&&!d.fin&&d.drag==='drop')this.msg('Drop “'+d.name+'” on the glowing apparatus.');
+    else if(e&&!d.fin&&d.drag==='hover'){const p=this.curPct(s,e,d);if(p>0&&p<100)this.msg('Paused at '+p+'% — drag it back over the vessel to continue.')}
+    this.put({dgT:Date.now()});
+  }
+  drop(d,s,e){
+    const mode=e.mode||'steps',log=r=>this.logRow(r);
+    if(mode==='steps'){if(d.key==='lighter')return;const i=+d.key.slice(1),vi=d.hov.id;
+      if(d.k==='heat'){if(s.run&&s.run.i===i)return;this.put({burn:{...s.burn,[vi]:1},run:{i,vi,kind:'heat',p:0,auto:true},active:vi});if(!s.lit[vi])this.msg('Burner placed under '+s.vs[vi].l+'. Now drag the Lighter to the burner and hold it there to ignite.')}
+      else if(d.k==='wait'){this.put({run:{i,vi,kind:'wait',p:0,auto:true},active:vi})}
+      else{const p=this.curPct(s,e,d);if(p>0&&p<100)this.msg('Paused at '+p+'% — drag it back over the vessel to continue.')}}
+    if(mode==='titr'&&d.key==='hot'){this.put({titr:{...s.titr,hot:1}});log({a:'—',b:'Hot plate on',c:'Flask placed on hot plate; warming towards 65 °C.'})}
+    if(mode==='heat'){const h=s.heat;if(d.key==='thermo'){this.put({heat:{...h,thermoIn:true}});log({a:fmtT(h.t),b:h.T.toFixed(1)+' °C',c:'Thermometer placed in ice; bulb fully immersed.'})}
+      if(d.key==='burner'){this.put({heat:{...h,burner:true}});this.msg('Burner in place. Drag the Lighter to it and hold to ignite.')}}
+    if(mode==='chroma'){const ch=s.chroma;if(d.key.startsWith('cap')){const j=+d.key.slice(3);const spot=ch.spot.slice();spot[j]=true;this.put({chroma:{...ch,spot}});log({a:e.chroma.samples[j].l,b:'Spot applied',c:'Small concentrated spot on the pencil baseline.'})}
+      if(d.key==='lid'){this.put({chroma:{...ch,lid:true,run:true}});log({a:'—',b:'Strips lowered',c:'Strips dip into '+e.chroma.solvent+'; jar covered. Solvent rises by capillary action.'})}}
+  }
+  curPct(s,e,d){const mode=e.mode||'steps';let p=0;
+    if(d.key==='lighter')p=s.ign||0;
+    else if(mode==='steps'){const i=+d.key.slice(1);p=s.run&&s.run.i===i?s.run.p:0}
+    else if(mode==='titr')p=d.key==='fillB'?s.titr.fill:d.key==='pip'?s.titr.pip:s.titr.ind;
+    else if(mode==='kin')p=d.key==='thio'?(s.kin.stopped?0:s.kin.thio):s.kin.hcl;
+    return Math.round(p*100)}
+  onKStop(){const s=this.S(),k=s.kin;if(!k||!k.run)return;this.stopKin(s,k,false)}
+  stopKin(s,k,missed){const t=k.t;const runs=[...k.runs,{conc:k.conc,temp:k.temp,t}];this.put({kin:{...k,run:false,stopped:true,runs}});
+    this.logRow({a:k.conc.toFixed(2)+' M · '+k.temp+' °C',b:t.toFixed(1)+' s'+(missed?' (late)':''),c:(1/t).toFixed(4)});
+    const err=Math.abs(t-k.tEnd)/k.tEnd;this.msg(missed?'You missed the moment — the cross vanished long ago. Try again and watch the top view closely.':err<.08?'Well timed! Recorded t = '+t.toFixed(1)+' s.':'Recorded t = '+t.toFixed(1)+' s. '+(t<k.tEnd?'A little early — the cross was still faintly visible.':'A little late.'));
+    if(runs.length>=3)this.markDone()}
+
+  tick(){const cur=this.S();const now=Date.now();this._dt=Math.min(10,Math.max(.2,(now-(this._lt||now-100))/100));this._lt=now;let u=null;try{u=this.step(cur)}catch(err){console.error(err)}if(u&&Object.keys(u).length)this.put(u)}
+  applyAct(s,e,i,upd,addLog,markDone){const a=e.acts[i];const vs=s.vs.map(v=>({...v}));const lit={...(upd.lit||s.lit)},burn={...s.burn};
+    a.fx.forEach(([vi,pt])=>{vs[vi]={...vs[vi],...pt};if(pt.heat===true){lit[vi]=1;burn[vi]=1}if(pt.heat===false){lit[vi]=0;burn[vi]=0}});
+    const dA=[...s.done,i];Object.assign(upd,{vs,done:dA,run:null,lit,burn,active:a.fx[a.fx.length-1][0]});if(a.m)upd.m={...s.m,...a.m};addLog({a:String(i+1),b:a.t,c:a.o});if(dA.length===e.acts.length)markDone();
+    if(this.drag&&this.drag.key==='a'+i){this.drag.fin=1;this.drag.hov=null}}
+  step(s){
+    const e=s.ready&&window.LAB&&window.LAB.exps.find(x=>x.id===s.id);if(!e)return null;const sp=(Number(this.props.simSpeed??1)||1)*(this._dt||1);
+    let upd={},log=s.log,done=false;const addLog=r=>{log=[...log,r]};const markDone=()=>{done=true};const mode=e.mode||'steps';const d=this.drag;
+    const hov=d&&d.hov&&d.drag==='hover'&&!d.fin;const note=t=>{if(!s.msg||s.msg.u<Date.now()+1500)upd.msg={t,u:Date.now()+2600}};
+    if(this.props.autoRotate&&!this.orb&&!d)upd.rotY=Math.sin(Date.now()/3200)*28;
+    if(mode==='steps'){
+      if(hov){if(d.key==='lighter'){const vi=d.hov.id;const ig=(s.ign||0)+.1*sp;if(ig>=1){upd.lit={...s.lit,[vi]:1};upd.ign=0;addLog({a:'—',b:'Burner lit',c:'Blue non-luminous flame obtained'+(s.vs[vi].type==='burner'?'.':' under '+s.vs[vi].l+'.')});d.fin=1;d.hov=null}else upd.ign=ig}
+        else{const i=+d.key.slice(1);if(!s.done.includes(i)){const vi=d.hov.id;
+          if(d.k==='flame'&&s.vs[vi].type==='burner'&&!s.lit[vi])note('The burner is off — drag the Lighter to it first.');
+          else{const r=s.run&&s.run.i===i?s.run:{i,vi,kind:d.k,p:0};const p=Math.min(1,r.p+(HOVR[d.k]||.05)*sp);if(p>=1)this.applyAct(s,e,i,upd,addLog,markDone);else{upd.run={...r,vi,p};upd.active=vi}}}}}
+      const r=upd.run!==undefined?upd.run:s.run;
+      if(r&&r.auto&&!upd.done){const L=upd.lit||s.lit;if(!(r.kind==='heat'&&!L[r.vi])){const p=Math.min(1,r.p+.03*sp);if(p>=1)this.applyAct({...s,lit:L},e,r.i,upd,addLog,markDone);else upd.run={...r,p}}}
+    }
+    if(mode==='titr'){const c=e.titr;let t=s.titr;
+      if(hov){const T={...t};
+        if(d.key==='fillB'&&t.fill<1){T.fill=Math.min(1,t.fill+.03*sp);if(T.fill>=1){d.fin=1;d.hov=null}if(T.fill>=1)addLog({a:'—',b:'Burette filled',c:'Burette filled with '+c.bl+'; initial reading 0.00 mL (lower meniscus).'})}
+        if(d.key==='pip'&&t.pip<1){T.pip=Math.min(1,t.pip+.04*sp);if(T.pip>=1){d.fin=1;d.hov=null;T.hist=[[0,this.tPH(e,0)]];addLog({a:'—',b:'Sample pipetted',c:c.fl+' transferred to the conical flask.'})}}
+        if(d.key==='ind'&&t.ind<1){T.ind=Math.min(1,t.ind+.12*sp);if(T.ind>=1){d.fin=1;d.hov=null}if(T.ind>=1)addLog({a:'—',b:'Indicator added',c:c.ind==='mo'?'Solution turns yellow (methyl orange in basic medium).':'Solution stays colourless (phenolphthalein in acid).'})}
+        t=T}
+      if(t.hot&&t.T<65){const T0=t.T;t={...t,T:Math.min(65,t.T+1.2*sp)};if(T0<60&&t.T>=60)addLog({a:'—',b:'Flask at 60 °C',c:'Ready to titrate — reaction is fast enough now.'})}
+      if(t.ang>3){if(this.tReady(e,t)){if(t.vol<50){const vol=Math.min(50,Math.round((t.vol+t.ang/90*.3*sp)*100)/100);t={...t,vol,hist:[...t.hist,[vol,this.tPH(e,vol)]],flash:Date.now()+500}}}else note('Set up first: '+this.tMissing(e,t)+'.')}
+      else if(Date.now()<t.flash+200)upd.tickN=(s.tickN||0)+1;
+      if(t!==s.titr)upd.titr=t}
+    if(mode==='heat'){let h=s.heat;
+      if(hov&&d.key==='lighter'&&!h.on){const ig=(s.ign||0)+.1*sp;if(ig>=1){h={...h,on:true};upd.ign=0;addLog({a:fmtT(h.t),b:h.T.toFixed(1)+' °C',c:'Burner lit — heating begins.'});d.fin=1;d.hov=null}else upd.ign=ig}
+      if(h.on){h={...h,ev:{...h.ev},pts:h.pts.slice()};const n=Math.max(1,Math.round(2*sp));
+        for(let i=0;i<n;i++){h.t+=1;
+          if(h.ice>0){if(h.T<0)h.T=Math.min(0,h.T+.3);else{h.T=0;h.ice=Math.max(0,h.ice-1/70)}}
+          else if(h.T<100)h.T=Math.min(100,h.T+.4);else{h.boilT++;h.fill=Math.max(.3,h.fill-.0006)}
+          if(!h.ev.melt&&h.T>=0&&h.ice>0){h.ev.melt=1;addLog({a:fmtT(h.t),b:'0.0 °C',c:'Ice begins to melt; temperature stays at 0 °C.'})}
+          if(!h.ev.melted&&h.ice<=0){h.ev.melted=1;addLog({a:fmtT(h.t),b:'0.0 °C',c:'All ice has melted; temperature starts rising.'})}
+          if(!h.ev.w50&&h.T>=50){h.ev.w50=1;addLog({a:fmtT(h.t),b:'50.0 °C',c:'Water warming steadily.'})}
+          if(!h.ev.boil&&h.T>=100){h.ev.boil=1;addLog({a:fmtT(h.t),b:'100.0 °C',c:'Water boils vigorously; temperature constant at 100 °C.'})}
+          if(!h.ev.done&&h.boilT>=30){h.ev.done=1;markDone()}
+          if(h.t%5===0)h.pts.push([h.t,h.T])}}
+      if(h!==s.heat)upd.heat=h}
+    if(mode==='chroma'&&s.chroma.run){const p=Math.min(1,s.chroma.p+.008*sp);upd.chroma={...s.chroma,p,run:p<1};if(p>=1){addLog({a:'—',b:'Run complete',c:'Solvent front reached 10.0 cm; components separated.'});markDone()}}
+    if(mode==='kin'){let k=s.kin;
+      if(hov&&!k.run){const K={...k};
+        if(d.key==='thio'){if(K.stopped)Object.assign(K,{thio:0,hcl:0,t:0,tEnd:0,stopped:false});if(K.thio<1){K.thio=Math.min(1,K.thio+.04*sp);if(K.thio>=1){d.fin=1;d.hov=null}}}
+        if(d.key==='hcl'&&K.thio>=1&&K.hcl<1&&!K.stopped){K.hcl=Math.min(1,K.hcl+.07*sp);if(K.hcl>=1){K.run=true;K.t=0;K.tEnd=(4/K.conc)*Math.pow(2,-(K.temp-25)/10)*(1+(Math.random()-.5)*.04);upd.msg={t:'Stopwatch started! Look at the top view and press STOP the moment the ✕ disappears.',u:Date.now()+5000};d.fin=1;d.hov=null}}
+        k=K}
+      if(k.run){k={...k,t:k.t+.4*sp};if(k.t>=k.tEnd*1.8){upd.kin=k;this._s={...s,...upd,log};setTimeout(()=>this.stopKin(this.S(),this.S().kin,true),0)}}
+      if(k!==s.kin)upd.kin=k}
+    if(log!==s.log)upd.log=log;
+    if(done){const c={...s.completed,[s.id]:true};upd.completed=c;try{localStorage.setItem(KEY,JSON.stringify(c))}catch(err){}}
+    if(d&&(hov||(s.run&&s.run.auto)))upd.dgT=Date.now();
+    return upd;
+  }
+
+  renderVals(){
+    this.ensure();this._s=this.state;
+    const L=window.LAB,s=this.state,P=this.props,e=s.ready&&this.exp(),d=this.drag;
+    const cats=L?L.cats:{},exps=L?L.exps:[];
+    const q=s.q.trim().toLowerCase();
+    const filt=exps.filter(x=>(!s.grade||x.g.includes(s.grade))&&(!q||(x.title+' '+x.cat).toLowerCase().includes(q)));
+    const groups=Object.keys(cats).map(c=>{const items=filt.filter(x=>x.cat===c).sort((a,b)=>a.g[0]-b.g[0]).map(x=>({title:x.title,gl:'Class '+x.g.join(' · '),done:!!s.completed[x.id],bg:x.id===s.id?'#FFFFFF':'transparent',bd:x.id===s.id?cats[c]:'transparent',onClick:()=>this.load(x.id)}));return{cat:c,color:cats[c],n:items.length,items}}).filter(g=>g.items.length);
+    const grades=[0,6,7,8,9,10,11,12].map(g=>{const on=s.grade===g;return{label:g?'Class '+g:'All',bg:on?'#1B2420':'transparent',fg:on?'#fff':'#1B2420',bd:on?'#1B2420':'#C9CFC6',onClick:()=>this.put({grade:g,listOpen:true})}});
+    const stageH=Math.round(Math.max(440,Math.min(700,s.vh*.54)));const benchScale=+Math.max(.85,Math.min(1.3,stageH/520)).toFixed(3);
+    const base={grades,groups,noResults:!groups.length,q:s.q,onSearch:ev=>this.put({q:ev.target.value,listOpen:true}),doneCount:Object.keys(s.completed).length,total:exps.length,
+      listOpen:s.listOpen,infoOpen:s.infoOpen,listBtnBg:s.listOpen?'#E6F4EE':'#fff',infoBtnBg:s.infoOpen?'#E6F4EE':'#fff',
+      toggleList:()=>this.put({listOpen:!s.listOpen}),toggleInfo:()=>this.put({infoOpen:!s.infoOpen}),
+      onFull:()=>{try{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{})}catch(err){}},
+      userSel:d||this.knob?'none':'auto',stageH,benchScale,
+      bubbles:BUB,crystals:CRY,puffs:PUFF,showLabels:P.showLabels??true,stageT:`rotateX(${s.tilt}deg) rotateY(${s.rotY}deg)`,
+      onPD:ev=>{this.orb={x:ev.clientX,y:ev.clientY,r:s.rotY,t:s.tilt}},
+      views:Object.keys(VIEWS).map(k=>({label:k,bg:s.view===k?'rgba(127,240,207,.22)':'rgba(255,255,255,.06)',onClick:()=>this.put({rotY:VIEWS[k][0],tilt:VIEWS[k][1],view:k})})),
+      onReset:()=>this.load(s.id),onReveal:()=>this.put({reveal:true}),
+      tabs:[['theory','Theory'],['obs','Observations'],['result','Result'],['viva','Viva']].map(([k,l])=>({label:l,fg:s.tab===k?'#0E7C66':'#5F6B64',bd:s.tab===k?'#0E7C66':'transparent',onClick:()=>this.put({tab:k})})),
+      tab:{theory:s.tab==='theory',obs:s.tab==='obs',result:s.tab==='result',viva:s.tab==='viva'},
+      exp:{cat:'',title:'',aim:'',th:'',app:'',eq:'',safety:'',res:''},expGrades:'',modeLabel:'',catColor:'#0E7C66',latest:'Loading lab…',latestTag:'Bench',latestC:'#7ff0cf',
+      mt:{},titV:{},heatV:{},chV:{},kinV:{},titr:{},tg:{},items:[],vessels:[],rowGap:40,progPct:0,progLabel:'',dgOn:false,dg:{},hasCtl:false,
+      timerVal:'00:00',timerDeg:0,proc:[],viva:[],obsRows:[],obsHead:{a:'',b:'',c:''},obsCols:'1fr',hasObs:false,noObs:true,calc:[],hasCalc:false,resUnlocked:false,resLocked:true};
+    if(!e)return base;
+    const mode=e.mode||'steps';
+    const isSteps=mode==='steps',isTitr=mode==='titr',isHeat=mode==='heat',isChroma=mode==='chroma',isKin=mode==='kin';
+    const mt={};(e.meters||[]).forEach(k=>mt[k]=true);
+    const items=this.items(s,e);this._items=items;
+    const out={...base,exp:e,isSteps,isTitr,isHeat,isChroma,isKin,mt,hasMeters:(e.meters||[]).length>0,catColor:cats[e.cat]||'#0E7C66',expGrades:'Class '+e.g.join(' · '),hasCtl:isTitr||isHeat||isKin,
+      modeLabel:{steps:'Hands-on bench',titr:'Hands-on titration',heat:'Heating curve',chroma:'Chromatography',kin:'Kinetics · you time it'}[mode],hasEq:!!e.eq,hasSafety:!!e.safety};
+    const specs=d?d.specs:[];const hovSel=d&&d.hov?d.hov.sel:null;
+    const nextIt=items.find(it=>it.next);const hintSpecs=!d&&nextIt&&!(s.run&&s.run.auto&&nextIt.key!=='lighter')?this.tgtSpecs(nextIt.key,s,e):[];
+    const T_=new Set((d?specs:hintSpecs).map(x=>x.sel));
+    out.tg={bur:T_.has('[data-tt="bur"]'),flask:T_.has('[data-tt="flask"]'),beaker:T_.has('[data-tt="beaker"]'),burner:T_.has('[data-tt="burner"]'),jar:T_.has('[data-tt="jar"]')};
+    out.items=items.map(it=>{const dragging=d&&d.key===it.key;return{...it,hasN:!!it.n,pp:Math.round((it.pp||0)*100),
+      bg:it.done?'#F1F4EF':dragging?'#E6F4EE':it.next?'#F0FAF6':'#fff',bd:dragging||it.next?'#0E7C66':it.done?'#DDE5DF':'#E1E4DD',op:it.bl&&!it.done?.55:1,artOp:dragging?.25:1,
+      anim:it.next&&!d?'pulse 1.6s ease-in-out infinite':'none',nbg:it.done?'#0E7C66':it.next?'#1B2420':'#E3E6DF',nfg:it.done||it.next?'#fff':'#3C4640',onDown:ev=>this.startDrag(it,ev)}});
+    let T=27,ph=null,MM=s.m,finished=false,prog=[0,1],obsHead={a:'#',b:'Action',c:'Observation'},obsRows=s.log,obsCols='28px minmax(0,1fr) minmax(0,1.4fr)',calc=[],proc=[];
+    const lastLog=s.log.length?s.log[s.log.length-1].c:'';let latest=lastLog,latestTag='Observation';
+    if(isSteps){
+      const run=s.run,A=run?e.acts[run.i]:null;const V=s.vs.slice();
+      if(run&&run.p>0){A.fx.forEach(([vi,pt])=>{V[vi]=lerpV(s.vs[vi],pt,run.p)});if(A.m){MM={...s.m};for(const k in A.m){const tv=A.m[k];MM[k]=typeof tv==='number'?(s.m[k]??0)+(tv-(s.m[k]??0))*run.p:(run.p>=1?tv:s.m[k])}}}
+      const allTube=V.every(v=>v.type==='tube');const slotMin=allTube||V.length>4?84:0;const hasBeam=V.some(v=>v.beam);
+      out.rowGap=hasBeam?72:V.length>5?8:V.length>3?16:40;
+      out.vessels=V.map((v,i)=>{const dd=DIM[v.type]||DIM.tube;const liqH=Math.round((v.fill||0)*dd.max);const a=v.a??.3;const sel=`[data-vt="${i}"]`;const tgt=T_.has(sel),hv=hovSel===sel;const lit=!!s.lit[i];
+        return{idx:i,w:dd.w,h:dd.h,rad:dd.rad,slotW:Math.max(dd.w,slotMin),labW:Math.max(dd.w+30,slotMin+4),shW:dd.w+20,shM:-(dd.w+20)/2,isGlass:['tube','beaker','dish'].includes(v.type),isFlask:v.type==='flask',isBurner:v.type==='burner',
+          liqH,liq:rgba(v.c||'#dcecff',a),surf:rgba(mixW(v.c||'#dcecff',.35),Math.min(1,a+.12)),hasPpt:!!v.ppt&&(v.pa||0)>0,pptH:Math.round((v.pa||0)*dd.ppt),pptBg:v.ppt?`linear-gradient(${rgba(v.ppt,.7)},${v.ppt})`:'none',
+          hasTop:!!v.top,topH:v.top?Math.round(v.top.h*dd.max):0,topBg:v.top?rgba(v.top.c,.88):'none',hasRing:!!v.ring,ring:v.ring||'transparent',bub:!!v.bub&&(liqH>0||v.type==='flask'),
+          fume:!!v.fume,fumeC:v.fume?rgba(v.fume,.5):'transparent',hasCry:!!v.cry,cry:v.cry||'#fff',hasSolid:!!v.solid&&v.type!=='flask',hasSolidF:!!v.solid&&v.type==='flask',solidC:v.solid?v.solid.c:'#999',solidHi:v.solid?mixW(v.solid.c,.45):'#ccc',solidL:v.solid?v.solid.l:'',solidH:Math.round(dd.h*.86),
+          heatShow:v.type!=='burner'&&(!!v.heat||!!s.burn[i]),flameOn:v.type==='burner'?lit:(!!v.heat||lit),unlit:v.type==='burner'&&!lit,rack:v.type==='tube'&&!v.heat&&!s.burn[i],standW:dd.stand,flame:v.flame||'#5b8cff',flameGlow:rgba(v.flame||'#5b8cff',.45),
+          btTarget:T_.has(`[data-bt="${i}"]`),
+          beam:!!v.beam,beamA:v.beam==='scatter'?.9:.1,beamB:v.beam==='scatter'?.55:.06,torchTop:Math.round(dd.h-liqH*.56-2),beamTop:Math.round(dd.h-liqH*.56+1),
+          wall:v.mirror?'linear-gradient(90deg,#7d858c,#eef1f4 30%,#a3abb2 55%,#e3e7ea 80%,#8d959b)':'linear-gradient(90deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.12))',
+          target:tgt,ringStyle:hv?'solid':'dashed',ringBg:hv?'rgba(127,240,207,.12)':'rgba(127,240,207,.04)',ringSh:hv?'0 0 26px rgba(127,240,207,.55)':'none',
+          hasTag:!!(run&&run.auto&&run.vi===i),tag:run&&run.auto&&run.vi===i?this.tagText(run,A,V[i],!!s.lit[i]):'',
+          l:v.l,labC:tgt?'#7ff0cf':i===s.active?'#cfeee4':'#b9c6cc'}});
+      const av=V[s.active]||{};T=av.t??27;ph=av.ph??null;
+      prog=[s.done.length,e.acts.length];finished=s.done.length===e.acts.length;
+      proc=e.acts.map((a,i)=>({n:i+1,t:a.t}));
+      if(run&&run.auto){latestTag='In progress';latest=run.kind==='heat'?(s.lit[run.vi]?'Heating '+s.vs[run.vi].l+'… watch the contents and the thermometer.':'Burner is under '+s.vs[run.vi].l+' — drag the Lighter to it and hold to ignite.'):'Time-lapse running for “'+A.t+'”…'}
+      else if(!lastLog&&nextIt){latestTag='Start';latest='Drag “'+nextIt.name+'” from the tray onto the glowing apparatus.'}
+      else if(finished){latestTag='Complete';latest=lastLog+'  ·  Experiment complete — open Result.'}
+    }
+    if(isTitr){
+      const t=s.titr,c=e.titr;const ready=this.tReady(e,t);ph=t.pip>0?this.tPH(e,t.vol):null;T=t.T;
+      out.titr=c;
+      const levelH=t.fill<1?Math.round(t.fill*176):Math.round((50-t.vol)/50*174)+2;const flowing=t.ang>3&&ready&&t.vol<50;
+      const check=[{l:'Fill burette',ok:t.fill>=1},{l:'Pipette sample',ok:t.pip>=1}];if(c.ind!=='kmno4')check.push({l:'Add indicator',ok:t.ind>=1});if(c.heat)check.push({l:'Heat to 60 °C',ok:t.T>=60});check.push({l:'Open tap & titrate',ok:t.vol>0});
+      out.titV={levelH,bc:rgba(c.bc,c.ba),tagTop:Math.max(2,Math.min(170,180-levelH-9)),read:t.fill<1?'empty':t.vol.toFixed(2)+' mL',cockBg:t.ang>3?'#7ff0cf':'#d9d2c0',cockRot:Math.round(t.ang),
+        drip:(flowing&&t.ang<=45)||Date.now()<t.flash&&!flowing,stream:flowing&&t.ang>45,streamH:Math.round(Math.max(20,150-t.pip*20)),dropC:rgba(c.bc,Math.max(.6,c.ba)),knobHint:ready&&t.vol===0&&t.ang<3,
+        flaskH:t.pip>0?Math.round(Math.min(112,6+t.pip*32+t.ind*2+t.vol*1.6)):0,fc:this.tColor(e,t),hotFx:t.T>=55,
+        tileH:t.hot?28:8,tileBg:t.hot?'linear-gradient(#c2541d 0 5px,#3d464c 5px)':'#f2f2ee',tileSh:t.hot?'0 -6px 22px rgba(255,120,40,.55)':'none',flaskB:t.hot?40:20,
+        check:check.map(k=>({l:k.l,mark:k.ok?'✓':'○',bg:k.ok?'#E4F1EC':'#EEF0EB',fg:k.ok?'#0b4a3d':'#5F6B64'})),
+        flowLabel:t.ang<3?'Tap closed':'Tap '+Math.round(t.ang/90*100)+'% open',nTrials:t.trials.length,chart:c.ind!=='kmno4'&&t.hist.length>0,
+        pts:t.hist.map(([v,p])=>`${(36+Math.min(25,v)/25*270).toFixed(1)},${(150-p/14*135).toFixed(1)}`).join(' ')};
+      out.onKnob=ev=>{ev.stopPropagation();if(ev.preventDefault)ev.preventDefault();this.knob={x0:ev.clientX,a0:this.S().titr.ang}};
+      out.onTDrop=()=>{const tt=this.S().titr;if(!this.tReady(e,tt))return this.msg('Set up first: '+this.tMissing(e,tt)+'.');const vol=Math.min(50,Math.round((tt.vol+.05)*100)/100);this.put({titr:{...tt,vol,hist:[...tt.hist,[vol,this.tPH(e,vol)]],flash:Date.now()+700}})};
+      out.onTClose=()=>this.put({titr:{...this.S().titr,ang:0}});
+      out.onTRecord=()=>{const tt=this.S().titr;if(tt.vol<=0)return this.msg('Titrate first — drag the tap to let titrant into the flask.');const trials=[...tt.trials,{n:tt.trials.length+1,v:tt.vol}];this.put({titr:{...tt,trials,ang:0}});
+        const ep=tt.vol>=c.veq-0.02,over=tt.vol>c.veq+0.3;this.logRow({a:'T'+trials.length,b:'0.00 → '+tt.vol.toFixed(2)+' mL',c:over?'Overshot the end point — colour too dark. Repeat, slowing to drops near the end.':ep?'End point: '+c.endpoint.split('→')[1].trim()+'.':'Stopped before the end point.'});if(trials.length>=3)this.markDone()};
+      out.onTNew=()=>{const tt=this.S().titr;this.put({titr:{...tt,vol:0,pip:0,ind:c.ind==='kmno4'?1:0,hist:[],ang:0,flash:0,T:tt.hot?tt.T:27}});this.msg('Burette topped up to 0.00 mL. Rinse the flask and pipette a fresh sample.')};
+      obsHead={a:'Trial',b:'Burette reading',c:'Volume (mL)'};obsCols='44px minmax(0,1.2fr) minmax(0,1fr)';
+      obsRows=t.trials.map(r=>({a:String(r.n),b:'0.00 → '+r.v.toFixed(2),c:r.v.toFixed(2)}));
+      const vals=t.trials.map(r=>r.v);let Vc=null;
+      for(let i=vals.length-1;i>0&&Vc==null;i--)for(let j=i-1;j>=0;j--)if(Math.abs(vals[i]-vals[j])<=0.1){Vc=(vals[i]+vals[j])/2;break}
+      if(Vc==null&&vals.length)Vc=vals.reduce((a,b)=>a+b,0)/vals.length;
+      if(Vc)calc=[{t:'Concordant volume V = '+Vc.toFixed(2)+' mL'},...c.calc(Vc).map(x=>({t:x}))];
+      prog=[Math.min(3,t.trials.length),3];finished=t.trials.length>=3;
+      if(flowing){latestTag='Titrating';latest='Titrant flowing at '+Math.round(t.ang/90*100)+'% — slow down near '+(c.veq-1).toFixed(0)+' mL and add drop by drop. End point: '+c.endpoint+'.'}
+      else if(!lastLog&&nextIt){latestTag='Start';latest='Drag “'+nextIt.name+'” from the tray onto the glowing apparatus.'}
+      else if(ready&&t.vol===0){latestTag='Ready';latest='Everything set. Drag the burette tap sideways to open it — further = faster flow.'}
+      proc=[{n:1,t:'Drag the titrant bottle over the burette and hold to fill; reading 0.00 mL.'},{n:2,t:'Drag the pipette over the flask and hold to transfer '+c.fl+'.'},...(c.ind!=='kmno4'?[{n:3,t:'Add 2 drops of indicator with the dropper.'}]:[]),...(c.heat?[{n:4,t:'Slide the hot plate under the flask; wait for 60–70 °C.'}]:[]),{n:5,t:'Drag the tap to open it; swirl-add titrant, then drop by drop near the end point ('+c.endpoint+').'},{n:6,t:'Record the reading; start a new trial until two readings agree within 0.1 mL.'}].map((x,i)=>({n:i+1,t:x.t}));
+    }
+    if(isHeat){
+      const h=s.heat;T=h.T;
+      const iceN=h.ice>0?Math.ceil(h.ice*6):0;const sz=Math.round(22+h.ice*12);
+      out.heatV={thermoIn:h.thermoIn,burner:h.burner,colH:Math.round(Math.max(0,(h.T+10)/120)*240),liqH:Math.round((h.ice>0?.3+.25*(1-h.ice):h.fill+.05)*168*.9),boil:h.T>=99.9&&h.on,steam:h.T>=90,on:h.on,
+        ice:ICE.slice(0,iceN).map(c=>({...c,s:sz})),
+        phase:h.ice>0?(h.T<0?'solid ice warming':'melting (ice + water)'):h.T<100?'liquid water heating':'boiling',
+        pts:h.pts.map(([t,v])=>`${(36+Math.min(600,t)/600*270).toFixed(1)},${(150-(v+10)/120*135).toFixed(1)}`).join(' ')};
+      out.onBurnerOff=()=>{const hh=this.S().heat;if(hh.on){this.put({heat:{...hh,on:false}});this.msg('Gas turned off — heating stopped.')}};
+      obsHead={a:'Time',b:'Temp',c:'Observation'};obsCols='52px 70px minmax(0,1fr)';
+      prog=[h.ev.done?1:0,1];finished=!!h.ev.done;
+      if(!lastLog&&nextIt){latestTag='Start';latest='Drag “'+nextIt.name+'” from the tray onto the glowing apparatus.'}
+      else if(h.on&&!h.thermoIn){latestTag='Tip';latest='Heating — but without a thermometer you cannot read the temperature. Drop the thermometer in.'}
+      proc=[{n:1,t:'Drag the thermometer into the beaker of crushed ice (bulb immersed, not touching glass).'},{n:2,t:'Slide the Bunsen burner under the tripod.'},{n:3,t:'Hold the lighter at the burner to ignite; heat gently.'},{n:4,t:'Note the constant temperature while ice melts (melting point).'},{n:5,t:'Note the constant temperature while water boils (boiling point); plot the curve.'}];
+      out.timerVal=fmtT(h.t);out.timerDeg=(h.t%60)*6;
+      if(!h.thermoIn)out.mt={...mt,thermo:true};
+    }
+    if(isChroma){
+      const ch=s.chroma,cc=e.chroma;const frontPx=20+ch.p*260;
+      out.chV={jarW:Math.max(200,cc.samples.length*82+80),frontPx:Math.round(frontPx),lid:ch.lid,raise:ch.lid?0:-40,
+        strips:cc.samples.map((sm,j)=>({j,l:sm.l,spotted:ch.spot[j],target:T_.has(`[data-st="${j}"]`),spots:sm.comps.map(cp=>{const b=44+cp.rf*Math.max(0,frontPx-44);const w=14+ch.p*4,hh=12+ch.p*10;return{b:Math.round(b-hh/2),w:Math.round(w),h:Math.round(hh),m:-Math.round(w/2),c:cp.c,o:(.95-ch.p*.15).toFixed(2)}})}))};
+      obsHead={a:'Sample',b:'Component · distance',c:'Rf'};obsCols='minmax(0,1fr) minmax(0,1.3fr) 48px';
+      obsRows=ch.p>=1?[...s.log,...cc.samples.flatMap(sm=>sm.comps.map(cp=>({a:sm.l,b:cp.n+' · '+(cp.rf*10).toFixed(1)+' cm',c:cp.rf.toFixed(2)})))]:s.log;
+      prog=[ch.p>=1?1:0,1];finished=ch.p>=1;
+      if(ch.run){latestTag='Running';latest='Solvent rising by capillary action… '+(ch.p*10).toFixed(1)+' cm of 10 cm. Watch the dyes separate.'}
+      else if(ch.p>=1){latestTag='Complete';latest='Solvent front at 10.0 cm. Components separated — Rf values are in Observations.'}
+      else if(nextIt){latestTag='Next';latest='Drag “'+nextIt.name+'” onto the glowing target.'}
+      proc=[{n:1,t:'Strips hang in the jar with a pencil baseline 2 cm from the bottom.'},{n:2,t:'Drag each capillary onto its strip to apply a small, concentrated spot.'},{n:3,t:'Drag the lid onto the jar — the strips lower into '+cc.solvent+' (below the spots).'},{n:4,t:'Watch the solvent rise ~10 cm and the components separate.'},{n:5,t:'Rf = distance moved by spot ÷ distance moved by solvent.'}];
+      out.timerVal=fmtT(ch.p*600);out.timerDeg=(ch.p*600%60)*6;
+    }
+    if(isKin){
+      const k=s.kin;const pr=(k.run||k.stopped)&&k.tEnd?Math.min(1,k.t/k.tEnd):0;T=k.temp;
+      const mk=(arr,key,fmt)=>arr.map(v=>{const on=k[key]===v;return{label:fmt(v),bg:on?'#1B2420':'#fff',fg:on?'#fff':'#1B2420',bd:on?'#1B2420':'#C9CFC6',onClick:()=>{const kk=this.S().kin;if(kk.run)return this.msg('Wait — a run is in progress.');this.put({kin:{...kk,[key]:v,thio:0,hcl:0,t:0,tEnd:0,stopped:false}})}}});
+      out.kinV={liqH:Math.round(74*(k.thio*.85+k.hcl*.15)),liq:rgba('#f3eed2',(.1+pr*.88).toFixed(3)),cloud:rgba('#f1ecd2',(Math.pow(pr,1.4)*.985).toFixed(3)),stopOn:k.run,concs:mk([.02,.04,.06,.08,.1],'conc',v=>v.toFixed(2)),temps:mk([25,30,35,40,45],'temp',v=>v+' °C'),n:k.runs.length,
+        dots:k.runs.map(r=>({x:(40+r.conc/.1*266).toFixed(1),y:(150-Math.min(.12,1/r.t)/.12*135).toFixed(1),c:KT[r.temp]||'#333'})),legend:[25,30,35,40,45].map(t=>({l:t+' °C',c:KT[t]}))};
+      out.onKStop=ev=>{if(ev&&ev.stopPropagation)ev.stopPropagation();this.onKStop()};
+      obsHead={a:'Conc · Temp',b:'Your time t',c:'Rate 1/t (s⁻¹)'};obsCols='minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1fr)';
+      prog=[Math.min(3,k.runs.length),3];finished=k.runs.length>=3;
+      if(k.run){latestTag='Watch';latest='Solution turning turbid as colloidal sulphur forms… press STOP when the ✕ vanishes.'}
+      else if(!lastLog&&nextIt){latestTag='Start';latest='Choose concentration and temperature, then drag “'+nextIt.name+'” over the flask.'}
+      if(k.runs.length>=2){const f=k.runs.slice().sort((a,b)=>a.t-b.t)[0];calc=[{t:'Fastest run: '+f.conc.toFixed(2)+' M at '+f.temp+' °C → t = '+f.t.toFixed(1)+' s'},{t:'Rate ∝ 1/t increases with [Na₂S₂O₃] and temperature.'}]}
+      proc=[{n:1,t:'Choose [Na₂S₂O₃] and water-bath temperature.'},{n:2,t:'Drag the thiosulphate bottle over the flask (on the ✕ paper) and pour 50 mL.'},{n:3,t:'Pour 10 mL of 1 M HCl — the stopwatch starts automatically.'},{n:4,t:'Look down through the flask; press STOP the moment the ✕ disappears.'},{n:5,t:'Repeat with other concentrations / temperatures; compare 1/t.'}];
+      out.timerVal=k.t.toFixed(1)+' s';out.timerDeg=(k.t%60)*6;
+    }
+    if(s.msg&&Date.now()<s.msg.u){latest=s.msg.t;latestTag='Lab assistant'}
+    let dgOn=false,dg={};
+    if(d){dgOn=true;const h=d.fin?null:d.hov,r=h&&h.rect,art=d.art,S=1.35,H=96*S;let x=d.x,y=d.y-H-18,rot=0,st=false,sx=0,sy=0,sw=5,dot=false;
+      if(r&&d.drag==='hover'){const cx=(r.left+r.right)/2;
+        if(['bottle','jar','cylinder'].includes(art)){x=cx+14;y=r.top-40;rot=118;st=true;sx=x;sy=y+2;dot=art==='jar';sw=art==='jar'?6:5}
+        else if(['dropper','pipette','funnel'].includes(art)){x=cx;y=r.top-H+(art==='funnel'?50:-6);st=true;sx=cx;sy=y+H-2;dot=art!=='pipette';sw=art==='pipette'?3:5}
+        else if(art==='magnet'){x=r.right+40;y=r.top+10}
+        else if(art==='torch'){x=r.left-44;y=r.top+10}
+        else if(art==='lens'||art==='tool'){x=r.right+34;y=r.top-30}
+        else if(art==='lighter'){x=(h.bt?cx+24:cx+30);y=h.bt?r.top-30:r.top+r.height*.5-40;rot=-30}
+        else if(art==='loop'||(art==='rod'&&d.k==='flame')){x=cx+14;y=r.top+r.height*.36-H+10;rot=22}
+        else{x=cx;y=r.top-H*.5}}
+      const sh=r?Math.max(10,r.bottom-r.height*.3-sy):0;const pct=this.curPct(s,e,d);
+      const label=d.fin?'Done ✓ — release':!r?(d.drag==='drop'?'Move to glowing target':'Move over glowing apparatus'):d.drag==='drop'?'Release to place':(VERB[art]||'Testing')+' · '+pct+'%';
+      dg={x:Math.round(x),y:Math.round(y),rot,st,sx:Math.round(sx),sy:Math.round(sy),sh:Math.round(sh),sw,sm:-Math.round(sw/2),
+        sc:dot?`repeating-linear-gradient(${rgba(d.c,.95)} 0 7px,transparent 7px 14px)`:`linear-gradient(${rgba(mixW(d.c,.25),.92)},${rgba(d.c,.8)})`,
+        art,c:d.c,lit:art==='lighter'&&!!r,label,lx:Math.round(d.x+26),ly:Math.round(d.y+14),lbg:r?'#0E7C66':'rgba(27,36,32,.85)'}}
+    const ampV=MM.amp??0,volt=MM.volt??0;
+    const tIn=!isHeat||s.heat.thermoIn;
+    Object.assign(out,{items:out.items,dgOn,dg,latest,latestTag,latestC:latestTag==='Lab assistant'?'#ffcf70':'#7ff0cf',
+      thermoVal:tIn?T.toFixed(1):'– –',thermoPct:tIn?Math.max(2,Math.min(100,(T+10)/120*100)).toFixed(1):0,phVal:ph==null?'– –':ph.toFixed(2),phPos:ph==null?50:(ph/14*100).toFixed(1),
+      massVal:(MM.mass??0).toFixed(2),voltVal:volt.toFixed(2),needle:(-80+volt/1.5*160).toFixed(1),ampVal:String(Math.round(ampV)),bulbBg:`rgba(255,${200+Math.round(ampV/220*40)},90,${Math.min(1,.12+ampV/200)})`,bulbGlow:Math.round(Math.min(1,ampV/200)*34),
+      progPct:Math.round(prog[0]/prog[1]*100),progLabel:isSteps?prog[0]+' / '+prog[1]+' steps':isTitr||isKin?prog[0]+' / 3 '+(isKin?'runs':'trials'):finished?'complete':'in progress',
+      obsHead,obsRows,obsCols,hasObs:obsRows.length>0,noObs:!obsRows.length,
+      resUnlocked:finished||s.reveal||!!s.completed[s.id],resLocked:!(finished||s.reveal||!!s.completed[s.id]),calc,hasCalc:calc.length>0,proc,
+      viva:(e.viva||[]).map(([qq,aa],i)=>({n:i+1,q:qq,a:aa,open:!!s.viva[i],closed:!s.viva[i],onClick:()=>this.put({viva:{...s.viva,[i]:true}})}))});
+    return out;
+  }
+}
+</script>
+
+
+<script>if(new URLSearchParams(location.search).get('embed')==='1')document.body.classList.add('spectropy-embed')</script></body></html>
