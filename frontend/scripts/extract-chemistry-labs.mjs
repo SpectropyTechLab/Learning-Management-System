@@ -31,6 +31,11 @@ const chemistryRuntimeId = Object.keys(manifest).find((id) => {
 });
 if (!chemistryRuntimeId) throw new Error('Chemistry Lab experiment runtime was not found.');
 const chemistryRuntime = decoded.get(chemistryRuntimeId).toString('utf8');
+const supportRuntimeId = Object.keys(manifest).find((id) => {
+  const entry = manifest[id];
+  return String(entry.mime || '').includes('javascript') && decoded.get(id)?.toString('utf8').includes('GENERATED from dc-runtime');
+});
+if (!supportRuntimeId) throw new Error('Chemistry Lab component runtime was not found.');
 
 const sandbox = { window: {}, console, Math, Date, setTimeout, clearTimeout };
 sandbox.window.window = sandbox.window;
@@ -85,8 +90,11 @@ for (const resource of externalResources) {
   fs.writeFileSync(path.join(outputDirectory, relativeName), decoded.get(resource.uuid));
 }
 fs.writeFileSync(path.join(outputDirectory, 'chemistry-labs-runtime.js'), chemistryRuntime);
+fs.writeFileSync(path.join(outputDirectory, 'support.js'), decoded.get(supportRuntimeId));
 
 let template = scriptJson('__bundler/template');
+template = template.replaceAll(supportRuntimeId, 'support.js');
+template = template.replaceAll(chemistryRuntimeId, 'chemistry-labs-runtime.js');
 template = template.replace(
   "let id=null;try{id=localStorage.getItem('chemlab-v2-last')}catch(e){}",
   "let id=new URLSearchParams(location.search).get('lab')||null;try{if(!id)id=localStorage.getItem('chemlab-v2-last')}catch(e){}",
