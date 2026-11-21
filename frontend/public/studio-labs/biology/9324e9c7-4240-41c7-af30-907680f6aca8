@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f3f0e8;color:#1c211f;font-family:'Instrument Sans',system-ui,sans-serif}
+a{color:#2f6b4f}a:hover{color:#1c211f}
+input[type=range]{accent-color:#2f6b4f;width:100%;margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;font-family:'Instrument Sans',system-ui,sans-serif;color:#1c211f">
+  <div style="flex:1 1 220px;max-width:290px;background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:14px">
+    <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="3">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">{{ g.label }}</div>
+        <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+          <button onClick="{{ it.on }}" style="text-align:left;padding:9px 11px;border-radius:8px;border:1px solid {{ it.bd }};background:{{ it.bg }};color:{{ it.fg }};cursor:pointer;display:flex;flex-direction:column;gap:2px">
+            <span style="font-weight:600;font-size:14px;line-height:1.3">{{ it.title }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.75">{{ it.cls }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="flex:3 1 560px;min-width:0;background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">{{ cls }}</span>
+      <span style="font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1.2">{{ title }}</span>
+      <span style="font-size:14px;line-height:1.5;color:#3d423e;text-wrap:pretty"><b>Aim:</b> {{ aim }}</span>
+    </div>
+    <canvas ref="{{ cvRef }}" width="960" height="540" onClick="{{ onCv }}" style="width:100%;height:auto;display:block;border-radius:8px;background:#f3f0e8;cursor:{{ cursor }}"></canvas>
+    <sc-for list="{{ groups }}" as="gr" hint-placeholder-count="1">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <span style="font-size:13px;font-weight:600;min-width:96px">{{ gr.label }}</span>
+        <sc-for list="{{ gr.opts }}" as="op" hint-placeholder-count="3">
+          <button onClick="{{ op.on }}" style="padding:6px 12px;border-radius:999px;border:1px solid {{ op.bd }};background:{{ op.bg }};color:{{ op.fg }};cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap">{{ op.label }}</button>
+        </sc-for>
+      </div>
+    </sc-for>
+    <sc-if value="{{ hasSliders }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 20px">
+        <sc-for list="{{ sliders }}" as="sd" hint-placeholder-count="2">
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span style="font-weight:600">{{ sd.label }}</span><span style="font-family:'JetBrains Mono',monospace;color:#5f655f">{{ sd.text }}</span></span>
+            <input type="range" min="{{ sd.min }}" max="{{ sd.max }}" step="{{ sd.step }}" value="{{ sd.value }}" onChange="{{ sd.onChange }}">
+          </label>
+        </sc-for>
+      </div>
+    </sc-if>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <sc-for list="{{ actions }}" as="ac" hint-placeholder-count="4">
+        <button onClick="{{ ac.on }}" style="flex:none;max-width:100%;padding:9px 14px;border-radius:8px;border:1px solid {{ ac.bd }};background:{{ ac.bg }};color:{{ ac.fg }};opacity:{{ ac.op }};cursor:pointer;font-size:13px;font-weight:600;text-align:left;line-height:1.3">{{ ac.label }}</button>
+      </sc-for>
+    </div>
+    <div style="padding:10px 12px;border-radius:8px;background:{{ msgBg }};color:{{ msgFg }};font-size:14px;line-height:1.5;text-wrap:pretty">{{ msgText }}</div>
+    <sc-if value="{{ hasTable }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:none;display:flex;flex-direction:column;border:1px solid #e6e1d4;border-radius:8px;overflow-x:auto">
+        <div style="display:grid;grid-template-columns:{{ gridCols }};gap:8px;padding:8px 10px;background:#f1eee5;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#5f655f;min-width:520px">
+          <sc-for list="{{ cols }}" as="cl" hint-placeholder-count="4"><span>{{ cl }}</span></sc-for>
+        </div>
+        <sc-for list="{{ rows }}" as="rw" hint-placeholder-count="0">
+          <div style="display:grid;grid-template-columns:{{ gridCols }};gap:8px;padding:7px 10px;border-top:1px solid #ebe6da;font-size:13px;min-width:520px">
+            <sc-for list="{{ rw.cells }}" as="ce" hint-placeholder-count="4"><span>{{ ce }}</span></sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="flex:1 1 260px;max-width:360px;display:flex;flex-direction:column;gap:14px">
+    <div style="background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">Materials</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <sc-for list="{{ materials }}" as="m" hint-placeholder-count="5">
+          <span style="padding:4px 9px;border-radius:999px;background:#efece4;font-size:12px">{{ m }}</span>
+        </sc-for>
+      </div>
+    </div>
+    <div style="background:#fbfaf6;border:1px solid #dcd6c8;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:9px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5f655f">Procedure</div>
+      <sc-for list="{{ steps }}" as="st" hint-placeholder-count="5">
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.4;color:{{ st.fg }}">
+          <span style="width:14px;height:14px;border-radius:50%;flex:none;margin-top:2px;border:1.5px solid {{ st.bd }};background:{{ st.dot }}"></span><span>{{ st.label }}</span>
+        </div>
+      </sc-for>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5f655f;padding-top:4px;border-top:1px solid #e6e1d4">{{ errText }}</div>
+    </div>
+    <sc-if value="{{ hasResult }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#e2ebe3;border:1px solid #bcd3c2;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;color:#24553e">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">Result &amp; conclusion</div>
+        <div style="font-size:14px;line-height:1.55;text-wrap:pretty">{{ resultText }}</div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;exp&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tests&quot;,&quot;starch&quot;,&quot;resp&quot;,&quot;osmo&quot;,&quot;imbib&quot;,&quot;transp&quot;,&quot;chroma&quot;,&quot;enzyme&quot;,&quot;germ&quot;,&quot;seed&quot;,&quot;dna&quot;,&quot;mendel&quot;,&quot;quad&quot;],&quot;default&quot;:&quot;tests&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { exp: null, v: 0 };
+  cv = React.createRef();
+  sims = {};
+  t = 0;
+  componentDidMount() {
+    this.last = performance.now();
+    const loop = () => { this.raf = requestAnimationFrame(loop); const now = performance.now(), dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.t += dt; try { this.frame(dt); } catch (e) { if (!this.errd) { this.errd = 1; console.error(e); } } };
+    this.raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+  componentDidUpdate(p) { try { this.frame(0); } catch (e) {} if ((p.exp !== this.props.exp || p.nonce !== this.props.nonce) && this.props.exp && this.E[this.props.exp]) this.setState({ exp: this.props.exp }); }
+  cur() { const id = this.state.exp || this.props.exp || 'tests'; return this.E[id] ? id : 'tests'; }
+  sim(id) { id = id || this.cur(); return this.sims[id] || (this.sims[id] = this.E[id].init()); }
+  bump = () => this.setState(s => ({ v: s.v + 1 }));
+  frame(dt) {
+    const id = this.cur(), E = this.E[id], s = this.sim(id);
+    if (E.tick && E.tick(s, dt)) { this.acc = (this.acc || 0) + dt; if (this.acc > 0.15) { this.acc = 0; this.bump(); } }
+    const c = this.cv.current; if (!c) return;
+    const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#f3f0e8'; x.fillRect(0, 0, 960, 540);
+    if (!E.noBench) { x.fillStyle = '#e6e0d2'; x.fillRect(0, 470, 960, 70); x.fillStyle = '#d6cfbf'; x.fillRect(0, 470, 960, 3); }
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    E.draw(x, s, this.t);
+  }
+  // ---------- drawing helpers ----------
+  H(a, b) { let n = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263); n = Math.imul(n ^ (n >>> 13), 1274126177); n ^= n >>> 16; return (n >>> 0) / 4294967296; }
+  rng(seed) { let a = seed | 0; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  rgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+  mix(a, b, t) { const A = this.rgb(a), B = this.rgb(b), k = Math.max(0, Math.min(1, t)); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join(''); }
+  T(c, s, x, y, o) { o = o || {}; c.font = (o.w || 500) + ' ' + (o.s || 15) + 'px ' + (o.mono ? '"JetBrains Mono", monospace' : '"Instrument Sans", sans-serif'); c.fillStyle = o.c || '#1c211f'; c.textAlign = o.a || 'center'; c.textBaseline = 'middle'; c.fillText(s, x, y); }
+  pill(c, s, x, y, bg, fg) { c.font = '600 14px "Instrument Sans", sans-serif'; const w = c.measureText(s).width + 22; c.fillStyle = bg; c.beginPath(); c.roundRect(x - w / 2, y - 14, w, 28, 14); c.fill(); this.T(c, s, x, y, { w: 600, s: 14, c: fg }); }
+  line(c, pts, col, w) { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.strokeStyle = col; c.lineWidth = w; c.stroke(); }
+  ell(c, x, y, rx, ry, rot, f, s, lw) { c.beginPath(); c.ellipse(x, y, rx, ry, rot || 0, 0, Math.PI * 2); if (f) { c.fillStyle = f; c.fill(); } if (s) { c.strokeStyle = s; c.lineWidth = lw || 2; c.stroke(); } }
+  tubeP(c, x, y, w, h) { c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + h - w / 2); c.arc(x + w / 2, y + h - w / 2, w / 2, Math.PI, 0, true); c.lineTo(x + w, y); }
+  tube(c, x, y, w, h, lvl, col, extra) {
+    c.save(); this.tubeP(c, x, y, w, h); c.closePath(); c.fillStyle = 'rgba(255,255,255,.4)'; c.fill(); c.clip();
+    if (lvl > 0) { c.fillStyle = col; c.fillRect(x - 2, y + h * (1 - lvl), w + 4, h * lvl + 2); }
+    if (extra) extra(y + h * (1 - lvl)); c.restore();
+    this.tubeP(c, x, y, w, h); c.strokeStyle = 'rgba(60,80,90,.75)'; c.lineWidth = 2.5; c.stroke();
+    c.beginPath(); c.moveTo(x - 5, y); c.lineTo(x + w + 5, y); c.lineWidth = 3; c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 3; c.beginPath(); c.moveTo(x + w * .25, y + 10); c.lineTo(x + w * .25, y + h - w * .7); c.stroke();
+  }
+  beakerP(c, x, y, w, h) { c.beginPath(); c.moveTo(x - 7, y); c.lineTo(x, y + 7); c.lineTo(x, y + h - 9); c.quadraticCurveTo(x, y + h, x + 9, y + h); c.lineTo(x + w - 9, y + h); c.quadraticCurveTo(x + w, y + h, x + w, y + h - 9); c.lineTo(x + w, y); }
+  beaker(c, x, y, w, h, lvl, col, extra) {
+    c.save(); this.beakerP(c, x, y, w, h); c.closePath(); c.fillStyle = 'rgba(255,255,255,.32)'; c.fill(); c.clip();
+    if (lvl > 0) { c.fillStyle = col; c.fillRect(x - 9, y + h * (1 - lvl), w + 18, h * lvl + 2); }
+    if (extra) extra(y + h * (1 - lvl)); c.restore();
+    this.beakerP(c, x, y, w, h); c.strokeStyle = 'rgba(60,80,90,.75)'; c.lineWidth = 2.5; c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 3; c.beginPath(); c.moveTo(x + 10, y + 16); c.lineTo(x + 10, y + h - 16); c.stroke();
+  }
+  burner(c, x, y, t, on) {
+    c.fillStyle = '#5f655f'; c.beginPath(); c.roundRect(x - 12, y - 46, 24, 46, 4); c.fill(); c.fillStyle = '#3d423e'; c.beginPath(); c.roundRect(x - 30, y - 8, 60, 10, 3); c.fill();
+    if (!on) return; const f = 1 + 0.08 * Math.sin(t * 23) + 0.05 * Math.sin(t * 37);
+    c.save(); c.translate(x, y - 46); c.scale(1, f);
+    c.beginPath(); c.moveTo(0, -46); c.bezierCurveTo(16, -20, 14, 0, 0, 0); c.bezierCurveTo(-14, 0, -16, -20, 0, -46); c.fillStyle = 'rgba(90,140,255,.75)'; c.fill();
+    c.beginPath(); c.moveTo(0, -26); c.bezierCurveTo(7, -12, 6, 0, 0, 0); c.bezierCurveTo(-6, 0, -7, -12, 0, -26); c.fillStyle = 'rgba(210,235,255,.95)'; c.fill(); c.restore();
+  }
+  tripod(c, x, y, w, h) { c.strokeStyle = '#4a4f4b'; c.lineWidth = 5; c.beginPath(); c.moveTo(x - w / 2, y); c.lineTo(x + w / 2, y); c.moveTo(x - w / 2 + 8, y); c.lineTo(x - w / 2 - 6, y + h); c.moveTo(x + w / 2 - 8, y); c.lineTo(x + w / 2 + 6, y + h); c.stroke(); c.fillStyle = '#9aa09a'; c.fillRect(x - w / 2 - 4, y - 5, w + 8, 4); }
+  bub(c, x0, w, y0, y1, t, n, seed, r) { c.strokeStyle = 'rgba(255,255,255,.95)'; c.lineWidth = 1.3; for (let i = 0; i < n; i++) { const h = this.H(i, seed), u = (t * (0.5 + h) + h * 7) % 1, x = x0 + this.H(i, seed + 1) * w + Math.sin(t * 4 + i) * 2, y = y0 - u * (y0 - y1); c.beginPath(); c.arc(x, y, (r || 3) * (0.6 + h * 0.6), 0, 6.283); c.stroke(); } }
+  dropper(c, x, y, col, t, dripping) {
+    c.fillStyle = 'rgba(255,255,255,.6)'; c.strokeStyle = 'rgba(60,80,90,.7)'; c.lineWidth = 2; c.beginPath(); c.moveTo(x - 6, y); c.lineTo(x - 6, y + 60); c.lineTo(x, y + 74); c.lineTo(x + 6, y + 60); c.lineTo(x + 6, y); c.fill(); c.stroke();
+    c.fillStyle = col; c.fillRect(x - 4, y + 30, 8, 30); c.fillStyle = '#2b2f2d'; c.beginPath(); c.roundRect(x - 11, y - 34, 22, 36, 10); c.fill();
+    if (dripping) { const u = (t * 2.2) % 1; this.ell(c, x, y + 80 + u * 70, 4, 5.5, 0, col); }
+  }
+  leafP(c, x, y, w, h, rot) { c.save(); c.translate(x, y); c.rotate(rot || 0); c.beginPath(); c.moveTo(-w / 2, 0); c.bezierCurveTo(-w / 4, -h / 1.6, w / 4, -h / 1.7, w / 2, 0); c.bezierCurveTo(w / 4, h / 1.7, -w / 4, h / 1.6, -w / 2, 0); c.restore(); }
+  leaf(c, x, y, w, h, rot, base, regions) {
+    c.save(); this.leafP(c, x, y, w, h, rot); c.fillStyle = base; c.fill(); c.clip(); if (regions) regions(); c.restore();
+    this.leafP(c, x, y, w, h, rot); c.strokeStyle = 'rgba(30,60,20,.55)'; c.lineWidth = 2; c.stroke();
+    c.save(); c.translate(x, y); c.rotate(rot || 0); c.strokeStyle = 'rgba(30,50,20,.35)'; c.lineWidth = 2; c.beginPath(); c.moveTo(-w / 2 - 30, 0); c.lineTo(w / 2 - 6, 0); c.stroke(); c.lineWidth = 1.2;
+    for (let i = 1; i < 6; i++) { const px = -w / 2 + i * w / 6.5; [-1, 1].forEach(sd => { c.beginPath(); c.moveTo(px, 0); c.quadraticCurveTo(px + w / 10, sd * h / 6, px + w / 6, sd * h / 3.2); c.stroke(); }); }
+    c.restore();
+  }
+  // generic step sequence
+  seqDo(s, E, id) {
+    const order = E.orderOf(s), next = order[s.done];
+    if (E.decoy && E.decoy[id]) { s.err++; s.msg = { t: 'warn', s: E.decoy[id] }; return this.bump(); }
+    if (next === undefined) return;
+    if (id !== next) { if (order.indexOf(id) < s.done && order.indexOf(id) >= 0) return; s.err++; s.msg = { t: 'warn', s: 'Not yet — the next step is: ' + E.acts[next] + '.' }; return this.bump(); }
+    s.done++; s.a = 0; s.msg = { t: 'ok', s: E.ok[id] + (s.done === order.length && E.fin ? ' ' + E.fin(s) : '') }; this.bump();
+  }
+  seqActs(s, E) { const order = E.orderOf(s); return E.list.filter(id => order.includes(id) || (E.decoy && E.decoy[id])).map(id => { const d = order.indexOf(id) >= 0 && order.indexOf(id) < s.done; return { label: E.acts[id] || E.decoyLabel[id], on: () => this.seqDo(s, E, id), done: d }; }); }
+  seqSteps(s, E) { return E.orderOf(s).map((id, i) => [E.acts[id], i < s.done]); }
+  seqTick(s, dt) { if (s.a < 1) { s.a = Math.min(1, s.a + dt / 1.2); return true; } return false; }
+
+  E = this.makeE();
+  makeE() {
+    const S = this, P2 = Math.PI * 2;
+    const E = {};
+    // ===== 1. Food & urine tests =====
+    const FS = { food: [['potato', 'Potato extract', '#ebe5d3', { starch: 1 }], ['glucose', 'Glucose solution', '#eef2f0', { glucose: 1 }], ['albumin', 'Egg albumin', '#efe6bf', { protein: 1 }], ['oil', 'Groundnut oil', '#e9c75a', { fat: 1 }], ['milk', 'Milk', '#f6f3ea', { protein: 1, fat: 1, glucose: 1 }], ['water', 'Water (control)', '#e3edf0', {}]],
+      urine: [['normal', 'Normal urine', '#ecd36e', { urea: 1 }], ['diab', 'Diabetic urine', '#ecd36e', { urea: 1, glucose: 1 }], ['kid', 'Kidney-disease urine', '#ecd36e', { urea: 1, albumin: 1 }], ['jaun', 'Jaundice urine', '#d29a32', { urea: 1, bile: 1 }], ['water', 'Water (control)', '#e3edf0', {}]] };
+    const FT = { food: [['iodine', 'Iodine', 'starch', '#9a6424', 0, '#1d1838', 'Blue-black', 'Brown'], ['benedict', "Benedict's", 'glucose', '#3d6fc2', 1, '#b8441e', 'Brick-red ppt', 'Stays blue'], ['biuret', 'Biuret', 'protein', '#4a78c8', 0, '#7a3a9a', 'Violet', 'Stays blue'], ['sudan', 'Sudan III', 'fat', '#c8323a', 0, '#c8323a', 'Red oil layer', 'No red layer']],
+      urine: [['benedict', "Benedict's (sugar)", 'glucose', '#3d6fc2', 1, '#b8441e', 'Brick-red ppt', 'Stays blue'], ['albumin', 'Heat + acetic acid (albumin)', 'albumin', '#f4f2ea', 1, '#fbfaf6', 'White coagulum', 'Stays clear'], ['sulphur', 'Sulphur powder (bile salts)', 'bile', '#e8d040', 0, null, 'Powder sinks', 'Powder floats'], ['urease', 'Urease + phenol red (urea)', 'urea', '#e8b030', 0, '#e0457a', 'Turns pink', 'Stays yellow']] };
+    const smp = s => FS[s.mode].find(x => x[0] === s.smp) || FS[s.mode][0], tst = s => FT[s.mode].find(x => x[0] === s.tst) || FT[s.mode][0];
+    E.tests = {
+      title: 'Tests for food nutrients & urine analysis', cls: 'Class 6 · Class 9 · Class 11', group: 'Classes 6–8',
+      aim: 'To test samples for starch, reducing sugar, protein and fat, and to detect sugar, albumin, bile salts and urea in urine.',
+      materials: ['Test tubes & rack', 'Iodine solution', "Benedict's reagent", 'Biuret reagent (CuSO₄ + NaOH)', 'Sudan III', 'Acetic acid', 'Sulphur powder', 'Urease + phenol red', 'Water bath & burner'],
+      init: () => ({ mode: 'food', smp: 'potato', tst: 'iodine', st: 0, p: 0, heat: false, drop: 0, res: { food: {}, urine: {} }, err: 0, msg: { t: 'info', s: 'Choose a sample and a test, then add the reagent.' } }),
+      groups: s => [
+        { label: 'Analyse', opts: [['food', 'Food samples'], ['urine', 'Urine samples']].map(([k, l]) => ({ label: l, active: s.mode === k, on: () => { s.mode = k; s.smp = FS[k][0][0]; s.tst = FT[k][0][0]; s.st = 0; s.heat = false; } })) },
+        { label: 'Sample', opts: FS[s.mode].map(x => ({ label: x[1], active: s.smp === x[0], on: () => { s.smp = x[0]; s.st = 0; s.heat = false; } })) },
+        { label: 'Test', opts: FT[s.mode].map(x => ({ label: x[1], active: s.tst === x[0], on: () => { s.tst = x[0]; s.st = 0; s.heat = false; } })) }],
+      actions: s => { const tt = tst(s), a = [{ label: 'Add ' + tt[1].split(' (')[0] + ' reagent', primary: true, dis: s.st > 0, on: () => { s.st = 1; s.drop = 0; s.p = 0; s.heat = false; s.msg = tt[4] ? { t: 'info', s: 'Reagent added. This test needs heat — place the tube in a boiling water bath.' } : { t: 'info', s: 'Reagent added — watch the tube.' }; } }];
+        if (tt[4]) a.push({ label: s.heat ? 'Heating in water bath…' : 'Heat in boiling water bath', dis: s.st !== 1 || s.heat, on: () => { s.heat = true; s.msg = { t: 'info', s: 'Heating for 2 minutes…' }; } });
+        a.push({ label: 'Wash tube & take fresh sample', on: () => { s.st = 0; s.heat = false; s.p = 0; s.msg = { t: 'info', s: 'Fresh 2 mL sample in a clean tube.' }; } }); return a; },
+      tick: (s, dt) => { if (s.st !== 1) return s.heat; const tt = tst(s); s.drop += dt; if (s.drop > 0.9 && (!tt[4] || s.heat)) s.p += dt / 2.2;
+        if (s.p >= 1) { s.p = 1; s.st = 2; s.heat = false; const pos = !!smp(s)[3][tt[2]]; s.res[s.mode][s.smp] = Object.assign({}, s.res[s.mode][s.smp], { [s.tst]: pos }); s.msg = { t: pos ? 'ok' : 'info', s: (pos ? 'Positive — ' + tt[6] + '. ' + smp(s)[1] + ' contains ' + ({ starch: 'starch', glucose: 'reducing sugar (glucose)', protein: 'protein', fat: 'fat', albumin: 'albumin (protein)', bile: 'bile salts', urea: 'urea' })[tt[2]] + '.' : 'Negative — ' + tt[7] + '. No ' + tt[2] + ' present.') }; S.bump(); }
+        return true; },
+      draw: (c, s, t) => { const sm = smp(s), tt = tst(s), heat = s.heat && s.st === 1, X = 445, Y = heat ? 150 : 110, W = 70, Hh = 280;
+        // sample + reagent bottles
+        [[150, sm[2], sm[1]], [810, tt[3] || '#f4f2ea', tt[1].split(' (')[0]]].forEach(([bx, col, lab]) => { c.fillStyle = 'rgba(255,255,255,.5)'; c.strokeStyle = 'rgba(60,80,90,.7)'; c.lineWidth = 2.5; c.beginPath(); c.roundRect(bx - 45, 330, 90, 140, 12); c.fill(); c.stroke(); c.fillStyle = col; c.fillRect(bx - 41, 370, 82, 96); c.fillStyle = '#2b2f2d'; c.fillRect(bx - 18, 306, 36, 26); c.fillStyle = '#fbfaf6'; c.fillRect(bx - 38, 392, 76, 34); S.T(c, lab.length > 14 ? lab.slice(0, 13) + '…' : lab, bx, 409, { s: 12, w: 600 }); });
+        if (heat) { S.tripod(c, 480, 380, 210, 90); S.burner(c, 480, 470, t, true); S.beaker(c, 380, 230, 200, 148, .65, 'rgba(160,205,225,.55)', yy => S.bub(c, 390, 180, 378, yy, t, 22, 3, 4)); }
+        const base = sm[2], c1 = s.st ? S.mix(base, tt[3] || '#f4f2ea', tt[0] === 'albumin' ? .1 : .55) : base;
+        let fin = c1; const pos = !!sm[3][tt[2]];
+        if (pos && tt[5]) fin = tt[0] === 'sudan' ? c1 : tt[5]; if (!pos && tt[0] === 'urease') fin = '#e8c040'; if (!pos && tt[0] === 'iodine') fin = S.mix(base, '#9a6424', .6);
+        const col = s.st ? S.mix(c1, fin, s.p) : base, lvl = s.st ? 0.44 : 0.32;
+        S.tube(c, X, Y, W, Hh, lvl, col, top => {
+          if (!s.st) return; const r = S.rng(4);
+          if (tt[0] === 'benedict' && pos) { c.fillStyle = '#a8381a'; for (let i = 0; i < 70 * s.p; i++) { c.beginPath(); c.arc(X + 8 + r() * (W - 16), Y + Hh - 6 - r() * 30 * s.p, 2.2, 0, P2); c.fill(); } }
+          if (tt[0] === 'albumin' && pos) { c.fillStyle = 'rgba(255,255,255,.95)'; for (let i = 0; i < 90 * s.p; i++) { c.beginPath(); c.arc(X + 6 + r() * (W - 12), top + 6 + r() * 70, 2 + r() * 3, 0, P2); c.fill(); } }
+          if (tt[0] === 'sulphur') { c.fillStyle = '#f6ec80'; c.strokeStyle = 'rgba(90,70,0,.7)'; c.lineWidth = 1; for (let i = 0; i < 40; i++) { const sink = pos ? s.p : 0, y0 = top + 3 + r() * 4; c.beginPath(); c.arc(X + 6 + r() * (W - 12), y0 + sink * (Y + Hh - 12 - y0) * (0.6 + r() * 0.4), 2.6, 0, P2); c.fill(); c.stroke(); } }
+          if (tt[0] === 'sudan') { if (pos) { const lh = sm[0] === 'oil' ? 200 : 16; c.fillStyle = S.mix(base, '#c8323a', s.p); c.fillRect(X - 2, top, W + 4, lh); } else { c.fillStyle = 'rgba(200,50,58,' + (0.5 * s.p).toFixed(2) + ')'; for (let i = 0; i < 26; i++) { c.beginPath(); c.arc(X + 8 + r() * (W - 16), top + 10 + r() * 90, 2, 0, P2); c.fill(); } } }
+        });
+        if (s.st === 1 && s.drop < 0.9) S.dropper(c, X + W / 2, Y - 110, tt[3] || '#f4f2ea', t, true);
+        S.T(c, sm[1] + ' + ' + tt[1].split(' (')[0], X + W / 2, 52, { w: 600, s: 17 });
+        if (s.st === 2) S.pill(c, (pos ? '+ ' + tt[6] : '− ' + tt[7]), X + W / 2, 86, pos ? '#2f6b4f' : '#5f655f', '#fff');
+      },
+      table: s => { const ts = FT[s.mode], rows = Object.entries(s.res[s.mode]); if (!rows.length) return null; return { cols: ['Sample', ...ts.map(x => x[1].split(' (')[0])], rows: rows.map(([k, r]) => [FS[s.mode].find(x => x[0] === k)[1], ...ts.map(x => r[x[0]] === undefined ? '—' : r[x[0]] ? '+ ' + x[6] : '− ' + x[7])]) }; },
+      steps: s => [['Take 2 mL of the sample in a clean test tube', true], ['Add a few drops of the reagent', s.st >= 1], ["Heat in a boiling water bath (Benedict's & albumin tests only)", s.st === 2 || (s.st === 1 && (s.heat || !tst(s)[4]))], ['Observe the colour change and record it', s.st === 2]],
+      result: s => { const out = []; Object.entries(s.res[s.mode]).forEach(([k, r]) => { const nm = FS[s.mode].find(x => x[0] === k)[1], has = FT[s.mode].filter(x => r[x[0]]).map(x => x[2]); if (!has.length) return; if (s.mode === 'food') out.push(nm + ': ' + has.join(', ') + '.'); else { const d = has.filter(h => h !== 'urea').map(h => ({ glucose: 'sugar → glycosuria (diabetes mellitus)', albumin: 'albumin → albuminuria (kidney disorder)', bile: 'bile salts → jaundice / liver disorder' })[h]); out.push(nm + ': ' + (d.length ? d.join('; ') : 'urea only — normal') + '.'); } }); return out.join(' '); }
+    };
+    // ===== 2. Starch in leaf =====
+    E.starch = {
+      title: 'Light & chlorophyll are necessary for photosynthesis', cls: 'Class 7 · Class 10', group: 'Classes 9–10',
+      aim: 'To show that light (and chlorophyll) are needed to make starch in a leaf.',
+      materials: ['Potted plant (balsam / croton)', 'Black paper strips & clips', 'Beakers & water bath', 'Burner, tripod, gauze', 'Alcohol (ethanol)', 'Iodine solution', 'Petri dish, forceps'],
+      init: () => ({ mode: 'light', done: 0, a: 1, err: 0, msg: { t: 'info', s: 'Carry out the steps in the correct order.' } }),
+      orderOf: s => s.mode === 'light' ? ['dark', 'cover', 'sun', 'pluck', 'boil', 'alcohol', 'wash', 'iodine'] : ['dark', 'sun', 'pluck', 'boil', 'alcohol', 'wash', 'iodine'],
+      acts: { dark: 'Keep the plant in darkness for 48 h (destarch)', cover: 'Clip a black paper strip on both sides of a leaf', sun: 'Place the plant in sunlight for 6 h', pluck: 'Pluck the leaf and remove the paper', boil: 'Boil the leaf in water for 5 min', alcohol: 'Boil the leaf in alcohol in a water bath', wash: 'Wash the leaf in warm water', iodine: 'Spread iodine solution on the leaf' },
+      ok: { dark: 'Destarched — any starch already in the leaves is used up.', cover: 'The covered part will get no light.', sun: 'Six hours of sunlight — photosynthesis takes place in the exposed parts.', pluck: 'Leaf plucked.', boil: 'Boiling water kills the cells and softens the leaf.', alcohol: 'Chlorophyll dissolves in the alcohol — the leaf turns pale and the alcohol turns green.', wash: 'Washing removes alcohol and softens the brittle leaf.', iodine: 'Iodine added — watch the colour.' },
+      decoy: { flame: 'Danger! Alcohol is highly flammable — always heat it in a water bath, never directly over a flame.' }, decoyLabel: { flame: 'Boil the leaf in alcohol directly over the flame' },
+      list: ['wash', 'sun', 'iodine', 'flame', 'cover', 'pluck', 'alcohol', 'dark', 'boil'],
+      fin: s => s.mode === 'light' ? 'Only the exposed parts turned blue-black; the covered strip stayed brown.' : 'Green parts turned blue-black; white patches stayed brown.',
+      groups: s => [{ label: 'Experiment', opts: [['light', 'Light is needed'], ['chloro', 'Chlorophyll is needed (variegated leaf)']].map(([k, l]) => ({ label: l, active: s.mode === k, on: () => { s.mode = k; s.done = 0; s.a = 1; s.msg = { t: 'info', s: k === 'light' ? 'Destarched plant with one leaf partly covered.' : 'Croton has variegated leaves — white patches have no chlorophyll.' }; } })) }],
+      tick: (s, dt) => S.seqTick(s, dt),
+      draw: (c, s, t) => { const order = E.starch.orderOf(s), D = id => order.indexOf(id) < s.done && order.indexOf(id) >= 0, last = order[s.done - 1], A = s.a, chloro = s.mode === 'chloro';
+        const patches = () => { c.fillStyle = '#f0ead0'; [[-60, -18, 34, 20], [40, 22, 42, 22], [80, -20, 26, 16], [-20, 30, 22, 14]].forEach(([x, y, rx, ry]) => { c.beginPath(); c.ellipse(x, y, rx, ry, .3, 0, P2); c.fill(); }); };
+        if (!D('pluck')) {
+          c.fillStyle = '#b0603a'; c.beginPath(); c.moveTo(400, 360); c.lineTo(560, 360); c.lineTo(540, 470); c.lineTo(420, 470); c.closePath(); c.fill(); c.fillStyle = '#4a3222'; c.fillRect(402, 358, 156, 8);
+          S.line(c, [[480, 362], [482, 260], [478, 140]], '#3f7a2e', 7);
+          [[400, 250, -0.5, 1], [560, 220, 0.45, 2], [410, 160, -0.6, 3], [550, 140, 0.5, 4]].forEach(([x, y, r, k]) => { c.save(); S.leaf(c, x, y, 130, 68, r, '#4f8f3a', chloro ? () => { c.translate(x, y); c.rotate(r); c.scale(.45, .45); patches(); } : null); c.restore(); });
+          if (D('cover')) { c.save(); c.translate(560, 220); c.rotate(0.45); c.fillStyle = '#1c1c1c'; c.fillRect(-12, -40, 34, 80); c.fillStyle = '#9aa09a'; c.fillRect(-4, -46, 18, 10); c.restore(); }
+          if (D('dark') && !D('sun')) { c.fillStyle = 'rgba(18,20,26,.86)'; c.fillRect(300, 60, 360, 410); S.T(c, 'Dark room · 48 h', 480, 90, { c: '#e9e6dc', w: 600, s: 18 }); }
+          if (D('sun')) { c.save(); c.translate(150, 100); for (let i = 0; i < 12; i++) { c.rotate(P2 / 12); c.strokeStyle = 'rgba(240,180,40,.8)'; c.lineWidth = 4; c.beginPath(); c.moveTo(52, 0); c.lineTo(72 + 6 * Math.sin(t * 3 + i), 0); c.stroke(); } c.restore(); S.ell(c, 150, 100, 44, 44, 0, '#f6c23c'); S.T(c, 'Sunlight · 6 h', 150, 190, { w: 600 }); }
+          return;
+        }
+        const dec = D('alcohol') ? (last === 'alcohol' ? A : 1) : 0, iod = D('iodine') ? A : 0;
+        const base = S.mix('#4f8f3a', '#e8e2b8', dec), noStarch = S.mix(chloro ? S.mix('#f0ead0', '#e8e2b8', dec) : base, '#c9902e', iod), yesStarch = S.mix(base, '#1d1838', iod);
+        S.leaf(c, 660, 260, 340, 190, -0.15, yesStarch, () => { c.fillStyle = noStarch; if (chloro) { c.save(); c.translate(660, 260); c.rotate(-0.15); patches(); c.restore(); } else { c.save(); c.translate(660, 260); c.rotate(-0.15); c.fillRect(-26, -120, 60, 240); c.restore(); } });
+        if (chloro && !dec && !iod) { c.save(); c.translate(660, 260); c.rotate(-.15); c.globalAlpha = 1; c.restore(); }
+        const step = last;
+        if (step === 'boil' || step === 'alcohol') { S.tripod(c, 200, 370, 200, 100); S.burner(c, 200, 470, t, true); S.beaker(c, 100, 200, 200, 168, .6, 'rgba(160,205,225,.6)', yy => S.bub(c, 110, 180, 368, yy, t, 18, 5, 4));
+          if (step === 'alcohol') { S.beaker(c, 150, 250, 100, 110, .62, S.mix('#f2f0e0', '#5f9a3a', dec), yy => S.bub(c, 156, 88, 360, yy, t, 8, 8, 3)); S.T(c, 'Alcohol in water bath', 200, 180, { w: 600 }); } else S.T(c, 'Boiling water', 200, 180, { w: 600 }); }
+        if (step === 'wash') { S.ell(c, 200, 400, 130, 30, 0, 'rgba(160,205,225,.6)', 'rgba(60,80,90,.7)', 2.5); S.T(c, 'Warm water wash', 200, 350, { w: 600 }); }
+        if (step === 'iodine') S.dropper(c, 640, 40, '#9a6424', t, A < 1);
+        if (iod > .9) { S.pill(c, 'Blue-black = starch present', 660, 420, '#1d1838', '#fff'); S.pill(c, chloro ? 'White patches: brown — no starch' : 'Covered strip: brown — no starch', 660, 456, '#c9902e', '#1c211f'); }
+      },
+      result: s => s.done === E.starch.orderOf(s).length ? (s.mode === 'light' ? 'Starch formed only in the parts that received light. The covered part did not turn blue-black, so light is necessary for photosynthesis.' : 'Starch formed only in the green parts. The white patches lacked chlorophyll and stayed brown, so chlorophyll is necessary for photosynthesis.') : ''
+    };
+    // ===== 3. Respiration =====
+    const rH = s => (s.koh ? { germ: 1, buds: 1.3, dead: 0 }[s.mat] : 0) * 40 * (1 - Math.exp(-s.t / 30));
+    E.resp = {
+      title: 'Carbon dioxide is released during respiration', cls: 'Class 7 · Class 10 · Class 11', group: 'Classes 9–10',
+      aim: 'To show experimentally that CO₂ is given out during respiration, and to compare respiration rates.',
+      materials: ['Conical flask', 'Germinating seeds / flower buds', 'KOH solution in a small tube', 'Bent delivery tube', 'Beaker of water', 'Lime water', 'Straw, syringe'],
+      init: () => ({ mode: 'koh', mat: 'germ', koh: true, t: 0, run: false, rec: [], lime: [0, 0], bub: [0, 0], err: 0, msg: { t: 'info', s: 'Set up the flask and press Start.' } }),
+      groups: s => { const g = [{ label: 'Method', opts: [['koh', 'Germinating seeds + KOH'], ['lime', 'Exhaled air in lime water']].map(([k, l]) => ({ label: l, active: s.mode === k, on: () => { s.mode = k; s.run = false; s.t = 0; s.rec = []; } })) }];
+        if (s.mode === 'koh') g.push({ label: 'Material', opts: [['germ', 'Germinating seeds'], ['buds', 'Flower buds'], ['dead', 'Boiled (dead) seeds']].map(([k, l]) => ({ label: l, active: s.mat === k, on: () => { s.mat = k; s.t = 0; s.run = false; s.rec = []; } })) }, { label: 'KOH tube', opts: [[true, 'Present'], [false, 'Absent (control)']].map(([k, l]) => ({ label: l, active: s.koh === k, on: () => { s.koh = k; s.t = 0; s.run = false; s.rec = []; } })) });
+        return g; },
+      actions: s => s.mode === 'koh' ? [{ label: s.run ? 'Pause' : s.t >= 60 ? 'Finished' : s.t ? 'Resume' : '▶ Start', primary: true, dis: s.t >= 60, on: () => { s.run = !s.run; } }, { label: 'Reset', on: () => { s.t = 0; s.run = false; s.rec = []; s.msg = { t: 'info', s: 'Reset.' }; } }]
+        : [{ label: 'Blow exhaled air into tube A (5 breaths)', primary: true, on: () => { s.lime[0] = Math.min(1, s.lime[0] + .25); s.bub[0] = 1.6; s.msg = { t: s.lime[0] > .5 ? 'ok' : 'info', s: s.lime[0] > .5 ? 'Tube A turned milky — exhaled air has a lot of CO₂ (CaCO₃ forms).' : 'Bubbling exhaled air through lime water…' }; } }, { label: 'Pump room air into tube B (5 pumps)', on: () => { s.lime[1] = Math.min(.25, s.lime[1] + .03); s.bub[1] = 1.6; s.msg = { t: 'info', s: 'Room air has only 0.04% CO₂ — tube B stays almost clear.' }; } }, { label: 'Fresh lime water', on: () => { s.lime = [0, 0]; } }],
+      tick: (s, dt) => { s.bub = s.bub.map(b => Math.max(0, b - dt)); if (s.mode !== 'koh' || !s.run) return s.bub.some(b => b > 0);
+        s.t = Math.min(60, s.t + dt * 6); const n = Math.floor(s.t / 10); while (s.rec.length < n) { const tm = (s.rec.length + 1) * 10, h = (s.koh ? { germ: 1, buds: 1.3, dead: 0 }[s.mat] : 0) * 40 * (1 - Math.exp(-tm / 30)); s.rec.push([tm + ' min', h.toFixed(1) + ' mm']); }
+        if (s.t >= 60) { s.run = false; const h = rH(s); s.msg = h > 1 ? { t: 'ok', s: 'Water rose ' + h.toFixed(1) + ' mm. KOH absorbed the CO₂ released by respiration, lowering the pressure in the flask.' + (s.mat === 'buds' ? ' Flower buds respire faster than seeds.' : '') } : { t: 'info', s: !s.koh ? 'No rise: without KOH the CO₂ released replaces the O₂ used, so pressure stays the same.' : 'No rise: dead seeds do not respire.' }; S.bump(); }
+        return true; },
+      draw: (c, s, t) => {
+        if (s.mode === 'lime') { [[300, 'A · Exhaled air', 0], [620, 'B · Room air (syringe)', 1]].forEach(([x, lab, i]) => { S.tube(c, x, 150, 76, 300, .6, S.mix('#e8f0ee', '#ffffff', s.lime[i]), top => { c.fillStyle = 'rgba(255,255,255,' + (s.lime[i] * .92).toFixed(2) + ')'; c.fillRect(x, top, 76, 200); if (s.bub[i] > 0) S.bub(c, x + 22, 30, 440, top, t, 12, i + 2, 4); }); S.line(c, [[x + 38, 60], [x + 38, 420]], 'rgba(120,120,120,.6)', 6); S.T(c, lab, x + 38, 480, { w: 600 }); });
+          c.fillStyle = '#c9c4b4'; c.beginPath(); c.roundRect(560, 40, 150, 26, 6); c.fill(); S.T(c, 'Syringe', 635, 53, { s: 12 }); S.T(c, 'Straw', 340, 48, { s: 12 }); return; }
+        const h = rH(s), hp = h * 2.2;
+        c.save(); c.beginPath(); c.moveTo(270, 196); c.lineTo(270, 270); c.lineTo(170, 458); c.quadraticCurveTo(170, 466, 180, 466); c.lineTo(400, 466); c.quadraticCurveTo(410, 466, 410, 458); c.lineTo(310, 270); c.lineTo(310, 196); c.closePath(); c.fillStyle = 'rgba(255,255,255,.4)'; c.fill(); c.clip();
+        const rr = S.rng(3); for (let i = 0; i < 46; i++) { const x = 190 + rr() * 200, y = 452 - rr() * 22, a = rr() * 3; S.ell(c, x, y, 9, 6, a, s.mat === 'dead' ? '#8a6a3a' : s.mat === 'buds' ? '#d9a0b8' : '#e2c27a', 'rgba(0,0,0,.25)', 1); if (s.mat === 'germ') S.line(c, [[x, y], [x + 6 * Math.cos(a), y + 10]], '#f6f0de', 2.5); }
+        c.restore(); c.strokeStyle = 'rgba(60,80,90,.75)'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(270, 196); c.lineTo(270, 270); c.lineTo(170, 458); c.quadraticCurveTo(170, 466, 180, 466); c.lineTo(400, 466); c.quadraticCurveTo(410, 466, 410, 458); c.lineTo(310, 270); c.lineTo(310, 196); c.stroke();
+        if (s.koh) { S.line(c, [[300, 196], [300, 290]], '#8a8f88', 1.5); S.tube(c, 290, 290, 22, 80, .7, '#e8eef0'); S.T(c, 'KOH', 336, 340, { s: 12, w: 600, a: 'left' }); }
+        c.fillStyle = '#8a5a34'; c.beginPath(); c.roundRect(262, 178, 56, 22, 3); c.fill();
+        c.strokeStyle = 'rgba(60,80,90,.75)'; c.lineWidth = 9; c.beginPath(); c.moveTo(290, 180); c.lineTo(290, 110); c.quadraticCurveTo(290, 96, 304, 96); c.lineTo(606, 96); c.quadraticCurveTo(620, 96, 620, 110); c.lineTo(620, 440); c.stroke(); c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 5; c.stroke();
+        S.beaker(c, 550, 330, 140, 136, .55, 'rgba(120,180,215,.6)');
+        const surf = 466 - 136 * .55; c.strokeStyle = 'rgba(70,140,200,.9)'; c.lineWidth = 5; c.beginPath(); c.moveTo(620, 440); c.lineTo(620, surf - hp); c.stroke();
+        for (let i = 0; i <= 10; i++) { const y = surf - i * 11; S.line(c, [[634, y], [i % 2 ? 640 : 646, y]], '#5f655f', 1.5); if (i % 2 === 0) S.T(c, i * 5 + '', 662, y, { s: 11, mono: 1 }); }
+        S.T(c, 'mm', 662, surf - 122, { s: 11, mono: 1 });
+        S.T(c, 'Time ' + s.t.toFixed(0) + ' min', 820, 150, { w: 700, s: 22 }); S.T(c, 'Water rise ' + h.toFixed(1) + ' mm', 820, 184, { s: 16, c: '#2f6b4f', w: 600 });
+      },
+      table: s => s.mode === 'koh' && s.rec.length ? { cols: ['Time', 'Rise of water'], rows: s.rec } : null,
+      steps: s => s.mode === 'koh' ? [['Put germinating seeds in a conical flask', true], ['Hang a small tube of KOH inside and close with a cork', true], ['Connect a bent delivery tube dipping into water', true], ['Mark the water level and leave for 1–2 hours', s.t > 0], ['Observe the rise of water in the tube', s.t >= 60]] : [['Take fresh lime water in two test tubes', true], ['Blow exhaled air through tube A with a straw', s.lime[0] > 0], ['Pump room air through tube B with a syringe', s.lime[1] > 0], ['Compare the milkiness', s.lime[0] > .5 && s.lime[1] > 0]],
+      result: s => s.mode === 'koh' ? (s.t >= 60 ? (rH(s) > 1 ? 'Water rises because KOH absorbs the CO₂ released by respiring tissue, creating a partial vacuum. Hence CO₂ is released during respiration.' : 'No rise in the control — confirms the rise is due to CO₂ produced by living, respiring tissue.') : '') : (s.lime[0] > .5 && s.lime[1] > 0 ? 'Exhaled air turns lime water milky faster than room air, so exhaled air contains more CO₂. Ca(OH)₂ + CO₂ → CaCO₃ + H₂O.' : '')
+    };
+    // ===== 4. Osmosis & plasmolysis =====
+    const pT = s => s.conc < .6 ? 0 : s.conc < 1.1 ? .06 : Math.min(.55, .1 + (s.conc - 1.1) / 5 * .45);
+    const pState = c2 => c2 < .6 ? 'Turgid (hypotonic)' : c2 < 1.1 ? 'Incipient plasmolysis (isotonic)' : 'Plasmolysed (hypertonic)';
+    const oDir = s => s.cup === 'sugar' && s.bk === 'water' ? 1 : s.cup === 'water' && s.bk === 'strong' ? -1 : 0;
+    E.osmo = {
+      title: 'Osmosis: potato osmometer & plasmolysis', cls: 'Class 9 · Class 11', group: 'Classes 11–12',
+      aim: 'To demonstrate osmosis using a potato osmometer and plasmolysis in epidermal peel of Rhoeo leaf.',
+      materials: ['Rhoeo leaf peel', 'Salt (NaCl) solutions', 'Slide, cover slip, microscope', 'Large potato', 'Sugar solution', 'Beaker, pin'],
+      init: () => ({ mode: 'plasmo', conc: 0, p: 0, rec: [], cup: 'sugar', bk: 'water', t: 0, run: false, prec: [], err: 0, msg: { t: 'info', s: 'Mount the peel in water, then raise the salt concentration.' } }),
+      groups: s => { const g = [{ label: 'Experiment', opts: [['plasmo', 'Plasmolysis (Rhoeo peel)'], ['potato', 'Potato osmometer']].map(([k, l]) => ({ label: l, active: s.mode === k, on: () => { s.mode = k; } })) }];
+        if (s.mode === 'potato') g.push({ label: 'Cup contains', opts: [['sugar', 'Sugar solution'], ['water', 'Water']].map(([k, l]) => ({ label: l, active: s.cup === k, on: () => { s.cup = k; s.t = 0; s.run = false; s.prec = []; } })) }, { label: 'Beaker contains', opts: [['water', 'Water'], ['strong', 'Strong sugar solution']].map(([k, l]) => ({ label: l, active: s.bk === k, on: () => { s.bk = k; s.t = 0; s.run = false; s.prec = []; } })) });
+        return g; },
+      sliders: s => s.mode === 'plasmo' ? [{ label: 'NaCl concentration around the peel', min: 0, max: 8, step: .1, value: s.conc, text: s.conc.toFixed(1) + ' %', set: v => { s.conc = v; } }] : [],
+      actions: s => s.mode === 'plasmo' ? [{ label: 'Replace with distilled water (deplasmolysis)', on: () => { s.conc = 0; s.msg = { t: 'ok', s: 'Water re-enters by endosmosis; the protoplast swells back — deplasmolysis.' }; } }, { label: 'Record observation', primary: true, on: () => { s.rec.push([s.conc.toFixed(1) + ' %', pState(s.conc), Math.round(s.p / .55 * 100) + ' %']); s.msg = { t: 'ok', s: 'Recorded.' }; } }]
+        : [{ label: s.run ? 'Pause' : s.t >= 3 ? 'Finished' : '▶ Start', primary: true, dis: s.t >= 3, on: () => { s.run = !s.run; } }, { label: 'Reset', on: () => { s.t = 0; s.run = false; s.prec = []; } }],
+      tick: (s, dt) => { if (s.mode === 'plasmo') { const tg = pT(s), d = tg - s.p; s.p += d * Math.min(1, dt * 1.2); const m = { t: tg > .05 ? 'warn' : 'ok', s: pState(s.conc) + (tg > .1 ? ' — water leaves the cell sap by exosmosis; the protoplast shrinks away from the wall.' : tg > 0 ? ' — the protoplast just begins to leave the corners of the wall.' : ' — cells are full and turgid.') }; if (!s.msg || s.msg.s !== m.s) s.msg = m; return Math.abs(d) > .002; }
+        if (!s.run) return false; s.t = Math.min(3, s.t + dt * .15); const n = Math.floor(s.t / .5); while (s.prec.length < n) { const tm = (s.prec.length + 1) * .5; s.prec.push([tm.toFixed(1) + ' h', (oDir(s) * 15 * (1 - Math.exp(-tm / .9))).toFixed(1) + ' mm']); }
+        if (s.t >= 3) { s.run = false; const d = oDir(s); s.msg = { t: d ? 'ok' : 'info', s: d > 0 ? 'Level in the cup rose — water entered from the beaker through the potato cells (endosmosis).' : d < 0 ? 'Level in the cup fell — water moved out into the stronger solution (exosmosis).' : 'No change — no concentration difference, so no net osmosis.' }; S.bump(); } return true; },
+      draw: (c, s, t) => {
+        if (s.mode === 'plasmo') { const cx = 300, cy = 260, R = 225; c.save(); c.beginPath(); c.arc(cx, cy, R, 0, P2); c.clip(); c.fillStyle = '#eef3ea'; c.fillRect(0, 0, 960, 540);
+          for (let r = 0; r < 9; r++) for (let q = -1; q < 6; q++) { const w = 98, h = 58, x = 70 + q * w + (r % 2 ? w / 2 : 0), y = 30 + r * h, k = .8 + .4 * S.H(r, q), p = Math.min(.6, s.p * k), ix = 5 + p * w * .42, iy = 5 + p * h * .38;
+            c.fillStyle = '#f6f9f2'; c.fillRect(x, y, w, h); c.strokeStyle = '#7a9a6a'; c.lineWidth = 3.5; c.strokeRect(x, y, w, h);
+            c.fillStyle = S.mix('#b45ab4', '#5a1a6a', p * 1.6); c.beginPath(); c.roundRect(x + ix, y + iy, w - ix * 2, h - iy * 2, 4 + p * 40); c.fill(); S.ell(c, x + w / 2 + 14 * (S.H(q, r) - .5), y + h / 2, 5, 4, 0, '#3a0a4a'); }
+          c.restore(); c.strokeStyle = '#1c211f'; c.lineWidth = 10; c.beginPath(); c.arc(cx, cy, R, 0, P2); c.stroke();
+          const tg = pT(s); S.T(c, pState(s.conc), 740, 90, { w: 700, s: 18 }); S.T(c, s.conc.toFixed(1) + ' % NaCl', 740, 120, { mono: 1, s: 14, c: '#5f655f' });
+          c.fillStyle = '#f6f9f2'; c.fillRect(660, 180, 160, 100); c.strokeStyle = '#7a9a6a'; c.lineWidth = 4; c.strokeRect(660, 180, 160, 100); const p = s.p; c.fillStyle = S.mix('#b45ab4', '#5a1a6a', p * 1.6); c.beginPath(); c.roundRect(668 + p * 60, 188 + p * 34, 144 - p * 120, 84 - p * 68, 6 + p * 40); c.fill();
+          [[640, 230, -1], [840, 230, 1]].forEach(([x, y, sd]) => { const out = tg > .05; c.strokeStyle = out ? '#c8553d' : '#2f6b4f'; c.fillStyle = c.strokeStyle; c.lineWidth = 4; const a = out ? sd : -sd, x0 = x - a * 20, x1 = x + a * 20; c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.stroke(); c.beginPath(); c.moveTo(x1 + a * 8, y); c.lineTo(x1 - a * 4, y - 8); c.lineTo(x1 - a * 4, y + 8); c.fill(); });
+          S.T(c, tg > .05 ? 'Water moves OUT (exosmosis)' : 'Water moves IN (endosmosis)', 740, 316, { w: 600, c: tg > .05 ? '#8f3620' : '#24553e' });
+          S.T(c, 'Cell wall', 740, 360, { s: 13, c: '#5f655f' }); S.T(c, 'Purple = protoplast with cell sap', 740, 382, { s: 13, c: '#5f655f' }); return; }
+        const d = oDir(s), dl = d * 45 * (1 - Math.exp(-s.t / .9));
+        S.beaker(c, 290, 240, 380, 226, .52, s.bk === 'water' ? 'rgba(150,200,225,.55)' : 'rgba(225,215,170,.6)');
+        c.fillStyle = '#e8d8a8'; c.strokeStyle = '#a88a50'; c.lineWidth = 3; c.beginPath(); c.moveTo(380, 280); c.quadraticCurveTo(372, 455, 480, 458); c.quadraticCurveTo(588, 455, 580, 280); c.quadraticCurveTo(480, 262, 380, 280); c.fill(); c.stroke();
+        c.save(); c.beginPath(); c.moveTo(440, 280); c.lineTo(440, 400); c.quadraticCurveTo(480, 418, 520, 400); c.lineTo(520, 280); c.closePath(); c.fillStyle = '#f5ecd2'; c.fill(); c.clip(); c.fillStyle = s.cup === 'sugar' ? 'rgba(230,200,120,.85)' : 'rgba(150,200,225,.8)'; c.fillRect(430, 330 - dl, 100, 200); c.restore();
+        S.line(c, [[430, 330], [530, 330]], '#c8553d', 2); S.ell(c, 534, 330, 5, 5, 0, '#c8553d'); S.T(c, 'Pin = initial level', 600, 330, { s: 12, a: 'left' });
+        S.T(c, 'Time ' + s.t.toFixed(1) + ' h', 820, 150, { w: 700, s: 22 }); S.T(c, 'Level change ' + (dl >= 0 ? '+' : '') + (dl / 3).toFixed(1) + ' mm', 820, 184, { s: 16, c: '#2f6b4f', w: 600 });
+      },
+      table: s => s.mode === 'plasmo' ? (s.rec.length ? { cols: ['NaCl', 'Observation', 'Shrinkage'], rows: s.rec } : null) : (s.prec.length ? { cols: ['Time', 'Level change in cup'], rows: s.prec } : null),
+      steps: s => s.mode === 'plasmo' ? [['Peel the lower epidermis of a Rhoeo leaf', true], ['Mount in water and observe — cells turgid', true], ['Replace water with salt solution', s.conc > 1], ['Observe protoplast shrinking (plasmolysis)', s.p > .2], ['Replace with water — deplasmolysis', s.p > .2 && s.conc < .6]] : [['Peel and hollow out a potato to make a cup', true], ['Fill the cup with sugar solution; mark the level with a pin', true], ['Place the cup in a beaker of water', true], ['Leave for some time and observe the level', s.t >= 3]],
+      result: s => s.mode === 'plasmo' ? (s.rec.length ? 'In hypertonic salt solution, water leaves the cell sap by exosmosis and the protoplast shrinks from the cell wall (plasmolysis). In water it swells back (deplasmolysis). The cell membrane is selectively permeable.' : '') : (s.t >= 3 ? 'Water moves from a region of higher water concentration to lower water concentration through the selectively permeable potato cells — this is osmosis.' : '')
+    };
+    // ===== 5. Imbibition =====
+    const imbP = s => 80 * (1 - Math.exp(-s.hrs / { cold: 3, room: 1.6, warm: .9 }[s.temp]));
+    E.imbib = {
+      title: 'Water absorbed by raisins (imbibition)', cls: 'Class 9', group: 'Classes 9–10',
+      aim: 'To determine the percentage of water imbibed by raisins.',
+      materials: ['Raisins (≈20)', 'Beaker of water', 'Digital balance', 'Filter paper', 'Thermometer', 'Watch'],
+      init: () => ({ done: 0, a: 1, temp: 'room', hrs: 2, frac: 0, trials: [], err: 0, msg: { t: 'info', s: 'Weigh the dry raisins first.' } }),
+      orderOf: () => ['weigh1', 'soak', 'wait', 'blot', 'weigh2'],
+      acts: { weigh1: 'Weigh the dry raisins (W₁)', soak: 'Soak the raisins in water', wait: 'Leave them for the chosen time', blot: 'Remove and blot dry with filter paper', weigh2: 'Weigh the soaked raisins (W₂)' },
+      ok: { weigh1: 'W₁ = 5.00 g.', soak: 'Raisins placed in water.', wait: 'Raisins have swollen by imbibition.', blot: 'Surface water removed.', weigh2: 'Soaked raisins weighed.' },
+      decoy: { wet: 'Weighing without blotting adds surface water and gives a falsely high result — blot first.' }, decoyLabel: { wet: 'Weigh the raisins straight from the water' },
+      list: ['soak', 'weigh2', 'wet', 'blot', 'weigh1', 'wait'],
+      groups: s => [{ label: 'Water', opts: [['cold', 'Cold (10 °C)'], ['room', 'Room (25 °C)'], ['warm', 'Warm (45 °C)']].map(([k, l]) => ({ label: l, active: s.temp === k, on: () => { if (s.done >= 3) return; s.temp = k; } })) }],
+      sliders: s => [{ label: 'Soaking time', min: .5, max: 4, step: .5, value: s.hrs, text: s.hrs + ' h', set: v => { if (s.done < 3) s.hrs = v; } }],
+      extra: s => [{ label: 'New trial', on: () => { s.done = 0; s.a = 1; s.frac = 0; s.msg = { t: 'info', s: 'Change temperature or time, then repeat.' }; } }],
+      tick: (s, dt) => { const r = S.seqTick(s, dt); if (s.done >= 3) s.frac = s.done === 3 ? s.a : 1; if (s.done === 5 && s.a >= 1 && !s.logged) { s.logged = 1; const P = imbP(s); s.trials.push([s.trials.length + 1, { cold: '10 °C', room: '25 °C', warm: '45 °C' }[s.temp], s.hrs + ' h', '5.00 g', (5 * (1 + P / 100)).toFixed(2) + ' g', P.toFixed(1) + ' %']); S.bump(); } if (s.done < 5) s.logged = 0; return r; },
+      draw: (c, s, t) => { const P = imbP(s), sw = 1 + .35 * (s.done >= 3 ? (s.done === 3 ? s.a : 1) * P / 80 : 0), rr = S.rng(7);
+        c.fillStyle = '#5f655f'; c.beginPath(); c.roundRect(80, 400, 260, 70, 10); c.fill(); c.fillStyle = '#d8d6cc'; c.fillRect(100, 384, 220, 16); c.fillStyle = '#1f2a24'; c.fillRect(150, 420, 120, 34);
+        const disp = s.done === 1 ? '5.00 g' : s.done >= 5 ? (5 * (1 + P / 100)).toFixed(2) + ' g' : '0.00 g'; S.T(c, disp, 210, 437, { mono: 1, s: 20, c: '#7fe0b0', w: 500 });
+        const raisins = (cx, cy, k, spread) => { for (let i = 0; i < 20; i++) { const x = cx + (rr() - .5) * spread, y = cy - rr() * 22; S.ell(c, x, y, 11 * k, 7.5 * k, rr() * 3, '#4a2a2a', '#2a1414', 1.2); } };
+        if (s.done <= 1 || s.done === 5) raisins(210, 378, s.done === 5 ? sw : 1, 150);
+        S.beaker(c, 520, 220, 240, 250, .62, 'rgba(150,200,225,.55)', () => { if (s.done >= 2 && s.done <= 3) raisins(640, 462, sw, 190); });
+        if (s.done === 4) { c.fillStyle = '#fbfaf6'; c.beginPath(); c.ellipse(420, 456, 90, 12, 0, 0, P2); c.fill(); raisins(420, 452, sw, 140); S.T(c, 'Filter paper', 420, 490, { s: 12 }); }
+        S.T(c, { cold: '10 °C', room: '25 °C', warm: '45 °C' }[s.temp] + ' water', 640, 200, { w: 600 });
+        if (s.done >= 3) S.T(c, 'Soaked ' + s.hrs + ' h', 640, 176, { s: 13, c: '#5f655f' });
+        if (s.done === 5) { S.pill(c, 'Water imbibed = (W₂ − W₁) / W₁ × 100 = ' + P.toFixed(1) + ' %', 480, 80, '#2f6b4f', '#fff'); }
+      },
+      table: s => s.trials.length ? { cols: ['Trial', 'Water', 'Time', 'W₁', 'W₂', '% imbibed'], rows: s.trials } : null,
+      result: s => s.trials.length ? 'Raisins absorb water by imbibition and swell. Percentage of water absorbed = (W₂ − W₁)/W₁ × 100. Warmer water and longer soaking increase the uptake.' : ''
+    };
+    // ===== 6. Transpiration =====
+    const tF = s => (.35 + .65 * s.light / 100) * (.8 + .8 * s.wind / 100) * (1.5 - s.hum / 100);
+    E.transp = {
+      title: 'Transpiration from upper & lower leaf surfaces', cls: 'Class 7 · Class 11', group: 'Classes 11–12',
+      aim: 'To compare the rate of transpiration from the upper and lower surfaces of a leaf using cobalt chloride paper, and relate it to the distribution of stomata.',
+      materials: ['Potted plant (dicot & monocot)', 'Dry cobalt chloride paper (blue)', 'Glass slides & clips', 'Forceps', 'Stopwatch'],
+      init: () => ({ leaf: 'dicot', light: 70, wind: 20, hum: 50, t: 0, run: false, pu: 0, pl: 0, tu: null, tl: null, rec: [], err: 0, msg: { t: 'info', s: 'Cobalt chloride paper is blue when dry and turns pink when it absorbs water vapour.' } }),
+      groups: s => [{ label: 'Leaf', opts: [['dicot', 'Dicot (Hibiscus)'], ['mono', 'Monocot (Maize)']].map(([k, l]) => ({ label: l, active: s.leaf === k, on: () => { s.leaf = k; s.t = 0; s.pu = s.pl = 0; s.tu = s.tl = null; s.run = false; } })) }],
+      sliders: s => [{ label: 'Light', min: 0, max: 100, step: 1, value: s.light, text: s.light + ' %', set: v => { s.light = v; } }, { label: 'Wind', min: 0, max: 100, step: 1, value: s.wind, text: s.wind + ' %', set: v => { s.wind = v; } }, { label: 'Humidity', min: 10, max: 95, step: 1, value: s.hum, text: s.hum + ' %', set: v => { s.hum = v; } }],
+      actions: s => [{ label: s.run ? 'Pause' : s.tu !== null && s.tl !== null ? 'Done' : '▶ Clip papers & start', primary: true, dis: s.tu !== null && s.tl !== null, on: () => { s.run = !s.run; } }, { label: 'Fresh papers', on: () => { s.t = 0; s.pu = s.pl = 0; s.tu = s.tl = null; s.run = false; } }],
+      tick: (s, dt) => { if (!s.run) return false; const dm = dt * 2, b = s.leaf === 'dicot' ? { u: 1 / 16, l: 1 / 4 } : { u: 1 / 7, l: 1 / 7 }, f = tF(s); s.t += dm; s.pu += b.u * f * dm; s.pl += b.l * f * dm;
+        if (s.pu >= 1 && s.tu === null) s.tu = s.t; if (s.pl >= 1 && s.tl === null) s.tl = s.t;
+        if (s.tu !== null && s.tl !== null) { s.run = false; s.rec.push([s.leaf === 'dicot' ? 'Dicot' : 'Monocot', s.light + ' / ' + s.wind + ' / ' + s.hum, s.tu.toFixed(1) + ' min', s.tl.toFixed(1) + ' min']); s.msg = { t: 'ok', s: s.leaf === 'dicot' ? 'The lower-surface paper turned pink much faster — dicot leaves have more stomata on the lower surface.' : 'Both papers turned pink at about the same time — monocot leaves have stomata equally on both surfaces.' }; S.bump(); }
+        return true; },
+      draw: (c, s, t) => { const dic = s.leaf === 'dicot', blue = '#3b6fc4', pink = '#e98aa6';
+        [[250, 'Upper surface', s.pu, s.tu, dic ? 3 : 12, '#4f8f3a'], [710, 'Lower surface', s.pl, s.tl, dic ? 22 : 12, '#78a85a']].forEach(([x, lab, p, tt, n, col]) => {
+          if (dic) S.leaf(c, x, 200, 330, 190, 0, col); else { c.fillStyle = col; c.beginPath(); c.roundRect(x - 190, 160, 380, 80, 40); c.fill(); for (let i = -3; i <= 3; i++) S.line(c, [[x - 180, 200 + i * 9], [x + 180, 200 + i * 9]], 'rgba(30,60,20,.3)', 1.2); }
+          c.fillStyle = 'rgba(210,235,245,.55)'; c.strokeStyle = 'rgba(60,80,90,.6)'; c.lineWidth = 2; c.fillRect(x - 60, 160, 120, 80); c.strokeRect(x - 60, 160, 120, 80);
+          c.fillStyle = S.mix(blue, pink, Math.min(1, p)); c.fillRect(x - 36, 176, 72, 48); c.fillStyle = '#9aa09a'; c.fillRect(x - 66, 156, 14, 88); c.fillRect(x + 52, 156, 14, 88);
+          S.T(c, lab, x, 64, { w: 700, s: 18 }); S.T(c, tt !== null ? 'Turned pink in ' + tt.toFixed(1) + ' min' : p > 0 ? Math.round(Math.min(1, p) * 100) + ' % moist' : 'Blue (dry)', x, 92, { s: 14, c: tt !== null ? '#8f3620' : '#5f655f', w: 600 });
+          c.save(); c.beginPath(); c.arc(x, 380, 62, 0, P2); c.fillStyle = '#eef3ea'; c.fill(); c.clip(); for (let i = 0; i < n; i++) { const sx = x + (S.H(i, n * 7 + x) - .5) * 104, sy = 380 + (S.H(i + 50, n * 3 + x) - .5) * 104; S.ell(c, sx - 3, sy, 3, 6, 0, '#5d9a3e'); S.ell(c, sx + 3, sy, 3, 6, 0, '#5d9a3e'); } c.restore(); c.strokeStyle = '#1c211f'; c.lineWidth = 4; c.beginPath(); c.arc(x, 380, 62, 0, P2); c.stroke();
+          S.T(c, '≈ ' + n + ' stomata in view', x, 460, { s: 13, c: '#3d423e' }); });
+        S.T(c, s.t.toFixed(1) + ' min', 480, 300, { w: 700, s: 26, mono: 1 });
+      },
+      table: s => s.rec.length ? { cols: ['Leaf', 'Light / wind / humidity', 'Upper surface', 'Lower surface'], rows: s.rec } : null,
+      steps: s => [['Place dry blue cobalt chloride paper on both leaf surfaces', s.t > 0], ['Cover with glass slides and clip them', s.t > 0], ['Note the time each paper takes to turn pink', s.tu !== null || s.tl !== null], ['Compare the two surfaces', s.tu !== null && s.tl !== null]],
+      result: s => s.rec.length ? 'Transpiration happens mainly through stomata. Dicot leaves (dorsiventral) have more stomata on the lower surface, so that paper turns pink first; monocot (isobilateral) leaves transpire about equally from both. More light and wind and lower humidity increase the rate.' : ''
+    };
+    // ===== 7. Chromatography =====
+    const PIG = [['Carotene', '#e8a21a', .95], ['Xanthophyll', '#d9c430', .71], ['Chlorophyll a', '#2f7a5a', .55], ['Chlorophyll b', '#7aa83a', .42]];
+    E.chroma = {
+      title: 'Paper chromatography of leaf pigments', cls: 'Class 11', group: 'Classes 11–12',
+      aim: 'To separate chloroplast pigments by paper chromatography and calculate their Rf values.',
+      materials: ['Fresh spinach leaves', 'Mortar & pestle, acetone', 'Whatman filter-paper strip', 'Capillary tube', 'Chromatography jar', 'Solvent (petroleum ether : acetone 9:1)', 'Pencil, scale'],
+      init: () => ({ done: 0, spots: 0, depth: 1, front: 0, run: false, err: 0, msg: { t: 'info', s: 'Start by grinding the leaves in acetone.' } }),
+      sliders: s => [{ label: 'Solvent depth in jar', min: .5, max: 3, step: .5, value: s.depth, text: s.depth + ' cm (spot at 2 cm)', set: v => { if (s.done < 3) s.depth = v; } }],
+      actions: s => { const go = (need, fn) => () => { if (!need) { s.err++; s.msg = { t: 'warn', s: 'Not yet — follow the procedure order.' }; return; } fn(); };
+        return [
+          { label: 'Grind leaves in acetone', done: s.done >= 1, on: go(s.done === 0, () => { s.done = 1; s.msg = { t: 'ok', s: 'Dark green extract of pigments ready.' }; }) },
+          { label: 'Spot extract on the pencil line (' + s.spots + '×)', done: s.done >= 3, on: go(s.done >= 1 && s.done < 3, () => { s.spots = Math.min(8, s.spots + 1); if (s.done === 1) s.done = 2; s.msg = s.spots < 3 ? { t: 'info', s: 'Let it dry, then spot again — 3–4 times gives a concentrated spot.' } : { t: 'ok', s: 'Concentrated spot ready.' }; }) },
+          { label: 'Hang the strip in the jar', done: s.done >= 3, on: go(s.done === 2, () => { s.done = 3; s.msg = s.depth >= 2 ? { t: 'warn', s: 'Careful: the solvent is above the spot — the pigments will dissolve into the solvent.' } : s.spots < 3 ? { t: 'warn', s: 'The spot is dilute — bands will be faint.' } : { t: 'ok', s: 'Strip in place, spot above the solvent. Close the lid.' }; }) },
+          { label: s.run ? 'Running…' : 'Let the solvent rise', primary: true, done: s.done >= 4 && !s.run, on: go(s.done === 3, () => { s.run = true; }) },
+          { label: 'Remove strip & mark solvent front', done: s.done >= 5, on: go(s.done === 4 && !s.run, () => { s.done = 5; s.msg = { t: 'ok', s: 'Rf = distance moved by pigment ÷ distance moved by solvent.' }; }) },
+          { label: 'Start again', on: () => Object.assign(s, E.chroma.init()) }]; },
+      tick: (s, dt) => { if (!s.run) return false; s.front = Math.min(1, s.front + dt / 7); if (s.front >= 1) { s.run = false; s.done = 4; s.msg = s.depth >= 2 ? { t: 'warn', s: 'No bands — the spot was dipped in solvent and the pigments washed into it. Repeat with the solvent below the spot.' } : { t: 'ok', s: 'Four bands separated. Remove the strip and mark the solvent front.' }; S.bump(); } return true; },
+      draw: (c, s, t) => {
+        c.fillStyle = '#9a9488'; c.beginPath(); c.ellipse(220, 420, 120, 50, 0, 0, Math.PI); c.fill(); c.fillStyle = '#b8b2a4'; c.beginPath(); c.ellipse(220, 420, 120, 22, 0, 0, P2); c.fill();
+        if (s.done >= 1) { c.fillStyle = '#2f5a2a'; c.beginPath(); c.ellipse(220, 422, 96, 15, 0, 0, P2); c.fill(); } else { const r = S.rng(2); for (let i = 0; i < 10; i++) S.leaf(c, 170 + r() * 100, 405 + r() * 12, 50, 26, r() * 3, '#4f8f3a'); }
+        S.line(c, [[260, 330], [200, 420]], '#c8c0ac', 16); S.T(c, 'Mortar & pestle', 220, 490, { s: 13 });
+        const top = 80, bot = 450, org = bot - 40, solv = bot - s.depth * 20, inJar = s.done >= 3, sx = inJar ? 640 : 420;
+        c.fillStyle = 'rgba(255,255,255,.35)'; c.strokeStyle = 'rgba(60,80,90,.75)'; c.lineWidth = 2.5; c.beginPath(); c.roundRect(540, 60, 200, 410, [0, 0, 16, 16]); c.fill(); c.stroke(); c.fillStyle = '#5f655f'; c.fillRect(530, 48, 220, 14);
+        const dissolved = s.depth >= 2; c.fillStyle = dissolved && s.front > 0 ? 'rgba(120,170,90,.45)' : 'rgba(230,236,210,.55)'; c.fillRect(542, solv, 196, 470 - solv - 2);
+        if (!inJar) { c.save(); c.translate(sx, 300); c.rotate(-.12); c.translate(-sx, -300); }
+        const front = solv - s.front * (solv - top - 20); c.fillStyle = '#fbfaf6'; c.fillRect(sx - 26, top, 52, bot - top); c.strokeStyle = 'rgba(0,0,0,.15)'; c.lineWidth = 1; c.strokeRect(sx - 26, top, 52, bot - top);
+        if (s.front > 0) { c.fillStyle = 'rgba(200,215,225,.35)'; c.fillRect(sx - 26, front, 52, bot - front); }
+        S.line(c, [[sx - 26, org], [sx + 26, org]], '#5f655f', 1.2);
+        const fd = Math.max(0, org - front), I = Math.min(1, s.spots / 4);
+        if (s.spots && !(dissolved && s.front > .05)) { if (fd < 2) S.ell(c, sx, org, 6 + s.spots, 5 + s.spots * .6, 0, 'rgba(40,90,40,' + (.3 + .6 * I).toFixed(2) + ')');
+          else PIG.slice().reverse().forEach(([n, col, rf]) => { c.globalAlpha = .25 + .7 * I; S.ell(c, sx, org - rf * fd, 20, 5, 0, col); c.globalAlpha = 1; }); }
+        if (s.done >= 5) { S.line(c, [[sx - 30, front], [sx + 30, front]], '#c8553d', 2); S.T(c, 'Solvent front', sx + 40, front, { s: 12, a: 'left', c: '#8f3620' }); if (!dissolved) PIG.forEach(([n, col, rf]) => S.T(c, n, sx - 36, org - rf * fd, { s: 12, a: 'right' })); }
+        if (!inJar) c.restore();
+        S.T(c, 'Chromatography jar', 640, 490, { s: 13 });
+      },
+      table: s => s.done >= 5 && s.depth < 2 && s.spots ? { cols: ['Pigment', 'Colour', 'Pigment distance', 'Solvent distance', 'Rf'], rows: PIG.map(([n, col, rf]) => { const fdc = (410 - 100) / 20; return [n, { 'Carotene': 'Orange-yellow', 'Xanthophyll': 'Yellow', 'Chlorophyll a': 'Blue-green', 'Chlorophyll b': 'Yellow-green' }[n], (rf * fdc).toFixed(1) + ' cm', fdc.toFixed(1) + ' cm', rf.toFixed(2)]; }) } : null,
+      steps: s => [['Grind leaves in acetone to extract pigments', s.done >= 1], ['Spot the extract 3–4 times on a pencil line 2 cm from the end', s.spots >= 3], ['Hang the strip so the spot stays above the solvent', s.done >= 3], ['Let the solvent rise near the top', s.done >= 4], ['Mark the solvent front and calculate Rf', s.done >= 5]],
+      result: s => s.done >= 5 ? (s.depth < 2 ? 'Leaf extract is a mixture of four pigments that move at different speeds according to their solubility and adsorption: carotene (top) > xanthophyll > chlorophyll a > chlorophyll b.' : 'The experiment failed because the spot was below the solvent level. Keep the solvent below the origin line.') : ''
+    };
+    // ===== 8. Enzyme =====
+    const kE = s => { const T = s.temp, fT = T <= 37 ? Math.exp(-Math.pow((T - 37) / 16, 2)) : T >= 62 ? 0 : Math.exp(-Math.pow((T - 37) / 11, 2)); return .6 * fT * Math.exp(-Math.pow((s.ph - 6.8) / 1.3, 2)); };
+    E.enzyme = {
+      title: 'Action of salivary amylase on starch', cls: 'Class 11 · Class 12', group: 'Classes 11–12',
+      aim: 'To study the effect of temperature and pH on the digestion of starch by salivary amylase.',
+      materials: ['1 % starch solution', 'Saliva (diluted)', 'Iodine solution', 'Spot plate / white tile', 'Water baths at different temperatures', 'Buffer solutions (pH 4–10)', 'Dropper, stopwatch'],
+      init: () => ({ temp: 37, ph: 6.8, t: 0, run: false, S: 1, ach: null, wells: [], rec: [], err: 0, msg: { t: 'info', s: 'Set temperature and pH, then mix saliva with starch and start the clock.' } }),
+      sliders: s => [{ label: 'Water bath temperature', min: 0, max: 90, step: 1, value: s.temp, text: s.temp + ' °C', set: v => { s.temp = v; } }, { label: 'pH (buffer)', min: 4, max: 10, step: .2, value: s.ph, text: 'pH ' + s.ph.toFixed(1), set: v => { s.ph = v; } }],
+      actions: s => [{ label: s.run ? 'Pause' : s.ach !== null || s.t >= 20 ? 'Finished' : s.t ? 'Resume' : '▶ Add saliva & start', primary: true, dis: s.t >= 20 || s.ach !== null, on: () => { s.run = !s.run; } }, { label: 'Record result', dis: !(s.ach !== null || s.t >= 20), on: () => { s.rec.push([s.temp + ' °C', 'pH ' + s.ph.toFixed(1), s.ach !== null ? s.ach.toFixed(0) + ' min' : '> 20 min', s.ach !== null ? (60 / s.ach).toFixed(1) : '≈ 0']); s.msg = { t: 'ok', s: 'Recorded. Try another temperature or pH.' }; } }, { label: 'Reset', on: () => { Object.assign(s, { t: 0, run: false, S: 1, ach: null, wells: [] }); } }],
+      tick: (s, dt) => { if (!s.run) return false; const dm = dt * 1.25; s.t = Math.min(20, s.t + dm); s.S *= Math.exp(-kE(s) * dm); while (s.wells.length < Math.floor(s.t)) s.wells.push(s.S);
+        if (s.S < .06 && s.ach === null) { s.ach = Math.ceil(s.t); s.run = false; s.msg = { t: 'ok', s: 'Achromatic point at ' + s.ach + ' min — iodine stays brown, all starch digested to maltose.' }; S.bump(); }
+        if (s.t >= 20 && s.ach === null) { s.run = false; s.msg = { t: 'warn', s: kE(s) < .02 ? 'Still blue-black after 20 min — the enzyme is ' + (s.temp >= 60 ? 'denatured by heat.' : s.temp < 10 ? 'inactive in the cold.' : 'inhibited at this pH.') : 'Digestion is slow at these conditions.' }; S.bump(); } return true; },
+      draw: (c, s, t) => { S.tripod(c, 220, 380, 200, 90); S.burner(c, 220, 470, t, s.temp > 40); S.beaker(c, 110, 200, 220, 178, .62, s.temp < 12 ? 'rgba(200,225,240,.7)' : 'rgba(160,205,225,.55)', yy => { if (s.temp > 70) S.bub(c, 120, 200, 378, yy, t, 16, 4, 4); if (s.temp < 12) { c.fillStyle = 'rgba(255,255,255,.8)'; [[140, yy + 6], [250, yy + 10], [190, yy + 4]].forEach(([x, y]) => { c.beginPath(); c.roundRect(x, y, 24, 20, 4); c.fill(); }); } });
+        S.tube(c, 196, 120, 46, 230, .5, S.mix('#e9eef0', '#f4f1e4', 1 - s.S));
+        c.fillStyle = '#fbfaf6'; c.strokeStyle = 'rgba(60,80,90,.6)'; c.lineWidth = 2; c.fillRect(270, 90, 10, 230); c.strokeRect(270, 90, 10, 230); const th = s.temp / 100 * 210; c.fillStyle = '#c8553d'; c.fillRect(272, 318 - th, 6, th); S.ell(c, 275, 324, 9, 9, 0, '#c8553d'); S.T(c, s.temp + ' °C', 300, 92, { s: 13, a: 'left', mono: 1 });
+        c.fillStyle = '#fbfaf6'; c.strokeStyle = '#cfc8b8'; c.lineWidth = 2; c.beginPath(); c.roundRect(440, 120, 470, 330, 14); c.fill(); c.stroke();
+        for (let i = 0; i < 20; i++) { const x = 490 + (i % 5) * 92, y = 175 + Math.floor(i / 5) * 76, v = s.wells[i]; S.ell(c, x, y, 30, 26, 0, v === undefined ? '#efe4c8' : S.mix('#c99a3a', '#1d1838', Math.min(1, v * 1.15)), 'rgba(0,0,0,.18)', 2); S.T(c, (i + 1) + '′', x, y + 38, { s: 10, mono: 1, c: '#5f655f' }); }
+        S.T(c, 'Time ' + s.t.toFixed(1) + ' min', 675, 70, { w: 700, s: 22 }); S.T(c, 'Starch remaining ' + Math.round(s.S * 100) + ' %', 675, 98, { s: 14, c: '#2f6b4f', w: 600 });
+      },
+      table: s => s.rec.length ? { cols: ['Temperature', 'pH', 'Achromatic point', 'Rate (1/time ×60)'], rows: s.rec } : null,
+      steps: s => [['Mix 1 % starch with buffer in a test tube at the set temperature', true], ['Add diluted saliva and start the stopwatch', s.t > 0], ['Every minute, add a drop of the mixture to iodine on the spot plate', s.wells.length > 0], ['Note the achromatic point (iodine stays brown)', s.ach !== null || s.t >= 20], ['Repeat at different temperatures and pH', s.rec.length > 1]],
+      result: s => s.rec.length ? 'Salivary amylase digests starch to maltose fastest at about 37 °C and pH 6.8 (optimum). Low temperature slows it; above ~60 °C the enzyme is denatured; very acidic or alkaline pH inhibits it.' : ''
+    };
+    // ===== 9. Germination =====
+    const SET = [['A', 'Dry cotton', 'No water'], ['B', 'Moist cotton, room temp', 'All conditions'], ['C', 'Under boiled water + oil', 'No air'], ['D', 'Moist cotton in fridge', 'Too cold']];
+    E.germ = {
+      title: 'Conditions necessary for seed germination', cls: 'Class 6 · Class 7 · Class 8', group: 'Classes 6–8',
+      aim: 'To find out that water, air and suitable temperature are needed for seeds to germinate.',
+      materials: ['Gram / moong seeds', '4 beakers or bottles', 'Cotton wool', 'Boiled water & oil', 'Refrigerator'],
+      init: () => ({ day: 0, run: false, err: 0, msg: { t: 'info', s: 'Four set-ups with identical seeds. Press Play to watch a week pass.' } }),
+      sliders: s => [{ label: 'Day', min: 0, max: 7, step: .1, value: s.day, text: 'Day ' + s.day.toFixed(1), set: v => { s.day = v; } }],
+      actions: s => [{ label: s.run ? 'Pause' : s.day >= 7 ? 'Finished' : '▶ Play', primary: true, dis: s.day >= 7, on: () => { s.run = !s.run; } }, { label: 'Reset', on: () => { s.day = 0; s.run = false; } }],
+      tick: (s, dt) => { if (!s.run) return false; s.day = Math.min(7, s.day + dt * .8); if (s.day >= 7) { s.run = false; s.msg = { t: 'ok', s: 'Only B germinated: seeds need water, air and a suitable temperature.' }; S.bump(); } return true; },
+      draw: (c, s, t) => { SET.forEach(([L, cond, miss], i) => { const x = 50 + i * 228, w = 170;
+        if (i === 3) { c.fillStyle = '#dbe9f2'; c.beginPath(); c.roundRect(x - 14, 180, w + 28, 290, 10); c.fill(); S.T(c, '❄ 4 °C', x + w / 2, 200, { s: 14, w: 600, c: '#3a6a8a' }); }
+        const lvl = i === 2 ? .82 : 0; S.beaker(c, x, 230, w, 236, lvl, 'rgba(150,200,225,.55)', yy => { if (i === 2) { c.fillStyle = 'rgba(232,200,90,.85)'; c.fillRect(x - 9, yy, w + 18, 14); } });
+        if (i !== 2) { c.fillStyle = i === 0 ? '#fbfaf6' : '#e4eef2'; c.beginPath(); for (let k = 0; k <= 10; k++) c.lineTo(x + k * w / 10, 418 + 5 * Math.sin(k * 1.7)); c.lineTo(x + w, 462); c.lineTo(x, 462); c.closePath(); c.fill(); }
+        for (let k = 0; k < 3; k++) { const sx = x + 38 + k * 46, sy = i === 2 ? 452 : 414, sw = i === 0 ? 1 : Math.min(1.25, 1 + s.day * .08), g = i === 1;
+          const rad = g ? Math.max(0, Math.min(70, (s.day - 1.2) * 22)) : 0, plu = g ? Math.max(0, Math.min(60, (s.day - 2.5) * 16)) : 0;
+          if (rad) { c.beginPath(); c.moveTo(sx, sy + 6); c.quadraticCurveTo(sx + 8, sy + 6 + rad / 2, sx + 2, sy + 6 + rad * .55); c.strokeStyle = '#f2ead2'; c.lineWidth = 4; c.stroke(); }
+          if (plu) { S.line(c, [[sx, sy - 6], [sx - 2, sy - 6 - plu]], '#6aa04a', 4); if (plu > 30) { S.ell(c, sx - 10, sy - 6 - plu, 10, 5, -.5, '#5d9a3e'); S.ell(c, sx + 6, sy - 6 - plu, 10, 5, .5, '#5d9a3e'); } }
+          S.ell(c, sx, sy, 14 * sw, 10 * sw, .2, '#c9a45a', '#8a6a2a', 1.5); }
+        S.T(c, L, x + w / 2, 160, { w: 700, s: 26 }); S.T(c, cond, x + w / 2, 490, { s: 13, w: 600 });
+        if (s.day >= 3) S.pill(c, i === 1 ? 'Germinated' : 'No germination', x + w / 2, 520, i === 1 ? '#2f6b4f' : '#e6e0d2', i === 1 ? '#fff' : '#1c211f'); }); },
+      noBench: false,
+      table: s => s.day >= 3 ? { cols: ['Set-up', 'Condition', 'Missing factor', 'Result'], rows: SET.map(([L, c2, m], i) => [L, c2, i === 1 ? '—' : m, i === 1 ? 'Germinated' : 'Did not germinate']) } : null,
+      steps: s => [['Set up four containers with equal seeds', true], ['A: dry cotton · B: moist cotton · C: under boiled water with oil · D: moist cotton in fridge', true], ['Observe daily for a week', s.day >= 3], ['Compare and conclude', s.day >= 7]],
+      result: s => s.day >= 3 ? 'Seeds germinate only when they get water, air (oxygen) and a suitable temperature together. Removing any one of these (A, C, D) prevents germination.' : ''
+    };
+    // ===== 10. Dicot seed =====
+    const SEED = { gram: ['Gram (chana)', '#8a5a2e', '#e8cf86'], pea: ['Pea', '#9ab85a', '#dcdc8a'], bean: ['Red kidney bean', '#8a2a2a', '#f0e4c0'] };
+    E.seed = {
+      title: 'Parts of a dicot seed embryo', cls: 'Class 10', group: 'Classes 9–10',
+      aim: 'To identify the different parts of the embryo of a dicot seed (gram, pea or kidney bean).',
+      materials: ['Seeds of gram / pea / kidney bean', 'Beaker of water', 'Forceps, needle', 'Hand lens', 'Petri dish'],
+      init: () => ({ seed: 'gram', done: 0, a: 1, err: 0, msg: { t: 'info', s: 'Soak the seeds first.' } }),
+      orderOf: () => ['soak', 'coat', 'split', 'lens'],
+      acts: { soak: 'Soak the seeds in water overnight', coat: 'Peel off the seed coat (testa)', split: 'Gently separate the two cotyledons with a needle', lens: 'Observe the embryo with a hand lens' },
+      ok: { soak: 'The seed absorbed water and swelled — note the hilum and micropyle.', coat: 'Testa removed — two cotyledons are visible.', split: 'The cotyledons open like a book; the embryonal axis is attached to one of them.', lens: 'Embryonal axis: plumule (future shoot) and radicle (future root).' },
+      decoy: { dry: 'A dry seed is hard and will break — soak it first so the parts separate easily.' }, decoyLabel: { dry: 'Split the dry seed with a needle' },
+      list: ['coat', 'dry', 'lens', 'soak', 'split'],
+      groups: s => [{ label: 'Seed', opts: Object.entries(SEED).map(([k, v]) => ({ label: v[0], active: s.seed === k, on: () => { s.seed = k; s.done = 0; s.a = 1; } })) }],
+      tick: (s, dt) => S.seqTick(s, dt),
+      draw: (c, s, t) => { const [nm, coat, cot] = SEED[s.seed], d = s.done, A = s.a, cx = 400, cy = 270;
+        const lab = (txt, x, y, tx, ty) => { S.line(c, [[x, y], [tx, ty]], '#3d423e', 1.5); S.ell(c, x, y, 3.5, 3.5, 0, '#1c211f'); S.T(c, txt, tx + (tx > x ? 6 : -6), ty, { s: 14, w: 600, a: tx > x ? 'left' : 'right' }); };
+        if (d < 2) { const k = d === 0 ? .72 : .72 + .28 * (d === 1 ? A : 1); S.ell(c, cx, cy, 120 * k, 86 * k, 0, coat, 'rgba(0,0,0,.3)', 2); if (d === 0) { c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 2; for (let i = 0; i < 5; i++) { c.beginPath(); c.arc(cx - 40 + i * 20, cy, 40, -.5, .5); c.stroke(); } }
+          S.ell(c, cx + 104 * k, cy, 9 * k, 22 * k, 0, '#f6f0de'); if (d === 1) { S.ell(c, cx + 104, cy + 30, 2.5, 2.5, 0, '#2a1a0a'); lab('Hilum (scar)', cx + 104, cy, 640, 220); lab('Micropyle', cx + 104, cy + 30, 640, 320); } }
+        if (d >= 2) { if (d === 2) { c.globalAlpha = A; } for (let i = 0; i < 2; i++) { c.save(); c.translate(150 + i * 40, 420); c.rotate(.4 + i); c.beginPath(); c.arc(0, 0, 50, 0, 2); c.strokeStyle = coat; c.lineWidth = 7; c.stroke(); c.restore(); } c.globalAlpha = 1; S.T(c, 'Seed coat (testa)', 170, 490, { s: 13 }); }
+        if (d === 2) { S.ell(c, cx, cy, 116, 84, 0, cot, 'rgba(0,0,0,.25)', 2); S.line(c, [[cx - 116, cy], [cx + 116, cy]], 'rgba(0,0,0,.25)', 2); }
+        if (d >= 3) { const o = d === 3 ? A : 1;
+          [[-1], [1]].forEach(([sd]) => { c.save(); c.translate(cx + sd * 70 * o, cy); c.beginPath(); c.ellipse(0, 0, 66, 96, 0, sd < 0 ? Math.PI / 2 : -Math.PI / 2, sd < 0 ? Math.PI * 1.5 : Math.PI / 2); c.closePath(); c.fillStyle = cot; c.fill(); c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 2; c.stroke(); c.restore(); });
+          const ax = cx + 70 * o + 4, ay = cy - 60; c.fillStyle = '#f2ead2'; c.beginPath(); c.moveTo(ax, ay - 10); c.lineTo(ax + 18, ay - 4); c.lineTo(ax + 24, ay + 26); c.lineTo(ax + 6, ay + 22); c.closePath(); c.fill(); c.strokeStyle = '#a8946a'; c.lineWidth = 1.5; c.stroke();
+          S.ell(c, ax + 10, ay - 18, 8, 10, .3, '#c8d89a', '#7a8a4a', 1.2);
+          lab('Cotyledon', cx - 80 * o, cy + 20, 140, 120); lab('Cotyledon', cx + 110 * o, cy + 40, 680, 410);
+          if (d >= 4) { const lx = 760, ly = 210, R = 130; c.save(); c.beginPath(); c.arc(lx, ly, R, 0, P2); c.fillStyle = '#fbfaf6'; c.fill(); c.clip(); c.translate(lx - 10, ly + 10); c.scale(4.4, 4.4); c.fillStyle = '#f2ead2'; c.beginPath(); c.moveTo(0, -10); c.lineTo(18, -4); c.lineTo(24, 26); c.lineTo(6, 22); c.closePath(); c.fill(); c.strokeStyle = '#a8946a'; c.lineWidth = .4; c.stroke(); S.ell(c, 10, -18, 8, 10, .3, '#c8d89a', '#7a8a4a', .4); c.strokeStyle = '#7a8a4a'; c.lineWidth = .5; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(10, -10); c.lineTo(10 + i * 3, -26); c.stroke(); } c.restore();
+            c.strokeStyle = '#1c211f'; c.lineWidth = 9; c.beginPath(); c.arc(lx, ly, R, 0, P2); c.stroke(); S.line(c, [[lx - R * .7, ly + R * .7], [lx - R * 1.05, ly + R * 1.05]], '#6b5a3e', 18);
+            S.T(c, 'Plumule (future shoot)', lx, ly - 150, { w: 700, s: 14, c: '#2f6b4f' }); S.T(c, 'Radicle (future root)', lx + 20, ly + 152, { w: 700, s: 14, c: '#8f3620' }); S.T(c, 'Embryonal axis', lx, ly + 176, { s: 13, c: '#5f655f' }); }
+          else lab('Embryonal axis', ax + 12, ay + 6, 640, 120); }
+        S.T(c, nm, cx, 46, { w: 700, s: 20 }); },
+      result: s => s.done >= 4 ? 'A dicot seed has a seed coat (testa) with hilum and micropyle, two cotyledons that store food, and an embryonal axis with plumule (forms the shoot) and radicle (forms the root).' : ''
+    };
+    // ===== 11. DNA =====
+    const MAT = { banana: ['Banana', '#efe6c2'], onion: ['Onion', '#ece4cc'], spinach: ['Spinach', '#7aa04a'] };
+    E.dna = {
+      title: 'Isolation of DNA from plant material', cls: 'Class 12', group: 'Classes 11–12',
+      aim: 'To isolate DNA from available plant material such as banana, onion or spinach.',
+      materials: ['Plant material', 'Mortar & pestle', 'Extraction buffer (detergent + salt)', 'Filter paper / cheese cloth, funnel', 'Protease (meat tenderiser / papaya juice)', 'Ice-cold ethanol', 'Glass rod'],
+      init: () => ({ mat: 'banana', done: 0, a: 1, err: 0, msg: { t: 'info', s: 'Start by crushing the plant material.' } }),
+      orderOf: () => ['crush', 'buffer', 'filter', 'enzyme', 'ethanol', 'spool'],
+      acts: { crush: 'Crush the material in a mortar', buffer: 'Add extraction buffer (detergent + salt) and stir gently', filter: 'Filter the mixture into a test tube', enzyme: 'Add a pinch of protease (meat tenderiser)', ethanol: 'Pour ice-cold ethanol slowly along the side', spool: 'Spool the white threads onto a glass rod' },
+      ok: { crush: 'Cell walls broken mechanically.', buffer: 'Detergent dissolves cell and nuclear membranes; salt helps DNA clump.', filter: 'Cell debris removed; clear filtrate collected.', enzyme: 'Protease digests histone proteins bound to DNA.', ethanol: 'DNA is insoluble in cold ethanol — white threads precipitate at the interface.', spool: 'DNA spooled out!' },
+      decoy: { warm: 'Warm ethanol poured quickly mixes with the filtrate and very little DNA precipitates — use ice-cold ethanol, slowly, as a separate layer.' }, decoyLabel: { warm: 'Pour warm ethanol quickly into the filtrate' },
+      list: ['filter', 'ethanol', 'crush', 'warm', 'spool', 'buffer', 'enzyme'],
+      groups: s => [{ label: 'Material', opts: Object.entries(MAT).map(([k, v]) => ({ label: v[0], active: s.mat === k, on: () => { s.mat = k; s.done = 0; s.a = 1; } })) }],
+      tick: (s, dt) => S.seqTick(s, dt) || s.done >= 5,
+      draw: (c, s, t) => { const [nm, col] = MAT[s.mat], d = s.done, A = s.a;
+        if (d <= 1) { c.fillStyle = '#9a9488'; c.beginPath(); c.ellipse(300, 400, 150, 60, 0, 0, Math.PI); c.fill(); c.fillStyle = '#b8b2a4'; c.beginPath(); c.ellipse(300, 400, 150, 26, 0, 0, P2); c.fill(); if (d === 0) { const r = S.rng(3); for (let i = 0; i < 8; i++) S.ell(c, 230 + r() * 140, 392 + r() * 10, 26, 14, r() * 3, col, 'rgba(0,0,0,.2)', 1); } else { c.fillStyle = col; c.beginPath(); c.ellipse(300, 402, 124, 18, 0, 0, P2); c.fill(); } S.line(c, [[360, 290], [300, 400]], '#c8c0ac', 18); S.T(c, 'Mortar & pestle', 300, 490, { s: 13 }); }
+        if (d === 2) { S.beaker(c, 220, 250, 180, 216, .5, S.mix(col, '#e6eef0', .3), yy => { c.fillStyle = 'rgba(255,255,255,.7)'; for (let i = 0; i < 12; i++) c.fillRect(230 + i * 14, yy - 4, 8, 4); }); S.T(c, 'Extraction buffer added', 310, 230, { w: 600 }); }
+        if (d >= 3) { const tx = 600, ty = 110, tw = 90, th = 340, filt = S.mix(col, '#eef2f0', .45);
+          if (d === 3) { c.fillStyle = 'rgba(255,255,255,.5)'; c.strokeStyle = 'rgba(60,80,90,.7)'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(tx - 50, ty - 70); c.lineTo(tx + tw + 50, ty - 70); c.lineTo(tx + tw / 2 + 8, ty + 10); c.lineTo(tx + tw / 2 - 8, ty + 10); c.closePath(); c.fill(); c.stroke(); c.fillStyle = S.mix(col, '#7a6a4a', .3); c.beginPath(); c.moveTo(tx - 30, ty - 60); c.lineTo(tx + tw + 30, ty - 60); c.lineTo(tx + tw / 2, ty - 10); c.closePath(); c.fill(); }
+          S.tube(c, tx, ty, tw, th, d === 3 ? .45 * A : .45, filt, top => {
+            if (d >= 5) { const et = d === 5 ? A : 1; c.fillStyle = 'rgba(240,248,255,.85)'; c.fillRect(tx - 2, top - 110 * et, tw + 4, 110 * et); const r = S.rng(9); c.strokeStyle = 'rgba(255,255,255,.98)'; c.lineWidth = 2; const n = Math.round(26 * et * (d >= 6 ? .4 : 1)); for (let i = 0; i < n; i++) { const x = tx + 10 + r() * (tw - 20); c.beginPath(); c.moveTo(x, top); c.bezierCurveTo(x + (r() - .5) * 30, top - 20, x + (r() - .5) * 30, top - 40, x + (r() - .5) * 20, top - 30 - r() * 50 * et); c.stroke(); } } });
+          if (d === 4) S.dropper(c, tx + tw / 2, ty - 120, '#e8d8b0', t, A < 1);
+          if (d >= 6) { const ry = ty - 60 + (1 - A) * 40; S.line(c, [[tx + tw / 2, ry], [tx + tw / 2, ty + 160]], 'rgba(180,210,225,.9)', 7); c.fillStyle = 'rgba(255,255,255,.95)'; c.beginPath(); c.ellipse(tx + tw / 2, ty + 150 - A * 30, 18, 26, 0, 0, P2); c.fill(); S.pill(c, 'White, thread-like DNA', tx + tw / 2, ty - 80, '#2f6b4f', '#fff'); }
+          S.T(c, 'Filtrate · ' + nm, tx + tw / 2, 490, { s: 13 }); if (d >= 5) S.T(c, 'Ice-cold ethanol', tx + tw + 20, ty + 160, { s: 13, a: 'left' }); }
+      },
+      result: s => s.done >= 6 ? 'DNA was isolated: detergent broke membranes, protease removed proteins, and DNA precipitated as fine white threads in ice-cold ethanol because it is insoluble in alcohol.' : ''
+    };
+    // ===== 12. Mendel =====
+    const TR = { height: ['T', 'Tall', 'Dwarf', 'Plant height'], color: ['Y', 'Yellow seed', 'Green seed', 'Seed colour'], shape: ['R', 'Round seed', 'Wrinkled seed', 'Seed shape'], flower: ['V', 'Violet flower', 'White flower', 'Flower colour'] };
+    const srt = g => g.split('').sort((a, b) => a.toLowerCase() === b.toLowerCase() ? (a < b ? -1 : 1) : 0).join('');
+    const gcd = (a, b) => b ? gcd(b, a % b) : a;
+    const cross = s => { if (s.mode === 'mono') { const g1 = s.p1.split(''), g2 = s.p2.split(''); return { g1, g2, cells: g1.map(a => g2.map(b => srt(a + b))) }; }
+      const gm = g => [g[0] + g[2], g[0] + g[3], g[1] + g[2], g[1] + g[3]], g1 = gm(s.d1), g2 = gm(s.d2); return { g1, g2, cells: g1.map(a => g2.map(b => srt(a[0] + b[0]) + srt(a[1] + b[1]))) }; };
+    const phen = (s, g) => s.mode === 'mono' ? (/[A-Z]/.test(g) ? TR[s.trait][1] : TR[s.trait][2]) : (/R/.test(g) ? 'Round' : 'Wrinkled') + ' ' + (/Y/.test(g) ? 'yellow' : 'green');
+    const tally = (s, f) => { const m = {}; cross(s).cells.flat().forEach(g => { const k = f(g); m[k] = (m[k] || 0) + 1; }); return m; };
+    const ratio = m => { const v = Object.values(m), g = v.reduce(gcd); return v.map(x => x / g).join(' : '); };
+    E.mendel = {
+      title: "Mendel's laws: monohybrid & dihybrid crosses", cls: 'Class 10 · Class 12', group: 'Classes 11–12',
+      aim: 'To work out the inheritance of contrasting traits with Punnett squares and compare expected ratios with an experimental count.',
+      materials: ['Pea plant traits (Mendel)', 'Punnett square', 'Seed counts', 'Chi-square (χ²) test'],
+      init: () => ({ mode: 'mono', trait: 'height', p1: 'Tt', p2: 'Tt', d1: 'RrYy', d2: 'RrYy', obs: null, err: 0, msg: { t: 'info', s: 'Choose the parents. The Punnett square updates instantly.' } }),
+      groups: s => { const g = [{ label: 'Cross', opts: [['mono', 'Monohybrid'], ['di', 'Dihybrid']].map(([k, l]) => ({ label: l, active: s.mode === k, on: () => { s.mode = k; s.obs = null; } })) }];
+        if (s.mode === 'mono') { const L = TR[s.trait][0], gs = [L + L, L + L.toLowerCase(), L.toLowerCase() + L.toLowerCase()];
+          g.push({ label: 'Trait', opts: Object.entries(TR).map(([k, v]) => ({ label: v[3], active: s.trait === k, on: () => { const n = v[0], o = TR[s.trait][0]; s.trait = k; s.p1 = s.p1.replace(new RegExp(o, 'g'), n).replace(new RegExp(o.toLowerCase(), 'g'), n.toLowerCase()); s.p2 = s.p2.replace(new RegExp(o, 'g'), n).replace(new RegExp(o.toLowerCase(), 'g'), n.toLowerCase()); s.obs = null; } })) },
+            { label: 'Parent 1', opts: gs.map(x => ({ label: x, active: s.p1 === x, on: () => { s.p1 = x; s.obs = null; } })) }, { label: 'Parent 2', opts: gs.map(x => ({ label: x, active: s.p2 === x, on: () => { s.p2 = x; s.obs = null; } })) }); }
+        else { const ds = ['RRYY', 'RrYy', 'RRyy', 'rrYY', 'rryy']; g.push({ label: 'Parent 1', opts: ds.map(x => ({ label: x, active: s.d1 === x, on: () => { s.d1 = x; s.obs = null; } })) }, { label: 'Parent 2', opts: ds.map(x => ({ label: x, active: s.d2 === x, on: () => { s.d2 = x; s.obs = null; } })) }); }
+        return g; },
+      actions: s => [{ label: 'Grow 400 offspring & count', primary: true, on: () => { const cells = cross(s).cells.flat(), m = {}; Object.keys(tally(s, g => phen(s, g))).forEach(k => m[k] = 0); for (let i = 0; i < 400; i++) { const k = phen(s, cells[Math.floor(Math.random() * cells.length)]); m[k]++; } s.obs = m; const ex = tally(s, g => phen(s, g)), N = cells.length; let chi = 0; Object.keys(ex).forEach(k => { const e = ex[k] / N * 400; chi += Math.pow(m[k] - e, 2) / e; }); const df = Object.keys(ex).length - 1, crit = [0, 3.84, 5.99, 7.81][df] || 0; s.msg = df ? { t: chi < crit ? 'ok' : 'warn', s: 'χ² = ' + chi.toFixed(2) + ' (critical ' + crit + ' at df ' + df + ', p = 0.05) — ' + (chi < crit ? 'the observed counts fit the expected ratio.' : 'deviation is larger than chance — repeat the count.') } : { t: 'ok', s: 'All offspring show the same phenotype.' }; } }, { label: 'Clear counts', on: () => { s.obs = null; } }],
+      draw: (c, s, t) => { const X = cross(s), n = X.g1.length, cs = n === 2 ? 130 : 78, ox = n === 2 ? 170 : 110, oy = n === 2 ? 130 : 96;
+        S.T(c, s.mode === 'mono' ? s.p1 + ' × ' + s.p2 : s.d1 + ' × ' + s.d2, ox + cs * n / 2, 40, { w: 700, s: 22 });
+        S.T(c, '♀ gametes', ox - 60, oy - 30, { s: 12, c: '#5f655f' }); S.T(c, '♂ gametes', ox + cs * n / 2, oy - 46, { s: 12, c: '#5f655f' });
+        X.g2.forEach((g, j) => S.pill(c, g, ox + cs * j + cs / 2, oy - 20, '#efece4', '#1c211f')); X.g1.forEach((g, i) => S.pill(c, g, ox - 34, oy + cs * i + cs / 2, '#efece4', '#1c211f'));
+        X.cells.forEach((row, i) => row.forEach((g, j) => { const x = ox + cs * j, y = oy + cs * i, ph = phen(s, g); c.fillStyle = '#fbfaf6'; c.strokeStyle = '#cfc8b8'; c.lineWidth = 1.5; c.fillRect(x, y, cs, cs); c.strokeRect(x, y, cs, cs);
+          const ix = x + cs / 2, iy = y + cs * .42, r = cs * .17;
+          if (s.mode === 'mono' && s.trait === 'height') { const tall = /[A-Z]/.test(g), h = tall ? cs * .5 : cs * .22; S.line(c, [[ix, iy + cs * .2], [ix, iy + cs * .2 - h]], '#3f7a2e', 3); S.ell(c, ix - 6, iy + cs * .2 - h * .6, 7, 3.5, -.5, '#5d9a3e'); S.ell(c, ix + 6, iy + cs * .2 - h * .35, 7, 3.5, .5, '#5d9a3e'); }
+          else if (s.mode === 'mono' && s.trait === 'flower') { const v = /[A-Z]/.test(g); for (let k = 0; k < 5; k++) { const a = k / 5 * P2; S.ell(c, ix + Math.cos(a) * r * .7, iy + Math.sin(a) * r * .7, r * .55, r * .4, a, v ? '#8a4ab8' : '#fbfaf6', 'rgba(0,0,0,.25)', 1); } S.ell(c, ix, iy, r * .3, r * .3, 0, '#e8c040'); }
+          else { const yel = s.mode === 'di' ? /Y/.test(g) : s.trait === 'color' ? /[A-Z]/.test(g) : true, rnd = s.mode === 'di' ? /R/.test(g) : s.trait === 'shape' ? /[A-Z]/.test(g) : true; c.beginPath(); for (let k = 0; k <= 40; k++) { const a = k / 40 * P2, rr = r * (rnd ? 1 : 1 + .14 * Math.sin(a * 7)); c.lineTo(ix + Math.cos(a) * rr, iy + Math.sin(a) * rr); } c.fillStyle = yel ? '#e8c840' : '#8ab84a'; c.fill(); c.strokeStyle = 'rgba(0,0,0,.3)'; c.lineWidth = 1.2; c.stroke(); }
+          S.T(c, g, ix, y + cs * .84, { w: 700, s: n === 2 ? 17 : 13, mono: 1 }); }));
+        const px = n === 2 ? 600 : 520, pm = tally(s, g => phen(s, g)), gm = tally(s, g => g), N = n * n;
+        S.T(c, 'Phenotype ratio', px, 100, { a: 'left', s: 13, c: '#5f655f' }); S.T(c, ratio(pm), px, 136, { a: 'left', w: 700, s: 30 });
+        Object.entries(pm).forEach(([k, v], i) => S.T(c, k + ' — ' + v + '/' + N, px, 176 + i * 24, { a: 'left', s: 14 }));
+        const gy = 196 + Object.keys(pm).length * 24; S.T(c, 'Genotype ratio', px, gy, { a: 'left', s: 13, c: '#5f655f' }); S.T(c, ratio(gm), px, gy + 30, { a: 'left', w: 700, s: n === 2 ? 26 : 18 });
+        S.T(c, Object.keys(gm).join(' · '), px, gy + 60, { a: 'left', s: 12, mono: 1, c: '#3d423e' });
+      },
+      noBench: true,
+      table: s => { const ex = tally(s, g => phen(s, g)), N = Object.values(ex).reduce((a, b) => a + b, 0); return { cols: ['Phenotype', 'Expected ratio', 'Expected (of 400)', 'Observed', '(O − E)² / E'], rows: Object.entries(ex).map(([k, v]) => { const e = v / N * 400, o = s.obs ? s.obs[k] : null; return [k, v + '/' + N, e.toFixed(0), o === null ? '—' : o, o === null ? '—' : (Math.pow(o - e, 2) / e).toFixed(2)]; }) }; },
+      steps: s => [['Write the parental genotypes', true], ['Separate alleles into gametes (law of segregation)', true], ['Combine gametes in a Punnett square', true], ['Work out phenotype and genotype ratios', true], ['Compare with a real count using χ²', !!s.obs]],
+      result: s => s.mode === 'mono' && s.p1.length && s.p1 === s.p2 && /[A-Z][a-z]/.test(s.p1) ? 'Monohybrid F₂ (' + s.p1 + ' × ' + s.p2 + '): phenotype 3 : 1, genotype 1 : 2 : 1 — the recessive trait reappears (law of segregation, law of dominance).' : s.mode === 'di' && s.d1 === 'RrYy' && s.d2 === 'RrYy' ? 'Dihybrid F₂: 9 : 3 : 3 : 1 — the two traits are inherited independently (law of independent assortment).' : (s.mode === 'mono' && (s.p1 === s.p1.toLowerCase() || s.p2 === s.p2.toLowerCase()) && s.p1 !== s.p2 ? 'A cross with the homozygous recessive is a test cross — it reveals whether the other parent is homozygous or heterozygous.' : '')
+    };
+    // ===== 13. Quadrat =====
+    const SP = [['Cynodon (grass)', '#4f8f3a'], ['Parthenium', '#f2efe4'], ['Tridax', '#e8c43a']], FX0 = 20, FY0 = 20, FW = 680, FH = 440, PX = 68;
+    const gen = seed => { const r = S.rng(seed * 977 + 13), pts = [], gs = () => { let u = 0; for (let i = 0; i < 6; i++) u += r(); return u - 3; };
+      for (let k = 0; k < 16; k++) { const cx = FX0 + r() * FW, cy = FY0 + r() * FH, n = 25 + Math.floor(r() * 35); for (let i = 0; i < n; i++) { const x = cx + gs() * 26, y = cy + gs() * 26; if (x > FX0 && x < FX0 + FW && y > FY0 && y < FY0 + FH) pts.push([x, y, 0]); } }
+      for (let i = 0; i < 70; i++) pts.push([FX0 + r() * FW, FY0 + r() * FH, 1]);
+      for (let k = 0; k < 9; k++) { const cx = FX0 + r() * FW, cy = FY0 + r() * FH; for (let i = 0; i < 16; i++) { const x = cx + gs() * 20, y = cy + gs() * 20; if (x > FX0 && x < FX0 + FW && y > FY0 && y < FY0 + FH) pts.push([x, y, 2]); } }
+      return pts; };
+    const qCount = (s, q) => SP.map((_, k) => s.pl.filter(p => p[2] === k && p[0] >= q[0] && p[0] < q[0] + PX && p[1] >= q[1] && p[1] < q[1] + PX).length);
+    E.quad = {
+      title: 'Quadrat method: population density & frequency', cls: 'Class 12', group: 'Classes 11–12',
+      aim: 'To study plant population density and frequency in a field by the quadrat method.',
+      materials: ['1 m × 1 m quadrat frame', 'Measuring tape', 'Field notebook', 'Calculator'],
+      init: () => ({ seed: 1, pl: gen(1), qs: [], reveal: false, err: 0, msg: { t: 'info', s: 'Click anywhere in the field to lay a 1 m × 1 m quadrat. Lay at least 10.' } }),
+      actions: s => [{ label: 'Throw a random quadrat', primary: true, on: () => { E.quad.place(s, FX0 + Math.random() * (FW - PX), FY0 + Math.random() * (FH - PX)); } }, { label: 'Undo last', dis: !s.qs.length, on: () => { s.qs.pop(); } }, { label: 'Clear quadrats', on: () => { s.qs = []; s.reveal = false; } }, { label: 'New field', on: () => { s.seed++; s.pl = gen(s.seed); s.qs = []; s.reveal = false; } }, { label: s.reveal ? 'Hide actual density' : 'Reveal actual density', dis: s.qs.length < 3, on: () => { s.reveal = !s.reveal; } }],
+      place: (s, x, y) => { if (s.qs.length >= 25) { s.msg = { t: 'warn', s: 'Maximum 25 quadrats.' }; return S.bump(); } x = Math.max(FX0, Math.min(FX0 + FW - PX, x)); y = Math.max(FY0, Math.min(FY0 + FH - PX, y)); s.qs.push([x, y]); s.msg = { t: s.qs.length >= 10 ? 'ok' : 'info', s: s.qs.length + ' quadrat' + (s.qs.length > 1 ? 's' : '') + ' laid.' + (s.qs.length < 10 ? ' More quadrats give a more reliable estimate.' : ' Good sample size — compare with the actual density.') }; S.bump(); },
+      click: (s, x, y) => { if (x >= FX0 && x <= FX0 + FW && y >= FY0 && y <= FY0 + FH) E.quad.place(s, x - PX / 2, y - PX / 2); },
+      cursor: 'crosshair', noBench: true,
+      draw: (c, s, t) => { c.fillStyle = '#cbbd8a'; c.fillRect(FX0, FY0, FW, FH); const r = S.rng(5); c.fillStyle = 'rgba(120,100,50,.18)'; for (let i = 0; i < 500; i++) c.fillRect(FX0 + r() * FW, FY0 + r() * FH, 3, 2);
+        s.pl.forEach(([x, y, k]) => { if (k === 0) { c.strokeStyle = '#3f7a2e'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 3, y - 7); c.moveTo(x, y); c.lineTo(x, y - 8); c.moveTo(x, y); c.lineTo(x + 3, y - 7); c.stroke(); } else if (k === 1) { S.ell(c, x, y, 4, 4, 0, '#6a8a4a'); for (let i = 0; i < 5; i++) S.ell(c, x + Math.cos(i * 1.26) * 3, y - 2 + Math.sin(i * 1.26) * 3, 1.6, 1.6, 0, '#fbfaf6'); } else { S.line(c, [[x, y], [x, y - 8]], '#5f7a3a', 1.4); S.ell(c, x, y - 9, 3.4, 3.4, 0, '#e8c43a', '#a88a20', 1); } });
+        c.strokeStyle = 'rgba(0,0,0,.08)'; c.lineWidth = 1; for (let i = 0; i <= 10; i++) { c.beginPath(); c.moveTo(FX0 + i * PX, FY0); c.lineTo(FX0 + i * PX, FY0 + FH); c.stroke(); }
+        s.qs.forEach(([x, y], i) => { c.strokeStyle = '#c8553d'; c.lineWidth = 3; c.strokeRect(x, y, PX, PX); c.fillStyle = '#c8553d'; c.fillRect(x, y, 22, 18); S.T(c, i + 1 + '', x + 11, y + 9, { s: 12, w: 700, c: '#fff' }); });
+        S.T(c, 'Field 10 m × 6.5 m', FX0 + FW / 2, FY0 + FH + 22, { s: 13, c: '#5f655f' });
+        const lx = 730; S.T(c, 'Key', lx, 40, { a: 'left', w: 700 }); SP.forEach(([n, col], k) => { const y = 74 + k * 32; if (k === 0) { S.line(c, [[lx + 8, y + 6], [lx + 5, y - 2]], '#3f7a2e', 2); S.line(c, [[lx + 8, y + 6], [lx + 11, y - 2]], '#3f7a2e', 2); } else S.ell(c, lx + 8, y, 6, 6, 0, col, 'rgba(0,0,0,.3)', 1); S.T(c, n, lx + 24, y, { a: 'left', s: 14 }); });
+        c.strokeStyle = '#c8553d'; c.lineWidth = 3; c.strokeRect(lx, 180, 34, 34); S.T(c, '= 1 m × 1 m quadrat', lx + 44, 197, { a: 'left', s: 13 });
+        S.T(c, s.qs.length + ' quadrats', lx, 250, { a: 'left', w: 700, s: 22 });
+        if (s.qs.length) { const last = qCount(s, s.qs[s.qs.length - 1]); S.T(c, 'Last quadrat:', lx, 286, { a: 'left', s: 13, c: '#5f655f' }); SP.forEach(([n], k) => S.T(c, n.split(' ')[0] + ': ' + last[k], lx, 310 + k * 22, { a: 'left', s: 14 })); } },
+      table: s => { if (!s.qs.length) return null; const N = s.qs.length, counts = s.qs.map(q => qCount(s, q)), area = (FW / PX) * (FH / PX);
+        return { cols: ['Species', 'Total counted', 'Quadrats present', 'Density /m²', 'Frequency %', 'Abundance'].concat(s.reveal ? ['Actual density'] : []), rows: SP.map(([n], k) => { const tot = counts.reduce((a, q) => a + q[k], 0), occ = counts.filter(q => q[k] > 0).length; return [n, tot, occ + ' / ' + N, (tot / N).toFixed(2), Math.round(occ / N * 100) + ' %', occ ? (tot / occ).toFixed(2) : '0'].concat(s.reveal ? [(s.pl.filter(p => p[2] === k).length / area).toFixed(2)] : []); }) }; },
+      steps: s => [['Lay quadrats at random in the field', s.qs.length > 0], ['Count individuals of each species in every quadrat', s.qs.length > 0], ['Lay at least 10 quadrats', s.qs.length >= 10], ['Density = total individuals ÷ number of quadrats', s.qs.length >= 10], ['Frequency = quadrats with species ÷ total quadrats × 100', s.qs.length >= 10]],
+      result: s => s.qs.length >= 10 ? 'Density shows how many individuals occur per unit area; frequency shows how widely a species is distributed. Clumped species (grass, Tridax) can have high density but lower frequency; a scattered species (Parthenium) has low density but can occur in many quadrats.' : ''
+    };
+    Object.values(E).forEach(e => { if (e.orderOf && !e.actions) e.actions = s => S.seqActs(s, e).concat(e.extra ? e.extra(s) : []); if (e.orderOf && !e.steps) e.steps = s => S.seqSteps(s, e); });
+    return E;
+  }
+  onCv = ev => { const E = this.E[this.cur()]; if (!E.click) return; const cv = this.cv.current, r = cv.getBoundingClientRect(); E.click(this.sim(), (ev.clientX - r.left) * 960 / r.width, (ev.clientY - r.top) * 540 / r.height); };
+  renderVals() {
+    const id = this.cur(), E = this.E[id], s = this.sim(id), act = on => on ? { bg: '#1c211f', fg: '#f3f0e8', bd: '#1c211f' } : { bg: '#fbfaf6', fg: '#1c211f', bd: '#d6cfbf' };
+    const wrap = fn => () => { fn(); this.bump(); };
+    const order = ['Classes 6–8', 'Classes 9–10', 'Classes 11–12'];
+    const navGroups = order.map(g => ({ label: g, items: Object.entries(this.E).filter(([k, e]) => e.group === g).map(([k, e]) => Object.assign({ title: e.title, cls: e.cls, on: () => this.setState({ exp: k }) }, act(k === id))) }));
+    const groups = (E.groups ? E.groups(s) : []).map(g => ({ label: g.label, opts: g.opts.map(o => Object.assign({ label: o.label, on: wrap(o.on) }, act(o.active))) }));
+    const sliders = (E.sliders ? E.sliders(s) : []).map(x => ({ label: x.label, min: x.min, max: x.max, step: x.step, value: x.value, text: x.text, onChange: e => { x.set(+e.target.value); this.bump(); } }));
+    const actions = (E.actions ? E.actions(s) : []).map(a => ({ label: (a.done ? '✓ ' : '') + a.label, on: () => { if (a.dis) return; a.on(); this.bump(); }, op: a.dis || a.done ? .5 : 1, bg: a.primary && !a.dis ? '#2f6b4f' : '#fbfaf6', fg: a.primary && !a.dis ? '#ffffff' : '#1c211f', bd: a.primary && !a.dis ? '#2f6b4f' : '#d6cfbf' }));
+    const tb = E.table ? E.table(s) : null, m = s.msg || { t: 'info', s: '' }, mc = m.t === 'ok' ? ['#e2ebe3', '#24553e'] : m.t === 'warn' ? ['#f5e3da', '#8f3620'] : ['#ecebe4', '#3d423e'];
+    const steps = (E.steps ? E.steps(s) : []).map(([label, d]) => ({ label, dot: d ? '#2f6b4f' : 'transparent', bd: d ? '#2f6b4f' : '#9aa39c', fg: d ? '#1c211f' : '#5f655f' }));
+    const res = E.result ? E.result(s) : '';
+    return {
+      navGroups, title: E.title, cls: E.cls, aim: E.aim, cvRef: this.cv, onCv: this.onCv, cursor: E.cursor || 'default',
+      groups, sliders, hasSliders: sliders.length > 0, actions, msgText: m.s, msgBg: mc[0], msgFg: mc[1],
+      hasTable: !!tb, cols: tb ? tb.cols : [], rows: tb ? tb.rows.map(r => ({ cells: r.map(String) })) : [], gridCols: tb ? 'repeat(' + tb.cols.length + ',minmax(0,1fr))' : '1fr',
+      materials: E.materials, steps, errText: 'Errors: ' + (s.err || 0), hasResult: !!res, resultText: res
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -15,6 +15,17 @@ export type StudioAnimationSequenceEntry = {
   fallbackOrder: number;
 };
 
+export type StudioAnimationSequenceGroup = {
+  id: string;
+  clickIndex: number | null;
+  trigger: boolean;
+  entries: Array<StudioAnimationSequenceEntry & {
+    startsAt: number;
+    endsAt: number;
+  }>;
+  duration: number;
+};
+
 export const studioElementAnimationEffects = (element: StudioElement): StudioAnimationEffect[] => {
   const animation = element.content.animation;
   if (!animation || typeof animation !== 'object' || Array.isArray(animation)) return [];
@@ -48,6 +59,47 @@ export const buildStudioAnimationSequence = (elements: StudioElement[]): StudioA
     if (leftHasOrder !== rightHasOrder) return leftHasOrder ? -1 : 1;
     return left.fallbackOrder - right.fallbackOrder;
   });
+};
+
+export const buildStudioAnimationGroups = (elements: StudioElement[]): StudioAnimationSequenceGroup[] => {
+  const sequence = buildStudioAnimationSequence(elements);
+  const groups: StudioAnimationSequenceGroup[] = [];
+  let clickIndex = 0;
+  let current: StudioAnimationSequenceGroup | null = null;
+  let previousStart = 0;
+  let previousEnd = 0;
+
+  for (const entry of sequence) {
+    const start = String(entry.effect.start || 'on-click');
+    if (start === 'trigger') {
+      const delay = Math.max(0, Number(entry.effect.delay) || 0);
+      const duration = Math.max(0.001, Number(entry.effect.duration) || 0.8);
+      groups.push({
+        id: `trigger-${entry.key}`,
+        clickIndex: null,
+        trigger: true,
+        entries: [{ ...entry, startsAt: delay, endsAt: delay + duration }],
+        duration: delay + duration,
+      });
+      continue;
+    }
+    if (!current || start === 'on-click') {
+      clickIndex += 1;
+      current = { id: `click-${clickIndex}`, clickIndex, trigger: false, entries: [], duration: 0 };
+      groups.push(current);
+      previousStart = 0;
+      previousEnd = 0;
+    }
+    const delay = Math.max(0, Number(entry.effect.delay) || 0);
+    const duration = Math.max(0.001, Number(entry.effect.duration) || 0.8);
+    const startsAt = start === 'with-previous' ? previousStart + delay : start === 'after-previous' ? previousEnd + delay : delay;
+    const endsAt = startsAt + duration;
+    current.entries.push({ ...entry, startsAt, endsAt });
+    current.duration = Math.max(current.duration, endsAt);
+    previousStart = startsAt;
+    previousEnd = start === 'with-previous' ? Math.max(previousEnd, endsAt) : endsAt;
+  }
+  return groups;
 };
 
 export const persistStudioAnimationSequence = (elements: StudioElement[], orderedKeys: string[]): StudioElement[] => {

@@ -1,0 +1,3010 @@
+function buildActs() {
+    const DARK = { bg: '#0E1B2A', grid: 'rgba(234,242,250,0.07)', axis: 'rgba(234,242,250,0.5)', ink: '#EAF2FA', dim: 'rgba(234,242,250,0.62)', box: 'rgba(10,21,32,0.88)', amber: '#FFB547', cyan: '#4FD1E8', coral: '#FF7A6B', lime: '#9BE564', violet: '#B69CFF', pink: '#FF8FC7', soft: 'rgba(234,242,250,0.05)' };
+    const PAPER = { bg: '#FBFAF5', grid: 'rgba(30,70,110,0.10)', axis: 'rgba(26,34,48,0.6)', ink: '#1A2230', dim: 'rgba(26,34,48,0.62)', box: 'rgba(251,250,245,0.92)', amber: '#D98200', cyan: '#0A86A8', coral: '#D9473A', lime: '#3E9B1F', violet: '#7A52D6', pink: '#C8407F', soft: 'rgba(26,34,48,0.05)' };
+    const C = { ...DARK };
+    const D = Math.PI / 180;
+    const N = (v, d) => { const k = Math.pow(10, d ?? 2); let r = Math.round(v * k) / k; if (Object.is(r, -0)) r = 0; return String(r).replace('-', '−'); };
+    const gcd = (a, b) => b ? gcd(b, a % b) : Math.abs(a);
+    const term = (k, v, first) => { if (Math.abs(k) < 1e-9) return ''; const s = k < 0 ? '−' : '+'; const m = (Math.abs(k) === 1 && v) ? '' : N(Math.abs(k)); return first ? (k < 0 ? '−' : '') + m + v : ' ' + s + ' ' + m + v; };
+    const eq = (a, b, c) => { let s = term(a, 'x', true); s += term(b, 'y', !s); return (s || '0') + ' = ' + N(c); };
+    const ang = (P, A, B) => { const u = [A[0] - P[0], A[1] - P[1]], v = [B[0] - P[0], B[1] - P[1]]; const d = (u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v) || 1); return Math.acos(Math.max(-1, Math.min(1, d))) / D; };
+    const g = {
+      view(W, H, v, pad) { pad = Math.min(pad ?? 50, W / 6, H / 6); const s = Math.max(0.5, Math.min((W - 2 * pad) / (v[1] - v[0]), (H - 2 * pad) / (v[3] - v[2]))); const cx = W / 2 - s * (v[0] + v[1]) / 2, cy = H / 2 + s * (v[2] + v[3]) / 2; return { s, X: x => cx + x * s, Y: y => cy - y * s, ix: px => (px - cx) / s, iy: py => (cy - py) / s }; },
+      fs(W, H) { return Math.round(Math.max(14, Math.min(W, H) / 36)); },
+      grid(c, V, W, H, step, lab, fs) {
+        step = step || 1; const x0 = Math.ceil(V.ix(0) / step) * step, x1 = V.ix(W), y0 = Math.ceil(V.iy(H) / step) * step, y1 = V.iy(0);
+        for (let x = x0; x <= x1 + 1e-9; x += step) { const ax = Math.abs(x) < 1e-9; c.strokeStyle = ax ? C.axis : C.grid; c.lineWidth = ax ? 2 : 1; c.beginPath(); c.moveTo(V.X(x), 0); c.lineTo(V.X(x), H); c.stroke(); }
+        for (let y = y0; y <= y1 + 1e-9; y += step) { const ax = Math.abs(y) < 1e-9; c.strokeStyle = ax ? C.axis : C.grid; c.lineWidth = ax ? 2 : 1; c.beginPath(); c.moveTo(0, V.Y(y)); c.lineTo(W, V.Y(y)); c.stroke(); }
+        if (lab) {
+          const every = Math.max(1, Math.ceil(30 / (step * V.s))); c.font = '500 ' + Math.round(fs * 0.7) + 'px JetBrains Mono, monospace'; c.fillStyle = C.dim;
+          c.textAlign = 'center'; c.textBaseline = 'top';
+          for (let x = x0; x <= x1; x += step) { const k = Math.round(x / step); if (k !== 0 && k % every === 0) c.fillText(N(x), V.X(x), V.Y(0) + 6); }
+          c.textAlign = 'right'; c.textBaseline = 'middle';
+          for (let y = y0; y <= y1; y += step) { const k = Math.round(y / step); if (k !== 0 && k % every === 0) c.fillText(N(y), V.X(0) - 6, V.Y(y)); }
+        }
+      },
+      line(c, x1, y1, x2, y2, col, w, dash) { c.strokeStyle = col; c.lineWidth = w || 2; c.setLineDash(dash || []); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.setLineDash([]); },
+      poly(c, pts, stroke, fill, w, dash) { c.beginPath(); pts.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.setLineDash(dash || []); c.strokeStyle = stroke; c.lineWidth = w || 2; c.stroke(); c.setLineDash([]); } },
+      dot(c, x, y, r, fill, stroke, sw) { r = Math.max(0, r); c.beginPath(); c.arc(x, y, r, 0, 2 * Math.PI); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = sw || 2; c.stroke(); } },
+      text(c, s, x, y, col, size, align, base, weight, mono) { c.fillStyle = col; c.font = (weight || 600) + ' ' + Math.round(size) + 'px ' + (mono ? 'JetBrains Mono, monospace' : 'Lexend, sans-serif'); c.textAlign = align || 'center'; c.textBaseline = base || 'middle'; c.fillText(s, x, y); },
+      box(c, s, x, y, col, size, align) { c.font = '600 ' + Math.round(size) + 'px Lexend, sans-serif'; const w = c.measureText(s).width; const al = align || 'center'; const bx = al === 'left' ? x : al === 'right' ? x - w : x - w / 2; c.fillStyle = C.box; c.beginPath(); if (c.roundRect) c.roundRect(bx - 8, y - size * 0.78, w + 16, size * 1.56, 8); else c.rect(bx - 8, y - size * 0.78, w + 16, size * 1.56); c.fill(); g.text(c, s, x, y, col, size, al); },
+      handle(c, x, y, col) { const k = Math.sin((g.t || 0) / 320); g.dot(c, x, y, 22 + 4 * k, col + '22'); g.dot(c, x, y, 16, col + '44'); c.save(); c.shadowColor = col; c.shadowBlur = 18; g.dot(c, x, y, 11, col, '#FFFFFF', 3); c.restore(); },
+      head(c, fx, fy, tx, ty, col, sz) { const a = Math.atan2(ty - fy, tx - fx); sz = sz || 12; c.fillStyle = col; c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx - sz * Math.cos(a - 0.45), ty - sz * Math.sin(a - 0.45)); c.lineTo(tx - sz * Math.cos(a + 0.45), ty - sz * Math.sin(a + 0.45)); c.closePath(); c.fill(); },
+      arrow(c, x1, y1, x2, y2, col, w) { g.line(c, x1, y1, x2, y2, col, w || 2); g.head(c, x1, y1, x2, y2, col); },
+      wedge(c, P, A, B, r, col, lab, fs) { const a1 = Math.atan2(A[1] - P[1], A[0] - P[0]), a2 = Math.atan2(B[1] - P[1], B[0] - P[0]); let d = a2 - a1; while (d <= -Math.PI) d += 2 * Math.PI; while (d > Math.PI) d -= 2 * Math.PI; const deg = Math.abs(d) / D; r = Math.max(0, r); c.beginPath(); c.moveTo(P[0], P[1]); c.arc(P[0], P[1], r, a1, a1 + d, d < 0); c.closePath(); c.fillStyle = col + '44'; c.fill(); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); if (lab) { const m = a1 + d / 2; g.box(c, typeof lab === 'string' ? lab : N(deg, 1) + '°', P[0] + Math.cos(m) * (r + fs * 1.5), P[1] + Math.sin(m) * (r + fs * 1.5), col, fs * 0.85); } return deg; },
+      plot(c, V, W, H, f, col, w) { c.strokeStyle = col; c.lineWidth = w || 3; c.beginPath(); let pen = false; for (let px = -2; px <= W + 2; px += 2) { const py = V.Y(f(V.ix(px))); if (!isFinite(py) || Math.abs(py) > H * 4) { pen = false; continue; } pen ? c.lineTo(px, py) : c.moveTo(px, py); pen = true; } c.stroke(); },
+      label(c, V, x, y, s, col, fs, dx, dy) { g.box(c, s, V.X(x) + (dx || 0), V.Y(y) + (dy || 0), col, fs * 0.8); }
+    };
+    const sq = (x, y) => [x, y];
+
+    const acts = [
+      { id: 'int', title: 'Integers on a Number Line', topic: 'Number System', grades: [6, 7],
+        aim: 'To add and subtract integers by making jumps on a number line.',
+        equip: ['Number line −20 to 20', 'Jump arrows', 'Position marker'],
+        steps: ['Set the first integer a. Start at 0 and jump to a (right for positive, left for negative).', 'Set the second integer b and choose Add or Subtract.', 'Add: move b units from a. Subtract: move in the opposite direction, i.e. add (−b).', 'Read the landing point and record it in the observation table.'],
+        concl: 'a + b is the point reached by moving b units from a; a − b = a + (−b).',
+        controls: [{ type: 'range', key: 'a', label: 'First integer a', min: -10, max: 10, step: 1 }, { type: 'range', key: 'b', label: 'Second integer b', min: -10, max: 10, step: 1 }, { type: 'select', key: 'op', label: 'Operation', options: ['Add', 'Subtract'] }],
+        init: { a: 4, b: -7, op: 'Add' },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), x0 = W * 0.05, x1 = W * 0.95, y = H * 0.6, u = (x1 - x0) / 40, X = v => x0 + (v + 20) * u;
+          g.line(c, x0 - 14, y, x1 + 14, y, C.ink, 3); g.head(c, x1, y, x1 + 22, y, C.ink); g.head(c, x0, y, x0 - 22, y, C.ink);
+          for (let v = -20; v <= 20; v++) { const big = v % 5 === 0; g.line(c, X(v), y - (big ? 14 : 8), X(v), y + (big ? 14 : 8), big ? C.ink : C.dim, big ? 2.5 : 1.5); if (big || u > 30) g.text(c, N(v, 0), X(v), y + 32, v === 0 ? C.ink : C.dim, fs * (big ? 0.85 : 0.65), 'center', 'middle', big ? 600 : 400, true); }
+          const b = p.op === 'Add' ? p.b : -p.b, s = p.a + b;
+          const hop = (f, t, col, up, lab) => { if (f === t) return; const mx = (X(f) + X(t)) / 2, hg = Math.min(H * 0.3, Math.abs(t - f) * u * 0.35 + 50) * (up ? -1 : 1); c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); c.moveTo(X(f), y); c.quadraticCurveTo(mx, y + hg * 2, X(t), y); c.stroke(); g.head(c, mx + (X(t) - mx) * 0.6, y + hg * 0.8, X(t), y, col, 16); g.box(c, lab, mx, y + hg, col, fs); };
+          hop(0, p.a, C.amber, true, (p.a > 0 ? '+' : '') + N(p.a));
+          hop(p.a, s, C.cyan, false, (b > 0 ? '+' : '') + N(b));
+          g.dot(c, X(0), y, 8, C.ink); g.dot(c, X(p.a), y, 9, C.amber); g.dot(c, X(s), y, 13, C.lime, C.bg, 3);
+          g.box(c, 'Lands at ' + N(s), X(s), y - 60, C.lime, fs * 1.1);
+          g.text(c, 'Start at 0  →  jump a  →  jump ' + (p.op === 'Add' ? 'b' : '(−b)'), W / 2, H * 0.12, C.dim, fs);
+        },
+        read: p => { const b = p.op === 'Add' ? p.b : -p.b; return [{ l: 'a', v: N(p.a), c: 'amber' }, { l: 'b', v: N(p.b), c: 'cyan' }, { l: 'Movement', v: (b >= 0 ? '→ ' : '← ') + Math.abs(b) + ' units', c: 'ink' }, { l: 'Answer', v: N(p.a + b), c: 'lime' }]; },
+        result: p => N(p.a) + (p.op === 'Add' ? ' + ' : ' − ') + '(' + N(p.b) + ') = ' + N(p.a + (p.op === 'Add' ? p.b : -p.b)) },
+
+      { id: 'frac', title: 'Comparing Fractions with Fraction Strips', topic: 'Number System', grades: [6, 7],
+        aim: 'To compare two fractions and find equivalent fractions using fraction strips and a number line.',
+        equip: ['Fraction strips', 'Number line 0–1', 'Pointer'],
+        steps: ['Choose the numerator and denominator of the first fraction (amber strip).', 'Choose the second fraction (cyan strip).', 'Compare the shaded lengths of both strips and their points on the number line.', 'Write both fractions with the LCD to confirm the comparison.'],
+        concl: 'The fraction whose strip is longer (point further right) is greater. Equal lengths show equivalent fractions.',
+        controls: [{ type: 'range', key: 'n1', label: 'Numerator 1', min: 0, max: 12, step: 1 }, { type: 'range', key: 'd1', label: 'Denominator 1', min: 1, max: 12, step: 1 }, { type: 'range', key: 'n2', label: 'Numerator 2', min: 0, max: 12, step: 1 }, { type: 'range', key: 'd2', label: 'Denominator 2', min: 1, max: 12, step: 1 }],
+        init: { n1: 3, d1: 4, n2: 2, d2: 3 },
+        fix: p => ({ ...p, n1: Math.min(p.n1, p.d1), n2: Math.min(p.n2, p.d2) }),
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), x0 = W * 0.14, w = W * 0.76, bh = Math.min(90, H * 0.13), y1 = H * 0.1, y2 = y1 + bh + H * 0.07, yl = H * 0.7;
+          const bar = (n, d, y, col) => { for (let i = 0; i < d; i++) { c.fillStyle = i < n ? col : C.soft; c.fillRect(x0 + i * w / d, y, w / d, bh); c.strokeStyle = C.bg; c.lineWidth = 3; c.strokeRect(x0 + i * w / d, y, w / d, bh); } c.strokeStyle = C.ink; c.lineWidth = 2; c.strokeRect(x0, y, w, bh); g.text(c, n + '/' + d, x0 - 20, y + bh / 2, col, fs * 1.5, 'right', 'middle', 700, true); g.line(c, x0 + w * n / d, y + bh, x0 + w * n / d, yl, col, 2, [6, 6]); };
+          bar(p.n1, p.d1, y1, C.amber); bar(p.n2, p.d2, y2, C.cyan);
+          g.line(c, x0, yl, x0 + w, yl, C.ink, 3);
+          for (let i = 0; i <= p.d1; i++) g.line(c, x0 + w * i / p.d1, yl - 12, x0 + w * i / p.d1, yl, C.amber, 2);
+          for (let i = 0; i <= p.d2; i++) g.line(c, x0 + w * i / p.d2, yl, x0 + w * i / p.d2, yl + 12, C.cyan, 2);
+          g.text(c, '0', x0, yl + 32, C.ink, fs, 'center', 'middle', 600, true); g.text(c, '1', x0 + w, yl + 32, C.ink, fs, 'center', 'middle', 600, true);
+          g.dot(c, x0 + w * p.n1 / p.d1, yl, 10, C.amber, C.bg, 3); g.dot(c, x0 + w * p.n2 / p.d2, yl, 10, C.cyan, C.bg, 3);
+          const a = p.n1 / p.d1, b = p.n2 / p.d2, sym = Math.abs(a - b) < 1e-9 ? '=' : a > b ? '>' : '<';
+          g.text(c, p.n1 + '/' + p.d1 + '   ' + sym + '   ' + p.n2 + '/' + p.d2, W / 2, H * 0.88, C.ink, fs * 2, 'center', 'middle', 700, true);
+        },
+        read: p => { const L = p.d1 * p.d2 / gcd(p.d1, p.d2); return [{ l: 'Fraction 1', v: p.n1 + '/' + p.d1 + ' = ' + N(p.n1 / p.d1, 3), c: 'amber' }, { l: 'Fraction 2', v: p.n2 + '/' + p.d2 + ' = ' + N(p.n2 / p.d2, 3), c: 'cyan' }, { l: 'With LCD ' + L, v: (p.n1 * L / p.d1) + '/' + L + ', ' + (p.n2 * L / p.d2) + '/' + L, c: 'ink' }, { l: 'Difference', v: N(Math.abs(p.n1 / p.d1 - p.n2 / p.d2), 3), c: 'lime' }]; },
+        result: p => { const a = p.n1 / p.d1, b = p.n2 / p.d2; return p.n1 + '/' + p.d1 + (Math.abs(a - b) < 1e-9 ? ' = ' : a > b ? ' > ' : ' < ') + p.n2 + '/' + p.d2; } },
+
+      { id: 'spiral', title: 'Square Root Spiral', topic: 'Number System', grades: [9],
+        aim: 'To construct a square root spiral and locate √2, √3, √4 … as lengths.',
+        equip: ['Ruler (unit length)', 'Set square', 'Compass', 'Drawing board'],
+        steps: ['Draw OP₁ of 1 unit.', 'At P₁ draw a perpendicular P₁P₂ of 1 unit; join OP₂ = √2.', 'Repeat at each new point: draw a 1-unit perpendicular and join it to O.', 'Increase the number of triangles and measure the hypotenuse lengths.'],
+        concl: 'The hypotenuse of the n-th triangle is √(n+1); the spiral locates irrational lengths geometrically.',
+        controls: [{ type: 'range', key: 'n', label: 'Number of triangles', min: 1, max: 17, step: 1 }, { type: 'toggle', key: 'lab', label: 'Show length labels' }],
+        init: { n: 8, lab: true },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-4.8, 4.8, -4.8, 4.8], 30), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const P = [[1, 0]]; for (let k = 0; k < p.n; k++) { const q = P[k], L = Math.hypot(...q); P.push([q[0] - q[1] / L, q[1] + q[0] / L]); }
+          const O = [V.X(0), V.Y(0)];
+          for (let k = 0; k < p.n; k++) { const a = P[k], b = P[k + 1]; g.poly(c, [O, [V.X(a[0]), V.Y(a[1])], [V.X(b[0]), V.Y(b[1])]], null, (k % 2 ? C.cyan : C.violet) + '22'); }
+          for (let k = 0; k <= p.n; k++) { const a = P[k]; g.line(c, O[0], O[1], V.X(a[0]), V.Y(a[1]), C.cyan, k === p.n ? 4 : 2); }
+          g.line(c, O[0], O[1], V.X(1), V.Y(0), C.amber, 4);
+          for (let k = 0; k < p.n; k++) { const a = P[k], b = P[k + 1]; g.line(c, V.X(a[0]), V.Y(a[1]), V.X(b[0]), V.Y(b[1]), C.amber, 4); }
+          P.forEach(a => g.dot(c, V.X(a[0]), V.Y(a[1]), 5, C.ink));
+          g.dot(c, O[0], O[1], 7, C.lime); g.text(c, 'O', O[0] - 16, O[1] + 16, C.lime, fs);
+          if (p.lab) for (let k = 1; k <= p.n; k++) { const a = P[k], L = Math.hypot(...a); g.box(c, '√' + (k + 1), V.X(a[0] * 0.62), V.Y(a[1] * 0.62), k === p.n ? C.lime : C.cyan, fs * 0.75); }
+          return V;
+        },
+        read: p => [{ l: 'Triangles', v: p.n, c: 'ink' }, { l: 'Unit sides', v: p.n + 1, c: 'amber' }, { l: 'Last hypotenuse', v: '√' + (p.n + 1), c: 'cyan' }, { l: 'Measured length', v: N(Math.sqrt(p.n + 1), 4) + ' u', c: 'lime' }],
+        result: p => 'OP' + (p.n + 1) + ' = √' + (p.n + 1) + ' ≈ ' + N(Math.sqrt(p.n + 1), 4) },
+
+      { id: 'tri', title: 'Angle Sum Property of a Triangle', topic: 'Geometry', grades: [6, 7, 9],
+        aim: 'To verify that the sum of the interior angles of a triangle is 180°.',
+        equip: ['Geoboard grid', 'Digital protractor', 'Paper-cut angles'],
+        steps: ['Drag vertices A, B and C to form any triangle.', 'Read each interior angle from the protractor meters.', 'Observe the three “torn” angles placed together on a straight line (bottom-right).', 'Repeat for acute, right and obtuse triangles and record the sums.'],
+        concl: 'For every triangle ∠A + ∠B + ∠C = 180°; the three angles together form a straight angle.',
+        controls: [], snap: 0.1,
+        init: { Ax: -3.5, Ay: -2, Bx: 4, By: -2.5, Cx: 0.5, Cy: 3 },
+        handles: () => [['Ax', 'Ay', 'coral'], ['Bx', 'By', 'cyan'], ['Cx', 'Cy', 'lime']],
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6, 6, -4.5, 4.5]), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const A = [V.X(p.Ax), V.Y(p.Ay)], B = [V.X(p.Bx), V.Y(p.By)], Cc = [V.X(p.Cx), V.Y(p.Cy)];
+          g.poly(c, [A, B, Cc], C.ink, C.amber + '1c', 3);
+          const r = Math.min(56, V.s * 0.85);
+          const a = g.wedge(c, A, B, Cc, r, C.coral, true, fs), b = g.wedge(c, B, Cc, A, r, C.cyan, true, fs), cc = g.wedge(c, Cc, A, B, r, C.lime, true, fs);
+          const G = [(A[0] + B[0] + Cc[0]) / 3, (A[1] + B[1] + Cc[1]) / 3];
+          [[A, 'A', C.coral], [B, 'B', C.cyan], [Cc, 'C', C.lime]].forEach(([P, s, col]) => { const dx = P[0] - G[0], dy = P[1] - G[1], L = Math.hypot(dx, dy) || 1; g.text(c, s, P[0] + dx / L * 36, P[1] + dy / L * 36, col, fs * 1.2, 'center', 'middle', 700); });
+          const R = Math.min(70, W * 0.06), Q = [W - R * 1.6 - 24, H - 34];
+          c.fillStyle = C.box; c.fillRect(Q[0] - R * 1.6, Q[1] - R - fs * 2.4, R * 3.2, R + fs * 2.4 + 22);
+          let s0 = Math.PI; [[a, C.coral], [b, C.cyan], [cc, C.lime]].forEach(([d, col]) => { c.beginPath(); c.moveTo(Q[0], Q[1]); c.arc(Q[0], Q[1], R, s0, s0 + d * D); c.closePath(); c.fillStyle = col + '88'; c.fill(); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); s0 += d * D; });
+          g.line(c, Q[0] - R * 1.4, Q[1], Q[0] + R * 1.4, Q[1], C.ink, 3);
+          g.text(c, 'Angles on a line', Q[0], Q[1] - R - fs * 1.2, C.dim, fs * 0.7);
+          return V;
+        },
+        read: p => { const A = [p.Ax, p.Ay], B = [p.Bx, p.By], Cc = [p.Cx, p.Cy]; const a = ang(A, B, Cc), b = ang(B, Cc, A), c = ang(Cc, A, B); return [{ l: '∠A', v: N(a, 1) + '°', c: 'coral' }, { l: '∠B', v: N(b, 1) + '°', c: 'cyan' }, { l: '∠C', v: N(c, 1) + '°', c: 'lime' }, { l: 'Sum', v: N(a + b + c, 1) + '°', c: 'amber' }]; },
+        result: p => { const A = [p.Ax, p.Ay], B = [p.Bx, p.By], Cc = [p.Cx, p.Cy]; const a = ang(A, B, Cc), b = ang(B, Cc, A), c = ang(Cc, A, B); const m = Math.max(a, b, c); return N(a, 1) + '° + ' + N(b, 1) + '° + ' + N(c, 1) + '° = ' + N(a + b + c, 1) + '°  (' + (m > 90.05 ? 'obtuse' : m > 89.95 ? 'right' : 'acute') + ' triangle)'; } },
+
+      { id: 'sym', title: 'Reflection & Line Symmetry', topic: 'Geometry', grades: [6, 7, 9],
+        aim: 'To find the image of a figure reflected in a mirror line and study the change in coordinates.',
+        equip: ['Graph sheet', 'Plane mirror', 'Coordinate grid'],
+        steps: ['Drag the vertices of triangle ABC anywhere on the grid.', 'Choose the mirror line: y-axis, x-axis or y = x.', 'Observe that each point and its image are equidistant from the mirror.', 'Record the coordinates of each point and its image.'],
+        concl: 'Reflection in y-axis: (x, y) → (−x, y); x-axis: (x, y) → (x, −y); line y = x: (x, y) → (y, x).',
+        controls: [{ type: 'select', key: 'axis', label: 'Mirror line', options: ['y-axis', 'x-axis', 'y = x'] }], snap: 0.5,
+        init: { Ax: 1, Ay: 1, Bx: 4.5, By: 2, Cx: 2, Cy: 4.5, axis: 'y-axis' },
+        handles: () => [['Ax', 'Ay', 'amber'], ['Bx', 'By', 'amber'], ['Cx', 'Cy', 'amber']],
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6.5, 6.5, -6.5, 6.5], 30), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const rf = (x, y) => p.axis === 'y-axis' ? [-x, y] : p.axis === 'x-axis' ? [x, -y] : [y, x];
+          if (p.axis === 'y-axis') g.line(c, V.X(0), 0, V.X(0), H, C.violet, 5, [14, 8]); else if (p.axis === 'x-axis') g.line(c, 0, V.Y(0), W, V.Y(0), C.violet, 5, [14, 8]); else g.line(c, V.X(-30), V.Y(-30), V.X(30), V.Y(30), C.violet, 5, [14, 8]);
+          const pts = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], img = pts.map(q => rf(...q));
+          pts.forEach((q, i) => g.line(c, V.X(q[0]), V.Y(q[1]), V.X(img[i][0]), V.Y(img[i][1]), C.dim, 1.5, [4, 6]));
+          g.poly(c, pts.map(q => [V.X(q[0]), V.Y(q[1])]), C.amber, C.amber + '30', 3);
+          g.poly(c, img.map(q => [V.X(q[0]), V.Y(q[1])]), C.cyan, C.cyan + '30', 3);
+          ['A', 'B', 'C'].forEach((s, i) => { g.label(c, V, pts[i][0], pts[i][1], s, C.amber, fs, 0, -30); g.label(c, V, img[i][0], img[i][1], s + '′', C.cyan, fs, 0, -30); g.dot(c, V.X(img[i][0]), V.Y(img[i][1]), 7, C.cyan); });
+          g.box(c, 'Mirror: ' + p.axis, 20, 30, C.violet, fs * 0.9, 'left');
+          return V;
+        },
+        read: p => { const rf = (x, y) => p.axis === 'y-axis' ? [-x, y] : p.axis === 'x-axis' ? [x, -y] : [y, x]; return [['A', p.Ax, p.Ay], ['B', p.Bx, p.By], ['C', p.Cx, p.Cy]].map(([s, x, y]) => { const r = rf(x, y); return { l: s + ' → ' + s + '′', v: '(' + N(x, 1) + ',' + N(y, 1) + ')→(' + N(r[0], 1) + ',' + N(r[1], 1) + ')', c: 'cyan' }; }); },
+        result: p => p.axis === 'y-axis' ? '(x, y) → (−x, y)' : p.axis === 'x-axis' ? '(x, y) → (x, −y)' : '(x, y) → (y, x)' },
+
+      { id: 'pyth', title: 'Pythagoras Theorem', topic: 'Geometry', grades: [7, 8, 10],
+        aim: 'To verify the Pythagoras theorem by the method of squares on the sides of a right triangle.',
+        equip: ['Squared paper', 'Right-angled triangle cut-out', 'Scale'],
+        steps: ['Set the legs a and b of the right triangle.', 'Squares are constructed outward on each side.', 'Count the unit squares in the squares on a and b.', 'Compare their total with the area of the square on the hypotenuse c.'],
+        concl: 'Area of square on hypotenuse = sum of areas of squares on the other two sides: c² = a² + b².',
+        controls: [{ type: 'range', key: 'a', label: 'Side a (units)', min: 1, max: 8, step: 1 }, { type: 'range', key: 'b', label: 'Side b (units)', min: 1, max: 8, step: 1 }, { type: 'toggle', key: 'grid', label: 'Show unit squares' }],
+        init: { a: 3, b: 4, grid: true },
+        draw(c, W, H, p) {
+          const a = p.a, b = p.b, cl = Math.hypot(a, b), V = g.view(W, H, [-a - 0.3, a + b + 0.3, -b - 0.3, a + b + 0.3], 30), fs = g.fs(W, H);
+          const S = q => [V.X(q[0]), V.Y(q[1])];
+          const sb = [[0, 0], [b, 0], [b, -b], [0, -b]], sa = [[0, 0], [0, a], [-a, a], [-a, 0]], sc = [[b, 0], [0, a], [a, a + b], [a + b, b]];
+          g.poly(c, sb.map(S), C.cyan, C.cyan + '2a', 3); g.poly(c, sa.map(S), C.coral, C.coral + '2a', 3); g.poly(c, sc.map(S), C.amber, C.amber + '2a', 3);
+          if (p.grid) {
+            for (let i = 1; i < b; i++) { g.line(c, V.X(i), V.Y(0), V.X(i), V.Y(-b), C.cyan + '88', 1); g.line(c, V.X(0), V.Y(-i), V.X(b), V.Y(-i), C.cyan + '88', 1); }
+            for (let i = 1; i < a; i++) { g.line(c, V.X(-i), V.Y(0), V.X(-i), V.Y(a), C.coral + '88', 1); g.line(c, V.X(0), V.Y(i), V.X(-a), V.Y(i), C.coral + '88', 1); }
+            const u = [-b / cl, a / cl], n = [a / cl, b / cl];
+            for (let i = 1; i < cl; i++) { const q1 = [b + u[0] * i, u[1] * i], q2 = [b + n[0] * i, n[1] * i]; g.line(c, ...S(q1), ...S([q1[0] + n[0] * cl, q1[1] + n[1] * cl]), C.amber + '88', 1); g.line(c, ...S(q2), ...S([q2[0] + u[0] * cl, q2[1] + u[1] * cl]), C.amber + '88', 1); }
+          }
+          g.poly(c, [[0, 0], [b, 0], [0, a]].map(S), C.ink, C.ink + '30', 3);
+          const k = Math.min(0.5, a / 4, b / 4); g.poly(c, [[0, 0], [k, 0], [k, k], [0, k]].map(S), C.ink, null, 1.5);
+          g.label(c, V, b / 2, -b / 2, 'b² = ' + b * b, C.cyan, fs * 1.2); g.label(c, V, -a / 2, a / 2, 'a² = ' + a * a, C.coral, fs * 1.2); g.label(c, V, (a + b) / 2, (a + b) / 2, 'c² = ' + N(cl * cl), C.amber, fs * 1.2);
+        },
+        read: p => [{ l: 'a²', v: p.a * p.a, c: 'coral' }, { l: 'b²', v: p.b * p.b, c: 'cyan' }, { l: 'a² + b²', v: p.a * p.a + p.b * p.b, c: 'lime' }, { l: 'c² (c = ' + N(Math.hypot(p.a, p.b), 3) + ')', v: N(p.a * p.a + p.b * p.b), c: 'amber' }],
+        result: p => p.a * p.a + ' + ' + p.b * p.b + ' = ' + (p.a * p.a + p.b * p.b) + ' = c²  ✓' },
+
+      { id: 'circ', title: 'Angle Subtended by an Arc', topic: 'Geometry', grades: [9, 10],
+        aim: 'To verify that the angle subtended by an arc at the centre is double the angle subtended at any point on the remaining part of the circle.',
+        equip: ['Compass', 'Circle cut-out', 'Digital protractor'],
+        steps: ['Drag A and B on the circle to fix an arc AB.', 'Drag P anywhere on the remaining part of the circle.', 'Read ∠AOB at the centre and ∠APB at P.', 'Make AB a diameter to see the angle in a semicircle.'],
+        concl: '∠AOB = 2∠APB. Angles in the same segment are equal, and the angle in a semicircle is 90°.',
+        controls: [],
+        init: { Ax: -3.464, Ay: -2, Bx: 3.464, By: -2, Px: -0.695, Py: 3.939 },
+        fix: p => { const q = { ...p }; ['A', 'B', 'P'].forEach(k => { const L = Math.hypot(q[k + 'x'], q[k + 'y']) || 1; q[k + 'x'] *= 4 / L; q[k + 'y'] *= 4 / L; }); return q; },
+        handles: () => [['Ax', 'Ay', 'cyan'], ['Bx', 'By', 'cyan'], ['Px', 'Py', 'amber']],
+        calc(p) { const t = (x, y) => (Math.atan2(y, x) + 2 * Math.PI) % (2 * Math.PI); const tA = t(p.Ax, p.Ay), tB = t(p.Bx, p.By), tP = t(p.Px, p.Py); const d = (tB - tA + 2 * Math.PI) % (2 * Math.PI); const inA = ((tP - tA + 2 * Math.PI) % (2 * Math.PI)) < d; return { start: inA ? tB : tA, m: inA ? 2 * Math.PI - d : d, ins: ang([p.Px, p.Py], [p.Ax, p.Ay], [p.Bx, p.By]) }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-5.5, 5.5, -5.5, 5.5], 30), fs = g.fs(W, H), O = [V.X(0), V.Y(0)], R = 4 * V.s;
+          g.dot(c, O[0], O[1], R, C.soft, C.ink, 3);
+          const k = this.calc(p), A = [V.X(p.Ax), V.Y(p.Ay)], B = [V.X(p.Bx), V.Y(p.By)], P = [V.X(p.Px), V.Y(p.Py)];
+          c.beginPath(); c.arc(O[0], O[1], R, -k.start, -(k.start + k.m), true); c.strokeStyle = C.cyan; c.lineWidth = 7; c.stroke();
+          const rr = Math.min(60, R * 0.28); c.beginPath(); c.moveTo(O[0], O[1]); c.arc(O[0], O[1], rr, -k.start, -(k.start + k.m), true); c.closePath(); c.fillStyle = C.cyan + '44'; c.fill(); c.strokeStyle = C.cyan; c.lineWidth = 2; c.stroke();
+          const mid = k.start + k.m / 2; g.box(c, N(k.m / D, 1) + '°', O[0] + Math.cos(-mid) * (rr + fs * 1.6), O[1] + Math.sin(-mid) * (rr + fs * 1.6), C.cyan, fs * 0.85);
+          g.line(c, ...O, ...A, C.cyan, 3); g.line(c, ...O, ...B, C.cyan, 3); g.line(c, ...P, ...A, C.amber, 3); g.line(c, ...P, ...B, C.amber, 3);
+          g.wedge(c, P, A, B, Math.min(50, R * 0.22), C.amber, true, fs);
+          g.dot(c, O[0], O[1], 6, C.ink); g.text(c, 'O', O[0] - 18, O[1] - 18, C.ink, fs);
+          [[p.Ax, p.Ay, 'A', C.cyan], [p.Bx, p.By, 'B', C.cyan], [p.Px, p.Py, 'P', C.amber]].forEach(([x, y, s, col]) => g.text(c, s, V.X(x * 1.13), V.Y(y * 1.13), col, fs * 1.2, 'center', 'middle', 700));
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: '∠AOB (centre)', v: N(k.m / D, 1) + '°', c: 'cyan' }, { l: '∠APB (circle)', v: N(k.ins, 1) + '°', c: 'amber' }, { l: '∠AOB ÷ ∠APB', v: N(k.m / D / (k.ins || 1), 2), c: 'lime' }, { l: 'AB is diameter?', v: Math.abs(k.m / D - 180) < 1 ? 'Yes' : 'No', c: 'ink' }]; },
+        result(p) { const k = this.calc(p); return Math.abs(k.m / D - 180) < 1 ? 'Angle in a semicircle = ' + N(k.ins, 1) + '°' : '∠AOB = ' + N(k.m / D, 1) + '° = 2 × ' + N(k.ins, 1) + '°'; } },
+
+      { id: 'iden', title: 'Algebraic Identity (a + b)²', topic: 'Algebra', grades: [8, 9],
+        aim: 'To verify the identity (a + b)² = a² + 2ab + b² using an area model.',
+        equip: ['Coloured paper squares & strips', 'Scale', 'Squared grid'],
+        steps: ['Choose lengths a and b.', 'A square of side (a + b) is formed.', 'It splits into one a × a square, one b × b square and two a × b rectangles.', 'Add the four areas and compare with (a + b)².'],
+        concl: '(a + b)² = a² + 2ab + b² is verified for all chosen values.',
+        controls: [{ type: 'range', key: 'a', label: 'Length a', min: 1, max: 8, step: 1 }, { type: 'range', key: 'b', label: 'Length b', min: 1, max: 8, step: 1 }],
+        init: { a: 5, b: 3 },
+        draw(c, W, H, p) {
+          const a = p.a, b = p.b, s = a + b, V = g.view(W, H, [-1.2, s + 0.4, -1.2, s + 0.4], 30), fs = g.fs(W, H);
+          const R = (x0, y0, x1, y1, col, lab) => { g.poly(c, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(q => [V.X(q[0]), V.Y(q[1])]), C.bg, col + '55', 4); for (let x = x0 + 1; x < x1; x++) g.line(c, V.X(x), V.Y(y0), V.X(x), V.Y(y1), col + '55', 1); for (let y = y0 + 1; y < y1; y++) g.line(c, V.X(x0), V.Y(y), V.X(x1), V.Y(y), col + '55', 1); g.label(c, V, (x0 + x1) / 2, (y0 + y1) / 2, lab, col, fs * 1.15); };
+          R(0, 0, a, a, C.coral, 'a² = ' + a * a); R(a, a, s, s, C.cyan, 'b² = ' + b * b); R(a, 0, s, a, C.amber, 'ab = ' + a * b); R(0, a, a, s, C.amber, 'ab = ' + a * b);
+          c.strokeStyle = C.ink; c.lineWidth = 3; c.strokeRect(V.X(0), V.Y(s), s * V.s, s * V.s);
+          const br = (x0, x1, y, txt, col) => { g.line(c, V.X(x0), V.Y(y), V.X(x1), V.Y(y), col, 3); g.line(c, V.X(x0), V.Y(y) - 8, V.X(x0), V.Y(y) + 8, col, 3); g.line(c, V.X(x1), V.Y(y) - 8, V.X(x1), V.Y(y) + 8, col, 3); g.text(c, txt, V.X((x0 + x1) / 2), V.Y(y) + fs, col, fs, 'center', 'middle', 700); };
+          br(0, a, -0.45, 'a = ' + a, C.coral); br(a, s, -0.45, 'b = ' + b, C.cyan);
+          const bv = (y0, y1, txt, col) => { const x = V.X(-0.45); g.line(c, x, V.Y(y0), x, V.Y(y1), col, 3); g.text(c, txt, x - 10, V.Y((y0 + y1) / 2), col, fs, 'right', 'middle', 700); };
+          bv(0, a, 'a', C.coral); bv(a, s, 'b', C.cyan);
+        },
+        read: p => [{ l: 'a²', v: p.a * p.a, c: 'coral' }, { l: '2ab', v: 2 * p.a * p.b, c: 'amber' }, { l: 'b²', v: p.b * p.b, c: 'cyan' }, { l: '(a + b)²', v: (p.a + p.b) ** 2, c: 'lime' }],
+        result: p => '(' + p.a + ' + ' + p.b + ')² = ' + p.a * p.a + ' + ' + 2 * p.a * p.b + ' + ' + p.b * p.b + ' = ' + (p.a + p.b) ** 2 },
+
+      { id: 'lin', title: 'Pair of Linear Equations — Graphical Method', topic: 'Algebra', grades: [9, 10],
+        aim: 'To solve a pair of linear equations graphically and check the conditions for consistency.',
+        equip: ['Graph sheet', 'Scale', 'Pencil'],
+        steps: ['Set the coefficients of line 1: a₁x + b₁y = c₁.', 'Set the coefficients of line 2: a₂x + b₂y = c₂.', 'Observe whether the lines intersect, are parallel or coincide.', 'Compare a₁/a₂, b₁/b₂ and c₁/c₂ with the graph.'],
+        concl: 'a₁/a₂ ≠ b₁/b₂: unique solution. a₁/a₂ = b₁/b₂ ≠ c₁/c₂: no solution (parallel). All three equal: infinitely many solutions.',
+        controls: [{ type: 'range', key: 'a1', label: 'a₁', min: -5, max: 5, step: 1 }, { type: 'range', key: 'b1', label: 'b₁', min: -5, max: 5, step: 1 }, { type: 'range', key: 'c1', label: 'c₁', min: -10, max: 10, step: 1 }, { type: 'range', key: 'a2', label: 'a₂', min: -5, max: 5, step: 1 }, { type: 'range', key: 'b2', label: 'b₂', min: -5, max: 5, step: 1 }, { type: 'range', key: 'c2', label: 'c₂', min: -10, max: 10, step: 1 }],
+        init: { a1: 1, b1: 1, c1: 5, a2: 2, b2: -1, c2: 1 },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-10, 10, -8, 8], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const L = (a, b, k, col) => { if (Math.abs(b) > 1e-9) { const x0 = V.ix(0), x1 = V.ix(W); g.line(c, 0, V.Y((k - a * x0) / b), W, V.Y((k - a * x1) / b), col, 4); } else if (Math.abs(a) > 1e-9) g.line(c, V.X(k / a), 0, V.X(k / a), H, col, 4); };
+          L(p.a1, p.b1, p.c1, C.coral); L(p.a2, p.b2, p.c2, C.cyan);
+          const det = p.a1 * p.b2 - p.a2 * p.b1;
+          if (Math.abs(det) > 1e-9) { const x = (p.c1 * p.b2 - p.c2 * p.b1) / det, y = (p.a1 * p.c2 - p.a2 * p.c1) / det; g.dot(c, V.X(x), V.Y(y), 11, C.lime, C.bg, 3); g.label(c, V, x, y, '(' + N(x) + ', ' + N(y) + ')', C.lime, fs, 0, -34); }
+          g.box(c, 'L₁: ' + eq(p.a1, p.b1, p.c1), 20, 30, C.coral, fs, 'left'); g.box(c, 'L₂: ' + eq(p.a2, p.b2, p.c2), 20, 30 + fs * 1.9, C.cyan, fs, 'left');
+        },
+        type(p) { const det = p.a1 * p.b2 - p.a2 * p.b1; if (Math.abs(det) > 1e-9) return 'Consistent · unique'; return (p.a1 * p.c2 === p.a2 * p.c1 && p.b1 * p.c2 === p.b2 * p.c1) ? 'Dependent · infinite' : 'Inconsistent · none'; },
+        read(p) { const r = (x, y) => y === 0 ? (x === 0 ? '0/0' : '∞') : N(x / y); const det = p.a1 * p.b2 - p.a2 * p.b1; return [{ l: 'a₁/a₂', v: r(p.a1, p.a2), c: 'coral' }, { l: 'b₁/b₂', v: r(p.b1, p.b2), c: 'cyan' }, { l: 'c₁/c₂', v: r(p.c1, p.c2), c: 'ink' }, { l: 'Solution', v: Math.abs(det) > 1e-9 ? '(' + N((p.c1 * p.b2 - p.c2 * p.b1) / det) + ', ' + N((p.a1 * p.c2 - p.a2 * p.c1) / det) + ')' : '—', c: 'lime' }, { l: 'Type', v: this.type(p), c: 'amber' }]; },
+        result(p) { return this.type(p); } },
+
+      { id: 'quad', title: 'Zeros of a Quadratic Polynomial', topic: 'Algebra', grades: [10, 11],
+        aim: 'To find the zeros of p(x) = ax² + bx + c graphically and relate them to the discriminant.',
+        equip: ['Graph sheet', 'Table of values', 'French curve'],
+        steps: ['Choose the coefficients a, b and c.', 'Observe the parabola and where it cuts the x-axis.', 'Note the vertex and axis of symmetry.', 'Relate the number of zeros with the discriminant D = b² − 4ac.'],
+        concl: 'D > 0: two distinct zeros; D = 0: one repeated zero; D < 0: no real zeros. Sum of zeros = −b/a, product = c/a.',
+        controls: [{ type: 'range', key: 'a', label: 'a', min: -3, max: 3, step: 0.1 }, { type: 'range', key: 'b', label: 'b', min: -8, max: 8, step: 0.5 }, { type: 'range', key: 'c', label: 'c', min: -10, max: 10, step: 0.5 }],
+        init: { a: 1, b: -2, c: -3 },
+        fix: p => ({ ...p, a: Math.abs(p.a) < 0.1 ? (p.a < 0 ? -0.1 : 0.1) : p.a }),
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-8, 8, -10, 10], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const f = x => p.a * x * x + p.b * x + p.c, h = -p.b / (2 * p.a), D2 = p.b * p.b - 4 * p.a * p.c;
+          g.line(c, V.X(h), 0, V.X(h), H, C.violet, 2, [10, 8]);
+          g.plot(c, V, W, H, f, C.amber, 4);
+          g.dot(c, V.X(h), V.Y(f(h)), 9, C.coral); g.label(c, V, h, f(h), 'V(' + N(h) + ', ' + N(f(h)) + ')', C.coral, fs, 0, p.a > 0 ? 30 : -30);
+          if (D2 >= -1e-9) { const s = Math.sqrt(Math.max(0, D2)); [(-p.b - s) / (2 * p.a), (-p.b + s) / (2 * p.a)].forEach((r, i) => { g.dot(c, V.X(r), V.Y(0), 11, C.lime, C.bg, 3); if (i === 0 || s > 1e-6) g.label(c, V, r, 0, N(r), C.lime, fs, 0, p.a > 0 ? -30 : 30); }); }
+          g.box(c, 'p(x) = ' + (term(p.a, 'x²', true) + term(p.b, 'x', false) + term(p.c, '', false)), 20, 30, C.amber, fs, 'left');
+        },
+        read: p => { const D2 = p.b * p.b - 4 * p.a * p.c, s = Math.sqrt(Math.abs(D2)); return [{ l: 'Discriminant D', v: N(D2), c: 'amber' }, { l: 'Zeros', v: D2 > 1e-9 ? N((-p.b - s) / (2 * p.a)) + ', ' + N((-p.b + s) / (2 * p.a)) : Math.abs(D2) <= 1e-9 ? N(-p.b / (2 * p.a)) + ' (equal)' : 'No real zeros', c: 'lime' }, { l: 'Sum = −b/a', v: N(-p.b / p.a), c: 'ink' }, { l: 'Product = c/a', v: N(p.c / p.a), c: 'ink' }, { l: 'Vertex', v: '(' + N(-p.b / (2 * p.a)) + ', ' + N(p.c - p.b * p.b / (4 * p.a)) + ')', c: 'coral' }]; },
+        result: p => { const D2 = p.b * p.b - 4 * p.a * p.c; return 'D = ' + N(D2) + ' → ' + (D2 > 1e-9 ? 'two distinct real zeros' : Math.abs(D2) <= 1e-9 ? 'two equal zeros' : 'no real zeros'); } },
+
+      { id: 'area', title: 'Area of a Circle by Sector Rearrangement', topic: 'Mensuration', grades: [7, 8],
+        aim: 'To find the area of a circle by cutting it into sectors and rearranging them into a parallelogram.',
+        equip: ['Circle cut-out', 'Scissors (virtual)', 'Scale', 'Coloured halves'],
+        steps: ['Choose the radius r and the number of equal sectors.', 'Colour one half of the circle amber and the other cyan.', 'Arrange the sectors alternately to form a near-parallelogram.', 'Increase the sectors: base → πr, height → r, so area → πr².'],
+        concl: 'Area of circle = ½ × circumference × radius = πr × r = πr².',
+        controls: [{ type: 'range', key: 'n', label: 'Number of sectors', min: 4, max: 64, step: 2 }, { type: 'range', key: 'r', label: 'Radius r (cm)', min: 1, max: 10, step: 0.5, unit: ' cm' }],
+        init: { n: 16, r: 7 },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), n = p.n, R = Math.min(W * 0.16, H * 0.3), ox = W * 0.2, oy = H * 0.48, al = 2 * Math.PI / n;
+          for (let i = 0; i < n; i++) { c.beginPath(); c.moveTo(ox, oy); c.arc(ox, oy, R, Math.PI + i * al, Math.PI + (i + 1) * al); c.closePath(); c.fillStyle = (i < n / 2 ? C.amber : C.cyan) + 'bb'; c.fill(); c.strokeStyle = C.bg; c.lineWidth = 1.5; c.stroke(); }
+          g.line(c, ox, oy, ox + R, oy, C.ink, 2); g.text(c, 'r', ox + R / 2, oy - 14, C.ink, fs);
+          g.text(c, n + ' equal sectors', ox, oy + R + fs * 1.6, C.dim, fs * 0.85);
+          const ch = 2 * R * Math.sin(al / 2), x0 = W * 0.44, yT = oy - R / 2, hh = R * Math.cos(al / 2);
+          for (let i = 0; i < n / 2; i++) { const ax = x0 + ch / 2 + i * ch; c.beginPath(); c.moveTo(ax, yT); c.arc(ax, yT, R, Math.PI / 2 - al / 2, Math.PI / 2 + al / 2); c.closePath(); c.fillStyle = C.amber + 'bb'; c.fill(); c.strokeStyle = C.bg; c.lineWidth = 1.5; c.stroke(); }
+          for (let i = 0; i < n / 2; i++) { const ax = x0 + ch + i * ch; c.beginPath(); c.moveTo(ax, yT + hh); c.arc(ax, yT + hh, R, -Math.PI / 2 - al / 2, -Math.PI / 2 + al / 2); c.closePath(); c.fillStyle = C.cyan + 'bb'; c.fill(); c.strokeStyle = C.bg; c.lineWidth = 1.5; c.stroke(); }
+          const bw = n / 2 * ch, by = yT + R + fs * 0.8;
+          g.line(c, x0 + ch / 2, by, x0 + ch / 2 + bw, by, C.amber, 2.5); g.head(c, x0 + ch, by, x0 + ch / 2, by, C.amber); g.head(c, x0 + bw - ch / 2, by, x0 + ch / 2 + bw, by, C.amber);
+          g.text(c, 'base ≈ πr  (half the circumference)', x0 + ch / 2 + bw / 2, by + fs * 1.3, C.amber, fs * 0.85);
+          const hx = x0 - 18; g.line(c, hx, yT, hx, yT + hh, C.ink, 2.5); g.text(c, 'h ≈ r', hx - 10, yT + hh / 2, C.ink, fs * 0.85, 'right');
+        },
+        read: p => { const base = p.n * p.r * Math.sin(Math.PI / p.n), h = p.r * Math.cos(Math.PI / p.n); return [{ l: 'Base (≈ πr)', v: N(base) + ' cm', c: 'amber' }, { l: 'Height (≈ r)', v: N(h) + ' cm', c: 'cyan' }, { l: 'Base × height', v: N(base * h) + ' cm²', c: 'lime' }, { l: 'πr²', v: N(Math.PI * p.r * p.r) + ' cm²', c: 'ink' }]; },
+        result: p => { const A = p.n * p.r * Math.sin(Math.PI / p.n) * p.r * Math.cos(Math.PI / p.n); return 'Rearranged ≈ ' + N(A) + ' cm²  vs  πr² = ' + N(Math.PI * p.r * p.r) + ' cm²'; } },
+
+      { id: 'solid', title: '3D Solids — Volume & Surface Area', topic: 'Mensuration', grades: [8, 9, 10],
+        aim: 'To explore cylinder, cone, sphere and cuboid in 3D and compare their volumes and surface areas.',
+        equip: ['3D solid models', 'Measuring scale', 'Water jar (cylinder) for comparison'],
+        steps: ['Select a solid and set radius r (side for cuboid) and height h.', 'Drag on the board to rotate the solid and view it from all sides.', 'Turn on “Compare with cylinder” to see the cylinder with the same base and height.', 'Read volume, curved and total surface area, and the ratio to the cylinder.'],
+        concl: 'V(cone) = ⅓ V(cylinder) of same r and h; V(sphere) = ⅔ V(circumscribing cylinder).',
+        controls: [{ type: 'select', key: 'solid', label: 'Solid', options: ['Cylinder', 'Cone', 'Sphere', 'Cuboid'] }, { type: 'range', key: 'r', label: 'Radius r / side', min: 1, max: 6, step: 0.5, unit: ' cm' }, { type: 'range', key: 'h', label: 'Height h', min: 1, max: 10, step: 0.5, unit: ' cm' }, { type: 'toggle', key: 'ghost', label: 'Compare with cylinder' }, { type: 'toggle', key: 'spin', label: 'Auto-rotate' }],
+        init: { solid: 'Cone', r: 3, h: 6, ghost: true, spin: true }, rotate: true,
+        draw(c, W, H, p, st, t, rt) {
+          const fs = g.fs(W, H); if (p.spin && !rt.dragging) rt.ry += 0.008;
+          const sph = p.solid === 'Sphere', r = p.r, h = sph ? 2 * r : p.h;
+          const cy = Math.cos(rt.ry), sy = Math.sin(rt.ry), cx = Math.cos(rt.rx), sx = Math.sin(rt.rx);
+          const M = Math.max(r, h / 2) * 1.1, S = Math.min(W, H) * 0.36 / M;
+          const P = (x, y, z) => { const x1 = x * cy - z * sy, z1 = x * sy + z * cy; const y2 = y * cx - z1 * sx, z2 = y * sx + z1 * cx; const k = 1 / (1 + z2 / (M * 7)); return [W / 2 + x1 * S * k, H * 0.5 - y2 * S * k]; };
+          const path = (pts, col, w, fill, dash) => { c.beginPath(); pts.forEach((q, i) => { const s = P(...q); i ? c.lineTo(s[0], s[1]) : c.moveTo(s[0], s[1]); }); if (fill) { c.fillStyle = fill; c.fill(); } c.setLineDash(dash || []); c.strokeStyle = col; c.lineWidth = w; c.stroke(); c.setLineDash([]); };
+          const ring = (rad, y) => Array.from({ length: 73 }, (_, i) => { const a = i / 72 * 2 * Math.PI; return [rad * Math.cos(a), y, rad * Math.sin(a)]; });
+          const gen = (n, r0, y0, r1, y1, col, w) => { for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI; path([[r0 * Math.cos(a), y0, r0 * Math.sin(a)], [r1 * Math.cos(a), y1, r1 * Math.sin(a)]], col, w); } };
+          if (p.ghost && p.solid !== 'Cylinder') { path(ring(r, -h / 2), C.dim, 1.5, null, [6, 6]); path(ring(r, h / 2), C.dim, 1.5, null, [6, 6]); gen(8, r, -h / 2, r, h / 2, C.dim + '', 1); }
+          if (p.solid === 'Cylinder') { path(ring(r, -h / 2), C.cyan, 3, C.cyan + '22'); for (let k = 1; k < 4; k++) path(ring(r, -h / 2 + h * k / 4), C.cyan + '66', 1); gen(16, r, -h / 2, r, h / 2, C.cyan + 'aa', 1.3); path(ring(r, h / 2), C.cyan, 3, C.cyan + '33'); }
+          if (p.solid === 'Cone') { path(ring(r, -h / 2), C.amber, 3, C.amber + '22'); for (let k = 1; k < 4; k++) path(ring(r * (1 - k / 4), -h / 2 + h * k / 4), C.amber + '66', 1); gen(20, r, -h / 2, 0, h / 2, C.amber + 'cc', 1.3); }
+          if (sph) { for (let la = -75; la <= 75; la += 15) path(ring(r * Math.cos(la * D), r * Math.sin(la * D)), la === 0 ? C.lime : C.lime + '88', la === 0 ? 3 : 1.2); for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI; path(Array.from({ length: 49 }, (_, j) => { const b = j / 48 * 2 * Math.PI; return [r * Math.cos(b) * Math.cos(a), r * Math.sin(b), r * Math.cos(b) * Math.sin(a)]; }), C.lime + '77', 1.2); } }
+          if (p.solid === 'Cuboid') { const s = r / 2, y0 = -h / 2, y1 = h / 2; const v = [[-s, y0, -s], [s, y0, -s], [s, y0, s], [-s, y0, s], [-s, y1, -s], [s, y1, -s], [s, y1, s], [-s, y1, s]]; path([v[0], v[1], v[2], v[3], v[0]], C.violet, 3, C.violet + '22'); path([v[4], v[5], v[6], v[7], v[4]], C.violet, 3, C.violet + '33'); for (let i = 0; i < 4; i++) path([v[i], v[i + 4]], C.violet, 3); }
+          if (p.solid !== 'Cuboid') { path([[0, -h / 2, 0], [r, -h / 2, 0]], C.pink, 3); const m = P(r / 2, -h / 2, 0); g.box(c, 'r', m[0], m[1] + fs, C.pink, fs * 0.9); }
+          if (!sph) { path([[0, -h / 2, 0], [0, h / 2, 0]], C.pink, 2, null, [6, 5]); const m = P(0, 0, 0); g.box(c, 'h', m[0] + fs, m[1], C.pink, fs * 0.9); }
+          g.box(c, p.solid, 20, 30, C.ink, fs, 'left');
+        },
+        calc(p) { const r = p.r, h = p.h, PI = Math.PI; if (p.solid === 'Cylinder') return { V: PI * r * r * h, L: 2 * PI * r * h, T: 2 * PI * r * (r + h), Vc: PI * r * r * h, extra: '—' }; if (p.solid === 'Cone') { const l = Math.hypot(r, h); return { V: PI * r * r * h / 3, L: PI * r * l, T: PI * r * (l + r), Vc: PI * r * r * h, extra: N(l) + ' cm' }; } if (p.solid === 'Sphere') return { V: 4 / 3 * PI * r ** 3, L: 4 * PI * r * r, T: 4 * PI * r * r, Vc: PI * r * r * 2 * r, extra: '—' }; return { V: r * r * h, L: 4 * r * h, T: 2 * r * r + 4 * r * h, Vc: PI * (r / 2) ** 2 * h, extra: '—' }; },
+        read(p) { const k = this.calc(p); return [{ l: 'Volume', v: N(k.V) + ' cm³', c: 'lime' }, { l: p.solid === 'Cuboid' ? 'Lateral SA' : 'Curved SA', v: N(k.L) + ' cm²', c: 'amber' }, { l: 'Total SA', v: N(k.T) + ' cm²', c: 'cyan' }, { l: 'Slant height l', v: k.extra, c: 'pink' }, { l: 'V ÷ V(cylinder)', v: N(k.V / k.Vc, 3), c: 'violet' }]; },
+        result(p) { return p.solid === 'Cone' ? 'V = ⅓πr²h = ' + N(this.calc(p).V) + ' cm³' : p.solid === 'Sphere' ? 'V = ⁴⁄₃πr³ = ' + N(this.calc(p).V) + ' cm³' : p.solid === 'Cylinder' ? 'V = πr²h = ' + N(this.calc(p).V) + ' cm³' : 'V = a²h = ' + N(this.calc(p).V) + ' cm³'; } },
+
+      { id: 'unit', title: 'Trigonometric Ratios on the Unit Circle', topic: 'Trigonometry', grades: [10, 11],
+        aim: 'To study sin θ, cos θ and tan θ on a unit circle and trace their graphs from 0° to 360°.',
+        equip: ['Unit circle', 'Rotating radius arm', 'Graph tracer'],
+        steps: ['Rotate the radius OP by changing θ (or press Animate).', 'cos θ is the x-coordinate (cyan); sin θ is the y-coordinate (coral) of P.', 'tan θ is read on the tangent line x = 1 (amber).', 'Watch the sine and cosine waves being traced on the right.'],
+        concl: 'sin²θ + cos²θ = 1 for all θ; sin and cos are periodic with period 360°, and tan θ = sin θ / cos θ.',
+        controls: [{ type: 'range', key: 'th', label: 'Angle θ', min: 0, max: 360, step: 1, unit: '°' }, { type: 'toggle', key: 'play', label: 'Animate rotation' }],
+        init: { th: 35, play: false },
+        tick: p => p.play ? { ...p, th: (p.th + 0.5) % 360 } : null,
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), R = Math.min(W * 0.16, H * 0.34), ox = W * 0.04 + R * 1.25, oy = H / 2, t = p.th * D, X = ox + R * Math.cos(t), Y = oy - R * Math.sin(t);
+          g.line(c, ox - R * 1.25, oy, ox + R * 1.25, oy, C.axis, 2); g.line(c, ox, oy - R * 1.25, ox, oy + R * 1.25, C.axis, 2);
+          g.dot(c, ox, oy, R, null, C.ink, 2.5);
+          g.line(c, ox + R, oy - R * 1.25, ox + R, oy + R * 1.25, C.amber + '66', 1.5, [5, 5]);
+          const tn = Math.tan(t); if (Math.abs(tn) < 1.2) { g.line(c, ox, oy, ox + R, oy - R * tn, C.amber + '88', 1.5, [4, 4]); g.line(c, ox + R, oy, ox + R, oy - R * tn, C.amber, 5); }
+          g.wedge(c, [ox, oy], [ox + 10, oy], [X, Y], R * 0.22, C.violet, 'θ', fs);
+          g.line(c, ox, oy, X, Y, C.ink, 3); g.line(c, ox, oy, X, oy, C.cyan, 6); g.line(c, X, oy, X, Y, C.coral, 6);
+          g.dot(c, X, Y, 9, C.ink);
+          const gx0 = ox + R * 1.55, gx1 = W - 30, gw = gx1 - gx0, GX = d => gx0 + gw * d / 360, GY = v => oy - v * R;
+          g.line(c, gx0, oy, gx1, oy, C.axis, 2);
+          for (let d = 90; d <= 360; d += 90) { g.line(c, GX(d), oy - 6, GX(d), oy + 6, C.axis, 2); g.text(c, d + '°', GX(d), oy + fs, C.dim, fs * 0.7, 'center', 'middle', 500, true); }
+          [1, -1].forEach(v => { g.line(c, gx0, GY(v), gx1, GY(v), C.grid, 1); g.text(c, N(v), gx0 - 8, GY(v), C.dim, fs * 0.7, 'right', 'middle', 500, true); });
+          [[Math.sin, C.coral], [Math.cos, C.cyan]].forEach(([f, col]) => { c.strokeStyle = col + '55'; c.lineWidth = 2; c.beginPath(); for (let d = 0; d <= 360; d += 2) { const q = [GX(d), GY(f(d * D))]; d ? c.lineTo(...q) : c.moveTo(...q); } c.stroke(); c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); for (let d = 0; d <= p.th; d += 1) { const q = [GX(d), GY(f(d * D))]; d ? c.lineTo(...q) : c.moveTo(...q); } c.stroke(); });
+          g.line(c, X, Y, GX(p.th), Y, C.coral + '88', 1.5, [4, 4]);
+          g.line(c, GX(p.th), oy - R * 1.1, GX(p.th), oy + R * 1.1, C.violet + '88', 1.5);
+          g.dot(c, GX(p.th), GY(Math.sin(t)), 8, C.coral); g.dot(c, GX(p.th), GY(Math.cos(t)), 8, C.cyan);
+          g.box(c, 'sin θ', gx0 + 10, oy - R * 1.3, C.coral, fs * 0.8, 'left'); g.box(c, 'cos θ', gx0 + 110, oy - R * 1.3, C.cyan, fs * 0.8, 'left');
+        },
+        read: p => { const t = p.th * D, s = Math.sin(t), co = Math.cos(t); return [{ l: 'θ', v: p.th + '° = ' + N(t, 3) + ' rad', c: 'violet' }, { l: 'sin θ', v: N(s, 4), c: 'coral' }, { l: 'cos θ', v: N(co, 4), c: 'cyan' }, { l: 'tan θ', v: Math.abs(co) < 1e-6 ? 'undefined' : N(s / co, 4), c: 'amber' }, { l: 'sin²θ + cos²θ', v: N(s * s + co * co, 4), c: 'lime' }]; },
+        result: p => 'sin²' + p.th + '° + cos²' + p.th + '° = 1' },
+
+      { id: 'height', title: 'Heights & Distances with a Clinometer', topic: 'Trigonometry', grades: [10],
+        aim: 'To find the height of a tower using a clinometer and the angle of elevation.',
+        equip: ['Clinometer (protractor + straw + plumb line)', 'Measuring tape', 'Tower model'],
+        steps: ['Stand at a measured distance d from the foot of the tower.', 'Sight the top of the tower through the clinometer straw.', 'Read the angle of elevation θ from the plumb line.', 'Height = d × tan θ + eye height. Record readings for different distances.'],
+        concl: 'Height of object h = d tan θ + observer’s eye level; the value is the same from every position.',
+        controls: [{ type: 'range', key: 'd', label: 'Distance from tower d', min: 5, max: 60, step: 1, unit: ' m' }, { type: 'range', key: 'th', label: 'Angle of elevation θ', min: 5, max: 80, step: 1, unit: '°' }, { type: 'range', key: 'eye', label: 'Eye height', min: 1, max: 2, step: 0.1, unit: ' m' }],
+        init: { d: 20, th: 40, eye: 1.5 },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), th = p.th * D, h = p.d * Math.tan(th) + p.eye, gy = H * 0.84, s = Math.min(W * 0.66 / (p.d + 4), H * 0.7 / (h + 1)), ox = W * 0.2, tx = ox + p.d * s, ey = gy - p.eye * s, top = gy - h * s;
+          c.fillStyle = C.lime + '22'; c.fillRect(0, gy, W, H - gy); g.line(c, 0, gy, W, gy, C.lime, 3);
+          const tw = Math.max(20, s * 2.4); c.fillStyle = C.violet + '44'; c.fillRect(tx, top, tw, gy - top); c.strokeStyle = C.violet; c.lineWidth = 2.5; c.strokeRect(tx, top, tw, gy - top);
+          for (let k = 1; k < 8; k++) g.line(c, tx, top + (gy - top) * k / 8, tx + tw, top + (gy - top) * k / 8, C.violet + '88', 1);
+          const hr = Math.max(6, Math.min(14, s * 0.2)); g.dot(c, ox, ey, hr, null, C.ink, 2.5); g.line(c, ox, ey + hr, ox, gy - p.eye * s * 0.45, C.ink, 3); g.line(c, ox, gy - p.eye * s * 0.45, ox - hr, gy, C.ink, 3); g.line(c, ox, gy - p.eye * s * 0.45, ox + hr, gy, C.ink, 3); g.line(c, ox, ey + hr * 2, ox + hr * 1.6, ey + hr * 0.6, C.ink, 3);
+          g.line(c, ox, ey, tx, ey, C.dim, 1.5, [6, 6]); g.line(c, ox, ey, tx, top, C.amber, 3, [10, 6]);
+          g.wedge(c, [ox, ey], [ox + 10, ey], [tx, top], Math.min(80, p.d * s * 0.35), C.amber, 'θ = ' + p.th + '°', fs);
+          const dy = gy + fs * 1.6; g.line(c, ox, dy, tx, dy, C.ink, 2); g.head(c, tx - 10, dy, ox, dy, C.ink); g.head(c, ox + 10, dy, tx, dy, C.ink); g.box(c, 'd = ' + p.d + ' m', (ox + tx) / 2, dy, C.ink, fs * 0.85);
+          const hx = tx + tw + 20; g.line(c, hx, gy, hx, top, C.violet, 2); g.head(c, hx, gy - 10, hx, top, C.violet); g.head(c, hx, top + 10, hx, gy, C.violet); g.box(c, 'h = ' + N(h, 2) + ' m', hx + 12, (gy + top) / 2, C.violet, fs, 'left');
+          const R = Math.min(80, W * 0.07), cx0 = 30 + R * 1.2, cy0 = 30 + fs * 1.5;
+          c.save(); c.translate(cx0, cy0); c.rotate(-th); c.beginPath(); c.arc(0, 0, R, 0, Math.PI); c.closePath(); c.fillStyle = C.amber + '22'; c.fill(); c.strokeStyle = C.amber; c.lineWidth = 2; c.stroke();
+          for (let k = 0; k <= 18; k++) { const a = k * 10 * D, r0 = k % 3 === 0 ? R * 0.8 : R * 0.88; g.line(c, Math.cos(a) * r0, Math.sin(a) * r0, Math.cos(a) * R, Math.sin(a) * R, C.amber, 1.5); }
+          g.line(c, -R - 16, 0, R + 16, 0, C.ink, 5); c.restore();
+          g.line(c, cx0, cy0, cx0, cy0 + R * 1.05, C.coral, 2); g.dot(c, cx0, cy0 + R * 1.05, 5, C.coral); g.dot(c, cx0, cy0, 4, C.ink);
+          g.text(c, 'Clinometer · reads ' + p.th + '°', cx0, cy0 + R * 1.05 + fs * 1.2, C.dim, fs * 0.75);
+        },
+        read: p => { const t = Math.tan(p.th * D); return [{ l: 'Angle θ', v: p.th + '°', c: 'amber' }, { l: 'tan θ', v: N(t, 4), c: 'ink' }, { l: 'd × tan θ', v: N(p.d * t) + ' m', c: 'cyan' }, { l: 'Height h', v: N(p.d * t + p.eye) + ' m', c: 'violet' }]; },
+        result: p => 'h = ' + p.d + ' × tan ' + p.th + '° + ' + p.eye + ' = ' + N(p.d * Math.tan(p.th * D) + p.eye) + ' m' },
+
+      { id: 'prob', title: 'Probability — Coins & Dice Experiment', topic: 'Statistics & Probability', grades: [8, 9, 10, 11, 12],
+        aim: 'To find the experimental probability of outcomes by tossing coins and rolling a die, and compare with theoretical probability.',
+        equip: ['Coin', 'Die', 'Tally counter', 'Bar graph'],
+        steps: ['Choose the experiment: one coin, one die or two coins.', 'Run trials in batches of 1, 10 or 100.', 'Observe the bar graph of experimental probabilities (bars) against theoretical values (dashed).', 'Record readings after 10, 100 and 1000 trials.'],
+        concl: 'As the number of trials increases, experimental probability gets closer to the theoretical probability.',
+        controls: [{ type: 'select', key: 'exp', label: 'Experiment', options: ['Coin', 'Die', 'Two coins'] }],
+        init: { exp: 'Coin' },
+        outs(e) { return e === 'Coin' ? [['H', 0.5], ['T', 0.5]] : e === 'Die' ? [1, 2, 3, 4, 5, 6].map(i => [String(i), 1 / 6]) : [['2 heads', 0.25], ['1 head', 0.5], ['0 heads', 0.25]]; },
+        ensure(p, st) { if (st.exp !== p.exp) { st.exp = p.exp; st.cnt = {}; st.n = 0; st.last = null; st.at = -1e9; } },
+        actions: [['1 trial', 1], ['10 trials', 10], ['100 trials', 100], ['Reset', 0]].map(([label, k]) => ({ label, k, fn(p, st, self) { self.ensure(p, st); if (!k) { st.exp = null; self.ensure(p, st); return; } for (let i = 0; i < k; i++) { let o, raw; if (p.exp === 'Coin') { o = Math.random() < 0.5 ? 'H' : 'T'; raw = [o]; } else if (p.exp === 'Die') { o = String(1 + Math.floor(Math.random() * 6)); raw = [o]; } else { raw = [Math.random() < 0.5 ? 'H' : 'T', Math.random() < 0.5 ? 'H' : 'T']; const hc = raw.filter(x => x === 'H').length; o = hc === 2 ? '2 heads' : hc === 1 ? '1 head' : '0 heads'; } st.cnt[o] = (st.cnt[o] || 0) + 1; st.n++; st.last = raw; } st.at = performance.now(); } })),
+        draw(c, W, H, p, st, t) {
+          this.ensure(p, st); const fs = g.fs(W, H), outs = this.outs(p.exp), cx = W * 0.2, cy = H * 0.45, Z = Math.min(W * 0.1, H * 0.2), spin = t - st.at < 550;
+          const coin = (x, y, f) => { const sq = spin ? Math.abs(Math.cos((t - st.at) / 40)) : 1; c.save(); c.translate(x, y); c.scale(1, Math.max(0.08, sq)); g.dot(c, 0, 0, Z, f === 'H' ? C.amber : C.cyan, C.ink, 4); g.dot(c, 0, 0, Z * 0.78, null, C.bg + '88', 2); g.text(c, f, 0, 4, C.bg, Z * 0.9, 'center', 'middle', 700); c.restore(); };
+          const die = (x, y, v) => { const s = Z * 1.6; c.save(); c.translate(x, y); if (spin) c.rotate((t - st.at) / 60); c.fillStyle = C.ink; c.beginPath(); if (c.roundRect) c.roundRect(-s / 2, -s / 2, s, s, s * 0.16); else c.rect(-s / 2, -s / 2, s, s); c.fill(); const q = s * 0.27, pos = { 1: [[0, 0]], 2: [[-q, -q], [q, q]], 3: [[-q, -q], [0, 0], [q, q]], 4: [[-q, -q], [q, -q], [-q, q], [q, q]], 5: [[-q, -q], [q, -q], [0, 0], [-q, q], [q, q]], 6: [[-q, -q], [q, -q], [-q, 0], [q, 0], [-q, q], [q, q]] }[v] || []; pos.forEach(([a, b]) => g.dot(c, a, b, s * 0.085, C.bg)); c.restore(); };
+          const last = spin ? (p.exp === 'Die' ? [String(1 + Math.floor(Math.random() * 6))] : p.exp === 'Coin' ? [Math.random() < 0.5 ? 'H' : 'T'] : [Math.random() < 0.5 ? 'H' : 'T', Math.random() < 0.5 ? 'H' : 'T']) : (st.last || (p.exp === 'Die' ? ['6'] : p.exp === 'Coin' ? ['H'] : ['H', 'T']));
+          if (p.exp === 'Coin') coin(cx, cy, last[0]); else if (p.exp === 'Die') die(cx, cy, +last[0]); else { coin(cx - Z * 1.15, cy, last[0]); coin(cx + Z * 1.15, cy, last[1]); }
+          g.text(c, st.n ? 'Trial #' + st.n : 'Press a trial button', cx, cy + Z * 1.6, C.dim, fs);
+          const x0 = W * 0.42, x1 = W - 40, yb = H * 0.8, yt = H * 0.12, ym = p.exp === 'Die' ? 0.5 : 1, Y = v => yb - (yb - yt) * v / ym, bw = (x1 - x0) / outs.length;
+          for (let k = 0; k <= 4; k++) { const v = ym * k / 4; g.line(c, x0, Y(v), x1, Y(v), C.grid, 1); g.text(c, N(v), x0 - 8, Y(v), C.dim, fs * 0.65, 'right', 'middle', 500, true); }
+          outs.forEach(([o, th], i) => { const f = st.n ? (st.cnt[o] || 0) / st.n : 0, bx = x0 + i * bw + bw * 0.18, w = bw * 0.64; c.fillStyle = C.cyan + 'aa'; c.fillRect(bx, Y(f), w, yb - Y(f)); g.line(c, bx - 6, Y(th), bx + w + 6, Y(th), C.amber, 3, [8, 5]); g.text(c, o, bx + w / 2, yb + fs, C.ink, fs * 0.85); if (st.n) g.text(c, N(f, 3), bx + w / 2, Y(f) - fs * 0.8, C.cyan, fs * 0.75, 'center', 'middle', 600, true); });
+          g.line(c, x0, yb, x1, yb, C.axis, 2);
+          g.box(c, '▮ experimental   - - theoretical', x1, yt - fs * 0.6, C.dim, fs * 0.7, 'right');
+        },
+        read(p, st) { this.ensure(p, st); return [{ l: 'Trials', v: st.n, c: 'ink' }].concat(this.outs(p.exp).map(([o, th]) => ({ l: o + '  (P = ' + N(th, 3) + ')', v: (st.cnt[o] || 0) + ' · ' + (st.n ? N((st.cnt[o] || 0) / st.n, 3) : '—'), c: 'cyan' }))); },
+        result(p, st) { this.ensure(p, st); if (!st.n) return 'Run trials to begin'; const dev = Math.max(...this.outs(p.exp).map(([o, th]) => Math.abs((st.cnt[o] || 0) / st.n - th))); return 'n = ' + st.n + ' · max gap from theory = ' + N(dev, 3); } },
+
+      { id: 'conic', title: 'Conic Sections by Eccentricity', topic: 'Coordinate Geometry', grades: [11],
+        aim: 'To obtain circle, ellipse, parabola and hyperbola as the locus of a point whose distance from a focus bears a constant ratio e to its distance from a directrix.',
+        equip: ['Double cone model', 'Focus pin & directrix rod', 'Thread & pencil'],
+        steps: ['Set the eccentricity e and the semi-latus rectum l.', 'Move point P along the curve with the slider.', 'Compare PF (amber) and PD (cyan) on the meters.', 'Note the conic type for e = 0, 0 < e < 1, e = 1 and e > 1.'],
+        concl: 'PF / PD = e for every point. e = 0 circle, 0 < e < 1 ellipse, e = 1 parabola, e > 1 hyperbola.',
+        controls: [{ type: 'range', key: 'e', label: 'Eccentricity e', min: 0, max: 2, step: 0.05 }, { type: 'range', key: 'l', label: 'Semi-latus rectum l', min: 1, max: 4, step: 0.1 }, { type: 'range', key: 'phi', label: 'Point P (angle)', min: 0, max: 359, step: 1, unit: '°' }],
+        init: { e: 0.6, l: 2.5, phi: 60 },
+        name: e => e < 0.025 ? 'Circle' : e < 0.975 ? 'Ellipse' : e < 1.025 ? 'Parabola' : 'Hyperbola',
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-10, 10, -7, 7], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const e = p.e, l = p.l, dx = e > 0.01 ? -l / e : null;
+          if (dx !== null) { g.line(c, V.X(dx), 0, V.X(dx), H, C.cyan, 3, [12, 8]); g.label(c, V, dx, 6.3, 'directrix', C.cyan, fs); }
+          c.strokeStyle = C.amber; c.lineWidth = 4; c.beginPath(); let pen = false, sg = 0;
+          for (let i = 0; i <= 1440; i++) { const th = i / 1440 * 2 * Math.PI, den = 1 - e * Math.cos(th), r = l / den; const s = Math.sign(r); if (Math.abs(r) > 60 || s !== sg) { pen = false; sg = s; if (Math.abs(r) > 60) continue; } const x = V.X(r * Math.cos(th)), y = V.Y(r * Math.sin(th)); pen ? c.lineTo(x, y) : c.moveTo(x, y); pen = true; }
+          c.stroke();
+          g.dot(c, V.X(0), V.Y(0), 9, C.coral); g.label(c, V, 0, 0, 'F', C.coral, fs, 0, 26);
+          const ph = p.phi * D, r = l / (1 - e * Math.cos(ph));
+          if (r > 0 && r < 60) { const px = r * Math.cos(ph), py = r * Math.sin(ph); g.line(c, V.X(0), V.Y(0), V.X(px), V.Y(py), C.amber, 3); if (dx !== null) g.line(c, V.X(px), V.Y(py), V.X(dx), V.Y(py), C.cyan, 3); g.dot(c, V.X(px), V.Y(py), 10, C.ink, C.bg, 3); g.label(c, V, px, py, 'P', C.ink, fs, 0, -30); }
+          g.box(c, this.name(e) + '  ·  e = ' + N(e), 20, 30, C.amber, fs * 1.1, 'left');
+        },
+        read(p) { const ph = p.phi * D, r = p.l / (1 - p.e * Math.cos(ph)), ok = r > 0 && r < 60; const pd = p.e > 0.01 ? r * Math.cos(ph) + p.l / p.e : Infinity; return [{ l: 'Conic', v: this.name(p.e), c: 'amber' }, { l: 'PF', v: ok ? N(r) : '—', c: 'amber' }, { l: 'PD', v: ok && isFinite(pd) ? N(pd) : '∞', c: 'cyan' }, { l: 'PF ÷ PD', v: ok && isFinite(pd) ? N(r / pd, 3) : '0', c: 'lime' }]; },
+        result(p) { return this.name(p.e) + ': PF / PD = e = ' + N(p.e); } },
+
+      { id: 'deriv', title: 'Derivative as Slope of the Tangent', topic: 'Calculus', grades: [11, 12],
+        aim: 'To understand the derivative f′(x₀) as the limit of secant slopes, i.e. the slope of the tangent.',
+        equip: ['Graph plotter', 'Tangent ruler', 'Secant line'],
+        steps: ['Choose a function and a point x₀.', 'The secant joins P(x₀, f(x₀)) and Q(x₀ + h, f(x₀ + h)).', 'Reduce h towards 0 and watch the secant approach the tangent.', 'Compare secant slope with f′(x₀) on the meters.'],
+        concl: 'f′(x₀) = lim(h→0) [f(x₀ + h) − f(x₀)] / h is the slope of the tangent at P.',
+        controls: [{ type: 'select', key: 'fn', label: 'Function f(x)', options: ['x²', 'x³ − 3x', 'sin x', 'eˣ'] }, { type: 'range', key: 'x0', label: 'Point x₀', min: -3, max: 3, step: 0.05 }, { type: 'range', key: 'h', label: 'Step h', min: 0.05, max: 2, step: 0.05 }, { type: 'toggle', key: 'sec', label: 'Show secant' }, { type: 'toggle', key: 'dg', label: 'Show f′(x) graph' }],
+        init: { fn: 'x²', x0: 1, h: 1, sec: true, dg: false },
+        F: { 'x²': [x => x * x, x => 2 * x], 'x³ − 3x': [x => x ** 3 - 3 * x, x => 3 * x * x - 3], 'sin x': [Math.sin, Math.cos], 'eˣ': [Math.exp, Math.exp] },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-4.5, 4.5, -4.5, 4.5], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const [f, df] = this.F[p.fn], x0 = p.x0, y0 = f(x0), m = df(x0);
+          if (p.dg) g.plot(c, V, W, H, df, C.violet + 'aa', 2.5);
+          g.plot(c, V, W, H, f, C.amber, 4);
+          const xa = V.ix(0), xb = V.ix(W); g.line(c, 0, V.Y(y0 + m * (xa - x0)), W, V.Y(y0 + m * (xb - x0)), C.lime, 3);
+          g.line(c, V.X(x0), V.Y(y0), V.X(x0 + 1), V.Y(y0), C.lime + 'aa', 2, [4, 4]); g.line(c, V.X(x0 + 1), V.Y(y0), V.X(x0 + 1), V.Y(y0 + m), C.lime + 'aa', 2, [4, 4]);
+          if (p.sec) { const x1 = x0 + p.h, y1 = f(x1), ms = (y1 - y0) / p.h; g.line(c, 0, V.Y(y0 + ms * (xa - x0)), W, V.Y(y0 + ms * (xb - x0)), C.coral, 2.5, [10, 6]); g.dot(c, V.X(x1), V.Y(y1), 9, C.coral); g.label(c, V, x1, y1, 'Q', C.coral, fs, 22, -22); }
+          g.dot(c, V.X(x0), V.Y(y0), 10, C.ink, C.bg, 3); g.label(c, V, x0, y0, 'P', C.ink, fs, -22, -22);
+          g.box(c, 'f(x) = ' + p.fn, 20, 30, C.amber, fs, 'left'); if (p.dg) g.box(c, 'f′(x)', 20, 30 + fs * 1.9, C.violet, fs, 'left');
+        },
+        read(p) { const [f, df] = this.F[p.fn], y0 = f(p.x0); return [{ l: 'f(x₀)', v: N(y0, 3), c: 'amber' }, { l: 'Tangent slope f′(x₀)', v: N(df(p.x0), 4), c: 'lime' }, { l: 'Secant slope', v: N((f(p.x0 + p.h) - y0) / p.h, 4), c: 'coral' }, { l: 'Difference', v: N(Math.abs((f(p.x0 + p.h) - y0) / p.h - df(p.x0)), 4), c: 'ink' }]; },
+        result(p) { return "f′(" + N(p.x0) + ') = ' + N(this.F[p.fn][1](p.x0), 4); } },
+
+      { id: 'integ', title: 'Definite Integral as Area (Riemann Sums)', topic: 'Calculus', grades: [12],
+        aim: 'To evaluate a definite integral as the limit of a sum of areas of rectangles.',
+        equip: ['Graph plotter', 'Strip rectangles', 'Area counter'],
+        steps: ['Choose a function and the limits a and b.', 'Divide [a, b] into n strips and choose the rule (left, right, midpoint, trapezoid).', 'Increase n and watch the total area approach the exact integral.', 'Record the approximations and the error.'],
+        concl: '∫ₐᵇ f(x) dx = lim(n→∞) Σ f(xᵢ) Δx — the area under the curve.',
+        controls: [{ type: 'select', key: 'fn', label: 'Function f(x)', options: ['x²', 'sin x + 1.5', '½x + 1', 'eˣ/3'] }, { type: 'range', key: 'a', label: 'Lower limit a', min: -3, max: 3, step: 0.1 }, { type: 'range', key: 'b', label: 'Upper limit b', min: -3, max: 3, step: 0.1 }, { type: 'range', key: 'n', label: 'Strips n', min: 1, max: 60, step: 1 }, { type: 'select', key: 'm', label: 'Rule', options: ['Left', 'Right', 'Midpoint', 'Trapezoid'] }],
+        init: { fn: 'x²', a: 0, b: 2, n: 6, m: 'Left' },
+        fix: p => p.b <= p.a + 0.1 ? { ...p, b: Math.min(3, p.a + 0.2), a: Math.min(p.a, 2.8) } : p,
+        F: { 'x²': [x => x * x, x => x ** 3 / 3, [-3.5, 3.5, -1, 9.5]], 'sin x + 1.5': [x => Math.sin(x) + 1.5, x => -Math.cos(x) + 1.5 * x, [-3.6, 3.6, -0.6, 3]], '½x + 1': [x => x / 2 + 1, x => x * x / 4 + x, [-3.4, 3.4, -1, 3]], 'eˣ/3': [x => Math.exp(x) / 3, x => Math.exp(x) / 3, [-3.4, 3.4, -0.6, 7]] },
+        sum(p) { const f = this.F[p.fn][0], dx = (p.b - p.a) / p.n; let s = 0; for (let i = 0; i < p.n; i++) { const xl = p.a + i * dx; s += (p.m === 'Left' ? f(xl) : p.m === 'Right' ? f(xl + dx) : p.m === 'Midpoint' ? f(xl + dx / 2) : (f(xl) + f(xl + dx)) / 2) * dx; } return s; },
+        draw(c, W, H, p) {
+          const [f, , vw] = this.F[p.fn], V = g.view(W, H, vw, 30), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const pts = [[V.X(p.a), V.Y(0)]]; for (let i = 0; i <= 100; i++) { const x = p.a + (p.b - p.a) * i / 100; pts.push([V.X(x), V.Y(f(x))]); } pts.push([V.X(p.b), V.Y(0)]); g.poly(c, pts, null, C.violet + '30');
+          const dx = (p.b - p.a) / p.n;
+          for (let i = 0; i < p.n; i++) { const xl = p.a + i * dx, xr = xl + dx; if (p.m === 'Trapezoid') g.poly(c, [[V.X(xl), V.Y(0)], [V.X(xl), V.Y(f(xl))], [V.X(xr), V.Y(f(xr))], [V.X(xr), V.Y(0)]], C.cyan, C.cyan + '44', 1.5); else { const hgt = p.m === 'Left' ? f(xl) : p.m === 'Right' ? f(xr) : f(xl + dx / 2); g.poly(c, [[V.X(xl), V.Y(0)], [V.X(xl), V.Y(hgt)], [V.X(xr), V.Y(hgt)], [V.X(xr), V.Y(0)]], C.cyan, C.cyan + '44', 1.5); } }
+          g.plot(c, V, W, H, f, C.amber, 4);
+          [['a', p.a], ['b', p.b]].forEach(([s, x]) => { g.line(c, V.X(x), V.Y(0), V.X(x), V.Y(f(x)), C.coral, 2.5); g.label(c, V, x, 0, s + ' = ' + N(x, 1), C.coral, fs, 0, 26); });
+          g.box(c, 'f(x) = ' + p.fn + '  ·  ' + p.m + ' sum, n = ' + p.n, 20, 30, C.amber, fs, 'left');
+        },
+        read(p) { const Fi = this.F[p.fn][1], ex = Fi(p.b) - Fi(p.a), s = this.sum(p); return [{ l: 'Δx', v: N((p.b - p.a) / p.n, 4), c: 'ink' }, { l: 'Riemann sum', v: N(s, 4), c: 'cyan' }, { l: 'Exact integral', v: N(ex, 4), c: 'amber' }, { l: 'Error', v: N(Math.abs(s - ex) / (Math.abs(ex) || 1) * 100, 2) + ' %', c: 'coral' }]; },
+        result(p) { const Fi = this.F[p.fn][1]; return '∫ = ' + N(Fi(p.b) - Fi(p.a), 4) + '   ≈ ' + N(this.sum(p), 4) + ' (n = ' + p.n + ')'; } },
+
+      { id: 'lpp', title: 'Linear Programming — Corner Point Method', topic: 'Linear Programming', grades: [12],
+        aim: 'To find the maximum value of an objective function Z = px + qy over a feasible region using the corner point method.',
+        equip: ['Graph sheet', 'Shading tool', 'Iso-profit ruler'],
+        steps: ['Set the constraints x + 2y ≤ k₁ and 3x + y ≤ k₂ (with x, y ≥ 0).', 'The feasible region is shaded green.', 'Set the objective function Z = px + qy.', 'Read Z at each corner point; the largest value is the maximum.'],
+        concl: 'The optimal value of Z occurs at a corner point of the bounded feasible region.',
+        controls: [{ type: 'range', key: 'k1', label: 'k₁ in x + 2y ≤ k₁', min: 4, max: 16, step: 1 }, { type: 'range', key: 'k2', label: 'k₂ in 3x + y ≤ k₂', min: 4, max: 24, step: 1 }, { type: 'range', key: 'p', label: 'p in Z = px + qy', min: 0, max: 10, step: 1 }, { type: 'range', key: 'q', label: 'q in Z = px + qy', min: 0, max: 10, step: 1 }],
+        init: { k1: 10, k2: 15, p: 3, q: 2 },
+        lp(p) { const clip = (poly, a, b, k) => { const out = []; for (let i = 0; i < poly.length; i++) { const P = poly[i], Q = poly[(i + 1) % poly.length], fp = a * P[0] + b * P[1] - k, fq = a * Q[0] + b * Q[1] - k; if (fp <= 1e-9) out.push(P); if ((fp < 0 && fq > 0) || (fp > 0 && fq < 0)) { const t = fp / (fp - fq); out.push([P[0] + t * (Q[0] - P[0]), P[1] + t * (Q[1] - P[1])]); } } return out; }; let poly = [[0, 0], [40, 0], [40, 40], [0, 40]]; poly = clip(poly, 1, 2, p.k1); poly = clip(poly, 3, 1, p.k2); poly = poly.filter((q, i) => { const r = poly[(i + 1) % poly.length]; return Math.hypot(q[0] - r[0], q[1] - r[1]) > 1e-6; }); const zs = poly.map(q => p.p * q[0] + p.q * q[1]); let bi = 0; zs.forEach((z, i) => { if (z > zs[bi] + 1e-9) bi = i; }); return { poly, zs, bi }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-1.5, 11, -1.5, 9.5], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const { poly, zs, bi } = this.lp(p);
+          g.poly(c, poly.map(q => [V.X(q[0]), V.Y(q[1])]), C.lime, C.lime + '33', 2.5);
+          g.line(c, V.X(-2), V.Y((p.k1 + 2) / 2), V.X(30), V.Y((p.k1 - 30) / 2), C.coral, 3); g.line(c, V.X(-2), V.Y(p.k2 + 6), V.X(30), V.Y(p.k2 - 90), C.cyan, 3);
+          const best = poly[bi], zb = zs[bi];
+          if (p.q !== 0 || p.p !== 0) { if (Math.abs(p.q) > 1e-9) g.line(c, 0, V.Y((zb - p.p * V.ix(0)) / p.q), W, V.Y((zb - p.p * V.ix(W)) / p.q), C.amber, 3, [12, 8]); else g.line(c, V.X(zb / p.p), 0, V.X(zb / p.p), H, C.amber, 3, [12, 8]); }
+          poly.forEach((q, i) => { g.dot(c, V.X(q[0]), V.Y(q[1]), i === bi ? 13 : 8, i === bi ? C.amber : C.ink, C.bg, 3); g.label(c, V, q[0], q[1], '(' + N(q[0]) + ', ' + N(q[1]) + ')  Z=' + N(zs[i]), i === bi ? C.amber : C.ink, fs * 0.85, 0, -30); });
+          g.box(c, 'x + 2y ≤ ' + p.k1, 20, 30, C.coral, fs, 'left'); g.box(c, '3x + y ≤ ' + p.k2, 20, 30 + fs * 1.9, C.cyan, fs, 'left'); g.box(c, 'Z = ' + p.p + 'x + ' + p.q + 'y', 20, 30 + fs * 3.8, C.amber, fs, 'left');
+        },
+        read(p) { const { poly, zs, bi } = this.lp(p); return poly.map((q, i) => ({ l: 'Corner (' + N(q[0]) + ', ' + N(q[1]) + ')', v: 'Z = ' + N(zs[i]), c: i === bi ? 'amber' : 'ink' })); },
+        result(p) { const { poly, zs, bi } = this.lp(p); return 'Max Z = ' + N(zs[bi]) + ' at (' + N(poly[bi][0]) + ', ' + N(poly[bi][1]) + ')'; } }
+    ];
+    g.arcW = (c, O, r, s, w, col, lab, fs) => { r = Math.max(0, r); c.beginPath(); c.moveTo(O[0], O[1]); c.arc(O[0], O[1], r, -s, -(s + w), true); c.closePath(); c.fillStyle = col + '44'; c.fill(); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); if (lab) { const m = s + w / 2; g.box(c, lab, O[0] + Math.cos(m) * (r + fs * 1.6), O[1] - Math.sin(m) * (r + fs * 1.6), col, fs * 0.85); } };
+    g.rmark = (c, T, A, B, k) => { const u = [A[0] - T[0], A[1] - T[1]], v = [B[0] - T[0], B[1] - T[1]], lu = Math.hypot(...u) || 1, lv = Math.hypot(...v) || 1; k = k || 14; const p1 = [T[0] + u[0] / lu * k, T[1] + u[1] / lu * k], p3 = [T[0] + v[0] / lv * k, T[1] + v[1] / lv * k]; c.beginPath(); c.moveTo(...p1); c.lineTo(p1[0] + v[0] / lv * k, p1[1] + v[1] / lv * k); c.lineTo(...p3); c.strokeStyle = C.ink; c.lineWidth = 1.5; c.stroke(); };
+    const len = (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);
+    const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
+    const triH = (keys, cols) => () => keys.map((k, i) => [k + 'x', k + 'y', cols[i]]);
+    const S = (V, x, y) => [V.X(x), V.Y(y)];
+    const vletter = (c, V, pts, names, cols, fs) => { const G = pts.reduce((a, q) => [a[0] + q[0] / pts.length, a[1] + q[1] / pts.length], [0, 0]); pts.forEach((q, i) => { const dx = q[0] - G[0], dy = q[1] - G[1], L = Math.hypot(dx, dy) || 1; g.text(c, names[i], V.X(q[0]) + dx / L * 34, V.Y(q[1]) - dy / L * 34, cols[i] || C.ink, fs * 1.15, 'center', 'middle', 700); }); };
+
+    acts.push(
+      { id: 'angm', title: 'Measuring Angles with a Protractor', topic: 'Geometry', grades: [6],
+        aim: 'To measure and classify angles using a protractor.',
+        equip: ['Protractor (0°–180°)', 'Ruler', 'Rotating angle arm'],
+        steps: ['Place the protractor centre on vertex O with the base line along arm OA.', 'Drag point P to rotate arm OP.', 'Read the angle on the outer scale where arm OP crosses it.', 'Classify the angle and record its complement and supplement.'],
+        concl: 'Acute < 90°, right = 90°, obtuse between 90° and 180°, straight = 180°, reflex between 180° and 360°.',
+        controls: [{ type: 'toggle', key: 'snap5', label: 'Snap to 5°' }],
+        init: { Px: 2.571, Py: 3.064, snap5: false },
+        fix: p => { let a = Math.atan2(p.Py, p.Px); if (p.snap5) a = Math.round(a / D / 5) * 5 * D; return { ...p, Px: 4 * Math.cos(a), Py: 4 * Math.sin(a) }; },
+        handles: () => [['Px', 'Py', 'amber']],
+        deg(p) { let a = Math.atan2(p.Py, p.Px) / D; if (a < 0) a += 360; return Math.round(a * 10) / 10; },
+        kind(a) { return a < 0.05 ? 'Zero angle' : a < 89.95 ? 'Acute' : a < 90.05 ? 'Right angle' : a < 179.95 ? 'Obtuse' : a < 180.05 ? 'Straight angle' : 'Reflex'; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-5.5, 5.5, -4.6, 5.2], 24), fs = g.fs(W, H), O = [V.X(0), V.Y(0)], R = 4.6 * V.s, a = this.deg(p);
+          c.beginPath(); c.arc(O[0], O[1], R, Math.PI, 2 * Math.PI); c.closePath(); c.fillStyle = C.amber + '1e'; c.fill(); c.strokeStyle = C.amber; c.lineWidth = 2; c.stroke();
+          for (let k = 0; k <= 180; k++) { const t = k * D, L = k % 10 === 0 ? 0.13 : k % 5 === 0 ? 0.08 : 0.045; g.line(c, O[0] + Math.cos(t) * R, O[1] - Math.sin(t) * R, O[0] + Math.cos(t) * R * (1 - L), O[1] - Math.sin(t) * R * (1 - L), C.amber, k % 10 === 0 ? 2 : 1); if (k % 10 === 0) { g.text(c, String(k), O[0] + Math.cos(t) * R * 0.8, O[1] - Math.sin(t) * R * 0.8, C.amber, fs * 0.6, 'center', 'middle', 600, true); g.text(c, String(180 - k), O[0] + Math.cos(t) * R * 0.69, O[1] - Math.sin(t) * R * 0.69, C.dim, fs * 0.48, 'center', 'middle', 500, true); } }
+          g.arcW(c, O, Math.min(V.s * 1.1, 70), 0, a * D, C.lime, N(a, 1) + '°', fs);
+          g.line(c, O[0], O[1], O[0] + R * 1.05, O[1], C.ink, 4); g.line(c, O[0], O[1], O[0] + Math.cos(a * D) * R * 1.05, O[1] - Math.sin(a * D) * R * 1.05, C.ink, 4);
+          g.dot(c, O[0], O[1], 6, C.ink); g.text(c, 'O', O[0] - 6, O[1] + 22, C.ink, fs); g.text(c, 'A', O[0] + R * 1.05 + 14, O[1], C.ink, fs);
+          g.box(c, this.kind(a), 20, 30, C.lime, fs * 1.1, 'left');
+          return V;
+        },
+        read(p) { const a = this.deg(p); return [{ l: '∠AOP', v: N(a, 1) + '°', c: 'lime' }, { l: 'Type', v: this.kind(a), c: 'amber' }, { l: 'Complement', v: a < 90 ? N(90 - a, 1) + '°' : '—', c: 'cyan' }, { l: 'Supplement', v: a < 180 ? N(180 - a, 1) + '°' : '—', c: 'coral' }]; },
+        result(p) { const a = this.deg(p); return '∠AOP = ' + N(a, 1) + '° · ' + this.kind(a); } },
+
+      { id: 'ext', title: 'Exterior Angle Property of a Triangle', topic: 'Geometry', grades: [7],
+        aim: 'To verify that an exterior angle of a triangle equals the sum of the two interior opposite angles.',
+        equip: ['Paper triangle', 'Ruler', 'Digital protractor'],
+        steps: ['Drag the vertices A, B and C to form a triangle.', 'Side BC is produced to D, forming exterior angle ∠ACD.', 'Read ∠A and ∠B (interior opposite angles).', 'Compare ∠A + ∠B with ∠ACD.'],
+        concl: 'Exterior angle ∠ACD = ∠A + ∠B (sum of interior opposite angles).',
+        controls: [], snap: 0.1,
+        init: { Ax: -1, Ay: 3, Bx: -4.5, By: -2.5, Cx: 1.5, Cy: -2.5 },
+        handles: triH(['A', 'B', 'C'], ['coral', 'cyan', 'lime']),
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6, 7, -4.5, 4.5]), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const bc = len(p.Bx, p.By, p.Cx, p.Cy) || 1, Dx = p.Cx + (p.Cx - p.Bx) / bc * 3.5, Dy = p.Cy + (p.Cy - p.By) / bc * 3.5;
+          const A = S(V, p.Ax, p.Ay), B = S(V, p.Bx, p.By), Cc = S(V, p.Cx, p.Cy), Dp = S(V, Dx, Dy);
+          g.line(c, ...Cc, ...Dp, C.ink, 3, [10, 6]);
+          g.poly(c, [A, B, Cc], C.ink, C.amber + '1c', 3);
+          const r = Math.min(56, V.s * 0.85);
+          g.wedge(c, A, B, Cc, r, C.coral, true, fs); g.wedge(c, B, Cc, A, r, C.cyan, true, fs); g.wedge(c, Cc, Dp, A, r * 1.15, C.lime, true, fs);
+          vletter(c, V, [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], ['A', 'B', 'C'], [C.coral, C.cyan, C.lime], fs);
+          g.text(c, 'D', Dp[0] + 14, Dp[1] + 18, C.ink, fs * 1.1);
+          return V;
+        },
+        read: p => { const A = [p.Ax, p.Ay], B = [p.Bx, p.By], Cc = [p.Cx, p.Cy], a = ang(A, B, Cc), b = ang(B, Cc, A), cc = ang(Cc, A, B); return [{ l: '∠A', v: N(a, 1) + '°', c: 'coral' }, { l: '∠B', v: N(b, 1) + '°', c: 'cyan' }, { l: '∠A + ∠B', v: N(a + b, 1) + '°', c: 'amber' }, { l: 'Exterior ∠ACD', v: N(180 - cc, 1) + '°', c: 'lime' }]; },
+        result: p => { const A = [p.Ax, p.Ay], B = [p.Bx, p.By], Cc = [p.Cx, p.Cy]; return '∠ACD = ' + N(180 - ang(Cc, A, B), 1) + '° = ∠A + ∠B'; } },
+
+      { id: 'quad4', title: 'Angle Sum of a Quadrilateral', topic: 'Geometry', grades: [8],
+        aim: 'To verify that the sum of the interior angles of a quadrilateral is 360°.',
+        equip: ['Quadrilateral cut-out', 'Digital protractor', 'Diagonal strip'],
+        steps: ['Drag the four vertices to make any quadrilateral.', 'Read the four interior angles.', 'Show the diagonal AC to split it into two triangles.', 'Each triangle contributes 180°, so the total is 2 × 180°.'],
+        concl: '∠A + ∠B + ∠C + ∠D = 360° for every quadrilateral.',
+        controls: [{ type: 'toggle', key: 'diag', label: 'Show diagonal AC' }], snap: 0.1,
+        init: { Ax: -4, Ay: -2.5, Bx: 3.5, By: -3, Cx: 4.5, Cy: 2.5, Dx: -2, Dy: 3, diag: true },
+        handles: triH(['A', 'B', 'C', 'D'], ['coral', 'cyan', 'lime', 'amber']),
+        angs(p) { const P = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy], [p.Dx, p.Dy]]; let ar = 0; for (let i = 0; i < 4; i++) { const a = P[i], b = P[(i + 1) % 4]; ar += a[0] * b[1] - b[0] * a[1]; } const ccw = ar > 0, T = 2 * Math.PI; return P.map((v, i) => { const pr = P[(i + 3) % 4], nx = P[(i + 1) % 4], a1 = Math.atan2(pr[1] - v[1], pr[0] - v[0]), a2 = Math.atan2(nx[1] - v[1], nx[0] - v[0]); const w = ccw ? ((a1 - a2) % T + T) % T : ((a2 - a1) % T + T) % T; return { s: ccw ? a2 : a1, w, deg: w / D }; }); },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6, 6, -4.5, 4.5]), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const P = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy], [p.Dx, p.Dy]], cols = [C.coral, C.cyan, C.lime, C.amber];
+          g.poly(c, P.map(q => S(V, ...q)), C.ink, C.violet + '22', 3);
+          if (p.diag) g.line(c, ...S(V, ...P[0]), ...S(V, ...P[2]), C.ink, 2, [8, 6]);
+          this.angs(p).forEach((k, i) => g.arcW(c, S(V, ...P[i]), Math.min(46, V.s * 0.7), k.s, k.w, cols[i], N(k.deg, 1) + '°', fs));
+          vletter(c, V, P, ['A', 'B', 'C', 'D'], cols, fs);
+          return V;
+        },
+        read(p) { const k = this.angs(p), cols = ['coral', 'cyan', 'lime', 'amber']; return k.map((a, i) => ({ l: '∠' + 'ABCD'[i], v: N(a.deg, 1) + '°', c: cols[i] })).concat([{ l: 'Sum', v: N(k.reduce((s, a) => s + a.deg, 0), 1) + '°', c: 'ink' }]); },
+        result(p) { return '∠A + ∠B + ∠C + ∠D = ' + N(this.angs(p).reduce((s, a) => s + a.deg, 0), 1) + '°'; } },
+
+      { id: 'mid', title: 'Mid-point Theorem', topic: 'Geometry', grades: [9],
+        aim: 'To verify that the line segment joining the mid-points of two sides of a triangle is parallel to the third side and half of it.',
+        equip: ['Paper triangle', 'Ruler', 'Divider'],
+        steps: ['Drag the vertices of triangle ABC.', 'D and E are the mid-points of AB and AC.', 'Measure DE and BC.', 'Check that DE ∥ BC and DE = ½ BC.'],
+        concl: 'DE ∥ BC and DE = ½ BC in every triangle.',
+        controls: [], snap: 0.1,
+        init: { Ax: 0.5, Ay: 3.5, Bx: -4.5, By: -2.5, Cx: 4.5, Cy: -2.5 },
+        handles: triH(['A', 'B', 'C'], ['amber', 'amber', 'amber']),
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6, 6, -4.5, 4.5]), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const Dm = [(p.Ax + p.Bx) / 2, (p.Ay + p.By) / 2], Em = [(p.Ax + p.Cx) / 2, (p.Ay + p.Cy) / 2];
+          g.poly(c, [S(V, p.Ax, p.Ay), S(V, p.Bx, p.By), S(V, p.Cx, p.Cy)], C.ink, C.amber + '1a', 3);
+          g.line(c, ...S(V, p.Bx, p.By), ...S(V, p.Cx, p.Cy), C.cyan, 5); g.line(c, ...S(V, ...Dm), ...S(V, ...Em), C.lime, 5);
+          [[p.Ax, p.Ay, p.Bx, p.By], [p.Ax, p.Ay, p.Cx, p.Cy]].forEach(([x1, y1, x2, y2], j) => [0.25, 0.75].forEach(t => { const mx = x1 + (x2 - x1) * t, my = y1 + (y2 - y1) * t, L = len(x1, y1, x2, y2) || 1, nx = -(y2 - y1) / L * 0.18, ny = (x2 - x1) / L * 0.18; for (let k = 0; k <= j; k++) { const o = (k - j / 2) * 0.12; g.line(c, ...S(V, mx - nx + (x2 - x1) / L * o, my - ny + (y2 - y1) / L * o), ...S(V, mx + nx + (x2 - x1) / L * o, my + ny + (y2 - y1) / L * o), C.ink, 2); } }));
+          g.dot(c, ...S(V, ...Dm), 8, C.lime); g.dot(c, ...S(V, ...Em), 8, C.lime);
+          vletter(c, V, [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], ['A', 'B', 'C'], [], fs);
+          const Gc = [(p.Ax + p.Bx + p.Cx) / 3, (p.Ay + p.By + p.Cy) / 3];
+          [[Dm, 'D'], [Em, 'E']].forEach(([q, s]) => { const dx = q[0] - Gc[0], dy = q[1] - Gc[1], L = Math.hypot(dx, dy) || 1; g.text(c, s, V.X(q[0]) + dx / L * 28, V.Y(q[1]) - dy / L * 28, C.lime, fs * 1.1, 'center', 'middle', 700); });
+          return V;
+        },
+        read: p => { const de = len((p.Ax + p.Bx) / 2, (p.Ay + p.By) / 2, (p.Ax + p.Cx) / 2, (p.Ay + p.Cy) / 2), bc = len(p.Bx, p.By, p.Cx, p.Cy); return [{ l: 'DE', v: N(de) + ' u', c: 'lime' }, { l: 'BC', v: N(bc) + ' u', c: 'cyan' }, { l: 'DE ÷ BC', v: N(de / (bc || 1), 3), c: 'amber' }, { l: 'DE ∥ BC', v: 'Yes (same slope)', c: 'ink' }]; },
+        result: p => 'DE = ½ BC = ' + N(len(p.Bx, p.By, p.Cx, p.Cy) / 2) + ' u and DE ∥ BC' },
+
+      { id: 'para', title: 'Parallelograms on the Same Base', topic: 'Geometry', grades: [9],
+        aim: 'To verify that parallelograms on the same base and between the same parallels are equal in area, and a triangle on the same base has half that area.',
+        equip: ['Parallel strips', 'Squared paper', 'Paper cut-outs'],
+        steps: ['AB is the common base on the lower parallel line.', 'Slide the top sides of the two parallelograms along the upper parallel line.', 'Change the distance h between the parallels.', 'Compare the areas of ABCD, ABEF and triangle ABP.'],
+        concl: 'ar(ABCD) = ar(ABEF) = base × height, and ar(△ABP) = ½ ar(ABCD).',
+        controls: [{ type: 'range', key: 'h', label: 'Distance between parallels h', min: 1, max: 5, step: 0.5 }, { type: 'range', key: 's', label: 'Slide ABCD top', min: -4, max: 6, step: 0.5 }, { type: 'range', key: 't', label: 'Slide ABEF top', min: -4, max: 6, step: 0.5 }, { type: 'toggle', key: 'tri', label: 'Show triangle ABP' }, { type: 'range', key: 'u', label: 'Triangle apex P', min: -4, max: 8, step: 0.5 }],
+        init: { h: 3, s: 1.5, t: -2.5, tri: true, u: 6 },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-5, 10, -1.5, 6], 30), fs = g.fs(W, H), b = 4;
+          g.line(c, 0, V.Y(0), W, V.Y(0), C.dim, 2, [10, 8]); g.line(c, 0, V.Y(p.h), W, V.Y(p.h), C.dim, 2, [10, 8]);
+          g.poly(c, [[0, 0], [b, 0], [p.s + b, p.h], [p.s, p.h]].map(q => S(V, ...q)), C.coral, C.coral + '33', 3);
+          g.poly(c, [[0, 0], [b, 0], [p.t + b, p.h], [p.t, p.h]].map(q => S(V, ...q)), C.cyan, C.cyan + '33', 3);
+          if (p.tri) g.poly(c, [[0, 0], [b, 0], [p.u, p.h]].map(q => S(V, ...q)), C.lime, C.lime + '22', 3, [6, 4]);
+          g.line(c, ...S(V, 0, 0), ...S(V, b, 0), C.ink, 5);
+          g.text(c, 'A', V.X(0) - 10, V.Y(0) + 22, C.ink, fs); g.text(c, 'B', V.X(b) + 10, V.Y(0) + 22, C.ink, fs);
+          g.label(c, V, p.s, p.h, 'D', C.coral, fs, 0, -24); g.label(c, V, p.s + b, p.h, 'C', C.coral, fs, 0, -24); g.label(c, V, p.t, p.h, 'F', C.cyan, fs, 0, -24); g.label(c, V, p.t + b, p.h, 'E', C.cyan, fs, 0, -24); if (p.tri) g.label(c, V, p.u, p.h, 'P', C.lime, fs, 0, -24);
+          const hx = V.X(9.3); g.line(c, hx, V.Y(0), hx, V.Y(p.h), C.amber, 2.5); g.box(c, 'h = ' + p.h, hx - 10, V.Y(p.h / 2), C.amber, fs * 0.85, 'right');
+        },
+        read: p => [{ l: 'ar(ABCD)', v: N(4 * p.h) + ' u²', c: 'coral' }, { l: 'ar(ABEF)', v: N(4 * p.h) + ' u²', c: 'cyan' }, { l: 'ar(△ABP)', v: p.tri ? N(2 * p.h) + ' u²' : '—', c: 'lime' }, { l: 'Base × height', v: '4 × ' + p.h, c: 'amber' }],
+        result: p => 'ar(ABCD) = ar(ABEF) = ' + N(4 * p.h) + ' u²' + (p.tri ? ' · ar(△ABP) = ' + N(2 * p.h) : '') },
+
+      { id: 'bpt', title: 'Basic Proportionality Theorem', topic: 'Geometry', grades: [10],
+        aim: 'To verify that a line drawn parallel to one side of a triangle divides the other two sides in the same ratio.',
+        equip: ['Paper triangle', 'Set square & ruler (parallel lines)', 'Divider'],
+        steps: ['Drag the vertices of triangle ABC.', 'Move the line DE parallel to BC using the slider.', 'Measure AD, DB, AE and EC.', 'Compare the ratios AD/DB and AE/EC.'],
+        concl: 'If DE ∥ BC then AD/DB = AE/EC (Thales’ theorem).',
+        controls: [{ type: 'range', key: 'k', label: 'Position of DE (AD : AB)', min: 0.1, max: 0.9, step: 0.05 }], snap: 0.1,
+        init: { Ax: 0, Ay: 3.5, Bx: -4.5, By: -2.5, Cx: 4, Cy: -2.5, k: 0.4 },
+        handles: triH(['A', 'B', 'C'], ['amber', 'amber', 'amber']),
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6, 6, -4.5, 4.5]), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const Dp = [p.Ax + p.k * (p.Bx - p.Ax), p.Ay + p.k * (p.By - p.Ay)], Ep = [p.Ax + p.k * (p.Cx - p.Ax), p.Ay + p.k * (p.Cy - p.Ay)];
+          g.poly(c, [S(V, p.Ax, p.Ay), S(V, p.Bx, p.By), S(V, p.Cx, p.Cy)], C.ink, C.amber + '14', 3);
+          g.line(c, ...S(V, p.Ax, p.Ay), ...S(V, ...Dp), C.coral, 6); g.line(c, ...S(V, ...Dp), ...S(V, p.Bx, p.By), C.coral + '77', 6);
+          g.line(c, ...S(V, p.Ax, p.Ay), ...S(V, ...Ep), C.cyan, 6); g.line(c, ...S(V, ...Ep), ...S(V, p.Cx, p.Cy), C.cyan + '77', 6);
+          g.line(c, ...S(V, ...Dp), ...S(V, ...Ep), C.lime, 4); g.line(c, ...S(V, p.Bx, p.By), ...S(V, p.Cx, p.Cy), C.lime, 2, [8, 6]);
+          g.dot(c, ...S(V, ...Dp), 8, C.coral); g.dot(c, ...S(V, ...Ep), 8, C.cyan);
+          vletter(c, V, [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], ['A', 'B', 'C'], [], fs);
+          g.text(c, 'D', V.X(Dp[0]) - 24, V.Y(Dp[1]), C.coral, fs * 1.1, 'center', 'middle', 700); g.text(c, 'E', V.X(Ep[0]) + 24, V.Y(Ep[1]), C.cyan, fs * 1.1, 'center', 'middle', 700);
+          return V;
+        },
+        read: p => { const ab = len(p.Ax, p.Ay, p.Bx, p.By), ac = len(p.Ax, p.Ay, p.Cx, p.Cy), ad = ab * p.k, db = ab - ad, ae = ac * p.k, ec = ac - ae; return [{ l: 'AD', v: N(ad), c: 'coral' }, { l: 'DB', v: N(db), c: 'coral' }, { l: 'AE', v: N(ae), c: 'cyan' }, { l: 'EC', v: N(ec), c: 'cyan' }, { l: 'AD ÷ DB', v: N(ad / db, 3), c: 'lime' }, { l: 'AE ÷ EC', v: N(ae / ec, 3), c: 'lime' }]; },
+        result: p => 'AD/DB = AE/EC = ' + N(p.k / (1 - p.k), 3) },
+
+      { id: 'tang', title: 'Tangents from an External Point', topic: 'Geometry', grades: [10],
+        aim: 'To verify that the lengths of tangents drawn from an external point to a circle are equal.',
+        equip: ['Compass', 'Ruler', 'Set square'],
+        steps: ['Drag the external point P anywhere outside the circle.', 'Two tangents PT₁ and PT₂ touch the circle.', 'Measure both tangent lengths.', 'Observe that the radius is perpendicular to the tangent at the point of contact.'],
+        concl: 'PT₁ = PT₂; OT ⟂ PT; ∠T₁PT₂ + ∠T₁OT₂ = 180°.',
+        controls: [],
+        init: { Px: 6.5, Py: 1 },
+        fix: p => { const d = Math.hypot(p.Px, p.Py) || 1; return d < 3.5 ? { ...p, Px: p.Px / d * 3.5, Py: p.Py / d * 3.5 } : p; },
+        handles: () => [['Px', 'Py', 'amber']],
+        calc(p) { const d = Math.hypot(p.Px, p.Py), ph = Math.atan2(p.Py, p.Px), al = Math.acos(3 / d); return { d, T1: [3 * Math.cos(ph + al), 3 * Math.sin(ph + al)], T2: [3 * Math.cos(ph - al), 3 * Math.sin(ph - al)], t: Math.sqrt(d * d - 9), apx: 180 - 2 * al / D }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-4.5, 9, -5.5, 5.5], 24), fs = g.fs(W, H), k = this.calc(p), O = S(V, 0, 0), P = S(V, p.Px, p.Py), T1 = S(V, ...k.T1), T2 = S(V, ...k.T2);
+          g.dot(c, ...O, 3 * V.s, C.soft, C.ink, 3);
+          g.line(c, ...O, ...P, C.dim, 2, [8, 6]);
+          [T1, T2].forEach(T => { g.line(c, ...P, T[0] + (T[0] - P[0]) * 0.25, T[1] + (T[1] - P[1]) * 0.25, C.amber, 4); g.line(c, ...O, ...T, C.cyan, 3); g.rmark(c, T, O, P, 14); g.dot(c, ...T, 7, C.amber); });
+          g.wedge(c, P, T1, T2, Math.min(60, V.s), C.lime, true, fs);
+          g.dot(c, ...O, 6, C.ink); g.text(c, 'O', O[0] - 18, O[1] + 18, C.ink, fs);
+          g.label(c, V, k.T1[0] * 1.2, k.T1[1] * 1.2, 'T₁', C.amber, fs); g.label(c, V, k.T2[0] * 1.2, k.T2[1] * 1.2, 'T₂', C.amber, fs); g.label(c, V, p.Px, p.Py, 'P', C.ink, fs, 26, -26);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'PT₁', v: N(k.t, 3), c: 'amber' }, { l: 'PT₂', v: N(k.t, 3), c: 'amber' }, { l: '∠OT₁P', v: '90°', c: 'cyan' }, { l: '∠T₁PT₂', v: N(k.apx, 1) + '°', c: 'lime' }, { l: '∠T₁OT₂', v: N(180 - k.apx, 1) + '°', c: 'ink' }]; },
+        result(p) { return 'PT₁ = PT₂ = ' + N(this.calc(p).t, 3); } },
+
+      { id: 'stat', title: 'Mean, Median & Mode', topic: 'Statistics & Probability', grades: [7, 8, 9, 10],
+        aim: 'To find the mean, median and mode of a data set using a bar graph.',
+        equip: ['Data cards', 'Bar graph board', 'Levelling line'],
+        steps: ['Drag the top of each bar to set the data values (0–10).', 'The mean line (amber) is the level at which the bars would balance.', 'The median line (cyan) is the middle value after arranging in order.', 'The mode bars (highlighted) occur most often.'],
+        concl: 'Mean = Σx / n; Median = middle value of ordered data; Mode = most frequent value.',
+        controls: [], snap: 1,
+        init: { x0: 1, v0: 4, x1: 2, v1: 7, x2: 3, v2: 3, x3: 4, v3: 7, x4: 5, v4: 9, x5: 6, v5: 5, x6: 7, v6: 6 },
+        fix: p => { const q = { ...p }; for (let i = 0; i < 7; i++) { q['x' + i] = i + 1; q['v' + i] = Math.max(0, Math.min(10, Math.round(q['v' + i]))); } return q; },
+        handles: () => Array.from({ length: 7 }, (_, i) => ['x' + i, 'v' + i, 'cyan']),
+        st(p) { const d = Array.from({ length: 7 }, (_, i) => p['v' + i]), s = [...d].sort((a, b) => a - b), mean = d.reduce((a, b) => a + b, 0) / 7, f = {}; d.forEach(v => f[v] = (f[v] || 0) + 1); const mx = Math.max(...Object.values(f)), mode = mx > 1 ? Object.keys(f).filter(k => f[k] === mx).map(Number) : []; return { d, s, mean, med: s[3], mode, range: s[6] - s[0] }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-0.4, 8.4, -1, 11], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs); const k = this.st(p);
+          k.d.forEach((v, i) => { g.poly(c, [[i + 0.65, 0], [i + 1.35, 0], [i + 1.35, v], [i + 0.65, v]].map(q => S(V, ...q)), k.mode.includes(v) ? C.amber : C.cyan, (k.mode.includes(v) ? C.amber : C.cyan) + '44', 2); g.text(c, String(v), V.X(i + 1), V.Y(v) - 34, C.ink, fs * 0.9, 'center', 'middle', 700, true); });
+          g.line(c, 0, V.Y(k.mean), W, V.Y(k.mean), C.amber, 3, [12, 6]); g.box(c, 'mean ' + N(k.mean), V.X(8.1), V.Y(k.mean) - 18, C.amber, fs * 0.8, 'right');
+          g.line(c, 0, V.Y(k.med), W, V.Y(k.med), C.lime, 2.5, [4, 6]); g.box(c, 'median ' + k.med, V.X(8.1), V.Y(k.med) + 18, C.lime, fs * 0.8, 'right');
+          return V;
+        },
+        read(p) { const k = this.st(p); return [{ l: 'Ordered data', v: k.s.join(', '), c: 'ink' }, { l: 'Mean', v: N(k.mean), c: 'amber' }, { l: 'Median', v: k.med, c: 'lime' }, { l: 'Mode', v: k.mode.length ? k.mode.join(', ') : 'none', c: 'amber' }, { l: 'Range', v: k.range, c: 'cyan' }]; },
+        result(p) { const k = this.st(p); return 'Mean ' + N(k.mean) + ' · Median ' + k.med + ' · Mode ' + (k.mode.join(', ') || '—'); } },
+
+      { id: 'ap', title: 'Arithmetic Progression & Sum of n Terms', topic: 'Algebra', grades: [10],
+        aim: 'To verify that the sum of first n terms of an AP is Sₙ = n/2 [2a + (n − 1)d] using a staircase model.',
+        equip: ['Coloured strips', 'Squared paper', 'Scissors (virtual)'],
+        steps: ['Set the first term a, common difference d and number of terms n.', 'Each strip shows one term; the strips form a staircase.', 'Turn on “Pair with reversed copy” — the two staircases form a rectangle n × (a + l).', 'Half of the rectangle is Sₙ.'],
+        concl: 'Sₙ = n/2 (a + l) = n/2 [2a + (n − 1)d], where l is the last term.',
+        controls: [{ type: 'range', key: 'a', label: 'First term a', min: -5, max: 10, step: 1 }, { type: 'range', key: 'd', label: 'Common difference d', min: -3, max: 5, step: 1 }, { type: 'range', key: 'n', label: 'Number of terms n', min: 1, max: 20, step: 1 }, { type: 'toggle', key: 'pair', label: 'Pair with reversed copy' }],
+        init: { a: 2, d: 1, n: 8, pair: true },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), t = Array.from({ length: p.n }, (_, k) => p.a + k * p.d), l = t[p.n - 1], pos = t.every(v => v >= 0), pr = p.pair && pos;
+          const ymax = Math.max(1, ...t, pr ? p.a + l : 0), ymin = Math.min(0, ...t), x0 = 70, x1 = W - 40, top = 70, bot = H - 50, bw = (x1 - x0) / p.n, sy = (bot - top) / (ymax - ymin), Y = v => bot - (v - ymin) * sy;
+          for (let v = Math.ceil(ymin); v <= ymax; v += Math.max(1, Math.ceil((ymax - ymin) / 10))) { g.line(c, x0, Y(v), x1, Y(v), C.grid, 1); g.text(c, String(v), x0 - 10, Y(v), C.dim, fs * 0.65, 'right', 'middle', 500, true); }
+          t.forEach((v, k) => { const x = x0 + k * bw; c.fillStyle = C.amber + 'aa'; c.fillRect(x + 2, Math.min(Y(v), Y(0)), bw - 4, Math.abs(Y(v) - Y(0))); if (pr) { const w = t[p.n - 1 - k]; c.fillStyle = C.cyan + '66'; c.fillRect(x + 2, Y(v + w), bw - 4, Y(v) - Y(v + w)); } if (bw > 26) g.text(c, String(v), x + bw / 2, v >= 0 ? Y(v) + fs * 0.8 : Y(v) - fs * 0.8, C.bg, fs * 0.7, 'center', 'middle', 700, true); g.text(c, 'T' + (k + 1), x + bw / 2, bot + fs, C.dim, fs * 0.6, 'center', 'middle', 500, true); });
+          g.line(c, x0, Y(0), x1, Y(0), C.axis, 2);
+          if (pr) { c.strokeStyle = C.lime; c.lineWidth = 2.5; c.setLineDash([8, 6]); c.strokeRect(x0, Y(p.a + l), p.n * bw, Y(0) - Y(p.a + l)); c.setLineDash([]); g.box(c, 'n × (a + l) = ' + p.n + ' × ' + (p.a + l) + ' = 2Sₙ', x0 + p.n * bw / 2, Y(p.a + l) - fs, C.lime, fs * 0.85); }
+          g.box(c, 'a = ' + p.a + ', d = ' + p.d + ', n = ' + p.n, 20, 30, C.amber, fs * 0.9, 'left');
+          if (p.pair && !pos) g.box(c, 'Pairing shown only when all terms ≥ 0', W - 20, 30, C.dim, fs * 0.75, 'right');
+        },
+        read: p => { const l = p.a + (p.n - 1) * p.d, s = p.n / 2 * (2 * p.a + (p.n - 1) * p.d); return [{ l: 'nth term aₙ', v: l, c: 'amber' }, { l: 'Sₙ (counted)', v: Array.from({ length: p.n }, (_, k) => p.a + k * p.d).reduce((x, y) => x + y, 0), c: 'cyan' }, { l: 'n/2 [2a + (n−1)d]', v: N(s), c: 'lime' }, { l: 'n/2 (a + l)', v: N(p.n / 2 * (p.a + l)), c: 'ink' }]; },
+        result: p => 'S' + p.n + ' = ' + p.n + '/2 × [' + 2 * p.a + ' + ' + (p.n - 1) * p.d + '] = ' + N(p.n / 2 * (2 * p.a + (p.n - 1) * p.d)) },
+
+      { id: 'sect', title: 'Distance & Section Formula', topic: 'Coordinate Geometry', grades: [10],
+        aim: 'To find the distance between two points and the point dividing the join in a given ratio.',
+        equip: ['Graph sheet', 'Ruler', 'Divider'],
+        steps: ['Drag points A and B on the coordinate plane.', 'Read the distance AB = √[(x₂ − x₁)² + (y₂ − y₁)²].', 'Set the ratio m : n; P divides AB internally in this ratio.', 'Compare P with the section formula and the mid-point M.'],
+        concl: 'P = ((mx₂ + nx₁)/(m + n), (my₂ + ny₁)/(m + n)); for m = n, P is the mid-point.',
+        controls: [{ type: 'range', key: 'm', label: 'Ratio m', min: 1, max: 6, step: 1 }, { type: 'range', key: 'n', label: 'Ratio n', min: 1, max: 6, step: 1 }], snap: 0.5,
+        init: { Ax: -5, Ay: -3, Bx: 5, By: 4, m: 2, n: 1 },
+        handles: () => [['Ax', 'Ay', 'coral'], ['Bx', 'By', 'cyan']],
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-8, 8, -6, 6], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const Px = (p.m * p.Bx + p.n * p.Ax) / (p.m + p.n), Py = (p.m * p.By + p.n * p.Ay) / (p.m + p.n);
+          g.line(c, ...S(V, p.Ax, p.Ay), ...S(V, p.Bx, p.Ay), C.dim, 2, [6, 5]); g.line(c, ...S(V, p.Bx, p.Ay), ...S(V, p.Bx, p.By), C.dim, 2, [6, 5]);
+          g.label(c, V, (p.Ax + p.Bx) / 2, p.Ay, 'Δx = ' + N(p.Bx - p.Ax), C.dim, fs, 0, 22); g.label(c, V, p.Bx, (p.Ay + p.By) / 2, 'Δy = ' + N(p.By - p.Ay), C.dim, fs, 52, 0);
+          g.line(c, ...S(V, p.Ax, p.Ay), ...S(V, Px, Py), C.coral, 6); g.line(c, ...S(V, Px, Py), ...S(V, p.Bx, p.By), C.cyan, 6);
+          g.dot(c, ...S(V, (p.Ax + p.Bx) / 2, (p.Ay + p.By) / 2), 6, C.violet);
+          g.dot(c, ...S(V, Px, Py), 11, C.lime, C.bg, 3); g.label(c, V, Px, Py, 'P(' + N(Px) + ', ' + N(Py) + ')', C.lime, fs, -10, -34);
+          g.label(c, V, p.Ax, p.Ay, 'A(' + N(p.Ax) + ', ' + N(p.Ay) + ')', C.coral, fs, 0, 34); g.label(c, V, p.Bx, p.By, 'B(' + N(p.Bx) + ', ' + N(p.By) + ')', C.cyan, fs, 0, -34);
+          return V;
+        },
+        read: p => { const Px = (p.m * p.Bx + p.n * p.Ax) / (p.m + p.n), Py = (p.m * p.By + p.n * p.Ay) / (p.m + p.n); return [{ l: 'AB', v: N(len(p.Ax, p.Ay, p.Bx, p.By), 3), c: 'ink' }, { l: 'Ratio AP : PB', v: p.m + ' : ' + p.n, c: 'amber' }, { l: 'P', v: '(' + N(Px) + ', ' + N(Py) + ')', c: 'lime' }, { l: 'Mid-point M', v: '(' + N((p.Ax + p.Bx) / 2) + ', ' + N((p.Ay + p.By) / 2) + ')', c: 'violet' }]; },
+        result: p => 'AB = ' + N(len(p.Ax, p.Ay, p.Bx, p.By), 3) + ' · P divides AB in ' + p.m + ' : ' + p.n },
+
+      { id: 'venn', title: 'Sets & Venn Diagrams', topic: 'Sets & Functions', grades: [11],
+        aim: 'To represent set operations on Venn diagrams and verify n(A ∪ B) = n(A) + n(B) − n(A ∩ B).',
+        equip: ['Venn diagram board', 'Counters', 'Coloured shading'],
+        steps: ['Set n(U), n(A), n(B) and n(A ∩ B).', 'Read the number of elements in each region.', 'Choose a set operation to shade it.', 'Verify the formula for n(A ∪ B).'],
+        concl: 'n(A ∪ B) = n(A) + n(B) − n(A ∩ B); n(A′) = n(U) − n(A).',
+        controls: [{ type: 'select', key: 'reg', label: 'Shade', options: ['A ∪ B', 'A ∩ B', 'A − B', 'B − A', '(A ∪ B)′'] }, { type: 'range', key: 'nU', label: 'n(U)', min: 10, max: 120, step: 1 }, { type: 'range', key: 'nA', label: 'n(A)', min: 0, max: 60, step: 1 }, { type: 'range', key: 'nB', label: 'n(B)', min: 0, max: 60, step: 1 }, { type: 'range', key: 'nAB', label: 'n(A ∩ B)', min: 0, max: 60, step: 1 }],
+        init: { reg: 'A ∩ B', nU: 60, nA: 30, nB: 25, nAB: 10 },
+        fix: p => { const q = { ...p }; q.nAB = Math.min(q.nAB, q.nA, q.nB); q.nU = Math.max(q.nU, q.nA + q.nB - q.nAB); return q; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), ux = W * 0.08, uy = H * 0.1, uw = W * 0.84, uh = H * 0.8, cy = uy + uh / 2, R = Math.min(uw * 0.22, uh * 0.4), mn = Math.max(1, Math.min(p.nA, p.nB)), d = 2 * R * (p.nAB ? 1 - 0.7 * p.nAB / mn : 1.08), xa = W / 2 - d / 2, xb = W / 2 + d / 2, HL = C.lime + '66';
+          c.fillStyle = C.soft; c.fillRect(ux, uy, uw, uh);
+          const cA = () => { c.beginPath(); c.arc(xa, cy, R, 0, 2 * Math.PI); }, cB = () => { c.beginPath(); c.arc(xb, cy, R, 0, 2 * Math.PI); };
+          c.save();
+          if (p.reg === 'A ∪ B') { c.fillStyle = HL; cA(); c.fill(); cB(); c.fill(); }
+          else if (p.reg === 'A ∩ B') { cA(); c.clip(); cB(); c.fillStyle = HL; c.fill(); }
+          else if (p.reg === 'A − B' || p.reg === 'B − A') { (p.reg === 'A − B' ? cA : cB)(); c.clip(); c.fillStyle = HL; c.fillRect(0, 0, W, H); (p.reg === 'A − B' ? cB : cA)(); c.fillStyle = C.bg; c.fill(); }
+          else { c.fillStyle = HL; c.fillRect(ux, uy, uw, uh); c.fillStyle = C.bg; cA(); c.fill(); cB(); c.fill(); }
+          c.restore();
+          c.strokeStyle = C.ink; c.lineWidth = 2.5; c.strokeRect(ux, uy, uw, uh);
+          cA(); c.strokeStyle = C.coral; c.lineWidth = 4; c.stroke(); cB(); c.strokeStyle = C.cyan; c.stroke();
+          g.text(c, 'U', ux + 24, uy + 26, C.ink, fs * 1.2, 'center', 'middle', 700); g.text(c, 'A', xa - R * 0.7, cy - R * 0.85, C.coral, fs * 1.3, 'center', 'middle', 700); g.text(c, 'B', xb + R * 0.7, cy - R * 0.85, C.cyan, fs * 1.3, 'center', 'middle', 700);
+          const big = fs * 1.5; g.text(c, String(p.nA - p.nAB), xa - (p.nAB ? R * 0.45 : 0), cy, C.ink, big, 'center', 'middle', 700, true); g.text(c, String(p.nB - p.nAB), xb + (p.nAB ? R * 0.45 : 0), cy, C.ink, big, 'center', 'middle', 700, true);
+          if (p.nAB) g.text(c, String(p.nAB), (xa + xb) / 2, cy, C.ink, big, 'center', 'middle', 700, true);
+          g.text(c, String(p.nU - (p.nA + p.nB - p.nAB)), ux + uw - 40, uy + uh - 34, C.ink, big, 'center', 'middle', 700, true);
+          g.box(c, 'Shaded: ' + p.reg, W / 2, uy + uh + fs * 0.1 - 2, C.lime, fs * 0.85);
+        },
+        read: p => [{ l: 'n(A ∪ B)', v: p.nA + p.nB - p.nAB, c: 'lime' }, { l: 'n(A ∩ B)', v: p.nAB, c: 'ink' }, { l: 'n(A − B)', v: p.nA - p.nAB, c: 'coral' }, { l: 'n(B − A)', v: p.nB - p.nAB, c: 'cyan' }, { l: 'n((A ∪ B)′)', v: p.nU - p.nA - p.nB + p.nAB, c: 'amber' }, { l: 'n(A′)', v: p.nU - p.nA, c: 'violet' }],
+        result: p => 'n(A ∪ B) = ' + p.nA + ' + ' + p.nB + ' − ' + p.nAB + ' = ' + (p.nA + p.nB - p.nAB) },
+
+      { id: 'lim', title: 'Limit of sin x / x as x → 0', topic: 'Calculus', grades: [11],
+        aim: 'To show geometrically that sin x < x < tan x and hence lim(x→0) sin x / x = 1.',
+        equip: ['Unit circle', 'Sector cut-outs', 'Graph plotter'],
+        steps: ['Set the angle x (in radians) using the slider.', 'Compare the areas: triangle OAP (½ sin x), sector OAP (½ x) and triangle OAT (½ tan x).', 'Reduce x towards 0 and watch sin x / x on the graph.', 'Note that cos x < sin x / x < 1, so the limit is 1.'],
+        concl: 'Since cos x < sin x / x < 1 and cos x → 1, lim(x→0) sin x / x = 1 (squeeze principle).',
+        controls: [{ type: 'range', key: 'x', label: 'Angle x (radians)', min: 0.02, max: 1.4, step: 0.01 }],
+        init: { x: 0.8 },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), x = p.x, R = Math.min(W * 0.36, H * 0.62), O = [W * 0.06, H * 0.86], A = [O[0] + R, O[1]], P = [O[0] + R * Math.cos(x), O[1] - R * Math.sin(x)], tn = Math.min(Math.tan(x), 1.25), T = [O[0] + R, O[1] - R * tn];
+          g.line(c, O[0], O[1], O[0] + R * 1.1, O[1], C.axis, 2); g.line(c, O[0], O[1], O[0], O[1] - R * 1.3, C.axis, 2);
+          c.beginPath(); c.arc(O[0], O[1], R, -Math.PI / 2, 0); c.strokeStyle = C.ink; c.lineWidth = 2; c.stroke();
+          g.poly(c, [O, A, T], C.amber, C.amber + '22', 2);
+          c.beginPath(); c.moveTo(...O); c.arc(O[0], O[1], R, 0, -x, true); c.closePath(); c.fillStyle = C.coral + '33'; c.fill(); c.strokeStyle = C.coral; c.lineWidth = 2; c.stroke();
+          g.poly(c, [O, A, P], C.cyan, C.cyan + '44', 2);
+          g.line(c, P[0], P[1], P[0], O[1], C.cyan, 4); g.line(c, A[0], A[1], T[0], T[1], C.amber, 4);
+          g.dot(c, ...P, 7, C.ink); g.text(c, 'O', O[0] - 14, O[1] + 14, C.ink, fs); g.text(c, 'A', A[0] + 6, A[1] + 18, C.ink, fs); g.text(c, 'P', P[0] - 14, P[1] - 14, C.ink, fs); g.text(c, 'T', T[0] + 16, T[1], C.amber, fs);
+          g.box(c, 'sin x', P[0] - 12, (P[1] + O[1]) / 2, C.cyan, fs * 0.8, 'right'); g.box(c, 'tan x', T[0] + 12, (T[1] + O[1]) / 2, C.amber, fs * 0.8, 'left');
+          const gx0 = W * 0.56, gx1 = W - 30, gy0 = H * 0.15, gy1 = H * 0.82, X = v => gx0 + (v + 6) / 12 * (gx1 - gx0), Y = v => gy1 - (v + 0.3) / 1.5 * (gy1 - gy0);
+          g.line(c, gx0, Y(0), gx1, Y(0), C.axis, 2); g.line(c, X(0), gy0, X(0), gy1, C.axis, 2); g.line(c, gx0, Y(1), gx1, Y(1), C.lime + '66', 1.5, [6, 6]); g.text(c, '1', X(0) - 10, Y(1) - 12, C.lime, fs * 0.75, 'right');
+          c.strokeStyle = C.violet; c.lineWidth = 3.5; c.beginPath(); for (let i = 0; i <= 400; i++) { const v = -6 + 12 * i / 400, y = Math.abs(v) < 1e-6 ? 1 : Math.sin(v) / v; i ? c.lineTo(X(v), Y(y)) : c.moveTo(X(v), Y(y)); } c.stroke();
+          g.dot(c, X(0), Y(1), 7, C.bg, C.violet, 2.5); g.dot(c, X(x), Y(Math.sin(x) / x), 9, C.lime); g.dot(c, X(-x), Y(Math.sin(x) / x), 6, C.lime + '88');
+          g.text(c, 'y = sin x / x', (gx0 + gx1) / 2, gy0 - fs * 0.3, C.violet, fs);
+        },
+        read: p => [{ l: 'x (rad)', v: N(p.x, 3), c: 'coral' }, { l: 'sin x', v: N(Math.sin(p.x), 4), c: 'cyan' }, { l: 'tan x', v: N(Math.tan(p.x), 4), c: 'amber' }, { l: 'sin x / x', v: N(Math.sin(p.x) / p.x, 5), c: 'lime' }, { l: 'cos x (lower bound)', v: N(Math.cos(p.x), 4), c: 'ink' }],
+        result: p => N(Math.cos(p.x), 4) + ' < sin x / x = ' + N(Math.sin(p.x) / p.x, 5) + ' < 1' },
+
+      { id: 'box', title: 'Maximum Volume of an Open Box', topic: 'Calculus', grades: [12],
+        aim: 'To construct an open box of maximum volume from a square sheet by cutting equal squares from the corners.',
+        equip: ['Square sheet', 'Scissors (virtual)', 'Scale', 'Graph of V(x)'],
+        steps: ['Choose the side L of the square sheet.', 'Cut squares of side x from each corner and fold up the flaps.', 'Read the volume V = x(L − 2x)² and watch the point move on the graph.', 'Find x for which V is maximum and compare with L/6.'],
+        concl: 'dV/dx = 0 gives x = L/6; the maximum volume is 2L³/27.',
+        controls: [{ type: 'range', key: 'L', label: 'Sheet side L', min: 12, max: 30, step: 1, unit: ' cm' }, { type: 'range', key: 'x', label: 'Cut size x', min: 0.5, max: 14, step: 0.5, unit: ' cm' }, { type: 'toggle', key: 'spin', label: 'Auto-rotate box' }],
+        init: { L: 18, x: 2, spin: true }, rotate: true,
+        fix: p => ({ ...p, x: Math.min(p.x, p.L / 2 - 0.5) }),
+        draw(c, W, H, p, st, t, rt) {
+          const fs = g.fs(W, H), L = p.L, x = p.x, b = L - 2 * x, Vf = v => v * (L - 2 * v) ** 2;
+          const s1 = Math.min(W * 0.26, H * 0.62) / L, sx0 = W * 0.03, sy0 = H / 2 - L * s1 / 2;
+          c.fillStyle = C.amber + '22'; c.fillRect(sx0, sy0, L * s1, L * s1); c.strokeStyle = C.amber; c.lineWidth = 2; c.strokeRect(sx0, sy0, L * s1, L * s1);
+          [[0, 0], [L - x, 0], [0, L - x], [L - x, L - x]].forEach(([a, bb]) => { c.fillStyle = C.coral + '88'; c.fillRect(sx0 + a * s1, sy0 + bb * s1, x * s1, x * s1); });
+          c.setLineDash([6, 5]); c.strokeStyle = C.ink; c.lineWidth = 1.5; c.strokeRect(sx0 + x * s1, sy0 + x * s1, b * s1, b * s1); c.setLineDash([]);
+          g.text(c, 'L = ' + L, sx0 + L * s1 / 2, sy0 - fs, C.amber, fs * 0.85); g.text(c, 'x', sx0 + x * s1 / 2, sy0 + x * s1 / 2, C.bg, fs * 0.8);
+          if (p.spin && !rt.dragging) rt.ry += 0.008;
+          const cy = Math.cos(rt.ry), sy = Math.sin(rt.ry), cx = Math.cos(rt.rx), sx = Math.sin(rt.rx), M = L / 2, Sc = Math.min(W * 0.17, H * 0.32) / M, ox = W * 0.47, oy = H * 0.52;
+          const P = (X, Y, Z) => { const x1 = X * cy - Z * sy, z1 = X * sy + Z * cy, y2 = Y * cx - z1 * sx, z2 = Y * sx + z1 * cx, k = 1 / (1 + z2 / (M * 7)); return [ox + x1 * Sc * k, oy - y2 * Sc * k]; };
+          const h2 = b / 2, y0 = -x / 2, y1 = x / 2, v = [[-h2, y0, -h2], [h2, y0, -h2], [h2, y0, h2], [-h2, y0, h2], [-h2, y1, -h2], [h2, y1, -h2], [h2, y1, h2], [-h2, y1, h2]].map(q => P(...q));
+          const face = (ids, f) => g.poly(c, ids.map(i => v[i]), C.cyan, f, 2);
+          face([0, 1, 2, 3], C.cyan + '33'); face([0, 1, 5, 4], C.cyan + '22'); face([1, 2, 6, 5], C.cyan + '22'); face([2, 3, 7, 6], C.cyan + '22'); face([3, 0, 4, 7], C.cyan + '22');
+          g.poly(c, [4, 5, 6, 7].map(i => v[i]), C.ink, null, 3);
+          g.text(c, 'Open box: ' + N(b) + ' × ' + N(b) + ' × ' + N(x), ox, H - fs * 1.4, C.dim, fs * 0.8);
+          const gx0 = W * 0.7, gx1 = W - 30, gy0 = H * 0.14, gy1 = H * 0.84, Vm = Vf(L / 6), GX = q => gx0 + q / (L / 2) * (gx1 - gx0), GY = q => gy1 - q / (Vm * 1.15) * (gy1 - gy0);
+          g.line(c, gx0, gy1, gx1, gy1, C.axis, 2); g.line(c, gx0, gy0, gx0, gy1, C.axis, 2);
+          c.strokeStyle = C.amber; c.lineWidth = 3; c.beginPath(); for (let i = 0; i <= 200; i++) { const q = i / 200 * L / 2; i ? c.lineTo(GX(q), GY(Vf(q))) : c.moveTo(GX(q), GY(Vf(q))); } c.stroke();
+          g.line(c, GX(L / 6), gy1, GX(L / 6), GY(Vm), C.lime, 2, [6, 5]); g.text(c, 'L/6', GX(L / 6), gy1 + fs * 0.9, C.lime, fs * 0.75);
+          g.dot(c, GX(x), GY(Vf(x)), 9, C.coral, C.bg, 2.5);
+          g.text(c, 'V(x)', gx0 + 10, gy0 - fs * 0.4, C.amber, fs * 0.9, 'left'); g.text(c, 'x', gx1, gy1 + fs * 0.9, C.dim, fs * 0.8);
+        },
+        read: p => { const V = p.x * (p.L - 2 * p.x) ** 2; return [{ l: 'Cut x', v: N(p.x) + ' cm', c: 'coral' }, { l: 'Volume V', v: N(V) + ' cm³', c: 'cyan' }, { l: 'Best x = L/6', v: N(p.L / 6) + ' cm', c: 'lime' }, { l: 'Max volume 2L³/27', v: N(2 * p.L ** 3 / 27) + ' cm³', c: 'amber' }]; },
+        result: p => 'V(' + N(p.x) + ') = ' + N(p.x * (p.L - 2 * p.x) ** 2) + ' cm³ · max at x = ' + N(p.L / 6) },
+
+      { id: 'vec', title: 'Addition of Vectors', topic: 'Vectors & Matrices', grades: [12],
+        aim: 'To verify the triangle and parallelogram laws of vector addition and compute the dot product.',
+        equip: ['Vector arrows', 'Graph sheet', 'Protractor'],
+        steps: ['Drag the tips of vectors a (coral) and b (cyan).', 'Choose triangle law (place b at the head of a) or parallelogram law.', 'The resultant a + b is drawn in green.', 'Read the components, magnitude and the angle between a and b.'],
+        concl: 'a + b = (a₁ + b₁, a₂ + b₂); |a + b|² = |a|² + |b|² + 2a·b; the laws give the same resultant.',
+        controls: [{ type: 'select', key: 'law', label: 'Law', options: ['Triangle law', 'Parallelogram law'] }], snap: 0.5,
+        init: { ax: 4, ay: 1, bx: 1, by: 3.5, law: 'Parallelogram law' },
+        handles: () => [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan']],
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-5, 9, -4, 7], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const O = S(V, 0, 0), A = S(V, p.ax, p.ay), B = S(V, p.bx, p.by), R = S(V, p.ax + p.bx, p.ay + p.by);
+          if (p.law === 'Parallelogram law') { g.poly(c, [O, A, R, B], null, C.lime + '18'); g.line(c, ...A, ...R, C.cyan + '99', 2, [8, 6]); g.line(c, ...B, ...R, C.coral + '99', 2, [8, 6]); } else { g.arrow(c, ...A, ...R, C.cyan + 'aa', 3); }
+          g.arrow(c, ...O, ...R, C.lime, 5); g.arrow(c, ...O, ...A, C.coral, 4); if (p.law === 'Parallelogram law') g.arrow(c, ...O, ...B, C.cyan, 4); else g.line(c, ...O, ...B, C.cyan + '44', 2, [4, 6]);
+          g.label(c, V, p.ax / 2, p.ay / 2, 'a', C.coral, fs, 0, 20); g.label(c, V, p.law === 'Triangle law' ? p.ax + p.bx / 2 : p.bx / 2, p.law === 'Triangle law' ? p.ay + p.by / 2 : p.by / 2, 'b', C.cyan, fs, -18, 0); g.label(c, V, (p.ax + p.bx) * 0.55, (p.ay + p.by) * 0.55, 'a + b', C.lime, fs, -30, -10);
+          return V;
+        },
+        read: p => { const ma = Math.hypot(p.ax, p.ay), mb = Math.hypot(p.bx, p.by), dot = p.ax * p.bx + p.ay * p.by; return [{ l: 'a', v: '(' + N(p.ax) + ', ' + N(p.ay) + ')', c: 'coral' }, { l: 'b', v: '(' + N(p.bx) + ', ' + N(p.by) + ')', c: 'cyan' }, { l: 'a + b', v: '(' + N(p.ax + p.bx) + ', ' + N(p.ay + p.by) + ')', c: 'lime' }, { l: '|a + b|', v: N(Math.hypot(p.ax + p.bx, p.ay + p.by), 3), c: 'lime' }, { l: 'a · b', v: N(dot), c: 'amber' }, { l: 'Angle between', v: ma && mb ? N(Math.acos(Math.max(-1, Math.min(1, dot / ma / mb))) / D, 1) + '°' : '—', c: 'violet' }]; },
+        result: p => 'a + b = (' + N(p.ax + p.bx) + ', ' + N(p.ay + p.by) + '), |a + b| = ' + N(Math.hypot(p.ax + p.bx, p.ay + p.by), 3) },
+
+      { id: 'mat', title: 'Matrices as Transformations', topic: 'Vectors & Matrices', grades: [12],
+        aim: 'To see a 2 × 2 matrix as a transformation of the plane and relate its determinant to area.',
+        equip: ['Transparency grid', 'Unit square', 'Matrix cards'],
+        steps: ['Pick a preset (identity, rotation, reflection, shear, enlargement) or set a, b, c, d.', 'The unit square maps to the green parallelogram; columns of the matrix are the images of î and ĵ.', 'Compare the image area with |det A|.', 'A negative determinant flips the orientation of the “F” shape.'],
+        concl: 'Area of image = |det A| × original area; det A < 0 reverses orientation; det A = 0 collapses the plane to a line.',
+        controls: [{ type: 'select', key: 'pre', label: 'Preset', options: ['Identity', 'Rotate 90°', 'Reflect in x-axis', 'Shear', 'Enlarge ×2'] }, { type: 'range', key: 'a', label: 'a', min: -3, max: 3, step: 0.5 }, { type: 'range', key: 'b', label: 'b', min: -3, max: 3, step: 0.5 }, { type: 'range', key: 'c', label: 'c', min: -3, max: 3, step: 0.5 }, { type: 'range', key: 'd', label: 'd', min: -3, max: 3, step: 0.5 }],
+        init: { pre: 'Shear', _pre: 'Shear', a: 1, b: 1, c: 0, d: 1 },
+        fix: p => { if (p.pre === p._pre) return p; const m = { 'Identity': [1, 0, 0, 1], 'Rotate 90°': [0, -1, 1, 0], 'Reflect in x-axis': [1, 0, 0, -1], 'Shear': [1, 1, 0, 1], 'Enlarge ×2': [2, 0, 0, 2] }[p.pre]; return { ...p, _pre: p.pre, a: m[0], b: m[1], c: m[2], d: m[3] }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-5, 5, -5, 5], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const T = (x, y) => [p.a * x + p.b * y, p.c * x + p.d * y];
+          for (let i = -8; i <= 8; i++) { g.line(c, ...S(V, ...T(i, -8)), ...S(V, ...T(i, 8)), C.violet + '40', 1.2); g.line(c, ...S(V, ...T(-8, i)), ...S(V, ...T(8, i)), C.violet + '40', 1.2); }
+          g.poly(c, [[0, 0], [1, 0], [1, 1], [0, 1]].map(q => S(V, ...q)), C.ink, null, 2, [5, 5]);
+          g.poly(c, [[0, 0], [1, 0], [1, 1], [0, 1]].map(q => S(V, ...T(...q))), C.lime, C.lime + '44', 3);
+          const F = [[-3, -1], [-3, 1.5], [-1.8, 1.5], [-1.8, 1.1], [-2.6, 1.1], [-2.6, 0.5], [-2, 0.5], [-2, 0.1], [-2.6, 0.1], [-2.6, -1]];
+          g.poly(c, F.map(q => S(V, ...q)), C.amber + '88', null, 2, [5, 5]); g.poly(c, F.map(q => S(V, ...T(...q))), C.amber, C.amber + '33', 2.5);
+          g.arrow(c, ...S(V, 0, 0), ...S(V, p.a, p.c), C.coral, 4); g.arrow(c, ...S(V, 0, 0), ...S(V, p.b, p.d), C.cyan, 4);
+          g.label(c, V, p.a, p.c, 'î′', C.coral, fs, 18, -18); g.label(c, V, p.b, p.d, 'ĵ′', C.cyan, fs, 18, -18);
+          g.box(c, 'A = [ ' + N(p.a) + '  ' + N(p.b) + ' ; ' + N(p.c) + '  ' + N(p.d) + ' ]', 20, 30, C.ink, fs, 'left');
+        },
+        read: p => { const det = p.a * p.d - p.b * p.c; return [{ l: 'det A', v: N(det), c: 'lime' }, { l: 'Area scale', v: '× ' + N(Math.abs(det)), c: 'amber' }, { l: 'Orientation', v: det > 0 ? 'Preserved' : det < 0 ? 'Reversed' : 'Collapsed', c: 'ink' }, { l: 'î → ', v: '(' + N(p.a) + ', ' + N(p.c) + ')', c: 'coral' }, { l: 'ĵ → ', v: '(' + N(p.b) + ', ' + N(p.d) + ')', c: 'cyan' }]; },
+        result: p => 'det A = ' + N(p.a) + '×' + N(p.d) + ' − ' + N(p.b) + '×' + N(p.c) + ' = ' + N(p.a * p.d - p.b * p.c) },
+
+      { id: 'ci', title: 'Simple vs Compound Interest', topic: 'Commercial Maths', grades: [8],
+        aim: 'To compare the growth of money under simple interest and compound interest.',
+        equip: ['Interest calculator', 'Bar graph board', 'Passbook table'],
+        steps: ['Set the principal P, rate R% per annum and time T years.', 'Choose how often interest is compounded.', 'Bars show the compound amount each year; the line shows the simple-interest amount.', 'Compare the interest earned by the two methods.'],
+        concl: 'SI = PRT/100 grows linearly; A = P(1 + R/100n)^(nT) grows exponentially, so CI ≥ SI for T ≥ 1.',
+        controls: [{ type: 'range', key: 'P', label: 'Principal P (₹)', min: 1000, max: 100000, step: 1000 }, { type: 'range', key: 'R', label: 'Rate R', min: 1, max: 20, step: 0.5, unit: ' %' }, { type: 'range', key: 'T', label: 'Time T', min: 1, max: 15, step: 1, unit: ' yr' }, { type: 'select', key: 'f', label: 'Compounded', options: ['Annually', 'Half-yearly', 'Quarterly'] }],
+        init: { P: 10000, R: 10, T: 5, f: 'Annually' },
+        calc(p) { const n = p.f === 'Annually' ? 1 : p.f === 'Half-yearly' ? 2 : 4, A = k => p.P * (1 + p.R / 100 / n) ** (n * k), SA = k => p.P * (1 + p.R * k / 100); return { A, SA }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), { A, SA } = this.calc(p), x0 = 110, x1 = W - 40, top = 70, bot = H - 60, ym = A(p.T) * 1.1, bw = (x1 - x0) / (p.T + 1), Y = v => bot - v / ym * (bot - top);
+          for (let k = 0; k <= 5; k++) { const v = ym * k / 5; g.line(c, x0, Y(v), x1, Y(v), C.grid, 1); g.text(c, inr(v), x0 - 10, Y(v), C.dim, fs * 0.6, 'right', 'middle', 500, true); }
+          for (let k = 0; k <= p.T; k++) { const x = x0 + k * bw; c.fillStyle = C.amber + 'aa'; c.fillRect(x + bw * 0.18, Y(A(k)), bw * 0.64, bot - Y(A(k))); c.fillStyle = C.coral; c.fillRect(x + bw * 0.18, Y(A(k)), bw * 0.64, Math.max(0, Y(SA(k)) - Y(A(k)))); g.text(c, 'Y' + k, x + bw / 2, bot + fs, C.dim, fs * 0.65, 'center', 'middle', 500, true); }
+          c.strokeStyle = C.cyan; c.lineWidth = 4; c.beginPath(); for (let k = 0; k <= p.T; k++) { const q = [x0 + k * bw + bw / 2, Y(SA(k))]; k ? c.lineTo(...q) : c.moveTo(...q); } c.stroke();
+          for (let k = 0; k <= p.T; k++) g.dot(c, x0 + k * bw + bw / 2, Y(SA(k)), 5, C.cyan);
+          g.line(c, x0, bot, x1, bot, C.axis, 2);
+          g.box(c, '▮ compound amount   ▮ extra over SI   — simple amount', 20, 30, C.dim, fs * 0.75, 'left');
+        },
+        read(p) { const { A, SA } = this.calc(p); return [{ l: 'Simple interest', v: inr(SA(p.T) - p.P), c: 'cyan' }, { l: 'Compound amount', v: inr(A(p.T)), c: 'amber' }, { l: 'Compound interest', v: inr(A(p.T) - p.P), c: 'amber' }, { l: 'CI − SI', v: inr(A(p.T) - SA(p.T)), c: 'coral' }]; },
+        result(p) { const { A, SA } = this.calc(p); return 'CI ' + inr(A(p.T) - p.P) + ' vs SI ' + inr(SA(p.T) - p.P); } },
+
+      { id: 'geo', title: 'Perimeter & Area on a Geoboard', topic: 'Mensuration', grades: [6, 7],
+        aim: 'To find the perimeter and area of rectangles on a geoboard and see that equal perimeters can enclose different areas.',
+        equip: ['Geoboard (pegs 1 unit apart)', 'Rubber band', 'Unit squares'],
+        steps: ['Set the length and breadth of the rubber-band rectangle.', 'Count the unit squares inside to find the area.', 'Count the units along the boundary to find the perimeter.', 'Keep the perimeter fixed and change the sides — find which shape gives the largest area.'],
+        concl: 'Perimeter = 2(l + b), Area = l × b. For a fixed perimeter, the square has the greatest area.',
+        controls: [{ type: 'range', key: 'l', label: 'Length l', min: 1, max: 14, step: 1, unit: ' u' }, { type: 'range', key: 'b', label: 'Breadth b', min: 1, max: 10, step: 1, unit: ' u' }],
+        init: { l: 6, b: 4 },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-0.8, 14.8, -0.8, 10.8], 30), fs = g.fs(W, H);
+          for (let i = 0; i < p.l; i++) for (let j = 0; j < p.b; j++) { c.fillStyle = ((i + j) % 2 ? C.lime : C.cyan) + '33'; c.fillRect(V.X(i) + 2, V.Y(j + 1) + 2, V.s - 4, V.s - 4); }
+          for (let x = 0; x <= 14; x++) for (let y = 0; y <= 10; y++) g.dot(c, V.X(x), V.Y(y), 4, C.dim);
+          c.strokeStyle = C.amber; c.lineWidth = 5; c.lineJoin = 'round'; c.strokeRect(V.X(0), V.Y(p.b), p.l * V.s, p.b * V.s);
+          [[0, 0], [p.l, 0], [p.l, p.b], [0, p.b]].forEach(q => g.dot(c, ...S(V, ...q), 7, C.amber, C.bg, 2));
+          g.label(c, V, p.l / 2, p.b, 'l = ' + p.l, C.amber, fs, 0, -24); g.label(c, V, p.l, p.b / 2, 'b = ' + p.b, C.amber, fs, 40, 0);
+          g.label(c, V, p.l / 2, p.b / 2, p.l * p.b + ' squares', C.ink, fs * 1.1);
+        },
+        read: p => { const P = 2 * (p.l + p.b); return [{ l: 'Perimeter', v: P + ' u', c: 'amber' }, { l: 'Area', v: p.l * p.b + ' u²', c: 'lime' }, { l: 'Square with same perimeter', v: N((P / 4) ** 2) + ' u²', c: 'cyan' }, { l: 'Shape', v: p.l === p.b ? 'Square' : 'Rectangle', c: 'ink' }]; },
+        result: p => 'P = 2(' + p.l + ' + ' + p.b + ') = ' + 2 * (p.l + p.b) + ' u · A = ' + p.l + ' × ' + p.b + ' = ' + p.l * p.b + ' u²' }
+    );
+
+    const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', sup = n => String(n).split('').map(d => SUP[d] ?? d).join('');
+    const pf = n => { if (n === 1) return '1'; const s = []; let m = n; for (let q = 2; q * q <= m; q++) { let e = 0; while (m % q === 0) { m /= q; e++; } if (e) s.push(q + (e > 1 ? sup(e) : '')); } if (m > 1) s.push(m); return s.join(' × '); };
+    const nCr = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); };
+    const cfmt = (a, b) => N(a) + (b < 0 ? ' − ' : ' + ') + N(Math.abs(b)) + 'i';
+    const nice = x => { const e = Math.pow(10, Math.floor(Math.log10(x))), m = x / e; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * e; };
+    g.p3 = (rt, M, Sc, ox, oy) => { const cy = Math.cos(rt.ry), sy = Math.sin(rt.ry), cx = Math.cos(rt.rx), sx = Math.sin(rt.rx); return (x, y, z) => { const x1 = x * cy - z * sy, z1 = x * sy + z * cy, y2 = y * cx - z1 * sx, z2 = y * sx + z1 * cx, k = 1 / (1 + z2 / (M * 7)); return [ox + x1 * Sc * k, oy - y2 * Sc * k]; }; };
+    g.sub = (x0, y0, w, h, v, pad) => { const V = g.view(w, h, v, pad); return { s: V.s, X: x => x0 + V.X(x), Y: y => y0 + V.Y(y), ix: px => V.ix(px - x0), iy: py => V.iy(py - y0) }; };
+    g.plotB = (c, V, W, H, f, col, w, dash) => { c.strokeStyle = col; c.lineWidth = w || 3; c.setLineDash(dash || []); c.beginPath(); let pen = false, prev = 0; for (let px = -2; px <= W + 2; px += 1.5) { const py = V.Y(f(V.ix(px))); if (!isFinite(py) || Math.abs(py) > H * 3) { pen = false; continue; } if (pen && Math.abs(py - prev) > H * 0.25) pen = false; pen ? c.lineTo(px, py) : c.moveTo(px, py); pen = true; prev = py; } c.stroke(); c.setLineDash([]); };
+    g.tick = (c, P1, P2, n, col) => { const mx = (P1[0] + P2[0]) / 2, my = (P1[1] + P2[1]) / 2, dx = P2[0] - P1[0], dy = P2[1] - P1[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L; for (let i = 0; i < n; i++) { const o = (i - (n - 1) / 2) * 7; g.line(c, mx + ux * o - uy * 9, my + uy * o + ux * 9, mx + ux * o + uy * 9, my + uy * o - ux * 9, col, 2.5); } };
+    const axes = (c, x0, x1, y0, y1, xs, ys, fs) => { xs.forEach(([px, l]) => { g.line(c, px, y1, px, y1 + 6, C.axis, 2); g.text(c, l, px, y1 + fs * 0.9, C.dim, fs * 0.65, 'center', 'middle', 500, true); }); ys.forEach(([py, l]) => { g.line(c, x0, py, x1, py, C.grid, 1); g.text(c, l, x0 - 8, py, C.dim, fs * 0.65, 'right', 'middle', 500, true); }); g.line(c, x0, y1, x1, y1, C.axis, 2); g.line(c, x0, y0, x0, y1, C.axis, 2); };
+
+    acts.push(
+      { id: 'sieve', title: 'Sieve of Eratosthenes — Primes, Factors & Multiples', topic: 'Number System', grades: [6],
+        aim: 'To find all prime numbers up to 100 by sieving out multiples, and to identify the factors and multiples of a number.',
+        equip: ['Hundred chart', 'Coloured markers', 'Counters'],
+        steps: ['Choose “Sieve”. 1 is neither prime nor composite.', 'Increase the sieve stage to strike out multiples of 2, 3, 5 and 7 (keeping the prime itself).', 'The numbers left uncrossed (green) are prime.', 'Switch to “Factors of k” or “Multiples of k” and pick any k to study divisibility.'],
+        concl: 'There are 25 primes up to 100. Only primes up to √100 = 10 need to be sieved. A number with exactly two factors is prime.',
+        controls: [{ type: 'select', key: 'mode', label: 'Mode', options: ['Sieve', 'Factors of k', 'Multiples of k'] }, { type: 'range', key: 'stage', label: 'Sieve stage (2 → 3 → 5 → 7)', min: 0, max: 4, step: 1 }, { type: 'range', key: 'k', label: 'Number k', min: 1, max: 100, step: 1 }],
+        init: { mode: 'Sieve', stage: 2, k: 24 },
+        fac: k => { const f = []; for (let i = 1; i <= k; i++) if (k % i === 0) f.push(i); return f; },
+        left(p) { const PR = [2, 3, 5, 7].slice(0, p.stage); let n = 0; for (let i = 2; i <= 100; i++) if (!PR.some(q => i % q === 0 && i !== q)) n++; return n; },
+        draw(c, W, H, p) {
+          const cs = Math.min((W - 40) / 10, (H - 30) / 10), x0 = (W - 10 * cs) / 2, y0 = (H - 10 * cs) / 2, PR = [2, 3, 5, 7], PC = [C.coral, C.cyan, C.amber, C.violet];
+          for (let n = 1; n <= 100; n++) {
+            const x = x0 + ((n - 1) % 10) * cs, y = y0 + Math.floor((n - 1) / 10) * cs; let fill = C.soft, tc = C.ink, cross = null;
+            if (p.mode === 'Sieve') { if (n === 1) tc = C.dim; else { for (let q = 0; q < p.stage; q++) if (n % PR[q] === 0 && n !== PR[q]) { cross = PC[q]; break; } if (cross) { fill = cross + '33'; tc = C.dim; } else if (p.stage === 4 || PR.slice(0, p.stage).includes(n)) fill = C.lime + '55'; } }
+            else if (p.mode === 'Factors of k') { if (p.k % n === 0) fill = n === p.k ? C.amber + '99' : C.lime + '66'; else tc = C.dim; }
+            else { if (n % p.k === 0) fill = n === p.k ? C.amber + '99' : C.cyan + '66'; else tc = C.dim; }
+            c.fillStyle = fill; c.fillRect(x + 2, y + 2, cs - 4, cs - 4);
+            g.text(c, String(n), x + cs / 2, y + cs / 2, tc, cs * 0.36, 'center', 'middle', 600, true);
+            if (cross) g.line(c, x + cs * 0.2, y + cs * 0.8, x + cs * 0.8, y + cs * 0.2, cross, 3);
+          }
+        },
+        read(p) { const F = this.fac(p.k); return [{ l: 'Numbers left (2–100)', v: this.left(p), c: 'lime' }, { l: 'Sieved by', v: p.stage ? [2, 3, 5, 7].slice(0, p.stage).join(', ') : 'none', c: 'coral' }, { l: 'Factors of ' + p.k, v: F.join(', '), c: 'amber' }, { l: p.k + ' is', v: p.k === 1 ? 'neither' : F.length === 2 ? 'prime' : 'composite', c: 'cyan' }]; },
+        result(p) { if (p.mode === 'Sieve') return p.stage === 4 ? '25 primes up to 100' : 'Next: strike out multiples of ' + [2, 3, 5, 7][p.stage]; if (p.mode === 'Factors of k') return p.k + ' has ' + this.fac(p.k).length + ' factors'; return 'Multiples of ' + p.k + ' up to 100: ' + Math.floor(100 / p.k); } },
+
+      { id: 'hcf', title: 'HCF & LCM — Euclid’s Division with Squares', topic: 'Number System', grades: [6, 10],
+        aim: 'To find the HCF of two numbers by tiling a rectangle with the largest possible squares (Euclid’s division lemma), and then the LCM.',
+        equip: ['Squared paper', 'Rectangle a × b', 'Scissors (virtual)'],
+        steps: ['Set the numbers a and b — they form an a × b rectangle.', 'Cut off the largest possible squares; repeat on the leftover rectangle.', 'Each colour is one division step a = bq + r.', 'The side of the last square is the HCF; LCM = a × b ÷ HCF.'],
+        concl: 'HCF(a, b) is the side of the smallest square that tiles the rectangle exactly; HCF × LCM = a × b.',
+        controls: [{ type: 'range', key: 'a', label: 'Number a', min: 1, max: 60, step: 1 }, { type: 'range', key: 'b', label: 'Number b', min: 1, max: 60, step: 1 }],
+        init: { a: 42, b: 24 },
+        eu(a, b) { const sq = [], ln = []; let x = 0, y = 0, w = a, h = b, st = 0; while (w > 0 && h > 0 && sq.length < 400) { if (w >= h) { const q = Math.floor(w / h); ln.push(w + ' = ' + q + ' × ' + h + ' + ' + (w % h)); for (let i = 0; i < q; i++) { sq.push([x, y, h, st]); x += h; } w -= q * h; } else { const q = Math.floor(h / w); ln.push(h + ' = ' + q + ' × ' + w + ' + ' + (h % w)); for (let i = 0; i < q; i++) { sq.push([x, y, w, st]); y += w; } h -= q * w; } st++; } return { sq, ln }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), V = g.view(W * 0.66, H, [0, p.a, 0, p.b], 50), cols = [C.coral, C.cyan, C.amber, C.violet, C.lime, C.pink], { sq, ln } = this.eu(p.a, p.b);
+          sq.forEach(([x, y, s, st]) => { g.poly(c, [[x, y], [x + s, y], [x + s, y + s], [x, y + s]].map(q => [V.X(q[0]), V.Y(q[1])]), C.bg, cols[st % 6] + '88', 2); if (s * V.s > 30) g.text(c, String(s), V.X(x + s / 2), V.Y(y + s / 2), C.ink, Math.min(fs * 1.2, s * V.s * 0.35), 'center', 'middle', 700, true); });
+          c.strokeStyle = C.ink; c.lineWidth = 3; c.strokeRect(V.X(0), V.Y(p.b), p.a * V.s, p.b * V.s);
+          g.text(c, 'a = ' + p.a, V.X(p.a / 2), V.Y(0) + fs, C.ink, fs * 0.9);
+          const lx = W * 0.68; g.text(c, 'Euclid’s division steps', lx, 40, C.dim, fs * 0.85, 'left');
+          ln.slice(0, 12).forEach((s, i) => g.text(c, s, lx, 40 + fs * 1.7 * (i + 1), cols[i % 6], fs * 0.85, 'left', 'middle', 600, true));
+          g.box(c, 'HCF = ' + gcd(p.a, p.b), lx + 4, 40 + fs * 1.7 * (Math.min(ln.length, 12) + 1.4), C.lime, fs, 'left');
+        },
+        read: p => { const G = gcd(p.a, p.b), L = p.a * p.b / G; return [{ l: 'a', v: pf(p.a), c: 'coral' }, { l: 'b', v: pf(p.b), c: 'cyan' }, { l: 'HCF', v: G, c: 'lime' }, { l: 'LCM', v: L, c: 'amber' }, { l: 'HCF × LCM', v: G * L, c: 'ink' }, { l: 'a × b', v: p.a * p.b, c: 'ink' }]; },
+        result: p => 'HCF(' + p.a + ', ' + p.b + ') = ' + gcd(p.a, p.b) + ' · LCM = ' + p.a * p.b / gcd(p.a, p.b) },
+
+      { id: 'dec', title: 'Decimal Expansion of Rational Numbers', topic: 'Number System', grades: [9, 10],
+        aim: 'To find the decimal expansion of p/q by long division and predict whether it terminates or recurs.',
+        equip: ['Long division sheet', 'Remainder clock', 'Calculator (check)'],
+        steps: ['Set the numerator p and the denominator q.', 'Long division: multiply each remainder by 10 and divide by q.', 'Follow the remainders on the clock — when a remainder repeats, the digits repeat.', 'Check the prime factors of q (lowest terms): only 2s and 5s ⇒ terminating.'],
+        concl: 'p/q in lowest terms terminates iff q = 2ᵐ5ⁿ; otherwise it is non-terminating recurring with a period shorter than q.',
+        controls: [{ type: 'range', key: 'p', label: 'Numerator p', min: 1, max: 40, step: 1 }, { type: 'range', key: 'q', label: 'Denominator q', min: 2, max: 30, step: 1 }],
+        init: { p: 1, q: 7 },
+        calc(p) { const ip = Math.floor(p.p / p.q); let r = p.p % p.q; const seen = {}, digs = [], rem = []; while (r !== 0 && !(r in seen) && digs.length < 60) { seen[r] = digs.length; rem.push(r); r *= 10; digs.push(Math.floor(r / p.q)); r %= p.q; } return { ip, digs, rem, start: r === 0 ? -1 : seen[r], rLast: r }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), pre = k.start < 0 ? k.digs : k.digs.slice(0, k.start), per = k.start < 0 ? [] : k.digs.slice(k.start), show = per.slice(0, 24).join('') + (per.length > 24 ? '…' : '');
+          const parts = [[p.p + '/' + p.q + ' = ' + k.ip + (k.digs.length ? '.' : ''), C.ink], [pre.join(''), C.cyan], [show, C.amber]], tot = parts.reduce((s, q) => s + q[0].length, 0), sz = Math.min(fs * 2, (W - 60) / (tot * 0.62));
+          c.font = '700 ' + Math.round(sz) + 'px JetBrains Mono, monospace'; c.textAlign = 'left'; c.textBaseline = 'middle'; let x = 30; const y = H * 0.12;
+          parts.forEach(([s, col], i) => { c.fillStyle = col; c.fillText(s, x, y); const w = c.measureText(s).width; if (i === 2 && s) g.line(c, x, y - sz * 0.72, x + w, y - sz * 0.72, C.amber, 3); x += w; });
+          const O = [W * 0.27, H * 0.6], R = Math.min(W * 0.2, H * 0.3), nr = Math.max(8, Math.min(15, Math.PI * R / p.q * 0.6)), pos = i => [O[0] + R * Math.cos(-Math.PI / 2 + 2 * Math.PI * i / p.q), O[1] + R * Math.sin(-Math.PI / 2 + 2 * Math.PI * i / p.q)];
+          const seq = k.rem.concat(k.rem.length ? [k.rLast] : []);
+          for (let i = 0; i < seq.length - 1; i++) { const a = pos(seq[i]), b = pos(seq[i + 1]), d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / d, uy = (b[1] - a[1]) / d, col = k.start >= 0 && i >= k.start ? C.amber : C.cyan; g.arrow(c, a[0] + ux * nr, a[1] + uy * nr, b[0] - ux * nr, b[1] - uy * nr, col, 2.5); }
+          for (let i = 0; i < p.q; i++) { const q = pos(i), on = k.rem.includes(i) || (i === 0 && k.start < 0 && k.rem.length); g.dot(c, q[0], q[1], nr, on ? (i === 0 ? C.lime : C.ink) : C.soft, C.dim, 1.5); g.text(c, String(i), q[0], q[1], on ? C.bg : C.dim, nr * 1.05, 'center', 'middle', 700, true); }
+          g.text(c, 'Remainder clock (mod ' + p.q + ')', O[0], O[1] + R + fs * 1.6, C.dim, fs * 0.8);
+          const lx = W * 0.56; g.text(c, 'Long division', lx, H * 0.24, C.dim, fs * 0.85, 'left');
+          k.rem.slice(0, 12).forEach((r, i) => g.text(c, (10 * r) + ' ÷ ' + p.q + ' = ' + k.digs[i] + '  rem ' + ((10 * r) % p.q), lx, H * 0.24 + fs * 1.5 * (i + 1), k.start >= 0 && i >= k.start ? C.amber : C.cyan, fs * 0.85, 'left', 'middle', 600, true));
+        },
+        read(p) { const G = gcd(p.p, p.q), qq = p.q / G; let t = qq; while (t % 2 === 0) t /= 2; while (t % 5 === 0) t /= 5; const k = this.calc(p); return [{ l: 'Lowest terms', v: (p.p / G) + '/' + qq, c: 'ink' }, { l: 'q = ', v: pf(qq), c: 'violet' }, { l: 'Expansion', v: t === 1 ? 'Terminating' : 'Recurring', c: 'amber' }, { l: 'Period length', v: k.start < 0 ? '—' : k.digs.length - k.start, c: 'cyan' }, { l: 'Value', v: N(p.p / p.q, 6), c: 'lime' }]; },
+        result(p) { const k = this.calc(p); return k.start < 0 ? p.p + '/' + p.q + ' terminates after ' + k.digs.length + ' decimal place(s)' : p.p + '/' + p.q + ' recurs with period ' + (k.digs.length - k.start); } },
+
+      { id: 'sqc', title: 'Squares, Cubes & Square Roots', topic: 'Number System', grades: [8],
+        aim: 'To see n² as a sum of consecutive odd numbers, build n³ from unit cubes and estimate square roots.',
+        equip: ['Dot grid', 'Unit cubes', 'Number line'],
+        steps: ['Choose “Square” and set n — each coloured L-shaped layer has the next odd number of dots.', 'Choose “Cube” to build an n × n × n cube from unit cubes.', 'Set m to estimate √m between two consecutive perfect squares.', 'Record n², n³ and the estimate of √m.'],
+        concl: '1 + 3 + 5 + … + (2n − 1) = n²; a cube of side n contains n³ unit cubes; if a² < m < b² then a < √m < b.',
+        controls: [{ type: 'select', key: 'mode', label: 'Model', options: ['Square', 'Cube'] }, { type: 'range', key: 'n', label: 'n', min: 1, max: 12, step: 1 }, { type: 'range', key: 'm', label: 'Estimate √m for m =', min: 1, max: 150, step: 1 }],
+        init: { mode: 'Square', n: 5, m: 40 },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), n = p.n, cols = [C.coral, C.amber, C.lime, C.cyan, C.violet, C.pink], top = 20, mh = H * 0.7;
+          if (p.mode === 'Square') {
+            const cs = Math.min(W * 0.5 / n, mh / n), x0 = 40, y0 = top + (mh - n * cs) / 2;
+            for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) g.dot(c, x0 + i * cs + cs / 2, y0 + (n - 1 - j) * cs + cs / 2, cs * 0.32, cols[Math.max(i, j) % 6]);
+            const xt = x0 + n * cs + 40, rows = Math.min(n, 8);
+            for (let L = 0; L < rows; L++) g.text(c, (L ? '+ ' : '  ') + (2 * L + 1), xt, top + fs * 1.5 * (L + 1), cols[L % 6], fs, 'left', 'middle', 700, true);
+            g.text(c, (n > 8 ? '+ … ' : '') + '= ' + n + '² = ' + n * n, xt, top + fs * 1.5 * (rows + 1.3), C.ink, fs * 1.1, 'left', 'middle', 700, true);
+          } else {
+            const u = Math.min(W * 0.55 / (n * 1.732), mh / (n * 2)), ox = W * 0.3, oy = top + mh / 2, P = (i, j, k) => [ox + (i - k) * 0.866 * u, oy - j * u + (i + k) * 0.5 * u];
+            for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) g.poly(c, [P(i, n, k), P(i + 1, n, k), P(i + 1, n, k + 1), P(i, n, k + 1)], C.bg, C.amber + ((i + k) % 2 ? 'cc' : '99'), 1.5);
+            for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) g.poly(c, [P(i, j, n), P(i + 1, j, n), P(i + 1, j + 1, n), P(i, j + 1, n)], C.bg, C.cyan + ((i + j) % 2 ? 'cc' : '99'), 1.5);
+            for (let k = 0; k < n; k++) for (let j = 0; j < n; j++) g.poly(c, [P(n, j, k), P(n, j, k + 1), P(n, j + 1, k + 1), P(n, j + 1, k)], C.bg, C.violet + ((k + j) % 2 ? 'cc' : '99'), 1.5);
+            g.text(c, n + '³ = ' + n + ' × ' + n + ' × ' + n + ' = ' + n ** 3, W * 0.62, top + mh / 2, C.ink, fs * 1.2, 'left', 'middle', 700, true);
+          }
+          const y = H * 0.88, x0 = 40, x1 = W - 40, X = v => x0 + (x1 - x0) * v / 13, a = Math.floor(Math.sqrt(p.m)), r = Math.sqrt(p.m);
+          g.line(c, x0, y, x1, y, C.ink, 2.5);
+          for (let i = 0; i <= 13; i++) { g.line(c, X(i), y - 8, X(i), y + 8, i === a || i === a + 1 ? C.amber : C.dim, 2); g.text(c, String(i), X(i), y + fs, i === a || i === a + 1 ? C.amber : C.dim, fs * 0.7, 'center', 'middle', 600, true); }
+          g.dot(c, X(r), y, 9, C.lime, C.bg, 2); g.box(c, '√' + p.m + ' ≈ ' + N(r, 3), X(r), y - fs * 1.4, C.lime, fs * 0.85);
+        },
+        read: p => { const a = Math.floor(Math.sqrt(p.m)); return [{ l: 'n²', v: p.n * p.n, c: 'coral' }, { l: 'n³', v: p.n ** 3, c: 'cyan' }, { l: 'Sum of first n odd', v: p.n * p.n, c: 'lime' }, { l: '√' + p.m, v: N(Math.sqrt(p.m), 4), c: 'lime' }, { l: 'Between', v: a * a === p.m ? 'perfect square' : a + '² = ' + a * a + ' and ' + (a + 1) + '² = ' + (a + 1) ** 2, c: 'amber' }]; },
+        result: p => p.mode === 'Square' ? '1 + 3 + … + ' + (2 * p.n - 1) + ' = ' + p.n * p.n : p.n + '³ = ' + p.n ** 3 + ' unit cubes' },
+
+      { id: 'prop', title: 'Direct & Inverse Proportion — Unitary Method', topic: 'Commercial Maths', grades: [6, 7, 8],
+        aim: 'To solve direct and inverse proportion problems by the unitary method and compare their graphs.',
+        equip: ['Price cards', 'Worker tokens', 'Graph sheet'],
+        steps: ['Choose Direct (cost of pencils) or Inverse (workers and days).', 'Set the rate k: price of one pencil, or total person-days of work.', 'Change the quantity x and observe y in the picture and on the graph.', 'Check that y ÷ x is constant (direct) or x × y is constant (inverse).'],
+        concl: 'Direct proportion: y/x = k and the graph is a straight line through the origin. Inverse proportion: xy = k and the graph is a hyperbola.',
+        controls: [{ type: 'select', key: 'mode', label: 'Type', options: ['Direct', 'Inverse'] }, { type: 'range', key: 'k', label: 'Rate k (₹/pencil or person-days)', min: 2, max: 60, step: 1 }, { type: 'range', key: 'x', label: 'Quantity x', min: 1, max: 12, step: 1 }],
+        init: { mode: 'Direct', k: 6, x: 4 },
+        y(p) { return p.mode === 'Direct' ? p.k * p.x : p.k / p.x; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), y = this.y(p), dir = p.mode === 'Direct', lw = W * 0.46;
+          if (dir) { const pw = Math.min(42, lw / p.x - 8), ph = H * 0.4, y0 = H * 0.2; for (let i = 0; i < p.x; i++) { const x = 30 + i * (pw + 8); c.fillStyle = C.amber; c.fillRect(x, y0 + pw * 0.8, pw, ph); g.poly(c, [[x, y0 + pw * 0.8], [x + pw, y0 + pw * 0.8], [x + pw / 2, y0]], null, C.coral); if (pw > 30) g.text(c, '₹' + p.k, x + pw / 2, y0 + pw + ph / 2, C.bg, fs * 0.6, 'center', 'middle', 700, true); } g.text(c, p.x + ' × ₹' + p.k + ' = ₹' + y, 30, H * 0.75, C.ink, fs * 1.2, 'left', 'middle', 700, true); }
+          else { const r = Math.min(18, lw / 14); for (let i = 0; i < p.x; i++) { const x = 40 + (i % 6) * r * 3.4, yy = H * 0.18 + Math.floor(i / 6) * r * 4.6; g.dot(c, x, yy, r * 0.7, C.cyan); g.poly(c, [[x - r, yy + r * 2.6], [x + r, yy + r * 2.6], [x + r * 0.7, yy + r], [x - r * 0.7, yy + r]], null, C.cyan + 'aa'); } const bw = (lw - 40) * y / p.k; c.fillStyle = C.amber + 'bb'; c.fillRect(30, H * 0.62, bw, fs * 1.6); g.text(c, N(y) + ' days', 36 + bw, H * 0.62 + fs * 0.8, C.amber, fs, 'left'); g.text(c, p.k + ' person-days ÷ ' + p.x + ' = ' + N(y) + ' days', 30, H * 0.8, C.ink, fs * 1.05, 'left', 'middle', 700, true); }
+          const gx0 = W * 0.56, gx1 = W - 30, gy0 = 40, gy1 = H - 50, ym = dir ? p.k * 12 : p.k, X = v => gx0 + v / 12 * (gx1 - gx0), Y = v => gy1 - v / ym * (gy1 - gy0);
+          axes(c, gx0, gx1, gy0, gy1, [2, 4, 6, 8, 10, 12].map(v => [X(v), String(v)]), [0.25, 0.5, 0.75, 1].map(f => [Y(ym * f), N(ym * f, 1)]), fs);
+          c.strokeStyle = dir ? C.cyan : C.violet; c.lineWidth = 3; c.beginPath(); for (let i = 0; i <= 200; i++) { const v = dir ? 12 * i / 200 : Math.max(0.95, 12 * i / 200), q = [X(v), Y(dir ? p.k * v : p.k / v)]; i ? c.lineTo(...q) : c.moveTo(...q); } c.stroke();
+          for (let v = 1; v <= 12; v++) g.dot(c, X(v), Y(dir ? p.k * v : p.k / v), 4, C.dim);
+          g.dot(c, X(p.x), Y(y), 10, C.amber, C.bg, 3); g.box(c, '(' + p.x + ', ' + N(y) + ')', X(p.x), Y(y) - 26, C.amber, fs * 0.8);
+        },
+        read(p) { const y = this.y(p), dir = p.mode === 'Direct'; return [{ l: 'x', v: p.x, c: 'ink' }, { l: dir ? 'Cost y (₹)' : 'Days y', v: N(y), c: 'amber' }, { l: dir ? 'y ÷ x' : 'x × y', v: N(dir ? y / p.x : y * p.x), c: 'lime' }, { l: 'Unitary value', v: dir ? '1 pencil = ₹' + p.k : '1 worker → ' + p.k + ' days', c: 'cyan' }]; },
+        result(p) { return p.mode === 'Direct' ? p.x + ' pencils cost ₹' + this.y(p) : p.x + ' workers take ' + N(this.y(p)) + ' days'; } },
+
+      { id: 'pct', title: 'Percentage, Profit & Loss, Discount and GST', topic: 'Commercial Maths', grades: [7, 8],
+        aim: 'To calculate selling price, profit or loss %, discount and GST, and to see a percentage on a 100-square grid.',
+        equip: ['100-square grid', 'Price tags', 'Bill calculator'],
+        steps: ['Set the cost price CP and the marked price MP.', 'Set the discount %; the shaded squares show the discount out of 100.', 'SP = MP − discount. Compare SP with CP to find profit or loss.', 'Add GST on SP to get the final bill.'],
+        concl: 'Discount = MP × d/100; Profit % = (SP − CP)/CP × 100; Bill = SP × (1 + GST/100).',
+        controls: [{ type: 'range', key: 'CP', label: 'Cost price CP (₹)', min: 100, max: 2000, step: 50 }, { type: 'range', key: 'MP', label: 'Marked price MP (₹)', min: 100, max: 3000, step: 50 }, { type: 'range', key: 'd', label: 'Discount', min: 0, max: 60, step: 1, unit: ' %' }, { type: 'select', key: 'gst', label: 'GST', options: ['0%', '5%', '12%', '18%', '28%'] }],
+        init: { CP: 800, MP: 1200, d: 20, gst: '12%' },
+        calc(p) { const SP = p.MP * (1 - p.d / 100), G = parseFloat(p.gst), pr = SP - p.CP; return { SP, G, pr, pc: pr / p.CP * 100, bill: SP * (1 + G / 100), disc: p.MP * p.d / 100 }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), cs = Math.min(W * 0.3 / 10, H * 0.7 / 10), x0 = 30, y0 = (H - 10 * cs) / 2;
+          for (let i = 0; i < 100; i++) { c.fillStyle = i < p.d ? C.coral + 'bb' : C.soft; c.fillRect(x0 + (i % 10) * cs + 1, y0 + Math.floor(i / 10) * cs + 1, cs - 2, cs - 2); }
+          g.text(c, p.d + ' out of 100 = ' + p.d + '% off', x0 + 5 * cs, y0 + 10 * cs + fs, C.coral, fs * 0.85);
+          const bx = W * 0.44, bmax = W - bx - 30, mx = Math.max(p.MP, k.bill, p.CP), sc = (bmax - 140) / mx, rows = [['CP', p.CP, C.cyan], ['MP', p.MP, C.ink], ['SP', k.SP, C.amber], ['Bill', k.bill, C.lime]], bh = Math.min(fs * 2.2, H * 0.12), gap = bh * 0.9, top = (H - rows.length * (bh + gap)) / 2;
+          rows.forEach(([l, v, col], i) => { const y = top + i * (bh + gap); g.text(c, l, bx, y + bh / 2, C.dim, fs * 0.85, 'left'); c.fillStyle = col + 'aa'; c.fillRect(bx + 50, y, v * sc, bh); if (l === 'MP') { c.fillStyle = C.coral + 'cc'; c.fillRect(bx + 50 + k.SP * sc, y, k.disc * sc, bh); } g.text(c, inr(v), bx + 58 + v * sc, y + bh / 2, col, fs * 0.85, 'left', 'middle', 700, true); });
+          g.line(c, bx + 50 + p.CP * sc, top - 10, bx + 50 + p.CP * sc, top + rows.length * (bh + gap), C.cyan, 2, [6, 5]);
+          g.box(c, (k.pr >= 0 ? 'Profit ' : 'Loss ') + inr(Math.abs(k.pr)) + ' (' + N(Math.abs(k.pc)) + '%)', bx + 50, top - fs * 1.6, k.pr >= 0 ? C.lime : C.coral, fs, 'left');
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Discount', v: inr(k.disc), c: 'coral' }, { l: 'Selling price', v: inr(k.SP), c: 'amber' }, { l: k.pr >= 0 ? 'Profit' : 'Loss', v: inr(Math.abs(k.pr)) + ' · ' + N(Math.abs(k.pc)) + '%', c: k.pr >= 0 ? 'lime' : 'coral' }, { l: 'GST (' + p.gst + ')', v: inr(k.bill - k.SP), c: 'violet' }, { l: 'Final bill', v: inr(k.bill), c: 'lime' }]; },
+        result(p) { const k = this.calc(p); return 'SP = ' + inr(k.SP) + ' · ' + (k.pr >= 0 ? 'Profit ' : 'Loss ') + N(Math.abs(k.pc)) + '% · Bill ' + inr(k.bill); } },
+
+      { id: 'patt', title: 'Matchstick Patterns — Rules with Variables', topic: 'Algebra', grades: [6],
+        aim: 'To find a general rule, using a variable n, for the number of matchsticks needed in a growing pattern.',
+        equip: ['Matchsticks', 'Pattern table', 'Chalk'],
+        steps: ['Choose a pattern: L shapes, row of triangles or row of squares.', 'Increase n and count the sticks used.', 'Fill the table for n = 1, 2, 3 … and look for the constant increase.', 'Write the rule using n and check it with the count.'],
+        concl: 'L shapes need 2n, triangles 2n + 1 and squares 3n + 1 sticks — a variable expresses the rule for every n.',
+        controls: [{ type: 'select', key: 'shape', label: 'Pattern', options: ['L shapes', 'Row of triangles', 'Row of squares'] }, { type: 'range', key: 'n', label: 'n (number of shapes)', min: 1, max: 12, step: 1 }],
+        init: { shape: 'Row of squares', n: 4 },
+        rule: { 'L shapes': [2, 0, '2n'], 'Row of triangles': [2, 1, '2n + 1'], 'Row of squares': [3, 1, '3n + 1'] },
+        edges(shape, n) { const E = new Map(), add = (a, b, c2, d) => { const k = [a, b, c2, d].map(v => Math.round(v * 100)).join(','), k2 = [c2, d, a, b].map(v => Math.round(v * 100)).join(','); if (!E.has(k) && !E.has(k2)) E.set(k, [a, b, c2, d]); }; if (shape === 'L shapes') for (let i = 0; i < n; i++) { const x = i * 1.6; add(x, 1, x, 0); add(x, 0, x + 1, 0); } else if (shape === 'Row of squares') for (let i = 0; i < n; i++) { add(i, 0, i + 1, 0); add(i, 1, i + 1, 1); add(i, 0, i, 1); add(i + 1, 0, i + 1, 1); } else { const h = 0.866; for (let k = 0; k < n; k++) { if (k % 2 === 0) { const m = k / 2; add(m, 0, m + 1, 0); add(m, 0, m + 0.5, h); add(m + 1, 0, m + 0.5, h); } else { const m = (k - 1) / 2; add(m + 0.5, h, m + 1.5, h); add(m + 0.5, h, m + 1, 0); add(m + 1.5, h, m + 1, 0); } } } return [...E.values()]; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), E = this.edges(p.shape, p.n), wu = Math.max(...E.map(e => Math.max(e[0], e[2]))), u = Math.min((W - 100) / wu, H * 0.28), x0 = (W - wu * u) / 2, yb = H * 0.52, P = (x, y) => [x0 + x * u, yb - y * u], sw = Math.max(5, u * 0.07), [m, b, rs] = this.rule[p.shape];
+          E.forEach(e => { const a = P(e[0], e[1]), q = P(e[2], e[3]); g.line(c, ...a, ...q, C.amber, sw); g.dot(c, ...q, sw * 0.9, C.coral); });
+          g.box(c, 'Rule: sticks = ' + rs + '  →  ' + m + ' × ' + p.n + (b ? ' + ' + b : '') + ' = ' + (m * p.n + b), W / 2, H * 0.12, C.lime, fs * 1.1);
+          const cnt = 10, cw = Math.min(72, (W - 160) / cnt), tx = (W - (cnt + 1.4) * cw) / 2, ty = H * 0.8, rh = fs * 1.7;
+          g.text(c, 'n', tx + cw * 0.7, ty, C.dim, fs * 0.85); g.text(c, 'sticks', tx + cw * 0.7, ty + rh, C.dim, fs * 0.8);
+          for (let i = 1; i <= cnt; i++) { const x = tx + cw * 0.9 + i * cw, on = i === p.n; if (on) { c.fillStyle = C.amber + '33'; c.fillRect(x - cw / 2, ty - rh / 2, cw, rh * 2); } g.text(c, String(i), x, ty, on ? C.amber : C.ink, fs * 0.85, 'center', 'middle', 600, true); g.text(c, String(m * i + b), x, ty + rh, on ? C.amber : C.cyan, fs * 0.85, 'center', 'middle', 700, true); }
+        },
+        read(p) { const [m, b, rs] = this.rule[p.shape]; return [{ l: 'n', v: p.n, c: 'ink' }, { l: 'Sticks counted', v: this.edges(p.shape, p.n).length, c: 'amber' }, { l: 'Rule ' + rs, v: m * p.n + b, c: 'lime' }, { l: 'Increase per step', v: '+' + m, c: 'cyan' }]; },
+        result(p) { const [m, b, rs] = this.rule[p.shape]; return 'n = ' + p.n + ': ' + rs + ' = ' + (m * p.n + b) + ' sticks'; } },
+
+      { id: 'bal', title: 'Solving a Linear Equation on a Pan Balance', topic: 'Algebra', grades: [7, 8],
+        aim: 'To solve an equation ax + b = cx + d by keeping a pan balance level.',
+        equip: ['Pan balance', 'Mystery boxes (x)', 'Unit weights'],
+        steps: ['Set the equation: boxes (x) and unit weights on each pan.', 'Try a value of x — the beam tilts towards the heavier side.', 'Adjust x until the beam is level: both sides are equal.', 'Check algebraically: remove the same amount from both sides to get x = (d − b)/(a − c).'],
+        concl: 'An equation stays true when the same operation is done on both sides; the level beam gives the solution.',
+        controls: [{ type: 'range', key: 'a', label: 'Boxes on left a', min: 0, max: 5, step: 1 }, { type: 'range', key: 'b', label: 'Weights on left b', min: 0, max: 12, step: 1 }, { type: 'range', key: 'c', label: 'Boxes on right c', min: 0, max: 5, step: 1 }, { type: 'range', key: 'd', label: 'Weights on right d', min: 0, max: 20, step: 1 }, { type: 'range', key: 'x', label: 'Try x =', min: 0, max: 10, step: 0.5 }],
+        init: { a: 3, b: 2, c: 1, d: 10, x: 2 },
+        side: (a, b) => (a ? (a === 1 ? '' : a) + 'x' : '') + (a && b ? ' + ' : '') + (b || !a ? b : ''),
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), L = p.a * p.x + p.b, R = p.c * p.x + p.d, th = Math.max(-0.26, Math.min(0.26, (L - R) * 0.03)), px = W / 2, py = H * 0.3, Lb = Math.min(W * 0.34, H * 0.9), pw = Math.min(W * 0.26, 280);
+          const ends = [[px - Lb * Math.cos(th), py + Lb * Math.sin(th)], [px + Lb * Math.cos(th), py - Lb * Math.sin(th)]];
+          g.line(c, px, py, px, H * 0.92, C.dim, 8); g.line(c, px - 90, H * 0.92, px + 90, H * 0.92, C.dim, 10);
+          g.line(c, ...ends[0], ...ends[1], C.ink, 8); g.dot(c, px, py, 11, C.amber);
+          [[ends[0], p.a, p.b, L], [ends[1], p.c, p.d, R]].forEach(([[x, y], nb, nw, val]) => {
+            const y2 = y + H * 0.2; g.line(c, x, y, x - pw / 2, y2, C.dim, 2); g.line(c, x, y, x + pw / 2, y2, C.dim, 2);
+            c.beginPath(); c.moveTo(x - pw / 2, y2); c.quadraticCurveTo(x, y2 + pw * 0.2, x + pw / 2, y2); c.closePath(); c.fillStyle = C.ink + '33'; c.fill(); c.strokeStyle = C.ink; c.lineWidth = 3; c.stroke();
+            const bs = pw / 6.5; for (let i = 0; i < nb; i++) { const bx = x - pw / 2 + 8 + (i % 5) * (bs + 3), by = y2 - 4 - (Math.floor(i / 5) + 1) * (bs + 3); c.fillStyle = C.violet; c.fillRect(bx, by, bs, bs); g.text(c, 'x', bx + bs / 2, by + bs / 2, C.bg, bs * 0.6, 'center', 'middle', 700, true); }
+            const r = bs * 0.3, base = y2 - 4 - Math.ceil(nb / 5) * (bs + 3); for (let i = 0; i < nw; i++) g.dot(c, x - pw / 2 + 10 + (i % 7) * (2 * r + 6) + r, base - Math.floor(i / 7) * (2 * r + 4) - r, r, C.coral);
+            g.text(c, N(val), x, y2 + pw * 0.2 + fs * 0.8, C.ink, fs, 'center', 'middle', 700, true);
+          });
+          const bal = Math.abs(L - R) < 1e-9; g.box(c, this.side(p.a, p.b) + ' = ' + this.side(p.c, p.d), W / 2, 34, C.ink, fs * 1.2);
+          g.box(c, bal ? 'Balanced at x = ' + N(p.x) : (L > R ? 'Left side heavier' : 'Right side heavier'), W / 2, 34 + fs * 2.2, bal ? C.lime : C.amber, fs);
+        },
+        read: p => { const L = p.a * p.x + p.b, R = p.c * p.x + p.d; return [{ l: 'LHS at x = ' + N(p.x), v: N(L), c: 'violet' }, { l: 'RHS at x = ' + N(p.x), v: N(R), c: 'coral' }, { l: 'State', v: Math.abs(L - R) < 1e-9 ? 'Balanced' : L > R ? 'Left heavy' : 'Right heavy', c: 'amber' }, { l: 'Solution x', v: p.a === p.c ? (p.b === p.d ? 'any x' : 'no solution') : N((p.d - p.b) / (p.a - p.c)), c: 'lime' }]; },
+        result(p) { return p.a === p.c ? (p.b === p.d ? 'Identity: true for every x' : 'No solution — boxes equal, weights differ') : this.side(p.a, p.b) + ' = ' + this.side(p.c, p.d) + '  ⇒  x = ' + N((p.d - p.b) / (p.a - p.c)); } },
+
+      { id: 'csq', title: 'Completing the Square — Area Model', topic: 'Algebra', grades: [10],
+        aim: 'To solve x² + bx + c = 0 by completing the square using an area model.',
+        equip: ['Algebra tiles (x², x, 1)', 'Squared paper'],
+        steps: ['Set b and c in x² + bx + c = 0.', 'Split the bx strip into two strips of (b/2)x on two sides of the x² square.', 'The missing corner is a (b/2)² square — add it to complete the square.', 'So x² + bx + c = (x + b/2)² − (b²/4 − c); solve for x.'],
+        concl: 'x = −b/2 ± √(b²/4 − c); real roots exist only when b²/4 − c ≥ 0, i.e. D = b² − 4c ≥ 0.',
+        controls: [{ type: 'range', key: 'b', label: 'b', min: 1, max: 12, step: 1 }, { type: 'range', key: 'c', label: 'c', min: -20, max: 20, step: 1 }, { type: 'toggle', key: 'fill', label: 'Add the missing corner' }],
+        init: { b: 6, c: 5, fill: true },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), X = 5, h = p.b / 2, V = g.view(W * 0.56, H, [-1, X + h + 0.6, -1, X + h + 0.6], 40), R = (x0, y0, x1, y1, col, lab, dash) => { g.poly(c, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(q => S(V, ...q)), col, dash ? null : col + '44', 3, dash ? [8, 6] : null); g.label(c, V, (x0 + x1) / 2, (y0 + y1) / 2, lab, col, fs * 0.9); };
+          R(0, 0, X, X, C.coral, 'x²'); R(X, 0, X + h, X, C.amber, N(h) + 'x'); R(0, X, X, X + h, C.amber, N(h) + 'x'); R(X, X, X + h, X + h, C.lime, '(' + N(h) + ')² = ' + N(h * h), !p.fill);
+          g.text(c, 'x', V.X(X / 2), V.Y(0) + fs, C.coral, fs, 'center', 'middle', 700); g.text(c, 'b/2', V.X(X + h / 2), V.Y(0) + fs, C.amber, fs * 0.85, 'center', 'middle', 700);
+          const k = h * h - p.c, lx = W * 0.58, L = ['x² + ' + p.b + 'x + ' + p.c + ' = 0', 'x² + ' + p.b + 'x = ' + N(-p.c), 'x² + ' + p.b + 'x + ' + N(h * h) + ' = ' + N(-p.c + h * h), '(x + ' + N(h) + ')² = ' + N(k), k >= 0 ? 'x = −' + N(h) + ' ± ' + N(Math.sqrt(k), 3) : 'No real roots (square < 0)'];
+          L.forEach((s, i) => g.text(c, s, lx, H * 0.2 + i * fs * 2.2, i === 4 ? (k >= 0 ? C.lime : C.coral) : i === 2 ? C.amber : C.ink, fs * 1.05, 'left', 'middle', 700, true));
+        },
+        read: p => { const h = p.b / 2, k = h * h - p.c; return [{ l: 'b/2', v: N(h), c: 'amber' }, { l: '(b/2)² added', v: N(h * h), c: 'lime' }, { l: 'b²/4 − c', v: N(k), c: 'ink' }, { l: 'Roots', v: k >= 0 ? N(-h - Math.sqrt(k), 3) + ', ' + N(-h + Math.sqrt(k), 3) : 'none (real)', c: 'lime' }]; },
+        result: p => { const h = p.b / 2, k = h * h - p.c; return '(x + ' + N(h) + ')² = ' + N(k) + (k >= 0 ? ' ⇒ x = ' + N(-h - Math.sqrt(k), 3) + ' or ' + N(-h + Math.sqrt(k), 3) : ' ⇒ no real roots'); } },
+
+      { id: 'cong', title: 'Congruence of Triangles (SSS, SAS, ASA, RHS)', topic: 'Geometry', grades: [7, 9],
+        aim: 'To verify congruence criteria by moving a traced copy of a triangle with rigid motions — slide, turn and flip.',
+        equip: ['Tracing paper', 'Paper triangle', 'Ruler & protractor'],
+        steps: ['Drag A, B, C to make triangle ABC.', 'Slide, rotate and flip the traced copy PQR — it still matches ABC part for part.', 'Choose a criterion to highlight the three parts that are enough to prove congruence.', 'RHS needs a right angle; AAA and SSA are not criteria.'],
+        concl: 'Rigid motions preserve lengths and angles, so △ABC ≅ △PQR with A ↔ P, B ↔ Q, C ↔ R.',
+        controls: [{ type: 'select', key: 'crit', label: 'Criterion', options: ['SSS', 'SAS', 'ASA', 'RHS'] }, { type: 'range', key: 'rot', label: 'Rotate copy', min: 0, max: 359, step: 1, unit: '°' }, { type: 'range', key: 'sh', label: 'Slide copy', min: 4, max: 13, step: 0.5 }, { type: 'toggle', key: 'fl', label: 'Flip (reflect) copy' }], snap: 0.1,
+        init: { Ax: -5, Ay: 2.5, Bx: -7.5, By: -2.5, Cx: -2, Cy: -2.5, crit: 'SAS', rot: 40, sh: 9, fl: false },
+        handles: triH(['A', 'B', 'C'], ['coral', 'cyan', 'lime']),
+        parts(p) { const P = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], an = [ang(P[0], P[1], P[2]), ang(P[1], P[2], P[0]), ang(P[2], P[0], P[1])]; if (p.crit === 'SSS') return { s: [0, 1, 2], a: [] }; if (p.crit === 'SAS') return { s: [0, 2], a: [0] }; if (p.crit === 'ASA') return { s: [1], a: [1, 2] }; const r = an.findIndex(v => Math.abs(v - 90) < 1); return r < 0 ? { s: [], a: [], bad: true } : { s: [(r + 1) % 3, r], a: [r] }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-9, 9, -5.5, 5.5]), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const P = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], G = [(P[0][0] + P[1][0] + P[2][0]) / 3, (P[0][1] + P[1][1] + P[2][1]) / 3], r = p.rot * D;
+          const Q = P.map(([x, y]) => { let u = x - G[0], v = y - G[1]; if (p.fl) u = -u; return [G[0] + p.sh + u * Math.cos(r) - v * Math.sin(r), G[1] + u * Math.sin(r) + v * Math.cos(r)]; }), k = this.parts(p), cols = [C.coral, C.cyan, C.lime];
+          [P, Q].forEach(T => { const s = T.map(q => S(V, ...q)); g.poly(c, s, C.ink, C.amber + '18', 2.5); k.s.forEach((i, n) => { g.line(c, ...s[i], ...s[(i + 1) % 3], C.amber, 5); g.tick(c, s[i], s[(i + 1) % 3], n + 1, C.ink); }); k.a.forEach(i => g.wedge(c, s[i], s[(i + 1) % 3], s[(i + 2) % 3], Math.min(40, V.s * 0.8), cols[i], false, fs)); });
+          vletter(c, V, P, ['A', 'B', 'C'], cols, fs); vletter(c, V, Q, ['P', 'Q', 'R'], cols, fs);
+          g.box(c, k.bad ? 'RHS needs a right angle — make one angle 90°' : p.crit + ': highlighted parts are equal', 20, 30, k.bad ? C.coral : C.lime, fs, 'left');
+          return V;
+        },
+        read: p => { const P = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]]; return [{ l: 'AB = PQ', v: N(len(...P[0], ...P[1])), c: 'amber' }, { l: 'BC = QR', v: N(len(...P[1], ...P[2])), c: 'amber' }, { l: 'CA = RP', v: N(len(...P[2], ...P[0])), c: 'amber' }, { l: '∠A = ∠P', v: N(ang(P[0], P[1], P[2]), 1) + '°', c: 'coral' }, { l: '∠B = ∠Q', v: N(ang(P[1], P[2], P[0]), 1) + '°', c: 'cyan' }, { l: '∠C = ∠R', v: N(ang(P[2], P[0], P[1]), 1) + '°', c: 'lime' }]; },
+        result(p) { return this.parts(p).bad ? 'RHS not applicable — no right angle' : '△ABC ≅ △PQR by ' + p.crit + (p.fl ? ' (mirror image)' : ''); } },
+
+      { id: 'heron', title: "Heron's Formula", topic: 'Mensuration', grades: [9],
+        aim: "To find the area of a triangle from its three sides using Heron's formula and verify it with ½ × base × height.",
+        equip: ['Sticks of given lengths', 'Scale', 'Set square (for height)'],
+        steps: ['Set the three sides a, b and c.', 'If the sum of two sides is not more than the third, no triangle can be formed.', 'Find s = (a + b + c)/2 and Area = √[s(s − a)(s − b)(s − c)].', 'Compare with ½ × a × h, where h is the measured height.'],
+        concl: 'Area = √[s(s − a)(s − b)(s − c)] — the three sides alone fix the area.',
+        controls: [{ type: 'range', key: 'a', label: 'Side a (BC)', min: 1, max: 15, step: 0.5 }, { type: 'range', key: 'b', label: 'Side b (CA)', min: 1, max: 15, step: 0.5 }, { type: 'range', key: 'c', label: 'Side c (AB)', min: 1, max: 15, step: 0.5 }],
+        init: { a: 8, b: 6, c: 7 },
+        calc(p) { const s = (p.a + p.b + p.c) / 2, q = s * (s - p.a) * (s - p.b) * (s - p.c); return { s, ok: q > 1e-9, A: Math.sqrt(Math.max(0, q)) }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p);
+          if (!k.ok) { const m = Math.max(p.a, p.b, p.c), u = (W - 120) / (m + 0.01), y = H * 0.4; [[p.a, C.coral, 'a'], [p.b, C.cyan, 'b'], [p.c, C.amber, 'c']].forEach(([v, col, l], i) => { g.line(c, 60, y + i * fs * 2, 60 + v * u, y + i * fs * 2, col, 8); g.text(c, l + ' = ' + v, 50, y + i * fs * 2, col, fs, 'right'); }); g.box(c, 'No triangle: the two shorter sides must add up to more than the longest', W / 2, H * 0.22, C.coral, fs); return; }
+          const Ax = (p.c * p.c - p.b * p.b + p.a * p.a) / (2 * p.a), Ay = Math.sqrt(Math.max(0, p.c * p.c - Ax * Ax)), V = g.view(W, H, [Math.min(0, Ax) - 1.5, Math.max(p.a, Ax) + 1.5, -1.5, Ay + 1.2], 40), A = S(V, Ax, Ay), B = S(V, 0, 0), Cc = S(V, p.a, 0);
+          g.poly(c, [A, B, Cc], C.ink, C.amber + '22', 3);
+          if (Ax < 0 || Ax > p.a) g.line(c, ...(Ax < 0 ? B : Cc), ...S(V, Ax, 0), C.dim, 2, [6, 5]);
+          g.line(c, ...A, ...S(V, Ax, 0), C.violet, 2.5, [8, 6]); g.rmark(c, S(V, Ax, 0), A, Ax < p.a ? Cc : B, 12); g.label(c, V, Ax, Ay / 2, 'h = ' + N(Ay), C.violet, fs, 46, 0);
+          g.label(c, V, p.a / 2, 0, 'a = ' + p.a, C.coral, fs, 0, 24); g.label(c, V, (Ax + p.a) / 2, Ay / 2, 'b = ' + p.b, C.cyan, fs, 30, -10); g.label(c, V, Ax / 2, Ay / 2, 'c = ' + p.c, C.amber, fs, -34, -10);
+          vletter(c, V, [[Ax, Ay], [0, 0], [p.a, 0]], ['A', 'B', 'C'], [], fs);
+        },
+        read(p) { const k = this.calc(p); if (!k.ok) return [{ l: 'Triangle', v: 'not possible', c: 'coral' }, { l: 's', v: N(k.s), c: 'ink' }]; const Ax = (p.c * p.c - p.b * p.b + p.a * p.a) / (2 * p.a), h = Math.sqrt(p.c * p.c - Ax * Ax); return [{ l: 's', v: N(k.s), c: 'ink' }, { l: 's − a, s − b, s − c', v: N(k.s - p.a) + ', ' + N(k.s - p.b) + ', ' + N(k.s - p.c), c: 'cyan' }, { l: "Heron's area", v: N(k.A, 3) + ' u²', c: 'lime' }, { l: '½ × a × h', v: N(p.a * h / 2, 3) + ' u²', c: 'amber' }]; },
+        result(p) { const k = this.calc(p); return k.ok ? 'Area = √[' + N(k.s) + ' × ' + N(k.s - p.a) + ' × ' + N(k.s - p.b) + ' × ' + N(k.s - p.c) + '] = ' + N(k.A, 3) + ' u²' : 'Triangle inequality fails'; } },
+
+      { id: 'chord', title: 'Chords of a Circle — Perpendicular from the Centre', topic: 'Geometry', grades: [9],
+        aim: 'To verify that the perpendicular from the centre to a chord bisects it, and that equal chords are equidistant from the centre.',
+        equip: ['Circle cut-out', 'Paper folding', 'Ruler & set square'],
+        steps: ['Drag A and B on the circle to make chord AB.', 'OM is drawn perpendicular to AB.', 'Measure AM and MB — they are equal.', 'Turn on the equal chord CD and compare its distance from O with OM.'],
+        concl: 'OM ⟂ AB ⇒ AM = MB; equal chords are equidistant from the centre; OM² + AM² = r².',
+        controls: [{ type: 'range', key: 'r', label: 'Radius r', min: 2, max: 5, step: 0.5 }, { type: 'toggle', key: 'eq', label: 'Show equal chord CD' }],
+        init: { Ax: -3.2, Ay: -2.4, Bx: 3.8, By: 1.25, eq: true, r: 4 },
+        fix: p => { const q = { ...p }; ['A', 'B'].forEach(k => { const L = Math.hypot(q[k + 'x'], q[k + 'y']) || 1; q[k + 'x'] *= q.r / L; q[k + 'y'] *= q.r / L; }); return q; },
+        handles: () => [['Ax', 'Ay', 'cyan'], ['Bx', 'By', 'cyan']],
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6, 6, -6, 6], 24), fs = g.fs(W, H), O = S(V, 0, 0);
+          g.dot(c, ...O, p.r * V.s, C.soft, C.ink, 3);
+          const ch = (A, B, col, nm) => { const M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], a = S(V, ...A), b = S(V, ...B), m = S(V, ...M); g.line(c, ...a, ...b, col, 5); g.line(c, ...O, ...m, C.amber, 3); g.rmark(c, m, O, b, 13); g.tick(c, a, m, 1, C.ink); g.tick(c, m, b, 1, C.ink); g.dot(c, ...m, 6, C.amber); g.label(c, V, A[0] * 1.14, A[1] * 1.14, nm[0], col, fs); g.label(c, V, B[0] * 1.14, B[1] * 1.14, nm[1], col, fs); g.label(c, V, M[0], M[1], nm[2], C.amber, fs, M[0] >= 0 ? 22 : -22, M[1] >= 0 ? -18 : 18); };
+          ch([p.Ax, p.Ay], [p.Bx, p.By], C.cyan, ['A', 'B', 'M']);
+          if (p.eq) { const t = 140 * D, R = ([x, y]) => [x * Math.cos(t) - y * Math.sin(t), x * Math.sin(t) + y * Math.cos(t)]; ch(R([p.Ax, p.Ay]), R([p.Bx, p.By]), C.violet, ['C', 'D', 'N']); }
+          g.dot(c, ...O, 6, C.ink); g.text(c, 'O', O[0] - 16, O[1] - 16, C.ink, fs);
+          return V;
+        },
+        read: p => { const ab = len(p.Ax, p.Ay, p.Bx, p.By), om = Math.hypot((p.Ax + p.Bx) / 2, (p.Ay + p.By) / 2); return [{ l: 'AB', v: N(ab, 3), c: 'cyan' }, { l: 'AM = MB', v: N(ab / 2, 3), c: 'cyan' }, { l: 'OM', v: N(om, 3), c: 'amber' }, { l: '√(r² − AM²)', v: N(Math.sqrt(Math.max(0, p.r * p.r - ab * ab / 4)), 3), c: 'lime' }, { l: 'ON (equal chord)', v: p.eq ? N(om, 3) : '—', c: 'violet' }]; },
+        result: p => 'AM = MB = ' + N(len(p.Ax, p.Ay, p.Bx, p.By) / 2, 3) + ' · OM ⟂ AB' },
+
+      { id: 'sim', title: 'Similar Triangles — Scale Factor & Area Ratio', topic: 'Geometry', grades: [10],
+        aim: 'To verify that similar triangles have equal angles, proportional sides and areas in the ratio of the squares of corresponding sides.',
+        equip: ['Paper triangle', 'Pantograph (enlarger)', 'Ruler & protractor'],
+        steps: ['Drag the vertices of triangle ABC.', 'Set the scale factor k to enlarge or reduce it to triangle DEF.', 'Measure corresponding sides and angles.', 'Compare the ratio of areas with k².'],
+        concl: 'If △ABC ~ △DEF with scale factor k, then DE/AB = EF/BC = FD/CA = k and ar(DEF)/ar(ABC) = k².',
+        controls: [{ type: 'range', key: 'k', label: 'Scale factor k', min: 0.3, max: 2, step: 0.05 }], snap: 0.1,
+        init: { Ax: -6, Ay: 2, Bx: -7.5, By: -2, Cx: -3.5, Cy: -2, k: 1.5 },
+        handles: triH(['A', 'B', 'C'], ['coral', 'cyan', 'lime']),
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-9, 9, -5.5, 5.5]), fs = g.fs(W, H); g.grid(c, V, W, H, 1, false, fs);
+          const P = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], G = [(P[0][0] + P[1][0] + P[2][0]) / 3, (P[0][1] + P[1][1] + P[2][1]) / 3], Q = P.map(q => [3.8 + (q[0] - G[0]) * p.k, G[1] + (q[1] - G[1]) * p.k]), cols = [C.coral, C.cyan, C.lime];
+          [[P, C.amber], [Q, C.violet]].forEach(([T, col]) => { const s = T.map(q => S(V, ...q)); g.poly(c, s, col, col + '22', 3); [0, 1, 2].forEach(i => g.wedge(c, s[i], s[(i + 1) % 3], s[(i + 2) % 3], Math.min(34, V.s * 0.6), cols[i], false, fs)); });
+          vletter(c, V, P, ['A', 'B', 'C'], cols, fs); vletter(c, V, Q, ['D', 'E', 'F'], cols, fs);
+          g.box(c, 'k = ' + N(p.k) + '   ·   area ratio k² = ' + N(p.k * p.k, 3), 20, 30, C.violet, fs, 'left');
+          return V;
+        },
+        read: p => { const P = [[p.Ax, p.Ay], [p.Bx, p.By], [p.Cx, p.Cy]], ar = Math.abs((P[1][0] - P[0][0]) * (P[2][1] - P[0][1]) - (P[2][0] - P[0][0]) * (P[1][1] - P[0][1])) / 2; return [{ l: 'AB → DE', v: N(len(...P[0], ...P[1])) + ' → ' + N(len(...P[0], ...P[1]) * p.k), c: 'amber' }, { l: 'DE/AB = EF/BC', v: N(p.k, 3), c: 'violet' }, { l: '∠A = ∠D', v: N(ang(P[0], P[1], P[2]), 1) + '°', c: 'coral' }, { l: 'ar(ABC)', v: N(ar), c: 'amber' }, { l: 'ar(DEF)', v: N(ar * p.k * p.k), c: 'violet' }, { l: 'Area ratio', v: N(p.k * p.k, 3), c: 'lime' }]; },
+        result: p => 'Sides ratio ' + N(p.k) + ' ⇒ areas ratio ' + N(p.k * p.k, 3) },
+
+      { id: 'trap', title: 'Area of a Trapezium', topic: 'Mensuration', grades: [8],
+        aim: 'To derive the area of a trapezium by joining it with a rotated copy to form a parallelogram.',
+        equip: ['Two identical trapezium cut-outs', 'Squared paper', 'Scale'],
+        steps: ['Set the parallel sides a and b, the height h and the slant.', 'Turn on the rotated copy — it fits alongside to make a parallelogram.', 'The parallelogram has base (a + b) and height h.', 'The trapezium is half of it: Area = ½(a + b)h.'],
+        concl: 'Area of trapezium = ½ × (sum of parallel sides) × height.',
+        controls: [{ type: 'range', key: 'a', label: 'Top side a', min: 1, max: 10, step: 0.5 }, { type: 'range', key: 'b', label: 'Bottom side b', min: 2, max: 12, step: 0.5 }, { type: 'range', key: 'h', label: 'Height h', min: 1, max: 8, step: 0.5 }, { type: 'range', key: 's', label: 'Slant (offset of top)', min: -3, max: 3, step: 0.5 }, { type: 'toggle', key: 'cp', label: 'Show rotated copy' }],
+        init: { a: 4, b: 8, h: 4, s: 1.5, cp: true },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), { a, b, h, s } = p, xm = Math.min(0, s) - 1, xM = (p.cp ? Math.max(a + b, b + s + a) : Math.max(b, s + a)) + 1, V = g.view(W, H, [xm, xM, -1.6, h + 1.4], 40);
+          g.poly(c, [[0, 0], [b, 0], [s + a, h], [s, h]].map(q => S(V, ...q)), C.coral, C.coral + '44', 3);
+          if (p.cp) { g.poly(c, [[b + s + a, h], [s + a, h], [b, 0], [b + a, 0]].map(q => S(V, ...q)), C.cyan, C.cyan + '44', 3); g.poly(c, [[0, 0], [a + b, 0], [b + s + a, h], [s, h]].map(q => S(V, ...q)), C.lime, null, 2, [10, 6]); g.label(c, V, b + a / 2, 0, 'a', C.cyan, fs, 0, 22); g.label(c, V, s + a + b / 2, h, 'b', C.cyan, fs, 0, -22); }
+          g.label(c, V, b / 2, 0, 'b = ' + b, C.coral, fs, 0, 22); g.label(c, V, s + a / 2, h, 'a = ' + a, C.coral, fs, 0, -22);
+          g.line(c, ...S(V, s, h), ...S(V, s, 0), C.amber, 2.5, [6, 5]); g.label(c, V, s, h / 2, 'h = ' + h, C.amber, fs, -40, 0);
+        },
+        read: p => [{ l: 'a + b', v: N(p.a + p.b), c: 'ink' }, { l: 'Parallelogram (a + b)h', v: N((p.a + p.b) * p.h) + ' u²', c: 'lime' }, { l: 'Trapezium ½(a + b)h', v: N((p.a + p.b) * p.h / 2) + ' u²', c: 'coral' }],
+        result: p => 'Area = ½ × (' + p.a + ' + ' + p.b + ') × ' + p.h + ' = ' + N((p.a + p.b) * p.h / 2) + ' u²' },
+
+      { id: 'sector', title: 'Arc Length, Sector & Segment Area', topic: 'Mensuration', grades: [10],
+        aim: 'To find the length of an arc, the area of a sector and the area of a segment of a circle for any central angle.',
+        equip: ['Compass', 'Protractor', 'Circle cut-out'],
+        steps: ['Set the radius r and the central angle θ.', 'The sector is the fraction θ/360 of the circle.', 'Arc length = θ/360 × 2πr; sector area = θ/360 × πr².', 'Turn on segment: segment = sector − triangle OAB.'],
+        concl: 'l = θ/360 × 2πr, A(sector) = θ/360 × πr², A(minor segment) = A(sector) − ½r² sin θ.',
+        controls: [{ type: 'range', key: 'r', label: 'Radius r', min: 1, max: 10, step: 0.5, unit: ' cm' }, { type: 'range', key: 'th', label: 'Central angle θ', min: 0, max: 360, step: 1, unit: '°' }, { type: 'toggle', key: 'seg', label: 'Show segment' }],
+        init: { r: 7, th: 90, seg: true },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), R = Math.min(W * 0.3, H * 0.38), O = [W * 0.4, H * 0.52], t = p.th * D, A = [O[0] + R, O[1]], B = [O[0] + R * Math.cos(t), O[1] - R * Math.sin(t)];
+          g.dot(c, ...O, R, C.soft, C.dim, 2);
+          c.beginPath(); c.moveTo(...O); c.arc(O[0], O[1], R, 0, -t, true); c.closePath(); c.fillStyle = C.amber + '44'; c.fill();
+          if (p.seg && p.th < 360) { c.beginPath(); c.moveTo(...A); c.arc(O[0], O[1], R, 0, -t, true); c.closePath(); c.fillStyle = C.lime + '66'; c.fill(); g.line(c, ...A, ...B, C.lime, 2.5); }
+          c.beginPath(); c.arc(O[0], O[1], R, 0, -t, true); c.strokeStyle = C.coral; c.lineWidth = 6; c.stroke();
+          g.line(c, ...O, ...A, C.ink, 2.5); g.line(c, ...O, ...B, C.ink, 2.5); g.arcW(c, O, Math.min(46, R * 0.25), 0, t, C.violet, 'θ = ' + p.th + '°', fs);
+          g.text(c, 'r', O[0] + R / 2, O[1] + 16, C.ink, fs); g.text(c, 'O', O[0] - 14, O[1] + 14, C.ink, fs);
+          g.box(c, 'θ/360 = ' + N(p.th / 360, 3), 20, 30, C.amber, fs, 'left');
+        },
+        read: p => { const f = p.th / 360, sec = f * Math.PI * p.r * p.r, tri = p.r * p.r * Math.sin(p.th * D) / 2; return [{ l: 'Arc length', v: N(f * 2 * Math.PI * p.r) + ' cm', c: 'coral' }, { l: 'Sector area', v: N(sec) + ' cm²', c: 'amber' }, { l: 'Triangle OAB', v: N(tri) + ' cm²', c: 'ink' }, { l: 'Segment area', v: N(sec - tri) + ' cm²', c: 'lime' }, { l: 'Circle area', v: N(Math.PI * p.r * p.r) + ' cm²', c: 'cyan' }]; },
+        result: p => 'l = ' + N(p.th / 360 * 2 * Math.PI * p.r) + ' cm · sector = ' + N(p.th / 360 * Math.PI * p.r * p.r) + ' cm²' },
+
+      { id: 'frust', title: 'Frustum & Combinations of Solids', topic: 'Mensuration', grades: [10],
+        aim: 'To find the surface area and volume of a frustum of a cone and of solids made by combining a cone, cylinder and hemispheres.',
+        equip: ['3D solid models', 'Clay (virtual)', 'Measuring scale'],
+        steps: ['Choose a solid: frustum (bucket), cone on a hemisphere (ice-cream) or capsule.', 'Set the radii and height; drag on the board to rotate.', 'Read the volume and surface area from the meters.', 'For combined solids add the volumes but count only the exposed surfaces.'],
+        concl: 'Frustum: V = ⅓πh(R² + r² + Rr), CSA = πl(R + r) with l = √(h² + (R − r)²).',
+        controls: [{ type: 'select', key: 'solid', label: 'Solid', options: ['Frustum', 'Cone on hemisphere', 'Capsule'] }, { type: 'range', key: 'R', label: 'Radius R', min: 1, max: 6, step: 0.5, unit: ' cm' }, { type: 'range', key: 'r', label: 'Top radius r (frustum)', min: 0.5, max: 6, step: 0.5, unit: ' cm' }, { type: 'range', key: 'h', label: 'Height h', min: 1, max: 10, step: 0.5, unit: ' cm' }, { type: 'toggle', key: 'spin', label: 'Auto-rotate' }],
+        init: { solid: 'Frustum', R: 4, r: 2, h: 5, spin: true }, rotate: true,
+        profile(p) { const R = p.R, h = p.h, out = []; if (p.solid === 'Frustum') return [[R, -h / 2], [p.r, h / 2]]; if (p.solid === 'Cone on hemisphere') { const y0 = -(R + h) / 2 + R; for (let la = -90; la <= 0; la += 10) out.push([R * Math.cos(la * D), y0 + R * Math.sin(la * D)]); out.push([0, y0 + h]); return out; } for (let la = -90; la <= 0; la += 10) out.push([R * Math.cos(la * D), -h / 2 + R * Math.sin(la * D)]); for (let la = 0; la <= 90; la += 10) out.push([R * Math.cos(la * D), h / 2 + R * Math.sin(la * D)]); return out; },
+        calc(p) { const PI = Math.PI, R = p.R, r = p.r, h = p.h; if (p.solid === 'Frustum') { const l = Math.hypot(h, R - r); return { V: PI * h / 3 * (R * R + r * r + R * r), CSA: PI * l * (R + r), TSA: PI * l * (R + r) + PI * (R * R + r * r), l }; } if (p.solid === 'Cone on hemisphere') { const l = Math.hypot(h, R); return { V: PI * R * R * h / 3 + 2 / 3 * PI * R ** 3, CSA: PI * R * l + 2 * PI * R * R, TSA: PI * R * l + 2 * PI * R * R, l }; } return { V: PI * R * R * h + 4 / 3 * PI * R ** 3, CSA: 2 * PI * R * h + 4 * PI * R * R, TSA: 2 * PI * R * h + 4 * PI * R * R, l: null }; },
+        draw(c, W, H, p, st, t, rt) {
+          const fs = g.fs(W, H); if (p.spin && !rt.dragging) rt.ry += 0.008;
+          const pr = this.profile(p), M = Math.max(...pr.map(q => Math.max(q[0], Math.abs(q[1])))) * 1.15, P = g.p3(rt, M, Math.min(W, H) * 0.38 / M, W / 2, H / 2), col = p.solid === 'Frustum' ? C.amber : p.solid === 'Capsule' ? C.cyan : C.pink;
+          const path = (pts, cl, w, fill, dash) => { c.beginPath(); pts.forEach((q, i) => { const s = P(...q); i ? c.lineTo(s[0], s[1]) : c.moveTo(s[0], s[1]); }); if (fill) { c.fillStyle = fill; c.fill(); } c.setLineDash(dash || []); c.strokeStyle = cl; c.lineWidth = w; c.stroke(); c.setLineDash([]); };
+          const ring = (r, y) => Array.from({ length: 73 }, (_, i) => { const a = i / 72 * 2 * Math.PI; return [r * Math.cos(a), y, r * Math.sin(a)]; });
+          pr.forEach(([r, y], i) => { if (r < 0.02) return; const edge = i === 0 || i === pr.length - 1 || (p.solid === 'Cone on hemisphere' && i === pr.length - 2); path(ring(r, y), edge ? col : col + '77', edge ? 3 : 1.2, p.solid === 'Frustum' ? col + '22' : null); });
+          for (let i = 0; i < 16; i++) { const a = i / 16 * 2 * Math.PI; path(pr.map(([r, y]) => [r * Math.cos(a), y, r * Math.sin(a)]), col + 'aa', 1.3); }
+          const yb = p.solid === 'Frustum' ? -p.h / 2 : p.solid === 'Capsule' ? -p.h / 2 : pr[pr.length - 2][1];
+          path([[0, yb, 0], [p.R, yb, 0]], C.lime, 3); const m = P(p.R / 2, yb, 0); g.box(c, 'R', m[0], m[1] + fs, C.lime, fs * 0.9);
+          if (p.solid === 'Frustum') { path([[0, p.h / 2, 0], [p.r, p.h / 2, 0]], C.violet, 3); const m2 = P(p.r / 2, p.h / 2, 0); g.box(c, 'r', m2[0], m2[1] - fs, C.violet, fs * 0.9); }
+          g.box(c, p.solid, 20, 30, C.ink, fs, 'left');
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Volume', v: N(k.V) + ' cm³', c: 'lime' }, { l: p.solid === 'Frustum' ? 'Curved SA' : 'Surface area', v: N(k.CSA) + ' cm²', c: 'amber' }, { l: 'Total SA', v: N(k.TSA) + ' cm²', c: 'cyan' }, { l: 'Slant height l', v: k.l ? N(k.l) + ' cm' : '—', c: 'pink' }]; },
+        result(p) { return p.solid + ': V = ' + N(this.calc(p).V) + ' cm³'; } },
+
+      { id: 'pie', title: 'Pie Chart — Data in a Circle', topic: 'Statistics & Probability', grades: [8],
+        aim: 'To represent data as a pie chart by finding the central angle of each sector.',
+        equip: ['Survey table', 'Compass', 'Protractor'],
+        steps: ['A class survey of favourite sports — set the number of students for each sport.', 'Find each central angle = (value ÷ total) × 360°.', 'Draw the sectors with a protractor; the pie chart updates instantly.', 'Check that the angles add up to 360°.'],
+        concl: 'Central angle = (frequency ÷ total) × 360°; all the sectors together make 360°.',
+        controls: ['Cricket', 'Football', 'Kabaddi', 'Hockey', 'Chess'].map((n, i) => ({ type: 'range', key: 'v' + i, label: n, min: 0, max: 40, step: 1 })),
+        init: { v0: 12, v1: 8, v2: 6, v3: 4, v4: 10 },
+        names: ['Cricket', 'Football', 'Kabaddi', 'Hockey', 'Chess'],
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), v = [0, 1, 2, 3, 4].map(i => p['v' + i]), T = v.reduce((a, b) => a + b, 0) || 1, cols = [C.coral, C.cyan, C.amber, C.lime, C.violet], R = Math.min(W * 0.28, H * 0.4), O = [W * 0.34, H / 2];
+          let s0 = -Math.PI / 2; v.forEach((x, i) => { const a = x / T * 2 * Math.PI; if (!a) return; c.beginPath(); c.moveTo(...O); c.arc(O[0], O[1], R, s0, s0 + a); c.closePath(); c.fillStyle = cols[i] + 'cc'; c.fill(); c.strokeStyle = C.bg; c.lineWidth = 3; c.stroke(); if (a > 0.25) g.text(c, N(x / T * 360, 1) + '°', O[0] + Math.cos(s0 + a / 2) * R * 0.64, O[1] + Math.sin(s0 + a / 2) * R * 0.64, C.bg, fs * 0.85, 'center', 'middle', 700, true); s0 += a; });
+          const lx = W * 0.68; v.forEach((x, i) => { const y = H * 0.25 + i * fs * 2.4; c.fillStyle = cols[i]; c.fillRect(lx, y - fs * 0.6, fs * 1.2, fs * 1.2); g.text(c, this.names[i] + '  ' + x, lx + fs * 1.8, y, C.ink, fs * 0.9, 'left'); g.text(c, N(x / T * 360, 1) + '°', W - 30, y, cols[i], fs * 0.9, 'right', 'middle', 700, true); });
+        },
+        read(p) { const v = [0, 1, 2, 3, 4].map(i => p['v' + i]), T = v.reduce((a, b) => a + b, 0) || 1, cols = ['coral', 'cyan', 'amber', 'lime', 'violet']; return [{ l: 'Total', v: T, c: 'ink' }].concat(v.map((x, i) => ({ l: this.names[i], v: x + ' → ' + N(x / T * 360, 1) + '°', c: cols[i] }))); },
+        result(p) { const T = [0, 1, 2, 3, 4].reduce((s, i) => s + p['v' + i], 0); return 'Total ' + T + ' students · angles add up to 360°'; } }
+    );
+
+    const piS = v => { const k = v / Math.PI; return Math.abs(k) < 1e-9 ? '0' : N(k, 3) + 'π'; };
+    acts.push(
+      { id: 'ogive', title: 'Grouped Data — Histogram, Ogive & Median', topic: 'Statistics & Probability', grades: [9, 10],
+        aim: 'To draw a histogram and a less-than ogive for grouped data and find the mean, median and mode.',
+        equip: ['Frequency table', 'Graph sheet', 'French curve'],
+        steps: ['Drag the top of each bar to set the frequency of each class (marks out of 60).', 'The less-than ogive (amber) joins cumulative frequencies at the upper class limits.', 'Draw a line at N/2 — where it meets the ogive gives the median.', 'Compare with the formula values of mean, median and mode.'],
+        concl: 'Median = l + ((N/2 − cf)/f) × h; Mode = l + ((f₁ − f₀)/(2f₁ − f₀ − f₂)) × h; empirically Mode ≈ 3 Median − 2 Mean.',
+        controls: [{ type: 'toggle', key: 'og', label: 'Show ogive' }], snap: 1,
+        init: { x0: 5, f0: 4, x1: 15, f1: 9, x2: 25, f2: 15, x3: 35, f3: 12, x4: 45, f4: 7, x5: 55, f5: 3, og: true },
+        fix: p => { const q = { ...p }; for (let i = 0; i < 6; i++) { q['x' + i] = 5 + 10 * i; q['f' + i] = Math.max(0, Math.min(25, Math.round(q['f' + i]))); } return q; },
+        handles: () => Array.from({ length: 6 }, (_, i) => ['x' + i, 'f' + i, 'cyan']),
+        calc(p) { const f = Array.from({ length: 6 }, (_, i) => p['f' + i]), N0 = f.reduce((a, b) => a + b, 0), cf = []; f.reduce((s, v, i) => (cf[i] = s + v), 0); if (!N0) return { f, N: 0, cf }; const mean = f.reduce((s, v, i) => s + v * (5 + 10 * i), 0) / N0, m = cf.findIndex(v => v >= N0 / 2), med = 10 * m + (N0 / 2 - (cf[m - 1] || 0)) / (f[m] || 1) * 10, mo = f.indexOf(Math.max(...f)), f0 = f[mo - 1] || 0, f2 = f[mo + 1] || 0, den = 2 * f[mo] - f0 - f2, mode = 10 * mo + (den ? (f[mo] - f0) / den * 10 : 5); return { f, N: N0, cf, mean, med, m, mode, mo }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-8, 66, -4, 28], 30), fs = g.fs(W, H), k = this.calc(p); g.grid(c, V, W, H, 5, true, fs);
+          k.f.forEach((v, i) => g.poly(c, [[10 * i, 0], [10 * i + 10, 0], [10 * i + 10, v], [10 * i, v]].map(q => S(V, ...q)), C.cyan, C.cyan + (i === k.m ? '66' : '33'), 2));
+          if (p.og && k.N) { const pts = [[0, 0]].concat(k.cf.map((v, i) => [10 * i + 10, v / k.N * 25])); c.strokeStyle = C.amber; c.lineWidth = 3.5; c.beginPath(); pts.forEach((q, i) => i ? c.lineTo(...S(V, ...q)) : c.moveTo(...S(V, ...q))); c.stroke(); pts.forEach(q => g.dot(c, ...S(V, ...q), 5, C.amber)); [0, 0.25, 0.5, 0.75, 1].forEach(f => g.text(c, N(k.N * f, 1), V.X(61.5), V.Y(f * 25), C.amber, fs * 0.65, 'left', 'middle', 600, true)); g.line(c, V.X(0), V.Y(12.5), V.X(k.med), V.Y(12.5), C.lime, 2, [8, 5]); g.line(c, V.X(k.med), V.Y(12.5), V.X(k.med), V.Y(0), C.lime, 2, [8, 5]); g.dot(c, V.X(k.med), V.Y(12.5), 8, C.lime); g.label(c, V, k.med, 0, 'median ' + N(k.med), C.lime, fs, 0, 22); g.text(c, 'cf', V.X(61.5), V.Y(27), C.amber, fs * 0.75, 'left'); }
+          g.text(c, 'frequency', V.X(0) + 8, V.Y(27), C.cyan, fs * 0.75, 'left');
+          return V;
+        },
+        read(p) { const k = this.calc(p); if (!k.N) return [{ l: 'N', v: 0, c: 'ink' }]; return [{ l: 'N = Σf', v: k.N, c: 'ink' }, { l: 'Mean', v: N(k.mean), c: 'amber' }, { l: 'Median class', v: 10 * k.m + '–' + (10 * k.m + 10), c: 'cyan' }, { l: 'Median', v: N(k.med), c: 'lime' }, { l: 'Modal class', v: 10 * k.mo + '–' + (10 * k.mo + 10), c: 'violet' }, { l: 'Mode', v: N(k.mode), c: 'violet' }]; },
+        result(p) { const k = this.calc(p); return k.N ? 'Mean ' + N(k.mean) + ' · Median ' + N(k.med) + ' · Mode ' + N(k.mode) : 'Add some frequencies'; } },
+
+      { id: 'sd', title: 'Measures of Dispersion — Variance & SD', topic: 'Statistics & Probability', grades: [11],
+        aim: 'To find the mean deviation, variance and standard deviation of data and see how spread affects them.',
+        equip: ['Number line', 'Data counters', 'Calculator'],
+        steps: ['Drag the seven data points along the number line.', 'The amber line is the mean; bars show each deviation (x − x̄).', 'The mean of squared deviations is the variance; its square root is σ.', 'Spread the points out or bunch them together and compare σ.'],
+        concl: 'σ² = Σ(x − x̄)²/n and σ = √σ²; data clustered near the mean has a smaller standard deviation.',
+        controls: [], snap: 0.5,
+        init: { x0: 4, y0: 0.8, x1: 7, y1: 1.6, x2: 8, y2: 2.4, x3: 10, y3: 3.2, x4: 11, y4: 4, x5: 13, y5: 4.8, x6: 17, y6: 5.6 },
+        fix: p => { const q = { ...p }; for (let i = 0; i < 7; i++) { q['y' + i] = 0.8 * (i + 1); q['x' + i] = Math.max(0, Math.min(20, q['x' + i])); } return q; },
+        handles: () => Array.from({ length: 7 }, (_, i) => ['x' + i, 'y' + i, 'cyan']),
+        calc(p) { const x = Array.from({ length: 7 }, (_, i) => p['x' + i]), m = x.reduce((a, b) => a + b, 0) / 7, v = x.reduce((s, a) => s + (a - m) ** 2, 0) / 7, md = x.reduce((s, a) => s + Math.abs(a - m), 0) / 7; return { x, m, v, sd: Math.sqrt(v), md, rg: Math.max(...x) - Math.min(...x) }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-1, 21, -1.4, 6.6], 30), fs = g.fs(W, H), k = this.calc(p);
+          c.fillStyle = C.violet + '22'; c.fillRect(V.X(k.m - k.sd), V.Y(6.3), 2 * k.sd * V.s, V.Y(0) - V.Y(6.3));
+          g.line(c, V.X(0), V.Y(0), V.X(20), V.Y(0), C.ink, 2.5);
+          for (let i = 0; i <= 20; i++) { g.line(c, V.X(i), V.Y(0) - 6, V.X(i), V.Y(0) + 6, C.dim, 1.5); if (i % 2 === 0) g.text(c, String(i), V.X(i), V.Y(0) + fs, C.dim, fs * 0.7, 'center', 'middle', 500, true); }
+          g.line(c, V.X(k.m), V.Y(6.3), V.X(k.m), V.Y(0), C.amber, 3);
+          k.x.forEach((x, i) => { const y = 0.8 * (i + 1), d = x - k.m; g.line(c, V.X(k.m), V.Y(y), V.X(x), V.Y(y), d < 0 ? C.coral : C.cyan, 5); g.text(c, (d >= 0 ? '+' : '') + N(d, 1), V.X(x) + (d >= 0 ? 26 : -26), V.Y(y), d < 0 ? C.coral : C.cyan, fs * 0.7, d >= 0 ? 'left' : 'right', 'middle', 600, true); g.line(c, V.X(x), V.Y(y), V.X(x), V.Y(0), C.dim + '', 1, [3, 5]); });
+          g.box(c, 'x̄ = ' + N(k.m), V.X(k.m), V.Y(6.3) - 4, C.amber, fs * 0.85); g.box(c, 'x̄ ± σ', V.X(k.m + k.sd), V.Y(6.3) + fs, C.violet, fs * 0.7, 'left');
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Data', v: [...k.x].sort((a, b) => a - b).map(v => N(v, 1)).join(', '), c: 'ink' }, { l: 'Mean x̄', v: N(k.m, 3), c: 'amber' }, { l: 'Mean deviation', v: N(k.md, 3), c: 'cyan' }, { l: 'Variance σ²', v: N(k.v, 3), c: 'coral' }, { l: 'SD σ', v: N(k.sd, 3), c: 'violet' }, { l: 'Range', v: N(k.rg, 1), c: 'ink' }]; },
+        result(p) { const k = this.calc(p); return 'x̄ = ' + N(k.m, 2) + ' · σ² = ' + N(k.v, 2) + ' · σ = ' + N(k.sd, 3); } },
+
+      { id: 'bayes', title: "Conditional Probability & Bayes' Theorem", topic: 'Statistics & Probability', grades: [12],
+        aim: "To find P(Disease | Positive test) using an area model and Bayes' theorem.",
+        equip: ['Unit-square area model', 'Probability tree', 'Population tokens'],
+        steps: ['Set the prevalence P(D), the sensitivity P(+|D) and the false-positive rate P(+|D′).', 'The square is split: widths are P(D) and P(D′); heights are chances of a positive test.', 'Positive results are the two shaded regions.', 'P(D|+) = shaded area inside D ÷ total shaded area.'],
+        concl: "P(D|+) = P(D)P(+|D) / [P(D)P(+|D) + P(D′)P(+|D′)] — for a rare condition most positives can be false.",
+        controls: [{ type: 'range', key: 'pD', label: 'Prevalence P(D)', min: 1, max: 50, step: 1, unit: ' %' }, { type: 'range', key: 'se', label: 'Sensitivity P(+|D)', min: 50, max: 100, step: 1, unit: ' %' }, { type: 'range', key: 'fp', label: 'False positive P(+|D′)', min: 0, max: 40, step: 1, unit: ' %' }],
+        init: { pD: 10, se: 90, fp: 10 },
+        calc(p) { const a = p.pD / 100 * p.se / 100, b = (1 - p.pD / 100) * p.fp / 100; return { a, b, post: a + b ? a / (a + b) : 0 }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), Sq = Math.min(W * 0.46, H * 0.78), x0 = 40, y0 = (H - Sq) / 2 + fs * 0.5, w1 = Sq * p.pD / 100;
+          c.fillStyle = C.soft; c.fillRect(x0, y0, Sq, Sq);
+          c.fillStyle = C.coral + 'cc'; c.fillRect(x0, y0 + Sq * (1 - p.se / 100), w1, Sq * p.se / 100);
+          c.fillStyle = C.amber + 'aa'; c.fillRect(x0 + w1, y0 + Sq * (1 - p.fp / 100), Sq - w1, Sq * p.fp / 100);
+          c.strokeStyle = C.ink; c.lineWidth = 2; c.strokeRect(x0, y0, Sq, Sq); g.line(c, x0 + w1, y0, x0 + w1, y0 + Sq, C.ink, 2);
+          g.text(c, 'D', x0 + w1 / 2, y0 - fs * 0.8, C.coral, fs, 'center', 'middle', 700); g.text(c, 'D′ (no disease)', x0 + w1 + (Sq - w1) / 2, y0 - fs * 0.8, C.amber, fs, 'center', 'middle', 700);
+          g.text(c, 'shaded = test positive', x0 + Sq / 2, y0 + Sq + fs, C.dim, fs * 0.75);
+          const tx = W * 0.56, ty = H * 0.5, nd = [[tx + W * 0.14, H * 0.28, 'D  ' + p.pD + '%', C.coral], [tx + W * 0.14, H * 0.72, 'D′  ' + (100 - p.pD) + '%', C.amber]];
+          g.dot(c, tx, ty, 7, C.ink);
+          nd.forEach(([x, y, l, col], i) => { g.line(c, tx, ty, x, y, col, 2.5); g.box(c, l, x, y, col, fs * 0.8); const pos = i ? p.fp : p.se; [[y - H * 0.1, '+  ' + pos + '%'], [y + H * 0.1, '−  ' + (100 - pos) + '%']].forEach(([yy, ll], j) => { g.line(c, x + 40, y, W - 120, yy, j ? C.dim : col, 2); g.text(c, ll, W - 112, yy, j ? C.dim : col, fs * 0.8, 'left', 'middle', 600, true); }); });
+          g.box(c, 'P(D | +) = ' + N(k.post * 100, 1) + '%', tx, H * 0.08, C.lime, fs * 1.1, 'left');
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'P(D ∩ +)', v: N(k.a, 4), c: 'coral' }, { l: 'P(D′ ∩ +)', v: N(k.b, 4), c: 'amber' }, { l: 'P(+)', v: N(k.a + k.b, 4), c: 'ink' }, { l: 'P(D | +)', v: N(k.post, 4), c: 'lime' }]; },
+        result(p) { return 'P(D|+) = ' + N(this.calc(p).post * 100, 1) + '%'; } },
+
+      { id: 'binom', title: 'Binomial Distribution', topic: 'Statistics & Probability', grades: [12],
+        aim: 'To study the binomial distribution B(n, p) and find P(X = k), its mean and variance.',
+        equip: ['Bernoulli trial simulator', 'Bar graph board'],
+        steps: ['Set n (number of trials) and p (probability of success).', 'Bars show P(X = k) = ⁿCₖ pᵏ qⁿ⁻ᵏ.', 'Pick k to highlight; read P(X = k) and P(X ≤ k).', 'Observe the mean np and the spread √(npq).'],
+        concl: 'For X ~ B(n, p): mean = np, variance = npq; the distribution is symmetric when p = ½.',
+        controls: [{ type: 'range', key: 'n', label: 'Trials n', min: 1, max: 30, step: 1 }, { type: 'range', key: 'p', label: 'Success probability p', min: 0.05, max: 0.95, step: 0.05 }, { type: 'range', key: 'k', label: 'k', min: 0, max: 30, step: 1 }],
+        init: { n: 10, p: 0.5, k: 5 },
+        fix: p => ({ ...p, k: Math.min(p.k, p.n) }),
+        pr: (n, p, k) => nCr(n, k) * p ** k * (1 - p) ** (n - k),
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), P = Array.from({ length: p.n + 1 }, (_, k) => this.pr(p.n, p.p, k)), ym = Math.max(...P) * 1.15, x0 = 70, x1 = W - 30, y0 = 50, y1 = H - 50, bw = (x1 - x0) / (p.n + 1), Y = v => y1 - v / ym * (y1 - y0);
+          axes(c, x0, x1, y0, y1, P.map((_, k) => [x0 + k * bw + bw / 2, (p.n > 20 && k % 2) ? '' : String(k)]), [0.25, 0.5, 0.75, 1].map(f => [Y(ym * f), N(ym * f, 3)]), fs);
+          P.forEach((v, k) => { c.fillStyle = k === p.k ? C.amber : k < p.k ? C.cyan + 'cc' : C.cyan + '55'; c.fillRect(x0 + k * bw + bw * 0.12, Y(v), bw * 0.76, y1 - Y(v)); });
+          const mx = x0 + p.n * p.p * bw + bw / 2; g.line(c, mx, y0, mx, y1, C.violet, 2.5, [8, 6]); g.box(c, 'mean np = ' + N(p.n * p.p), mx, y0 - 10, C.violet, fs * 0.8);
+          g.box(c, 'P(X = ' + p.k + ') = ' + N(P[p.k], 4), x0 + p.k * bw + bw / 2, Y(P[p.k]) - fs, C.amber, fs * 0.8);
+        },
+        read(p) { let cum = 0; for (let i = 0; i <= p.k; i++) cum += this.pr(p.n, p.p, i); return [{ l: 'P(X = ' + p.k + ')', v: N(this.pr(p.n, p.p, p.k), 4), c: 'amber' }, { l: 'P(X ≤ ' + p.k + ')', v: N(cum, 4), c: 'cyan' }, { l: 'Mean np', v: N(p.n * p.p, 3), c: 'violet' }, { l: 'Variance npq', v: N(p.n * p.p * (1 - p.p), 3), c: 'coral' }, { l: 'SD √npq', v: N(Math.sqrt(p.n * p.p * (1 - p.p)), 3), c: 'lime' }]; },
+        result(p) { return 'P(X = ' + p.k + ') = ' + nCr(p.n, p.k) + ' × ' + N(p.p) + sup(p.k) + ' × ' + N(1 - p.p) + sup(p.n - p.k) + ' = ' + N(this.pr(p.n, p.p, p.k), 4); } },
+
+      { id: 'pnc', title: 'Permutations & Combinations', topic: 'Algebra', grades: [11],
+        aim: 'To count arrangements (permutations) and selections (combinations) of r objects from n and see why ⁿPᵣ = ⁿCᵣ × r!.',
+        equip: ['Letter cards', 'Arrangement slots', 'Tree diagram'],
+        steps: ['Set n letters and r slots.', 'Fundamental principle: the first slot has n choices, the next n − 1, and so on.', 'Switch between permutations (order matters) and combinations (order ignored).', 'Each combination gives r! permutations.'],
+        concl: 'ⁿPᵣ = n!/(n − r)!, ⁿCᵣ = n!/[r!(n − r)!], so ⁿPᵣ = ⁿCᵣ × r!.',
+        controls: [{ type: 'select', key: 'mode', label: 'List', options: ['Permutations', 'Combinations'] }, { type: 'range', key: 'n', label: 'Objects n', min: 2, max: 7, step: 1 }, { type: 'range', key: 'r', label: 'Chosen r', min: 1, max: 7, step: 1 }],
+        init: { mode: 'Combinations', n: 5, r: 3 },
+        fix: p => ({ ...p, r: Math.min(p.r, p.n) }),
+        list(p) { const L = 'ABCDEFG'.slice(0, p.n).split(''), out = [], combo = (s, cur) => { if (cur.length === p.r) { out.push(cur.join('')); return; } for (let i = s; i < L.length; i++) combo(i + 1, cur.concat(L[i])); }, perm = (cur, used) => { if (out.length >= 600) return; if (cur.length === p.r) { out.push(cur.join('')); return; } L.forEach((l, i) => { if (!used[i]) { used[i] = 1; perm(cur.concat(l), used); used[i] = 0; } }); }; p.mode === 'Combinations' ? combo(0, []) : perm([], []); return out; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), sw = Math.min(90, (W - 100) / p.r - 12);
+          for (let i = 0; i < p.r; i++) { const x = 40 + i * (sw + 12); c.strokeStyle = C.cyan; c.lineWidth = 2.5; c.strokeRect(x, 30, sw, sw * 0.8); g.text(c, String(p.n - i), x + sw / 2, 30 + sw * 0.4, C.cyan, fs * 1.4, 'center', 'middle', 700, true); g.text(c, 'choices', x + sw / 2, 30 + sw * 0.8 + fs * 0.7, C.dim, fs * 0.6); }
+          const P = nCr(p.n, p.r) * [...Array(p.r)].reduce((s, _, i) => s * (i + 1), 1), Cn = nCr(p.n, p.r);
+          g.text(c, p.mode === 'Permutations' ? 'ⁿPᵣ = ' + [...Array(p.r)].map((_, i) => p.n - i).join(' × ') + ' = ' + P : 'ⁿCᵣ = ' + P + ' ÷ ' + p.r + '! = ' + Cn, 40, 30 + sw * 0.8 + fs * 2.2, C.amber, fs * 1.1, 'left', 'middle', 700, true);
+          const items = this.list(p), cy0 = 30 + sw * 0.8 + fs * 4, ch = fs * 1.9; c.font = '700 ' + Math.round(fs * 0.9) + 'px JetBrains Mono, monospace'; const cw = c.measureText('W'.repeat(p.r)).width + 18, per = Math.max(1, Math.floor((W - 60) / (cw + 8))), rows = Math.max(1, Math.floor((H - cy0 - 20) / (ch + 6))), max = per * rows, show = items.slice(0, items.length > max ? max - 1 : max);
+          show.forEach((s, i) => { const x = 40 + (i % per) * (cw + 8), y = cy0 + Math.floor(i / per) * (ch + 6); c.fillStyle = (p.mode === 'Permutations' ? C.violet : C.lime) + '33'; c.fillRect(x, y, cw, ch); g.text(c, s, x + cw / 2, y + ch / 2, C.ink, fs * 0.9, 'center', 'middle', 700, true); });
+          const total = p.mode === 'Permutations' ? P : Cn; if (total > show.length) { const i = show.length, x = 40 + (i % per) * (cw + 8), y = cy0 + Math.floor(i / per) * (ch + 6); g.text(c, '+' + (total - show.length) + ' more', x, y + ch / 2, C.dim, fs * 0.8, 'left'); }
+        },
+        read: p => { const f = [...Array(p.r)].reduce((s, _, i) => s * (i + 1), 1), C2 = nCr(p.n, p.r); return [{ l: 'ⁿPᵣ', v: C2 * f, c: 'violet' }, { l: 'ⁿCᵣ', v: C2, c: 'lime' }, { l: 'r!', v: f, c: 'cyan' }, { l: 'ⁿCᵣ × r!', v: C2 * f, c: 'amber' }]; },
+        result: p => { const f = [...Array(p.r)].reduce((s, _, i) => s * (i + 1), 1); return p.n + 'P' + p.r + ' = ' + nCr(p.n, p.r) * f + ' · ' + p.n + 'C' + p.r + ' = ' + nCr(p.n, p.r); } },
+
+      { id: 'pascal', title: "Pascal's Triangle & Binomial Theorem", topic: 'Algebra', grades: [11],
+        aim: "To build Pascal's triangle and use its rows as the coefficients in the expansion of (a + b)ⁿ.",
+        equip: ['Number tiles', 'Triangle grid', 'Colour markers'],
+        steps: ['Each number is the sum of the two numbers above it.', 'Choose the power n — the highlighted row gives the coefficients ⁿC₀, ⁿC₁, … ⁿCₙ.', 'Read the expansion of (a + b)ⁿ at the bottom.', 'Colour the odd numbers to discover a hidden pattern.'],
+        concl: '(a + b)ⁿ = Σ ⁿCᵣ aⁿ⁻ʳ bʳ; the row sum is 2ⁿ and the general term is Tᵣ₊₁ = ⁿCᵣ aⁿ⁻ʳ bʳ.',
+        controls: [{ type: 'range', key: 'n', label: 'Power n', min: 0, max: 12, step: 1 }, { type: 'toggle', key: 'odd', label: 'Colour odd numbers' }],
+        init: { n: 5, odd: false },
+        expand(n) { const t = []; for (let r = 0; r <= n; r++) { const co = nCr(n, r), a = n - r, b = r; t.push((co > 1 ? co : '') + (a ? 'a' + (a > 1 ? sup(a) : '') : '') + (b ? 'b' + (b > 1 ? sup(b) : '') : '')); } return t; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), rows = 13, cs = Math.min((W - 40) / (rows + 0.5), (H * 0.8) / rows), top = 20;
+          for (let r = 0; r < rows; r++) for (let k = 0; k <= r; k++) { const v = nCr(r, k), x = W / 2 + (k - r / 2) * cs, y = top + r * cs * 0.88 + cs / 2, on = r === p.n; g.dot(c, x, y, cs * 0.46, p.odd ? (v % 2 ? C.amber + 'cc' : C.soft) : on ? C.lime + '88' : C.soft, on ? C.lime : null, 2); g.text(c, String(v), x, y, C.ink, Math.min(cs * 0.42, cs * 1.4 / String(v).length), 'center', 'middle', on ? 700 : 500, true); }
+          const t = this.expand(p.n), s = '(a + b)' + sup(p.n) + ' = ' + (p.n <= 7 ? t.join(' + ') : t.slice(0, 3).join(' + ') + ' + … + ' + t[t.length - 1]);
+          g.box(c, s, W / 2, H - fs * 1.4, C.lime, Math.min(fs * 1.1, (W - 60) / (s.length * 0.62)));
+        },
+        read: p => [{ l: 'Row ' + p.n, v: Array.from({ length: p.n + 1 }, (_, k) => nCr(p.n, k)).join(' '), c: 'lime' }, { l: 'Row sum', v: 2 ** p.n + ' = 2' + sup(p.n), c: 'amber' }, { l: 'Number of terms', v: p.n + 1, c: 'cyan' }, { l: 'Middle coefficient', v: p.n % 2 ? nCr(p.n, (p.n - 1) / 2) + ', ' + nCr(p.n, (p.n + 1) / 2) : nCr(p.n, p.n / 2), c: 'violet' }],
+        result: p => 'Σ ' + p.n + 'Cᵣ = 2' + sup(p.n) + ' = ' + 2 ** p.n },
+
+      { id: 'gp', title: 'Geometric Progression & Sum to Infinity', topic: 'Algebra', grades: [11],
+        aim: 'To study the terms and partial sums of a GP and see when the sum to infinity exists.',
+        equip: ['Term bars', 'Graph sheet', 'Paper halving model'],
+        steps: ['Set the first term a, the common ratio r and the number of terms n.', 'Amber bars show the terms; the cyan line shows the partial sums Sₙ.', 'For |r| < 1 the partial sums approach a/(1 − r) (green line).', 'Try r > 1 and r < 0 to see growth and oscillation.'],
+        concl: 'aₙ = arⁿ⁻¹, Sₙ = a(1 − rⁿ)/(1 − r); when |r| < 1, S∞ = a/(1 − r).',
+        controls: [{ type: 'range', key: 'a', label: 'First term a', min: 1, max: 10, step: 0.5 }, { type: 'range', key: 'r', label: 'Common ratio r', min: -0.9, max: 1.5, step: 0.05 }, { type: 'range', key: 'n', label: 'Terms n', min: 1, max: 20, step: 1 }],
+        init: { a: 8, r: 0.5, n: 8 },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), T = Array.from({ length: p.n }, (_, k) => p.a * p.r ** k), Sv = []; T.reduce((s, v, i) => (Sv[i] = s + v), 0);
+          const inf = Math.abs(p.r) < 1 ? p.a / (1 - p.r) : null, vals = T.concat(Sv, inf !== null ? [inf] : [], [0]), ymax = Math.max(...vals) * 1.1, ymin = Math.min(...vals) * 1.1, x0 = 80, x1 = W - 30, y0 = 50, y1 = H - 50, bw = (x1 - x0) / p.n, Y = v => y1 - (v - ymin) / (ymax - ymin || 1) * (y1 - y0);
+          axes(c, x0, x1, y0, y1, T.map((_, k) => [x0 + k * bw + bw / 2, p.n > 12 && k % 2 ? '' : String(k + 1)]), [0, 0.25, 0.5, 0.75, 1].map(f => [Y(ymin + (ymax - ymin) * f), N(ymin + (ymax - ymin) * f, 1)]), fs);
+          g.line(c, x0, Y(0), x1, Y(0), C.axis, 2);
+          T.forEach((v, k) => { c.fillStyle = C.amber + 'bb'; c.fillRect(x0 + k * bw + bw * 0.2, Math.min(Y(v), Y(0)), bw * 0.6, Math.abs(Y(v) - Y(0))); });
+          if (inf !== null) { g.line(c, x0, Y(inf), x1, Y(inf), C.lime, 2.5, [10, 6]); g.box(c, 'S∞ = ' + N(inf, 3), x1, Y(inf) - fs, C.lime, fs * 0.8, 'right'); }
+          c.strokeStyle = C.cyan; c.lineWidth = 3; c.beginPath(); Sv.forEach((v, k) => { const q = [x0 + k * bw + bw / 2, Y(v)]; k ? c.lineTo(...q) : c.moveTo(...q); }); c.stroke(); Sv.forEach((v, k) => g.dot(c, x0 + k * bw + bw / 2, Y(v), 5, C.cyan));
+          g.box(c, 'a = ' + p.a + ', r = ' + N(p.r), 20, 24, C.amber, fs * 0.85, 'left');
+        },
+        read: p => { const an = p.a * p.r ** (p.n - 1), Sn = Math.abs(p.r - 1) < 1e-9 ? p.n * p.a : p.a * (1 - p.r ** p.n) / (1 - p.r); return [{ l: 'aₙ', v: N(an, 4), c: 'amber' }, { l: 'Sₙ', v: N(Sn, 4), c: 'cyan' }, { l: 'S∞', v: Math.abs(p.r) < 1 ? N(p.a / (1 - p.r), 4) : 'does not exist', c: 'lime' }, { l: 'Behaviour', v: Math.abs(p.r) < 1 ? 'converges' : 'diverges', c: 'ink' }]; },
+        result: p => Math.abs(p.r) < 1 ? 'S∞ = ' + p.a + ' / (1 − ' + N(p.r) + ') = ' + N(p.a / (1 - p.r), 4) : '|r| ≥ 1 — no sum to infinity' },
+
+      { id: 'sline', title: 'Slope & Equation of a Straight Line', topic: 'Coordinate Geometry', grades: [11],
+        aim: 'To find the slope, angle of inclination and different forms of the equation of a line, and lines parallel and perpendicular to it.',
+        equip: ['Graph sheet', 'Ruler', 'Protractor', 'Set square'],
+        steps: ['Drag A and B to define the line.', 'Read the rise and run: slope m = (y₂ − y₁)/(x₂ − x₁) = tan θ.', 'Compare the slope-intercept form y = mx + c and the general form ax + by + c = 0.', 'Turn on parallel/perpendicular lines through P: slopes m and −1/m.'],
+        concl: 'Parallel lines have equal slopes; perpendicular lines have m₁ × m₂ = −1.',
+        controls: [{ type: 'toggle', key: 'pp', label: 'Parallel & perpendicular through P' }], snap: 0.5,
+        init: { Ax: -4, Ay: -2, Bx: 3, By: 2, Px: -2, Py: 4, pp: true },
+        handles: p => [['Ax', 'Ay', 'coral'], ['Bx', 'By', 'cyan']].concat(p.pp ? [['Px', 'Py', 'amber']] : []),
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-8, 8, -6, 6], 24), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          const dx = p.Bx - p.Ax, dy = p.By - p.Ay, Ln = (x, y, ux, uy, col, w, dash) => { const L = Math.hypot(ux, uy) || 1; g.line(c, ...S(V, x - ux / L * 40, y - uy / L * 40), ...S(V, x + ux / L * 40, y + uy / L * 40), col, w, dash); };
+          Ln(p.Ax, p.Ay, dx, dy, C.lime, 4);
+          if (dx && dy) { g.line(c, ...S(V, p.Ax, p.Ay), ...S(V, p.Bx, p.Ay), C.coral, 2.5, [6, 5]); g.line(c, ...S(V, p.Bx, p.Ay), ...S(V, p.Bx, p.By), C.cyan, 2.5, [6, 5]); g.label(c, V, (p.Ax + p.Bx) / 2, p.Ay, 'run ' + N(dx), C.coral, fs, 0, dy > 0 ? 20 : -20); g.label(c, V, p.Bx, (p.Ay + p.By) / 2, 'rise ' + N(dy), C.cyan, fs, dx > 0 ? 46 : -46, 0); }
+          if (dy && dx) { const xi = p.Ax - p.Ay * dx / dy; if (Math.abs(xi) < 8) g.arcW(c, S(V, xi, 0), Math.min(40, V.s), 0, ((Math.atan2(dy, dx) % Math.PI) + Math.PI) % Math.PI, C.violet, 'θ', fs); }
+          if (p.pp) { Ln(p.Px, p.Py, dx, dy, C.amber, 2.5, [10, 6]); Ln(p.Px, p.Py, -dy, dx, C.violet, 2.5, [10, 6]); g.label(c, V, p.Px, p.Py, 'P', C.amber, fs, 22, -22); }
+          return V;
+        },
+        read: p => { const dx = p.Bx - p.Ax, dy = p.By - p.Ay, a = dy, b = -dx, k = a * p.Ax + b * p.Ay; if (!dx) return [{ l: 'Slope', v: 'undefined (vertical)', c: 'lime' }, { l: 'Equation', v: 'x = ' + N(p.Ax), c: 'amber' }]; const m = dy / dx, ci = p.Ay - m * p.Ax; return [{ l: 'Slope m', v: N(m, 3), c: 'lime' }, { l: 'Inclination θ', v: N(((Math.atan(m) / D) + 180) % 180, 1) + '°', c: 'violet' }, { l: 'y-intercept c', v: N(ci, 3), c: 'cyan' }, { l: 'y = mx + c', v: 'y = ' + N(m, 3) + 'x ' + (ci < 0 ? '− ' : '+ ') + N(Math.abs(ci), 3), c: 'amber' }, { l: 'General form', v: eq(a, b, k), c: 'ink' }, { l: '⟂ slope', v: m ? N(-1 / m, 3) : 'undefined', c: 'violet' }]; },
+        result: p => { const dx = p.Bx - p.Ax, dy = p.By - p.Ay; return dx ? 'm = ' + N(dy) + ' / ' + N(dx) + ' = ' + N(dy / dx, 3) : 'Vertical line: slope undefined'; } },
+
+      { id: 'func', title: 'Functions — Domain, Range & Graph Transformations', topic: 'Sets & Functions', grades: [11],
+        aim: 'To study the graphs of standard functions and how y = a·f(x − h) + k stretches, reflects and shifts them; to read domain and range.',
+        equip: ['Graph plotter', 'Transparency sheet', 'Function cards'],
+        steps: ['Choose a parent function f(x) (dashed).', 'Change a to stretch or reflect, h to shift right/left and k to shift up/down.', 'Observe how the key point moves from (0, 0) to (h, k).', 'Read the domain and range of the new function.'],
+        concl: 'y = a f(x − h) + k: |a| stretches, a < 0 reflects in the x-axis, h shifts horizontally and k vertically.',
+        controls: [{ type: 'select', key: 'f', label: 'Parent function', options: ['x²', '|x|', '√x', '1/x', 'x³', '[x]'] }, { type: 'range', key: 'a', label: 'a (stretch / reflect)', min: -3, max: 3, step: 0.5 }, { type: 'range', key: 'h', label: 'h (shift right)', min: -5, max: 5, step: 0.5 }, { type: 'range', key: 'k', label: 'k (shift up)', min: -5, max: 5, step: 0.5 }],
+        init: { f: 'x²', a: 1, h: 2, k: -1 },
+        F: { 'x²': x => x * x, '|x|': Math.abs, '√x': x => x >= 0 ? Math.sqrt(x) : NaN, '1/x': x => Math.abs(x) < 1e-9 ? NaN : 1 / x, 'x³': x => x ** 3, '[x]': Math.floor },
+        eqs(p) { const raw = p.h ? 'x ' + (p.h > 0 ? '− ' : '+ ') + N(Math.abs(p.h)) : 'x', inn = p.h ? '(' + raw + ')' : 'x', as = p.a === 1 ? '' : p.a === -1 ? '−' : N(p.a), body = { 'x²': as + inn + '²', '|x|': as + '|' + raw + '|', '√x': as + '√' + inn, '1/x': (p.a === 1 ? '1' : N(p.a)) + '/' + inn, 'x³': as + inn + '³', '[x]': as + '[' + raw + ']' }[p.f]; return 'y = ' + (p.a === 0 ? '0' : body) + (p.k ? (p.k > 0 ? ' + ' : ' − ') + N(Math.abs(p.k)) : ''); },
+        dr(p) { const a = p.a, k = N(p.k), h = N(p.h); if (a === 0) return ['ℝ', '{' + k + '}']; const up = a > 0; return { 'x²': ['ℝ', up ? '[' + k + ', ∞)' : '(−∞, ' + k + ']'], '|x|': ['ℝ', up ? '[' + k + ', ∞)' : '(−∞, ' + k + ']'], '√x': ['[' + h + ', ∞)', up ? '[' + k + ', ∞)' : '(−∞, ' + k + ']'], '1/x': ['ℝ − {' + h + '}', 'ℝ − {' + k + '}'], 'x³': ['ℝ', 'ℝ'], '[x]': ['ℝ', '{' + (a === 1 ? '' : N(a)) + 'n' + (p.k ? (p.k > 0 ? ' + ' : ' − ') + N(Math.abs(p.k)) : '') + ' : n ∈ ℤ}'] }[p.f]; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-8, 8, -6, 6], 24), fs = g.fs(W, H), f = this.F[p.f]; g.grid(c, V, W, H, 1, true, fs);
+          g.plotB(c, V, W, H, f, C.dim, 2.5, [8, 6]); g.plotB(c, V, W, H, x => p.a * f(x - p.h) + p.k, C.amber, 4);
+          if (p.f !== '1/x') { g.dot(c, ...S(V, p.h, p.k), 9, C.lime, C.bg, 2.5); g.label(c, V, p.h, p.k, '(' + N(p.h) + ', ' + N(p.k) + ')', C.lime, fs, 0, 28); } else { g.line(c, V.X(p.h), 0, V.X(p.h), H, C.violet, 2, [5, 5]); g.line(c, 0, V.Y(p.k), W, V.Y(p.k), C.violet, 2, [5, 5]); }
+          g.box(c, this.eqs(p), 20, 30, C.amber, fs * 1.05, 'left'); g.box(c, 'parent: y = ' + p.f, 20, 30 + fs * 2, C.dim, fs * 0.8, 'left');
+          return V;
+        },
+        read(p) { const [d, r] = this.dr(p); return [{ l: 'Equation', v: this.eqs(p), c: 'amber' }, { l: 'Domain', v: d, c: 'cyan' }, { l: 'Range', v: r, c: 'lime' }, { l: 'Transform', v: (p.a < 0 ? 'reflect, ' : '') + 'stretch ×' + N(Math.abs(p.a)) + ', shift (' + N(p.h) + ', ' + N(p.k) + ')', c: 'ink' }]; },
+        result(p) { const [d, r] = this.dr(p); return this.eqs(p) + ' · D: ' + d + ' · R: ' + r; } },
+
+      { id: 'trigT', title: 'Trigonometric Graphs — Amplitude, Period & Phase', topic: 'Trigonometry', grades: [11],
+        aim: 'To study the graph of y = A sin(Bx + C) + D and find its amplitude, period, phase shift and range.',
+        equip: ['Graph plotter', 'Radian ruler', 'Wave tracer'],
+        steps: ['Choose sin or cos; the dashed curve is the basic graph.', 'Change A to stretch vertically, B to change the period, C to shift sideways and D to lift the curve.', 'The bracket shows one full period 2π/B.', 'Read amplitude, period, phase shift and range.'],
+        concl: 'For y = A sin(Bx + C) + D: amplitude |A|, period 2π/|B|, phase shift −C/B, range [D − |A|, D + |A|].',
+        controls: [{ type: 'select', key: 'fn', label: 'Function', options: ['sin', 'cos'] }, { type: 'range', key: 'A', label: 'Amplitude A', min: 0.5, max: 3, step: 0.5 }, { type: 'range', key: 'B', label: 'B (frequency)', min: 0.5, max: 4, step: 0.5 }, { type: 'range', key: 'C', label: 'C (phase)', min: -180, max: 180, step: 15, unit: '°' }, { type: 'range', key: 'Dv', label: 'D (vertical shift)', min: -2, max: 2, step: 0.5 }],
+        init: { fn: 'sin', A: 2, B: 2, C: 0, Dv: 0 },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-2 * Math.PI, 2 * Math.PI, -5, 5], 30), fs = g.fs(W, H), f = p.fn === 'sin' ? Math.sin : Math.cos, Cr = p.C * D;
+          for (let k = -4; k <= 4; k++) { const x = k * Math.PI / 2; g.line(c, V.X(x), 0, V.X(x), H, k ? C.grid : C.axis, k ? 1 : 2); if (k) g.text(c, (k % 2 === 0 ? (k / 2 === 1 ? '' : k / 2 === -1 ? '−' : N(k / 2)) + 'π' : (k < 0 ? '−' : '') + (Math.abs(k) === 1 ? '' : Math.abs(k)) + 'π/2'), V.X(x), V.Y(0) + fs, C.dim, fs * 0.65, 'center', 'middle', 500, true); }
+          for (let y = -4; y <= 4; y++) { g.line(c, 0, V.Y(y), W, V.Y(y), y ? C.grid : C.axis, y ? 1 : 2); if (y) g.text(c, String(y), V.X(0) - 6, V.Y(y), C.dim, fs * 0.65, 'right', 'middle', 500, true); }
+          g.plotB(c, V, W, H, f, C.dim, 2, [8, 6]);
+          [p.Dv + p.A, p.Dv - p.A].forEach(y => g.line(c, 0, V.Y(y), W, V.Y(y), C.violet + '88', 1.5, [4, 6]));
+          g.plotB(c, V, W, H, x => p.A * f(p.B * x + Cr) + p.Dv, C.amber, 4);
+          const x0 = -Cr / p.B, per = 2 * Math.PI / p.B, yb = Math.min(4.6, p.Dv + p.A + 0.6); g.line(c, V.X(x0), V.Y(yb), V.X(x0 + per), V.Y(yb), C.lime, 2.5); g.head(c, V.X(x0) + 10, V.Y(yb), V.X(x0), V.Y(yb), C.lime); g.head(c, V.X(x0 + per) - 10, V.Y(yb), V.X(x0 + per), V.Y(yb), C.lime); g.box(c, 'period ' + piS(per), V.X(x0 + per / 2), V.Y(yb) - fs, C.lime, fs * 0.8);
+          g.box(c, 'y = ' + N(p.A) + ' ' + p.fn + '(' + N(p.B) + 'x ' + (Cr < 0 ? '− ' : '+ ') + piS(Math.abs(Cr)) + ') ' + (p.Dv < 0 ? '− ' : '+ ') + N(Math.abs(p.Dv)), 20, 30, C.amber, fs, 'left');
+        },
+        read: p => [{ l: 'Amplitude', v: N(p.A), c: 'violet' }, { l: 'Period 2π/B', v: piS(2 * Math.PI / p.B), c: 'lime' }, { l: 'Phase shift −C/B', v: piS(-p.C * D / p.B), c: 'cyan' }, { l: 'Range', v: '[' + N(p.Dv - p.A) + ', ' + N(p.Dv + p.A) + ']', c: 'amber' }],
+        result: p => 'Amplitude ' + N(p.A) + ' · Period ' + piS(2 * Math.PI / p.B) + ' · Range [' + N(p.Dv - p.A) + ', ' + N(p.Dv + p.A) + ']' },
+
+      { id: 'invtrig', title: 'Inverse Trigonometric Functions', topic: 'Trigonometry', grades: [12],
+        aim: 'To obtain the graphs of sin⁻¹x, cos⁻¹x and tan⁻¹x by reflecting the principal branch of the trigonometric graph in the line y = x.',
+        equip: ['Graph plotter', 'Mirror (line y = x)', 'Unit circle'],
+        steps: ['Choose a function. The faint curve is the full trigonometric graph.', 'The cyan part is the principal branch where the function is one-one and onto.', 'Reflect it in y = x to get the inverse function (coral).', 'Move x and read the principal value f⁻¹(x).'],
+        concl: 'sin⁻¹: [−1, 1] → [−π/2, π/2], cos⁻¹: [−1, 1] → [0, π], tan⁻¹: ℝ → (−π/2, π/2); the graphs of f and f⁻¹ are mirror images in y = x.',
+        controls: [{ type: 'select', key: 'fn', label: 'Function', options: ['sin⁻¹', 'cos⁻¹', 'tan⁻¹'] }, { type: 'range', key: 'x', label: 'x', min: -4, max: 4, step: 0.05 }, { type: 'toggle', key: 'mir', label: 'Show mirror line y = x' }],
+        init: { fn: 'sin⁻¹', x: 0.5, mir: true },
+        fix: p => p.fn === 'tan⁻¹' ? p : { ...p, x: Math.max(-1, Math.min(1, p.x)) },
+        T: { 'sin⁻¹': [Math.sin, Math.asin, -Math.PI / 2, Math.PI / 2, '[−1, 1]', '[−π/2, π/2]'], 'cos⁻¹': [Math.cos, Math.acos, 0, Math.PI, '[−1, 1]', '[0, π]'], 'tan⁻¹': [Math.tan, Math.atan, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02, 'ℝ', '(−π/2, π/2)'] },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-4.5, 4.5, -3.6, 3.6], 24), fs = g.fs(W, H), [f, fi, lo, hi] = this.T[p.fn]; g.grid(c, V, W, H, 1, true, fs);
+          if (p.mir) g.line(c, ...S(V, -5, -5), ...S(V, 5, 5), C.violet, 2, [10, 6]);
+          g.plotB(c, V, W, H, f, C.dim, 1.5);
+          const br = (sw, col) => { c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); let pen = false; for (let i = 0; i <= 300; i++) { const t = lo + (hi - lo) * i / 300, v = f(t), q = sw ? [v, t] : [t, v]; if (Math.abs(q[0]) > 5 || Math.abs(q[1]) > 5) { pen = false; continue; } pen ? c.lineTo(...S(V, ...q)) : c.moveTo(...S(V, ...q)); pen = true; } c.stroke(); };
+          br(false, C.cyan); br(true, C.coral);
+          const y = fi(p.x); g.line(c, ...S(V, p.x, y), ...S(V, y, p.x), C.dim, 1.5, [4, 5]); g.dot(c, ...S(V, p.x, y), 9, C.coral, C.bg, 2.5); g.dot(c, ...S(V, y, p.x), 7, C.cyan);
+          g.label(c, V, p.x, y, p.fn + '(' + N(p.x) + ') = ' + N(y, 3), C.coral, fs, 0, -28);
+          return V;
+        },
+        read(p) { const [f, fi, , , dm, rg] = this.T[p.fn], y = fi(p.x); return [{ l: 'Domain', v: dm, c: 'cyan' }, { l: 'Principal range', v: rg, c: 'coral' }, { l: p.fn + '(' + N(p.x) + ')', v: N(y, 4) + ' rad', c: 'lime' }, { l: 'In degrees', v: N(y / D, 2) + '°', c: 'amber' }, { l: 'Check f(f⁻¹(x))', v: N(f(y), 3), c: 'ink' }]; },
+        result(p) { const y = this.T[p.fn][1](p.x); return p.fn + '(' + N(p.x) + ') = ' + N(y, 4) + ' rad = ' + N(y / D, 2) + '°'; } },
+
+      { id: 'onto', title: 'Relations & Functions — One-one and Onto', topic: 'Sets & Functions', grades: [11, 12],
+        aim: 'To classify a relation as a function, one-one (injective), onto (surjective) or bijective using arrow diagrams and the horizontal line test.',
+        equip: ['Arrow diagram board', 'Graph plotter', 'Horizontal ruler'],
+        steps: ['Choose a relation from A to B and study its arrow diagram.', 'Function: every element of A has exactly one image. One-one: no two arrows meet. Onto: every element of B is hit.', 'Choose a real function and slide the horizontal line y = k.', 'If some horizontal line cuts the graph more than once, it is not one-one.'],
+        concl: 'A bijection is both one-one and onto and only bijections have inverses. Horizontal line test: at most one intersection ⇔ one-one.',
+        controls: [{ type: 'select', key: 'rel', label: 'Arrow diagram', options: ['One-one, not onto', 'Onto, not one-one', 'Bijective', 'Neither', 'Not a function'] }, { type: 'select', key: 'gf', label: 'Real function', options: ['x³', 'x²', 'eˣ', 'sin x'] }, { type: 'range', key: 'k', label: 'Horizontal line y = k', min: -3, max: 3, step: 0.1 }],
+        init: { rel: 'Onto, not one-one', gf: 'x²', k: 1.5 },
+        REL: { 'One-one, not onto': [3, 4, [[0, 0], [1, 1], [2, 2]]], 'Onto, not one-one': [4, 3, [[0, 0], [1, 1], [2, 2], [3, 2]]], 'Bijective': [4, 4, [[0, 1], [1, 3], [2, 0], [3, 2]]], 'Neither': [3, 3, [[0, 0], [1, 0], [2, 1]]], 'Not a function': [3, 3, [[0, 0], [0, 1], [1, 2]]] },
+        G: { 'x³': [x => x ** 3, true, true], 'x²': [x => x * x, false, false], 'eˣ': [Math.exp, true, false], 'sin x': [Math.sin, false, false] },
+        an(p) { const [na, nb, m] = this.REL[p.rel], cnt = Array(na).fill(0), hit = Array(nb).fill(0); m.forEach(([a, b]) => { cnt[a]++; hit[b]++; }); const fn = cnt.every(v => v === 1); return { fn, one: fn && hit.every(v => v <= 1), onto: fn && hit.every(v => v >= 1) }; },
+        roots(p) { const f = this.G[p.gf][0], r = []; let px = -3.5, pv = f(px) - p.k; for (let i = 1; i <= 1400; i++) { const x = -3.5 + 7 * i / 1400, v = f(x) - p.k; if (v === 0 || pv * v < 0) r.push(px + (x - px) * Math.abs(pv) / (Math.abs(pv) + Math.abs(v) || 1)); px = x; pv = v; } return r; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), [na, nb, m] = this.REL[p.rel], k = this.an(p), lw = W * 0.42, xa = lw * 0.25, xb = lw * 0.78, cy = H * 0.52, gap = Math.min(H * 0.14, 70), pos = (n, i) => cy + (i - (n - 1) / 2) * gap;
+          [[xa, na, 'A', C.coral, i => String(i + 1)], [xb, nb, 'B', C.cyan, i => 'abcd'[i]]].forEach(([x, n, nm, col, lab]) => { c.beginPath(); c.ellipse(x, cy, lw * 0.13, gap * n / 2 + 26, 0, 0, 2 * Math.PI); c.fillStyle = col + '1e'; c.fill(); c.strokeStyle = col; c.lineWidth = 2.5; c.stroke(); g.text(c, nm, x, cy - gap * n / 2 - 44, col, fs * 1.1, 'center', 'middle', 700); for (let i = 0; i < n; i++) { g.dot(c, x, pos(n, i), 6, col); g.text(c, lab(i), x + (nm === 'A' ? -20 : 20), pos(n, i), C.ink, fs, 'center', 'middle', 700); } });
+          m.forEach(([a, b]) => g.arrow(c, xa + 10, pos(na, a), xb - 12, pos(nb, b), C.amber, 2.5));
+          g.box(c, k.fn ? (k.one && k.onto ? 'Bijective' : k.one ? 'One-one, not onto' : k.onto ? 'Onto, not one-one' : 'Neither one-one nor onto') : 'Not a function', lw / 2, 30, k.fn ? C.lime : C.coral, fs * 0.9);
+          g.line(c, lw + 6, 20, lw + 6, H - 20, C.grid, 2);
+          const x0 = lw + 14, Vg = g.sub(x0, 0, W - x0, H, [-3.5, 3.5, -3.5, 3.5], 24), f = this.G[p.gf][0];
+          c.save(); c.beginPath(); c.rect(x0, 0, W - x0, H); c.clip(); g.grid(c, Vg, W, H, 1, true, fs); g.plotB(c, Vg, W, H, f, C.amber, 3.5); g.line(c, x0, Vg.Y(p.k), W, Vg.Y(p.k), C.coral, 2.5, [10, 6]); this.roots(p).forEach(x => g.dot(c, Vg.X(x), Vg.Y(p.k), 8, C.lime, C.bg, 2)); c.restore();
+          g.box(c, 'f(x) = ' + p.gf + ' · ' + this.roots(p).length + ' intersection(s)', x0 + 10, 30, C.amber, fs * 0.85, 'left');
+        },
+        read(p) { const k = this.an(p), [, o1, o2] = this.G[p.gf]; return [{ l: 'Is a function?', v: k.fn ? 'Yes' : 'No', c: 'ink' }, { l: 'One-one?', v: k.one ? 'Yes' : 'No', c: 'coral' }, { l: 'Onto?', v: k.onto ? 'Yes' : 'No', c: 'cyan' }, { l: p.gf + ' one-one on ℝ?', v: o1 ? 'Yes' : 'No', c: 'amber' }, { l: p.gf + ' onto ℝ?', v: o2 ? 'Yes' : 'No', c: 'lime' }]; },
+        result(p) { const [, o1, o2] = this.G[p.gf]; return 'f(x) = ' + p.gf + ' on ℝ → ℝ is ' + (o1 && o2 ? 'bijective' : o1 ? 'one-one, not onto' : 'not one-one'); } },
+
+      { id: 'cont', title: 'Continuity & Differentiability', topic: 'Calculus', grades: [12],
+        aim: 'To test a function for continuity and differentiability at a point by comparing left and right limits and derivatives, and by zooming in.',
+        equip: ['Graph plotter', 'Zoom lens', 'Tangent ruler'],
+        steps: ['Choose a function and the point x = a.', 'Compare the left-hand limit, right-hand limit and f(a).', 'Compare the left and right derivatives (coral and cyan tangents).', 'Zoom in: a differentiable curve looks like a straight line; a corner stays a corner.'],
+        concl: 'f is continuous at a if LHL = RHL = f(a); differentiable if the left and right derivatives are equal and finite. Differentiable ⇒ continuous, but not conversely.',
+        controls: [{ type: 'select', key: 'fn', label: 'Function', options: ['|x| at x = 0', 'x² at x = 1', '[x] at x = 1', '(x² − 1)/(x − 1) at x = 1', '∛x at x = 0'] }, { type: 'range', key: 'z', label: 'Zoom', min: 1, max: 40, step: 1, unit: '×' }],
+        init: { fn: '|x| at x = 0', z: 1 },
+        CF: { '|x| at x = 0': [Math.abs, 0, 0, 0, 0, -1, 1, 'corner'], 'x² at x = 1': [x => x * x, 1, 1, 1, 1, 2, 2, 'smooth'], '[x] at x = 1': [Math.floor, 1, 0, 1, 1, 0, 0, 'jump'], '(x² − 1)/(x − 1) at x = 1': [x => Math.abs(x - 1) < 1e-9 ? NaN : (x * x - 1) / (x - 1), 1, 2, 2, NaN, 1, 1, 'removable'], '∛x at x = 0': [Math.cbrt, 0, 0, 0, 0, Infinity, Infinity, 'vertical tangent'] },
+        st(p) { const [, a, L, R, v, dl, dr, kind] = this.CF[p.fn], cont = L === R && L === v, diff = cont && dl === dr && isFinite(dl); return { a, L, R, v, dl, dr, kind, cont, diff }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.st(p), f = this.CF[p.fn][0], hw = 3 / p.z, cy = (k.L + k.R) / 2, V = g.view(W, H, [k.a - hw, k.a + hw, cy - hw * 0.75, cy + hw * 0.75], 30); g.grid(c, V, W, H, nice(hw / 3), true, fs);
+          if (k.cont) { if (isFinite(k.dl)) { g.line(c, ...S(V, k.a - hw, k.v - k.dl * hw), ...S(V, k.a, k.v), C.coral, 2.5, [8, 6]); g.line(c, ...S(V, k.a, k.v), ...S(V, k.a + hw, k.v + k.dr * hw), C.cyan, 2.5, [8, 6]); } else g.line(c, V.X(k.a), 0, V.X(k.a), H, C.lime, 2.5, [8, 6]); }
+          g.plotB(c, V, W, H, f, C.amber, 4);
+          const open = (y) => g.dot(c, ...S(V, k.a, y), 8, C.bg, C.amber, 3), fill = (y) => g.dot(c, ...S(V, k.a, y), 8, C.amber);
+          if (k.L !== k.R) { [k.L, k.R].forEach(y => y === k.v ? fill(y) : open(y)); } else if (!k.cont) open(k.L); else fill(k.v);
+          g.box(c, p.fn + ' · ' + k.kind, 20, 30, C.amber, fs, 'left');
+          return null;
+        },
+        read(p) { const k = this.st(p), d = v => isFinite(v) ? N(v) : '∞'; return [{ l: 'LHL', v: N(k.L), c: 'coral' }, { l: 'RHL', v: N(k.R), c: 'cyan' }, { l: 'f(a)', v: isNaN(k.v) ? 'undefined' : N(k.v), c: 'amber' }, { l: 'Continuous?', v: k.cont ? 'Yes' : 'No', c: 'lime' }, { l: "L f′ / R f′", v: k.cont ? d(k.dl) + ' / ' + d(k.dr) : '—', c: 'violet' }, { l: 'Differentiable?', v: k.diff ? 'Yes' : 'No', c: 'lime' }]; },
+        result(p) { const k = this.st(p); return (k.cont ? 'Continuous' : 'Discontinuous (' + k.kind + ')') + ' · ' + (k.diff ? 'differentiable' : 'not differentiable') + ' at x = ' + k.a; } },
+
+      { id: 'mono', title: 'Increasing, Decreasing & Maxima/Minima', topic: 'Calculus', grades: [12],
+        aim: 'To find the intervals where a function increases or decreases and locate its local maxima and minima using f′(x).',
+        equip: ['Graph plotter', 'Tangent ruler', 'Sign chart'],
+        steps: ['Set p and q in f(x) = x³ + px² + qx.', 'The curve is green where f′(x) > 0 (increasing) and coral where f′(x) < 0 (decreasing).', 'At critical points f′(x) = 0; use the sign change or f″ to classify them.', 'Move x₀ to see the tangent slope at any point.'],
+        concl: 'f′ > 0 ⇒ increasing, f′ < 0 ⇒ decreasing. At f′(c) = 0: f″(c) < 0 ⇒ local maximum, f″(c) > 0 ⇒ local minimum.',
+        controls: [{ type: 'range', key: 'p', label: 'p', min: -4, max: 4, step: 0.5 }, { type: 'range', key: 'q', label: 'q', min: -6, max: 6, step: 0.5 }, { type: 'range', key: 'x0', label: 'Tangent at x₀', min: -4, max: 4, step: 0.1 }, { type: 'toggle', key: 'dg', label: "Show f′(x)" }],
+        init: { p: 0, q: -3, x0: 1.5, dg: true },
+        crit(p) { const d = 4 * p.p * p.p - 12 * p.q; if (d < 0) return []; const s = Math.sqrt(d); return [(-2 * p.p - s) / 6, (-2 * p.p + s) / 6].filter((v, i, a) => i === 0 || Math.abs(v - a[0]) > 1e-9); },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-5, 5, -8, 8], 24), fs = g.fs(W, H), f = x => x ** 3 + p.p * x * x + p.q * x, df = x => 3 * x * x + 2 * p.p * x + p.q; g.grid(c, V, W, H, 1, true, fs);
+          if (p.dg) g.plotB(c, V, W, H, df, C.violet, 2, [8, 6]);
+          for (let px = 0; px < W; px += 2) { const x1 = V.ix(px), x2 = V.ix(px + 2); g.line(c, px, V.Y(f(x1)), px + 2, V.Y(f(x2)), df((x1 + x2) / 2) >= 0 ? C.lime : C.coral, 4); }
+          this.crit(p).forEach(x => { const mx = 6 * x + 2 * p.p; g.dot(c, ...S(V, x, f(x)), 9, C.amber, C.bg, 2.5); g.label(c, V, x, f(x), mx < 0 ? 'local max' : mx > 0 ? 'local min' : 'inflection', C.amber, fs, 0, mx < 0 ? -26 : 26); });
+          const y0 = f(p.x0), m = df(p.x0); g.line(c, ...S(V, p.x0 - 2, y0 - 2 * m), ...S(V, p.x0 + 2, y0 + 2 * m), C.cyan, 2.5); g.dot(c, ...S(V, p.x0, y0), 7, C.cyan);
+          g.box(c, 'f(x) = x³' + term(p.p, 'x²', false) + term(p.q, 'x', false), 20, 30, C.ink, fs, 'left');
+          return null;
+        },
+        read(p) { const f = x => x ** 3 + p.p * x * x + p.q * x, cr = this.crit(p); return [{ l: "f′(x)", v: '3x²' + term(2 * p.p, 'x', false) + term(p.q, '', false), c: 'violet' }, { l: 'Critical points', v: cr.length ? cr.map(x => N(x)).join(', ') : 'none', c: 'amber' }, { l: 'Local max', v: cr.length === 2 ? '(' + N(cr[0]) + ', ' + N(f(cr[0])) + ')' : '—', c: 'lime' }, { l: 'Local min', v: cr.length === 2 ? '(' + N(cr[1]) + ', ' + N(f(cr[1])) + ')' : '—', c: 'coral' }, { l: "Slope at x₀", v: N(3 * p.x0 ** 2 + 2 * p.p * p.x0 + p.q, 3), c: 'cyan' }]; },
+        result(p) { const cr = this.crit(p); return cr.length === 2 ? 'Increasing on (−∞, ' + N(cr[0]) + ') ∪ (' + N(cr[1]) + ', ∞), decreasing on (' + N(cr[0]) + ', ' + N(cr[1]) + ')' : 'f′ ≥ 0 everywhere — always increasing'; } },
+
+      { id: 'de', title: 'Differential Equations — Slope Field & Solution Curves', topic: 'Calculus', grades: [12],
+        aim: 'To visualise a first-order differential equation as a slope field and draw the particular solution through a chosen initial point.',
+        equip: ['Slope-field grid', 'Initial-point pin', 'Curve tracer'],
+        steps: ['Choose a differential equation dy/dx = f(x, y).', 'Each short segment shows the slope at that point.', 'Drag the initial point P(x₀, y₀); the solution curve follows the slopes.', 'Compare with the general solution and find the constant C.'],
+        concl: 'The general solution is a family of curves; an initial condition y(x₀) = y₀ picks one particular solution.',
+        controls: [{ type: 'select', key: 'eq', label: 'Equation', options: ['dy/dx = x', 'dy/dx = y', 'dy/dx = x + y', 'dy/dx = −x/y', 'dy/dx = y(2 − y)'] }], snap: 0.1,
+        init: { eq: 'dy/dx = x + y', Px: -1, Py: 0.5 },
+        handles: () => [['Px', 'Py', 'amber']],
+        E: { 'dy/dx = x': [(x, y) => x, 'y = x²/2 + C', (x, y) => y - x * x / 2, C => 'y = x²/2 ' + (C < 0 ? '− ' : '+ ') + N(Math.abs(C), 3)], 'dy/dx = y': [(x, y) => y, 'y = Ceˣ', (x, y) => y * Math.exp(-x), C => 'y = ' + N(C, 3) + 'eˣ'], 'dy/dx = x + y': [(x, y) => x + y, 'y = Ceˣ − x − 1', (x, y) => (y + x + 1) * Math.exp(-x), C => 'y = ' + N(C, 3) + 'eˣ − x − 1'], 'dy/dx = −x/y': [(x, y) => -x / y, 'x² + y² = C', (x, y) => x * x + y * y, C => 'x² + y² = ' + N(C, 3)], 'dy/dx = y(2 − y)': [(x, y) => y * (2 - y), 'y = 2/(1 + Ce⁻²ˣ)', (x, y) => y ? (2 / y - 1) * Math.exp(2 * x) : NaN, C => 'y = 2/(1 + ' + N(C, 3) + 'e⁻²ˣ)'] },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-5, 5, -4, 4], 24), fs = g.fs(W, H), F = this.E[p.eq][0]; g.grid(c, V, W, H, 1, true, fs);
+          for (let x = -5; x <= 5; x += 0.5) for (let y = -4; y <= 4; y += 0.5) { const m = F(x, y); if (!isFinite(m)) continue; const L = Math.hypot(1, m), dx = 0.18 / L, dy = 0.18 * m / L; g.line(c, ...S(V, x - dx, y - dy), ...S(V, x + dx, y + dy), C.cyan + '99', 2); }
+          [1, -1].forEach(dir => { let x = p.Px, y = p.Py, h = 0.01 * dir; c.strokeStyle = C.lime; c.lineWidth = 3.5; c.beginPath(); c.moveTo(...S(V, x, y)); for (let i = 0; i < 1200; i++) { const k1 = F(x, y), k2 = F(x + h / 2, y + h / 2 * k1), k3 = F(x + h / 2, y + h / 2 * k2), k4 = F(x + h, y + h * k3); const ny = y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4); if (!isFinite(ny) || Math.abs(ny) > 6 || (p.eq === 'dy/dx = −x/y' && Math.abs(ny) < 0.03)) break; x += h; y = ny; c.lineTo(...S(V, x, y)); if (Math.abs(x) > 6) break; } c.stroke(); });
+          g.box(c, p.eq, 20, 30, C.cyan, fs, 'left');
+          return V;
+        },
+        read(p) { const [F, gen, Cf, part] = this.E[p.eq], C0 = Cf(p.Px, p.Py); return [{ l: 'Initial point', v: '(' + N(p.Px, 1) + ', ' + N(p.Py, 1) + ')', c: 'amber' }, { l: 'Slope at P', v: N(F(p.Px, p.Py), 3), c: 'cyan' }, { l: 'General solution', v: gen, c: 'ink' }, { l: 'C', v: isFinite(C0) ? N(C0, 3) : '—', c: 'violet' }, { l: 'Particular', v: isFinite(C0) ? part(C0) : 'y = 0', c: 'lime' }]; },
+        result(p) { const [, , Cf, part] = this.E[p.eq], C0 = Cf(p.Px, p.Py); return isFinite(C0) ? part(C0) : 'y = 0 (equilibrium)'; } },
+
+      { id: 'v3d', title: 'Vectors in 3D — Dot & Cross Product', topic: 'Vectors & Matrices', grades: [12],
+        aim: 'To visualise vectors in space and find their dot product, cross product and the area of the parallelogram they span.',
+        equip: ['3D axes model', 'Vector rods', 'Right-hand rule card'],
+        steps: ['Set the components of a and b.', 'Drag on the board to rotate the 3D axes.', 'a × b (amber) is perpendicular to both a and b (right-hand rule).', 'Its length equals the area of the parallelogram formed by a and b.'],
+        concl: 'a · b = |a||b|cos θ; |a × b| = |a||b|sin θ = area of the parallelogram; a × b ⟂ a and b.',
+        controls: ['ax', 'ay', 'az', 'bx', 'by', 'bz'].map(k => ({ type: 'range', key: k, label: 'Vector ' + k[0] + ' — ' + k[1] + ' component', min: -4, max: 4, step: 1 })).concat([{ type: 'toggle', key: 'spin', label: 'Auto-rotate' }]),
+        init: { ax: 3, ay: 0, az: 1, bx: 1, by: 3, bz: 0, spin: true }, rotate: true,
+        cr: p => [p.ay * p.bz - p.az * p.by, p.az * p.bx - p.ax * p.bz, p.ax * p.by - p.ay * p.bx],
+        draw(c, W, H, p, st, t, rt) {
+          const fs = g.fs(W, H); if (p.spin && !rt.dragging) rt.ry += 0.006; const x = this.cr(p), M = Math.max(5, Math.hypot(...x), Math.hypot(p.ax, p.ay, p.az) + 1, Math.hypot(p.bx, p.by, p.bz) + 1) * 1.1, P0 = g.p3(rt, M, Math.min(W, H) * 0.42 / M, W / 2, H / 2), P = (a, b, cc) => P0(a, cc, b);
+          [[[1, 0, 0], 'x', C.coral], [[0, 1, 0], 'y', C.cyan], [[0, 0, 1], 'z', C.lime]].forEach(([u, l, col]) => { g.line(c, ...P(...u.map(v => -v * M * 0.8)), ...P(...u.map(v => v * M * 0.8)), col + '55', 1.5); const e = P(...u.map(v => v * M * 0.85)); g.text(c, l, e[0], e[1], col + 'aa', fs, 'center', 'middle', 700); });
+          const a = [p.ax, p.ay, p.az], b = [p.bx, p.by, p.bz], O = P(0, 0, 0); g.poly(c, [O, P(...a), P(a[0] + b[0], a[1] + b[1], a[2] + b[2]), P(...b)], C.violet, C.violet + '33', 1.5);
+          g.arrow(c, ...O, ...P(...a), C.coral, 4); g.arrow(c, ...O, ...P(...b), C.cyan, 4); g.arrow(c, ...O, ...P(...x), C.amber, 4);
+          const la = P(...a), lb = P(...b), lx = P(...x); g.box(c, 'a', la[0] + 14, la[1] - 14, C.coral, fs * 0.9); g.box(c, 'b', lb[0] + 14, lb[1] - 14, C.cyan, fs * 0.9); g.box(c, 'a × b', lx[0] + 20, lx[1] - 14, C.amber, fs * 0.9);
+        },
+        read(p) { const x = this.cr(p), dt = p.ax * p.bx + p.ay * p.by + p.az * p.bz, ma = Math.hypot(p.ax, p.ay, p.az), mb = Math.hypot(p.bx, p.by, p.bz); return [{ l: 'a', v: '(' + [p.ax, p.ay, p.az].join(', ') + ')', c: 'coral' }, { l: 'b', v: '(' + [p.bx, p.by, p.bz].join(', ') + ')', c: 'cyan' }, { l: 'a · b', v: N(dt), c: 'lime' }, { l: 'a × b', v: '(' + x.map(v => N(v)).join(', ') + ')', c: 'amber' }, { l: '|a × b| = area', v: N(Math.hypot(...x), 3), c: 'violet' }, { l: 'Angle θ', v: ma && mb ? N(Math.acos(Math.max(-1, Math.min(1, dt / ma / mb))) / D, 1) + '°' : '—', c: 'ink' }]; },
+        result(p) { const x = this.cr(p); return 'a × b = (' + x.map(v => N(v)).join(', ') + '), area = ' + N(Math.hypot(...x), 3); } },
+
+      { id: 'cplx', title: 'Complex Numbers on the Argand Plane', topic: 'Algebra', grades: [11],
+        aim: 'To represent complex numbers as points/vectors and see addition, multiplication, conjugate and division geometrically.',
+        equip: ['Argand plane', 'Vector arrows', 'Protractor'],
+        steps: ['Drag z₁ (coral) and z₂ (cyan) on the plane.', 'Choose an operation; the result appears in green.', 'Addition follows the parallelogram law; multiplication multiplies moduli and adds arguments.', 'Read the modulus, argument and polar form.'],
+        concl: 'z = a + ib = r(cos θ + i sin θ); |z₁z₂| = |z₁||z₂|, arg(z₁z₂) = arg z₁ + arg z₂; z̄ is the reflection of z in the real axis.',
+        controls: [{ type: 'select', key: 'op', label: 'Operation', options: ['z₁ + z₂', 'z₁ × z₂', 'conjugate z̄₁', 'z₁ ÷ z₂'] }], snap: 0.5,
+        init: { op: 'z₁ × z₂', ax: 2, ay: 1, bx: 1, by: 1.5 },
+        handles: () => [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan']],
+        res(p) { const { ax: a, ay: b, bx: c2, by: d } = p; if (p.op === 'z₁ + z₂') return [a + c2, b + d]; if (p.op === 'z₁ × z₂') return [a * c2 - b * d, a * d + b * c2]; if (p.op === 'conjugate z̄₁') return [a, -b]; const m = c2 * c2 + d * d || 1; return [(a * c2 + b * d) / m, (b * c2 - a * d) / m]; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-8, 8, -6, 6], 24), fs = g.fs(W, H), r = this.res(p), O = S(V, 0, 0); g.grid(c, V, W, H, 1, true, fs);
+          g.text(c, 'Re', W - 24, V.Y(0) - 14, C.dim, fs * 0.8); g.text(c, 'Im', V.X(0) + 22, 18, C.dim, fs * 0.8);
+          if (p.op === 'z₁ + z₂') { g.line(c, ...S(V, p.ax, p.ay), ...S(V, ...r), C.cyan + '88', 2, [6, 5]); g.line(c, ...S(V, p.bx, p.by), ...S(V, ...r), C.coral + '88', 2, [6, 5]); }
+          if (p.op === 'conjugate z̄₁') g.line(c, ...S(V, p.ax, p.ay), ...S(V, ...r), C.dim, 1.5, [4, 5]);
+          [[p.ax, p.ay, C.coral], [p.bx, p.by, C.cyan], [r[0], r[1], C.lime]].forEach(([x, y, col], i) => { if (i === 1 && p.op === 'conjugate z̄₁') return; g.dot(c, ...O, Math.hypot(x, y) * V.s, null, col + '33', 1.5); g.arrow(c, ...O, ...S(V, x, y), col, i === 2 ? 4.5 : 3.5); const t = Math.atan2(y, x); if (Math.hypot(x, y) > 0.3) g.arcW(c, O, 26 + i * 16, t >= 0 ? 0 : t, Math.abs(t), col, null, fs); });
+          g.label(c, V, p.ax, p.ay, 'z₁', C.coral, fs, 18, -18); if (p.op !== 'conjugate z̄₁') g.label(c, V, p.bx, p.by, 'z₂', C.cyan, fs, 18, -18); g.label(c, V, r[0], r[1], p.op, C.lime, fs, 0, r[1] >= 0 ? -28 : 28);
+          return V;
+        },
+        read(p) { const r = this.res(p), A = (x, y) => N(Math.atan2(y, x) / D, 1) + '°'; return [{ l: 'z₁', v: cfmt(p.ax, p.ay), c: 'coral' }, { l: '|z₁|, arg z₁', v: N(Math.hypot(p.ax, p.ay), 3) + ', ' + A(p.ax, p.ay), c: 'coral' }, { l: 'z₂', v: cfmt(p.bx, p.by), c: 'cyan' }, { l: '|z₂|, arg z₂', v: N(Math.hypot(p.bx, p.by), 3) + ', ' + A(p.bx, p.by), c: 'cyan' }, { l: 'Result', v: cfmt(...r), c: 'lime' }, { l: '|result|, arg', v: N(Math.hypot(...r), 3) + ', ' + A(...r), c: 'lime' }]; },
+        result(p) { return p.op + ' = ' + cfmt(...this.res(p)); } },
+      { id: 'mvt', title: "Rolle's Theorem & Lagrange's Mean Value Theorem", topic: 'Calculus', grades: [12],
+        aim: 'To verify that a smooth curve has at least one point c in (a, b) where the tangent is parallel to the chord joining (a, f(a)) and (b, f(b)).',
+        equip: ['Graph of f(x)', 'Chord (secant) ruler', 'Sliding tangent', 'Slope meter'],
+        steps: ['Choose a function f(x) and set the interval end points a and b.', 'Join A(a, f(a)) and B(b, f(b)) by a chord and read its slope m = [f(b) − f(a)] / (b − a).', 'Find every c in (a, b) where the tangent slope f′(c) equals m; these tangents are parallel to the chord.', 'Make f(a) = f(b) (e.g. a = −b for an even function): the chord is horizontal and f′(c) = 0, which is Rolle\'s theorem.'],
+        concl: 'If f is continuous on [a, b] and differentiable on (a, b), there is at least one c in (a, b) with f′(c) = [f(b) − f(a)] / (b − a). Rolle\'s theorem is the special case f(a) = f(b), giving f′(c) = 0.',
+        FN: { 'x³ − 3x': [x => x * x * x - 3 * x, x => 3 * x * x - 3], 'x²/2 − 1': [x => x * x / 2 - 1, x => x], 'sin 2x': [x => Math.sin(2 * x), x => 2 * Math.cos(2 * x)], 'x⁴/4 − x²': [x => x ** 4 / 4 - x * x, x => x ** 3 - 2 * x] },
+        controls: [{ type: 'select', key: 'fn', label: 'Function f(x)', options: ['x³ − 3x', 'x²/2 − 1', 'sin 2x', 'x⁴/4 − x²'] }, { type: 'range', key: 'a', label: 'Left end a', min: -3, max: 2.8, step: 0.1 }, { type: 'range', key: 'b', label: 'Right end b', min: -2.8, max: 3, step: 0.1 }, { type: 'toggle', key: 'tan', label: 'Show parallel tangents' }],
+        init: { fn: 'x³ − 3x', a: -1.5, b: 2.2, tan: true },
+        fix: p => { let a = +p.a.toFixed(1), b = +p.b.toFixed(1); if (b < a + 0.2) b = +(a + 0.2).toFixed(1); if (b > 3) { b = 3; a = Math.min(a, 2.8); } return { ...p, a, b }; },
+        calc(p) {
+          const [f, df] = this.FN[p.fn], fa = f(p.a), fb = f(p.b), m = (fb - fa) / (p.b - p.a), h = x => df(x) - m, cs = [], n = 600;
+          let x0 = p.a, h0 = h(x0);
+          for (let i = 1; i <= n; i++) {
+            const x1 = p.a + (p.b - p.a) * i / n, h1 = h(x1);
+            if (i < n && Math.abs(h1) < 1e-12) { cs.push(x1); }
+            else if (h0 * h1 < 0) { let lo = x0, hi = x1; for (let k = 0; k < 50; k++) { const md = (lo + hi) / 2; if (h(lo) * h(md) <= 0) hi = md; else lo = md; } cs.push((lo + hi) / 2); }
+            x0 = x1; h0 = h1;
+          }
+          const inner = cs.filter(c => c > p.a + 1e-6 && c < p.b - 1e-6).filter((c, i, arr) => !i || Math.abs(c - arr[i - 1]) > 1e-4);
+          return { f, df, fa, fb, m, cs: inner, rolle: Math.abs(fb - fa) < 1e-9 };
+        },
+        draw(c, W, H, p) {
+          const k = this.calc(p), V = g.view(W, H, [-3.4, 3.4, -4.2, 4.2], 26), fs = g.fs(W, H); g.grid(c, V, W, H, 1, true, fs);
+          c.fillStyle = C.violet + '14'; c.fillRect(V.X(p.a), 0, V.X(p.b) - V.X(p.a), H);
+          g.line(c, V.X(p.a), 0, V.X(p.a), H, C.violet + '66', 1.5, [6, 6]); g.line(c, V.X(p.b), 0, V.X(p.b), H, C.violet + '66', 1.5, [6, 6]);
+          g.plot(c, V, W, H, k.f, C.cyan, 4);
+          const L = 3.6, ext = x => k.fa + k.m * (x - p.a);
+          g.line(c, V.X(-L), V.Y(ext(-L)), V.X(L), V.Y(ext(L)), C.amber + '55', 2, [8, 8]);
+          g.line(c, V.X(p.a), V.Y(k.fa), V.X(p.b), V.Y(k.fb), C.amber, 4);
+          if (p.tan) k.cs.forEach(cx => { const cy = k.f(cx), t = x => cy + k.m * (x - cx); g.line(c, V.X(cx - 1.4), V.Y(t(cx - 1.4)), V.X(cx + 1.4), V.Y(t(cx + 1.4)), C.lime, 4); g.line(c, V.X(cx), V.Y(cy), V.X(cx), V.Y(0), C.lime + '99', 2, [5, 5]); g.dot(c, V.X(cx), V.Y(cy), 10, C.lime, C.bg, 3); g.line(c, V.X(cx), V.Y(0), V.X(cx), H - fs * 2.2, C.lime + '55', 1.5, [3, 6]); g.box(c, 'c = ' + N(cx), V.X(cx), H - fs * 1.3, C.lime, fs * 0.85); });
+          g.dot(c, V.X(p.a), V.Y(k.fa), 10, C.amber, C.bg, 3); g.dot(c, V.X(p.b), V.Y(k.fb), 10, C.amber, C.bg, 3);
+          g.label(c, V, p.a, k.fa, 'A', C.amber, fs, -24, -24); g.label(c, V, p.b, k.fb, 'B', C.amber, fs, 24, -24);
+          g.box(c, (k.rolle ? "Rolle's case: f(a) = f(b), slope 0" : 'Chord slope m = ' + N(k.m, 3)), W / 2, fs * 1.4, k.rolle ? C.lime : C.amber, fs);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'f(a)', v: N(k.fa, 3), c: 'amber' }, { l: 'f(b)', v: N(k.fb, 3), c: 'amber' }, { l: 'Chord slope m', v: N(k.m, 3), c: 'amber' }, { l: 'c in (a, b)', v: k.cs.length ? k.cs.map(x => N(x, 3)).join(', ') : 'none', c: 'lime' }, { l: "f′(c)", v: k.cs.length ? k.cs.map(x => N(k.df(x), 3)).join(', ') : '—', c: 'lime' }, { l: 'Case', v: k.rolle ? "Rolle's" : 'LMVT', c: 'violet' }]; },
+        result(p) { const k = this.calc(p); return k.cs.length ? "f′(c) = " + N(k.m, 3) + ' at c = ' + k.cs.map(x => N(x, 3)).join(', ') : 'No interior c found'; } },
+      { id: 'tcen', title: 'Triangle Centres — Centroid, Orthocentre, Incentre, Circumcentre', topic: 'Geometry', grades: [9, 10],
+        aim: 'To locate the centroid, orthocentre, incentre and circumcentre of a triangle by construction and see how they are related.',
+        equip: ['Geoboard grid', 'Compass', 'Set square', 'Paper-folding sheet'],
+        steps: ['Drag A, B and C to form any triangle.', 'Choose a centre: medians meet at the centroid G, altitudes at the orthocentre H, angle bisectors at the incentre I, perpendicular bisectors at the circumcentre O.', 'Check its special property: AG = 2·GD; the incircle touches all three sides; the circumcircle passes through A, B and C.', 'Make the triangle acute, right and obtuse and watch where H and O go. Choose “Euler line” to see O, G, H in one line with HG = 2·GO.'],
+        concl: 'G divides every median in the ratio 2 : 1. I is equidistant from the sides (inradius r = Δ/s); O is equidistant from the vertices (R = abc/4Δ). O, G, H lie on the Euler line with HG = 2·GO. In an equilateral triangle all four centres coincide.',
+        controls: [{ type: 'select', key: 'mode', label: 'Centre', options: ['Centroid', 'Orthocentre', 'Incentre', 'Circumcentre', 'Euler line'] }], snap: 0.25,
+        init: { mode: 'Centroid', ax: -3.5, ay: -2.5, bx: 4, by: -2.5, cx: 0.5, cy: 3 },
+        handles: () => [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan'], ['cx', 'cy', 'violet']],
+        calc(p) {
+          const A = [p.ax, p.ay], B = [p.bx, p.by], Cc = [p.cx, p.cy], d2 = (P, Q) => Math.hypot(P[0] - Q[0], P[1] - Q[1]);
+          const a = d2(B, Cc), b = d2(A, Cc), c = d2(A, B), Ar = Math.abs((B[0] - A[0]) * (Cc[1] - A[1]) - (Cc[0] - A[0]) * (B[1] - A[1])) / 2;
+          const G = [(A[0] + B[0] + Cc[0]) / 3, (A[1] + B[1] + Cc[1]) / 3], q2 = q => q[0] * q[0] + q[1] * q[1];
+          const dd = 2 * (A[0] * (B[1] - Cc[1]) + B[0] * (Cc[1] - A[1]) + Cc[0] * (A[1] - B[1]));
+          const O = Math.abs(dd) < 1e-9 ? G : [(q2(A) * (B[1] - Cc[1]) + q2(B) * (Cc[1] - A[1]) + q2(Cc) * (A[1] - B[1])) / dd, (q2(A) * (Cc[0] - B[0]) + q2(B) * (A[0] - Cc[0]) + q2(Cc) * (B[0] - A[0])) / dd];
+          const Hh = [A[0] + B[0] + Cc[0] - 2 * O[0], A[1] + B[1] + Cc[1] - 2 * O[1]], per = a + b + c || 1;
+          const I = [(a * A[0] + b * B[0] + c * Cc[0]) / per, (a * A[1] + b * B[1] + c * Cc[1]) / per], s = per / 2;
+          const mx = Math.max(ang(A, B, Cc), ang(B, A, Cc), ang(Cc, A, B));
+          const kind = Ar < 1e-6 ? 'Degenerate' : Math.abs(mx - 90) < 0.5 ? 'Right-angled' : mx > 90 ? 'Obtuse' : 'Acute';
+          return { A, B, C: Cc, a, b, c, Ar, G, O, H: Hh, I, r: Ar / s, R: Ar > 1e-9 ? a * b * c / (4 * Ar) : 0, kind, d2 };
+        },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6.5, 6.5, -5, 5], 24), fs = g.fs(W, H), k = this.calc(p), S = q => [V.X(q[0]), V.Y(q[1])], m = p.mode, E = m === 'Euler line';
+          g.grid(c, V, W, H, 1, false, fs);
+          const T = [k.A, k.B, k.C], mid = (P, Q) => [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2];
+          const ft = (P, Q, R) => { const dx = R[0] - Q[0], dy = R[1] - Q[1], L = dx * dx + dy * dy || 1, t = ((P[0] - Q[0]) * dx + (P[1] - Q[1]) * dy) / L; return [Q[0] + t * dx, Q[1] + t * dy]; };
+          g.poly(c, T.map(S), C.ink, C.ink + '14', 3);
+          ['A', 'B', 'C'].forEach((n, i) => { const P = T[i], dx = P[0] - k.G[0], dy = P[1] - k.G[1], L = Math.hypot(dx, dy) || 1; g.text(c, n, V.X(P[0]) + dx / L * 34, V.Y(P[1]) - dy / L * 34, C.ink, fs * 1.1, 'center', 'middle', 700); });
+          if (k.Ar < 1e-6) { g.box(c, 'Points are in a line — drag one to make a triangle', W / 2, fs * 1.4, C.coral, fs); return V; }
+          if (m === 'Centroid' || E) T.forEach((P, i) => { const D = mid(T[(i + 1) % 3], T[(i + 2) % 3]); g.line(c, ...S(P), ...S(D), C.amber, E ? 1.5 : 3, E ? [6, 6] : null); if (!E) g.dot(c, ...S(D), 6, C.amber); });
+          if (m === 'Orthocentre' || E) T.forEach((P, i) => { const Q = T[(i + 1) % 3], R = T[(i + 2) % 3], F = ft(P, Q, R); g.line(c, ...S(Q), ...S(F), C.dim, 1.5, [4, 6]); g.line(c, ...S(R), ...S(F), C.dim, 1.5, [4, 6]); g.line(c, ...S(P), ...S(F), C.coral, E ? 1.5 : 3, E ? [6, 6] : null); g.line(c, ...S(F), ...S(k.H), C.coral + '88', 1.5, [6, 6]); g.line(c, ...S(P), ...S(k.H), C.coral + '88', 1.5, [6, 6]); if (!E) g.dot(c, ...S(F), 6, C.coral); });
+          if (m === 'Incentre') { T.forEach((P, i) => { const Q = T[(i + 1) % 3], R = T[(i + 2) % 3], pq = k.d2(P, Q), pr = k.d2(P, R), D = [(pr * Q[0] + pq * R[0]) / (pq + pr), (pr * Q[1] + pq * R[1]) / (pq + pr)]; g.line(c, ...S(P), ...S(D), C.lime, 3); g.dot(c, ...S(ft(k.I, Q, R)), 6, C.lime); }); g.dot(c, ...S(k.I), k.r * V.s, null, C.lime, 3); }
+          if (m === 'Circumcentre' || E) { T.forEach((P, i) => { const Q = T[(i + 1) % 3], M = mid(P, Q), dx = Q[0] - P[0], dy = Q[1] - P[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L, dx / L]; g.line(c, ...S([M[0] - n[0] * 12, M[1] - n[1] * 12]), ...S([M[0] + n[0] * 12, M[1] + n[1] * 12]), C.cyan + (E ? '55' : 'aa'), E ? 1.5 : 2.5, [8, 6]); if (!E) g.dot(c, ...S(M), 6, C.cyan); }); g.dot(c, ...S(k.O), k.R * V.s, null, C.cyan + (E ? '66' : ''), E ? 1.5 : 3); }
+          if (E) { const dx = k.H[0] - k.O[0], dy = k.H[1] - k.O[1], L = Math.hypot(dx, dy); if (L > 1e-6) g.line(c, ...S([k.O[0] - dx / L * 20, k.O[1] - dy / L * 20]), ...S([k.O[0] + dx / L * 20, k.O[1] + dy / L * 20]), C.violet, 4); }
+          const off = { G: [28, 28], H: [-28, -28], O: [28, -28], I: [28, -28] }, pt = (q, n, col) => { g.dot(c, ...S(q), 11, col, C.bg, 3); g.label(c, V, q[0], q[1], n, col, fs, ...off[n]); };
+          if (m === 'Centroid' || E) pt(k.G, 'G', C.amber);
+          if (m === 'Orthocentre' || E) pt(k.H, 'H', C.coral);
+          if (m === 'Incentre') pt(k.I, 'I', C.lime);
+          if (m === 'Circumcentre' || E) pt(k.O, 'O', C.cyan);
+          g.box(c, k.kind + ' triangle', 24, fs * 1.4, C.ink, fs, 'left');
+          return V;
+        },
+        read(p) {
+          const k = this.calc(p), P = q => '(' + N(q[0]) + ', ' + N(q[1]) + ')', D = [(k.B[0] + k.C[0]) / 2, (k.B[1] + k.C[1]) / 2], r0 = [{ l: 'Triangle', v: k.kind, c: 'ink' }, { l: 'Area Δ', v: N(k.Ar) + ' sq u', c: 'ink' }];
+          if (p.mode === 'Centroid') return [...r0, { l: 'G', v: P(k.G), c: 'amber' }, { l: 'AG : GD', v: N(k.d2(k.A, k.G) / (k.d2(k.G, D) || 1), 3) + ' : 1', c: 'lime' }];
+          if (p.mode === 'Orthocentre') return [...r0, { l: 'H', v: P(k.H), c: 'coral' }, { l: 'H lies', v: k.kind === 'Obtuse' ? 'outside' : k.kind === 'Right-angled' ? 'at the right-angle vertex' : 'inside', c: 'lime' }];
+          if (p.mode === 'Incentre') return [...r0, { l: 'I', v: P(k.I), c: 'lime' }, { l: 'Inradius r = Δ/s', v: N(k.r, 3), c: 'lime' }];
+          if (p.mode === 'Circumcentre') return [...r0, { l: 'O', v: P(k.O), c: 'cyan' }, { l: 'R = OA = OB = OC', v: N(k.d2(k.O, k.A), 3) + ' = ' + N(k.d2(k.O, k.B), 3) + ' = ' + N(k.d2(k.O, k.C), 3), c: 'cyan' }];
+          const hg = k.d2(k.H, k.G), go = k.d2(k.G, k.O);
+          return [...r0, { l: 'HG', v: N(hg, 3), c: 'coral' }, { l: 'GO', v: N(go, 3), c: 'cyan' }, { l: 'HG : GO', v: go > 1e-6 ? N(hg / go, 3) + ' : 1' : 'all coincide', c: 'lime' }];
+        },
+        result(p) { const k = this.calc(p); if (k.Ar < 1e-6) return 'Not a triangle'; return { Centroid: 'Medians meet at G; AG : GD = 2 : 1', Orthocentre: 'Altitudes meet at H (' + (k.kind === 'Obtuse' ? 'outside' : 'inside or on') + ' the triangle)', Incentre: 'Angle bisectors meet at I; r = ' + N(k.r, 3), Circumcentre: 'Perpendicular bisectors meet at O; R = ' + N(k.R, 3), 'Euler line': 'O, G, H are collinear; HG = 2·GO' }[p.mode]; } },
+
+      { id: 'chordeq', title: 'Chord Theorems — Equal Chords, Angles & Distances', topic: 'Geometry', grades: [9, 10],
+        aim: 'To verify that equal chords of a circle (or of congruent circles) subtend equal angles at the centre and are equidistant from it, and that the longer chord is nearer the centre.',
+        equip: ['Compass', 'Tracing paper', 'Protractor', 'Ruler'],
+        steps: ['Keep “Lock chords equal” on and choose “Angle at centre”: compare ∠AOB and ∠COD.', 'Choose “Distance from centre”: compare the perpendicular distances d₁ and d₂.', 'Turn on “Chord 2 in a congruent circle” and repeat both checks.', 'Turn the lock off and make chord 1 longer than chord 2: the longer chord subtends a larger angle and lies nearer the centre.'],
+        concl: 'Equal chords subtend equal angles at the centre, and conversely. Equal chords are equidistant from the centre, and conversely; the same holds in congruent circles. Of two chords, the longer one is nearer the centre: d = √(r² − (L/2)²).',
+        controls: [{ type: 'select', key: 'mode', label: 'Property', options: ['Angle at centre', 'Distance from centre'] }, { type: 'range', key: 'r', label: 'Radius r', min: 2, max: 4, step: 0.5 }, { type: 'range', key: 'L1', label: 'Chord 1 length (AB)', min: 0.5, max: 8, step: 0.25 }, { type: 'range', key: 'L2', label: 'Chord 2 length (CD)', min: 0.5, max: 8, step: 0.25 }, { type: 'toggle', key: 'eq', label: 'Lock chords equal' }, { type: 'toggle', key: 'two', label: 'Chord 2 in a congruent circle' }],
+        init: { mode: 'Angle at centre', r: 3, L1: 4, L2: 4, eq: true, two: false },
+        fix: p => { const L1 = Math.min(p.L1, 2 * p.r); let L2 = Math.min(p.L2, 2 * p.r); if (p.eq) L2 = L1; return { ...p, L1, L2 }; },
+        calc(p) { const f = L => ({ L, th: 2 * Math.asin(Math.min(1, L / (2 * p.r))) / D, d: Math.sqrt(Math.max(0, p.r * p.r - L * L / 4)) }); return [f(p.L1), f(p.L2)]; },
+        draw(c, W, H, p) {
+          const two = p.two, V = g.view(W, H, two ? [-9, 9, -5, 5] : [-5.2, 5.2, -4.6, 4.6], 24), fs = g.fs(W, H), k = this.calc(p), S = q => [V.X(q[0]), V.Y(q[1])];
+          const Os = two ? [[-4.5, 0], [4.5, 0]] : [[0, 0], [0, 0]], phis = two ? [70, 70] : [70, 235], cols = [C.amber, C.cyan], names = [['A', 'B'], ['C', 'D']];
+          (two ? Os : [Os[0]]).forEach((O, i) => { g.dot(c, ...S(O), p.r * V.s, C.ink + '0d', C.ink, 3); g.dot(c, ...S(O), 7, C.ink); g.text(c, two ? 'O' + (i + 1) : 'O', V.X(O[0]) - fs * 0.9, V.Y(O[1]) + fs * 0.9, C.ink, fs); });
+          k.forEach((ch, i) => {
+            const O = Os[i], u = [Math.cos(phis[i] * D), Math.sin(phis[i] * D)], n = [-u[1], u[0]], M = [O[0] + u[0] * ch.d, O[1] + u[1] * ch.d];
+            const P = [M[0] + n[0] * ch.L / 2, M[1] + n[1] * ch.L / 2], Q = [M[0] - n[0] * ch.L / 2, M[1] - n[1] * ch.L / 2], col = cols[i];
+            if (p.mode === 'Angle at centre') { g.line(c, ...S(O), ...S(P), col + 'aa', 2); g.line(c, ...S(O), ...S(Q), col + 'aa', 2); g.wedge(c, S(O), S(P), S(Q), Math.min(60, p.r * V.s * 0.35), col, N(ch.th, 1) + '°', fs); }
+            else { g.line(c, ...S(O), ...S(M), col, 2.5, [7, 5]); const s = 0.28, a1 = [M[0] - u[0] * s, M[1] - u[1] * s]; g.poly(c, [M, [M[0] + n[0] * s, M[1] + n[1] * s], [a1[0] + n[0] * s, a1[1] + n[1] * s], a1].map(S), col, null, 1.5); g.label(c, V, (O[0] + M[0]) / 2, (O[1] + M[1]) / 2, 'd' + (i ? '₂' : '₁') + ' = ' + N(ch.d), col, fs, -n[0] * 50, n[1] * 50); }
+            g.line(c, ...S(P), ...S(Q), col, 5);
+            [P, Q].forEach((X, j) => { g.dot(c, ...S(X), 8, col, C.bg, 2); g.text(c, names[i][j], V.X(O[0] + (X[0] - O[0]) * 1.17), V.Y(O[1] + (X[1] - O[1]) * 1.17), col, fs * 1.05, 'center', 'middle', 700); });
+          });
+          const [a, b] = k, eq = Math.abs(a.L - b.L) < 1e-9;
+          g.box(c, eq ? 'AB = CD' : (a.L > b.L ? 'AB > CD' : 'AB < CD'), W / 2, fs * 1.4, C.lime, fs * 1.1);
+          return V;
+        },
+        read(p) { const [a, b] = this.calc(p); return [{ l: 'AB', v: N(a.L), c: 'amber' }, { l: 'CD', v: N(b.L), c: 'cyan' }, { l: '∠AOB', v: N(a.th, 1) + '°', c: 'amber' }, { l: '∠COD', v: N(b.th, 1) + '°', c: 'cyan' }, { l: 'd₁ (O to AB)', v: N(a.d, 3), c: 'amber' }, { l: 'd₂ (O to CD)', v: N(b.d, 3), c: 'cyan' }]; },
+        result(p) { const [a, b] = this.calc(p), eq = Math.abs(a.L - b.L) < 1e-9; if (p.mode === 'Angle at centre') return eq ? 'Equal chords ⇒ equal angles: ' + N(a.th, 1) + '° = ' + N(b.th, 1) + '°' : 'Longer chord ⇒ larger angle at centre'; return eq ? 'Equal chords ⇒ equidistant: d = ' + N(a.d, 3) : 'Longer chord is nearer the centre (' + N(Math.min(a.d, b.d), 3) + ' < ' + N(Math.max(a.d, b.d), 3) + ')'; } },
+
+      { id: 'solnet', title: 'Cone, Cylinder & Sphere — Nets and Pouring', topic: 'Mensuration', grades: [9, 10],
+        aim: 'To obtain the surface area formulas of a cylinder, cone and sphere by unrolling them, and the volume formulas by pouring.',
+        equip: ['Paper cylinder and cone', 'Ball and string', 'Measuring jar', 'Sand or water'],
+        steps: ['Choose a solid and “Surface area (unroll)”. Slide Unroll from 0 to 1 to open the curved surface flat.', 'Cylinder: the curved surface becomes a rectangle 2πr × h. Cone: it becomes a sector of radius l and arc 2πr. Sphere: string wound on it covers exactly four circles of radius r.', 'Choose “Volume (pour)”. Pour cones (or a sphere) of the same radius into the cylinder and count how many fill it.', 'Change r and h and record the areas and volumes in the observation table.'],
+        concl: 'Cylinder: CSA = 2πrh, TSA = 2πr(r + h), V = πr²h. Cone: CSA = πrl, TSA = πr(l + r), V = ⅓πr²h (3 cones fill the cylinder). Sphere: SA = 4πr², V = ⁴⁄₃πr³ (= ⅔ of the cylinder of height 2r).',
+        controls: [{ type: 'select', key: 'solid', label: 'Solid', options: ['Cylinder', 'Cone', 'Sphere'] }, { type: 'select', key: 'view', label: 'Explore', options: ['Surface area (unroll)', 'Volume (pour)'] }, { type: 'range', key: 'r', label: 'Radius r', min: 1, max: 3, step: 0.5, unit: ' cm' }, { type: 'range', key: 'h', label: 'Height h', min: 2, max: 6, step: 0.5, unit: ' cm' }, { type: 'range', key: 'u', label: 'Unroll (surface view)', min: 0, max: 1, step: 0.05 }, { type: 'range', key: 'n', label: 'Pours (volume view)', min: 0, max: 3, step: 1 }],
+        init: { solid: 'Cone', view: 'Surface area (unroll)', r: 2, h: 5, u: 1, n: 0 },
+        calc(p) {
+          const r = p.r, h = p.solid === 'Sphere' ? 2 * r : p.h, l = Math.hypot(r, p.h), PI = Math.PI;
+          if (p.solid === 'Cylinder') return { h, l, V: PI * r * r * h, L: 2 * PI * r * h, T: 2 * PI * r * (r + h), Vc: PI * r * r * h };
+          if (p.solid === 'Cone') return { h, l, V: PI * r * r * h / 3, L: PI * r * l, T: PI * r * (l + r), Vc: PI * r * r * h };
+          return { h, l, V: 4 / 3 * PI * r ** 3, L: 4 * PI * r * r, T: 4 * PI * r * r, Vc: PI * r * r * 2 * r };
+        },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), r = p.r, hh = k.h, PI = Math.PI, sol = p.solid;
+          const ell = (x, y, rx, ry, st, fill, w, dash) => { c.beginPath(); c.ellipse(x, y, Math.max(0, rx), Math.max(0, ry), 0, 0, 2 * PI); if (fill) { c.fillStyle = fill; c.fill(); } if (st) { c.setLineDash(dash || []); c.strokeStyle = st; c.lineWidth = w || 2; c.stroke(); c.setLineDash([]); } };
+          const solid = (x, y, s, kind, col, ghost) => {
+            const rx = r * s, ry = r * s * 0.28, top = y - hh * s / 2, bot = y + hh * s / 2, a = ghost ? '66' : '';
+            if (kind === 'Cylinder') { c.fillStyle = col + (ghost ? '0d' : '22'); c.fillRect(x - rx, top, 2 * rx, bot - top); ell(x, bot, rx, ry, col + a, col + (ghost ? '0d' : '22'), ghost ? 1.5 : 3, ghost ? [6, 6] : null); g.line(c, x - rx, top, x - rx, bot, col + a, ghost ? 1.5 : 3, ghost ? [6, 6] : null); g.line(c, x + rx, top, x + rx, bot, col + a, ghost ? 1.5 : 3, ghost ? [6, 6] : null); ell(x, top, rx, ry, col + a, col + (ghost ? '00' : '33'), ghost ? 1.5 : 3, ghost ? [6, 6] : null); }
+            if (kind === 'Cone') { c.beginPath(); c.moveTo(x, top); c.lineTo(x - rx, bot); c.lineTo(x + rx, bot); c.closePath(); c.fillStyle = col + '22'; c.fill(); ell(x, bot, rx, ry, col, col + '22', 3); g.line(c, x, top, x - rx, bot, col, 3); g.line(c, x, top, x + rx, bot, col, 3); g.line(c, x, top, x, bot, C.pink, 2, [5, 5]); g.line(c, x, bot, x + rx, bot, C.pink, 2); }
+            if (kind === 'Sphere') { g.dot(c, x, y, rx, col + '22', col, 3); ell(x, y, rx, ry, col + 'aa', null, 1.5, [6, 6]); g.line(c, x, y, x + rx, y, C.pink, 2); }
+          };
+          const tag = (s, x, y, col) => g.box(c, s, x, y, col, fs * 0.85);
+          if (p.view === 'Surface area (unroll)') {
+            const u = p.u;
+            if (sol === 'Cylinder') {
+              const s = Math.min(W * 0.52 / (2 * PI * r), H * 0.5 / hh, W * 0.13 / r), sx = W * 0.15, sy = H * 0.5, nx = W * 0.32, ny = H * 0.5 - hh * s / 2, w = 2 * PI * r * s * u;
+              solid(sx, sy, s, 'Cylinder', C.cyan);
+              c.fillStyle = C.cyan + '33'; c.fillRect(nx, ny, w, hh * s); c.strokeStyle = C.cyan; c.lineWidth = 3; c.strokeRect(nx, ny, w, hh * s);
+              if (u > 0.98) { g.dot(c, nx + r * s, ny - r * s - 6, r * s, C.amber + '33', C.amber, 3); g.dot(c, nx + r * s, ny + hh * s + r * s + 6, r * s, C.amber + '33', C.amber, 3); tag('2πr = ' + N(2 * PI * r), nx + w / 2, ny + hh * s + fs * 1.3, C.cyan); tag('h = ' + N(hh), nx + w + fs * 2.6, ny + hh * s / 2, C.cyan); tag('CSA = 2πrh = ' + N(k.L), nx + w / 2, ny + hh * s / 2, C.ink); }
+            }
+            if (sol === 'Cone') {
+              const l = k.l, s = Math.min(W * 0.24 / l, H * 0.4 / l, H * 0.5 / hh, W * 0.13 / r), sx = W * 0.15, sy = H * 0.5, cx = W * 0.64, cy = H * 0.5, th = 2 * PI * r / l * u, a0 = -PI / 2 - th / 2;
+              solid(sx, sy, s, 'Cone', C.amber);
+              c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, l * s, a0, a0 + th); c.closePath(); c.fillStyle = C.amber + '33'; c.fill(); c.strokeStyle = C.amber; c.lineWidth = 3; c.stroke();
+              g.dot(c, cx, cy, l * s, null, C.dim, 1); g.dot(c, cx, cy, 6, C.ink);
+              tag('l = ' + N(l), cx + Math.cos(a0) * l * s * 0.5 - fs * 1.5, cy + Math.sin(a0) * l * s * 0.5, C.pink);
+              if (u > 0.98) { tag('arc = 2πr = ' + N(2 * PI * r), cx, cy - l * s - fs * 0.9, C.amber); tag('CSA = πrl = ' + N(k.L), cx, cy + fs * 2, C.ink); }
+            }
+            if (sol === 'Sphere') {
+              const s = Math.min(W * 0.11 / r, H * 0.3 / r), sx = W * 0.15, sy = H * 0.5, cr = Math.min(r * s * 0.95, W * 0.062), gap = cr * 2.4, x0 = W * 0.38 + cr;
+              solid(sx, sy, s, 'Sphere', C.lime); solid(sx, sy, s, 'Cylinder', C.dim, true);
+              for (let i = 0; i < 4; i++) { const x = x0 + i * gap, f = Math.max(0, Math.min(1, u * 4 - i)); g.dot(c, x, sy, cr, null, C.lime, 2.5); if (f > 0) { c.beginPath(); c.moveTo(x, sy); c.arc(x, sy, cr, -PI / 2, -PI / 2 + f * 2 * PI); c.closePath(); c.fillStyle = C.lime + '44'; c.fill(); } g.text(c, 'πr²', x, sy, C.lime, fs * 0.9); }
+              tag('String from the sphere fills 4 circles: SA = 4πr² = ' + N(k.L), W * 0.62, sy + cr + fs * 2, C.ink);
+              tag('= curved surface of the cylinder 2πr × 2r', W * 0.62, sy + cr + fs * 3.8, C.dim);
+            }
+          } else {
+            const n = p.n, s = Math.min(H * 0.6 / hh, W * 0.14 / r), cx = W * 0.62, cy = H * 0.52, rx = r * s, ry = rx * 0.28, top = cy - hh * s / 2, bot = cy + hh * s / 2;
+            const per = sol === 'Cone' ? 1 / 3 : sol === 'Sphere' ? 2 / 3 : 1 / 3, fill = sol === 'Cylinder' ? Math.min(1, n / 3) : Math.min(1, n * per), lvl = bot - (bot - top) * fill;
+            if (sol !== 'Cylinder') solid(W * 0.18, cy, s, sol, sol === 'Cone' ? C.amber : C.lime);
+            else { for (let i = 0; i < 3; i++) ell(W * 0.18, cy + (i - 1) * hh * s / 3, rx, ry, C.amber, C.amber + '22', 2); tag('3 slices, each πr² × h/3', W * 0.18, cy + hh * s / 2 + fs * 1.6, C.amber); }
+            if (fill > 0) { c.fillStyle = C.cyan + '44'; c.fillRect(cx - rx, lvl, 2 * rx, bot - lvl); ell(cx, bot, rx, ry, null, C.cyan + '44'); ell(cx, lvl, rx, ry, C.cyan, C.cyan + '66', 2); }
+            ell(cx, bot, rx, ry, C.ink, null, 3); g.line(c, cx - rx, top, cx - rx, bot, C.ink, 3); g.line(c, cx + rx, top, cx + rx, bot, C.ink, 3); ell(cx, top, rx, ry, C.ink, null, 3);
+            for (let i = 1; i < 3; i++) { const y = bot - (bot - top) * i / 3; g.line(c, cx + rx, y, cx + rx + 18, y, C.dim, 2); }
+            g.arrow(c, W * 0.18 + rx + 20, cy - hh * s * 0.2, cx - rx - 20, cy - hh * s * 0.2, C.dim, 2);
+            const over = sol === 'Sphere' && n * per > 1;
+            tag((sol === 'Cylinder' ? 'Slices stacked: ' : 'Pours: ') + n + '  →  ' + (over ? 'overflows! one sphere = ⅔ of the cylinder' : 'filled ' + N(fill * 100, 0) + '%'), cx, top - fs * 1.6, over ? C.coral : C.cyan);
+          }
+          g.box(c, sol + (p.view === 'Volume (pour)' ? ' — volume' : ' — surface area'), 20, fs * 1.4, C.ink, fs, 'left');
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Volume', v: N(k.V) + ' cm³', c: 'lime' }, { l: p.solid === 'Sphere' ? 'Surface area' : 'Curved SA', v: N(k.L) + ' cm²', c: 'amber' }, { l: 'Total SA', v: N(k.T) + ' cm²', c: 'cyan' }, { l: 'Slant height l', v: p.solid === 'Cone' ? N(k.l) + ' cm' : '—', c: 'pink' }, { l: 'V ÷ V(cylinder)', v: N(k.V / k.Vc, 3), c: 'violet' }]; },
+        result(p) { const k = this.calc(p); if (p.view === 'Volume (pour)') return p.solid === 'Cone' ? 'V = ⅓πr²h = ' + N(k.V) + ' cm³' : p.solid === 'Sphere' ? 'V = ⁴⁄₃πr³ = ' + N(k.V) + ' cm³' : 'V = πr²h = ' + N(k.V) + ' cm³'; return p.solid === 'Cone' ? 'CSA = πrl = ' + N(k.L) + ' cm²' : p.solid === 'Sphere' ? 'SA = 4πr² = ' + N(k.L) + ' cm²' : 'CSA = 2πrh = ' + N(k.L) + ' cm²'; } },
+
+      { id: 'pyth2', title: 'Pythagoras Theorem — Proofs by Rearrangement', topic: 'Geometry', grades: [9, 10],
+        aim: 'To verify c² = a² + b² by three different methods: Bhaskara’s square, rearranging four triangles, and similar triangles.',
+        equip: ['Four congruent right-triangle cut-outs', 'Squared paper', 'Scissors', 'Ruler'],
+        steps: ['Set the legs a and b of the right triangle and choose a method.', 'Bhaskara: four triangles and a small square of side (b − a) fill the square on c.', 'Rearrangement: in a square of side (a + b), the same four triangles leave either c², or a² + b².', 'Similar triangles: the altitude to the hypotenuse splits c² into rectangles equal to a² and b².'],
+        concl: 'Every method gives the same area relation: c² = a² + b². Bhaskara: c² = 4·(½ab) + (b − a)². Rearrangement: (a + b)² − 4·(½ab) = c² = a² + b². Similar triangles: a² = c·DB and b² = c·AD.',
+        controls: [{ type: 'select', key: 'm', label: 'Method', options: ['Bhaskara', 'Rearrangement', 'Similar triangles'] }, { type: 'range', key: 'a', label: 'Side a', min: 1, max: 6, step: 0.5 }, { type: 'range', key: 'b', label: 'Side b', min: 1, max: 6, step: 0.5 }],
+        init: { m: 'Rearrangement', a: 3, b: 4 },
+        draw(c, W, H, p) {
+          const a = p.a, b = p.b, cc = Math.hypot(a, b), fs = g.fs(W, H), cols = [C.coral, C.cyan, C.violet, C.pink];
+          const fit = pts => { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]), m = 0.25 * Math.max(...xs) - 0.25 * Math.min(...xs) + 0.6; return g.view(W, H, [Math.min(...xs) - m * 0.4, Math.max(...xs) + m * 0.4, Math.min(...ys) - m * 0.4, Math.max(...ys) + m * 0.4], 40); };
+          let V, S;
+          if (p.m === 'Bhaskara') {
+            const K = [[0, 0], [b, a], [b - a, a + b], [-a, b]], Q = [[0, a], [b - a, a], [b - a, b], [0, b]];
+            V = fit(K); S = q => [V.X(q[0]), V.Y(q[1])];
+            for (let i = 0; i < 4; i++) g.poly(c, [K[i], K[(i + 1) % 4], Q[i]].map(S), cols[i], cols[i] + '33', 2.5);
+            if (Math.abs(b - a) > 1e-9) { g.poly(c, Q.map(S), C.lime, C.lime + '44', 3); g.label(c, V, (b - a) / 2, (a + b) / 2, '(b − a)² = ' + N((b - a) ** 2), C.lime, fs); }
+            g.poly(c, K.map(S), C.amber, null, 4); g.label(c, V, b / 2 + 0.6 * a / cc, a / 2 - 0.6 * b / cc, 'c', C.amber, fs * 1.2);
+            g.box(c, 'c² = 4 × ½ab + (b − a)² = ' + N(2 * a * b) + ' + ' + N((b - a) ** 2) + ' = ' + N(cc * cc), W / 2, H - fs * 1.4, C.ink, fs);
+          } else if (p.m === 'Rearrangement') {
+            const s = a + b, gx = s + 1.2, sh = (pts, dx) => pts.map(q => [q[0] + dx, q[1]]);
+            V = fit([[0, 0], [gx + s, s]]); S = q => [V.X(q[0]), V.Y(q[1])];
+            const T1 = [[[0, 0], [b, 0], [0, a]], [[s, 0], [s, b], [b, 0]], [[s, s], [a, s], [s, b]], [[0, s], [0, a], [a, s]]];
+            T1.forEach((t, i) => g.poly(c, t.map(S), cols[i], cols[i] + '33', 2.5));
+            g.poly(c, [[b, 0], [s, b], [a, s], [0, a]].map(S), C.amber, C.amber + '33', 3); g.label(c, V, s / 2, s / 2, 'c² = ' + N(cc * cc), C.amber, fs * 1.1);
+            const T2 = [[[a, 0], [s, 0], [a, a]], [[s, a], [a, a], [s, 0]], [[0, a], [a, a], [0, s]], [[a, s], [0, s], [a, a]]];
+            T2.forEach((t, i) => g.poly(c, sh(t, gx).map(S), cols[i], cols[i] + '33', 2.5));
+            g.poly(c, sh([[0, 0], [a, 0], [a, a], [0, a]], gx).map(S), C.coral, C.coral + '44', 3); g.poly(c, sh([[a, a], [s, a], [s, s], [a, s]], gx).map(S), C.cyan, C.cyan + '44', 3);
+            g.label(c, V, gx + a / 2, a / 2, 'a² = ' + N(a * a), C.coral, fs); g.label(c, V, gx + a + b / 2, a + b / 2, 'b² = ' + N(b * b), C.cyan, fs);
+            [0, gx].forEach(x => g.poly(c, [[x, 0], [x + s, 0], [x + s, s], [x, s]].map(S), C.ink, null, 3));
+            g.box(c, 'Same square (a + b)², same four triangles  ⇒  c² = a² + b²', W / 2, H - fs * 1.4, C.ink, fs);
+          } else {
+            const AD = b * b / cc, DB = a * a / cc, Cp = [AD, a * b / cc], A = [0, 0], B = [cc, 0], Dp = [AD, 0];
+            const n1 = [-(Cp[1]), Cp[0]], m1 = [Cp[1], -(Cp[0] - cc)];
+            const sqb = [A, Cp, [Cp[0] + n1[0], Cp[1] + n1[1]], [n1[0], n1[1]]], sqa = [B, Cp, [Cp[0] + m1[0], Cp[1] + m1[1]], [cc + m1[0], m1[1]]];
+            V = fit([...sqa, ...sqb, [0, -cc], [cc, -cc]]); S = q => [V.X(q[0]), V.Y(q[1])];
+            g.poly(c, sqb.map(S), C.cyan, C.cyan + '33', 2.5); g.poly(c, sqa.map(S), C.coral, C.coral + '33', 2.5);
+            g.poly(c, [[0, 0], [AD, 0], [AD, -cc], [0, -cc]].map(S), C.cyan, C.cyan + '44', 3); g.poly(c, [[AD, 0], [cc, 0], [cc, -cc], [AD, -cc]].map(S), C.coral, C.coral + '44', 3);
+            g.poly(c, [A, B, Cp].map(S), C.ink, C.ink + '22', 3); g.line(c, ...S(Cp), ...S(Dp), C.amber, 3, [7, 5]); g.line(c, ...S(Dp), ...S([AD, -cc]), C.amber, 2, [7, 5]);
+            g.label(c, V, AD / 2, -cc / 2, 'c·AD = ' + N(cc * AD), C.cyan, fs); g.label(c, V, AD + DB / 2, -cc / 2, 'c·DB = ' + N(cc * DB), C.coral, fs);
+            g.label(c, V, (sqb[0][0] + sqb[2][0]) / 2, (sqb[0][1] + sqb[2][1]) / 2, 'b² = ' + N(b * b), C.cyan, fs); g.label(c, V, (sqa[0][0] + sqa[2][0]) / 2, (sqa[0][1] + sqa[2][1]) / 2, 'a² = ' + N(a * a), C.coral, fs);
+            [['A', A, -1], ['B', B, 1], ['C', Cp, 0], ['D', Dp, 0]].forEach(([nm, q, dx]) => g.text(c, nm, V.X(q[0]) + dx * fs, V.Y(q[1]) + (nm === 'C' ? -fs : nm === 'D' ? fs * 0.9 : 0) - (dx ? fs * 0.6 : 0), C.ink, fs * 1.05, 'center', 'middle', 700));
+            g.box(c, '△ACD ~ △ABC ⇒ b² = c·AD;  △BCD ~ △BAC ⇒ a² = c·DB', W / 2, fs * 1.4, C.ink, fs * 0.9);
+          }
+          return V;
+        },
+        read(p) { const c2 = p.a * p.a + p.b * p.b, cc = Math.sqrt(c2); return [{ l: 'a²', v: N(p.a * p.a), c: 'coral' }, { l: 'b²', v: N(p.b * p.b), c: 'cyan' }, { l: 'c', v: N(cc, 3), c: 'amber' }, { l: 'c²', v: N(c2), c: 'amber' }, { l: '4 triangles', v: N(2 * p.a * p.b), c: 'violet' }, { l: p.m === 'Similar triangles' ? 'AD, DB' : '(b − a)²', v: p.m === 'Similar triangles' ? N(p.b * p.b / cc, 3) + ', ' + N(p.a * p.a / cc, 3) : N((p.b - p.a) ** 2), c: 'lime' }]; },
+        result(p) { return N(p.a * p.a) + ' + ' + N(p.b * p.b) + ' = ' + N(p.a * p.a + p.b * p.b) + ' = c²  ✓  (' + p.m + ')'; } },
+      { id: 'oddsum', title: 'Sums of Odd, Even & Natural Numbers — Dot Patterns', topic: 'Number System', grades: [6, 7, 8, 10],
+        aim: 'To see why 1 + 3 + 5 + … (n terms) = n², 2 + 4 + 6 + … (n terms) = n(n + 1) and 1 + 2 + 3 + … + n = n(n + 1)/2 by building dot patterns.',
+        equip: ['Dot grid', 'Coloured counters', 'L-shaped strips'],
+        steps: ['Choose “Odd numbers” and increase n: each new odd number is an L-shaped layer that grows the square.', 'Choose “Even numbers”: each even number 2k is an L-shaped layer that grows a k × (k + 1) rectangle.', 'Choose “Natural numbers” and turn on “Double the staircase”: two staircases make an n × (n + 1) rectangle.', 'Compare: S(even) − S(odd) = n(n + 1) − n² = n.'],
+        concl: 'Sum of first n odd numbers = n². Sum of first n even numbers = n(n + 1). Sum of first n natural numbers = n(n + 1)/2. S(even) − S(odd) = n.',
+        tips: ['Memorise S(odd) = n² and S(even) = n(n + 1) — no need for the AP formula. Example: 1 + 3 + … + 49 has 25 terms, so the sum is 25² = 625.', 'S(even) − S(odd) = n: for the first 100 even and odd numbers, the difference is exactly 100.'],
+        controls: [{ type: 'select', key: 'kind', label: 'Series', options: ['Odd numbers', 'Even numbers', 'Natural numbers'] }, { type: 'range', key: 'n', label: 'Number of terms n', min: 1, max: 12, step: 1 }, { type: 'toggle', key: 'dbl', label: 'Double the staircase (natural numbers)' }],
+        init: { kind: 'Odd numbers', n: 5, dbl: true },
+        terms(p) { return Array.from({ length: p.n }, (_, i) => p.kind === 'Odd numbers' ? 2 * i + 1 : p.kind === 'Even numbers' ? 2 * i + 2 : i + 1); },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), n = p.n, cols = n + 1, cell = Math.min(W * 0.5 / cols, H * 0.7 / cols), x0 = W * 0.06, y0 = H * 0.16, pal = [C.amber, C.cyan, C.coral, C.lime, C.violet, C.pink];
+          const odd = p.kind === 'Odd numbers', even = p.kind === 'Even numbers', nat = !odd && !even;
+          for (let i = 0; i < n; i++) for (let j = 0; j < n + 1; j++) {
+            let L = 0, ghost = false;
+            if (odd) { if (j < n) L = Math.max(i, j) + 1; } else if (even) L = Math.max(i, j - 1) + 1; else { if (j <= i) L = i + 1; else if (p.dbl) { L = n - i; ghost = true; } }
+            if (!L) continue; const col = pal[(L - 1) % pal.length], x = x0 + j * cell + cell / 2, y = y0 + i * cell + cell / 2;
+            g.dot(c, x, y, cell * 0.36, ghost ? null : col, ghost ? col + 'aa' : null, 2);
+          }
+          const tw = (odd ? n : n + 1) * cell; c.strokeStyle = C.dim; c.lineWidth = 1.5; c.setLineDash([6, 6]); c.strokeRect(x0, y0, nat && !p.dbl ? n * cell : tw, n * cell); c.setLineDash([]);
+          g.text(c, odd ? n + ' × ' + n : n + ' × ' + (n + 1), x0 + tw / 2, y0 + n * cell + fs * 1.4, C.ink, fs * 1.1, 'center', 'middle', 700, true);
+          const t = this.terms(p), S = t.reduce((a, b) => a + b, 0), xr = W * 0.62, sz = Math.min(fs * 1.4, W * 0.34 / 7);
+          g.text(c, 'Terms', xr, H * 0.16, C.dim, fs * 0.8, 'left');
+          t.forEach((v, i) => g.text(c, (i ? '+ ' : '  ') + v, xr + (i % 4) * sz * 2.6, H * 0.24 + Math.floor(i / 4) * sz * 1.5, pal[i % pal.length], sz, 'left', 'middle', 700, true));
+          const f = odd ? n + '² = ' + S : even ? n + ' × ' + (n + 1) + ' = ' + S : n + ' × ' + (n + 1) + ' ÷ 2 = ' + S;
+          g.box(c, 'Sum = ' + f, xr + W * 0.17, H * 0.72, C.lime, fs * 1.4);
+          return null;
+        },
+        read(p) { const n = p.n, t = this.terms(p); return [{ l: 'n', v: n, c: 'ink' }, { l: 'Last term', v: t[n - 1], c: 'amber' }, { l: 'Sum', v: t.reduce((a, b) => a + b, 0), c: 'lime' }, { l: 'S(odd), S(even)', v: n * n + ', ' + n * (n + 1), c: 'cyan' }, { l: 'S(even) − S(odd)', v: n, c: 'violet' }]; },
+        result(p) { const n = p.n; return p.kind === 'Odd numbers' ? '1 + 3 + … + ' + (2 * n - 1) + ' = ' + n + '² = ' + n * n : p.kind === 'Even numbers' ? '2 + 4 + … + ' + 2 * n + ' = ' + n + '(' + n + ' + 1) = ' + n * (n + 1) : '1 + 2 + … + ' + n + ' = ' + n * (n + 1) / 2; } },
+
+      { id: 'divx', title: 'Divisor Explorer — d(N), σ(N), Perfect & Amicable Numbers', topic: 'Number System', grades: [6, 7, 8, 9],
+        aim: 'To find all divisors of N from its prime factorisation and use the formulas for the number, sum and product of divisors.',
+        equip: ['Factor tree', 'Divisor grid', 'Pairing arcs'],
+        steps: ['Set N and open the Factor tree: N = p₁^α₁ × p₂^α₂ × … (unique factorisation).', 'Open the Divisor grid: each divisor picks one power of each prime, so d(N) = (α₁ + 1)(α₂ + 1)….', 'Read σ(N) = Π (p^(α+1) − 1)/(p − 1) and the product of divisors = N^(d(N)/2).', 'Open Divisor pairs: divisors pair up as d and N/d. Only a perfect square has an unpaired middle divisor, so d(N) is odd only for perfect squares.', 'Check the type: perfect (σ = 2N), abundant (σ > 2N) or deficient (σ < 2N). Try 6, 28, 496, and 220 (amicable with 284).'],
+        concl: 'If N = p₁^α₁ p₂^α₂ … then d(N) = (α₁ + 1)(α₂ + 1)…, σ(N) = Π (p^(α+1) − 1)/(p − 1), product of divisors = N^(d(N)/2). d(N) is odd ⇔ N is a perfect square. N has exactly 3 divisors ⇔ N = p².',
+        tips: ['Odd number of divisors? Look for a perfect square in the options.', 'Exactly 3 divisors ⇒ N = p² and σ(N) = p² + p + 1.', 'If the product of divisors is N^k, then d(N) = 2k.', 'Exactly 4 divisors ⇒ N = p³ or N = p × q.', 'Perfect numbers: if 2^k − 1 is prime, 2^(k−1)(2^k − 1) is perfect (6, 28, 496, 8128).'],
+        controls: [{ type: 'range', key: 'N', label: 'Number N', min: 2, max: 500, step: 1 }, { type: 'select', key: 'view', label: 'View', options: ['Factor tree', 'Divisor grid', 'Divisor pairs'] }, { type: 'select', key: 'pre', label: 'Quick pick', options: ['—', '6', '18', '28', '36', '72', '220', '284', '360', '496'] }],
+        init: { N: 18, view: 'Divisor grid', pre: '—' },
+        fix: p => p.pre !== '—' ? { ...p, N: +p.pre, pre: '—' } : p,
+        fac(N) { const f = []; let m = N; for (let q = 2; q * q <= m; q++) if (m % q === 0) { let a = 0; while (m % q === 0) { m /= q; a++; } f.push([q, a]); } if (m > 1) f.push([m, 1]); return f; },
+        divs(N) { const d = []; for (let i = 1; i <= N; i++) if (N % i === 0) d.push(i); return d; },
+        sig(N) { return this.divs(N).reduce((a, b) => a + b, 0); },
+        info(N) { const f = this.fac(N), dv = this.divs(N), d = dv.length, s = dv.reduce((a, b) => a + b, 0), pr = s - N, am = pr !== N && pr > 1 && this.sig(pr) - pr === N ? pr : 0; return { f, dv, d, s, pr, am, type: s === 2 * N ? 'Perfect' : s > 2 * N ? 'Abundant' : 'Deficient', sq: Number.isInteger(Math.sqrt(N)) }; },
+        fstr(f) { const sup = n => String(n).split('').map(x => '⁰¹²³⁴⁵⁶⁷⁸⁹'[x]).join(''); return f.map(([p, a]) => p + (a > 1 ? sup(a) : '')).join(' × '); },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), N = p.N, k = this.info(N);
+          g.box(c, N + ' = ' + this.fstr(k.f) + (k.f.length === 1 && k.f[0][1] === 1 ? '   (prime)' : ''), W / 2, fs * 1.5, C.amber, fs * 1.3);
+          if (p.view === 'Factor tree') {
+            const chain = []; let m = N; while (m > 1) { const q = this.fac(m)[0][0]; chain.push([m, q]); m /= q; }
+            const st = Math.min(H * 0.72 / Math.max(1, chain.length), fs * 3.6), r = Math.min(st * 0.38, fs * 1.6);
+            chain.forEach(([m, q], i) => {
+              const x = W * 0.4 + i * Math.min(W * 0.05, 40), y = H * 0.17 + i * st, last = m === q;
+              if (!last) { const xn = x + Math.min(W * 0.05, 40), yn = y + st; g.line(c, x, y, x - r * 2.4, yn - r * 0.2, C.dim, 2); g.line(c, x, y, xn, yn, C.dim, 2); g.dot(c, x - r * 2.4, yn, r, C.amber + '33', C.amber, 3); g.text(c, String(q), x - r * 2.4, yn, C.amber, r * 0.9, 'center', 'middle', 700, true); }
+              g.dot(c, x, y, r, last ? C.amber + '33' : C.cyan + '22', last ? C.amber : C.cyan, 3); g.text(c, String(m), x, y, last ? C.amber : C.ink, r * (String(m).length > 2 ? 0.75 : 0.9), 'center', 'middle', 700, true);
+            });
+            g.text(c, 'Divide by the smallest prime each time', W * 0.75, H * 0.5, C.dim, fs * 0.9);
+          } else if (p.view === 'Divisor grid') {
+            const [p1, a1] = k.f[0], M = N / p1 ** a1, cd = this.divs(M), rows = a1 + 1, colsN = cd.length;
+            const cw = Math.min(W * 0.8 / (colsN + 1), fs * 4.2), ch = Math.min(H * 0.6 / (rows + 1), fs * 2.6), x0 = (W - cw * (colsN + 1)) / 2, y0 = H * 0.2;
+            g.text(c, '×', x0 + cw / 2, y0 + ch / 2, C.dim, fs);
+            cd.forEach((v, j) => g.text(c, String(v), x0 + cw * (j + 1.5), y0 + ch / 2, C.cyan, fs * 0.95, 'center', 'middle', 700, true));
+            for (let i = 0; i < rows; i++) { g.text(c, String(p1 ** i), x0 + cw / 2, y0 + ch * (i + 1.5), C.amber, fs * 0.95, 'center', 'middle', 700, true); cd.forEach((v, j) => { const x = x0 + cw * (j + 1), y = y0 + ch * (i + 1); c.fillStyle = C.lime + '1c'; c.fillRect(x + 3, y + 3, cw - 6, ch - 6); c.strokeStyle = C.lime + '88'; c.lineWidth = 1.5; c.strokeRect(x + 3, y + 3, cw - 6, ch - 6); g.text(c, String(p1 ** i * v), x + cw / 2, y + ch / 2, C.ink, fs * 0.9, 'center', 'middle', 600, true); }); }
+            g.box(c, 'd(N) = ' + k.f.map(([, a]) => '(' + a + ' + 1)').join('') + ' = ' + rows + ' × ' + colsN + ' = ' + k.d, W / 2, y0 + ch * (rows + 1) + fs * 1.6, C.lime, fs * 1.1);
+            if (k.f.length > 1) g.text(c, 'Rows: powers of ' + p1 + '    Columns: divisors of ' + M, W / 2, y0 + ch * (rows + 1) + fs * 3.4, C.dim, fs * 0.8);
+          } else {
+            const dv = k.dv, n = dv.length, gap = Math.min(W * 0.86 / Math.max(1, n - 1), fs * 3.4), x0 = W / 2 - gap * (n - 1) / 2, y = H * 0.62;
+            for (let i = 0; i < Math.floor(n / 2); i++) { const xa = x0 + i * gap, xb = x0 + (n - 1 - i) * gap, col = [C.cyan, C.violet, C.coral, C.pink][i % 4]; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); c.arc((xa + xb) / 2, y, (xb - xa) / 2, Math.PI, 0); c.stroke(); g.text(c, dv[i] + '×' + dv[n - 1 - i], (xa + xb) / 2, y - (xb - xa) / 2 - fs * 0.6, col, fs * 0.7, 'center', 'middle', 600, true); }
+            dv.forEach((v, i) => { const mid = k.sq && i === (n - 1) / 2; g.dot(c, x0 + i * gap, y, fs * 0.5, mid ? C.lime : C.ink); g.text(c, String(v), x0 + i * gap, y + fs * 1.3, mid ? C.lime : C.ink, fs * (n > 16 ? 0.6 : 0.8), 'center', 'middle', 700, true); });
+            g.box(c, k.sq ? '√' + N + ' = ' + Math.sqrt(N) + ' pairs with itself ⇒ d(N) = ' + n + ' is odd' : 'All divisors pair up ⇒ d(N) = ' + n + ' is even', W / 2, H * 0.84, k.sq ? C.lime : C.cyan, fs);
+          }
+          return null;
+        },
+        read(p) { const N = p.N, k = this.info(N); const prod = Math.pow(N, k.d / 2); return [{ l: 'Factorisation', v: this.fstr(k.f), c: 'amber' }, { l: 'd(N)', v: k.d, c: 'lime' }, { l: 'σ(N)', v: k.s, c: 'cyan' }, { l: 'Product of divisors', v: N + '^(' + k.d + '/2)' + (prod < 1e15 ? ' = ' + Math.round(prod).toLocaleString('en-IN') : ''), c: 'violet' }, { l: 'Proper-divisor sum', v: k.pr, c: 'ink' }, { l: 'Type', v: k.type + (k.am ? ' · amicable with ' + k.am : ''), c: 'coral' }]; },
+        result(p) { const k = this.info(p.N); return 'd(' + p.N + ') = ' + k.d + ',  σ(' + p.N + ') = ' + k.s + ',  ' + k.type; } },
+
+      { id: 'divrule', title: 'Divisibility Rules — 2, 3, 4, 5, 6, 7, 8, 9, 10, 11', topic: 'Number System', grades: [6, 7, 8],
+        aim: 'To test whether a number is divisible by 2–11 using digit rules, without dividing, and to check the answer with the division algorithm N = d × q + r.',
+        equip: ['Place-value digit cards', 'Highlighter', 'Calculator for checking'],
+        steps: ['Pick a number and a divisor. The digits the rule uses are highlighted.', 'Follow the rule on the board: last digits (2, 4, 5, 8, 10), digit sum (3, 9), alternating sum (11), blocks of three or “subtract twice the unit digit” (7), or two rules together (6).', 'Read the verdict, then check it with N = d × q + r.', 'Try the textbook examples, then your own numbers.'],
+        concl: 'A number is divisible by 2, 5, 10 by its last digit; by 4 and 8 by its last two and three digits; by 3 and 9 by its digit sum; by 11 when the alternating digit sum is 0 or a multiple of 11; by 7 when the alternating sum of 3-digit blocks (or the “subtract 2 × unit digit” chain) is a multiple of 7; by 6 when divisible by both 2 and 3.',
+        tips: ['Composite divisor: split it into co-prime factors. For 6 check 2 and 3; for 72 check 8 and 9; for 44 check 4 and 11.', 'Digital-root cancellation for 9: cross out digits that make 9 (8 + 1, 7 + 2, 4 + 5 in 872145) — nothing left means divisible by 9.', 'abcabc = abc × 1001 = abc × 7 × 11 × 13, so 456456 is divisible by 7, 11 and 13.', 'Rapid 11: group digits in pairs from the right and add: 43 + 34 = 77, so 4334 is divisible by 11.', 'Osculators: for 7 subtract 2 × unit digit; for 13 add 4 × unit digit.'],
+        controls: [{ type: 'select', key: 'd', label: 'Divisor', options: ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11'] }, { type: 'select', key: 'ex', label: 'Number (textbook examples)', options: ['342384', '746848', '872145', '52479', '901351', '137269', '66311', '4334', '63712', '2139', '618', '343'] }, { type: 'toggle', key: 'own', label: 'Use my own number (slider)' }, { type: 'range', key: 'N', label: 'My own number', min: 10, max: 99999, step: 1 }],
+        init: { d: '7', ex: '342384', own: false, N: 4572 },
+        num(p) { return p.own ? p.N : +p.ex; },
+        rule(N, d) {
+          const s = String(N), dg = s.split('').map(Number), L = dg.length, last = k => +s.slice(-k), out = { use: dg.map(() => 0), lines: [] };
+          const mark = k => { for (let i = Math.max(0, L - k); i < L; i++) out.use[i] = 1; };
+          if (d === 2 || d === 5 || d === 10) { mark(1); const u = dg[L - 1], ok = d === 2 ? u % 2 === 0 : d === 5 ? u % 5 === 0 : u === 0; out.lines.push('Unit digit = ' + u + (d === 2 ? '  (must be 0, 2, 4, 6 or 8)' : d === 5 ? '  (must be 0 or 5)' : '  (must be 0)')); out.ok = ok; }
+          if (d === 4 || d === 8) { const k = d === 4 ? 2 : 3; mark(k); const v = last(k); out.lines.push('Last ' + k + ' digits = ' + v, v + ' ÷ ' + d + ' = ' + Math.floor(v / d) + ' remainder ' + v % d); out.ok = v % d === 0; }
+          if (d === 3 || d === 9) { mark(L); const S = dg.reduce((a, b) => a + b, 0); out.lines.push('Digit sum = ' + dg.join(' + ') + ' = ' + S, S + ' ÷ ' + d + ' leaves remainder ' + S % d); out.ok = S % d === 0; }
+          if (d === 6) { const a = this.rule(N, 2), b = this.rule(N, 3); out.use = b.use; out.lines.push('By 2: unit digit ' + dg[L - 1] + ' → ' + (a.ok ? 'yes' : 'no'), 'By 3: digit sum ' + dg.reduce((x, y) => x + y, 0) + ' → ' + (b.ok ? 'yes' : 'no'), 'Divisible by 6 only if both are yes'); out.ok = a.ok && b.ok; }
+          if (d === 11) { let s1 = 0, s2 = 0; dg.slice().reverse().forEach((v, i) => { if (i % 2) s2 += v; else s1 += v; }); out.use = dg.map((_, i) => ((L - 1 - i) % 2) ? 2 : 1); out.lines.push('S₁ (odd places from right) = ' + s1 + ',  S₂ (even places) = ' + s2, 'D = S₁ − S₂ = ' + (s1 - s2)); out.ok = (s1 - s2) % 11 === 0; }
+          if (d === 7) {
+            const B = []; for (let e = L; e > 0; e -= 3) B.push(+s.slice(Math.max(0, e - 3), e)); out.use = dg.map((_, i) => Math.floor((L - 1 - i) / 3) % 2 ? 2 : 1);
+            const alt = B.reduce((a, b, i) => a + (i % 2 ? -b : b), 0); if (B.length > 1) out.lines.push('Blocks of 3 from right: ' + B.map((b, i) => (i ? (i % 2 ? ' − ' : ' + ') : '') + b).join('') + ' = ' + alt);
+            let m = N; const ch = [String(m)]; while (Math.abs(m) >= 70 && ch.length < 6) { m = Math.floor(m / 10) - 2 * (m % 10); ch.push(String(m)); }
+            out.lines.push('Subtract 2 × unit digit: ' + ch.join(' → ')); out.ok = N % 7 === 0;
+          }
+          return out;
+        },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), N = this.num(p), d = +p.d, s = String(N), R = this.rule(N, d), bw = Math.min(fs * 2.6, W * 0.8 / s.length), x0 = W / 2 - bw * s.length / 2, y0 = H * 0.1;
+          s.split('').forEach((ch, i) => { const u = R.use[i], col = u === 2 ? C.cyan : u ? C.amber : C.dim; c.fillStyle = u ? col + '26' : C.soft; c.fillRect(x0 + i * bw + 4, y0, bw - 8, bw * 1.2); c.strokeStyle = col; c.lineWidth = u ? 3 : 1.5; c.strokeRect(x0 + i * bw + 4, y0, bw - 8, bw * 1.2); g.text(c, ch, x0 + i * bw + bw / 2, y0 + bw * 0.6, u ? C.ink : C.dim, bw * 0.75, 'center', 'middle', 700, true); });
+          g.text(c, 'Is ' + N + ' divisible by ' + d + '?', W / 2, y0 + bw * 1.2 + fs * 1.6, C.ink, fs * 1.2, 'center', 'middle', 700);
+          R.lines.forEach((t, i) => g.text(c, t, W / 2, y0 + bw * 1.2 + fs * (3.6 + i * 1.8), C.cyan, fs * (t.length > 50 ? 0.8 : 1), 'center', 'middle', 600, true));
+          const q = Math.floor(N / d), r = N % d;
+          g.box(c, R.ok ? '✓  Divisible by ' + d : '✗  Not divisible by ' + d, W / 2, H * 0.74, R.ok ? C.lime : C.coral, fs * 1.6);
+          g.text(c, N + ' = ' + d + ' × ' + q + ' + ' + r, W / 2, H * 0.88, C.dim, fs * 1.1, 'center', 'middle', 600, true);
+          return null;
+        },
+        read(p) { const N = this.num(p), d = +p.d, R = this.rule(N, d); return [{ l: 'Number N', v: N, c: 'ink' }, { l: 'Divisor d', v: d, c: 'amber' }, { l: 'Rule says', v: R.ok ? 'Divisible' : 'Not divisible', c: R.ok ? 'lime' : 'coral' }, { l: 'Quotient q', v: Math.floor(N / d), c: 'cyan' }, { l: 'Remainder r', v: N % d, c: 'cyan' }]; },
+        result(p) { const N = this.num(p), d = +p.d; return N + ' = ' + d + ' × ' + Math.floor(N / d) + ' + ' + N % d + (N % d ? '  ✗' : '  ✓'); } },
+
+      { id: 'hcflcm', title: 'HCF & LCM — Prime-Factor Venn, Ladder & Euclid Methods', topic: 'Number System', grades: [6, 7, 10],
+        aim: 'To find the HCF and LCM of two or three numbers by three methods and verify HCF × LCM = a × b for two numbers.',
+        equip: ['Prime factor cards', 'Venn diagram sheet', 'Division ladder'],
+        steps: ['Set the numbers a and b (turn on the third number for three).', 'Prime-factor Venn: common prime factors go in the overlap. HCF = product of the overlap; LCM = product of everything in the diagram.', 'Ladder method: divide by a prime that divides at least two numbers, carry the rest down, until the last row is co-prime. LCM = all divisors × last row.', 'Euclid division: divide the larger by the smaller, then the divisor by the remainder, until the remainder is 0. The last divisor is the HCF.', 'For two numbers check HCF × LCM = a × b.'],
+        concl: 'HCF = product of common prime factors with the least powers; LCM = product of all prime factors with the greatest powers. For two numbers, HCF × LCM = a × b. Co-primes have HCF 1 and LCM = their product.',
+        tips: ['Co-prime multiplier: if HCF = h, write the numbers as hx and hy with x, y co-prime. Then LCM = hxy. Example: LCM 495, HCF 5, sum 100 ⇒ x + y = 20, xy = 99 ⇒ 9 and 11 ⇒ 45 and 55.', 'Least number leaving the same remainder r when divided by a, b, c = LCM(a, b, c) + r.', 'Any two consecutive integers are co-prime: HCF(n, n + 1) = 1.', 'Large LCMs: just take the highest power of each prime, e.g. LCM(2⁶, 5³, 2²·5²) = 2⁶ × 5³ = 8000.'],
+        controls: [{ type: 'select', key: 'm', label: 'Method', options: ['Prime-factor Venn', 'Ladder method', 'Euclid division'] }, { type: 'range', key: 'a', label: 'Number a', min: 2, max: 400, step: 1 }, { type: 'range', key: 'b', label: 'Number b', min: 2, max: 400, step: 1 }, { type: 'toggle', key: 'three', label: 'Third number' }, { type: 'range', key: 'c', label: 'Number c', min: 2, max: 400, step: 1 }],
+        init: { m: 'Prime-factor Venn', a: 24, b: 36, three: false, c: 40 },
+        fac(N) { const f = {}; let m = N; for (let q = 2; q * q <= m; q++) while (m % q === 0) { f[q] = (f[q] || 0) + 1; m /= q; } if (m > 1) f[m] = (f[m] || 0) + 1; return f; },
+        nums(p) { return p.three ? [p.a, p.b, p.c] : [p.a, p.b]; },
+        calc(p) { const ns = this.nums(p), h = ns.reduce((x, y) => gcd(x, y)), l = ns.reduce((x, y) => x * y / gcd(x, y)); return { ns, h, l }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), ns = k.ns, cols = [C.amber, C.cyan, C.violet];
+          if (p.m === 'Prime-factor Venn') {
+            const F = ns.map(n => this.fac(n)), P = [...new Set(F.flatMap(f => Object.keys(f).map(Number)))].sort((x, y) => x - y), reg = {};
+            const add = (key, pr, cnt) => { for (let i = 0; i < cnt; i++) (reg[key] = reg[key] || []).push(pr); };
+            P.forEach(pr => { const e = F.map(f => f[pr] || 0); if (ns.length === 2) { const m = Math.min(e[0], e[1]); add('ab', pr, m); add('a', pr, e[0] - m); add('b', pr, e[1] - m); } else { const z = Math.min(...e), ab = Math.min(e[0], e[1]) - z, ac = Math.min(e[0], e[2]) - z, bc = Math.min(e[1], e[2]) - z; add('abc', pr, z); add('ab', pr, ab); add('ac', pr, ac); add('bc', pr, bc); add('a', pr, e[0] - z - ab - ac); add('b', pr, e[1] - z - ab - bc); add('c', pr, e[2] - z - ac - bc); } });
+            const R = Math.min(W, H) * (ns.length === 2 ? 0.3 : 0.26), cy = H * 0.5, cx = W / 2;
+            const C2 = ns.length === 2 ? [[cx - R * 0.6, cy], [cx + R * 0.6, cy]] : [[cx - R * 0.55, cy - R * 0.35], [cx + R * 0.55, cy - R * 0.35], [cx, cy + R * 0.55]];
+            C2.forEach((q, i) => { g.dot(c, q[0], q[1], R, cols[i] + '18', cols[i], 3); const off = ns.length === 2 ? [i ? 1 : -1, -1.1] : [[-1.1, -0.9], [1.1, -0.9], [-1.25, 0.55]][i]; g.text(c, String(ns[i]), q[0] + (ns.length === 2 ? off[0] * R * 0.55 : off[0] * R * 0.75), q[1] + (ns.length === 2 ? -R * 1.12 : off[1] * R), cols[i], fs * 1.3, 'center', 'middle', 700, true); });
+            const pos = ns.length === 2 ? { a: [cx - R * 1.05, cy], b: [cx + R * 1.05, cy], ab: [cx, cy] } : { a: [cx - R * 1.05, cy - R * 0.6], b: [cx + R * 1.05, cy - R * 0.6], c: [cx, cy + R * 1.15], ab: [cx, cy - R * 0.85], ac: [cx - R * 0.6, cy + R * 0.35], bc: [cx + R * 0.6, cy + R * 0.35], abc: [cx, cy - R * 0.05] };
+            Object.entries(pos).forEach(([key, q]) => { const L = reg[key] || []; const s = L.length ? L.join(' × ') : '—'; g.text(c, s, q[0], q[1], key === 'ab' && ns.length === 2 || key === 'abc' ? C.lime : C.ink, fs * (s.length > 12 ? 0.75 : 1), 'center', 'middle', 700, true); });
+            g.box(c, 'HCF = overlap = ' + k.h + '     LCM = everything = ' + k.l, W / 2, H - fs * 1.4, C.lime, fs * 1.1);
+          } else if (p.m === 'Ladder method') {
+            let row = ns.slice(); const rows = []; let guard = 0;
+            while (guard++ < 20) { let pr = 0; for (let q = 2; q <= Math.max(...row); q++) { const isP = this.fac(q)[q] === 1; if (isP && row.filter(v => v % q === 0).length >= 2) { pr = q; break; } } if (!pr) break; rows.push([pr, row.slice(), row.every(v => v % pr === 0)]); row = row.map(v => v % pr === 0 ? v / pr : v); }
+            const rh = Math.min(H * 0.68 / (rows.length + 1), fs * 2.4), x0 = W * 0.3, y0 = H * 0.12, cw = fs * 4;
+            rows.forEach(([pr, r, all], i) => { const y = y0 + i * rh; g.text(c, String(pr), x0, y + rh / 2, all ? C.lime : C.amber, fs * 1.2, 'right', 'middle', 700, true); g.line(c, x0 + 14, y, x0 + 14, y + rh, C.ink, 2.5); g.line(c, x0 + 14, y + rh, x0 + 14 + cw * r.length, y + rh, C.ink, 2); r.forEach((v, j) => g.text(c, String(v), x0 + 30 + cw * (j + 0.5), y + rh / 2, v % pr === 0 ? C.ink : C.dim, fs * 1.1, 'center', 'middle', 600, true)); });
+            const yl = y0 + rows.length * rh; row.forEach((v, j) => g.text(c, String(v), x0 + 30 + cw * (j + 0.5), yl + rh / 2, C.cyan, fs * 1.1, 'center', 'middle', 700, true));
+            g.text(c, 'Green divisors divide every number → their product is the HCF', W * 0.5, H * 0.82, C.dim, fs * 0.8);
+            g.box(c, 'LCM = ' + [...rows.map(r => r[0]), ...row.filter(v => v > 1)].join(' × ') + ' = ' + k.l, W / 2, H - fs * 1.4, C.lime, fs * 1.1);
+          } else {
+            const lines = []; const eu = (x, y) => { let A = Math.max(x, y), B = Math.min(x, y); while (B) { lines.push(A + ' = ' + B + ' × ' + Math.floor(A / B) + ' + ' + A % B); [A, B] = [B, A % B]; } return A; };
+            const h1 = eu(ns[0], ns[1]); let note = 'HCF(' + ns[0] + ', ' + ns[1] + ') = ' + h1; if (ns.length === 3) { lines.push('— now HCF(' + h1 + ', ' + ns[2] + ') —'); eu(h1, ns[2]); note += ',  HCF with ' + ns[2] + ' = ' + k.h; }
+            const lh = Math.min(fs * 1.9, H * 0.7 / (lines.length + 1)); lines.forEach((t, i) => g.text(c, t, W / 2, H * 0.12 + i * lh, t.startsWith('—') ? C.dim : C.cyan, Math.min(fs * 1.15, lh * 0.75), 'center', 'middle', 600, true));
+            g.box(c, 'Last non-zero divisor: ' + note, W / 2, H - fs * 1.4, C.lime, fs * 1.05);
+          }
+          return null;
+        },
+        read(p) { const k = this.calc(p), two = k.ns.length === 2, pr = k.ns.reduce((x, y) => x * y, 1); return [{ l: 'HCF', v: k.h, c: 'lime' }, { l: 'LCM', v: k.l, c: 'lime' }, { l: two ? 'a × b' : 'a × b × c', v: pr, c: 'amber' }, { l: 'HCF × LCM', v: k.h * k.l, c: 'cyan' }, { l: 'Co-prime?', v: k.h === 1 ? 'Yes' : 'No', c: 'violet' }, { l: 'Check', v: two ? (k.h * k.l === pr ? 'HCF × LCM = a × b ✓' : '—') : 'Identity holds only for two numbers', c: 'ink' }]; },
+        result(p) { const k = this.calc(p); return 'HCF(' + k.ns.join(', ') + ') = ' + k.h + ',  LCM = ' + k.l; } },
+      { id: 'absval', title: 'Integers, Absolute Value & Number Sets', topic: 'Number System', grades: [6, 7],
+        aim: 'To see absolute value as distance on the number line, solve |x| = k and |x| ≤ k, and place numbers in the sets ℕ ⊂ W ⊂ ℤ ⊂ ℚ.',
+        equip: ['Number line −10 to 10', 'Distance brackets', 'Set boxes'],
+        steps: ['Choose “Distance”: |a| is the distance of a from 0, so it is never negative. |a − b| is the distance between a and b.', 'Choose “|x| ≤ k”: the solutions fill the interval from −k to k. Count the integers: 2k + 1 (or 2k − 1 for |x| < k).', 'Choose “Number sets”: move a and watch which sets contain it — every natural number is whole, every whole number is an integer, every integer is rational.', 'Record a few values and compare a, |a| and −|a|.'],
+        concl: '|a| = a if a ≥ 0 and −a if a < 0; |a − b| is the distance between a and b. |x| = k gives x = ±k; |x| ≤ k gives −k ≤ x ≤ k with 2k + 1 integer solutions. ℕ ⊂ W ⊂ ℤ ⊂ ℚ.',
+        tips: ['(−a)^even = +a^even and (−a)^odd = −a^odd — look only at the exponent.', 'The sum of all integers from −N to +N is 0.', 'Difference of temperatures or heights = higher − lower, e.g. 8 − (−4) = 12.', '|x| < k (k an integer) has exactly 2k − 1 integer solutions.', '|ax + b| = c: always write both ax + b = c and ax + b = −c.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Explore', options: ['Distance', '|x| ≤ k', 'Number sets'] }, { type: 'range', key: 'a', label: 'a', min: -9, max: 9, step: 0.5 }, { type: 'range', key: 'b', label: 'b', min: -9, max: 9, step: 0.5 }, { type: 'range', key: 'k', label: 'k', min: 1, max: 8, step: 1 }, { type: 'toggle', key: 'strict', label: 'Strict: |x| < k' }],
+        init: { mode: 'Distance', a: -6, b: 3, k: 4, strict: false },
+        sets(a) { const s = ['ℚ']; if (Number.isInteger(a)) { s.unshift('ℤ'); if (a >= 0) s.unshift('W'); if (a > 0) s.unshift('ℕ'); } return s; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), x0 = W * 0.06, x1 = W * 0.94, u = (x1 - x0) / 20, X = v => x0 + (v + 10) * u, y = p.mode === 'Number sets' ? H * 0.82 : H * 0.62;
+          g.line(c, x0 - 12, y, x1 + 12, y, C.ink, 3); g.head(c, x1, y, x1 + 22, y, C.ink); g.head(c, x0, y, x0 - 22, y, C.ink);
+          for (let v = -10; v <= 10; v++) { const big = v % 5 === 0; g.line(c, X(v), y - (big ? 13 : 8), X(v), y + (big ? 13 : 8), big ? C.ink : C.dim, big ? 2.5 : 1.5); if (big || u > 34) g.text(c, N(v, 0), X(v), y + fs * 1.3, v ? C.dim : C.ink, fs * (big ? 0.85 : 0.7), 'center', 'middle', big ? 600 : 400, true); }
+          const brk = (a, b, lvl, col, lab) => { const yy = y - lvl; g.line(c, X(a), yy, X(b), yy, col, 4); g.line(c, X(a), yy - 10, X(a), yy + 10, col, 3); g.line(c, X(b), yy - 10, X(b), yy + 10, col, 3); g.box(c, lab, (X(a) + X(b)) / 2, yy - fs * 1.1, col, fs); };
+          if (p.mode === 'Distance') {
+            brk(0, p.a, H * 0.12, C.amber, '|' + N(p.a) + '| = ' + N(Math.abs(p.a))); brk(p.a, p.b, H * 0.32, C.lime, '|' + N(p.a) + ' − (' + N(p.b) + ')| = ' + N(Math.abs(p.a - p.b)));
+            g.dot(c, X(0), y, 8, C.ink); g.dot(c, X(p.a), y, 12, C.amber, C.bg, 3); g.dot(c, X(p.b), y, 12, C.cyan, C.bg, 3);
+            g.text(c, 'a', X(p.a), y + fs * 2.6, C.amber, fs, 'center', 'middle', 700); g.text(c, 'b', X(p.b), y + fs * 2.6, C.cyan, fs, 'center', 'middle', 700);
+            g.text(c, 'Distance is never negative', W / 2, H * 0.1, C.dim, fs);
+          } else if (p.mode === '|x| ≤ k') {
+            const k = p.k, s = p.strict; c.fillStyle = C.lime + '33'; c.fillRect(X(-k), y - 16, X(k) - X(-k), 32); g.line(c, X(-k), y, X(k), y, C.lime, 6);
+            [-k, k].forEach(v => g.dot(c, X(v), y, 12, s ? C.bg : C.lime, C.lime, 3));
+            let n = 0; for (let v = -k; v <= k; v++) { if (s && Math.abs(v) === k) continue; n++; g.dot(c, X(v), y - H * 0.12, 9, C.amber); }
+            g.box(c, (s ? '|x| < ' : '|x| ≤ ') + k + '   ⇔   ' + (s ? '−' + k + ' < x < ' + k : '−' + k + ' ≤ x ≤ ' + k), W / 2, H * 0.14, C.lime, fs * 1.2);
+            g.box(c, n + ' integer solutions  (' + (s ? '2k − 1' : '2k + 1') + ')', W / 2, H * 0.3, C.amber, fs * 1.1);
+            g.text(c, '|x| = ' + k + '  ⇒  x = ' + k + ' or x = −' + k, W / 2, H * 0.4, C.dim, fs);
+          } else {
+            const S = this.sets(p.a), boxes = [['ℚ  rational', C.violet], ['ℤ  integers', C.cyan], ['W  whole', C.lime], ['ℕ  natural', C.amber]], cx = W / 2, cy = H * 0.38;
+            boxes.forEach(([lab, col], i) => { const w = W * (0.86 - i * 0.18), h = H * (0.62 - i * 0.13), x = cx - w / 2, yy = cy - h / 2 + i * H * 0.03; c.fillStyle = col + '12'; c.fillRect(x, yy, w, h); c.strokeStyle = col; c.lineWidth = 3; c.strokeRect(x, yy, w, h); g.text(c, lab, x + 14, yy + fs * 0.9, col, fs * 0.85, 'left', 'middle', 700); });
+            const lvl = 4 - S.length, px = lvl === 3 ? cx : cx + W * (0.86 - lvl * 0.18 - 0.09) / 2, py = cy + H * 0.06;
+            g.dot(c, px, py, 14, C.ink, C.bg, 3); g.box(c, N(p.a), px, py - fs * 1.4, C.ink, fs * 1.1);
+            g.dot(c, X(p.a), y, 12, C.ink, C.bg, 3);
+          }
+          return null;
+        },
+        read(p) { return [{ l: 'a', v: N(p.a), c: 'amber' }, { l: '|a|', v: N(Math.abs(p.a)), c: 'amber' }, { l: 'b', v: N(p.b), c: 'cyan' }, { l: '|a − b|', v: N(Math.abs(p.a - p.b)), c: 'lime' }, { l: 'a belongs to', v: this.sets(p.a).join(', '), c: 'violet' }]; },
+        result(p) { if (p.mode === '|x| ≤ k') return (p.strict ? '|x| < ' : '|x| ≤ ') + p.k + ': ' + (p.strict ? 2 * p.k - 1 : 2 * p.k + 1) + ' integers'; if (p.mode === 'Number sets') return N(p.a) + ' ∈ ' + this.sets(p.a).join(', '); return '|' + N(p.a) + '| = ' + N(Math.abs(p.a)) + ',  |a − b| = ' + N(Math.abs(p.a - p.b)); } },
+
+      { id: 'ratop', title: 'Rational Numbers — Standard Form, Comparison & Operations', topic: 'Number System', grades: [6, 7, 8],
+        aim: 'To write rational numbers in standard form, compare them by cross-multiplication, add and subtract them using the LCM, and see that between any two rationals there are more rationals.',
+        equip: ['Number line', 'Fraction cards', 'Bow-tie comparison sheet'],
+        steps: ['Set p₁/q₁ and p₂/q₂. Each is first written in standard form: positive denominator, no common factor.', '“Compare”: cross-multiply (bow-tie). The side with the larger product is the larger rational. Check on the number line.', '“Add” or “Subtract”: rewrite both with the LCM of the denominators, then add or subtract the numerators.', '“Between”: the mean of two rationals lies between them; repeat to find as many as you like.'],
+        concl: 'A rational number p/q (q ≠ 0) has a standard form with q > 0 and HCF(p, q) = 1. a/b > c/d (b, d > 0) ⇔ ad > bc. a/b ± c/d = (a·L/b ± c·L/d)/L with L = LCM(b, d). Between any two rationals there are infinitely many rationals.',
+        tips: ['Bow-tie: for a/b and c/d (b, d > 0) compare a × d with b × c — the larger product marks the larger fraction.', 'Same positive numerator: the larger denominator gives the smaller number. Same negative numerator: the larger denominator gives the larger number.', '−x/−y = x/y: cancel the two minus signs before anything else.', 'Additive inverse of p/q is −p/q: flip the sign once, not both numerator and denominator.'],
+        controls: [{ type: 'select', key: 'op', label: 'Operation', options: ['Compare', 'Add', 'Subtract', 'Between'] }, { type: 'range', key: 'p1', label: 'p₁', min: -12, max: 12, step: 1 }, { type: 'range', key: 'q1', label: 'q₁', min: -12, max: 12, step: 1 }, { type: 'range', key: 'p2', label: 'p₂', min: -12, max: 12, step: 1 }, { type: 'range', key: 'q2', label: 'q₂', min: -12, max: 12, step: 1 }],
+        init: { op: 'Compare', p1: -5, q1: 6, p2: 4, q2: -9 },
+        fix: p => ({ ...p, q1: p.q1 || 1, q2: p.q2 || 1 }),
+        std(p, q) { if (q < 0) { p = -p; q = -q; } const h = gcd(Math.abs(p), q) || 1; return [p / h, q / h]; },
+        fr(a) { return a[1] === 1 ? String(a[0]).replace('-', '−') : String(a[0]).replace('-', '−') + '/' + a[1]; },
+        calc(p) { const A = this.std(p.p1, p.q1), B = this.std(p.p2, p.q2), L = A[1] * B[1] / gcd(A[1], B[1]), sg = p.op === 'Subtract' ? -1 : 1, num = A[0] * L / A[1] + sg * B[0] * L / B[1]; return { A, B, L, R: this.std(num, L), raw: [A[0] * L / A[1], B[0] * L / B[1]], num, M: this.std(A[0] * B[1] + B[0] * A[1], 2 * A[1] * B[1]) }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), a = k.A[0] / k.A[1], b = k.B[0] / k.B[1], r = k.R[0] / k.R[1];
+          const span = Math.max(2, Math.ceil(Math.max(Math.abs(a), Math.abs(b), p.op === 'Add' || p.op === 'Subtract' ? Math.abs(r) : 0)) + 0.5), x0 = W * 0.06, x1 = W * 0.94, X = v => x0 + (v + span) * (x1 - x0) / (2 * span), y = H * 0.78;
+          g.line(c, x0, y, x1, y, C.ink, 3);
+          for (let v = Math.ceil(-span); v <= span; v++) { g.line(c, X(v), y - 12, X(v), y + 12, C.ink, 2); g.text(c, N(v, 0), X(v), y + fs * 1.3, C.dim, fs * 0.85, 'center', 'middle', 600, true); }
+          const pt = (v, col, lab, up) => { g.dot(c, X(v), y, 11, col, C.bg, 3); g.box(c, lab, X(v), y + (up ? -fs * 1.6 : fs * 2.9), col, fs * 0.95); };
+          const big = (s, x, yy, col, sz) => g.text(c, s, x, yy, col, sz || fs * 1.6, 'center', 'middle', 700, true);
+          g.text(c, 'Standard form:  ' + p.p1 + '/' + p.q1 + ' = ' + this.fr(k.A) + '     ' + p.p2 + '/' + p.q2 + ' = ' + this.fr(k.B), W / 2, H * 0.08, C.dim, fs * 0.9, 'center', 'middle', 600, true);
+          if (p.op === 'Compare') {
+            const lx = W * 0.36, rx = W * 0.64, ty = H * 0.3, by = H * 0.46, ad = k.A[0] * k.B[1], bc = k.A[1] * k.B[0];
+            big(String(k.A[0]), lx, ty, C.amber); big(String(k.A[1]), lx, by, C.amber); g.line(c, lx - 40, (ty + by) / 2, lx + 40, (ty + by) / 2, C.amber, 3);
+            big(String(k.B[0]), rx, ty, C.cyan); big(String(k.B[1]), rx, by, C.cyan); g.line(c, rx - 40, (ty + by) / 2, rx + 40, (ty + by) / 2, C.cyan, 3);
+            g.line(c, lx + 30, ty + 10, rx - 30, by - 10, C.dim, 2, [6, 6]); g.line(c, lx + 30, by - 10, rx - 30, ty + 10, C.dim, 2, [6, 6]);
+            big(N(ad), lx - W * 0.14, H * 0.18, C.amber, fs * 1.2); big(N(bc), rx + W * 0.14, H * 0.18, C.cyan, fs * 1.2);
+            const sym = ad === bc ? '=' : ad > bc ? '>' : '<'; big(sym, W / 2, (ty + by) / 2, C.lime, fs * 2.4);
+            pt(a, C.amber, this.fr(k.A), true); pt(b, C.cyan, this.fr(k.B), false);
+          } else if (p.op === 'Between') {
+            const n = 4, vals = Array.from({ length: n }, (_, i) => a + (b - a) * (i + 1) / (n + 1));
+            pt(a, C.amber, this.fr(k.A), true); pt(b, C.cyan, this.fr(k.B), true);
+            vals.forEach((v, i) => { g.dot(c, X(v), y, 8, C.lime); }); pt(k.M[0] / k.M[1], C.lime, 'mean ' + this.fr(k.M), false);
+            big('(' + this.fr(k.A) + ' + ' + this.fr(k.B) + ') ÷ 2 = ' + this.fr(k.M), W / 2, H * 0.3, C.lime, fs * 1.3);
+            g.text(c, a === b ? 'The two numbers are equal' : 'Keep taking means — there is always another rational in between', W / 2, H * 0.44, C.dim, fs);
+          } else {
+            const sg = p.op === 'Subtract' ? ' − ' : ' + ';
+            big(this.fr(k.A) + sg + '(' + this.fr(k.B) + ')', W / 2, H * 0.2, C.ink, fs * 1.3);
+            big('= ' + k.raw[0] + '/' + k.L + sg + '(' + k.raw[1] + '/' + k.L + ')    [LCM ' + k.L + ']', W / 2, H * 0.32, C.cyan, fs * 1.1);
+            big('= ' + k.num + '/' + k.L + (this.fr(k.R) !== k.num + '/' + k.L ? ' = ' + this.fr(k.R) : ''), W / 2, H * 0.44, C.lime, fs * 1.4);
+            pt(a, C.amber, this.fr(k.A), true); g.arrow(c, X(a), y - H * 0.08, X(r), y - H * 0.08, C.cyan, 3); pt(r, C.lime, this.fr(k.R), false);
+          }
+          return null;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'First (standard)', v: this.fr(k.A), c: 'amber' }, { l: 'Second (standard)', v: this.fr(k.B), c: 'cyan' }, { l: 'LCM of denominators', v: k.L, c: 'ink' }, { l: p.op === 'Subtract' ? 'Difference' : 'Sum', v: this.fr(p.op === 'Subtract' ? k.R : this.calc({ ...p, op: 'Add' }).R), c: 'lime' }, { l: 'Additive inverse of first', v: this.fr([-k.A[0], k.A[1]]), c: 'violet' }]; },
+        result(p) { const k = this.calc(p), a = k.A[0] * k.B[1], b = k.A[1] * k.B[0]; if (p.op === 'Compare') return this.fr(k.A) + (a === b ? ' = ' : a > b ? ' > ' : ' < ') + this.fr(k.B); if (p.op === 'Between') return 'Between them: ' + this.fr(k.M); return this.fr(k.A) + (p.op === 'Add' ? ' + ' : ' − ') + '(' + this.fr(k.B) + ') = ' + this.fr(k.R); } },
+
+      { id: 'expo', title: 'Laws of Exponents', topic: 'Number System', grades: [6, 7, 8],
+        aim: 'To discover the laws of exponents by writing powers as repeated factors and counting them.',
+        equip: ['Factor chips', 'Grouping trays', 'Halving ladder'],
+        steps: ['Choose a law. Each chip is one factor of the base a.', 'Product: aᵐ × aⁿ puts m chips and n chips together — count m + n.', 'Quotient: matching chips cancel — m − n remain (negative means they stay in the denominator).', 'Power of a power: n groups of m chips give mn chips. Power of a product: (ab)ᵐ regroups into aᵐ × bᵐ.', 'Zero and negative: each step down the ladder divides by a, so a⁰ = 1 and a⁻ⁿ = 1/aⁿ.'],
+        concl: 'aᵐ × aⁿ = aᵐ⁺ⁿ; aᵐ ÷ aⁿ = aᵐ⁻ⁿ; (aᵐ)ⁿ = aᵐⁿ; (ab)ᵐ = aᵐbᵐ; (a/b)ᵐ = aᵐ/bᵐ; a⁰ = 1; a⁻ⁿ = 1/aⁿ (a ≠ 0). Note (aᵐ)ⁿ ≠ a^(mⁿ): (2³)² = 2⁶ but 2^(3²) = 2⁹.',
+        tips: ['(−1)ⁿ: look at the last digit of n — even gives +1, odd gives −1.', 'Prime-factor every base first: 8ˣ = 64 becomes 2³ˣ = 2⁶, so x = 2.', '(a/b)⁻ᵐ = (b/a)ᵐ: flip the fraction before anything else.', 'Same base on both sides ⇒ equate the exponents: 2ˣ × 2ˣ⁻¹ = 2⁹ ⇒ 2x − 1 = 9.'],
+        controls: [{ type: 'select', key: 'law', label: 'Law', options: ['Product', 'Quotient', 'Power of a power', 'Power of a product', 'Zero & negative'] }, { type: 'range', key: 'a', label: 'Base a', min: 2, max: 5, step: 1 }, { type: 'range', key: 'b', label: 'Base b (product law)', min: 2, max: 5, step: 1 }, { type: 'range', key: 'm', label: 'Exponent m', min: 0, max: 6, step: 1 }, { type: 'range', key: 'n', label: 'Exponent n', min: 0, max: 5, step: 1 }],
+        init: { law: 'Product', a: 2, b: 3, m: 3, n: 2 },
+        sup(n) { return String(n).replace('-', '⁻').split('').map(x => '⁰¹²³⁴⁵⁶⁷⁸⁹'['0123456789'.indexOf(x)] || x).join(''); },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), { a, b, m, n } = p, S = e => this.sup(e), sz = Math.min(fs * 2.1, W / 16);
+          const chip = (x, y, lab, col, struck) => { g.dot(c, x, y, sz * 0.42, col + '33', col, 3); g.text(c, lab, x, y, col, sz * 0.5, 'center', 'middle', 700, true); if (struck) g.line(c, x - sz * 0.4, y + sz * 0.4, x + sz * 0.4, y - sz * 0.4, C.coral, 4); };
+          const row = (cnt, y, lab, col, from, x0) => { for (let i = 0; i < cnt; i++) chip((x0 ?? (W / 2 - (cnt - 1) * sz / 2)) + i * sz, y, lab, col, from && i < from); };
+          const eq = (s, y, col) => g.text(c, s, W / 2, y, col || C.lime, fs * 1.4, 'center', 'middle', 700, true);
+          if (p.law === 'Product') { const x0 = W / 2 - (m + n - 1) * sz / 2; row(m, H * 0.3, String(a), C.amber, 0, x0); row(n, H * 0.3, String(a), C.cyan, 0, x0 + m * sz); g.text(c, a + S(m) + ' × ' + a + S(n), W / 2, H * 0.14, C.ink, fs * 1.3, 'center', 'middle', 700, true); eq(m + n + ' factors ⇒ ' + a + S(m) + ' × ' + a + S(n) + ' = ' + a + S(m + n) + ' = ' + a ** (m + n), H * 0.55); }
+          else if (p.law === 'Quotient') { const k = Math.min(m, n); g.text(c, a + S(m) + ' ÷ ' + a + S(n), W / 2, H * 0.12, C.ink, fs * 1.3, 'center', 'middle', 700, true); row(m, H * 0.27, String(a), C.amber, k); g.line(c, W * 0.2, H * 0.37, W * 0.8, H * 0.37, C.ink, 3); row(n, H * 0.47, String(a), C.cyan, k); const d = m - n; eq(k + ' pairs cancel ⇒ ' + a + S(m) + ' ÷ ' + a + S(n) + ' = ' + a + S(d) + ' = ' + (d >= 0 ? a ** d : '1/' + a ** -d), H * 0.66); }
+          else if (p.law === 'Power of a power') { const gw = (m + 0.8) * sz * 0.8, tot = n * gw, x0 = W / 2 - tot / 2; g.text(c, '(' + a + S(m) + ')' + S(n), W / 2, H * 0.12, C.ink, fs * 1.3, 'center', 'middle', 700, true); for (let j = 0; j < n; j++) { c.strokeStyle = C.violet; c.lineWidth = 2; c.strokeRect(x0 + j * gw + 4, H * 0.25, gw - 8, sz * 1.1); for (let i = 0; i < m; i++) { const x = x0 + j * gw + sz * 0.6 + i * sz * 0.8; g.dot(c, x, H * 0.25 + sz * 0.55, sz * 0.32, C.amber + '33', C.amber, 2); g.text(c, String(a), x, H * 0.25 + sz * 0.55, C.amber, sz * 0.4, 'center', 'middle', 700, true); } } eq(n + ' groups × ' + m + ' = ' + m * n + ' factors ⇒ ' + a + S(m * n) + ' = ' + a ** (m * n), H * 0.55); g.text(c, 'Not the same as ' + a + '^(' + m + S(n) + ') = ' + a + S(m ** n), W / 2, H * 0.66, C.coral, fs, 'center', 'middle', 600, true); }
+          else if (p.law === 'Power of a product') { g.text(c, '(' + a + ' × ' + b + ')' + S(m), W / 2, H * 0.12, C.ink, fs * 1.3, 'center', 'middle', 700, true); const x0 = W / 2 - (m - 1) * sz * 1.1 / 2; for (let i = 0; i < m; i++) { chip(x0 + i * sz * 1.1, H * 0.26, String(a), C.amber); chip(x0 + i * sz * 1.1, H * 0.26 + sz, String(b), C.cyan); } row(m, H * 0.52, String(a), C.amber); row(m, H * 0.52 + sz, String(b), C.cyan); g.text(c, '↓ regroup', W / 2, H * 0.43, C.dim, fs); eq('(' + a + ' × ' + b + ')' + S(m) + ' = ' + a + S(m) + ' × ' + b + S(m) + ' = ' + (a * b) ** m, H * 0.75); }
+          else { const lv = [3, 2, 1, 0, -1, -2, -3], sp = W / (lv.length + 1); lv.forEach((e, i) => { const x = sp * (i + 1), v = e >= 0 ? String(a ** e) : '1/' + a ** -e; g.dot(c, x, H * 0.32, sz * 0.75, (e === 0 ? C.lime : e < 0 ? C.violet : C.amber) + '26', e === 0 ? C.lime : e < 0 ? C.violet : C.amber, 3); g.text(c, a + S(e), x, H * 0.32 - sz * 0.2, C.ink, fs * 1.05, 'center', 'middle', 700, true); g.text(c, v, x, H * 0.32 + sz * 0.35, C.dim, fs * 0.85, 'center', 'middle', 600, true); if (i) g.text(c, '÷' + a, x - sp / 2, H * 0.32 - sz * 1.0, C.cyan, fs * 0.85, 'center', 'middle', 700, true); }); eq(a + '⁰ = 1     ' + a + '⁻ⁿ = 1/' + a + 'ⁿ', H * 0.58); g.text(c, 'Each step to the right divides by ' + a, W / 2, H * 0.68, C.dim, fs); }
+          return null;
+        },
+        read(p) { const { a, b, m, n } = p; return [{ l: 'aᵐ', v: a ** m, c: 'amber' }, { l: 'aⁿ', v: a ** n, c: 'cyan' }, { l: 'aᵐ × aⁿ = aᵐ⁺ⁿ', v: a ** (m + n), c: 'lime' }, { l: 'aᵐ ÷ aⁿ = aᵐ⁻ⁿ', v: m >= n ? a ** (m - n) : '1/' + a ** (n - m), c: 'lime' }, { l: '(aᵐ)ⁿ = aᵐⁿ', v: a ** (m * n), c: 'violet' }, { l: '(ab)ᵐ = aᵐbᵐ', v: (a * b) ** m, c: 'pink' }]; },
+        result(p) { const { a, b, m, n } = p, S = e => this.sup(e); return { Product: a + S(m) + ' × ' + a + S(n) + ' = ' + a + S(m + n), Quotient: a + S(m) + ' ÷ ' + a + S(n) + ' = ' + a + S(m - n), 'Power of a power': '(' + a + S(m) + ')' + S(n) + ' = ' + a + S(m * n), 'Power of a product': '(' + a + '·' + b + ')' + S(m) + ' = ' + a + S(m) + '·' + b + S(m), 'Zero & negative': a + '⁰ = 1,  ' + a + '⁻' + S(n).replace('⁻', '') + ' = 1/' + a ** n }[p.law]; } },
+
+      { id: 'tiles', title: 'Algebra Tiles — Add, Subtract, Multiply & Factorise', topic: 'Algebra', grades: [6, 7, 8],
+        aim: 'To add, subtract and multiply algebraic expressions with algebra tiles, and to factorise x² + bx + c by arranging tiles into a rectangle.',
+        equip: ['x² tiles (big squares)', 'x tiles (strips)', 'Unit tiles', 'Red tiles for negatives'],
+        steps: ['“Add / subtract”: build both expressions. A positive and a negative tile of the same kind form a zero pair and are removed.', 'To subtract, flip every tile of the second expression (change every sign), then add.', '“Multiply”: (px + q)(rx + s) is the area of a rectangle — read off pr x² tiles, (ps + qr) x tiles and qs unit tiles (FOIL).', '“Factorise”: choose m and n. x² + (m + n)x + mn fills a rectangle of sides (x + m) and (x + n).'],
+        concl: 'Only like terms combine; a zero pair (+1 and −1 of the same tile) cancels. Subtracting means adding the additive inverse. (px + q)(rx + s) = prx² + (ps + qr)x + qs. x² + bx + c = (x + m)(x + n) when m + n = b and mn = c.',
+        tips: ['Like terms: treat the variables as a barcode — x²y and xy² are different.', 'Bracket-minus rule: when subtracting a bracket, change every sign inside first.', 'Sign first: an even number of negative factors gives +, an odd number gives −.', 'FOIL / grid: (a + b)(c + d) always gives four products ac, ad, bc, bd before combining.', 'Last-term check: in (2x − 3)(4x + 5) the constant is (−3)(+5) = −15.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Mode', options: ['Add / subtract', 'Multiply', 'Factorise'] }, { type: 'select', key: 'op', label: 'Operation (add/subtract)', options: ['P + Q', 'P − Q'] }, { type: 'range', key: 'p2', label: 'P: x² coefficient', min: -3, max: 3, step: 1 }, { type: 'range', key: 'p1', label: 'P: x coefficient', min: -4, max: 4, step: 1 }, { type: 'range', key: 'p0', label: 'P: constant', min: -5, max: 5, step: 1 }, { type: 'range', key: 'q2', label: 'Q: x² coefficient', min: -3, max: 3, step: 1 }, { type: 'range', key: 'q1', label: 'Q: x coefficient', min: -4, max: 4, step: 1 }, { type: 'range', key: 'q0', label: 'Q: constant', min: -5, max: 5, step: 1 }, { type: 'range', key: 'm', label: 'First factor constant m', min: -4, max: 4, step: 1 }, { type: 'range', key: 'n', label: 'Second factor constant n', min: -4, max: 4, step: 1 }, { type: 'range', key: 'pc', label: 'First factor x-coefficient (multiply)', min: 1, max: 2, step: 1 }],
+        init: { mode: 'Add / subtract', op: 'P − Q', p2: 1, p1: 3, p0: -2, q2: -1, q1: 2, q0: 3, m: 2, n: 3, pc: 1 },
+        poly(c2, c1, c0) { let s = ''; [[c2, 'x²'], [c1, 'x'], [c0, '']].forEach(([k, v]) => { if (!k) return; const sg = k < 0 ? ' − ' : ' + ', m = Math.abs(k) === 1 && v ? '' : Math.abs(k); s += (s ? sg : (k < 0 ? '−' : '')) + m + v; }); return s || '0'; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), X = Math.min(W * 0.095, H * 0.14), U = X * 0.32, gp = 8;
+          const tile = (x, y, kind, neg) => { const col = kind === 2 ? C.cyan : kind === 1 ? C.lime : C.amber, w = kind === 0 ? U : kind === 1 ? U : X, h = kind === 0 ? U : X; c.fillStyle = neg ? C.coral + '55' : col + '44'; c.fillRect(x, y, w, h); c.strokeStyle = neg ? C.coral : col; c.lineWidth = 2; c.strokeRect(x, y, w, h); if (neg) g.line(c, x + 3, y + h - 3, x + w - 3, y + 3, C.coral, 1.5); return w; };
+          const set = (k2, k1, k0, x, y) => { [[k2, 2], [k1, 1], [k0, 0]].forEach(([k, kind]) => { for (let i = 0; i < Math.abs(k); i++) x += tile(x, y + (kind === 0 ? X - U : 0), kind, k < 0) + gp; if (k) x += gp * 2; }); return x; };
+          if (p.mode === 'Add / subtract') {
+            const sg = p.op === 'P − Q' ? -1 : 1, Q = [p.q2 * sg, p.q1 * sg, p.q0 * sg], R = [p.p2 + Q[0], p.p1 + Q[1], p.p0 + Q[2]], lx = W * 0.05;
+            const lab = (s, y, col) => g.text(c, s, lx, y, col, fs, 'left', 'middle', 700, true);
+            lab('P = ' + this.poly(p.p2, p.p1, p.p0), H * 0.07, C.ink); set(p.p2, p.p1, p.p0, lx, H * 0.11);
+            lab((sg < 0 ? '−Q (every sign flipped) = ' : 'Q = ') + this.poly(...Q), H * 0.33, C.ink); set(...Q, lx, H * 0.37);
+            const zp = [0, 1, 2].map(i => [p.p2, p.p1, p.p0][i] * Q[i] < 0 ? Math.min(Math.abs([p.p2, p.p1, p.p0][i]), Math.abs(Q[i])) : 0), zt = zp.reduce((x, y) => x + y, 0);
+            lab('Result (' + zt + ' zero pair' + (zt === 1 ? '' : 's') + ' removed) = ' + this.poly(...R), H * 0.62, C.lime); set(...R, lx, H * 0.66);
+          } else {
+            const fac = p.mode === 'Factorise', a1 = fac ? 1 : p.pc, b1 = p.m, a2 = 1, b2 = p.n, x0 = W * 0.17, y0 = H * 0.16;
+            const segs = (a, b) => [...Array(a).fill(X), ...Array(Math.abs(b)).fill(U)], sx = segs(a1, b1), sy = segs(a2, b2), sgx = [...Array(a1).fill(1), ...Array(Math.abs(b1)).fill(Math.sign(b1))], sgy = [...Array(a2).fill(1), ...Array(Math.abs(b2)).fill(Math.sign(b2))];
+            let yy = y0; sy.forEach((h, i) => { let xx = x0; sx.forEach((w, j) => { const kind = w === X && h === X ? 2 : w === X || h === X ? 1 : 0, neg = sgx[j] * sgy[i] < 0; c.fillStyle = neg ? C.coral + '55' : (kind === 2 ? C.cyan : kind === 1 ? C.lime : C.amber) + '44'; c.fillRect(xx + 2, yy + 2, w - 4, h - 4); c.strokeStyle = neg ? C.coral : kind === 2 ? C.cyan : kind === 1 ? C.lime : C.amber; c.lineWidth = 2; c.strokeRect(xx + 2, yy + 2, w - 4, h - 4); xx += w; }); yy += h; });
+            const tw = sx.reduce((x, y) => x + y, 0), th = sy.reduce((x, y) => x + y, 0), f1 = (a1 > 1 ? a1 : '') + 'x' + (b1 ? (b1 < 0 ? ' − ' : ' + ') + Math.abs(b1) : ''), f2 = 'x' + (b2 ? (b2 < 0 ? ' − ' : ' + ') + Math.abs(b2) : '');
+            g.text(c, '(' + f1 + ')', x0 + tw / 2, y0 - fs * 0.9, C.ink, fs * 1.1, 'center', 'middle', 700, true); g.text(c, '(' + f2 + ')', x0 - fs * 0.6, y0 + th / 2, C.ink, fs * 1.1, 'right', 'middle', 700, true);
+            const c2 = a1 * a2, c1 = a1 * b2 + b1 * a2, c0 = b1 * b2, rx = Math.max(W * 0.58, x0 + tw + W * 0.05);
+            const lines = fac ? ['x² + (' + b1 + ' + ' + b2 + ')x + (' + b1 + ')(' + b2 + ')', '= ' + this.poly(c2, c1, c0), 'm + n = ' + c1 + ',  mn = ' + c0, '⇒ (' + f1 + ')(' + f2 + ')'] : ['(' + f1 + ')(' + f2 + ')', 'x² tiles: ' + c2, 'x tiles: ' + a1 * b2 + ' + (' + b1 * a2 + ') = ' + c1, 'unit tiles: ' + c0, '= ' + this.poly(c2, c1, c0)];
+            lines.forEach((t, i) => g.text(c, t, rx, H * 0.2 + i * fs * 2, i === lines.length - 1 ? C.lime : C.ink, fs * 1.1, 'left', 'middle', 700, true));
+            g.text(c, 'Red tiles are negative', rx, H * 0.2 + lines.length * fs * 2 + fs, C.coral, fs * 0.8, 'left', 'middle', 600);
+          }
+          return null;
+        },
+        read(p) { if (p.mode === 'Add / subtract') { const sg = p.op === 'P − Q' ? -1 : 1; return [{ l: 'P', v: this.poly(p.p2, p.p1, p.p0), c: 'ink' }, { l: 'Q', v: this.poly(p.q2, p.q1, p.q0), c: 'ink' }, { l: p.op, v: this.poly(p.p2 + sg * p.q2, p.p1 + sg * p.q1, p.p0 + sg * p.q0), c: 'lime' }]; } const a1 = p.mode === 'Factorise' ? 1 : p.pc; return [{ l: 'x² term', v: a1, c: 'cyan' }, { l: 'x term', v: a1 * p.n + p.m, c: 'lime' }, { l: 'constant', v: p.m * p.n, c: 'amber' }, { l: 'Expanded', v: this.poly(a1, a1 * p.n + p.m, p.m * p.n), c: 'lime' }]; },
+        result(p) { if (p.mode === 'Add / subtract') { const sg = p.op === 'P − Q' ? -1 : 1; return p.op + ' = ' + this.poly(p.p2 + sg * p.q2, p.p1 + sg * p.q1, p.p0 + sg * p.q0); } const a1 = p.mode === 'Factorise' ? 1 : p.pc, f = (a, b) => (a > 1 ? a : '') + 'x' + (b ? (b < 0 ? ' − ' : ' + ') + Math.abs(b) : ''); return '(' + f(a1, p.m) + ')(' + f(1, p.n) + ') = ' + this.poly(a1, a1 * p.n + p.m, p.m * p.n); } },
+
+      { id: 'bodmas', title: 'BODMAS — Order of Operations, Step by Step', topic: 'Algebra', grades: [6, 7],
+        aim: 'To simplify expressions in the correct order — brackets (innermost first, including the vinculum), orders, then division and multiplication left to right, then addition and subtraction left to right.',
+        equip: ['Expression cards', 'Bracket highlighter', 'Step ladder'],
+        steps: ['Choose an expression and move the Step slider one step at a time.', 'Brackets go from the inside out: vinculum (bar) → ( ) → { } → [ ]. A vinculum is a bracket — it groups, it does not change signs.', 'D and M have equal priority: work left to right. A and S also have equal priority: work left to right.', 'A minus sign before a bracket changes the sign of every term inside when the bracket is removed.', 'Look at the “common error” expressions to see what goes wrong when the order is broken.'],
+        concl: 'Order: Brackets (innermost first) → Orders (powers, roots) → Division and Multiplication from left to right → Addition and Subtraction from left to right. A vinculum groups like a bracket; a minus sign before a bracket reverses the signs inside.',
+        tips: ['D and M are a pair, A and S are a pair: inside each pair go strictly left to right. 18 ÷ 3 × 2 = 12, not 3; 8 − 3 + 2 = 7, not 3.', 'Treat the vinculum as the innermost bracket: 7 − 2 × (4 − 6 with a bar) = 7 − 2 × (−2) = 11.', 'Minus before a bracket: −(2x − 3y) = −2x + 3y.'],
+        controls: [{ type: 'select', key: 'e', label: 'Expression', options: ['5 + 2 × (3 + 4)', '4 − [2 + {3 − (1 + 2)}]', '2³ + 12 ÷ 4 × (5 − 2)', '18 ÷ 3 × 2  (common error)', '8 − 3 + 2  (common error)', '7 − 2 × vinculum(4 − 6)', '3b − [b − {3b − (4b + vinc)}]', '5a − [2a − {a − (3a − vinc)}]', '6 − (2x − 3y)'] }, { type: 'range', key: 's', label: 'Step', min: 0, max: 6, step: 1 }],
+        init: { e: '5 + 2 × (3 + 4)', s: 0 },
+        X: { '5 + 2 × (3 + 4)': [['5 + 2 × (3 + 4)', ''], ['5 + 2 × 7', 'Brackets: 3 + 4 = 7'], ['5 + 14', 'Multiplication: 2 × 7 = 14'], ['19', 'Addition']],
+          '4 − [2 + {3 − (1 + 2)}]': [['4 − [2 + {3 − (1 + 2)}]', ''], ['4 − [2 + {3 − 3}]', 'Innermost ( ): 1 + 2 = 3'], ['4 − [2 + 0]', 'Curly { }: 3 − 3 = 0'], ['4 − 2', 'Square [ ]: 2 + 0 = 2'], ['2', 'Subtraction']],
+          '2³ + 12 ÷ 4 × (5 − 2)': [['2³ + 12 ÷ 4 × (5 − 2)', ''], ['2³ + 12 ÷ 4 × 3', 'Brackets: 5 − 2 = 3'], ['8 + 12 ÷ 4 × 3', 'Orders: 2³ = 8'], ['8 + 3 × 3', 'Left to right: 12 ÷ 4 = 3 first'], ['8 + 9', 'Then 3 × 3 = 9'], ['17', 'Addition']],
+          '18 ÷ 3 × 2  (common error)': [['18 ÷ 3 × 2', ''], ['6 × 2', 'D and M are equal: left to right, 18 ÷ 3 = 6'], ['12', '✓ 12.  ✗ Doing M first gives 18 ÷ 6 = 3 — wrong']],
+          '8 − 3 + 2  (common error)': [['8 − 3 + 2', ''], ['5 + 2', 'A and S are equal: left to right, 8 − 3 = 5'], ['7', '✓ 7.  ✗ Doing A first gives 8 − 5 = 3 — wrong']],
+          '7 − 2 × vinculum(4 − 6)': [['7 − 2 × ⟨4 − 6⟩', ''], ['7 − 2 × (−2)', 'Vinculum is a bracket: 4 − 6 = −2'], ['7 + 4', 'Multiplication: 2 × (−2) = −4, and 7 − (−4) = 7 + 4'], ['11', 'Addition']],
+          '3b − [b − {3b − (4b + vinc)}]': [['3b − [b − {3b − (4b + ⟨3b − 4b⟩)}]', ''], ['3b − [b − {3b − (4b − b)}]', 'Vinculum: 3b − 4b = −b'], ['3b − [b − {3b − 3b}]', '( ): 4b − b = 3b'], ['3b − [b − 0]', '{ }: 3b − 3b = 0'], ['3b − b', '[ ]: b − 0 = b'], ['2b', 'Combine like terms']],
+          '5a − [2a − {a − (3a − vinc)}]': [['5a − [2a − {a − (3a − ⟨a + 2a⟩)}]', ''], ['5a − [2a − {a − (3a − 3a)}]', 'Vinculum: a + 2a = 3a'], ['5a − [2a − {a − 0}]', '( ): 3a − 3a = 0'], ['5a − [2a − a]', '{ }: a − 0 = a'], ['5a − a', '[ ]: 2a − a = a'], ['4a', 'Combine like terms']],
+          '6 − (2x − 3y)': [['6 − (2x − 3y)', ''], ['6 − 2x + 3y', 'Minus before the bracket flips every sign inside']] },
+        fix(p) { return { ...p, s: Math.min(p.s, this.X[p.e].length - 1) }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), L = this.X[p.e], s = Math.min(p.s, L.length - 1), lh = Math.min(fs * 2.6, H * 0.8 / L.length);
+          const expr = (t, x, y, size, col) => { c.font = '700 ' + Math.round(size) + 'px JetBrains Mono, monospace'; const plain = t.replace(/[⟨⟩]/g, ''), w = c.measureText(plain).width; let cx = x - w / 2; const parts = t.split(/([⟨⟩])/); let bar = false; parts.forEach(pt => { if (pt === '⟨') { bar = true; return; } if (pt === '⟩') { bar = false; return; } const pw = c.measureText(pt).width; g.text(c, pt, cx, y, col, size, 'left', 'middle', 700, true); if (bar) g.line(c, cx, y - size * 0.75, cx + pw, y - size * 0.75, col, 3); cx += pw; }); };
+          for (let i = 0; i <= s; i++) { const y = H * 0.1 + i * lh, cur = i === s; expr((i ? '= ' : '') + L[i][0], W * 0.42, y, cur ? fs * 1.35 : fs * 1.05, cur ? C.ink : C.dim); if (L[i][1]) g.text(c, L[i][1], W * 0.97, y, cur ? (L[i][1].startsWith('✓') ? C.lime : C.cyan) : C.dim, fs * 0.75, 'right', 'middle', 600); }
+          if (s === L.length - 1) g.box(c, 'Answer: ' + L[s][0], W / 2, H - fs * 1.6, C.lime, fs * 1.3); else g.text(c, 'Step ' + s + ' of ' + (L.length - 1), W / 2, H - fs * 1.6, C.dim, fs);
+          return null;
+        },
+        read(p) { const L = this.X[p.e], s = Math.min(p.s, L.length - 1); return [{ l: 'Step', v: s + ' / ' + (L.length - 1), c: 'ink' }, { l: 'Rule used', v: L[s][1] || 'Start', c: 'cyan' }, { l: 'Answer', v: L[L.length - 1][0], c: 'lime' }]; },
+        result(p) { const L = this.X[p.e]; return L[0][0].replace(/⟨/g, '(').replace(/⟩/g, ')') + ' = ' + L[L.length - 1][0]; } },
+      { id: 'trains', title: 'Time & Distance — Trains, Platforms & Relative Speed', topic: 'Commercial Maths', grades: [7, 8],
+        aim: 'To find how long a train takes to pass a pole, a platform or another train, using distance = total length to be covered and the relative speed.',
+        equip: ['Track and train models', 'Stopwatch', 'Metre scale'],
+        steps: ['“Pole / platform”: set the platform length (0 for a pole). The train must cover its own length + the platform length.', 'Press Play and watch the clock. Time = (L₁ + L₂) ÷ speed — convert km/h to m/s by × 5/18.', '“Two trains”, opposite directions: relative speed = v₁ + v₂; distance = sum of both lengths.', 'Same direction: relative speed = v₁ − v₂ (faster train must be behind). Compare the crossing times.'],
+        concl: 'Time to pass = (sum of lengths to be covered) ÷ (relative speed). Pole: own length; platform/bridge: own + platform; another train: both lengths. Opposite directions add speeds, same direction subtract. 1 km/h = 5/18 m/s.',
+        tips: ['Write the distance first: own length, own + platform, or both train lengths.', 'Opposite directions: add speeds. Same direction (overtaking): subtract speeds.', 'km/h → m/s: × 5/18;  m/s → km/h: × 18/5. Use m/s whenever lengths are in metres.', 'Two trains meet and then take a and b hours to reach the far ends: speed ratio = √b : √a.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Situation', options: ['Pole / platform', 'Two trains'] }, { type: 'select', key: 'dir', label: 'Direction (two trains)', options: ['Opposite', 'Same'] }, { type: 'range', key: 'L1', label: 'Train A length', min: 50, max: 400, step: 10, unit: ' m' }, { type: 'range', key: 'L2', label: 'Platform / train B length', min: 0, max: 400, step: 10, unit: ' m' }, { type: 'range', key: 'v1', label: 'Speed of A', min: 18, max: 144, step: 9, unit: ' km/h' }, { type: 'range', key: 'v2', label: 'Speed of B', min: 18, max: 144, step: 9, unit: ' km/h' }, { type: 'toggle', key: 'play', label: 'Play' }, { type: 'range', key: 't', label: 'Progress', min: 0, max: 1, step: 0.01 }],
+        init: { mode: 'Pole / platform', dir: 'Opposite', L1: 200, L2: 300, v1: 54, v2: 36, play: false, t: 0 },
+        tick(p) { if (!p.play) return null; const t = p.t + 0.0035; return t >= 1 ? { ...p, t: 1, play: false } : { ...p, t }; },
+        calc(p) { const a = p.v1 * 5 / 18, b = p.v2 * 5 / 18, two = p.mode === 'Two trains', rel = !two ? a : p.dir === 'Opposite' ? a + b : a - b, D = p.L1 + p.L2; return { a, b, two, rel, D, T: rel > 0 ? D / rel : Infinity }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), T = isFinite(k.T) ? k.T : 60, s = -0.12 * T + p.t * 1.3 * T, span = (p.L1 + Math.max(p.L2, 60)) * 1.45, x0 = W * 0.05, sc = (W * 0.9) / (2 * span), X = m => W / 2 + m * sc;
+          const train = (fr, len, y, col, dir, lab) => { const xa = X(fr - dir * len), xb = X(fr), l = Math.min(xa, xb), w = Math.abs(xb - xa), h = H * 0.07; c.fillStyle = col + '33'; c.fillRect(l, y - h, w, h); c.strokeStyle = col; c.lineWidth = 3; c.strokeRect(l, y - h, w, h); for (let i = 1; i < Math.max(1, len / 25); i++) g.line(c, l + w * i / Math.max(1, len / 25), y - h, l + w * i / Math.max(1, len / 25), y, col + '55', 1); g.dot(c, xb, y - h / 2, 7, col); g.text(c, lab, l + w / 2, y - h - fs * 0.8, col, fs * 0.85, 'center', 'middle', 700); };
+          const track = y => { g.line(c, x0, y + 4, W - x0, y + 4, C.dim, 3); for (let x = x0; x < W - x0; x += 26) g.line(c, x, y + 1, x, y + 9, C.dim + '88', 2); };
+          const yA = H * 0.42, yB = H * 0.6;
+          if (!k.two) {
+            track(yA); if (p.L2 > 0) { c.fillStyle = C.violet + '33'; c.fillRect(X(0), yA + 10, X(p.L2) - X(0), H * 0.05); c.strokeStyle = C.violet; c.lineWidth = 2; c.strokeRect(X(0), yA + 10, X(p.L2) - X(0), H * 0.05); g.text(c, 'Platform ' + p.L2 + ' m', (X(0) + X(p.L2)) / 2, yA + 10 + H * 0.025, C.violet, fs * 0.8, 'center', 'middle', 700); } else { g.line(c, X(0), yA - H * 0.14, X(0), yA + 8, C.violet, 5); g.text(c, 'Pole', X(0), yA - H * 0.16, C.violet, fs * 0.85); }
+            train(k.a * s, p.L1, yA, C.amber, 1, 'A  ' + p.L1 + ' m');
+          } else {
+            track(yA); track(yB);
+            train(k.a * s, p.L1, yA, C.amber, 1, 'A  ' + p.v1 + ' km/h');
+            if (p.dir === 'Opposite') train(-k.b * s, p.L2, yB, C.cyan, -1, 'B  ' + p.v2 + ' km/h'); else train(k.b * s + p.L2, p.L2, yB, C.cyan, 1, 'B  ' + p.v2 + ' km/h');
+          }
+          const inside = s >= 0 && s <= T, done = s > T;
+          g.box(c, 'Clock: ' + N(Math.max(0, Math.min(s, T)), 1) + ' s' + (done ? '  — crossed!' : inside ? '  — crossing…' : ''), W / 2, H * 0.12, done ? C.lime : C.amber, fs * 1.2);
+          g.text(c, 'Distance = ' + (k.two ? p.L1 + ' + ' + p.L2 : p.L1 + (p.L2 ? ' + ' + p.L2 : '')) + ' = ' + k.D + ' m,   speed = ' + N(k.rel, 2) + ' m/s', W / 2, H * 0.8, C.ink, fs, 'center', 'middle', 600, true);
+          g.box(c, isFinite(k.T) ? 'Time = ' + k.D + ' ÷ ' + N(k.rel, 2) + ' = ' + N(k.T, 2) + ' s' : 'A is not faster than B — it never overtakes', W / 2, H * 0.9, isFinite(k.T) ? C.lime : C.coral, fs * 1.1);
+          return null;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Speed of A', v: p.v1 + ' km/h = ' + N(k.a, 2) + ' m/s', c: 'amber' }, { l: k.two ? 'Speed of B' : 'Platform', v: k.two ? p.v2 + ' km/h = ' + N(k.b, 2) + ' m/s' : p.L2 + ' m', c: 'cyan' }, { l: 'Distance to cover', v: k.D + ' m', c: 'ink' }, { l: 'Relative speed', v: N(k.rel, 2) + ' m/s', c: 'violet' }, { l: 'Time', v: isFinite(k.T) ? N(k.T, 2) + ' s' : '—', c: 'lime' }]; },
+        result(p) { const k = this.calc(p); return isFinite(k.T) ? 't = ' + k.D + ' m ÷ ' + N(k.rel, 2) + ' m/s = ' + N(k.T, 2) + ' s' : 'No overtaking'; } },
+
+      { id: 'boats', title: 'Boats & Streams and Average Speed', topic: 'Commercial Maths', grades: [7, 8],
+        aim: 'To find downstream and upstream speeds and times, and to see why the average speed for equal distances is 2xy/(x + y), not (x + y)/2.',
+        equip: ['River model', 'Boat', 'Stopwatch'],
+        steps: ['“Boats & streams”: set the boat speed in still water and the stream speed. Downstream = boat + stream; upstream = boat − stream.', 'Press Play: the boat goes down and comes back. Compare the two times.', 'Average speed for the round trip = total distance ÷ total time = (b² − s²)/b — always less than b.', '“Average speed”: equal distances at x and y. The slower part takes more time, so the average 2xy/(x + y) is below (x + y)/2.'],
+        concl: 'Downstream = b + s, upstream = b − s; b = ½(down + up), s = ½(down − up). Round-trip average = (b² − s²)/b. For equal distances at x and y, average speed = 2xy/(x + y) (harmonic mean), not (x + y)/2.',
+        tips: ['Write two arrows: downstream = still + stream; upstream = still − stream.', 'Equal distances at x and y: average = 2xy/(x + y), never (x + y)/2.', 'Upstream takes t hours more than downstream: distance = (b² − s²)t / 2s.', 'Round trip takes t hours in total: distance = (b² − s²)t / 2b.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Explore', options: ['Boats & streams', 'Average speed'] }, { type: 'range', key: 'b', label: 'Boat speed in still water', min: 2, max: 20, step: 1, unit: ' km/h' }, { type: 'range', key: 's', label: 'Stream speed', min: 0, max: 10, step: 1, unit: ' km/h' }, { type: 'range', key: 'd', label: 'Distance one way', min: 6, max: 60, step: 6, unit: ' km' }, { type: 'range', key: 'x', label: 'Average: speed going', min: 10, max: 90, step: 5, unit: ' km/h' }, { type: 'range', key: 'y', label: 'Average: speed returning', min: 10, max: 90, step: 5, unit: ' km/h' }, { type: 'toggle', key: 'play', label: 'Play' }, { type: 'range', key: 't', label: 'Progress', min: 0, max: 1, step: 0.01 }],
+        init: { mode: 'Boats & streams', b: 10, s: 4, d: 42, x: 60, y: 40, play: false, t: 0 },
+        fix: p => ({ ...p, s: Math.min(p.s, p.b - 1) }),
+        tick(p) { if (!p.play) return null; const t = p.t + 0.003; return t >= 1 ? { ...p, t: 1, play: false } : { ...p, t }; },
+        calc(p) { const dn = p.b + p.s, up = p.b - p.s, t1 = p.d / dn, t2 = p.d / up; return { dn, up, t1, t2, avg: 2 * p.d / (t1 + t2), hm: 2 * p.x * p.y / (p.x + p.y), am: (p.x + p.y) / 2 }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p);
+          if (p.mode === 'Boats & streams') {
+            const x0 = W * 0.1, x1 = W * 0.9, yr = H * 0.32, rh = H * 0.18, T = k.t1 + k.t2, tt = p.t * T, pos = tt <= k.t1 ? tt / k.t1 : 1 - (tt - k.t1) / k.t2;
+            c.fillStyle = C.cyan + '22'; c.fillRect(x0 - 30, yr, x1 - x0 + 60, rh); g.line(c, x0 - 30, yr, x1 + 30, yr, C.cyan, 2); g.line(c, x0 - 30, yr + rh, x1 + 30, yr + rh, C.cyan, 2);
+            const off = ((performance.now() / 30) * (p.s / 4)) % 80; for (let x = x0 - 30 + off; x < x1 + 30; x += 80) g.arrow(c, x, yr + rh * 0.75, x + 34, yr + rh * 0.75, C.cyan + '99', 2);
+            g.text(c, 'stream ' + p.s + ' km/h →', x1, yr + rh + fs, C.cyan, fs * 0.8, 'right');
+            const bx = x0 + (x1 - x0) * pos, by = yr + rh * 0.38, dirR = tt <= k.t1; c.fillStyle = C.amber; c.beginPath(); c.moveTo(bx + (dirR ? 34 : -34), by); c.lineTo(bx + (dirR ? -24 : 24), by - 14); c.lineTo(bx + (dirR ? -24 : 24), by + 14); c.closePath(); c.fill();
+            g.text(c, 'A', x0, yr - fs, C.ink, fs, 'center', 'middle', 700); g.text(c, 'B  (' + p.d + ' km)', x1, yr - fs, C.ink, fs, 'center', 'middle', 700);
+            const row = (lab, sp, t, y, col) => g.text(c, lab + ':  ' + sp + ' km/h,  time = ' + p.d + ' ÷ ' + sp + ' = ' + N(t, 2) + ' h', W / 2, y, col, fs, 'center', 'middle', 600, true);
+            row('Downstream  b + s = ' + p.b + ' + ' + p.s, k.dn, k.t1, H * 0.64, C.lime); row('Upstream  b − s = ' + p.b + ' − ' + p.s, k.up, k.t2, H * 0.72, C.coral);
+            g.box(c, 'Round-trip average = ' + 2 * p.d + ' ÷ ' + N(k.t1 + k.t2, 2) + ' = ' + N(k.avg, 2) + ' km/h  = (b² − s²)/b', W / 2, H * 0.86, C.amber, fs * 1.05);
+            g.box(c, 'Time: ' + N(tt, 2) + ' h', W / 2, H * 0.12, C.ink, fs);
+          } else {
+            const t1 = 1 / p.x, t2 = 1 / p.y, Tm = t1 + t2, bw = W * 0.8, x0 = W * 0.1;
+            g.text(c, 'Equal distances: time bar (each part covers the same distance)', W / 2, H * 0.12, C.dim, fs * 0.9);
+            c.fillStyle = C.amber + '44'; c.fillRect(x0, H * 0.2, bw * t1 / Tm, H * 0.12); c.fillStyle = C.cyan + '44'; c.fillRect(x0 + bw * t1 / Tm, H * 0.2, bw * t2 / Tm, H * 0.12);
+            c.strokeStyle = C.ink; c.lineWidth = 2; c.strokeRect(x0, H * 0.2, bw, H * 0.12);
+            g.text(c, 'at ' + p.x + ' km/h', x0 + bw * t1 / Tm / 2, H * 0.26, C.amber, fs, 'center', 'middle', 700); g.text(c, 'at ' + p.y + ' km/h', x0 + bw * (t1 / Tm + t2 / Tm / 2), H * 0.26, C.cyan, fs, 'center', 'middle', 700);
+            g.box(c, 'Average = 2xy/(x + y) = 2 × ' + p.x + ' × ' + p.y + ' / ' + (p.x + p.y) + ' = ' + N(k.hm, 2) + ' km/h', W / 2, H * 0.48, C.lime, fs * 1.15);
+            g.box(c, '✗  (x + y)/2 = ' + N(k.am, 2) + ' km/h — wrong: more time is spent at the lower speed', W / 2, H * 0.62, C.coral, fs * 0.95);
+          }
+          return null;
+        },
+        read(p) { const k = this.calc(p); return p.mode === 'Boats & streams' ? [{ l: 'Downstream speed', v: k.dn + ' km/h', c: 'lime' }, { l: 'Upstream speed', v: k.up + ' km/h', c: 'coral' }, { l: 'Time down / up', v: N(k.t1, 2) + ' h / ' + N(k.t2, 2) + ' h', c: 'ink' }, { l: 'Average speed', v: N(k.avg, 2) + ' km/h', c: 'amber' }, { l: 'b = ½(down + up)', v: (k.dn + k.up) / 2 + ' km/h', c: 'cyan' }] : [{ l: '2xy/(x + y)', v: N(k.hm, 2) + ' km/h', c: 'lime' }, { l: '(x + y)/2', v: N(k.am, 2) + ' km/h', c: 'coral' }, { l: 'Difference', v: N(k.am - k.hm, 2) + ' km/h', c: 'ink' }]; },
+        result(p) { const k = this.calc(p); return p.mode === 'Boats & streams' ? 'Down ' + k.dn + ', up ' + k.up + ' km/h · average ' + N(k.avg, 2) + ' km/h' : 'Average speed = ' + N(k.hm, 2) + ' km/h'; } },
+
+      { id: 'twork', title: 'Time & Work — LCM Method, Pipes & Cisterns', topic: 'Commercial Maths', grades: [7, 8],
+        aim: 'To solve time-and-work problems by taking the total work as the LCM of the days (units of work) and adding or subtracting efficiencies; and to apply the same idea to pipes filling and emptying a tank.',
+        equip: ['Wall of work units', 'Water tank', 'Inlet and outlet pipes'],
+        steps: ['“Together”: total work = LCM(a, b) units. A does W/a units a day, B does W/b. Together they do the sum each day.', 'Press Play to watch the work units fill day by day. Time together = ab/(a + b).', '“A leaves early”: both work k days, then B finishes the remaining units alone.', '“Pipes”: an inlet fills in a hours and an outlet empties in b hours (b > a). Net rate = 1/a − 1/b, so the tank fills in ab/(b − a) hours.'],
+        concl: 'Work = rate × time. Taking total work = LCM of the days makes every efficiency a whole number. Together: 1/a + 1/b = (a + b)/ab ⇒ time = ab/(a + b). Inlet a h, outlet b h: time = ab/(b − a). Wages are shared in the ratio of work done.',
+        tips: ['LCM method: A 12 days, B 18 days ⇒ work = 36 units, A = 3/day, B = 2/day, together 5/day ⇒ 7.2 days.', 'Two workers: together time = xy/(x + y).', 'Efficiency ratio a : b means time ratio b : a.', 'Work ledger for leaving problems: work done, work left, who is working now.', 'Pipes: fill in x h, empty in y h (y > x) ⇒ fills in xy/(y − x) hours.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Problem', options: ['Together', 'A leaves early', 'Pipes'] }, { type: 'range', key: 'a', label: 'A alone (days) / inlet (hours)', min: 2, max: 30, step: 1 }, { type: 'range', key: 'b', label: 'B alone (days) / outlet (hours)', min: 2, max: 30, step: 1 }, { type: 'range', key: 'k', label: 'Days A works before leaving', min: 1, max: 10, step: 1 }, { type: 'toggle', key: 'play', label: 'Play' }, { type: 'range', key: 't', label: 'Progress', min: 0, max: 1, step: 0.01 }],
+        init: { mode: 'Together', a: 12, b: 18, k: 3, play: false, t: 0 },
+        tick(p) { if (!p.play) return null; const t = p.t + 0.004; return t >= 1 ? { ...p, t: 1, play: false } : { ...p, t }; },
+        calc(p) {
+          const Wk = p.a * p.b / gcd(p.a, p.b), ea = Wk / p.a, eb = Wk / p.b;
+          if (p.mode === 'Pipes') { const net = ea - eb; return { Wk, ea, eb, T: net > 0 ? Wk / net : Infinity, net }; }
+          const Tt = Wk / (ea + eb);
+          if (p.mode === 'A leaves early') { const k = Math.min(p.k, Tt), rem = Wk - k * (ea + eb); return { Wk, ea, eb, k, rem, T: k + rem / eb, Tt }; }
+          return { Wk, ea, eb, T: Tt };
+        },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), q = this.calc(p), Tn = isFinite(q.T) ? q.T : 0, tt = p.t * Tn;
+          if (p.mode === 'Pipes') {
+            const tx = W * 0.32, tw = W * 0.36, ty = H * 0.18, th = H * 0.52, lvl = isFinite(q.T) ? Math.min(1, tt / q.T) : 0;
+            c.fillStyle = C.cyan + '44'; c.fillRect(tx, ty + th * (1 - lvl), tw, th * lvl); c.strokeStyle = C.ink; c.lineWidth = 3; c.strokeRect(tx, ty, tw, th);
+            g.line(c, tx - W * 0.12, ty + 20, tx, ty + 20, C.lime, 10); g.text(c, 'Inlet fills in ' + p.a + ' h', tx - W * 0.06, ty - 8, C.lime, fs * 0.85, 'center', 'bottom', 700);
+            g.line(c, tx + tw, ty + th - 20, tx + tw + W * 0.12, ty + th - 20, C.coral, 10); g.text(c, 'Outlet empties in ' + p.b + ' h', tx + tw + W * 0.06, ty + th + fs, C.coral, fs * 0.85, 'center', 'middle', 700);
+            g.text(c, N(lvl * 100, 0) + '% full', tx + tw / 2, ty + th / 2, C.ink, fs * 1.3, 'center', 'middle', 700, true);
+            g.box(c, isFinite(q.T) ? 'Net = 1/' + p.a + ' − 1/' + p.b + ' ⇒ time = ' + p.a + '×' + p.b + '/(' + p.b + ' − ' + p.a + ') = ' + N(q.T, 2) + ' h' : 'Outlet is as fast or faster — the tank never fills', W / 2, H * 0.84, isFinite(q.T) ? C.lime : C.coral, fs * 1.05);
+            g.box(c, 'Time: ' + N(tt, 2) + ' h', W / 2, H * 0.08, C.ink, fs);
+            return null;
+          }
+          const n = q.Wk, cols = Math.ceil(Math.sqrt(n * 2.2)), rows = Math.ceil(n / cols), cw = Math.min(W * 0.84 / cols, H * 0.5 / rows), x0 = W / 2 - cols * cw / 2, y0 = H * 0.12;
+          const doneA = p.mode === 'A leaves early' ? Math.min(tt, q.k) * q.ea : tt * q.ea, doneB = tt * q.eb, done = Math.min(n, doneA + doneB);
+          for (let i = 0; i < n; i++) { const x = x0 + (i % cols) * cw, y = y0 + Math.floor(i / cols) * cw, f = Math.max(0, Math.min(1, done - i)); c.strokeStyle = C.dim; c.lineWidth = 1; c.strokeRect(x + 2, y + 2, cw - 4, cw - 4); if (f > 0) { const amb = p.mode === 'A leaves early' && i >= q.k * (q.ea + q.eb) ? false : (i % (q.ea + q.eb)) < q.ea; c.fillStyle = (amb ? C.amber : C.cyan) + 'aa'; c.fillRect(x + 3, y + 3, (cw - 6) * f, cw - 6); } }
+          const yb = y0 + rows * cw + fs * 1.4;
+          g.text(c, 'Total work = LCM(' + p.a + ', ' + p.b + ') = ' + n + ' units    A: ' + N(q.ea) + '/day   B: ' + N(q.eb) + '/day', W / 2, yb, C.ink, fs, 'center', 'middle', 600, true);
+          const msg = p.mode === 'Together' ? 'Together ' + N(q.ea + q.eb) + '/day ⇒ ' + n + ' ÷ ' + N(q.ea + q.eb) + ' = ' + N(q.T, 2) + ' days' : 'k = ' + N(q.k, 2) + ' days together: ' + N(q.k * (q.ea + q.eb), 2) + ' units; B does ' + N(q.rem, 2) + ' more in ' + N(q.rem / q.eb, 2) + ' days ⇒ total ' + N(q.T, 2) + ' days';
+          g.box(c, msg, W / 2, yb + fs * 2.4, C.lime, fs * (msg.length > 70 ? 0.85 : 1.05));
+          g.box(c, 'Day ' + N(tt, 2) + '   ·   ' + N(done, 1) + ' of ' + n + ' units', W / 2, H * 0.05, C.ink, fs * 0.9);
+          return null;
+        },
+        read(p) { const q = this.calc(p); return p.mode === 'Pipes' ? [{ l: 'Tank (LCM units)', v: q.Wk, c: 'ink' }, { l: 'Inlet rate', v: '+' + q.ea + ' /h', c: 'lime' }, { l: 'Outlet rate', v: '−' + q.eb + ' /h', c: 'coral' }, { l: 'Net rate', v: q.net + ' /h', c: 'cyan' }, { l: 'Time to fill', v: isFinite(q.T) ? N(q.T, 2) + ' h' : 'never', c: 'amber' }] : [{ l: 'Total work', v: q.Wk + ' units', c: 'ink' }, { l: "A's efficiency", v: N(q.ea) + ' /day', c: 'amber' }, { l: "B's efficiency", v: N(q.eb) + ' /day', c: 'cyan' }, { l: 'Time taken', v: N(q.T, 2) + ' days', c: 'lime' }, { l: 'Work share A : B', v: p.mode === 'Together' ? q.ea + ' : ' + q.eb : N(q.k * q.ea, 2) + ' : ' + N(q.Wk - q.k * q.ea, 2), c: 'violet' }]; },
+        result(p) { const q = this.calc(p); return isFinite(q.T) ? (p.mode === 'Pipes' ? 'Tank fills in ' : 'Work done in ') + N(q.T, 2) + (p.mode === 'Pipes' ? ' hours' : ' days') : 'Tank never fills'; } },
+
+      { id: 'pdisc', title: 'Partnership, Successive Discounts & Profit', topic: 'Commercial Maths', grades: [7, 8],
+        aim: 'To share profit in the ratio of investment × time, find the single discount equal to two successive discounts, and find profit % after a mark-up and a discount.',
+        equip: ['Investment bars', 'Price tags', 'Percentage strip'],
+        steps: ['“Partnership”: set each investment and its months. Each share is proportional to investment × months.', '“Successive discounts”: a d₁% discount followed by d₂% is NOT (d₁ + d₂)%. It equals (d₁ + d₂ − d₁d₂/100)%.', '“Mark-up & discount”: mark the price m% above cost, then give d% discount. Profit % = (1 + m/100)(1 − d/100) × 100 − 100.', 'Change the values and record the shares and percentages.'],
+        concl: 'Profit shares ∝ investment × time. Two successive discounts x% and y% = one discount of (x + y − xy/100)%. SP = CP(1 + m/100)(1 − d/100). Discount is on the marked price; profit and loss are on the cost price.',
+        tips: ['Cancel trailing zeros first: 80000 : 60000 → 8 : 6 → 4 : 3.', 'Successive changes a% and b% (negatives for discounts): net = a + b + ab/100 %.', 'Discount % is on the marked price; profit % is on the cost price — never mix the bases.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Topic', options: ['Partnership', 'Successive discounts', 'Mark-up & discount'] }, { type: 'range', key: 'i1', label: "A's investment (₹ thousand)", min: 10, max: 200, step: 10 }, { type: 'range', key: 'i2', label: "B's investment (₹ thousand)", min: 10, max: 200, step: 10 }, { type: 'range', key: 'i3', label: "C's investment (₹ thousand, 0 = none)", min: 0, max: 200, step: 10 }, { type: 'range', key: 'm1', label: 'A months', min: 1, max: 12, step: 1 }, { type: 'range', key: 'm2', label: 'B months', min: 1, max: 12, step: 1 }, { type: 'range', key: 'm3', label: 'C months', min: 1, max: 12, step: 1 }, { type: 'range', key: 'P', label: 'Profit (₹ thousand)', min: 10, max: 500, step: 10 }, { type: 'range', key: 'mp', label: 'Marked price / cost price (₹)', min: 100, max: 5000, step: 100 }, { type: 'range', key: 'd1', label: 'Discount 1 (%)', min: 0, max: 60, step: 5 }, { type: 'range', key: 'd2', label: 'Discount 2 (%)', min: 0, max: 60, step: 5 }, { type: 'range', key: 'mk', label: 'Mark-up (%)', min: 0, max: 100, step: 5 }],
+        init: { mode: 'Partnership', i1: 80, i2: 60, i3: 0, m1: 12, m2: 12, m3: 6, P: 42, mp: 4500, d1: 20, d2: 10, mk: 40 },
+        calc(p) {
+          const parts = [[p.i1, p.m1], [p.i2, p.m2], [p.i3, p.m3]].filter(x => x[0] > 0), w = parts.map(([i, m]) => i * m), tw = w.reduce((a, b) => a + b, 0), gg = w.reduce((a, b) => gcd(a, b)), sh = w.map(x => p.P * 1000 * x / tw);
+          const eq = p.d1 + p.d2 - p.d1 * p.d2 / 100, sp2 = p.mp * (1 - p.d1 / 100) * (1 - p.d2 / 100), mpm = p.mp * (1 + p.mk / 100), spm = mpm * (1 - p.d1 / 100), pr = (spm - p.mp) / p.mp * 100;
+          return { w, ratio: w.map(x => x / gg), sh, eq, sp2, mpm, spm, pr };
+        },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), cols = [C.amber, C.cyan, C.violet], names = ['A', 'B', 'C'], inr = v => '₹' + Math.round(v).toLocaleString('en-IN');
+          if (p.mode === 'Partnership') {
+            const mx = Math.max(...k.w), x0 = W * 0.12, bw = W * 0.6;
+            k.w.forEach((v, i) => { const y = H * 0.12 + i * H * 0.12, inv = [p.i1, p.i2, p.i3][i], mo = [p.m1, p.m2, p.m3][i]; c.fillStyle = cols[i] + '44'; c.fillRect(x0, y, bw * v / mx, H * 0.08); c.strokeStyle = cols[i]; c.lineWidth = 2; c.strokeRect(x0, y, bw * v / mx, H * 0.08); g.text(c, names[i], x0 - 20, y + H * 0.04, cols[i], fs * 1.2, 'right', 'middle', 700); g.text(c, '₹' + inv + 'k × ' + mo + ' mo = ' + v, x0 + bw * v / mx + 14, y + H * 0.04, C.ink, fs * 0.9, 'left', 'middle', 600, true); });
+            const yb = H * 0.56, tot = k.w.reduce((a, b) => a + b, 0); let x = W * 0.08;
+            k.w.forEach((v, i) => { const w = W * 0.84 * v / tot; c.fillStyle = cols[i] + '66'; c.fillRect(x, yb, w, H * 0.12); c.strokeStyle = C.bg; c.lineWidth = 3; c.strokeRect(x, yb, w, H * 0.12); g.text(c, names[i] + ': ' + inr(k.sh[i]), x + w / 2, yb + H * 0.06, C.ink, fs * (w > W * 0.2 ? 1 : 0.75), 'center', 'middle', 700, true); x += w; });
+            g.box(c, 'Ratio ' + k.ratio.join(' : ') + '   ·   Profit ' + inr(p.P * 1000), W / 2, H * 0.82, C.lime, fs * 1.1);
+          } else if (p.mode === 'Successive discounts') {
+            const x0 = W * 0.1, bw = W * 0.8, bar = (v, y, col, lab) => { c.fillStyle = col + '44'; c.fillRect(x0, y, bw * v / p.mp, H * 0.09); c.strokeStyle = col; c.lineWidth = 2; c.strokeRect(x0, y, bw * v / p.mp, H * 0.09); g.text(c, lab, x0 + 12, y + H * 0.045, C.ink, fs, 'left', 'middle', 700, true); };
+            const s1 = p.mp * (1 - p.d1 / 100);
+            bar(p.mp, H * 0.1, C.ink, 'Marked price ' + inr(p.mp)); bar(s1, H * 0.24, C.amber, 'after ' + p.d1 + '% off: ' + inr(s1)); bar(k.sp2, H * 0.38, C.cyan, 'after another ' + p.d2 + '% off: ' + inr(k.sp2));
+            g.box(c, 'Single equivalent discount = ' + p.d1 + ' + ' + p.d2 + ' − ' + p.d1 + '×' + p.d2 + '/100 = ' + N(k.eq, 2) + '%', W / 2, H * 0.62, C.lime, fs * 1.1);
+            g.box(c, '✗ Not ' + (p.d1 + p.d2) + '%: the second discount is taken on the reduced price', W / 2, H * 0.76, C.coral, fs * 0.95);
+          } else {
+            const x0 = W * 0.1, bw = W * 0.5 / Math.max(k.mpm, p.mp), bar = (v, y, col, lab) => { c.fillStyle = col + '44'; c.fillRect(x0, y, bw * v, H * 0.09); c.strokeStyle = col; c.lineWidth = 2; c.strokeRect(x0, y, bw * v, H * 0.09); g.text(c, lab, x0 + bw * v + 14, y + H * 0.045, col, fs, 'left', 'middle', 700, true); };
+            bar(p.mp, H * 0.12, C.ink, 'CP ' + inr(p.mp)); bar(k.mpm, H * 0.26, C.amber, 'MP (+' + p.mk + '%) ' + inr(k.mpm)); bar(k.spm, H * 0.4, k.pr >= 0 ? C.lime : C.coral, 'SP (−' + p.d1 + '%) ' + inr(k.spm));
+            g.line(c, x0 + bw * p.mp, H * 0.1, x0 + bw * p.mp, H * 0.52, C.dim, 2, [6, 6]);
+            g.box(c, (k.pr >= 0 ? 'Profit ' : 'Loss ') + N(Math.abs(k.pr), 2) + '%  =  (1 + ' + p.mk + '/100)(1 − ' + p.d1 + '/100) × 100 − 100', W / 2, H * 0.68, k.pr >= 0 ? C.lime : C.coral, fs * 1.05);
+            g.text(c, 'Discount is on the marked price; profit is on the cost price', W / 2, H * 0.8, C.dim, fs * 0.9);
+          }
+          return null;
+        },
+        read(p) { const k = this.calc(p), inr = v => '₹' + Math.round(v).toLocaleString('en-IN'); if (p.mode === 'Partnership') return [{ l: 'Investment × time ratio', v: k.ratio.join(' : '), c: 'ink' }, ...k.sh.map((v, i) => ({ l: ['A', 'B', 'C'][i] + "'s share", v: inr(v), c: ['amber', 'cyan', 'violet'][i] }))]; if (p.mode === 'Successive discounts') return [{ l: 'Marked price', v: inr(p.mp), c: 'ink' }, { l: 'Final price', v: inr(k.sp2), c: 'cyan' }, { l: 'Equivalent discount', v: N(k.eq, 2) + '%', c: 'lime' }, { l: 'Simple sum (wrong)', v: p.d1 + p.d2 + '%', c: 'coral' }]; return [{ l: 'CP', v: inr(p.mp), c: 'ink' }, { l: 'MP', v: inr(k.mpm), c: 'amber' }, { l: 'SP', v: inr(k.spm), c: 'lime' }, { l: k.pr >= 0 ? 'Profit %' : 'Loss %', v: N(Math.abs(k.pr), 2) + '%', c: k.pr >= 0 ? 'lime' : 'coral' }]; },
+        result(p) { const k = this.calc(p); if (p.mode === 'Partnership') return 'Profit shared in ratio ' + k.ratio.join(' : '); if (p.mode === 'Successive discounts') return p.d1 + '% then ' + p.d2 + '% = ' + N(k.eq, 2) + '% single discount'; return (k.pr >= 0 ? 'Profit ' : 'Loss ') + N(Math.abs(k.pr), 2) + '%'; } },
+      { id: 'transv', title: 'Parallel Lines & a Transversal — Angle Pairs', topic: 'Geometry', grades: [6, 7],
+        aim: 'To name the eight angles formed by a transversal, identify corresponding, alternate and co-interior pairs, and see which are equal or supplementary when the lines are parallel.',
+        equip: ['Two straight strips', 'Transversal strip', 'Protractor'],
+        steps: ['Set the transversal angle. Angles ∠1, ∠2 (above l) and ∠3, ∠4 (below l) form at the first crossing; ∠5–∠8 at the second.', 'Choose a pair type and step through its pairs: corresponding (1&5, 2&6, 3&7, 4&8), alternate interior (3&6, 4&5), alternate exterior (1&8, 2&7), co-interior (3&5, 4&6).', 'With l ∥ m, corresponding and alternate angles are equal and co-interior angles add to 180°.', 'Tilt line m (turn off “l ∥ m”): the pairs are no longer equal — equal corresponding or alternate angles prove the lines are parallel.'],
+        concl: 'If l ∥ m: corresponding angles are equal, alternate (interior and exterior) angles are equal, and co-interior angles are supplementary. Conversely, if any one of these holds, the lines are parallel. Vertically opposite angles are always equal; a linear pair always adds to 180°.',
+        tips: ['“Z” shape = alternate angles (equal); “F” shape = corresponding angles (equal); “C/U” shape = co-interior angles (sum 180°).', 'Only two different sizes appear when l ∥ m: θ and 180° − θ.', 'Algebra: equal pairs give x-expression = x-expression; co-interior pairs give sum = 180°.'],
+        controls: [{ type: 'range', key: 'th', label: 'Transversal angle θ', min: 25, max: 155, step: 5, unit: '°' }, { type: 'toggle', key: 'par', label: 'l ∥ m' }, { type: 'range', key: 'tilt', label: 'Tilt of m (when not parallel)', min: -25, max: 25, step: 5, unit: '°' }, { type: 'select', key: 'type', label: 'Pair type', options: ['Corresponding', 'Alternate interior', 'Alternate exterior', 'Co-interior', 'Vertically opposite', 'Linear pair'] }, { type: 'range', key: 'k', label: 'Which pair', min: 1, max: 4, step: 1 }],
+        init: { th: 60, par: true, tilt: 15, type: 'Alternate interior', k: 1 },
+        P: { Corresponding: [[1, 5], [2, 6], [3, 7], [4, 8]], 'Alternate interior': [[3, 6], [4, 5]], 'Alternate exterior': [[1, 8], [2, 7]], 'Co-interior': [[3, 5], [4, 6]], 'Vertically opposite': [[1, 4], [2, 3], [5, 8], [6, 7]], 'Linear pair': [[1, 2], [3, 4], [5, 6], [7, 8]] },
+        fix(p) { return { ...p, k: Math.min(p.k, this.P[p.type].length) }; },
+        ang(p) { const d = p.par ? 0 : p.tilt, a = p.th, b = p.th - d; return [180 - a, a, a, 180 - a, 180 - b, b, b, 180 - b]; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6, 6, -4.2, 4.2], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], d = (p.par ? 0 : p.tilt) * D, th = p.th * D;
+          const P1 = [1.6 / Math.tan(th), 1.6], P2 = [-1.6 / Math.tan(th), -1.6], t = [Math.cos(th), Math.sin(th)], u1 = [1, 0], u2 = [Math.cos(d), Math.sin(d)];
+          const ln = (P, u, L, col, w) => g.line(c, ...S([P[0] - u[0] * L, P[1] - u[1] * L]), ...S([P[0] + u[0] * L, P[1] + u[1] * L]), col, w);
+          ln(P1, u1, 7, C.ink, 4); ln(P2, u2, 7, C.ink, 4); ln([0, 0], t, 5.2, C.violet, 3);
+          g.text(c, 'l', V.X(5.6), V.Y(1.6) - fs, C.ink, fs * 1.1, 'center', 'middle', 700); g.text(c, 'm', V.X(5.6), V.Y(-1.6 + Math.tan(d) * (5.6 - P2[0])) - fs, C.ink, fs * 1.1, 'center', 'middle', 700);
+          const A = this.ang(p), pr = this.P[p.type][p.k - 1] || [], cols = [C.amber, C.cyan];
+          const rays = (P, u) => ({ ul: [[-u[0], -u[1]], t], ur: [u, t], dl: [[-u[0], -u[1]], [-t[0], -t[1]]], dr: [u, [-t[0], -t[1]]] });
+          [[P1, u1, 1], [P2, u2, 5]].forEach(([P, u, base]) => { const R = rays(P, u); ['ul', 'ur', 'dl', 'dr'].forEach((key, i) => { const n = base + i, [a, b] = R[key], on = pr.indexOf(n), O = S(P); if (on >= 0) g.wedge(c, O, [O[0] + a[0] * 100, O[1] - a[1] * 100], [O[0] + b[0] * 100, O[1] - b[1] * 100], 58, cols[on], '∠' + n + ' = ' + N(A[n - 1], 0) + '°', fs); else { const mx = a[0] + b[0], my = a[1] + b[1], L = Math.hypot(mx, my) || 1; g.text(c, String(n), O[0] + mx / L * 34, O[1] - my / L * 34, C.dim, fs * 0.85, 'center', 'middle', 700); } }); });
+          const [x, y] = pr.map(n => A[n - 1]), sup = p.type === 'Co-interior' || p.type === 'Linear pair', ok = sup ? Math.abs(x + y - 180) < 0.01 : Math.abs(x - y) < 0.01;
+          g.box(c, sup ? '∠' + pr[0] + ' + ∠' + pr[1] + ' = ' + N(x + y, 0) + '°' + (ok ? '  (supplementary)' : '  ≠ 180°') : '∠' + pr[0] + ' = ' + N(x, 0) + '°,  ∠' + pr[1] + ' = ' + N(y, 0) + '°' + (ok ? '  (equal)' : '  (not equal)'), W / 2, H - fs * 1.4, ok ? C.lime : C.coral, fs * 1.1);
+          return V;
+        },
+        read(p) { const A = this.ang(p), pr = this.P[p.type][p.k - 1]; return [{ l: 'θ', v: p.th + '°', c: 'violet' }, { l: 'Lines', v: p.par ? 'l ∥ m' : 'm tilted ' + p.tilt + '°', c: 'ink' }, { l: '∠' + pr[0], v: N(A[pr[0] - 1], 0) + '°', c: 'amber' }, { l: '∠' + pr[1], v: N(A[pr[1] - 1], 0) + '°', c: 'cyan' }, { l: 'All 8 angles', v: A.map(v => N(v, 0)).join(', '), c: 'dim' }]; },
+        result(p) { const A = this.ang(p), pr = this.P[p.type][p.k - 1]; return p.type + ': ∠' + pr[0] + ' = ' + N(A[pr[0] - 1], 0) + '°, ∠' + pr[1] + ' = ' + N(A[pr[1] - 1], 0) + '°'; } },
+
+      { id: 'intercept', title: 'Intercept Theorem — Parallel Lines Cut Transversals in Proportion', topic: 'Geometry', grades: [7, 8, 9],
+        aim: 'To verify that three parallel lines cut any two transversals in the same ratio, and that equal intercepts on one transversal give equal intercepts on every transversal.',
+        equip: ['Ruled parallel lines', 'Two straight strips', 'Divider and scale'],
+        steps: ['Drag the ends of the two transversals anywhere across the three parallel lines l, m, n.', 'Read AB : BC on the first transversal and DE : EF on the second — they are always equal.', 'Set the spacings equal: equal intercepts on one transversal give equal intercepts on the other.', 'Tilt the middle line: once it is not parallel, the ratios differ — the theorem needs parallel lines.'],
+        concl: 'If l ∥ m ∥ n, then AB : BC = DE : EF for any two transversals. Equally spaced parallel lines make equal intercepts on every transversal. Equal intercepts on one transversal alone do not prove that lines are parallel.',
+        tips: ['Write the ratio in the same order on both transversals: top part : bottom part.', 'Whole : part also works: AC : AB = DF : DE.', 'Roof-beam problems: half the roof is an intercept (or BPT) figure.'],
+        controls: [{ type: 'range', key: 's1', label: 'Gap l to m', min: 0.6, max: 3.4, step: 0.2 }, { type: 'range', key: 's2', label: 'Gap m to n', min: 0.6, max: 3.4, step: 0.2 }, { type: 'range', key: 'tilt', label: 'Tilt middle line m', min: -20, max: 20, step: 5, unit: '°' }],
+        init: { s1: 1.6, s2: 2.4, tilt: 0, ax: -4, ay: 3.6, bx: -1.5, by: -3.6, cx: 1.5, cy: 3.6, dx: 4.8, dy: -3.6 }, snap: 0.1,
+        handles: () => [['ax', 'ay', 'amber'], ['bx', 'by', 'amber'], ['cx', 'cy', 'cyan'], ['dx', 'dy', 'cyan']],
+        calc(p) {
+          const yl = 2, ym = 2 - p.s1, yn = 2 - p.s1 - p.s2, tm = Math.tan(p.tilt * D);
+          const hit = (P, Q, y0, slope) => { const dx = Q[0] - P[0], dy = Q[1] - P[1], den = dy - slope * dx; if (Math.abs(den) < 1e-9) return null; const t = (y0 - P[1] + slope * P[0]) / den; return [P[0] + t * dx, P[1] + t * dy]; };
+          const T = (P, Q) => [hit(P, Q, yl, 0), hit(P, Q, ym, tm), hit(P, Q, yn, 0)], L = (u, v) => u && v ? Math.hypot(u[0] - v[0], u[1] - v[1]) : 0;
+          const t1 = T([p.ax, p.ay], [p.bx, p.by]), t2 = T([p.cx, p.cy], [p.dx, p.dy]);
+          return { yl, ym, yn, tm, t1, t2, AB: L(t1[0], t1[1]), BC: L(t1[1], t1[2]), DE: L(t2[0], t2[1]), EF: L(t2[1], t2[2]) };
+        },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6.5, 6.5, -4.2, 4.2], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], k = this.calc(p);
+          [[k.yl, 0, 'l'], [k.ym, k.tm, 'm'], [k.yn, 0, 'n']].forEach(([y, s, n]) => { g.line(c, ...S([-7, y - 7 * s]), ...S([7, y + 7 * s]), n === 'm' && p.tilt ? C.coral : C.ink, 3); g.text(c, n, V.X(-6.1), V.Y(y - 6.1 * s) - fs * 0.8, C.ink, fs, 'center', 'middle', 700); });
+          g.line(c, ...S([p.ax, p.ay]), ...S([p.bx, p.by]), C.amber, 3); g.line(c, ...S([p.cx, p.cy]), ...S([p.dx, p.dy]), C.cyan, 3);
+          const nm = [['A', 'B', 'C'], ['D', 'E', 'F']];
+          [k.t1, k.t2].forEach((T, j) => T.forEach((q, i) => { if (!q) return; g.dot(c, ...S(q), 8, j ? C.cyan : C.amber, C.bg, 2); g.text(c, nm[j][i], V.X(q[0]) + (j ? 22 : -22), V.Y(q[1]) - 16, j ? C.cyan : C.amber, fs * 0.95, 'center', 'middle', 700); }));
+          const r1 = k.AB / (k.BC || 1), r2 = k.DE / (k.EF || 1), eq = Math.abs(r1 - r2) < 0.005;
+          g.box(c, 'AB : BC = ' + N(k.AB) + ' : ' + N(k.BC) + ' = ' + N(r1, 3) + '      DE : EF = ' + N(k.DE) + ' : ' + N(k.EF) + ' = ' + N(r2, 3), W / 2, fs * 1.4, C.ink, fs * 0.95);
+          g.box(c, eq ? 'Ratios are equal ✓' : 'Ratios differ — m is not parallel to l and n', W / 2, H - fs * 1.4, eq ? C.lime : C.coral, fs * 1.1);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'AB', v: N(k.AB, 3), c: 'amber' }, { l: 'BC', v: N(k.BC, 3), c: 'amber' }, { l: 'DE', v: N(k.DE, 3), c: 'cyan' }, { l: 'EF', v: N(k.EF, 3), c: 'cyan' }, { l: 'AB/BC', v: N(k.AB / (k.BC || 1), 3), c: 'lime' }, { l: 'DE/EF', v: N(k.DE / (k.EF || 1), 3), c: 'lime' }]; },
+        result(p) { const k = this.calc(p); return 'AB : BC = ' + N(k.AB / (k.BC || 1), 3) + ',  DE : EF = ' + N(k.DE / (k.EF || 1), 3); } },
+
+      { id: 'polyg', title: 'Polygons — Angle Sums, Exterior Angles & Diagonals', topic: 'Geometry', grades: [8, 9],
+        aim: 'To find the interior angle sum of an n-gon by splitting it into triangles, see that the exterior angles always add to 360°, and count the diagonals.',
+        equip: ['Polygon cut-outs', 'Protractor', 'Straws for diagonals'],
+        steps: ['“Triangles”: from one vertex, the diagonals split an n-gon into (n − 2) triangles, so the interior sum is (n − 2) × 180° = (2n − 4) right angles.', '“Exterior angles”: walk round the polygon; at each corner you turn through the exterior angle. One full turn = 360°, whatever n is.', '“Diagonals”: each vertex joins n − 3 others; every diagonal is counted twice, so there are n(n − 3)/2.', 'Turn off “Regular” — the sums stay the same, but the angles are no longer equal.'],
+        concl: 'Interior angle sum = (n − 2) × 180°. Exterior angle sum = 360° for every convex polygon. Diagonals = n(n − 3)/2. For a regular n-gon: each exterior angle = 360°/n and each interior angle = 180° − 360°/n = (n − 2)180°/n.',
+        tips: ['Number of sides of a regular polygon = 360° ÷ each exterior angle.', 'Interior + exterior = 180° at every vertex.', 'Diagonals: 4 → 2, 5 → 5, 6 → 9, 8 → 20, 10 → 35.', '“Each interior angle = (2n − 4)90°/n” is true only for a regular polygon.'],
+        controls: [{ type: 'range', key: 'n', label: 'Number of sides n', min: 3, max: 12, step: 1 }, { type: 'select', key: 'view', label: 'View', options: ['Triangles', 'Exterior angles', 'Diagonals'] }, { type: 'toggle', key: 'reg', label: 'Regular' }],
+        init: { n: 6, view: 'Triangles', reg: true },
+        pts(p) { const n = p.n, J = [0.18, -0.12, 0.22, -0.2, 0.1, -0.06, 0.15, -0.18, 0.08, -0.1, 0.2, -0.14]; let acc = 0; const a = Array.from({ length: n }, (_, i) => { const base = 2 * Math.PI * i / n + Math.PI / 2 + Math.PI / n; return base + (p.reg ? 0 : J[i] * 2 * Math.PI / n * 1.2); }); return a.map((t, i) => { const r = p.reg ? 3.2 : 3.2 * (1 + J[(i + 3) % 12] * 0.35); return [r * Math.cos(t), r * Math.sin(t)]; }); },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-4.6, 4.6, -4.2, 4.2], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], P = this.pts(p), n = p.n, pal = [C.amber, C.cyan, C.lime, C.violet, C.pink, C.coral];
+          if (p.view === 'Triangles') { for (let i = 1; i < n - 1; i++) { g.poly(c, [P[0], P[i], P[i + 1]].map(S), pal[(i - 1) % 6], pal[(i - 1) % 6] + '33', 2); const m = [(P[0][0] + P[i][0] + P[i + 1][0]) / 3, (P[0][1] + P[i][1] + P[i + 1][1]) / 3]; g.text(c, String(i), ...S(m), pal[(i - 1) % 6], fs, 'center', 'middle', 700); } }
+          if (p.view === 'Diagonals') { for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) { if (i === 0 && j === n - 1) continue; g.line(c, ...S(P[i]), ...S(P[j]), pal[i % 6] + 'aa', 2); } }
+          g.poly(c, P.map(S), C.ink, p.view === 'Exterior angles' ? C.ink + '12' : null, 3.5);
+          if (p.view === 'Exterior angles') P.forEach((q, i) => { const r = P[(i + n - 1) % n], dx = q[0] - r[0], dy = q[1] - r[1], L = Math.hypot(dx, dy), e = [q[0] + dx / L * 1.3, q[1] + dy / L * 1.3]; g.line(c, ...S(q), ...S(e), C.dim, 2, [6, 5]); g.wedge(c, S(q), S(e), S(P[(i + 1) % n]), 34, pal[i % 6], n <= 8 ? true : null, fs * 0.8); });
+          P.forEach(q => g.dot(c, ...S(q), 6, C.ink));
+          const msg = p.view === 'Triangles' ? (n - 2) + ' triangles × 180° = ' + (n - 2) * 180 + '°' : p.view === 'Diagonals' ? 'Diagonals = ' + n + '(' + n + ' − 3)/2 = ' + n * (n - 3) / 2 : 'Exterior angles add to 360°' + (p.reg ? ',  each = 360°/' + n + ' = ' + N(360 / n, 2) + '°' : '');
+          g.box(c, msg, W / 2, H - fs * 1.4, C.lime, fs * 1.15);
+          return V;
+        },
+        read(p) { const n = p.n; return [{ l: 'Interior sum', v: (n - 2) * 180 + '°', c: 'amber' }, { l: 'Each interior (regular)', v: N((n - 2) * 180 / n, 2) + '°', c: 'amber' }, { l: 'Exterior sum', v: '360°', c: 'cyan' }, { l: 'Each exterior (regular)', v: N(360 / n, 2) + '°', c: 'cyan' }, { l: 'Diagonals', v: n * (n - 3) / 2, c: 'lime' }, { l: 'Triangles from a vertex', v: n - 2, c: 'violet' }]; },
+        result(p) { const n = p.n; return n + '-gon: interior sum ' + (n - 2) * 180 + '°, ' + n * (n - 3) / 2 + ' diagonals'; } },
+
+      { id: 'cyclic', title: 'Cyclic Quadrilateral, Alternate Segment & Chord–Secant Products', topic: 'Geometry', grades: [9, 10],
+        aim: 'To verify that opposite angles of a cyclic quadrilateral are supplementary, the tangent–chord angle equals the angle in the alternate segment, and the products of chord and secant segments are equal.',
+        equip: ['Circle sheet', 'Protractor', 'Ruler', 'Tracing paper'],
+        steps: ['“Cyclic quadrilateral”: drag A, B, C, D around the circle. ∠A + ∠C = 180° and ∠B + ∠D = 180° every time.', '“Alternate segment”: the angle between the tangent at A and chord AB equals ∠ACB for any C in the other segment.', '“Intersecting chords”: chords AC and BD meet at X inside: AX × XC = BX × XD.', '“Tangent–secant”: from an outside point P, PA × PB = PT² (PT is the tangent length).'],
+        concl: 'Opposite angles of a cyclic quadrilateral are supplementary (and conversely). The exterior angle of a cyclic quadrilateral equals the interior opposite angle. Tangent–chord angle = angle in the alternate segment. Intersecting chords: AX·XB = CX·XD. Tangent–secant: PA·PB = PT² = OP² − r².',
+        tips: ['Cyclic quadrilateral: opposite angles add to 180°.', 'A diameter subtends 90° at the circumference.', 'Tangent length: PT² = OP² − r².', 'Every rectangle is cyclic; a cyclic parallelogram is a rectangle; a cyclic trapezium is isosceles.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Theorem', options: ['Cyclic quadrilateral', 'Alternate segment', 'Intersecting chords', 'Tangent–secant'] }],
+        init: { mode: 'Cyclic quadrilateral', ax: -2.6, ay: 1.5, bx: 1.8, by: 2.4, cx: 2.9, cy: -0.8, dx: -1.2, dy: -2.75, px: 6.2, py: 1.2, qx: -1.5, qy: 2.6 },
+        R: 3,
+        fix(p) { const q = { ...p }, R = this.R; ['a', 'b', 'c', 'd', 'q'].forEach(k => { const x = q[k + 'x'], y = q[k + 'y'], L = Math.hypot(x, y) || 1; q[k + 'x'] = x / L * R; q[k + 'y'] = y / L * R; }); const L = Math.hypot(q.px, q.py); if (L < R + 0.6) { q.px = q.px / (L || 1) * (R + 0.6); q.py = q.py / (L || 1) * (R + 0.6); } return q; },
+        handles(p) { return p.mode === 'Cyclic quadrilateral' || p.mode === 'Intersecting chords' ? [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan'], ['cx', 'cy', 'lime'], ['dx', 'dy', 'violet']] : p.mode === 'Alternate segment' ? [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan'], ['cx', 'cy', 'lime']] : [['px', 'py', 'amber'], ['qx', 'qy', 'cyan']]; },
+        sec(p) { const P = [p.px, p.py], Q = [p.qx, p.qy], dx = Q[0] - P[0], dy = Q[1] - P[1], a = dx * dx + dy * dy, b = 2 * (P[0] * dx + P[1] * dy), cc = P[0] * P[0] + P[1] * P[1] - this.R ** 2, disc = b * b - 4 * a * cc; if (disc < 0) return null; const t1 = (-b - Math.sqrt(disc)) / (2 * a), t2 = (-b + Math.sqrt(disc)) / (2 * a); return [[P[0] + t1 * dx, P[1] + t1 * dy], [P[0] + t2 * dx, P[1] + t2 * dy]]; },
+        xing(A, B, Cc, Dd) { const d = (B[0] - A[0]) * (Dd[1] - Cc[1]) - (B[1] - A[1]) * (Dd[0] - Cc[0]); if (Math.abs(d) < 1e-9) return null; const t = ((Cc[0] - A[0]) * (Dd[1] - Cc[1]) - (Cc[1] - A[1]) * (Dd[0] - Cc[0])) / d, u = ((Cc[0] - A[0]) * (B[1] - A[1]) - (Cc[1] - A[1]) * (B[0] - A[0])) / d; return t > 0 && t < 1 && u > 0 && u < 1 ? [A[0] + t * (B[0] - A[0]), A[1] + t * (B[1] - A[1])] : null; },
+        calc(p) {
+          const A = [p.ax, p.ay], B = [p.bx, p.by], Cc = [p.cx, p.cy], Dd = [p.dx, p.dy], L = (u, v) => Math.hypot(u[0] - v[0], u[1] - v[1]);
+          if (p.mode === 'Cyclic quadrilateral') { const ord = [A, B, Cc, Dd].map((q, i) => [Math.atan2(q[1], q[0]), i]).sort((x, y) => x[0] - y[0]).map(x => x[1]), Q = ord.map(i => [A, B, Cc, Dd][i]), an = Q.map((q, i) => ang(q, Q[(i + 3) % 4], Q[(i + 1) % 4])); return { Q, ord, an }; }
+          if (p.mode === 'Alternate segment') { const tA = [-A[1], A[0]], a1 = ang(A, [A[0] + tA[0], A[1] + tA[1]], B), a2 = ang(A, [A[0] - tA[0], A[1] - tA[1]], B), cr = (B[0] - A[0]) * (Cc[1] - A[1]) - (B[1] - A[1]) * (Cc[0] - A[0]), side = (B[0] - A[0]) * tA[1] - (B[1] - A[1]) * tA[0], tan = cr * side > 0 ? a2 : a1; return { tA, acb: ang(Cc, A, B), tan, useT: cr * side > 0 ? -1 : 1 }; }
+          if (p.mode === 'Intersecting chords') { const X = this.xing(A, Cc, B, Dd); return { X, p1: X ? L(A, X) * L(X, Cc) : 0, p2: X ? L(B, X) * L(X, Dd) : 0 }; }
+          const s = this.sec(p), P = [p.px, p.py], PT2 = P[0] ** 2 + P[1] ** 2 - this.R ** 2; return { s, PT2, prod: s ? L(P, s[0]) * L(P, s[1]) : 0 };
+        },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-4.6, 7.4, -4.2, 4.2], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], k = this.calc(p), O = S([0, 0]);
+          g.dot(c, ...O, this.R * V.s, C.ink + '0a', C.ink, 3); g.dot(c, ...O, 5, C.dim);
+          const lab = (q, s, col) => g.text(c, s, V.X(q[0] * 1.17), V.Y(q[1] * 1.17), col, fs * 1.05, 'center', 'middle', 700);
+          if (p.mode === 'Cyclic quadrilateral') {
+            const cols = [C.coral, C.cyan, C.lime, C.violet], nm = ['A', 'B', 'C', 'D'];
+            g.poly(c, k.Q.map(S), C.ink, C.amber + '14', 3);
+            k.Q.forEach((q, i) => { const col = cols[k.ord[i]]; g.wedge(c, S(q), S(k.Q[(i + 3) % 4]), S(k.Q[(i + 1) % 4]), 40, col, N(k.an[i], 1) + '°', fs * 0.85); lab(q, nm[k.ord[i]], col); });
+            g.box(c, '∠' + nm[k.ord[0]] + ' + ∠' + nm[k.ord[2]] + ' = ' + N(k.an[0] + k.an[2], 1) + '°     ∠' + nm[k.ord[1]] + ' + ∠' + nm[k.ord[3]] + ' = ' + N(k.an[1] + k.an[3], 1) + '°', W / 2, H - fs * 1.4, C.lime, fs * 1.1);
+          } else if (p.mode === 'Alternate segment') {
+            const A = [p.ax, p.ay], B = [p.bx, p.by], Cc = [p.cx, p.cy], t = k.tA;
+            g.line(c, ...S([A[0] - t[0] * 1.6, A[1] - t[1] * 1.6]), ...S([A[0] + t[0] * 1.6, A[1] + t[1] * 1.6]), C.amber, 3);
+            g.line(c, ...S(A), ...S(B), C.ink, 3); g.line(c, ...S(A), ...S(Cc), C.lime + 'aa', 2); g.line(c, ...S(B), ...S(Cc), C.lime + 'aa', 2);
+            g.wedge(c, S(A), S([A[0] + t[0] * k.useT, A[1] + t[1] * k.useT]), S(B), 46, C.amber, N(k.tan, 1) + '°', fs * 0.9);
+            g.wedge(c, S(Cc), S(A), S(B), 40, C.lime, N(k.acb, 1) + '°', fs * 0.9);
+            lab(A, 'A', C.coral); lab(B, 'B', C.cyan); lab(Cc, 'C', C.lime);
+            g.box(c, 'Tangent–chord angle = ' + N(k.tan, 1) + '°    ∠ACB = ' + N(k.acb, 1) + '°', W / 2, H - fs * 1.4, Math.abs(k.tan - k.acb) < 0.2 ? C.lime : C.coral, fs * 1.1);
+          } else if (p.mode === 'Intersecting chords') {
+            const A = [p.ax, p.ay], B = [p.bx, p.by], Cc = [p.cx, p.cy], Dd = [p.dx, p.dy];
+            g.line(c, ...S(A), ...S(Cc), C.coral, 3.5); g.line(c, ...S(B), ...S(Dd), C.lime, 3.5); lab(A, 'A', C.coral); lab(B, 'B', C.cyan); lab(Cc, 'C', C.lime); lab(Dd, 'D', C.violet);
+            if (k.X) { g.dot(c, ...S(k.X), 8, C.amber); g.label(c, V, k.X[0], k.X[1], 'X', C.amber, fs, 24, -24); }
+            g.box(c, k.X ? 'AX·XC = ' + N(k.p1, 3) + '    BX·XD = ' + N(k.p2, 3) : 'Drag the points so that chords AC and BD cross inside the circle', W / 2, H - fs * 1.4, k.X ? C.lime : C.coral, fs * 1.05);
+          } else {
+            const P = [p.px, p.py], d = Math.hypot(...P), ang0 = Math.atan2(P[1], P[0]), al = Math.acos(this.R / d), T = [this.R * Math.cos(ang0 + al), this.R * Math.sin(ang0 + al)];
+            g.line(c, ...S(P), ...S(T), C.amber, 3); g.line(c, ...O, ...S(T), C.dim, 2, [5, 5]); g.line(c, ...O, ...S(P), C.dim, 1.5, [5, 5]); lab(T, 'T', C.amber);
+            if (k.s) { g.line(c, ...S(P), ...S(k.s[1]), C.cyan, 3); lab(k.s[0], 'A', C.cyan); lab(k.s[1], 'B', C.cyan); }
+            g.dot(c, ...S(P), 7, C.amber); g.text(c, 'P', V.X(P[0]) + 22, V.Y(P[1]) - 18, C.amber, fs * 1.05, 'center', 'middle', 700);
+            g.box(c, k.s ? 'PA·PB = ' + N(k.prod, 3) + '    PT² = OP² − r² = ' + N(k.PT2, 3) : 'Aim the line from P at the circle (drag the cyan point)', W / 2, H - fs * 1.4, k.s ? C.lime : C.coral, fs * 1.05);
+          }
+          return V;
+        },
+        read(p) { const k = this.calc(p); if (p.mode === 'Cyclic quadrilateral') { const nm = ['A', 'B', 'C', 'D']; return k.Q.map((q, i) => ({ l: '∠' + nm[k.ord[i]], v: N(k.an[i], 1) + '°', c: ['coral', 'cyan', 'lime', 'violet'][k.ord[i]] })); } if (p.mode === 'Alternate segment') return [{ l: 'Tangent–chord angle', v: N(k.tan, 1) + '°', c: 'amber' }, { l: '∠ACB', v: N(k.acb, 1) + '°', c: 'lime' }]; if (p.mode === 'Intersecting chords') return [{ l: 'AX·XC', v: N(k.p1, 3), c: 'coral' }, { l: 'BX·XD', v: N(k.p2, 3), c: 'lime' }]; return [{ l: 'PA·PB', v: N(k.prod, 3), c: 'cyan' }, { l: 'PT²', v: N(k.PT2, 3), c: 'amber' }, { l: 'PT', v: N(Math.sqrt(k.PT2), 3), c: 'amber' }]; },
+        result(p) { const k = this.calc(p); if (p.mode === 'Cyclic quadrilateral') return 'Opposite angles: ' + N(k.an[0] + k.an[2], 1) + '° and ' + N(k.an[1] + k.an[3], 1) + '°'; if (p.mode === 'Alternate segment') return N(k.tan, 1) + '° = ' + N(k.acb, 1) + '°'; if (p.mode === 'Intersecting chords') return k.X ? 'AX·XC = BX·XD = ' + N(k.p1, 3) : '—'; return k.s ? 'PA·PB = PT² = ' + N(k.PT2, 3) : '—'; } },
+
+      { id: 'concen', title: 'Concentric Circles — Annulus & Tangent Chord', topic: 'Geometry', grades: [9, 10],
+        aim: 'To show that a chord of the outer circle touching the inner circle is bisected at the point of contact, has length 2√(R² − r²), and that the annulus area equals π × (half-chord)².',
+        equip: ['Compass', 'Ruler', 'Set square'],
+        steps: ['Set the radii R (outer) and r (inner) of two circles with the same centre O.', 'Draw the chord AB of the outer circle that touches the inner circle at M: OM ⊥ AB, so M is the mid-point.', 'In right △OMA: AM² = R² − r², so AB = 2√(R² − r²).', 'Annulus area = π(R² − r²) = π·AM² — it depends only on the chord length!'],
+        concl: 'A chord of the outer circle that touches the inner circle is bisected at the point of contact; its length is 2√(R² − r²). Area of the ring (annulus) = π(R² − r²) = π(AB/2)².',
+        tips: ['Half-chord = √(r² − d²) for a chord at distance d from the centre.', 'Annulus area = π(outer² − inner²).', 'Tangent length from P: PT² = OP² − r².'],
+        controls: [{ type: 'range', key: 'R', label: 'Outer radius R', min: 2, max: 4, step: 0.1 }, { type: 'range', key: 'r', label: 'Inner radius r', min: 0.5, max: 3.8, step: 0.1 }, { type: 'range', key: 'rot', label: 'Rotate chord', min: 0, max: 360, step: 15, unit: '°' }],
+        init: { R: 3.5, r: 2, rot: 90 },
+        fix: p => ({ ...p, r: Math.min(p.r, +(p.R - 0.2).toFixed(1)) }),
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-4.6, 4.6, -4.4, 4.4], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], O = S([0, 0]), h = Math.sqrt(p.R ** 2 - p.r ** 2), t = p.rot * D, u = [Math.cos(t), Math.sin(t)], n = [-u[1], u[0]], M = [u[0] * p.r, u[1] * p.r], A = [M[0] + n[0] * h, M[1] + n[1] * h], B = [M[0] - n[0] * h, M[1] - n[1] * h];
+          c.beginPath(); c.arc(...O, p.R * V.s, 0, 2 * Math.PI); c.arc(...O, p.r * V.s, 0, 2 * Math.PI, true); c.fillStyle = C.cyan + '26'; c.fill('evenodd');
+          g.dot(c, ...O, p.R * V.s, null, C.cyan, 3); g.dot(c, ...O, p.r * V.s, null, C.violet, 3); g.dot(c, ...O, 6, C.ink);
+          g.line(c, ...S(A), ...S(B), C.amber, 4); g.line(c, ...O, ...S(M), C.violet, 2.5, [6, 5]); g.line(c, ...O, ...S(A), C.cyan, 2.5, [6, 5]);
+          const s = 0.25, a1 = [M[0] - u[0] * s, M[1] - u[1] * s]; g.poly(c, [M, [M[0] + n[0] * s, M[1] + n[1] * s], [a1[0] + n[0] * s, a1[1] + n[1] * s], a1].map(S), C.ink, null, 1.5);
+          [[A, 'A'], [B, 'B'], [M, 'M']].forEach(([q, nm]) => { g.dot(c, ...S(q), 7, C.amber); g.text(c, nm, V.X(q[0] * 1.13), V.Y(q[1] * 1.13), C.amber, fs, 'center', 'middle', 700); }); g.text(c, 'O', O[0] - 18, O[1] + 18, C.ink, fs, 'center', 'middle', 700);
+          g.box(c, 'AB = 2√(' + N(p.R ** 2) + ' − ' + N(p.r ** 2) + ') = ' + N(2 * h, 3) + '     Ring area = π(R² − r²) = ' + N(Math.PI * h * h, 3), W / 2, H - fs * 1.4, C.lime, fs * 1.0);
+          return V;
+        },
+        read(p) { const h = Math.sqrt(p.R ** 2 - p.r ** 2); return [{ l: 'AM = MB', v: N(h, 3), c: 'amber' }, { l: 'AB', v: N(2 * h, 3), c: 'amber' }, { l: 'Ring area', v: N(Math.PI * h * h, 3), c: 'cyan' }, { l: 'π × AM²', v: N(Math.PI * h * h, 3), c: 'lime' }]; },
+        result(p) { const h = Math.sqrt(p.R ** 2 - p.r ** 2); return 'AB = ' + N(2 * h, 3) + ',  annulus = π·AM² = ' + N(Math.PI * h * h, 3); } },
+      { id: 'surds', title: 'Surds — √x on the Number Line, Rationalising & Comparing', topic: 'Number System', grades: [8, 9],
+        aim: 'To construct √x on the number line with a semicircle, rationalise 1/(√a ± √b), find √(a ± 2√b) and compare surds of different orders.',
+        equip: ['Compass', 'Ruler', 'Set square', 'Number line'],
+        steps: ['“Construct √x”: mark OA = x and AB = 1. Draw a semicircle on OB; the perpendicular at A meets it at height √x. Swing it down to the number line.', '“Rationalise”: multiply 1/(√a ± √b) by the conjugate. The denominator becomes a − b, a rational number.', '“√(a ± 2√b)”: find x and y with x + y = a and xy = b; then √(a ± 2√b) = √x ± √y.', '“Compare”: to compare ᵐ√a and ⁿ√b, raise both to the LCM of m and n and compare the whole numbers.'],
+        concl: 'In the semicircle construction AD² = OA × AB = x × 1, so AD = √x. 1/(√a + √b) = (√a − √b)/(a − b). √(a ± 2√b) = √x ± √y when x + y = a, xy = b. ᵐ√a > ⁿ√b ⇔ a^(L/m) > b^(L/n), L = LCM(m, n).',
+        tips: ['If a − b = 1, then 1/(√a − √b) = √a + √b immediately (e.g. 1/(√3 − √2) = √3 + √2).', '1/(√(n + 1) + √n) = √(n + 1) − √n — telescoping sums collapse to the first and last terms.', 'x = (√a + √b)/(√a − √b), y = its reciprocal ⇒ x + y = 2(a + b)/(a − b).', 'Compare ³√4 and √3: LCM 6 ⇒ 4² = 16 vs 3³ = 27, so √3 is larger.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Explore', options: ['Construct √x', 'Rationalise', '√(a ± 2√b)', 'Compare'] }, { type: 'range', key: 'x', label: 'x (construct)', min: 1, max: 12, step: 0.5 }, { type: 'range', key: 'a', label: 'a', min: 1, max: 20, step: 1 }, { type: 'range', key: 'b', label: 'b', min: 1, max: 30, step: 1 }, { type: 'select', key: 'sg', label: 'Sign', options: ['+', '−'] }, { type: 'range', key: 'm', label: 'Order m (compare)', min: 2, max: 4, step: 1 }, { type: 'range', key: 'n', label: 'Order n (compare)', min: 2, max: 4, step: 1 }],
+        init: { mode: 'Construct √x', x: 5, a: 5, b: 6, sg: '+', m: 3, n: 2 },
+        sq(a, b) { for (let x = a; x >= 0; x--) { const y = a - x; if (x * y === b && x >= y) return [x, y]; } return null; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), big = (s, y, col, sz) => g.text(c, s, W / 2, y, col || C.ink, sz || fs * 1.3, 'center', 'middle', 700, true);
+          if (p.mode === 'Construct √x') {
+            const x = p.x, V = g.view(W, H, [-0.8, x + 1.8, -1.2, Math.max(2.4, (x + 1) / 2 + 0.6)], 30), S = q => [V.X(q[0]), V.Y(q[1])], h = Math.sqrt(x), M = (x + 1) / 2;
+            g.line(c, V.X(-0.6), V.Y(0), V.X(x + 1.6), V.Y(0), C.ink, 3); for (let i = 0; i <= Math.floor(x + 1); i++) { g.line(c, V.X(i), V.Y(0) - 8, V.X(i), V.Y(0) + 8, C.dim, 2); g.text(c, String(i), V.X(i), V.Y(0) + fs * 1.1, C.dim, fs * 0.75, 'center', 'middle', 600, true); }
+            c.beginPath(); c.arc(V.X(M), V.Y(0), M * V.s, Math.PI, 0); c.strokeStyle = C.cyan; c.lineWidth = 2.5; c.stroke();
+            g.line(c, ...S([0, 0]), ...S([x, 0]), C.amber, 5); g.line(c, ...S([x, 0]), ...S([x + 1, 0]), C.lime, 5); g.line(c, ...S([x, 0]), ...S([x, h]), C.violet, 4);
+            c.beginPath(); c.setLineDash([6, 6]); c.arc(V.X(x), V.Y(0), h * V.s, -Math.PI / 2, -Math.PI / 2 - Math.PI / 2, true); c.strokeStyle = C.violet + 'aa'; c.lineWidth = 2; c.stroke(); c.setLineDash([]);
+            g.dot(c, V.X(x - h), V.Y(0), 9, C.violet, C.bg, 2); g.box(c, '√' + N(x) + ' ≈ ' + N(h, 3), V.X(x - h), V.Y(0) + fs * 2.4, C.violet, fs);
+            g.label(c, V, x / 2, 0, 'OA = ' + N(x), C.amber, fs, 0, -24); g.label(c, V, x + 0.5, 0, '1', C.lime, fs, 0, -24); g.label(c, V, x, h, 'D', C.violet, fs, 20, -10);
+            g.box(c, 'AD² = OA × AB = ' + N(x) + ' × 1  ⇒  AD = √' + N(x), W / 2, fs * 1.4, C.ink, fs);
+            return V;
+          }
+          if (p.mode === 'Rationalise') {
+            const s = p.sg === '+' ? '+' : '−', o = p.sg === '+' ? '−' : '+', d = p.a - p.b, val = 1 / (Math.sqrt(p.a) + (p.sg === '+' ? 1 : -1) * Math.sqrt(p.b));
+            big('1 / (√' + p.a + ' ' + s + ' √' + p.b + ')', H * 0.16, C.ink);
+            big('× (√' + p.a + ' ' + o + ' √' + p.b + ') / (√' + p.a + ' ' + o + ' √' + p.b + ')', H * 0.3, C.cyan, fs * 1.1);
+            big('= (√' + p.a + ' ' + o + ' √' + p.b + ') / (' + p.a + ' − ' + p.b + ')', H * 0.44, C.ink);
+            big(d === 0 ? 'a = b: (√a − √a) = 0 — not defined' : '= (√' + p.a + ' ' + o + ' √' + p.b + ') / ' + d + (Math.abs(d) === 1 ? '   (a − b = ±1 shortcut!)' : ''), H * 0.58, d === 0 ? C.coral : C.lime);
+            if (isFinite(val)) big('Check: both sides ≈ ' + N(val, 5), H * 0.74, C.dim, fs);
+            return null;
+          }
+          if (p.mode === '√(a ± 2√b)') {
+            const r = this.sq(p.a, p.b), s = p.sg === '+' ? '+' : '−';
+            big('√(' + p.a + ' ' + s + ' 2√' + p.b + ')', H * 0.18, C.ink, fs * 1.5);
+            big('Find x + y = ' + p.a + ',  xy = ' + p.b, H * 0.34, C.cyan, fs * 1.15);
+            if (r) { big('x = ' + r[0] + ',  y = ' + r[1], H * 0.48, C.amber, fs * 1.15); big('= √' + r[0] + ' ' + s + ' √' + r[1], H * 0.64, C.lime, fs * 1.5); big('Check: ' + N(Math.sqrt(p.a + (s === '+' ? 2 : -2) * Math.sqrt(p.b)), 5) + ' = ' + N(Math.sqrt(r[0]) + (s === '+' ? 1 : -1) * Math.sqrt(r[1]), 5), H * 0.78, C.dim, fs); }
+            else big('No whole numbers x, y work — try a = 5, b = 6 or a = 7, b = 12', H * 0.52, C.coral, fs);
+            return null;
+          }
+          const L = p.m * p.n / gcd(p.m, p.n), A = p.a ** (L / p.m), B = p.b ** (L / p.n), sup = n => '⁰¹²³⁴⁵⁶⁷⁸⁹'[n] || n, root = (k, v) => (k === 2 ? '' : sup(k)) + '√' + v;
+          big('Compare  ' + root(p.m, p.a) + '  and  ' + root(p.n, p.b), H * 0.18, C.ink, fs * 1.5);
+          big('LCM(' + p.m + ', ' + p.n + ') = ' + L + ' — raise both to the power ' + L, H * 0.34, C.cyan, fs * 1.05);
+          big(p.a + sup(L / p.m) + ' = ' + A + '   vs   ' + p.b + sup(L / p.n) + ' = ' + B, H * 0.5, C.amber, fs * 1.3);
+          big(A === B ? 'They are equal' : (A > B ? root(p.m, p.a) + ' > ' + root(p.n, p.b) : root(p.m, p.a) + ' < ' + root(p.n, p.b)), H * 0.66, C.lime, fs * 1.5);
+          big('Check: ' + N(p.a ** (1 / p.m), 4) + ' and ' + N(p.b ** (1 / p.n), 4), H * 0.8, C.dim, fs);
+          return null;
+        },
+        read(p) { if (p.mode === 'Construct √x') return [{ l: 'OA', v: N(p.x), c: 'amber' }, { l: 'AB', v: 1, c: 'lime' }, { l: 'AD = √x', v: N(Math.sqrt(p.x), 4), c: 'violet' }]; const r = this.sq(p.a, p.b); return [{ l: '√a', v: N(Math.sqrt(p.a), 4), c: 'amber' }, { l: '√b', v: N(Math.sqrt(p.b), 4), c: 'cyan' }, { l: 'a − b', v: p.a - p.b, c: 'ink' }, { l: 'x, y (x + y = a, xy = b)', v: r ? r.join(', ') : 'none', c: 'lime' }]; },
+        result(p) { if (p.mode === 'Construct √x') return 'AD = √' + N(p.x) + ' ≈ ' + N(Math.sqrt(p.x), 4); if (p.mode === 'Rationalise') return 'Denominator becomes ' + p.a + ' − ' + p.b + ' = ' + (p.a - p.b); if (p.mode === '√(a ± 2√b)') { const r = this.sq(p.a, p.b); return r ? '√(' + p.a + ' ' + p.sg + ' 2√' + p.b + ') = √' + r[0] + ' ' + p.sg + ' √' + r[1] : 'No simple form'; } const L = p.m * p.n / gcd(p.m, p.n); return 'Compare ' + p.a ** (L / p.m) + ' and ' + p.b ** (L / p.n); } },
+
+      { id: 'logs', title: 'Logarithms — Graph, Laws, Change of Base & Number of Digits', topic: 'Algebra', grades: [8, 9, 10],
+        aim: 'To see logarithm as the inverse of exponent on the graph, verify the laws of logarithms, use change of base, and count the digits of a large power.',
+        equip: ['Graph sheet', 'Log table', 'Calculator for checking'],
+        steps: ['“Graph”: y = bˣ and y = log_b x are mirror images in the line y = x. bʸ = x ⇔ log_b x = y.', '“Laws”: log(MN) = log M + log N, log(M/N) = log M − log N, log(Mⁿ) = n log M — check them with the numbers.', '“Change of base”: log_a b = log b / log a, and log_a b × log_b c = log_a c.', '“Digits”: the number of digits of xʸ is ⌊y log₁₀ x⌋ + 1. The exact power is computed to check.'],
+        concl: 'log_b x = y ⇔ bʸ = x (b > 0, b ≠ 1, x > 0). log(MN) = log M + log N; log(M/N) = log M − log N; log Mⁿ = n log M; log_a b = log b / log a; log_b 1 = 0; log_b b = 1. Digits of xʸ = ⌊y log₁₀ x⌋ + 1.',
+        tips: ['Chain rule: log_a b × log_b c = log_a c.', 'Reciprocal: 1/log_a b = log_b a.', 'Power of base: log_(aⁿ)(bᵐ) = (m/n) log_a b.', 'Digits of xʸ = ⌊y log₁₀ x⌋ + 1 (2¹⁰⁰ has ⌊100 × 0.30103⌋ + 1 = 31 digits).', 'Decibels: a difference of ΔL dB is an intensity ratio of 10^(ΔL/10).'],
+        controls: [{ type: 'select', key: 'mode', label: 'Explore', options: ['Graph', 'Laws', 'Change of base', 'Digits'] }, { type: 'select', key: 'b', label: 'Base b', options: ['2', '3', '10', 'e'] }, { type: 'range', key: 'M', label: 'M', min: 0.5, max: 16, step: 0.5 }, { type: 'range', key: 'Nn', label: 'N', min: 0.5, max: 16, step: 0.5 }, { type: 'range', key: 'k', label: 'Power n', min: -3, max: 5, step: 1 }, { type: 'range', key: 'x', label: 'Digits: x', min: 2, max: 20, step: 1 }, { type: 'range', key: 'y', label: 'Digits: y', min: 1, max: 200, step: 1 }],
+        init: { mode: 'Graph', b: '2', M: 8, Nn: 4, k: 3, x: 2, y: 100 },
+        base(p) { return p.b === 'e' ? Math.E : +p.b; },
+        L(p, v) { return Math.log(v) / Math.log(this.base(p)); },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), b = this.base(p), lg = v => this.L(p, v), bn = p.b === 'e' ? 'e' : p.b, big = (s, y, col, sz) => g.text(c, s, W / 2, y, col || C.ink, sz || fs * 1.2, 'center', 'middle', 700, true);
+          if (p.mode === 'Graph') {
+            const V = g.view(W, H, [-4.5, 10, -4.5, 9], 24), S = q => [V.X(q[0]), V.Y(q[1])]; g.grid(c, V, W, H, 1, true, fs);
+            g.plot(c, V, W, H, x => x, C.dim, 1.5); g.plot(c, V, W, H, x => Math.pow(b, x), C.amber, 3.5); g.plot(c, V, W, H, x => x > 0 ? lg(x) : NaN, C.cyan, 3.5);
+            const x0 = p.M, y0 = lg(x0); g.dot(c, ...S([x0, y0]), 9, C.cyan, C.bg, 2); g.dot(c, ...S([y0, x0]), 9, C.amber, C.bg, 2); g.line(c, ...S([x0, y0]), ...S([y0, x0]), C.dim, 1.5, [5, 5]);
+            g.label(c, V, x0, y0, 'log' + bn + ' ' + N(x0) + ' = ' + N(y0, 3), C.cyan, fs, 0, 30); g.label(c, V, y0, x0, bn + '^' + N(y0, 3) + ' = ' + N(x0), C.amber, fs, 0, -30);
+            g.text(c, 'y = ' + bn + 'ˣ', V.X(2.2), V.Y(Math.min(8.5, Math.pow(b, 2.2))) - 18, C.amber, fs, 'left'); g.text(c, 'y = log' + bn + ' x', V.X(9), V.Y(lg(9)) - 22, C.cyan, fs, 'right'); g.text(c, 'y = x', V.X(8.5), V.Y(8.5) + 20, C.dim, fs * 0.85);
+            return V;
+          }
+          if (p.mode === 'Laws') {
+            const M = p.M, Nn = p.Nn, n = p.k;
+            big('log' + bn + '(' + N(M) + ' × ' + N(Nn) + ') = ' + N(lg(M * Nn), 4) + '   =   ' + N(lg(M), 4) + ' + ' + N(lg(Nn), 4), H * 0.2, C.lime);
+            big('log' + bn + '(' + N(M) + ' ÷ ' + N(Nn) + ') = ' + N(lg(M / Nn), 4) + '   =   ' + N(lg(M), 4) + ' − ' + N(lg(Nn), 4), H * 0.38, C.cyan);
+            big('log' + bn + '(' + N(M) + '^' + n + ') = ' + N(lg(Math.pow(M, n)), 4) + '   =   ' + n + ' × ' + N(lg(M), 4), H * 0.56, C.amber);
+            big('✗ log(M + N) ≠ log M + log N:  ' + N(lg(M + Nn), 4) + ' ≠ ' + N(lg(M) + lg(Nn), 4), H * 0.76, C.coral, fs);
+            return null;
+          }
+          if (p.mode === 'Change of base') {
+            const M = p.M, Nn = p.Nn, l10 = v => Math.log10(v);
+            big('log' + N(M) + ' ' + N(Nn) + ' = log ' + N(Nn) + ' / log ' + N(M) + ' = ' + N(l10(Nn), 4) + ' / ' + N(l10(M), 4) + ' = ' + (M === 1 ? 'undefined' : N(l10(Nn) / l10(M), 4)), H * 0.22, C.lime, fs * 1.05);
+            big('Chain: log' + bn + ' ' + N(M) + ' × log' + N(M) + ' ' + N(Nn) + ' = log' + bn + ' ' + N(Nn), H * 0.42, C.cyan, fs * 1.05);
+            big(N(lg(M), 4) + ' × ' + (M === 1 ? '—' : N(Math.log(Nn) / Math.log(M), 4)) + ' = ' + N(lg(Nn), 4), H * 0.54, C.ink, fs * 1.05);
+            big('Reciprocal: log' + N(M) + ' ' + N(Nn) + ' × log' + N(Nn) + ' ' + N(M) + ' = 1', H * 0.72, C.amber, fs * 1.05);
+            return null;
+          }
+          const lx = Math.log10(p.x), est = Math.floor(p.y * lx) + 1, exact = (BigInt(p.x) ** BigInt(p.y)).toString();
+          big(p.x + '^' + p.y, H * 0.16, C.ink, fs * 1.6);
+          big('y log₁₀ x = ' + p.y + ' × ' + N(lx, 5) + ' = ' + N(p.y * lx, 4), H * 0.32, C.cyan);
+          big('Digits = ⌊' + N(p.y * lx, 4) + '⌋ + 1 = ' + est, H * 0.46, C.lime, fs * 1.4);
+          const show = exact.length > 60 ? exact.slice(0, 28) + '…' + exact.slice(-28) : exact;
+          big(show, H * 0.62, C.dim, Math.min(fs, W * 1.6 / Math.max(20, show.length)));
+          big('Exact check: ' + exact.length + ' digits ' + (exact.length === est ? '✓' : ''), H * 0.74, exact.length === est ? C.lime : C.coral, fs);
+          return null;
+        },
+        read(p) { const lg = v => this.L(p, v); return p.mode === 'Digits' ? [{ l: 'log₁₀ x', v: N(Math.log10(p.x), 5), c: 'cyan' }, { l: 'Digits of xʸ', v: Math.floor(p.y * Math.log10(p.x)) + 1, c: 'lime' }] : [{ l: 'log_b M', v: N(lg(p.M), 4), c: 'amber' }, { l: 'log_b N', v: N(lg(p.Nn), 4), c: 'cyan' }, { l: 'log_b (MN)', v: N(lg(p.M * p.Nn), 4), c: 'lime' }, { l: 'log_b (M/N)', v: N(lg(p.M / p.Nn), 4), c: 'lime' }, { l: 'log_b Mⁿ', v: N(lg(Math.pow(p.M, p.k)), 4), c: 'violet' }]; },
+        result(p) { if (p.mode === 'Digits') return p.x + '^' + p.y + ' has ' + (Math.floor(p.y * Math.log10(p.x)) + 1) + ' digits'; return 'log' + (p.b === 'e' ? 'e' : p.b) + ' ' + N(p.M) + ' = ' + N(this.L(p, p.M), 4); } },
+
+      { id: 'remfac', title: 'Remainder & Factor Theorem — Synthetic Division', topic: 'Algebra', grades: [8, 9],
+        aim: 'To find the remainder of p(x) ÷ (x − a) without long division, see it as the height p(a) on the graph, and use the factor theorem to factorise a cubic.',
+        equip: ['Graph sheet', 'Synthetic division table'],
+        steps: ['Set the cubic p(x) = x³ + bx² + cx + d and the divisor (x − a).', 'Synthetic division: bring down 1, multiply by a, add to the next coefficient, and repeat. The last number is the remainder.', 'The remainder equals p(a) — the height of the graph at x = a.', 'Move a until the remainder is 0: the graph crosses the x-axis there and (x − a) is a factor.'],
+        concl: 'Remainder theorem: p(x) ÷ (x − a) leaves remainder p(a). Factor theorem: (x − a) is a factor of p(x) ⇔ p(a) = 0. p(x) = (x − a)q(x) + p(a).',
+        tips: ['Sum of coefficients = 0 ⇒ (x − 1) is a factor.', 'Sum of even-power coefficients = sum of odd-power coefficients ⇒ (x + 1) is a factor.', 'x³¹ + 31 ÷ (x + 1): put x = −1 ⇒ remainder −1 + 31 = 30.', 'Divisible by (x − a)²: use p(a) = 0 and p′(a) = 0 together.'],
+        controls: [{ type: 'range', key: 'b', label: 'b (x² coefficient)', min: -6, max: 6, step: 1 }, { type: 'range', key: 'c', label: 'c (x coefficient)', min: -12, max: 12, step: 1 }, { type: 'range', key: 'd', label: 'd (constant)', min: -12, max: 12, step: 1 }, { type: 'range', key: 'a', label: 'Divisor x − a:  a', min: -4, max: 4, step: 0.5 }],
+        init: { b: -2, c: -5, d: 6, a: 2 },
+        syn(p) { const co = [1, p.b, p.c, p.d], out = [1]; for (let i = 1; i < 4; i++) out.push(co[i] + out[i - 1] * p.a); return { co, out, r: out[3] }; },
+        poly(co) { const v = ['x³', 'x²', 'x', '']; let s = ''; co.forEach((k, i) => { k = Math.round(k * 1000) / 1000; if (!k) return; const m = Math.abs(k) === 1 && v[i] ? '' : N(Math.abs(k)); s += (s ? (k < 0 ? ' − ' : ' + ') : (k < 0 ? '−' : '')) + m + v[i]; }); return s || '0'; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.syn(p), f = x => x ** 3 + p.b * x * x + p.c * x + p.d, V = g.view(W * 0.58, H, [-5, 5, -16, 16], 24), S = q => [V.X(q[0]), V.Y(q[1])];
+          c.save(); c.beginPath(); c.rect(0, 0, W * 0.58, H); c.clip(); g.grid(c, V, W * 0.58, H, 1, true, fs); g.plot(c, V, W * 0.58, H, f, C.cyan, 3.5);
+          const r = k.r; g.line(c, ...S([p.a, 0]), ...S([p.a, r]), r === 0 ? C.lime : C.coral, 4); g.dot(c, ...S([p.a, r]), 9, r === 0 ? C.lime : C.coral, C.bg, 2); g.label(c, V, p.a, r, 'p(' + N(p.a) + ') = ' + N(r), r === 0 ? C.lime : C.coral, fs, 0, r >= 0 ? -28 : 28); c.restore();
+          const x0 = W * 0.6, cw = W * 0.075, y0 = H * 0.16, rh = fs * 2.2, dv = p.a < 0 ? 'x + ' + N(-p.a) : 'x − ' + N(p.a);
+          g.text(c, 'Synthetic division by (' + dv + ')', x0, y0 - fs * 1.4, C.ink, fs * 0.9, 'left', 'middle', 700);
+          g.text(c, N(p.a), x0 + cw * 0.4, y0 + rh * 0.5, C.amber, fs, 'center', 'middle', 700, true); g.line(c, x0 + cw * 0.8, y0, x0 + cw * 0.8, y0 + rh * 2, C.ink, 2);
+          k.co.forEach((v, i) => { g.text(c, N(v), x0 + cw * (1.3 + i), y0 + rh * 0.5, C.ink, fs, 'center', 'middle', 600, true); if (i) g.text(c, N(k.out[i - 1] * p.a), x0 + cw * (1.3 + i), y0 + rh * 1.5, C.dim, fs * 0.9, 'center', 'middle', 600, true); g.text(c, N(k.out[i]), x0 + cw * (1.3 + i), y0 + rh * 2.5, i === 3 ? (k.r === 0 ? C.lime : C.coral) : C.cyan, fs * 1.05, 'center', 'middle', 700, true); });
+          g.line(c, x0 + cw * 0.8, y0 + rh * 2, x0 + cw * 4.9, y0 + rh * 2, C.ink, 2);
+          const yt = y0 + rh * 4; g.text(c, 'p(x) = ' + this.poly(k.co), x0, yt, C.ink, fs * 0.9, 'left', 'middle', 600, true);
+          g.text(c, 'q(x) = ' + this.poly([0, ...k.out.slice(0, 3)]), x0, yt + fs * 1.8, C.cyan, fs * 0.9, 'left', 'middle', 600, true);
+          g.text(c, 'Remainder = ' + N(k.r) + ' = p(' + N(p.a) + ')', x0, yt + fs * 3.6, k.r === 0 ? C.lime : C.coral, fs, 'left', 'middle', 700, true);
+          g.text(c, k.r === 0 ? '(' + dv + ') IS a factor ✓' : '(' + dv + ') is not a factor', x0, yt + fs * 5.4, k.r === 0 ? C.lime : C.dim, fs, 'left', 'middle', 700);
+          const sc = 1 + p.b + p.c + p.d, ev = p.b + p.d, od = 1 + p.c; g.text(c, 'Sum of coefficients = ' + sc + (sc === 0 ? ' ⇒ (x − 1) is a factor' : ''), x0, yt + fs * 7.4, sc === 0 ? C.lime : C.dim, fs * 0.72, 'left'); g.text(c, 'Even-power sum ' + ev + ', odd-power sum ' + od + (ev === od ? ' ⇒ (x + 1) is a factor' : ''), x0, yt + fs * 8.8, ev === od ? C.lime : C.dim, fs * 0.72, 'left');
+          return V;
+        },
+        read(p) { const k = this.syn(p); return [{ l: 'p(x)', v: this.poly(k.co), c: 'ink' }, { l: 'Divisor', v: 'x − ' + N(p.a), c: 'amber' }, { l: 'Quotient', v: this.poly([0, ...k.out.slice(0, 3)]), c: 'cyan' }, { l: 'Remainder p(a)', v: N(k.r), c: k.r === 0 ? 'lime' : 'coral' }]; },
+        result(p) { const k = this.syn(p); return 'p(' + N(p.a) + ') = ' + N(k.r) + (k.r === 0 ? ' ⇒ (x − ' + N(p.a) + ') is a factor' : ''); } },
+
+      { id: 'quadx', title: 'Quadratic Expressions — Graph, Sign, Discriminant & Roots', topic: 'Algebra', grades: [9, 10],
+        aim: 'To link the graph of y = ax² + bx + c with its discriminant, sign, vertex and roots, and to verify the sum and product of roots.',
+        equip: ['Graph sheet', 'Parabola template'],
+        steps: ['Set a, b, c. The parabola opens up if a > 0 and down if a < 0; the vertex is at x = −b/2a with y = −Δ/4a.', 'Δ = b² − 4ac: Δ > 0 two real roots (crosses the axis), Δ = 0 equal roots (touches), Δ < 0 no real roots.', 'The shading shows where the expression is positive (green) and negative (red). If Δ < 0 it has the sign of a for every x.', 'Read the roots: α + β = −b/a, αβ = c/a, |α − β| = √Δ/|a|.'],
+        concl: 'Δ = b² − 4ac decides the roots. Vertex (−b/2a, −Δ/4a) gives the minimum (a > 0) or maximum (a < 0) value. α + β = −b/a, αβ = c/a. If Δ < 0, ax² + bx + c has the same sign as a for all x. Roots of opposite sign ⇔ ac < 0.',
+        tips: ['a + b + c = 0 ⇒ roots are 1 and c/a.', 'a − b + c = 0 ⇒ roots are −1 and −c/a.', '|α − β| = √Δ / |a| without finding the roots.', 'Roots of opposite signs whenever ac < 0 (then Δ > 0 automatically).', 'Reciprocal roots (αβ = 1) ⇔ a = c.'],
+        controls: [{ type: 'range', key: 'a', label: 'a', min: -3, max: 3, step: 0.5 }, { type: 'range', key: 'b', label: 'b', min: -8, max: 8, step: 0.5 }, { type: 'range', key: 'c', label: 'c', min: -8, max: 8, step: 0.5 }, { type: 'toggle', key: 'sign', label: 'Show sign shading' }],
+        init: { a: 1, b: -2, c: -3, sign: true },
+        fix: p => ({ ...p, a: p.a === 0 ? 0.5 : p.a }),
+        calc(p) { const { a, b, c } = p, Dl = b * b - 4 * a * c, vx = -b / (2 * a), vy = -Dl / (4 * a), r = Dl >= 0 ? [(-b - Math.sqrt(Dl)) / (2 * a), (-b + Math.sqrt(Dl)) / (2 * a)].sort((x, y) => x - y) : null; return { Dl, vx, vy, r, S: -b / a, P: c / a }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), f = x => p.a * x * x + p.b * x + p.c, V = g.view(W, H, [-8, 8, -10, 10], 24), S = q => [V.X(q[0]), V.Y(q[1])];
+          if (p.sign) for (let px = 0; px < W; px += 3) { const v = f(V.ix(px)); c.fillStyle = (v > 0 ? C.lime : v < 0 ? C.coral : C.ink) + '18'; c.fillRect(px, 0, 3, H); }
+          g.grid(c, V, W, H, 1, true, fs); g.plot(c, V, W, H, f, C.cyan, 4);
+          g.line(c, V.X(k.vx), 0, V.X(k.vx), H, C.violet + '88', 1.5, [6, 6]); g.dot(c, ...S([k.vx, k.vy]), 9, C.violet, C.bg, 2); g.label(c, V, k.vx, k.vy, 'vertex (' + N(k.vx) + ', ' + N(k.vy) + ')', C.violet, fs * 0.9, 0, p.a > 0 ? 30 : -30);
+          if (k.r) k.r.forEach((x, i) => { g.dot(c, ...S([x, 0]), 10, C.amber, C.bg, 2); g.label(c, V, x, 0, (i ? 'β = ' : 'α = ') + N(x, 3), C.amber, fs * 0.9, 0, i ? -28 : 28); });
+          const kind = k.Dl > 0 ? 'two real, unequal roots' : k.Dl === 0 ? 'two equal roots' : 'no real roots — always ' + (p.a > 0 ? 'positive' : 'negative');
+          g.box(c, 'Δ = ' + (p.b < 0 ? '(' + N(p.b) + ')' : N(p.b)) + '² − 4(' + N(p.a) + ')(' + N(p.c) + ') = ' + N(k.Dl) + '  ⇒  ' + kind, W / 2, fs * 1.4, k.Dl >= 0 ? C.lime : C.coral, fs);
+          g.box(c, 'α + β = −b/a = ' + N(k.S, 3) + '     αβ = c/a = ' + N(k.P, 3), W / 2, H - fs * 1.4, C.amber, fs);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Δ = b² − 4ac', v: N(k.Dl), c: k.Dl >= 0 ? 'lime' : 'coral' }, { l: 'Roots', v: k.r ? N(k.r[0], 3) + ', ' + N(k.r[1], 3) : 'not real', c: 'amber' }, { l: 'α + β = −b/a', v: N(k.S, 3), c: 'cyan' }, { l: 'αβ = c/a', v: N(k.P, 3), c: 'cyan' }, { l: '|α − β| = √Δ/|a|', v: k.Dl >= 0 ? N(Math.sqrt(k.Dl) / Math.abs(p.a), 3) : '—', c: 'violet' }, { l: p.a > 0 ? 'Minimum value' : 'Maximum value', v: N(k.vy, 3), c: 'violet' }]; },
+        result(p) { const k = this.calc(p); return 'Δ = ' + N(k.Dl) + (k.r ? ',  roots ' + N(k.r[0], 3) + ' and ' + N(k.r[1], 3) : ',  no real roots'); } },
+
+      { id: 'amgm', title: 'AM ≥ GM ≥ HM — The Semicircle Proof', topic: 'Algebra', grades: [9, 10],
+        aim: 'To see the arithmetic, geometric and harmonic means of two positive numbers as three lengths in one semicircle, and verify A ≥ G ≥ H and G² = AH.',
+        equip: ['Compass', 'Ruler', 'Set square'],
+        steps: ['Lay a and b end to end as the diameter of a semicircle. The radius is the AM = (a + b)/2.', 'At the joining point draw a perpendicular to the semicircle: its height is the GM = √ab (as in the √x construction).', 'Drop a perpendicular from the top of the GM line to the radius: the piece of radius cut off is the HM = 2ab/(a + b).', 'A radius is the longest, so A ≥ G ≥ H, with equality only when a = b. In the right triangle, G² = A × H.'],
+        concl: 'For positive a, b: A = (a + b)/2, G = √ab, H = 2ab/(a + b). A ≥ G ≥ H, with equality ⇔ a = b. G² = AH, so A, G, H are in G.P.',
+        tips: ['Given A and G, the numbers a and b are the roots of x² − 2Ax + G² = 0.', 'Fixed sum ⇒ the product is greatest when the numbers are equal (a square has the largest area for a given perimeter).', 'n arithmetic means between a and b add up to n(a + b)/2; n geometric means multiply to (√ab)ⁿ.'],
+        controls: [{ type: 'range', key: 'a', label: 'a', min: 0.5, max: 16, step: 0.5 }, { type: 'range', key: 'b', label: 'b', min: 0.5, max: 16, step: 0.5 }],
+        init: { a: 9, b: 4 },
+        calc(p) { const A = (p.a + p.b) / 2, G = Math.sqrt(p.a * p.b), Hm = 2 * p.a * p.b / (p.a + p.b); return { A, G, H: Hm }; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), d = p.a + p.b, V = g.view(W, H, [-0.08 * d, 1.08 * d, -0.22 * d, 0.62 * d], 30), S = q => [V.X(q[0]), V.Y(q[1])], O = [d / 2, 0], P = [p.a, 0], Q = [p.a, k.G];
+          c.beginPath(); c.arc(V.X(d / 2), V.Y(0), d / 2 * V.s, Math.PI, 0); c.strokeStyle = C.ink; c.lineWidth = 3; c.stroke();
+          g.line(c, ...S([0, 0]), ...S(P), C.amber, 6); g.line(c, ...S(P), ...S([d, 0]), C.cyan, 6);
+          g.line(c, ...S(O), ...S([d / 2, d / 2]), C.violet, 4); g.line(c, ...S(O), ...S(Q), C.dim, 2); g.line(c, ...S(P), ...S(Q), C.lime, 4);
+          const L = Math.hypot(Q[0] - O[0], Q[1] - O[1]) || 1, u = [(O[0] - Q[0]) / L, (O[1] - Q[1]) / L], Fh = [Q[0] + u[0] * k.H, Q[1] + u[1] * k.H];
+          g.line(c, ...S(P), ...S(Fh), C.dim, 2, [5, 5]); g.line(c, ...S(Q), ...S(Fh), C.coral, 6);
+          g.label(c, V, p.a / 2, 0, 'a = ' + N(p.a), C.amber, fs, 0, 28); g.label(c, V, p.a + p.b / 2, 0, 'b = ' + N(p.b), C.cyan, fs, 0, 28);
+          g.label(c, V, d / 2, d / 4, 'A = ' + N(k.A, 3), C.violet, fs, -80, 0); g.label(c, V, p.a, k.G / 2, 'G = ' + N(k.G, 3), C.lime, fs, 80, 0); g.label(c, V, (Q[0] + Fh[0]) / 2, (Q[1] + Fh[1]) / 2, 'H = ' + N(k.H, 3), C.coral, fs, 0, -34);
+          g.box(c, 'A ≥ G ≥ H:  ' + N(k.A, 3) + ' ≥ ' + N(k.G, 3) + ' ≥ ' + N(k.H, 3) + (p.a === p.b ? '   (all equal: a = b)' : '') + '     G² = ' + N(k.G * k.G, 3) + ' = AH = ' + N(k.A * k.H, 3), W / 2, H - fs * 1.4, C.lime, fs * 0.95);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'A = (a + b)/2', v: N(k.A, 4), c: 'violet' }, { l: 'G = √ab', v: N(k.G, 4), c: 'lime' }, { l: 'H = 2ab/(a + b)', v: N(k.H, 4), c: 'coral' }, { l: 'G²', v: N(k.G * k.G, 4), c: 'ink' }, { l: 'A × H', v: N(k.A * k.H, 4), c: 'ink' }]; },
+        result(p) { const k = this.calc(p); return 'A = ' + N(k.A, 3) + ' ≥ G = ' + N(k.G, 3) + ' ≥ H = ' + N(k.H, 3); } },
+      { id: 'compang', title: 'Compound Angles — sin(A + B) and cos(A + B) by Geometry', topic: 'Trigonometry', grades: [9, 10, 11],
+        aim: 'To prove sin(A + B) = sin A cos B + cos A sin B and cos(A + B) = cos A cos B − sin A sin B from one rectangle built around two right triangles.',
+        equip: ['Unit hypotenuse strip', 'Set square', 'Protractor'],
+        steps: ['A right triangle with hypotenuse OQ = 1 and angle B sits on top of a right triangle with angle A. OQ makes angle A + B with the base.', 'Inner triangle: OP = cos B and PQ = sin B. Lower triangle: base cos A cos B, height sin A cos B.', 'The small top triangle has angle A at P: its sides are cos A sin B (vertical) and sin A sin B (horizontal).', 'Rectangle height = sin(A + B) = sin A cos B + cos A sin B. Top width = cos(A + B) = cos A cos B − sin A sin B.'],
+        concl: 'sin(A ± B) = sin A cos B ± cos A sin B; cos(A ± B) = cos A cos B ∓ sin A sin B; tan(A ± B) = (tan A ± tan B)/(1 ∓ tan A tan B).',
+        tips: ['sin 15° = cos 75° = (√3 − 1)/(2√2);  cos 15° = sin 75° = (√3 + 1)/(2√2).', 'tan 15° = 2 − √3;  tan 75° = 2 + √3.', 'If A + B = 45°, then (1 + tan A)(1 + tan B) = 2.', 'sin(A + B) sin(A − B) = sin²A − sin²B.'],
+        controls: [{ type: 'range', key: 'A', label: 'Angle A', min: 5, max: 80, step: 1, unit: '°' }, { type: 'range', key: 'B', label: 'Angle B', min: 5, max: 80, step: 1, unit: '°' }],
+        init: { A: 30, B: 25 },
+        fix: p => ({ ...p, B: Math.min(p.B, 85 - p.A) }),
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), A = p.A * D, B = p.B * D, sA = Math.sin(A), cA = Math.cos(A), sB = Math.sin(B), cB = Math.cos(B), V = g.view(W * 0.62, H, [-0.15, 1.15, -0.15, 1.12], 30), S = q => [V.X(q[0]), V.Y(q[1])];
+          const O = [0, 0], R = [cA * cB, 0], P = [cA * cB, sA * cB], Q = [Math.cos(A + B), Math.sin(A + B)], T = [cA * cB, Math.sin(A + B)], Ln = [0, Math.sin(A + B)];
+          g.poly(c, [O, R, T, Ln].map(S), C.dim, C.ink + '08', 2);
+          g.poly(c, [O, R, P].map(S), C.amber, C.amber + '22', 3); g.poly(c, [O, P, Q].map(S), C.cyan, C.cyan + '22', 3); g.poly(c, [P, T, Q].map(S), C.violet, C.violet + '22', 3);
+          g.wedge(c, S(O), S(R), S(P), 46, C.amber, 'A', fs * 0.9); g.wedge(c, S(O), S(P), S(Q), 78, C.cyan, 'B', fs * 0.9); g.wedge(c, S(P), S(T), S(Q), 30, C.violet, 'A', fs * 0.8);
+          g.label(c, V, R[0] / 2, 0, 'cos A cos B', C.amber, fs * 0.8, 0, 24); g.label(c, V, R[0], P[1] / 2, 'sin A cos B', C.amber, fs * 0.8, 70, 0);
+          g.label(c, V, R[0], (P[1] + T[1]) / 2, 'cos A sin B', C.violet, fs * 0.8, 70, 0); g.label(c, V, (Q[0] + T[0]) / 2, T[1], 'sin A sin B', C.violet, fs * 0.8, 0, -22);
+          g.label(c, V, Q[0] / 2, T[1], 'cos(A+B)', C.lime, fs * 0.8, 0, -22); g.label(c, V, Q[0] / 2, Q[1] / 2, '1', C.cyan, fs, -16, -10);
+          const x0 = W * 0.64, ln = (s, y, col) => g.text(c, s, x0, y, col, fs * 0.92, 'left', 'middle', 700, true);
+          ln('sin(A + B) = ' + N(Math.sin(A + B), 4), H * 0.18, C.lime); ln('sin A cos B + cos A sin B', H * 0.25, C.ink); ln('= ' + N(sA * cB, 4) + ' + ' + N(cA * sB, 4), H * 0.31, C.dim);
+          ln('cos(A + B) = ' + N(Math.cos(A + B), 4), H * 0.45, C.lime); ln('cos A cos B − sin A sin B', H * 0.52, C.ink); ln('= ' + N(cA * cB, 4) + ' − ' + N(sA * sB, 4), H * 0.58, C.dim);
+          ln('tan(A + B) = ' + N(Math.tan(A + B), 4), H * 0.72, C.lime); ln('tan A + tan B', H * 0.79, C.ink); ln('───────────────', H * 0.83, C.dim); ln('1 − tan A tan B', H * 0.87, C.ink);
+          return V;
+        },
+        read(p) { const A = p.A * D, B = p.B * D; return [{ l: 'A + B', v: p.A + p.B + '°', c: 'ink' }, { l: 'sin(A + B)', v: N(Math.sin(A + B), 4), c: 'lime' }, { l: 'cos(A + B)', v: N(Math.cos(A + B), 4), c: 'lime' }, { l: 'sin(A − B)', v: N(Math.sin(A - B), 4), c: 'cyan' }, { l: 'cos(A − B)', v: N(Math.cos(A - B), 4), c: 'cyan' }, { l: 'tan(A + B)', v: N(Math.tan(A + B), 4), c: 'violet' }]; },
+        result(p) { return 'sin(' + (p.A + p.B) + '°) = ' + N(Math.sin((p.A + p.B) * D), 4) + ' = sin A cos B + cos A sin B'; } },
+
+      { id: 'multang', title: 'Multiple & Half Angles — Double, Triple and θ/2', topic: 'Trigonometry', grades: [9, 10, 11],
+        aim: 'To verify the double-angle formulas on graphs, prove tan(θ/2) = sin θ/(1 + cos θ) from the unit circle, and check the 60° product rule.',
+        equip: ['Unit circle', 'Graph sheet', 'Protractor'],
+        steps: ['“Double angle”: the curves sin 2x and 2 sin x cos x lie exactly on top of each other; so do cos 2x, cos²x − sin²x, 1 − 2sin²x and 2cos²x − 1.', '“Half angle”: from A(−1, 0), the angle PAO is half of the angle POX = θ (angle at the circumference is half the angle at the centre).', 'In right △APN: tan(θ/2) = PN/AN = sin θ/(1 + cos θ).', '“60° product”: sin θ · sin(60° − θ) · sin(60° + θ) = ¼ sin 3θ for every θ.'],
+        concl: 'sin 2θ = 2 sin θ cos θ; cos 2θ = cos²θ − sin²θ = 1 − 2 sin²θ = 2 cos²θ − 1; tan 2θ = 2 tan θ/(1 − tan²θ). sin 3θ = 3 sin θ − 4 sin³θ; cos 3θ = 4 cos³θ − 3 cos θ. tan(θ/2) = sin θ/(1 + cos θ) = (1 − cos θ)/sin θ.',
+        tips: ['sin θ · sin(60° − θ) · sin(60° + θ) = ¼ sin 3θ;  same with cos;  tan θ · tan(60° − θ) · tan(60° + θ) = tan 3θ.', 'θ = 10°: sin 10° sin 50° sin 70° = ¼ sin 30° = 1/8.', 'sin 18° = (√5 − 1)/4,  cos 36° = (√5 + 1)/4.', '1 + cos 2θ = 2cos²θ and 1 − cos 2θ = 2sin²θ — the key to every half-angle formula.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Explore', options: ['Double angle', 'Half angle', '60° product'] }, { type: 'select', key: 'form', label: 'cos 2θ form', options: ['cos²θ − sin²θ', '1 − 2sin²θ', '2cos²θ − 1'] }, { type: 'range', key: 't', label: 'θ', min: 5, max: 175, step: 1, unit: '°' }],
+        init: { mode: 'Double angle', form: '1 − 2sin²θ', t: 50 },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), t = p.t * D;
+          if (p.mode === 'Double angle') {
+            const V = g.view(W, H, [-0.2, 2 * Math.PI + 0.2, -1.6, 1.6], 30), S = q => [V.X(q[0]), V.Y(q[1])];
+            for (let k = 0; k <= 4; k++) { const x = k * Math.PI / 2; g.line(c, V.X(x), V.Y(-1.5), V.X(x), V.Y(1.5), C.grid, 1); g.text(c, k * 90 + '°', V.X(x), V.Y(0) + fs, C.dim, fs * 0.75, 'center', 'middle', 600, true); }
+            g.line(c, V.X(0), V.Y(0), V.X(2 * Math.PI), V.Y(0), C.axis, 2);
+            const f2 = { 'cos²θ − sin²θ': x => Math.cos(x) ** 2 - Math.sin(x) ** 2, '1 − 2sin²θ': x => 1 - 2 * Math.sin(x) ** 2, '2cos²θ − 1': x => 2 * Math.cos(x) ** 2 - 1 }[p.form];
+            g.plot(c, V, W, H, x => Math.sin(2 * x), C.amber, 7); g.plot(c, V, W, H, x => 2 * Math.sin(x) * Math.cos(x), C.ink, 2);
+            g.plot(c, V, W, H, x => Math.cos(2 * x), C.cyan, 7); g.plot(c, V, W, H, f2, C.ink, 2);
+            g.line(c, V.X(t), V.Y(-1.5), V.X(t), V.Y(1.5), C.violet, 2, [6, 5]); g.dot(c, ...S([t, Math.sin(2 * t)]), 8, C.amber); g.dot(c, ...S([t, Math.cos(2 * t)]), 8, C.cyan);
+            g.box(c, 'sin 2θ (thick amber) = 2 sin θ cos θ (thin)      cos 2θ (thick cyan) = ' + p.form + ' (thin)', W / 2, fs * 1.4, C.ink, fs * 0.82);
+            return V;
+          }
+          if (p.mode === 'Half angle') {
+            const V = g.view(W, H, [-1.4, 1.5, -1.25, 1.25], 30), S = q => [V.X(q[0]), V.Y(q[1])], O = [0, 0], A = [-1, 0], P = [Math.cos(t), Math.sin(t)], Nn = [Math.cos(t), 0];
+            g.dot(c, ...S(O), V.s, null, C.ink, 2.5); g.line(c, ...S([-1.3, 0]), ...S([1.4, 0]), C.axis, 2);
+            g.poly(c, [A, Nn, P].map(S), C.amber, C.amber + '22', 3); g.line(c, ...S(O), ...S(P), C.cyan, 3);
+            g.wedge(c, S(O), S([1, 0]), S(P), 40, C.cyan, 'θ = ' + p.t + '°', fs * 0.85); g.wedge(c, S(A), S([1, 0]), S(P), 70, C.amber, 'θ/2 = ' + N(p.t / 2, 1) + '°', fs * 0.85);
+            g.label(c, V, (A[0] + Nn[0]) / 2, 0, 'AN = 1 + cos θ', C.amber, fs * 0.8, 0, 26); g.label(c, V, Nn[0], P[1] / 2, 'PN = sin θ', C.amber, fs * 0.8, 70, 0);
+            [[A, 'A'], [O, 'O'], [P, 'P'], [Nn, 'N']].forEach(([q, nm]) => g.text(c, nm, V.X(q[0]) - 16, V.Y(q[1]) + (nm === 'P' ? -18 : 20), C.ink, fs, 'center', 'middle', 700));
+            g.box(c, 'tan(θ/2) = sin θ/(1 + cos θ) = ' + N(Math.sin(t), 4) + ' / ' + N(1 + Math.cos(t), 4) + ' = ' + N(Math.sin(t) / (1 + Math.cos(t)), 4) + '  ✓ ' + N(Math.tan(t / 2), 4), W / 2, H - fs * 1.4, C.lime, fs * 0.9);
+            return V;
+          }
+          const a = Math.sin(t), b = Math.sin((60 - p.t) * D), d = Math.sin((60 + p.t) * D), big = (s, y, col, sz) => g.text(c, s, W / 2, y, col, sz || fs * 1.2, 'center', 'middle', 700, true);
+          big('θ = ' + p.t + '°', H * 0.14, C.violet, fs * 1.4);
+          big('sin ' + p.t + '° · sin ' + (60 - p.t) + '° · sin ' + (60 + p.t) + '°', H * 0.3, C.ink);
+          big('= ' + N(a, 4) + ' × ' + N(b, 4) + ' × ' + N(d, 4) + ' = ' + N(a * b * d, 5), H * 0.42, C.amber);
+          big('¼ sin 3θ = ¼ sin ' + 3 * p.t + '° = ' + N(Math.sin(3 * t) / 4, 5), H * 0.56, C.lime);
+          big('Try θ = 10°: sin 10° sin 50° sin 70° = 1/8', H * 0.74, C.dim, fs);
+          return null;
+        },
+        read(p) { const t = p.t * D; return [{ l: 'sin 2θ', v: N(Math.sin(2 * t), 4), c: 'amber' }, { l: '2 sin θ cos θ', v: N(2 * Math.sin(t) * Math.cos(t), 4), c: 'amber' }, { l: 'cos 2θ', v: N(Math.cos(2 * t), 4), c: 'cyan' }, { l: 'sin 3θ = 3sin θ − 4sin³θ', v: N(Math.sin(3 * t), 4) + ' = ' + N(3 * Math.sin(t) - 4 * Math.sin(t) ** 3, 4), c: 'violet' }, { l: 'tan(θ/2)', v: N(Math.tan(t / 2), 4), c: 'lime' }]; },
+        result(p) { const t = p.t * D; return p.mode === 'Half angle' ? 'tan ' + N(p.t / 2, 1) + '° = ' + N(Math.tan(t / 2), 4) : p.mode === '60° product' ? 'Product = ¼ sin ' + 3 * p.t + '° = ' + N(Math.sin(3 * t) / 4, 5) : 'sin ' + 2 * p.t + '° = 2 sin ' + p.t + '° cos ' + p.t + '° = ' + N(Math.sin(2 * t), 4); } },
+
+      { id: 'concur', title: 'Concurrency of Three Lines — the Determinant Test', topic: 'Coordinate Geometry', grades: [9, 10, 11],
+        aim: 'To find when three lines pass through one point, using the 3 × 3 determinant of their coefficients, and check it on the graph.',
+        equip: ['Graph sheet', 'Ruler'],
+        steps: ['Set lines L₁ and L₂; their meeting point is shown.', 'Move c₃ of L₃ (a parallel shift): L₃ slides across the plane.', 'When the determinant of the coefficients is 0, L₃ passes through the meeting point — the three lines are concurrent.', 'Check: substitute the meeting point of L₁ and L₂ into L₃. It gives 0 exactly when the lines are concurrent.'],
+        concl: 'Lines aᵢx + bᵢy + cᵢ = 0 (i = 1, 2, 3), no two parallel, are concurrent ⇔ the determinant |a₁ b₁ c₁; a₂ b₂ c₂; a₃ b₃ c₃| = 0. Equivalently, the point of intersection of two of them satisfies the third.',
+        tips: ['Expand the determinant only along the row or column containing the unknown.', 'Verify: solve any two lines, substitute in the third.', 'A zero determinant also occurs when the lines are parallel — check that no two are parallel.'],
+        controls: [{ type: 'range', key: 'a1', label: 'L₁: a₁', min: -5, max: 5, step: 1 }, { type: 'range', key: 'b1', label: 'L₁: b₁', min: -5, max: 5, step: 1 }, { type: 'range', key: 'c1', label: 'L₁: c₁', min: -10, max: 10, step: 1 }, { type: 'range', key: 'a2', label: 'L₂: a₂', min: -5, max: 5, step: 1 }, { type: 'range', key: 'b2', label: 'L₂: b₂', min: -5, max: 5, step: 1 }, { type: 'range', key: 'c2', label: 'L₂: c₂', min: -10, max: 10, step: 1 }, { type: 'range', key: 'a3', label: 'L₃: a₃', min: -5, max: 5, step: 1 }, { type: 'range', key: 'b3', label: 'L₃: b₃', min: -5, max: 5, step: 1 }, { type: 'range', key: 'c3', label: 'L₃: c₃ (slide)', min: -12, max: 12, step: 1 }],
+        init: { a1: 1, b1: 1, c1: -3, a2: 2, b2: -1, c2: 0, a3: 3, b3: 2, c3: -4 },
+        calc(p) { const { a1, b1, c1, a2, b2, c2, a3, b3, c3 } = p, det = a1 * (b2 * c3 - b3 * c2) - b1 * (a2 * c3 - a3 * c2) + c1 * (a2 * b3 - a3 * b2), d12 = a1 * b2 - a2 * b1, X = d12 ? [(b1 * c2 - b2 * c1) / d12, (c1 * a2 - c2 * a1) / d12] : null, par = [d12, a1 * b3 - a3 * b1, a2 * b3 - a3 * b2].some(v => v === 0); return { det, X, par, sub: X ? a3 * X[0] + b3 * X[1] + c3 : null, need: X ? -(a3 * X[0] + b3 * X[1]) : null }; },
+        eqs(a, b, cc) { let s = ''; [[a, 'x'], [b, 'y']].forEach(([k, v]) => { if (!k) return; s += (s ? (k < 0 ? ' − ' : ' + ') : (k < 0 ? '−' : '')) + (Math.abs(k) === 1 ? '' : Math.abs(k)) + v; }); if (cc) s += (s ? (cc < 0 ? ' − ' : ' + ') : '') + Math.abs(cc); return (s || '0') + ' = 0'; },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), k = this.calc(p), V = g.view(W, H, [-8, 8, -6, 6], 24), S = q => [V.X(q[0]), V.Y(q[1])]; g.grid(c, V, W, H, 1, true, fs);
+          const ln = (a, b, cc, col) => { if (!a && !b) return; if (Math.abs(b) > Math.abs(a)) g.plot(c, V, W, H, x => -(a * x + cc) / b, col, 3.5); else { const y0 = -8, y1 = 8; g.line(c, ...S([-(b * y0 + cc) / a, y0]), ...S([-(b * y1 + cc) / a, y1]), col, 3.5); } };
+          ln(p.a1, p.b1, p.c1, C.amber); ln(p.a2, p.b2, p.c2, C.cyan); ln(p.a3, p.b3, p.c3, k.det === 0 ? C.lime : C.coral);
+          if (k.X) { g.dot(c, ...S(k.X), 10, k.det === 0 ? C.lime : C.ink, C.bg, 2); g.label(c, V, k.X[0], k.X[1], '(' + N(k.X[0]) + ', ' + N(k.X[1]) + ')', C.ink, fs * 0.85, 0, -28); }
+          g.box(c, 'L₁: ' + this.eqs(p.a1, p.b1, p.c1) + '    L₂: ' + this.eqs(p.a2, p.b2, p.c2) + '    L₃: ' + this.eqs(p.a3, p.b3, p.c3), W / 2, fs * 1.4, C.ink, fs * 0.85);
+          g.box(c, 'Determinant = ' + N(k.det) + (k.det === 0 ? (k.par ? '  — but some lines are parallel!' : '  ⇒ concurrent ✓') : '  ⇒ not concurrent' + (k.need !== null ? ' (c₃ = ' + N(k.need) + ' needed)' : '')), W / 2, H - fs * 1.4, k.det === 0 && !k.par ? C.lime : C.coral, fs);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Determinant', v: N(k.det), c: k.det === 0 ? 'lime' : 'coral' }, { l: 'L₁ ∩ L₂', v: k.X ? '(' + N(k.X[0]) + ', ' + N(k.X[1]) + ')' : 'parallel', c: 'ink' }, { l: 'L₃ at that point', v: k.sub === null ? '—' : N(k.sub), c: 'amber' }, { l: 'c₃ for concurrency', v: k.need === null ? '—' : N(k.need), c: 'cyan' }]; },
+        result(p) { const k = this.calc(p); return k.det === 0 && !k.par ? 'Concurrent at (' + N(k.X[0]) + ', ' + N(k.X[1]) + ')' : 'Δ = ' + N(k.det) + ' — not concurrent'; } },
+
+      { id: 'interval', title: 'Intervals, Union & Intersection, and |x − c| < r', topic: 'Sets & Functions', grades: [9, 10, 11],
+        aim: 'To write sets of real numbers in interval notation, find unions and intersections of intervals, and turn |x − c| ≤ r into an interval.',
+        equip: ['Number line', 'Open and closed markers'],
+        steps: ['A square bracket [ ] includes the end point (filled dot); a round bracket ( ) excludes it (hollow dot).', 'Set two intervals. The intersection is the overlap (in both); the union is everything covered (in either).', 'If the intervals do not overlap, the intersection is empty (∅) and the union is two separate pieces.', '“|x − c| ≤ r”: all points within distance r of c, i.e. [c − r, c + r]; with < the ends are open.'],
+        concl: '[a, b] = {x : a ≤ x ≤ b}, (a, b) = {x : a < x < b}, and the half-open forms mix them. A ∩ B is the overlap; A ∪ B is the total coverage. |x − c| ≤ r ⇔ c − r ≤ x ≤ c + r; |x − c| < r ⇔ x ∈ (c − r, c + r).',
+        tips: ['|x − c| < r: centre c, radius r ⇒ (c − r, c + r). Example |x − 3| < 5 ⇒ (−2, 8).', '|x − c| > r is the outside: (−∞, c − r) ∪ (c + r, ∞).', '∞ always takes a round bracket.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Explore', options: ['Union & intersection', '|x − c| ≤ r'] }, { type: 'range', key: 'a1', label: 'Interval 1: start', min: -9, max: 9, step: 0.5 }, { type: 'range', key: 'b1', label: 'Interval 1: end', min: -9, max: 9, step: 0.5 }, { type: 'select', key: 't1', label: 'Interval 1 brackets', options: ['[ ]', '( )', '[ )', '( ]'] }, { type: 'range', key: 'a2', label: 'Interval 2: start', min: -9, max: 9, step: 0.5 }, { type: 'range', key: 'b2', label: 'Interval 2: end', min: -9, max: 9, step: 0.5 }, { type: 'select', key: 't2', label: 'Interval 2 brackets', options: ['[ ]', '( )', '[ )', '( ]'] }, { type: 'range', key: 'cc', label: 'Centre c', min: -6, max: 6, step: 0.5 }, { type: 'range', key: 'r', label: 'Radius r', min: 0.5, max: 6, step: 0.5 }, { type: 'toggle', key: 'strict', label: 'Strict (<)' }],
+        init: { mode: 'Union & intersection', a1: -4, b1: 3, t1: '[ )', a2: 1, b2: 7, t2: '( ]', cc: 3, r: 5, strict: true },
+        fix: p => ({ ...p, b1: Math.max(p.b1, p.a1 + 0.5), b2: Math.max(p.b2, p.a2 + 0.5) }),
+        iv(a, b, t) { return { a, b, la: t[0] === '[', rb: t[2] === ']' }; },
+        fmt(I) { return I ? (I.la ? '[' : '(') + N(I.a) + ', ' + N(I.b) + (I.rb ? ']' : ')') : '∅'; },
+        ops(p) {
+          const A = this.iv(p.a1, p.b1, p.t1), B = this.iv(p.a2, p.b2, p.t2);
+          const lo = A.a > B.a ? A : A.a < B.a ? B : { a: A.a, la: A.la && B.la }, hi = A.b < B.b ? A : A.b > B.b ? B : { b: A.b, rb: A.rb && B.rb };
+          let I = { a: lo.a, la: lo.la, b: hi.b, rb: hi.rb }; if (I.a > I.b || (I.a === I.b && !(I.la && I.rb))) I = null;
+          const touch = A.b === B.a ? (A.rb || B.la) : B.b === A.a ? (B.rb || A.la) : false, joined = I || touch;
+          let U; if (joined) { const l = A.a < B.a ? A : A.a > B.a ? B : { a: A.a, la: A.la || B.la }, r = A.b > B.b ? A : A.b < B.b ? B : { b: A.b, rb: A.rb || B.rb }; U = [{ a: l.a, la: l.la, b: r.b, rb: r.rb }]; } else U = A.a < B.a ? [A, B] : [B, A];
+          return { A, B, I, U };
+        },
+        draw(c, W, H, p) {
+          const fs = g.fs(W, H), x0 = W * 0.06, x1 = W * 0.94, X = v => x0 + (v + 10) * (x1 - x0) / 20;
+          const axis = y => { g.line(c, x0 - 10, y, x1 + 10, y, C.dim, 2); for (let v = -10; v <= 10; v++) { g.line(c, X(v), y - 6, X(v), y + 6, C.dim, 1.5); if (v % 2 === 0) g.text(c, String(v), X(v), y + fs, C.dim, fs * 0.7, 'center', 'middle', 600, true); } };
+          const seg = (I, y, col) => { g.line(c, X(I.a), y, X(I.b), y, col, 8); g.dot(c, X(I.a), y, 10, I.la ? col : C.bg, col, 3); g.dot(c, X(I.b), y, 10, I.rb ? col : C.bg, col, 3); };
+          const row = (lab, y, list, col) => { axis(y); g.text(c, lab, x0, y - fs * 1.4, col, fs * 0.95, 'left', 'middle', 700, true); list.forEach(I => seg(I, y, col)); };
+          if (p.mode === 'Union & intersection') {
+            const k = this.ops(p);
+            row('A = ' + this.fmt(k.A), H * 0.16, [k.A], C.amber); row('B = ' + this.fmt(k.B), H * 0.38, [k.B], C.cyan);
+            row('A ∩ B = ' + this.fmt(k.I), H * 0.6, k.I ? [k.I] : [], C.lime); row('A ∪ B = ' + k.U.map(I => this.fmt(I)).join(' ∪ '), H * 0.82, k.U, C.violet);
+            return null;
+          }
+          const I = { a: p.cc - p.r, b: p.cc + p.r, la: !p.strict, rb: !p.strict }, y = H * 0.5;
+          axis(y); seg(I, y, C.lime); g.dot(c, X(p.cc), y, 7, C.amber);
+          g.line(c, X(p.cc), y - H * 0.12, X(p.cc + p.r), y - H * 0.12, C.amber, 3); g.text(c, 'r = ' + N(p.r), (X(p.cc) + X(p.cc + p.r)) / 2, y - H * 0.12 - fs, C.amber, fs, 'center', 'middle', 700);
+          g.box(c, '|x − ' + N(p.cc) + '| ' + (p.strict ? '<' : '≤') + ' ' + N(p.r) + '   ⇔   x ∈ ' + this.fmt(I), W / 2, H * 0.2, C.lime, fs * 1.3);
+          g.text(c, 'Centre ' + N(p.cc) + ', every point within distance ' + N(p.r), W / 2, H * 0.76, C.dim, fs);
+          return null;
+        },
+        read(p) { if (p.mode !== 'Union & intersection') return [{ l: 'Centre', v: N(p.cc), c: 'amber' }, { l: 'Radius', v: N(p.r), c: 'amber' }, { l: 'Interval', v: this.fmt({ a: p.cc - p.r, b: p.cc + p.r, la: !p.strict, rb: !p.strict }), c: 'lime' }]; const k = this.ops(p); return [{ l: 'A', v: this.fmt(k.A), c: 'amber' }, { l: 'B', v: this.fmt(k.B), c: 'cyan' }, { l: 'A ∩ B', v: this.fmt(k.I), c: 'lime' }, { l: 'A ∪ B', v: k.U.map(I => this.fmt(I)).join(' ∪ '), c: 'violet' }]; },
+        result(p) { if (p.mode !== 'Union & intersection') return '|x − ' + N(p.cc) + '| ' + (p.strict ? '<' : '≤') + ' ' + N(p.r) + ' ⇔ ' + this.fmt({ a: p.cc - p.r, b: p.cc + p.r, la: !p.strict, rb: !p.strict }); const k = this.ops(p); return 'A ∩ B = ' + this.fmt(k.I) + ',  A ∪ B = ' + k.U.map(I => this.fmt(I)).join(' ∪ '); } },
+      { id: 'segdiv', title: 'Dividing a Line Segment into Equal Parts', topic: 'Geometry', grades: [9, 10],
+        aim: 'To divide a line segment AB into n equal parts with a compass and ruler, using a ray and parallel lines.',
+        equip: ['Ruler', 'Compass', 'Set square', 'Paper strip'],
+        steps: ['Draw AB and a ray AX making an acute angle with it.', 'With one compass width, mark n equal steps A₁, A₂, …, Aₙ along AX.', 'Join Aₙ to B.', 'Through A₁, A₂, … draw lines parallel to AₙB. They cut AB into n equal parts (BPT / intercept theorem).'],
+        concl: 'Lines through A₁, A₂, … parallel to AₙB divide AB into n equal parts, because equal intercepts on AX give equal intercepts on AB (basic proportionality theorem). The same steps divide AB in any ratio m : n.',
+        tips: ['For a ratio m : n, mark m + n equal steps, join the last to B and draw the parallel through the m-th mark.', 'Keep the compass width the same for every step on the ray.'],
+        controls: [{ type: 'range', key: 'n', label: 'Number of parts n', min: 2, max: 9, step: 1 }, { type: 'range', key: 'ang', label: 'Angle of ray AX', min: 20, max: 60, step: 5, unit: '°' }, { type: 'range', key: 's', label: 'Construction step', min: 1, max: 4, step: 1 }],
+        init: { n: 5, ang: 35, s: 4 },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-0.6, 10.6, -6.6, 2.2], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], L = 10, n = p.n, a = -p.ang * D, st = 9 / n * 0.9;
+          const A = [0, 0], B = [L, 0], mk = i => [Math.cos(a) * st * i, Math.sin(a) * st * i], An = mk(n);
+          g.line(c, ...S(A), ...S(B), C.ink, 4); g.text(c, 'A', V.X(0) - 16, V.Y(0) - 18, C.ink, fs, 'center', 'middle', 700); g.text(c, 'B', V.X(L) + 16, V.Y(0) - 18, C.ink, fs, 'center', 'middle', 700);
+          if (p.s >= 1) { const X = [Math.cos(a) * (st * n + 1), Math.sin(a) * (st * n + 1)]; g.line(c, ...S(A), ...S(X), C.cyan, 2.5); g.text(c, 'X', ...S([X[0] + 0.3, X[1]]), C.cyan, fs, 'center', 'middle', 700); }
+          if (p.s >= 2) for (let i = 1; i <= n; i++) { const q = mk(i); c.beginPath(); c.arc(V.X(mk(i - 1)[0]), V.Y(mk(i - 1)[1]), st * V.s, -a - 0.25, -a + 0.25); c.strokeStyle = C.amber + '99'; c.lineWidth = 1.5; c.stroke(); g.dot(c, ...S(q), 6, C.amber); g.text(c, 'A' + i, V.X(q[0]) - 10, V.Y(q[1]) + 20, C.amber, fs * 0.75, 'center', 'middle', 700); }
+          if (p.s >= 3) g.line(c, ...S(An), ...S(B), C.lime, 3);
+          if (p.s >= 4) for (let i = 1; i < n; i++) { const q = mk(i), P = [L * i / n, 0]; g.line(c, ...S(q), ...S(P), C.lime + 'aa', 2, [6, 5]); g.dot(c, ...S(P), 7, C.lime, C.bg, 2); }
+          if (p.s >= 4) for (let i = 0; i < n; i++) g.text(c, N(L / n, 2), V.X(L * (i + 0.5) / n), V.Y(0) - 18, C.lime, fs * 0.75, 'center', 'middle', 700, true);
+          g.box(c, ['', 'Step 1: draw ray AX', 'Step 2: mark ' + n + ' equal steps', 'Step 3: join A' + n + 'B', 'Step 4: parallels to A' + n + 'B ⇒ ' + n + ' equal parts'][p.s], W / 2, H - fs * 1.4, C.lime, fs);
+          return V;
+        },
+        read(p) { return [{ l: 'AB', v: '10 units', c: 'ink' }, { l: 'Parts', v: p.n, c: 'amber' }, { l: 'Each part', v: N(10 / p.n, 3), c: 'lime' }]; },
+        result(p) { return 'AB divided into ' + p.n + ' equal parts of ' + N(10 / p.n, 3); } },
+
+      { id: 'cubeid', title: 'Cube Identities in 3D — (a + b)³ and a³ − b³', topic: 'Algebra', grades: [9],
+        aim: 'To verify (a + b)³ = a³ + 3a²b + 3ab² + b³ and a³ − b³ = (a − b)(a² + ab + b²) by cutting cubes into blocks.',
+        equip: ['Unit cubes / thermocol blocks', 'Cutter', 'Scale'],
+        steps: ['“(a + b)³”: cut each edge of a cube of side a + b at a. Slide the Explode control to separate the 8 blocks.', 'Count: one a³ cube, one b³ cube, three a²b slabs and three ab² rods.', '“a³ − b³”: remove a b³ cube from a corner of an a³ cube. The rest splits into three cuboids, each with one edge a − b.', 'Their volumes (a − b)a², (a − b)ab, (a − b)b² add to (a − b)(a² + ab + b²). Drag the board to rotate.'],
+        concl: '(a + b)³ = a³ + 3a²b + 3ab² + b³ = a³ + b³ + 3ab(a + b). a³ − b³ = (a − b)(a² + ab + b²). Also (a − b)³ = a³ − 3a²b + 3ab² − b³ and a³ + b³ = (a + b)(a² − ab + b²).',
+        tips: ['a³ + b³ = (a + b)³ − 3ab(a + b);  a³ − b³ = (a − b)³ + 3ab(a − b).', 'If a + b + c = 0, then a³ + b³ + c³ = 3abc.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Identity', options: ['(a + b)³', 'a³ − b³'] }, { type: 'range', key: 'a', label: 'a', min: 1, max: 4, step: 0.5 }, { type: 'range', key: 'b', label: 'b', min: 0.5, max: 3, step: 0.5 }, { type: 'range', key: 'ex', label: 'Explode', min: 0, max: 1, step: 0.05 }],
+        init: { mode: '(a + b)³', a: 3, b: 1.5, ex: 0.5 }, rotate: true,
+        fix: p => p.mode === 'a³ − b³' ? { ...p, b: Math.min(p.b, p.a - 0.5) } : p,
+        boxes(p) { const { a, b } = p, out = []; if (p.mode === '(a + b)³') { for (const i of [0, 1]) for (const j of [0, 1]) for (const k of [0, 1]) { const r = (s) => s ? [a, a + b] : [0, a], n = i + j + k, col = n === 0 ? 'amber' : n === 3 ? 'cyan' : n === 1 ? 'violet' : 'lime'; out.push({ x: r(i), y: r(j), z: r(k), col, d: [i, j, k] }); } } else { out.push({ x: [b, a], y: [0, a], z: [0, a], col: 'amber', d: [1, 0, 0] }, { x: [0, b], y: [b, a], z: [0, a], col: 'violet', d: [0, 1, 0] }, { x: [0, b], y: [0, b], z: [b, a], col: 'lime', d: [0, 0, 1] }); } return out; },
+        draw(c, W, H, p, st, t, rt) {
+          const fs = g.fs(W, H); if (!rt.dragging) rt.ry += 0.004;
+          const T = p.mode === '(a + b)³' ? p.a + p.b : p.a, h = T / 2, gap = p.ex * T * 0.35, cy = Math.cos(rt.ry), sy = Math.sin(rt.ry), cx = Math.cos(rt.rx), sx = Math.sin(rt.rx), Sc = Math.min(W, H) * 0.3 / T;
+          const P3 = (x, y, z) => { x -= h; y -= h; z -= h; const x1 = x * cy - z * sy, z1 = x * sy + z * cy, y2 = y * cx - z1 * sx, z2 = y * sx + z1 * cx; return [W * 0.42 + x1 * Sc, H * 0.52 - y2 * Sc, z2]; };
+          const faces = [];
+          this.boxes(p).forEach(bx => { const o = bx.d.map(v => v * gap), X = bx.x.map(v => v + o[0]), Y = bx.y.map(v => v + o[1]), Z = bx.z.map(v => v + o[2]), v = (i, j, k) => P3(X[i], Y[j], Z[k]);
+            [[[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], [[0, 1, 0], [1, 1, 0], [1, 1, 1], [0, 1, 1]], [[0, 0, 0], [0, 1, 0], [0, 1, 1], [0, 0, 1]], [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]]].forEach(f => { const q = f.map(([i, j, k]) => v(i, j, k)); faces.push({ q, z: q.reduce((s, r) => s + r[2], 0) / 4, col: C[bx.col] }); }); });
+          faces.sort((u, w) => u.z - w.z).forEach(f => g.poly(c, f.q.map(r => [r[0], r[1]]), f.col, f.col + '88', 1.5));
+          const x0 = W * 0.74, ln = (s, y, col) => g.text(c, s, x0, y, col, fs * 0.9, 'left', 'middle', 700, true), a = p.a, b = p.b;
+          if (p.mode === '(a + b)³') { ln('a³ = ' + N(a ** 3), H * 0.2, C.amber); ln('3a²b = ' + N(3 * a * a * b), H * 0.28, C.violet); ln('3ab² = ' + N(3 * a * b * b), H * 0.36, C.lime); ln('b³ = ' + N(b ** 3), H * 0.44, C.cyan); ln('Sum = ' + N((a + b) ** 3), H * 0.56, C.ink); ln('(a + b)³ = ' + N((a + b) ** 3), H * 0.64, C.lime); }
+          else { ln('(a − b)a² = ' + N((a - b) * a * a), H * 0.2, C.amber); ln('(a − b)ab = ' + N((a - b) * a * b), H * 0.28, C.violet); ln('(a − b)b² = ' + N((a - b) * b * b), H * 0.36, C.lime); ln('Sum = ' + N((a - b) * (a * a + a * b + b * b)), H * 0.48, C.ink); ln('a³ − b³ = ' + N(a ** 3 - b ** 3), H * 0.56, C.lime); }
+          return null;
+        },
+        read(p) { const { a, b } = p; return p.mode === '(a + b)³' ? [{ l: '(a + b)³', v: N((a + b) ** 3), c: 'lime' }, { l: 'a³ + 3a²b + 3ab² + b³', v: N(a ** 3 + 3 * a * a * b + 3 * a * b * b + b ** 3), c: 'ink' }, { l: 'a³ + b³', v: N(a ** 3 + b ** 3), c: 'cyan' }] : [{ l: 'a³ − b³', v: N(a ** 3 - b ** 3), c: 'lime' }, { l: '(a − b)(a² + ab + b²)', v: N((a - b) * (a * a + a * b + b * b)), c: 'ink' }, { l: '(a − b)³', v: N((a - b) ** 3), c: 'cyan' }]; },
+        result(p) { const { a, b } = p; return p.mode === '(a + b)³' ? '(' + N(a) + ' + ' + N(b) + ')³ = ' + N((a + b) ** 3) : N(a) + '³ − ' + N(b) + '³ = ' + N(a ** 3 - b ** 3); } },
+
+      { id: 'sqdiff', title: 'Difference of Squares a² − b² = (a + b)(a − b)', topic: 'Algebra', grades: [8, 9],
+        aim: 'To verify a² − b² = (a + b)(a − b) by cutting a small square from a big one and rearranging the rest into a rectangle.',
+        equip: ['Square sheet of side a', 'Square of side b', 'Scissors'],
+        steps: ['Cut a square of side b from the corner of a square of side a. The L-shaped remainder has area a² − b².', 'Cut the L into two rectangles: a × (a − b) and (a − b) × b.', 'Slide “Rearrange”: turn the small rectangle and place it beside the big one.', 'The result is one rectangle of length a + b and width a − b, so a² − b² = (a + b)(a − b).'],
+        concl: 'a² − b² = (a + b)(a − b).',
+        tips: ['Quick squares: 47² − 43² = (47 + 43)(47 − 43) = 90 × 4 = 360.', '(2k + 1)² − (2k − 1)² = 8k is always a multiple of 8.'],
+        controls: [{ type: 'range', key: 'a', label: 'a', min: 2, max: 6, step: 0.5 }, { type: 'range', key: 'b', label: 'b', min: 0.5, max: 5, step: 0.5 }, { type: 'range', key: 'u', label: 'Rearrange', min: 0, max: 1, step: 0.02 }],
+        init: { a: 5, b: 2, u: 0 },
+        fix: p => ({ ...p, b: Math.min(p.b, p.a - 0.5) }),
+        draw(c, W, H, p) {
+          const { a, b, u } = p, V = g.view(W, H, [-0.5, a + b + 0.8, -1.5, a + 0.6], 30), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])];
+          g.poly(c, [[0, 0], [b, 0], [b, b], [0, b]].map(S), C.dim, null, 1.5, [6, 6]); g.text(c, 'b² removed', ...S([b / 2, b / 2]), C.dim, fs * 0.8);
+          g.poly(c, [[0, b], [a, b], [a, a], [0, a]].map(S), C.amber, C.amber + '33', 3); g.label(c, V, a / 2, (a + b) / 2, 'a × (a − b)', C.amber, fs * 0.9);
+          const cx0 = (a + b) / 2, cy0 = b / 2, cx1 = a + b / 2, cy1 = (a + b) / 2, cx = cx0 + (cx1 - cx0) * u, cy = cy0 + (cy1 - cy0) * u, w = a - b, hgt = b, th = -u * Math.PI / 2;
+          c.save(); c.translate(V.X(cx), V.Y(cy)); c.rotate(th); c.fillStyle = C.cyan + '33'; c.fillRect(-w / 2 * V.s, -hgt / 2 * V.s, w * V.s, hgt * V.s); c.strokeStyle = C.cyan; c.lineWidth = 3; c.strokeRect(-w / 2 * V.s, -hgt / 2 * V.s, w * V.s, hgt * V.s); c.restore();
+          g.label(c, V, cx, cy, '(a − b) × b', C.cyan, fs * 0.85);
+          if (u > 0.98) { g.poly(c, [[0, b], [a + b, b], [a + b, a], [0, a]].map(S), C.lime, null, 4); g.text(c, 'a + b = ' + N(a + b), ...S([(a + b) / 2, a + 0.35]), C.lime, fs, 'center', 'middle', 700); g.text(c, 'a − b = ' + N(a - b), V.X(a + b) + 60, V.Y((a + b) / 2), C.lime, fs, 'center', 'middle', 700); }
+          g.box(c, 'a² − b² = ' + N(a * a) + ' − ' + N(b * b) + ' = ' + N(a * a - b * b) + '     (a + b)(a − b) = ' + N(a + b) + ' × ' + N(a - b) + ' = ' + N((a + b) * (a - b)), W / 2, H - fs * 1.4, C.lime, fs);
+          return V;
+        },
+        read(p) { const { a, b } = p; return [{ l: 'a² − b²', v: N(a * a - b * b), c: 'amber' }, { l: '(a + b)(a − b)', v: N((a + b) * (a - b)), c: 'lime' }]; },
+        result(p) { const { a, b } = p; return N(a) + '² − ' + N(b) + '² = ' + N(a + b) + ' × ' + N(a - b) + ' = ' + N(a * a - b * b); } },
+
+      { id: 'triineq', title: 'Triangle Inequality — Can Three Sticks Make a Triangle?', topic: 'Geometry', grades: [7, 9],
+        aim: 'To verify that the sum of any two sides of a triangle is greater than the third side.',
+        equip: ['Straws or sticks of different lengths', 'Scale'],
+        steps: ['Choose three stick lengths a, b, c.', 'Put c as the base and swing the other two from its ends. If they meet above the base, a triangle forms.', 'Check all three sums: a + b > c, b + c > a, c + a > b.', 'Make a + b equal to c: the sticks lie flat on the base — no triangle (degenerate).'],
+        concl: 'Three lengths form a triangle ⇔ each pair adds to more than the third (it is enough to check: the two shorter add to more than the longest). Also |a − b| < c < a + b.',
+        tips: ['Check only the two smaller sides against the largest.', 'Third side of a triangle with sides 5 and 8 lies strictly between 3 and 13.'],
+        controls: [{ type: 'range', key: 'a', label: 'a', min: 1, max: 12, step: 0.5 }, { type: 'range', key: 'b', label: 'b', min: 1, max: 12, step: 0.5 }, { type: 'range', key: 'c', label: 'c (base)', min: 1, max: 14, step: 0.5 }],
+        init: { a: 5, b: 6, c: 9 },
+        draw(c, W, H, p) {
+          const { a, b } = p, cc = p.c, V = g.view(W, H, [-a - 1, cc + b + 1, -2, Math.max(a, b) + 1], 30), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], ok = a + b > cc && b + cc > a && cc + a > b;
+          g.line(c, ...S([0, 0]), ...S([cc, 0]), C.ink, 5); g.text(c, 'c = ' + N(cc), V.X(cc / 2), V.Y(0) + fs * 1.2, C.ink, fs, 'center', 'middle', 700);
+          c.setLineDash([5, 6]); c.strokeStyle = C.amber + '66'; c.lineWidth = 1.5; c.beginPath(); c.arc(V.X(0), V.Y(0), a * V.s, 0, -Math.PI, true); c.stroke(); c.strokeStyle = C.cyan + '66'; c.beginPath(); c.arc(V.X(cc), V.Y(0), b * V.s, 0, -Math.PI, true); c.stroke(); c.setLineDash([]);
+          if (ok) { const x = (a * a - b * b + cc * cc) / (2 * cc), y = Math.sqrt(Math.max(0, a * a - x * x)); g.line(c, ...S([0, 0]), ...S([x, y]), C.amber, 5); g.line(c, ...S([cc, 0]), ...S([x, y]), C.cyan, 5); g.dot(c, ...S([x, y]), 9, C.lime); }
+          else { const t = Math.PI * 0.75; g.line(c, ...S([0, 0]), ...S([a * Math.cos(t * 0.3), a * Math.sin(t * 0.3)]), C.amber, 5); g.line(c, ...S([cc, 0]), ...S([cc - b * Math.cos(t * 0.3), b * Math.sin(t * 0.3)]), C.cyan, 5); }
+          g.text(c, 'a = ' + N(a), V.X(-a * 0.2), V.Y(a * 0.5), C.amber, fs, 'center', 'middle', 700); g.text(c, 'b = ' + N(b), V.X(cc + b * 0.2), V.Y(b * 0.5), C.cyan, fs, 'center', 'middle', 700);
+          const chk = (x, y, z, s) => (x + y > z ? '✓ ' : '✗ ') + s + ' = ' + N(x + y) + (x + y > z ? ' > ' : ' ≤ ') + N(z);
+          g.box(c, chk(a, b, cc, 'a + b') + '    ' + chk(b, cc, a, 'b + c') + '    ' + chk(cc, a, b, 'c + a'), W / 2, fs * 1.4, C.ink, fs * 0.85);
+          g.box(c, ok ? 'A triangle is possible' : 'No triangle — the two shorter sticks cannot meet', W / 2, H - fs * 1.4, ok ? C.lime : C.coral, fs * 1.1);
+          return V;
+        },
+        read(p) { const { a, b, c } = p, ok = a + b > c && b + c > a && c + a > b; return [{ l: 'a + b vs c', v: N(a + b) + ' vs ' + N(c), c: a + b > c ? 'lime' : 'coral' }, { l: 'b + c vs a', v: N(b + c) + ' vs ' + N(a), c: b + c > a ? 'lime' : 'coral' }, { l: 'c + a vs b', v: N(c + a) + ' vs ' + N(b), c: c + a > b ? 'lime' : 'coral' }, { l: 'Triangle?', v: ok ? 'Yes' : 'No', c: ok ? 'lime' : 'coral' }]; },
+        result(p) { const { a, b, c } = p; return a + b > c && b + c > a && c + a > b ? 'Triangle possible' : 'Not a triangle'; } },
+
+      { id: 'quadprop', title: 'Parallelogram & Trapezium — Sides, Angles and Diagonals', topic: 'Geometry', grades: [8, 9],
+        aim: 'To verify the properties of sides, angles and diagonals of a parallelogram, and of a (isosceles) trapezium.',
+        equip: ['Geoboard', 'Scale', 'Protractor', 'Tracing paper'],
+        steps: ['“Parallelogram”: drag A, B and D. C is placed so that ABCD has both pairs of opposite sides parallel (construction from two adjacent sides).', 'Read: opposite sides equal, opposite angles equal, adjacent angles add to 180°, diagonals bisect each other (O is the mid-point of both).', '“Trapezium”: AB ∥ DC. The two angles on each leg add to 180°.', 'Turn on “Isosceles”: the legs become equal, the base angles become equal and so do the diagonals.'],
+        concl: 'Parallelogram: opposite sides equal, opposite angles equal, adjacent angles supplementary, diagonals bisect each other. Trapezium (AB ∥ DC): ∠A + ∠D = ∠B + ∠C = 180°. Isosceles trapezium: legs equal, base angles equal, diagonals equal.',
+        tips: ['Diagonals bisecting each other is enough to prove a quadrilateral is a parallelogram.', 'A rectangle is a parallelogram with equal diagonals; a rhombus has perpendicular diagonals.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Shape', options: ['Parallelogram', 'Trapezium'] }, { type: 'range', key: 'k', label: 'Trapezium: top length ÷ base', min: 0.2, max: 0.9, step: 0.05 }, { type: 'toggle', key: 'iso', label: 'Isosceles trapezium' }],
+        init: { mode: 'Parallelogram', k: 0.5, iso: false, ax: -4, ay: -2, bx: 3, by: -2, dx: -2, dy: 2.5 }, snap: 0.25,
+        handles: () => [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan'], ['dx', 'dy', 'violet']],
+        pts(p) { const A = [p.ax, p.ay], B = [p.bx, p.by]; let Dd = [p.dx, p.dy]; if (p.mode === 'Parallelogram') return [A, B, [B[0] + Dd[0] - A[0], B[1] + Dd[1] - A[1]], Dd]; const u = [B[0] - A[0], B[1] - A[1]], L2 = u[0] * u[0] + u[1] * u[1] || 1; if (p.iso) { const t = (1 - p.k) / 2, n = [-u[1], u[0]], hh = ((Dd[0] - A[0]) * n[0] + (Dd[1] - A[1]) * n[1]) / L2; Dd = [A[0] + u[0] * t + n[0] * hh, A[1] + u[1] * t + n[1] * hh]; } return [A, B, [Dd[0] + u[0] * p.k, Dd[1] + u[1] * p.k], Dd]; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6.5, 6.5, -4.5, 4.5], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], Q = this.pts(p), nm = ['A', 'B', 'C', 'D'], cols = [C.coral, C.cyan, C.lime, C.violet], L = (u, v) => Math.hypot(u[0] - v[0], u[1] - v[1]);
+          g.poly(c, Q.map(S), C.ink, C.amber + '12', 3); g.line(c, ...S(Q[0]), ...S(Q[2]), C.dim, 2, [6, 5]); g.line(c, ...S(Q[1]), ...S(Q[3]), C.dim, 2, [6, 5]);
+          Q.forEach((q, i) => { g.wedge(c, S(q), S(Q[(i + 3) % 4]), S(Q[(i + 1) % 4]), 36, cols[i], N(ang(q, Q[(i + 3) % 4], Q[(i + 1) % 4]), 1) + '°', fs * 0.8); const ce = [(Q[0][0] + Q[2][0]) / 2, (Q[0][1] + Q[2][1]) / 2], dx = q[0] - ce[0], dy = q[1] - ce[1], l = Math.hypot(dx, dy) || 1; g.text(c, nm[i], V.X(q[0]) + dx / l * 28, V.Y(q[1]) - dy / l * 28, cols[i], fs * 1.05, 'center', 'middle', 700); });
+          for (let i = 0; i < 4; i++) { const a = Q[i], b = Q[(i + 1) % 4]; g.label(c, V, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, N(L(a, b), 2), C.ink, fs * 0.75); }
+          const d = this.diag(Q); if (d.X) { g.dot(c, ...S(d.X), 7, C.amber); g.text(c, 'O', V.X(d.X[0]) + 16, V.Y(d.X[1]) - 14, C.amber, fs, 'center', 'middle', 700); }
+          return V;
+        },
+        diag(Q) { const [A, B, Cc, Dd] = Q, den = (Cc[0] - A[0]) * (Dd[1] - B[1]) - (Cc[1] - A[1]) * (Dd[0] - B[0]); if (Math.abs(den) < 1e-9) return {}; const t = ((B[0] - A[0]) * (Dd[1] - B[1]) - (B[1] - A[1]) * (Dd[0] - B[0])) / den, X = [A[0] + t * (Cc[0] - A[0]), A[1] + t * (Cc[1] - A[1])], L = (u, v) => Math.hypot(u[0] - v[0], u[1] - v[1]); return { X, AO: L(A, X), OC: L(X, Cc), BO: L(B, X), OD: L(X, Dd), AC: L(A, Cc), BD: L(B, Dd) }; },
+        read(p) { const Q = this.pts(p), L = (u, v) => Math.hypot(u[0] - v[0], u[1] - v[1]), an = Q.map((q, i) => ang(q, Q[(i + 3) % 4], Q[(i + 1) % 4])), d = this.diag(Q); return p.mode === 'Parallelogram' ? [{ l: 'AB, DC', v: N(L(Q[0], Q[1]), 2) + ', ' + N(L(Q[3], Q[2]), 2), c: 'ink' }, { l: 'AD, BC', v: N(L(Q[0], Q[3]), 2) + ', ' + N(L(Q[1], Q[2]), 2), c: 'ink' }, { l: '∠A, ∠C', v: N(an[0], 1) + '°, ' + N(an[2], 1) + '°', c: 'coral' }, { l: '∠A + ∠B', v: N(an[0] + an[1], 1) + '°', c: 'cyan' }, { l: 'AO, OC', v: d.X ? N(d.AO, 2) + ', ' + N(d.OC, 2) : '—', c: 'amber' }, { l: 'BO, OD', v: d.X ? N(d.BO, 2) + ', ' + N(d.OD, 2) : '—', c: 'amber' }] : [{ l: '∠A + ∠D', v: N(an[0] + an[3], 1) + '°', c: 'coral' }, { l: '∠B + ∠C', v: N(an[1] + an[2], 1) + '°', c: 'cyan' }, { l: 'Legs AD, BC', v: N(L(Q[0], Q[3]), 2) + ', ' + N(L(Q[1], Q[2]), 2), c: 'ink' }, { l: 'Diagonals AC, BD', v: d.X ? N(d.AC, 2) + ', ' + N(d.BD, 2) : '—', c: 'amber' }]; },
+        result(p) { const Q = this.pts(p), an = Q.map((q, i) => ang(q, Q[(i + 3) % 4], Q[(i + 1) % 4])); return p.mode === 'Parallelogram' ? '∠A = ∠C = ' + N(an[0], 1) + '°,  ∠A + ∠B = ' + N(an[0] + an[1], 1) + '°' : '∠A + ∠D = ' + N(an[0] + an[3], 1) + '°,  ∠B + ∠C = ' + N(an[1] + an[2], 1) + '°'; } },
+
+      { id: 'varig', title: 'Mid-point Quadrilateral (Varignon)', topic: 'Geometry', grades: [9],
+        aim: 'To verify that joining the mid-points of the sides of any quadrilateral gives a parallelogram with half the area.',
+        equip: ['Paper quadrilateral', 'Paper folding', 'Scale'],
+        steps: ['Drag the four corners to make any quadrilateral ABCD.', 'P, Q, R, S are the mid-points of AB, BC, CD, DA. Join them.', 'PQ ∥ AC ∥ SR and PQ = SR = ½AC (mid-point theorem in △ABC and △ACD), so PQRS is a parallelogram.', 'Compare areas: PQRS is exactly half of ABCD.'],
+        concl: 'The mid-points of the sides of any quadrilateral form a parallelogram whose sides are parallel to and half of the diagonals, and whose area is half the area of the quadrilateral.',
+        tips: ['If the diagonals are equal, PQRS is a rhombus; if they are perpendicular, PQRS is a rectangle.'],
+        controls: [{ type: 'toggle', key: 'diag', label: 'Show diagonals' }],
+        init: { diag: true, ax: -4.5, ay: -2.5, bx: 3.5, by: -3, cx: 5, cy: 2.5, dx: -2, dy: 3.5 }, snap: 0.25,
+        handles: () => [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan'], ['cx', 'cy', 'lime'], ['dx', 'dy', 'violet']],
+        calc(p) { const Q = [[p.ax, p.ay], [p.bx, p.by], [p.cx, p.cy], [p.dx, p.dy]], M = Q.map((q, i) => [(q[0] + Q[(i + 1) % 4][0]) / 2, (q[1] + Q[(i + 1) % 4][1]) / 2]), ar = P => Math.abs(P.reduce((s, q, i) => s + q[0] * P[(i + 1) % P.length][1] - P[(i + 1) % P.length][0] * q[1], 0)) / 2, L = (u, v) => Math.hypot(u[0] - v[0], u[1] - v[1]); return { Q, M, A1: ar(Q), A2: ar(M), PQ: L(M[0], M[1]), SR: L(M[3], M[2]), AC: L(Q[0], Q[2]), BD: L(Q[1], Q[3]) }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-6.5, 6.5, -4.5, 4.5], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], k = this.calc(p);
+          g.poly(c, k.Q.map(S), C.ink, C.ink + '0c', 3); if (p.diag) { g.line(c, ...S(k.Q[0]), ...S(k.Q[2]), C.cyan + 'aa', 2, [6, 5]); g.line(c, ...S(k.Q[1]), ...S(k.Q[3]), C.violet + 'aa', 2, [6, 5]); }
+          g.poly(c, k.M.map(S), C.amber, C.amber + '33', 3.5); ['P', 'Q', 'R', 'S'].forEach((n, i) => { g.dot(c, ...S(k.M[i]), 7, C.amber); g.text(c, n, V.X(k.M[i][0]) + 18, V.Y(k.M[i][1]) - 16, C.amber, fs, 'center', 'middle', 700); });
+          g.box(c, 'Area PQRS = ' + N(k.A2, 2) + ' = ½ × ' + N(k.A1, 2) + '     PQ = SR = ' + N(k.PQ, 2) + ' = ½AC', W / 2, H - fs * 1.4, C.lime, fs);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return [{ l: 'Area ABCD', v: N(k.A1, 2), c: 'ink' }, { l: 'Area PQRS', v: N(k.A2, 2), c: 'amber' }, { l: 'PQ, SR', v: N(k.PQ, 2) + ', ' + N(k.SR, 2), c: 'lime' }, { l: '½ AC', v: N(k.AC / 2, 2), c: 'cyan' }]; },
+        result(p) { const k = this.calc(p); return 'PQRS is a parallelogram with area ' + N(k.A2, 2) + ' = ½ ABCD'; } },
+
+      { id: 'arearr', title: 'Area Formulas by Cutting & Rearranging', topic: 'Mensuration', grades: [7, 8, 9],
+        aim: 'To derive the area formulas of a parallelogram, a triangle and a rhombus by cutting and rearranging into rectangles and parallelograms.',
+        equip: ['Paper shapes', 'Scissors', 'Scale'],
+        steps: ['“Parallelogram”: cut the right triangle off one end and slide it to the other end — a rectangle b × h appears.', '“Triangle”: turn a copy of the triangle about the mid-point of one side — two triangles make a parallelogram b × h, so one triangle is ½bh.', '“Rhombus”: cut along the diagonals and move the two lower triangles up — a rectangle d₁ × ½d₂ appears.', 'Slide “Rearrange” from 0 to 1 and compare the areas before and after.'],
+        concl: 'Parallelogram = base × height. Triangle = ½ × base × height. Rhombus = ½ × d₁ × d₂ (product of diagonals ÷ 2).',
+        tips: ['Height is always perpendicular to the base — never the slant side.', 'Any quadrilateral with perpendicular diagonals has area ½d₁d₂.'],
+        controls: [{ type: 'select', key: 'mode', label: 'Shape', options: ['Parallelogram', 'Triangle', 'Rhombus'] }, { type: 'range', key: 'b', label: 'Base b / diagonal d₁', min: 3, max: 8, step: 0.5 }, { type: 'range', key: 'h', label: 'Height h / diagonal d₂', min: 2, max: 6, step: 0.5 }, { type: 'range', key: 's', label: 'Slant offset', min: 0.5, max: 3, step: 0.5 }, { type: 'range', key: 'u', label: 'Rearrange', min: 0, max: 1, step: 0.02 }],
+        init: { mode: 'Parallelogram', b: 6, h: 4, s: 2, u: 0 },
+        draw(c, W, H, p) {
+          const { b, h, s, u } = p, fs = g.fs(W, H), V = g.view(W, H, p.mode === 'Rhombus' ? [-b / 2 - 1, b / 2 + 1, -h / 2 - 1, h / 2 + 1.5] : [-1, b + s + 1, -1.5, (p.mode === 'Triangle' ? h : h) + 1], 30), S = q => [V.X(q[0]), V.Y(q[1])];
+          const tr = (pts, dx, dy) => pts.map(q => [q[0] + dx, q[1] + dy]);
+          if (p.mode === 'Parallelogram') {
+            g.poly(c, [[s, 0], [b, 0], [b + s, h], [s, h]].map(S), C.amber, C.amber + '33', 3);
+            g.poly(c, tr([[0, 0], [s, 0], [s, h]], u * b, 0).map(S), C.cyan, C.cyan + '44', 3);
+            g.poly(c, [[0, 0], [b, 0], [b + s, h], [s, h]].map(S), C.dim, null, 1.5, [6, 5]); g.line(c, ...S([s, 0]), ...S([s, h]), C.violet, 2, [5, 5]);
+            g.box(c, 'Area = b × h = ' + N(b) + ' × ' + N(h) + ' = ' + N(b * h), W / 2, H - fs * 1.4, C.lime, fs * 1.1);
+          } else if (p.mode === 'Triangle') {
+            const T = [[0, 0], [b, 0], [s, h]], M = [(b + s) / 2, h / 2], th = u * Math.PI, rot = q => { const x = q[0] - M[0], y = q[1] - M[1]; return [M[0] + x * Math.cos(th) - y * Math.sin(th), M[1] + x * Math.sin(th) + y * Math.cos(th)]; };
+            g.poly(c, T.map(S), C.amber, C.amber + '33', 3); g.poly(c, T.map(rot).map(S), C.cyan, C.cyan + '33', 3); g.dot(c, ...S(M), 6, C.ink); g.line(c, ...S([s, 0]), ...S([s, h]), C.violet, 2, [5, 5]);
+            g.box(c, (u > 0.98 ? 'Parallelogram b × h = ' + N(b * h) + '  ⇒  ' : '') + 'triangle = ½ × ' + N(b) + ' × ' + N(h) + ' = ' + N(b * h / 2), W / 2, H - fs * 1.4, C.lime, fs * 1.05);
+          } else {
+            const d1 = b, d2 = h; g.poly(c, [[-d1 / 2, 0], [0, d2 / 2], [d1 / 2, 0]].map(S), C.amber, C.amber + '33', 3);
+            g.poly(c, tr([[0, 0], [d1 / 2, 0], [0, -d2 / 2]], -u * d1 / 2, u * d2 / 2).map(S), C.cyan, C.cyan + '44', 3);
+            g.poly(c, tr([[-d1 / 2, 0], [0, 0], [0, -d2 / 2]], u * d1 / 2, u * d2 / 2).map(S), C.violet, C.violet + '44', 3);
+            if (u > 0.98) g.poly(c, [[-d1 / 2, 0], [d1 / 2, 0], [d1 / 2, d2 / 2], [-d1 / 2, d2 / 2]].map(S), C.lime, null, 4);
+            g.box(c, 'Area = d₁ × ½d₂ = ½ × ' + N(d1) + ' × ' + N(d2) + ' = ' + N(d1 * d2 / 2), W / 2, H - fs * 1.4, C.lime, fs * 1.1);
+          }
+          return V;
+        },
+        read(p) { return p.mode === 'Rhombus' ? [{ l: 'd₁', v: N(p.b), c: 'amber' }, { l: 'd₂', v: N(p.h), c: 'amber' }, { l: 'Area ½d₁d₂', v: N(p.b * p.h / 2), c: 'lime' }] : [{ l: 'b', v: N(p.b), c: 'amber' }, { l: 'h', v: N(p.h), c: 'amber' }, { l: 'Area', v: N(p.mode === 'Triangle' ? p.b * p.h / 2 : p.b * p.h), c: 'lime' }]; },
+        result(p) { return p.mode === 'Parallelogram' ? 'Area = bh = ' + N(p.b * p.h) : p.mode === 'Triangle' ? 'Area = ½bh = ' + N(p.b * p.h / 2) : 'Area = ½d₁d₂ = ' + N(p.b * p.h / 2); } },
+
+      { id: 'euler', title: "Euler's Formula for Polyhedra — V − E + F = 2", topic: 'Mensuration', grades: [8, 9],
+        aim: 'To count the vertices, edges and faces of different polyhedra and verify V − E + F = 2.',
+        equip: ['Straw-and-clay models', 'Nets of solids'],
+        steps: ['Choose a solid. Drag the board to rotate it.', 'Count the vertices (corners), edges (lines) and faces (flat surfaces).', 'Work out V − E + F.', 'Repeat for every solid — the answer is always 2.'],
+        concl: 'For every convex polyhedron, V − E + F = 2 (Euler’s formula).',
+        tips: ['Prism with an n-gon base: V = 2n, E = 3n, F = n + 2.', 'Pyramid with an n-gon base: V = n + 1, E = 2n, F = n + 1.'],
+        controls: [{ type: 'select', key: 'sh', label: 'Solid', options: ['Tetrahedron', 'Cube', 'Octahedron', 'Square pyramid', 'Triangular prism', 'Pentagonal prism', 'Hexagonal pyramid', 'Icosahedron'] }],
+        init: { sh: 'Cube' }, rotate: true,
+        solid(name) {
+          const ngon = (n, r, y) => Array.from({ length: n }, (_, i) => [r * Math.cos(2 * Math.PI * i / n), y, r * Math.sin(2 * Math.PI * i / n)]);
+          const prism = n => { const v = [...ngon(n, 1, -0.8), ...ngon(n, 1, 0.8)], f = [[...Array(n).keys()], [...Array(n).keys()].map(i => i + n)]; for (let i = 0; i < n; i++) f.push([i, (i + 1) % n, (i + 1) % n + n, i + n]); return { v, f }; };
+          const pyr = n => { const v = [...ngon(n, 1.1, -0.7), [0, 1, 0]], f = [[...Array(n).keys()]]; for (let i = 0; i < n; i++) f.push([i, (i + 1) % n, n]); return { v, f }; };
+          if (name === 'Tetrahedron') return { v: [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], f: [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]] };
+          if (name === 'Cube') { const v = []; for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) v.push([x, y, z]); return { v, f: [[0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5]] }; }
+          if (name === 'Octahedron') { const v = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], f = []; for (const a of [0, 1]) for (const b of [2, 3]) for (const c of [4, 5]) f.push([a, b, c]); return { v, f }; }
+          if (name === 'Square pyramid') return pyr(4); if (name === 'Hexagonal pyramid') return pyr(6); if (name === 'Triangular prism') return prism(3); if (name === 'Pentagonal prism') return prism(5);
+          const ph = (1 + Math.sqrt(5)) / 2, v = []; for (const a of [-1, 1]) for (const b of [-ph, ph]) v.push([0, a, b], [a, b, 0], [b, 0, a]);
+          const E = []; for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) if (Math.abs(Math.hypot(...v[i].map((x, k) => x - v[j][k])) - 2) < 1e-6) E.push([i, j]);
+          const adj = (i, j) => E.some(e => (e[0] === i && e[1] === j) || (e[0] === j && e[1] === i)), f = []; for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) for (let k = j + 1; k < 12; k++) if (adj(i, j) && adj(j, k) && adj(i, k)) f.push([i, j, k]);
+          return { v: v.map(q => q.map(x => x / ph)), f };
+        },
+        count(name) { const s = this.solid(name), E = new Set(); s.f.forEach(f => f.forEach((a, i) => { const b = f[(i + 1) % f.length]; E.add(Math.min(a, b) + '-' + Math.max(a, b)); })); return { s, V: s.v.length, E: [...E].map(k => k.split('-').map(Number)), F: s.f.length }; },
+        draw(c, W, H, p, st, t, rt) {
+          const fs = g.fs(W, H), k = this.count(p.sh); if (!rt.dragging) rt.ry += 0.006; const cy = Math.cos(rt.ry), sy = Math.sin(rt.ry), cx = Math.cos(rt.rx), sx = Math.sin(rt.rx), Sc = Math.min(W, H) * 0.26;
+          const P3 = q => { const x1 = q[0] * cy - q[2] * sy, z1 = q[0] * sy + q[2] * cy, y2 = q[1] * cx - z1 * sx, z2 = q[1] * sx + z1 * cx; return [W * 0.38 + x1 * Sc, H * 0.52 - y2 * Sc, z2]; };
+          const P = k.s.v.map(P3);
+          k.s.f.map(f => ({ f, z: f.reduce((s, i) => s + P[i][2], 0) / f.length })).sort((a, b) => a.z - b.z).forEach(({ f }) => g.poly(c, f.map(i => [P[i][0], P[i][1]]), null, C.violet + '22'));
+          k.E.forEach(([a, b]) => g.line(c, P[a][0], P[a][1], P[b][0], P[b][1], C.cyan, 3)); P.forEach(q => g.dot(c, q[0], q[1], 8, C.amber));
+          const x0 = W * 0.68, ln = (s, y, col, sz) => g.text(c, s, x0, y, col, sz || fs * 1.15, 'left', 'middle', 700, true);
+          ln(p.sh, H * 0.16, C.ink, fs); ln('V = ' + k.V, H * 0.3, C.amber); ln('E = ' + k.E.length, H * 0.4, C.cyan); ln('F = ' + k.F, H * 0.5, C.violet);
+          ln('V − E + F', H * 0.64, C.ink, fs); ln('= ' + k.V + ' − ' + k.E.length + ' + ' + k.F, H * 0.72, C.lime, fs); ln('= ' + (k.V - k.E.length + k.F), H * 0.8, C.lime, fs * 1.4);
+          return null;
+        },
+        read(p) { const k = this.count(p.sh); return [{ l: 'Vertices V', v: k.V, c: 'amber' }, { l: 'Edges E', v: k.E.length, c: 'cyan' }, { l: 'Faces F', v: k.F, c: 'violet' }, { l: 'V − E + F', v: k.V - k.E.length + k.F, c: 'lime' }]; },
+        result(p) { const k = this.count(p.sh); return p.sh + ': ' + k.V + ' − ' + k.E.length + ' + ' + k.F + ' = ' + (k.V - k.E.length + k.F); } },
+
+      { id: 'circen', title: 'Finding the Centre & Completing a Circle from an Arc', topic: 'Geometry', grades: [9, 10],
+        aim: 'To locate the centre of a circle from an arc using perpendicular bisectors of two chords, and to complete the circle.',
+        equip: ['Arc drawn on paper', 'Compass', 'Ruler', 'Set square'],
+        steps: ['Mark three points P, Q, R on the arc (drag them).', 'Draw chords PQ and QR and their perpendicular bisectors (or fold P onto Q and Q onto R).', 'The bisectors meet at O, the centre: OP = OQ = OR.', 'With centre O and radius OP, complete the circle.'],
+        concl: 'The perpendicular bisector of every chord passes through the centre, so two such bisectors meet at the centre. Exactly one circle passes through three non-collinear points.',
+        tips: ['Choose P, Q, R well apart for an accurate centre.', 'Paper folding: fold so that the two ends of a chord coincide — the crease is its perpendicular bisector.'],
+        controls: [{ type: 'toggle', key: 'full', label: 'Complete the circle' }],
+        init: { full: false, ax: -3, ay: -1, bx: -0.5, by: 2.2, cx: 3, cy: 1 }, snap: 0.1,
+        handles: () => [['ax', 'ay', 'coral'], ['bx', 'by', 'cyan'], ['cx', 'cy', 'lime']],
+        calc(p) { const A = [p.ax, p.ay], B = [p.bx, p.by], Cc = [p.cx, p.cy], d = 2 * (A[0] * (B[1] - Cc[1]) + B[0] * (Cc[1] - A[1]) + Cc[0] * (A[1] - B[1])); if (Math.abs(d) < 1e-9) return null; const q = v => v[0] * v[0] + v[1] * v[1], O = [(q(A) * (B[1] - Cc[1]) + q(B) * (Cc[1] - A[1]) + q(Cc) * (A[1] - B[1])) / d, (q(A) * (Cc[0] - B[0]) + q(B) * (A[0] - Cc[0]) + q(Cc) * (B[0] - A[0])) / d]; return { A, B, C: Cc, O, R: Math.hypot(A[0] - O[0], A[1] - O[1]) }; },
+        draw(c, W, H, p) {
+          const V = g.view(W, H, [-7, 7, -5.5, 4.5], 20), fs = g.fs(W, H), S = q => [V.X(q[0]), V.Y(q[1])], k = this.calc(p);
+          if (!k) { g.box(c, 'The three points are in a line — move one', W / 2, H / 2, C.coral, fs); return V; }
+          const an = q => Math.atan2(-(q[1] - k.O[1]), q[0] - k.O[0]), a1 = an(k.A), a3 = an(k.C), a2 = an(k.B);
+          let s = a1, e = a3; const inArc = (x, lo, hi) => { const n = v => (v % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI); return n(x - lo) <= n(hi - lo); }; if (!inArc(a2, s, e)) [s, e] = [e, s];
+          c.beginPath(); c.arc(V.X(k.O[0]), V.Y(k.O[1]), k.R * V.s, s, e); c.strokeStyle = C.ink; c.lineWidth = 4; c.stroke();
+          if (p.full) { c.beginPath(); c.setLineDash([8, 6]); c.arc(V.X(k.O[0]), V.Y(k.O[1]), k.R * V.s, 0, 2 * Math.PI); c.strokeStyle = C.lime; c.lineWidth = 2.5; c.stroke(); c.setLineDash([]); }
+          [[k.A, k.B, C.amber], [k.B, k.C, C.cyan]].forEach(([P1, P2, col]) => { g.line(c, ...S(P1), ...S(P2), col, 2.5); const M = [(P1[0] + P2[0]) / 2, (P1[1] + P2[1]) / 2], dx = P2[0] - P1[0], dy = P2[1] - P1[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L, dx / L]; g.line(c, ...S([M[0] - n[0] * 14, M[1] - n[1] * 14]), ...S([M[0] + n[0] * 14, M[1] + n[1] * 14]), col + 'aa', 2, [8, 6]); g.dot(c, ...S(M), 6, col); });
+          g.dot(c, ...S(k.O), 10, C.lime, C.bg, 3); g.label(c, V, k.O[0], k.O[1], 'O', C.lime, fs, 24, 24);
+          [[k.A, 'P'], [k.B, 'Q'], [k.C, 'R']].forEach(([q, n]) => g.text(c, n, V.X(q[0]) - 20, V.Y(q[1]) - 20, C.ink, fs, 'center', 'middle', 700));
+          g.box(c, 'OP = OQ = OR = ' + N(k.R, 3), W / 2, H - fs * 1.4, C.lime, fs * 1.1);
+          return V;
+        },
+        read(p) { const k = this.calc(p); return k ? [{ l: 'Centre O', v: '(' + N(k.O[0]) + ', ' + N(k.O[1]) + ')', c: 'lime' }, { l: 'Radius', v: N(k.R, 3), c: 'lime' }] : [{ l: 'Centre', v: 'none (collinear)', c: 'coral' }]; },
+        result(p) { const k = this.calc(p); return k ? 'Centre (' + N(k.O[0]) + ', ' + N(k.O[1]) + '), radius ' + N(k.R, 3) : 'Collinear points'; } }
+    );
+
+    const TOP = [['Number System', '#E2622A'], ['Commercial Maths', '#9C3D9C'], ['Geometry', '#2F6FDB'], ['Algebra', '#8A4FD6'], ['Mensuration', '#0F9A76'], ['Trigonometry', '#D23A6C'], ['Statistics & Probability', '#B98100'], ['Coordinate Geometry', '#0B8AA6'], ['Sets & Functions', '#A0522D'], ['Calculus', '#4553D1'], ['Vectors & Matrices', '#2E7D5B'], ['Linear Programming', '#6E7F12']];
+    const order = TOP.map(t => t[0]);
+    acts.sort((a, b) => (order.indexOf(a.topic) - order.indexOf(b.topic)) || (Math.min(...a.grades) - Math.min(...b.grades)));
+    return { acts, g, C, DARK, PAPER, TOP };
+  }

@@ -1,5 +1,5 @@
 import { ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react';
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { StudioRibbonTab, StudioRibbonTabId } from './studioRibbonModel';
 
 export type StudioRibbonCommand = {
@@ -7,6 +7,7 @@ export type StudioRibbonCommand = {
   label: string;
   icon: ReactNode;
   onExecute: () => void;
+  onDoubleClick?: () => void;
   disabled?: boolean;
   active?: boolean;
   danger?: boolean;
@@ -21,6 +22,7 @@ export type StudioRibbonGroup = {
     label: string;
     onExecute: () => void;
   };
+  fitAvailableSpace?: boolean;
 };
 
 type Props = {
@@ -43,6 +45,48 @@ const tabAccent = (tab: StudioRibbonTab, selected: boolean) => {
   };
   return colors[accent];
 };
+
+function RibbonCommandList({ commands, fitAvailableSpace = false }: { commands: StudioRibbonCommand[]; fitAvailableSpace?: boolean }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [capacity, setCapacity] = useState(commands.length);
+
+  useLayoutEffect(() => {
+    if (!fitAvailableSpace) {
+      setCapacity(commands.length);
+      return;
+    }
+    const host = hostRef.current;
+    if (!host) return;
+    const measure = () => {
+      const width = host.getBoundingClientRect().width;
+      setCapacity(Math.min(commands.length, Math.max(0, Math.floor(width / 58))));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [commands.length, fitAvailableSpace]);
+
+  const visibleCommands = fitAvailableSpace ? commands.slice(0, capacity) : commands;
+  return <div ref={hostRef} className={`flex min-h-0 items-center gap-0.5 overflow-hidden ${fitAvailableSpace ? 'w-full flex-1' : ''}`}>
+    {visibleCommands.map((command) => (
+      <button
+        key={command.id}
+        type="button"
+        disabled={command.disabled}
+        onClick={command.onExecute}
+        onDoubleClick={command.onDoubleClick}
+        title={command.label}
+        aria-label={command.label}
+        aria-pressed={command.active || undefined}
+        className={`studio-ribbon-command inline-flex min-h-9 min-w-8 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-0.5 text-[9px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${fitAvailableSpace ? 'min-w-14 flex-1' : 'max-w-16'} ${command.danger ? 'border-red-200 text-red-700 hover:bg-red-50' : command.active ? 'border-blue-300 bg-blue-50 text-blue-950' : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50'}`}
+      >
+        <span aria-hidden="true">{command.icon}</span>
+        <span className="max-w-14 truncate">{command.label}</span>
+      </button>
+    ))}
+  </div>;
+}
 
 export default function StudioAdaptiveRibbon({
   tabs,
@@ -77,28 +121,14 @@ export default function StudioAdaptiveRibbon({
           </button>
         ) : null}
       </div>
-      <div id="studio-ribbon-command-panel" role="tabpanel" aria-hidden={collapsed} tabIndex={collapsed ? -1 : 0} className={`studio-ribbon-groups h-[4.3rem] min-w-0 items-stretch gap-1 overflow-hidden px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 ${collapsed ? 'hidden' : 'flex'}`}>
+      <div id="studio-ribbon-command-panel" role="tabpanel" aria-hidden={collapsed} tabIndex={collapsed ? -1 : 0} className={`studio-ribbon-groups h-[4.35rem] min-w-0 items-stretch gap-1 overflow-x-auto overflow-y-hidden px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 ${collapsed ? 'hidden' : 'flex'}`}>
         {groups.length ? groups.map((group) => (
           <Fragment key={group.id}>
           {activeTab === 'home' && group.id === 'selection' ? <div id="studio-contextual-toolbar-host" className="flex min-w-0 empty:hidden shrink-0 items-stretch overflow-hidden [&>*]:w-full" aria-live="polite" /> : null}
-          <div className="studio-ribbon-group flex min-w-0 shrink-0 flex-col border-r border-slate-200 pr-1 last:border-r-0">
+          <div className={`studio-ribbon-group flex min-w-0 flex-col border-r border-slate-200 pr-1 last:border-r-0 ${group.fitAvailableSpace ? 'flex-1' : 'shrink-0'}`}>
             <div className="flex min-h-0 flex-1 items-center gap-0.5 overflow-hidden">
               {group.content}
-              {(group.commands ?? []).map((command) => (
-                <button
-                  key={command.id}
-                  type="button"
-                  disabled={command.disabled}
-                  onClick={command.onExecute}
-                  title={command.label}
-                  aria-label={command.label}
-                  aria-pressed={command.active || undefined}
-                  className={`studio-ribbon-command inline-flex min-h-9 min-w-8 max-w-16 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-0.5 text-[9px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${command.danger ? 'border-red-200 text-red-700 hover:bg-red-50' : command.active ? 'border-blue-300 bg-blue-50 text-blue-950' : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50'}`}
-                >
-                  <span aria-hidden="true">{command.icon}</span>
-                  <span className="max-w-14 truncate">{command.label}</span>
-                </button>
-              ))}
+              <RibbonCommandList commands={group.commands ?? []} fitAvailableSpace={group.fitAvailableSpace} />
             </div>
             <div className="relative mt-0.5 min-h-3 text-center text-[9px] font-medium text-slate-400">
               <span>{group.label}</span>

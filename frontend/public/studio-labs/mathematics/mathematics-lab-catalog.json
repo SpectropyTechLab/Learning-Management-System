@@ -1,0 +1,3865 @@
+{
+  "schema": "spectropy.mathematics-lab-catalog.v1",
+  "topics": {
+    "number-system": {
+      "label": "Number System",
+      "colour": "#E2622A"
+    },
+    "commercial-maths": {
+      "label": "Commercial Maths",
+      "colour": "#9C3D9C"
+    },
+    "geometry": {
+      "label": "Geometry",
+      "colour": "#2F6FDB"
+    },
+    "algebra": {
+      "label": "Algebra",
+      "colour": "#8A4FD6"
+    },
+    "mensuration": {
+      "label": "Mensuration",
+      "colour": "#0F9A76"
+    },
+    "trigonometry": {
+      "label": "Trigonometry",
+      "colour": "#D23A6C"
+    },
+    "statistics-and-probability": {
+      "label": "Statistics & Probability",
+      "colour": "#B98100"
+    },
+    "coordinate-geometry": {
+      "label": "Coordinate Geometry",
+      "colour": "#0B8AA6"
+    },
+    "sets-and-functions": {
+      "label": "Sets & Functions",
+      "colour": "#A0522D"
+    },
+    "calculus": {
+      "label": "Calculus",
+      "colour": "#4553D1"
+    },
+    "vectors-and-matrices": {
+      "label": "Vectors & Matrices",
+      "colour": "#2E7D5B"
+    },
+    "linear-programming": {
+      "label": "Linear Programming",
+      "colour": "#6E7F12"
+    }
+  },
+  "labs": [
+    {
+      "id": "int",
+      "subject": "mathematics",
+      "title": "Integers on a Number Line",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "To add and subtract integers by making jumps on a number line.",
+      "apparatus": [
+        "Number line −20 to 20",
+        "Jump arrows",
+        "Position marker"
+      ],
+      "procedure": [
+        "Set the first integer a. Start at 0 and jump to a (right for positive, left for negative).",
+        "Set the second integer b and choose Add or Subtract.",
+        "Add: move b units from a. Subtract: move in the opposite direction, i.e. add (−b).",
+        "Read the landing point and record it in the observation table."
+      ],
+      "conclusion": "a + b is the point reached by moving b units from a; a − b = a + (−b).",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "frac",
+      "subject": "mathematics",
+      "title": "Comparing Fractions with Fraction Strips",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "To compare two fractions and find equivalent fractions using fraction strips and a number line.",
+      "apparatus": [
+        "Fraction strips",
+        "Number line 0–1",
+        "Pointer"
+      ],
+      "procedure": [
+        "Choose the numerator and denominator of the first fraction (amber strip).",
+        "Choose the second fraction (cyan strip).",
+        "Compare the shaded lengths of both strips and their points on the number line.",
+        "Write both fractions with the LCD to confirm the comparison."
+      ],
+      "conclusion": "The fraction whose strip is longer (point further right) is greater. Equal lengths show equivalent fractions.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sieve",
+      "subject": "mathematics",
+      "title": "Sieve of Eratosthenes — Primes, Factors & Multiples",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6
+      ],
+      "aim": "To find all prime numbers up to 100 by sieving out multiples, and to identify the factors and multiples of a number.",
+      "apparatus": [
+        "Hundred chart",
+        "Coloured markers",
+        "Counters"
+      ],
+      "procedure": [
+        "Choose “Sieve”. 1 is neither prime nor composite.",
+        "Increase the sieve stage to strike out multiples of 2, 3, 5 and 7 (keeping the prime itself).",
+        "The numbers left uncrossed (green) are prime.",
+        "Switch to “Factors of k” or “Multiples of k” and pick any k to study divisibility."
+      ],
+      "conclusion": "There are 25 primes up to 100. Only primes up to √100 = 10 need to be sieved. A number with exactly two factors is prime.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "hcf",
+      "subject": "mathematics",
+      "title": "HCF & LCM — Euclid’s Division with Squares",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        10
+      ],
+      "aim": "To find the HCF of two numbers by tiling a rectangle with the largest possible squares (Euclid’s division lemma), and then the LCM.",
+      "apparatus": [
+        "Squared paper",
+        "Rectangle a × b",
+        "Scissors (virtual)"
+      ],
+      "procedure": [
+        "Set the numbers a and b — they form an a × b rectangle.",
+        "Cut off the largest possible squares; repeat on the leftover rectangle.",
+        "Each colour is one division step a = bq + r.",
+        "The side of the last square is the HCF; LCM = a × b ÷ HCF."
+      ],
+      "conclusion": "HCF(a, b) is the side of the smallest square that tiles the rectangle exactly; HCF × LCM = a × b.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "oddsum",
+      "subject": "mathematics",
+      "title": "Sums of Odd, Even & Natural Numbers — Dot Patterns",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7,
+        8,
+        10
+      ],
+      "aim": "To see why 1 + 3 + 5 + … (n terms) = n², 2 + 4 + 6 + … (n terms) = n(n + 1) and 1 + 2 + 3 + … + n = n(n + 1)/2 by building dot patterns.",
+      "apparatus": [
+        "Dot grid",
+        "Coloured counters",
+        "L-shaped strips"
+      ],
+      "procedure": [
+        "Choose “Odd numbers” and increase n: each new odd number is an L-shaped layer that grows the square.",
+        "Choose “Even numbers”: each even number 2k is an L-shaped layer that grows a k × (k + 1) rectangle.",
+        "Choose “Natural numbers” and turn on “Double the staircase”: two staircases make an n × (n + 1) rectangle.",
+        "Compare: S(even) − S(odd) = n(n + 1) − n² = n."
+      ],
+      "conclusion": "Sum of first n odd numbers = n². Sum of first n even numbers = n(n + 1). Sum of first n natural numbers = n(n + 1)/2. S(even) − S(odd) = n.",
+      "tips": [
+        "Memorise S(odd) = n² and S(even) = n(n + 1) — no need for the AP formula. Example: 1 + 3 + … + 49 has 25 terms, so the sum is 25² = 625.",
+        "S(even) − S(odd) = n: for the first 100 even and odd numbers, the difference is exactly 100."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "divx",
+      "subject": "mathematics",
+      "title": "Divisor Explorer — d(N), σ(N), Perfect & Amicable Numbers",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "aim": "To find all divisors of N from its prime factorisation and use the formulas for the number, sum and product of divisors.",
+      "apparatus": [
+        "Factor tree",
+        "Divisor grid",
+        "Pairing arcs"
+      ],
+      "procedure": [
+        "Set N and open the Factor tree: N = p₁^α₁ × p₂^α₂ × … (unique factorisation).",
+        "Open the Divisor grid: each divisor picks one power of each prime, so d(N) = (α₁ + 1)(α₂ + 1)….",
+        "Read σ(N) = Π (p^(α+1) − 1)/(p − 1) and the product of divisors = N^(d(N)/2).",
+        "Open Divisor pairs: divisors pair up as d and N/d. Only a perfect square has an unpaired middle divisor, so d(N) is odd only for perfect squares.",
+        "Check the type: perfect (σ = 2N), abundant (σ > 2N) or deficient (σ < 2N). Try 6, 28, 496, and 220 (amicable with 284)."
+      ],
+      "conclusion": "If N = p₁^α₁ p₂^α₂ … then d(N) = (α₁ + 1)(α₂ + 1)…, σ(N) = Π (p^(α+1) − 1)/(p − 1), product of divisors = N^(d(N)/2). d(N) is odd ⇔ N is a perfect square. N has exactly 3 divisors ⇔ N = p².",
+      "tips": [
+        "Odd number of divisors? Look for a perfect square in the options.",
+        "Exactly 3 divisors ⇒ N = p² and σ(N) = p² + p + 1.",
+        "If the product of divisors is N^k, then d(N) = 2k.",
+        "Exactly 4 divisors ⇒ N = p³ or N = p × q.",
+        "Perfect numbers: if 2^k − 1 is prime, 2^(k−1)(2^k − 1) is perfect (6, 28, 496, 8128)."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "divrule",
+      "subject": "mathematics",
+      "title": "Divisibility Rules — 2, 3, 4, 5, 6, 7, 8, 9, 10, 11",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7,
+        8
+      ],
+      "aim": "To test whether a number is divisible by 2–11 using digit rules, without dividing, and to check the answer with the division algorithm N = d × q + r.",
+      "apparatus": [
+        "Place-value digit cards",
+        "Highlighter",
+        "Calculator for checking"
+      ],
+      "procedure": [
+        "Pick a number and a divisor. The digits the rule uses are highlighted.",
+        "Follow the rule on the board: last digits (2, 4, 5, 8, 10), digit sum (3, 9), alternating sum (11), blocks of three or “subtract twice the unit digit” (7), or two rules together (6).",
+        "Read the verdict, then check it with N = d × q + r.",
+        "Try the textbook examples, then your own numbers."
+      ],
+      "conclusion": "A number is divisible by 2, 5, 10 by its last digit; by 4 and 8 by its last two and three digits; by 3 and 9 by its digit sum; by 11 when the alternating digit sum is 0 or a multiple of 11; by 7 when the alternating sum of 3-digit blocks (or the “subtract 2 × unit digit” chain) is a multiple of 7; by 6 when divisible by both 2 and 3.",
+      "tips": [
+        "Composite divisor: split it into co-prime factors. For 6 check 2 and 3; for 72 check 8 and 9; for 44 check 4 and 11.",
+        "Digital-root cancellation for 9: cross out digits that make 9 (8 + 1, 7 + 2, 4 + 5 in 872145) — nothing left means divisible by 9.",
+        "abcabc = abc × 1001 = abc × 7 × 11 × 13, so 456456 is divisible by 7, 11 and 13.",
+        "Rapid 11: group digits in pairs from the right and add: 43 + 34 = 77, so 4334 is divisible by 11.",
+        "Osculators: for 7 subtract 2 × unit digit; for 13 add 4 × unit digit."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "hcflcm",
+      "subject": "mathematics",
+      "title": "HCF & LCM — Prime-Factor Venn, Ladder & Euclid Methods",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7,
+        10
+      ],
+      "aim": "To find the HCF and LCM of two or three numbers by three methods and verify HCF × LCM = a × b for two numbers.",
+      "apparatus": [
+        "Prime factor cards",
+        "Venn diagram sheet",
+        "Division ladder"
+      ],
+      "procedure": [
+        "Set the numbers a and b (turn on the third number for three).",
+        "Prime-factor Venn: common prime factors go in the overlap. HCF = product of the overlap; LCM = product of everything in the diagram.",
+        "Ladder method: divide by a prime that divides at least two numbers, carry the rest down, until the last row is co-prime. LCM = all divisors × last row.",
+        "Euclid division: divide the larger by the smaller, then the divisor by the remainder, until the remainder is 0. The last divisor is the HCF.",
+        "For two numbers check HCF × LCM = a × b."
+      ],
+      "conclusion": "HCF = product of common prime factors with the least powers; LCM = product of all prime factors with the greatest powers. For two numbers, HCF × LCM = a × b. Co-primes have HCF 1 and LCM = their product.",
+      "tips": [
+        "Co-prime multiplier: if HCF = h, write the numbers as hx and hy with x, y co-prime. Then LCM = hxy. Example: LCM 495, HCF 5, sum 100 ⇒ x + y = 20, xy = 99 ⇒ 9 and 11 ⇒ 45 and 55.",
+        "Least number leaving the same remainder r when divided by a, b, c = LCM(a, b, c) + r.",
+        "Any two consecutive integers are co-prime: HCF(n, n + 1) = 1.",
+        "Large LCMs: just take the highest power of each prime, e.g. LCM(2⁶, 5³, 2²·5²) = 2⁶ × 5³ = 8000."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "absval",
+      "subject": "mathematics",
+      "title": "Integers, Absolute Value & Number Sets",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "To see absolute value as distance on the number line, solve |x| = k and |x| ≤ k, and place numbers in the sets ℕ ⊂ W ⊂ ℤ ⊂ ℚ.",
+      "apparatus": [
+        "Number line −10 to 10",
+        "Distance brackets",
+        "Set boxes"
+      ],
+      "procedure": [
+        "Choose “Distance”: |a| is the distance of a from 0, so it is never negative. |a − b| is the distance between a and b.",
+        "Choose “|x| ≤ k”: the solutions fill the interval from −k to k. Count the integers: 2k + 1 (or 2k − 1 for |x| < k).",
+        "Choose “Number sets”: move a and watch which sets contain it — every natural number is whole, every whole number is an integer, every integer is rational.",
+        "Record a few values and compare a, |a| and −|a|."
+      ],
+      "conclusion": "|a| = a if a ≥ 0 and −a if a < 0; |a − b| is the distance between a and b. |x| = k gives x = ±k; |x| ≤ k gives −k ≤ x ≤ k with 2k + 1 integer solutions. ℕ ⊂ W ⊂ ℤ ⊂ ℚ.",
+      "tips": [
+        "(−a)^even = +a^even and (−a)^odd = −a^odd — look only at the exponent.",
+        "The sum of all integers from −N to +N is 0.",
+        "Difference of temperatures or heights = higher − lower, e.g. 8 − (−4) = 12.",
+        "|x| < k (k an integer) has exactly 2k − 1 integer solutions.",
+        "|ax + b| = c: always write both ax + b = c and ax + b = −c."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "ratop",
+      "subject": "mathematics",
+      "title": "Rational Numbers — Standard Form, Comparison & Operations",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7,
+        8
+      ],
+      "aim": "To write rational numbers in standard form, compare them by cross-multiplication, add and subtract them using the LCM, and see that between any two rationals there are more rationals.",
+      "apparatus": [
+        "Number line",
+        "Fraction cards",
+        "Bow-tie comparison sheet"
+      ],
+      "procedure": [
+        "Set p₁/q₁ and p₂/q₂. Each is first written in standard form: positive denominator, no common factor.",
+        "“Compare”: cross-multiply (bow-tie). The side with the larger product is the larger rational. Check on the number line.",
+        "“Add” or “Subtract”: rewrite both with the LCM of the denominators, then add or subtract the numerators.",
+        "“Between”: the mean of two rationals lies between them; repeat to find as many as you like."
+      ],
+      "conclusion": "A rational number p/q (q ≠ 0) has a standard form with q > 0 and HCF(p, q) = 1. a/b > c/d (b, d > 0) ⇔ ad > bc. a/b ± c/d = (a·L/b ± c·L/d)/L with L = LCM(b, d). Between any two rationals there are infinitely many rationals.",
+      "tips": [
+        "Bow-tie: for a/b and c/d (b, d > 0) compare a × d with b × c — the larger product marks the larger fraction.",
+        "Same positive numerator: the larger denominator gives the smaller number. Same negative numerator: the larger denominator gives the larger number.",
+        "−x/−y = x/y: cancel the two minus signs before anything else.",
+        "Additive inverse of p/q is −p/q: flip the sign once, not both numerator and denominator."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "expo",
+      "subject": "mathematics",
+      "title": "Laws of Exponents",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        6,
+        7,
+        8
+      ],
+      "aim": "To discover the laws of exponents by writing powers as repeated factors and counting them.",
+      "apparatus": [
+        "Factor chips",
+        "Grouping trays",
+        "Halving ladder"
+      ],
+      "procedure": [
+        "Choose a law. Each chip is one factor of the base a.",
+        "Product: aᵐ × aⁿ puts m chips and n chips together — count m + n.",
+        "Quotient: matching chips cancel — m − n remain (negative means they stay in the denominator).",
+        "Power of a power: n groups of m chips give mn chips. Power of a product: (ab)ᵐ regroups into aᵐ × bᵐ.",
+        "Zero and negative: each step down the ladder divides by a, so a⁰ = 1 and a⁻ⁿ = 1/aⁿ."
+      ],
+      "conclusion": "aᵐ × aⁿ = aᵐ⁺ⁿ; aᵐ ÷ aⁿ = aᵐ⁻ⁿ; (aᵐ)ⁿ = aᵐⁿ; (ab)ᵐ = aᵐbᵐ; (a/b)ᵐ = aᵐ/bᵐ; a⁰ = 1; a⁻ⁿ = 1/aⁿ (a ≠ 0). Note (aᵐ)ⁿ ≠ a^(mⁿ): (2³)² = 2⁶ but 2^(3²) = 2⁹.",
+      "tips": [
+        "(−1)ⁿ: look at the last digit of n — even gives +1, odd gives −1.",
+        "Prime-factor every base first: 8ˣ = 64 becomes 2³ˣ = 2⁶, so x = 2.",
+        "(a/b)⁻ᵐ = (b/a)ᵐ: flip the fraction before anything else.",
+        "Same base on both sides ⇒ equate the exponents: 2ˣ × 2ˣ⁻¹ = 2⁹ ⇒ 2x − 1 = 9."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sqc",
+      "subject": "mathematics",
+      "title": "Squares, Cubes & Square Roots",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        8
+      ],
+      "aim": "To see n² as a sum of consecutive odd numbers, build n³ from unit cubes and estimate square roots.",
+      "apparatus": [
+        "Dot grid",
+        "Unit cubes",
+        "Number line"
+      ],
+      "procedure": [
+        "Choose “Square” and set n — each coloured L-shaped layer has the next odd number of dots.",
+        "Choose “Cube” to build an n × n × n cube from unit cubes.",
+        "Set m to estimate √m between two consecutive perfect squares.",
+        "Record n², n³ and the estimate of √m."
+      ],
+      "conclusion": "1 + 3 + 5 + … + (2n − 1) = n²; a cube of side n contains n³ unit cubes; if a² < m < b² then a < √m < b.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "surds",
+      "subject": "mathematics",
+      "title": "Surds — √x on the Number Line, Rationalising & Comparing",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "To construct √x on the number line with a semicircle, rationalise 1/(√a ± √b), find √(a ± 2√b) and compare surds of different orders.",
+      "apparatus": [
+        "Compass",
+        "Ruler",
+        "Set square",
+        "Number line"
+      ],
+      "procedure": [
+        "“Construct √x”: mark OA = x and AB = 1. Draw a semicircle on OB; the perpendicular at A meets it at height √x. Swing it down to the number line.",
+        "“Rationalise”: multiply 1/(√a ± √b) by the conjugate. The denominator becomes a − b, a rational number.",
+        "“√(a ± 2√b)”: find x and y with x + y = a and xy = b; then √(a ± 2√b) = √x ± √y.",
+        "“Compare”: to compare ᵐ√a and ⁿ√b, raise both to the LCM of m and n and compare the whole numbers."
+      ],
+      "conclusion": "In the semicircle construction AD² = OA × AB = x × 1, so AD = √x. 1/(√a + √b) = (√a − √b)/(a − b). √(a ± 2√b) = √x ± √y when x + y = a, xy = b. ᵐ√a > ⁿ√b ⇔ a^(L/m) > b^(L/n), L = LCM(m, n).",
+      "tips": [
+        "If a − b = 1, then 1/(√a − √b) = √a + √b immediately (e.g. 1/(√3 − √2) = √3 + √2).",
+        "1/(√(n + 1) + √n) = √(n + 1) − √n — telescoping sums collapse to the first and last terms.",
+        "x = (√a + √b)/(√a − √b), y = its reciprocal ⇒ x + y = 2(a + b)/(a − b).",
+        "Compare ³√4 and √3: LCM 6 ⇒ 4² = 16 vs 3³ = 27, so √3 is larger."
+      ],
+      "controlCount": 7,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "spiral",
+      "subject": "mathematics",
+      "title": "Square Root Spiral",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        9
+      ],
+      "aim": "To construct a square root spiral and locate √2, √3, √4 … as lengths.",
+      "apparatus": [
+        "Ruler (unit length)",
+        "Set square",
+        "Compass",
+        "Drawing board"
+      ],
+      "procedure": [
+        "Draw OP₁ of 1 unit.",
+        "At P₁ draw a perpendicular P₁P₂ of 1 unit; join OP₂ = √2.",
+        "Repeat at each new point: draw a 1-unit perpendicular and join it to O.",
+        "Increase the number of triangles and measure the hypotenuse lengths."
+      ],
+      "conclusion": "The hypotenuse of the n-th triangle is √(n+1); the spiral locates irrational lengths geometrically.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "dec",
+      "subject": "mathematics",
+      "title": "Decimal Expansion of Rational Numbers",
+      "topic": "number-system",
+      "topicLabel": "Number System",
+      "topicColour": "#E2622A",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To find the decimal expansion of p/q by long division and predict whether it terminates or recurs.",
+      "apparatus": [
+        "Long division sheet",
+        "Remainder clock",
+        "Calculator (check)"
+      ],
+      "procedure": [
+        "Set the numerator p and the denominator q.",
+        "Long division: multiply each remainder by 10 and divide by q.",
+        "Follow the remainders on the clock — when a remainder repeats, the digits repeat.",
+        "Check the prime factors of q (lowest terms): only 2s and 5s ⇒ terminating."
+      ],
+      "conclusion": "p/q in lowest terms terminates iff q = 2ᵐ5ⁿ; otherwise it is non-terminating recurring with a period shorter than q.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "prop",
+      "subject": "mathematics",
+      "title": "Direct & Inverse Proportion — Unitary Method",
+      "topic": "commercial-maths",
+      "topicLabel": "Commercial Maths",
+      "topicColour": "#9C3D9C",
+      "classes": [
+        6,
+        7,
+        8
+      ],
+      "aim": "To solve direct and inverse proportion problems by the unitary method and compare their graphs.",
+      "apparatus": [
+        "Price cards",
+        "Worker tokens",
+        "Graph sheet"
+      ],
+      "procedure": [
+        "Choose Direct (cost of pencils) or Inverse (workers and days).",
+        "Set the rate k: price of one pencil, or total person-days of work.",
+        "Change the quantity x and observe y in the picture and on the graph.",
+        "Check that y ÷ x is constant (direct) or x × y is constant (inverse)."
+      ],
+      "conclusion": "Direct proportion: y/x = k and the graph is a straight line through the origin. Inverse proportion: xy = k and the graph is a hyperbola.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "pct",
+      "subject": "mathematics",
+      "title": "Percentage, Profit & Loss, Discount and GST",
+      "topic": "commercial-maths",
+      "topicLabel": "Commercial Maths",
+      "topicColour": "#9C3D9C",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To calculate selling price, profit or loss %, discount and GST, and to see a percentage on a 100-square grid.",
+      "apparatus": [
+        "100-square grid",
+        "Price tags",
+        "Bill calculator"
+      ],
+      "procedure": [
+        "Set the cost price CP and the marked price MP.",
+        "Set the discount %; the shaded squares show the discount out of 100.",
+        "SP = MP − discount. Compare SP with CP to find profit or loss.",
+        "Add GST on SP to get the final bill."
+      ],
+      "conclusion": "Discount = MP × d/100; Profit % = (SP − CP)/CP × 100; Bill = SP × (1 + GST/100).",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "trains",
+      "subject": "mathematics",
+      "title": "Time & Distance — Trains, Platforms & Relative Speed",
+      "topic": "commercial-maths",
+      "topicLabel": "Commercial Maths",
+      "topicColour": "#9C3D9C",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To find how long a train takes to pass a pole, a platform or another train, using distance = total length to be covered and the relative speed.",
+      "apparatus": [
+        "Track and train models",
+        "Stopwatch",
+        "Metre scale"
+      ],
+      "procedure": [
+        "“Pole / platform”: set the platform length (0 for a pole). The train must cover its own length + the platform length.",
+        "Press Play and watch the clock. Time = (L₁ + L₂) ÷ speed — convert km/h to m/s by × 5/18.",
+        "“Two trains”, opposite directions: relative speed = v₁ + v₂; distance = sum of both lengths.",
+        "Same direction: relative speed = v₁ − v₂ (faster train must be behind). Compare the crossing times."
+      ],
+      "conclusion": "Time to pass = (sum of lengths to be covered) ÷ (relative speed). Pole: own length; platform/bridge: own + platform; another train: both lengths. Opposite directions add speeds, same direction subtract. 1 km/h = 5/18 m/s.",
+      "tips": [
+        "Write the distance first: own length, own + platform, or both train lengths.",
+        "Opposite directions: add speeds. Same direction (overtaking): subtract speeds.",
+        "km/h → m/s: × 5/18;  m/s → km/h: × 18/5. Use m/s whenever lengths are in metres.",
+        "Two trains meet and then take a and b hours to reach the far ends: speed ratio = √b : √a."
+      ],
+      "controlCount": 8,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": true
+    },
+    {
+      "id": "boats",
+      "subject": "mathematics",
+      "title": "Boats & Streams and Average Speed",
+      "topic": "commercial-maths",
+      "topicLabel": "Commercial Maths",
+      "topicColour": "#9C3D9C",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To find downstream and upstream speeds and times, and to see why the average speed for equal distances is 2xy/(x + y), not (x + y)/2.",
+      "apparatus": [
+        "River model",
+        "Boat",
+        "Stopwatch"
+      ],
+      "procedure": [
+        "“Boats & streams”: set the boat speed in still water and the stream speed. Downstream = boat + stream; upstream = boat − stream.",
+        "Press Play: the boat goes down and comes back. Compare the two times.",
+        "Average speed for the round trip = total distance ÷ total time = (b² − s²)/b — always less than b.",
+        "“Average speed”: equal distances at x and y. The slower part takes more time, so the average 2xy/(x + y) is below (x + y)/2."
+      ],
+      "conclusion": "Downstream = b + s, upstream = b − s; b = ½(down + up), s = ½(down − up). Round-trip average = (b² − s²)/b. For equal distances at x and y, average speed = 2xy/(x + y) (harmonic mean), not (x + y)/2.",
+      "tips": [
+        "Write two arrows: downstream = still + stream; upstream = still − stream.",
+        "Equal distances at x and y: average = 2xy/(x + y), never (x + y)/2.",
+        "Upstream takes t hours more than downstream: distance = (b² − s²)t / 2s.",
+        "Round trip takes t hours in total: distance = (b² − s²)t / 2b."
+      ],
+      "controlCount": 8,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": true
+    },
+    {
+      "id": "twork",
+      "subject": "mathematics",
+      "title": "Time & Work — LCM Method, Pipes & Cisterns",
+      "topic": "commercial-maths",
+      "topicLabel": "Commercial Maths",
+      "topicColour": "#9C3D9C",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To solve time-and-work problems by taking the total work as the LCM of the days (units of work) and adding or subtracting efficiencies; and to apply the same idea to pipes filling and emptying a tank.",
+      "apparatus": [
+        "Wall of work units",
+        "Water tank",
+        "Inlet and outlet pipes"
+      ],
+      "procedure": [
+        "“Together”: total work = LCM(a, b) units. A does W/a units a day, B does W/b. Together they do the sum each day.",
+        "Press Play to watch the work units fill day by day. Time together = ab/(a + b).",
+        "“A leaves early”: both work k days, then B finishes the remaining units alone.",
+        "“Pipes”: an inlet fills in a hours and an outlet empties in b hours (b > a). Net rate = 1/a − 1/b, so the tank fills in ab/(b − a) hours."
+      ],
+      "conclusion": "Work = rate × time. Taking total work = LCM of the days makes every efficiency a whole number. Together: 1/a + 1/b = (a + b)/ab ⇒ time = ab/(a + b). Inlet a h, outlet b h: time = ab/(b − a). Wages are shared in the ratio of work done.",
+      "tips": [
+        "LCM method: A 12 days, B 18 days ⇒ work = 36 units, A = 3/day, B = 2/day, together 5/day ⇒ 7.2 days.",
+        "Two workers: together time = xy/(x + y).",
+        "Efficiency ratio a : b means time ratio b : a.",
+        "Work ledger for leaving problems: work done, work left, who is working now.",
+        "Pipes: fill in x h, empty in y h (y > x) ⇒ fills in xy/(y − x) hours."
+      ],
+      "controlCount": 6,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": true
+    },
+    {
+      "id": "pdisc",
+      "subject": "mathematics",
+      "title": "Partnership, Successive Discounts & Profit",
+      "topic": "commercial-maths",
+      "topicLabel": "Commercial Maths",
+      "topicColour": "#9C3D9C",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To share profit in the ratio of investment × time, find the single discount equal to two successive discounts, and find profit % after a mark-up and a discount.",
+      "apparatus": [
+        "Investment bars",
+        "Price tags",
+        "Percentage strip"
+      ],
+      "procedure": [
+        "“Partnership”: set each investment and its months. Each share is proportional to investment × months.",
+        "“Successive discounts”: a d₁% discount followed by d₂% is NOT (d₁ + d₂)%. It equals (d₁ + d₂ − d₁d₂/100)%.",
+        "“Mark-up & discount”: mark the price m% above cost, then give d% discount. Profit % = (1 + m/100)(1 − d/100) × 100 − 100.",
+        "Change the values and record the shares and percentages."
+      ],
+      "conclusion": "Profit shares ∝ investment × time. Two successive discounts x% and y% = one discount of (x + y − xy/100)%. SP = CP(1 + m/100)(1 − d/100). Discount is on the marked price; profit and loss are on the cost price.",
+      "tips": [
+        "Cancel trailing zeros first: 80000 : 60000 → 8 : 6 → 4 : 3.",
+        "Successive changes a% and b% (negatives for discounts): net = a + b + ab/100 %.",
+        "Discount % is on the marked price; profit % is on the cost price — never mix the bases."
+      ],
+      "controlCount": 12,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "ci",
+      "subject": "mathematics",
+      "title": "Simple vs Compound Interest",
+      "topic": "commercial-maths",
+      "topicLabel": "Commercial Maths",
+      "topicColour": "#9C3D9C",
+      "classes": [
+        8
+      ],
+      "aim": "To compare the growth of money under simple interest and compound interest.",
+      "apparatus": [
+        "Interest calculator",
+        "Bar graph board",
+        "Passbook table"
+      ],
+      "procedure": [
+        "Set the principal P, rate R% per annum and time T years.",
+        "Choose how often interest is compounded.",
+        "Bars show the compound amount each year; the line shows the simple-interest amount.",
+        "Compare the interest earned by the two methods."
+      ],
+      "conclusion": "SI = PRT/100 grows linearly; A = P(1 + R/100n)^(nT) grows exponentially, so CI ≥ SI for T ≥ 1.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "tri",
+      "subject": "mathematics",
+      "title": "Angle Sum Property of a Triangle",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        6,
+        7,
+        9
+      ],
+      "aim": "To verify that the sum of the interior angles of a triangle is 180°.",
+      "apparatus": [
+        "Geoboard grid",
+        "Digital protractor",
+        "Paper-cut angles"
+      ],
+      "procedure": [
+        "Drag vertices A, B and C to form any triangle.",
+        "Read each interior angle from the protractor meters.",
+        "Observe the three “torn” angles placed together on a straight line (bottom-right).",
+        "Repeat for acute, right and obtuse triangles and record the sums."
+      ],
+      "conclusion": "For every triangle ∠A + ∠B + ∠C = 180°; the three angles together form a straight angle.",
+      "tips": [],
+      "controlCount": 0,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sym",
+      "subject": "mathematics",
+      "title": "Reflection & Line Symmetry",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        6,
+        7,
+        9
+      ],
+      "aim": "To find the image of a figure reflected in a mirror line and study the change in coordinates.",
+      "apparatus": [
+        "Graph sheet",
+        "Plane mirror",
+        "Coordinate grid"
+      ],
+      "procedure": [
+        "Drag the vertices of triangle ABC anywhere on the grid.",
+        "Choose the mirror line: y-axis, x-axis or y = x.",
+        "Observe that each point and its image are equidistant from the mirror.",
+        "Record the coordinates of each point and its image."
+      ],
+      "conclusion": "Reflection in y-axis: (x, y) → (−x, y); x-axis: (x, y) → (x, −y); line y = x: (x, y) → (y, x).",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "angm",
+      "subject": "mathematics",
+      "title": "Measuring Angles with a Protractor",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        6
+      ],
+      "aim": "To measure and classify angles using a protractor.",
+      "apparatus": [
+        "Protractor (0°–180°)",
+        "Ruler",
+        "Rotating angle arm"
+      ],
+      "procedure": [
+        "Place the protractor centre on vertex O with the base line along arm OA.",
+        "Drag point P to rotate arm OP.",
+        "Read the angle on the outer scale where arm OP crosses it.",
+        "Classify the angle and record its complement and supplement."
+      ],
+      "conclusion": "Acute < 90°, right = 90°, obtuse between 90° and 180°, straight = 180°, reflex between 180° and 360°.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "transv",
+      "subject": "mathematics",
+      "title": "Parallel Lines & a Transversal — Angle Pairs",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "To name the eight angles formed by a transversal, identify corresponding, alternate and co-interior pairs, and see which are equal or supplementary when the lines are parallel.",
+      "apparatus": [
+        "Two straight strips",
+        "Transversal strip",
+        "Protractor"
+      ],
+      "procedure": [
+        "Set the transversal angle. Angles ∠1, ∠2 (above l) and ∠3, ∠4 (below l) form at the first crossing; ∠5–∠8 at the second.",
+        "Choose a pair type and step through its pairs: corresponding (1&5, 2&6, 3&7, 4&8), alternate interior (3&6, 4&5), alternate exterior (1&8, 2&7), co-interior (3&5, 4&6).",
+        "With l ∥ m, corresponding and alternate angles are equal and co-interior angles add to 180°.",
+        "Tilt line m (turn off “l ∥ m”): the pairs are no longer equal — equal corresponding or alternate angles prove the lines are parallel."
+      ],
+      "conclusion": "If l ∥ m: corresponding angles are equal, alternate (interior and exterior) angles are equal, and co-interior angles are supplementary. Conversely, if any one of these holds, the lines are parallel. Vertically opposite angles are always equal; a linear pair always adds to 180°.",
+      "tips": [
+        "“Z” shape = alternate angles (equal); “F” shape = corresponding angles (equal); “C/U” shape = co-interior angles (sum 180°).",
+        "Only two different sizes appear when l ∥ m: θ and 180° − θ.",
+        "Algebra: equal pairs give x-expression = x-expression; co-interior pairs give sum = 180°."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "pyth",
+      "subject": "mathematics",
+      "title": "Pythagoras Theorem",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        7,
+        8,
+        10
+      ],
+      "aim": "To verify the Pythagoras theorem by the method of squares on the sides of a right triangle.",
+      "apparatus": [
+        "Squared paper",
+        "Right-angled triangle cut-out",
+        "Scale"
+      ],
+      "procedure": [
+        "Set the legs a and b of the right triangle.",
+        "Squares are constructed outward on each side.",
+        "Count the unit squares in the squares on a and b.",
+        "Compare their total with the area of the square on the hypotenuse c."
+      ],
+      "conclusion": "Area of square on hypotenuse = sum of areas of squares on the other two sides: c² = a² + b².",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "ext",
+      "subject": "mathematics",
+      "title": "Exterior Angle Property of a Triangle",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        7
+      ],
+      "aim": "To verify that an exterior angle of a triangle equals the sum of the two interior opposite angles.",
+      "apparatus": [
+        "Paper triangle",
+        "Ruler",
+        "Digital protractor"
+      ],
+      "procedure": [
+        "Drag the vertices A, B and C to form a triangle.",
+        "Side BC is produced to D, forming exterior angle ∠ACD.",
+        "Read ∠A and ∠B (interior opposite angles).",
+        "Compare ∠A + ∠B with ∠ACD."
+      ],
+      "conclusion": "Exterior angle ∠ACD = ∠A + ∠B (sum of interior opposite angles).",
+      "tips": [],
+      "controlCount": 0,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "cong",
+      "subject": "mathematics",
+      "title": "Congruence of Triangles (SSS, SAS, ASA, RHS)",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        7,
+        9
+      ],
+      "aim": "To verify congruence criteria by moving a traced copy of a triangle with rigid motions — slide, turn and flip.",
+      "apparatus": [
+        "Tracing paper",
+        "Paper triangle",
+        "Ruler & protractor"
+      ],
+      "procedure": [
+        "Drag A, B, C to make triangle ABC.",
+        "Slide, rotate and flip the traced copy PQR — it still matches ABC part for part.",
+        "Choose a criterion to highlight the three parts that are enough to prove congruence.",
+        "RHS needs a right angle; AAA and SSA are not criteria."
+      ],
+      "conclusion": "Rigid motions preserve lengths and angles, so △ABC ≅ △PQR with A ↔ P, B ↔ Q, C ↔ R.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "intercept",
+      "subject": "mathematics",
+      "title": "Intercept Theorem — Parallel Lines Cut Transversals in Proportion",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        7,
+        8,
+        9
+      ],
+      "aim": "To verify that three parallel lines cut any two transversals in the same ratio, and that equal intercepts on one transversal give equal intercepts on every transversal.",
+      "apparatus": [
+        "Ruled parallel lines",
+        "Two straight strips",
+        "Divider and scale"
+      ],
+      "procedure": [
+        "Drag the ends of the two transversals anywhere across the three parallel lines l, m, n.",
+        "Read AB : BC on the first transversal and DE : EF on the second — they are always equal.",
+        "Set the spacings equal: equal intercepts on one transversal give equal intercepts on the other.",
+        "Tilt the middle line: once it is not parallel, the ratios differ — the theorem needs parallel lines."
+      ],
+      "conclusion": "If l ∥ m ∥ n, then AB : BC = DE : EF for any two transversals. Equally spaced parallel lines make equal intercepts on every transversal. Equal intercepts on one transversal alone do not prove that lines are parallel.",
+      "tips": [
+        "Write the ratio in the same order on both transversals: top part : bottom part.",
+        "Whole : part also works: AC : AB = DF : DE.",
+        "Roof-beam problems: half the roof is an intercept (or BPT) figure."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "triineq",
+      "subject": "mathematics",
+      "title": "Triangle Inequality — Can Three Sticks Make a Triangle?",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        7,
+        9
+      ],
+      "aim": "To verify that the sum of any two sides of a triangle is greater than the third side.",
+      "apparatus": [
+        "Straws or sticks of different lengths",
+        "Scale"
+      ],
+      "procedure": [
+        "Choose three stick lengths a, b, c.",
+        "Put c as the base and swing the other two from its ends. If they meet above the base, a triangle forms.",
+        "Check all three sums: a + b > c, b + c > a, c + a > b.",
+        "Make a + b equal to c: the sticks lie flat on the base — no triangle (degenerate)."
+      ],
+      "conclusion": "Three lengths form a triangle ⇔ each pair adds to more than the third (it is enough to check: the two shorter add to more than the longest). Also |a − b| < c < a + b.",
+      "tips": [
+        "Check only the two smaller sides against the largest.",
+        "Third side of a triangle with sides 5 and 8 lies strictly between 3 and 13."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "quad4",
+      "subject": "mathematics",
+      "title": "Angle Sum of a Quadrilateral",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        8
+      ],
+      "aim": "To verify that the sum of the interior angles of a quadrilateral is 360°.",
+      "apparatus": [
+        "Quadrilateral cut-out",
+        "Digital protractor",
+        "Diagonal strip"
+      ],
+      "procedure": [
+        "Drag the four vertices to make any quadrilateral.",
+        "Read the four interior angles.",
+        "Show the diagonal AC to split it into two triangles.",
+        "Each triangle contributes 180°, so the total is 2 × 180°."
+      ],
+      "conclusion": "∠A + ∠B + ∠C + ∠D = 360° for every quadrilateral.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "polyg",
+      "subject": "mathematics",
+      "title": "Polygons — Angle Sums, Exterior Angles & Diagonals",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "To find the interior angle sum of an n-gon by splitting it into triangles, see that the exterior angles always add to 360°, and count the diagonals.",
+      "apparatus": [
+        "Polygon cut-outs",
+        "Protractor",
+        "Straws for diagonals"
+      ],
+      "procedure": [
+        "“Triangles”: from one vertex, the diagonals split an n-gon into (n − 2) triangles, so the interior sum is (n − 2) × 180° = (2n − 4) right angles.",
+        "“Exterior angles”: walk round the polygon; at each corner you turn through the exterior angle. One full turn = 360°, whatever n is.",
+        "“Diagonals”: each vertex joins n − 3 others; every diagonal is counted twice, so there are n(n − 3)/2.",
+        "Turn off “Regular” — the sums stay the same, but the angles are no longer equal."
+      ],
+      "conclusion": "Interior angle sum = (n − 2) × 180°. Exterior angle sum = 360° for every convex polygon. Diagonals = n(n − 3)/2. For a regular n-gon: each exterior angle = 360°/n and each interior angle = 180° − 360°/n = (n − 2)180°/n.",
+      "tips": [
+        "Number of sides of a regular polygon = 360° ÷ each exterior angle.",
+        "Interior + exterior = 180° at every vertex.",
+        "Diagonals: 4 → 2, 5 → 5, 6 → 9, 8 → 20, 10 → 35.",
+        "“Each interior angle = (2n − 4)90°/n” is true only for a regular polygon."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "quadprop",
+      "subject": "mathematics",
+      "title": "Parallelogram & Trapezium — Sides, Angles and Diagonals",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "To verify the properties of sides, angles and diagonals of a parallelogram, and of a (isosceles) trapezium.",
+      "apparatus": [
+        "Geoboard",
+        "Scale",
+        "Protractor",
+        "Tracing paper"
+      ],
+      "procedure": [
+        "“Parallelogram”: drag A, B and D. C is placed so that ABCD has both pairs of opposite sides parallel (construction from two adjacent sides).",
+        "Read: opposite sides equal, opposite angles equal, adjacent angles add to 180°, diagonals bisect each other (O is the mid-point of both).",
+        "“Trapezium”: AB ∥ DC. The two angles on each leg add to 180°.",
+        "Turn on “Isosceles”: the legs become equal, the base angles become equal and so do the diagonals."
+      ],
+      "conclusion": "Parallelogram: opposite sides equal, opposite angles equal, adjacent angles supplementary, diagonals bisect each other. Trapezium (AB ∥ DC): ∠A + ∠D = ∠B + ∠C = 180°. Isosceles trapezium: legs equal, base angles equal, diagonals equal.",
+      "tips": [
+        "Diagonals bisecting each other is enough to prove a quadrilateral is a parallelogram.",
+        "A rectangle is a parallelogram with equal diagonals; a rhombus has perpendicular diagonals."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "circ",
+      "subject": "mathematics",
+      "title": "Angle Subtended by an Arc",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To verify that the angle subtended by an arc at the centre is double the angle subtended at any point on the remaining part of the circle.",
+      "apparatus": [
+        "Compass",
+        "Circle cut-out",
+        "Digital protractor"
+      ],
+      "procedure": [
+        "Drag A and B on the circle to fix an arc AB.",
+        "Drag P anywhere on the remaining part of the circle.",
+        "Read ∠AOB at the centre and ∠APB at P.",
+        "Make AB a diameter to see the angle in a semicircle."
+      ],
+      "conclusion": "∠AOB = 2∠APB. Angles in the same segment are equal, and the angle in a semicircle is 90°.",
+      "tips": [],
+      "controlCount": 0,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "mid",
+      "subject": "mathematics",
+      "title": "Mid-point Theorem",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9
+      ],
+      "aim": "To verify that the line segment joining the mid-points of two sides of a triangle is parallel to the third side and half of it.",
+      "apparatus": [
+        "Paper triangle",
+        "Ruler",
+        "Divider"
+      ],
+      "procedure": [
+        "Drag the vertices of triangle ABC.",
+        "D and E are the mid-points of AB and AC.",
+        "Measure DE and BC.",
+        "Check that DE ∥ BC and DE = ½ BC."
+      ],
+      "conclusion": "DE ∥ BC and DE = ½ BC in every triangle.",
+      "tips": [],
+      "controlCount": 0,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "para",
+      "subject": "mathematics",
+      "title": "Parallelograms on the Same Base",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9
+      ],
+      "aim": "To verify that parallelograms on the same base and between the same parallels are equal in area, and a triangle on the same base has half that area.",
+      "apparatus": [
+        "Parallel strips",
+        "Squared paper",
+        "Paper cut-outs"
+      ],
+      "procedure": [
+        "AB is the common base on the lower parallel line.",
+        "Slide the top sides of the two parallelograms along the upper parallel line.",
+        "Change the distance h between the parallels.",
+        "Compare the areas of ABCD, ABEF and triangle ABP."
+      ],
+      "conclusion": "ar(ABCD) = ar(ABEF) = base × height, and ar(△ABP) = ½ ar(ABCD).",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "chord",
+      "subject": "mathematics",
+      "title": "Chords of a Circle — Perpendicular from the Centre",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9
+      ],
+      "aim": "To verify that the perpendicular from the centre to a chord bisects it, and that equal chords are equidistant from the centre.",
+      "apparatus": [
+        "Circle cut-out",
+        "Paper folding",
+        "Ruler & set square"
+      ],
+      "procedure": [
+        "Drag A and B on the circle to make chord AB.",
+        "OM is drawn perpendicular to AB.",
+        "Measure AM and MB — they are equal.",
+        "Turn on the equal chord CD and compare its distance from O with OM."
+      ],
+      "conclusion": "OM ⟂ AB ⇒ AM = MB; equal chords are equidistant from the centre; OM² + AM² = r².",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "tcen",
+      "subject": "mathematics",
+      "title": "Triangle Centres — Centroid, Orthocentre, Incentre, Circumcentre",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To locate the centroid, orthocentre, incentre and circumcentre of a triangle by construction and see how they are related.",
+      "apparatus": [
+        "Geoboard grid",
+        "Compass",
+        "Set square",
+        "Paper-folding sheet"
+      ],
+      "procedure": [
+        "Drag A, B and C to form any triangle.",
+        "Choose a centre: medians meet at the centroid G, altitudes at the orthocentre H, angle bisectors at the incentre I, perpendicular bisectors at the circumcentre O.",
+        "Check its special property: AG = 2·GD; the incircle touches all three sides; the circumcircle passes through A, B and C.",
+        "Make the triangle acute, right and obtuse and watch where H and O go. Choose “Euler line” to see O, G, H in one line with HG = 2·GO."
+      ],
+      "conclusion": "G divides every median in the ratio 2 : 1. I is equidistant from the sides (inradius r = Δ/s); O is equidistant from the vertices (R = abc/4Δ). O, G, H lie on the Euler line with HG = 2·GO. In an equilateral triangle all four centres coincide.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "chordeq",
+      "subject": "mathematics",
+      "title": "Chord Theorems — Equal Chords, Angles & Distances",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To verify that equal chords of a circle (or of congruent circles) subtend equal angles at the centre and are equidistant from it, and that the longer chord is nearer the centre.",
+      "apparatus": [
+        "Compass",
+        "Tracing paper",
+        "Protractor",
+        "Ruler"
+      ],
+      "procedure": [
+        "Keep “Lock chords equal” on and choose “Angle at centre”: compare ∠AOB and ∠COD.",
+        "Choose “Distance from centre”: compare the perpendicular distances d₁ and d₂.",
+        "Turn on “Chord 2 in a congruent circle” and repeat both checks.",
+        "Turn the lock off and make chord 1 longer than chord 2: the longer chord subtends a larger angle and lies nearer the centre."
+      ],
+      "conclusion": "Equal chords subtend equal angles at the centre, and conversely. Equal chords are equidistant from the centre, and conversely; the same holds in congruent circles. Of two chords, the longer one is nearer the centre: d = √(r² − (L/2)²).",
+      "tips": [],
+      "controlCount": 6,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "pyth2",
+      "subject": "mathematics",
+      "title": "Pythagoras Theorem — Proofs by Rearrangement",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To verify c² = a² + b² by three different methods: Bhaskara’s square, rearranging four triangles, and similar triangles.",
+      "apparatus": [
+        "Four congruent right-triangle cut-outs",
+        "Squared paper",
+        "Scissors",
+        "Ruler"
+      ],
+      "procedure": [
+        "Set the legs a and b of the right triangle and choose a method.",
+        "Bhaskara: four triangles and a small square of side (b − a) fill the square on c.",
+        "Rearrangement: in a square of side (a + b), the same four triangles leave either c², or a² + b².",
+        "Similar triangles: the altitude to the hypotenuse splits c² into rectangles equal to a² and b²."
+      ],
+      "conclusion": "Every method gives the same area relation: c² = a² + b². Bhaskara: c² = 4·(½ab) + (b − a)². Rearrangement: (a + b)² − 4·(½ab) = c² = a² + b². Similar triangles: a² = c·DB and b² = c·AD.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "cyclic",
+      "subject": "mathematics",
+      "title": "Cyclic Quadrilateral, Alternate Segment & Chord–Secant Products",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To verify that opposite angles of a cyclic quadrilateral are supplementary, the tangent–chord angle equals the angle in the alternate segment, and the products of chord and secant segments are equal.",
+      "apparatus": [
+        "Circle sheet",
+        "Protractor",
+        "Ruler",
+        "Tracing paper"
+      ],
+      "procedure": [
+        "“Cyclic quadrilateral”: drag A, B, C, D around the circle. ∠A + ∠C = 180° and ∠B + ∠D = 180° every time.",
+        "“Alternate segment”: the angle between the tangent at A and chord AB equals ∠ACB for any C in the other segment.",
+        "“Intersecting chords”: chords AC and BD meet at X inside: AX × XC = BX × XD.",
+        "“Tangent–secant”: from an outside point P, PA × PB = PT² (PT is the tangent length)."
+      ],
+      "conclusion": "Opposite angles of a cyclic quadrilateral are supplementary (and conversely). The exterior angle of a cyclic quadrilateral equals the interior opposite angle. Tangent–chord angle = angle in the alternate segment. Intersecting chords: AX·XB = CX·XD. Tangent–secant: PA·PB = PT² = OP² − r².",
+      "tips": [
+        "Cyclic quadrilateral: opposite angles add to 180°.",
+        "A diameter subtends 90° at the circumference.",
+        "Tangent length: PT² = OP² − r².",
+        "Every rectangle is cyclic; a cyclic parallelogram is a rectangle; a cyclic trapezium is isosceles."
+      ],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "concen",
+      "subject": "mathematics",
+      "title": "Concentric Circles — Annulus & Tangent Chord",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To show that a chord of the outer circle touching the inner circle is bisected at the point of contact, has length 2√(R² − r²), and that the annulus area equals π × (half-chord)².",
+      "apparatus": [
+        "Compass",
+        "Ruler",
+        "Set square"
+      ],
+      "procedure": [
+        "Set the radii R (outer) and r (inner) of two circles with the same centre O.",
+        "Draw the chord AB of the outer circle that touches the inner circle at M: OM ⊥ AB, so M is the mid-point.",
+        "In right △OMA: AM² = R² − r², so AB = 2√(R² − r²).",
+        "Annulus area = π(R² − r²) = π·AM² — it depends only on the chord length!"
+      ],
+      "conclusion": "A chord of the outer circle that touches the inner circle is bisected at the point of contact; its length is 2√(R² − r²). Area of the ring (annulus) = π(R² − r²) = π(AB/2)².",
+      "tips": [
+        "Half-chord = √(r² − d²) for a chord at distance d from the centre.",
+        "Annulus area = π(outer² − inner²).",
+        "Tangent length from P: PT² = OP² − r²."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "segdiv",
+      "subject": "mathematics",
+      "title": "Dividing a Line Segment into Equal Parts",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To divide a line segment AB into n equal parts with a compass and ruler, using a ray and parallel lines.",
+      "apparatus": [
+        "Ruler",
+        "Compass",
+        "Set square",
+        "Paper strip"
+      ],
+      "procedure": [
+        "Draw AB and a ray AX making an acute angle with it.",
+        "With one compass width, mark n equal steps A₁, A₂, …, Aₙ along AX.",
+        "Join Aₙ to B.",
+        "Through A₁, A₂, … draw lines parallel to AₙB. They cut AB into n equal parts (BPT / intercept theorem)."
+      ],
+      "conclusion": "Lines through A₁, A₂, … parallel to AₙB divide AB into n equal parts, because equal intercepts on AX give equal intercepts on AB (basic proportionality theorem). The same steps divide AB in any ratio m : n.",
+      "tips": [
+        "For a ratio m : n, mark m + n equal steps, join the last to B and draw the parallel through the m-th mark.",
+        "Keep the compass width the same for every step on the ray."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "varig",
+      "subject": "mathematics",
+      "title": "Mid-point Quadrilateral (Varignon)",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9
+      ],
+      "aim": "To verify that joining the mid-points of the sides of any quadrilateral gives a parallelogram with half the area.",
+      "apparatus": [
+        "Paper quadrilateral",
+        "Paper folding",
+        "Scale"
+      ],
+      "procedure": [
+        "Drag the four corners to make any quadrilateral ABCD.",
+        "P, Q, R, S are the mid-points of AB, BC, CD, DA. Join them.",
+        "PQ ∥ AC ∥ SR and PQ = SR = ½AC (mid-point theorem in △ABC and △ACD), so PQRS is a parallelogram.",
+        "Compare areas: PQRS is exactly half of ABCD."
+      ],
+      "conclusion": "The mid-points of the sides of any quadrilateral form a parallelogram whose sides are parallel to and half of the diagonals, and whose area is half the area of the quadrilateral.",
+      "tips": [
+        "If the diagonals are equal, PQRS is a rhombus; if they are perpendicular, PQRS is a rectangle."
+      ],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "circen",
+      "subject": "mathematics",
+      "title": "Finding the Centre & Completing a Circle from an Arc",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To locate the centre of a circle from an arc using perpendicular bisectors of two chords, and to complete the circle.",
+      "apparatus": [
+        "Arc drawn on paper",
+        "Compass",
+        "Ruler",
+        "Set square"
+      ],
+      "procedure": [
+        "Mark three points P, Q, R on the arc (drag them).",
+        "Draw chords PQ and QR and their perpendicular bisectors (or fold P onto Q and Q onto R).",
+        "The bisectors meet at O, the centre: OP = OQ = OR.",
+        "With centre O and radius OP, complete the circle."
+      ],
+      "conclusion": "The perpendicular bisector of every chord passes through the centre, so two such bisectors meet at the centre. Exactly one circle passes through three non-collinear points.",
+      "tips": [
+        "Choose P, Q, R well apart for an accurate centre.",
+        "Paper folding: fold so that the two ends of a chord coincide — the crease is its perpendicular bisector."
+      ],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "bpt",
+      "subject": "mathematics",
+      "title": "Basic Proportionality Theorem",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        10
+      ],
+      "aim": "To verify that a line drawn parallel to one side of a triangle divides the other two sides in the same ratio.",
+      "apparatus": [
+        "Paper triangle",
+        "Set square & ruler (parallel lines)",
+        "Divider"
+      ],
+      "procedure": [
+        "Drag the vertices of triangle ABC.",
+        "Move the line DE parallel to BC using the slider.",
+        "Measure AD, DB, AE and EC.",
+        "Compare the ratios AD/DB and AE/EC."
+      ],
+      "conclusion": "If DE ∥ BC then AD/DB = AE/EC (Thales’ theorem).",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "tang",
+      "subject": "mathematics",
+      "title": "Tangents from an External Point",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        10
+      ],
+      "aim": "To verify that the lengths of tangents drawn from an external point to a circle are equal.",
+      "apparatus": [
+        "Compass",
+        "Ruler",
+        "Set square"
+      ],
+      "procedure": [
+        "Drag the external point P anywhere outside the circle.",
+        "Two tangents PT₁ and PT₂ touch the circle.",
+        "Measure both tangent lengths.",
+        "Observe that the radius is perpendicular to the tangent at the point of contact."
+      ],
+      "conclusion": "PT₁ = PT₂; OT ⟂ PT; ∠T₁PT₂ + ∠T₁OT₂ = 180°.",
+      "tips": [],
+      "controlCount": 0,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sim",
+      "subject": "mathematics",
+      "title": "Similar Triangles — Scale Factor & Area Ratio",
+      "topic": "geometry",
+      "topicLabel": "Geometry",
+      "topicColour": "#2F6FDB",
+      "classes": [
+        10
+      ],
+      "aim": "To verify that similar triangles have equal angles, proportional sides and areas in the ratio of the squares of corresponding sides.",
+      "apparatus": [
+        "Paper triangle",
+        "Pantograph (enlarger)",
+        "Ruler & protractor"
+      ],
+      "procedure": [
+        "Drag the vertices of triangle ABC.",
+        "Set the scale factor k to enlarge or reduce it to triangle DEF.",
+        "Measure corresponding sides and angles.",
+        "Compare the ratio of areas with k²."
+      ],
+      "conclusion": "If △ABC ~ △DEF with scale factor k, then DE/AB = EF/BC = FD/CA = k and ar(DEF)/ar(ABC) = k².",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "patt",
+      "subject": "mathematics",
+      "title": "Matchstick Patterns — Rules with Variables",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        6
+      ],
+      "aim": "To find a general rule, using a variable n, for the number of matchsticks needed in a growing pattern.",
+      "apparatus": [
+        "Matchsticks",
+        "Pattern table",
+        "Chalk"
+      ],
+      "procedure": [
+        "Choose a pattern: L shapes, row of triangles or row of squares.",
+        "Increase n and count the sticks used.",
+        "Fill the table for n = 1, 2, 3 … and look for the constant increase.",
+        "Write the rule using n and check it with the count."
+      ],
+      "conclusion": "L shapes need 2n, triangles 2n + 1 and squares 3n + 1 sticks — a variable expresses the rule for every n.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "tiles",
+      "subject": "mathematics",
+      "title": "Algebra Tiles — Add, Subtract, Multiply & Factorise",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        6,
+        7,
+        8
+      ],
+      "aim": "To add, subtract and multiply algebraic expressions with algebra tiles, and to factorise x² + bx + c by arranging tiles into a rectangle.",
+      "apparatus": [
+        "x² tiles (big squares)",
+        "x tiles (strips)",
+        "Unit tiles",
+        "Red tiles for negatives"
+      ],
+      "procedure": [
+        "“Add / subtract”: build both expressions. A positive and a negative tile of the same kind form a zero pair and are removed.",
+        "To subtract, flip every tile of the second expression (change every sign), then add.",
+        "“Multiply”: (px + q)(rx + s) is the area of a rectangle — read off pr x² tiles, (ps + qr) x tiles and qs unit tiles (FOIL).",
+        "“Factorise”: choose m and n. x² + (m + n)x + mn fills a rectangle of sides (x + m) and (x + n)."
+      ],
+      "conclusion": "Only like terms combine; a zero pair (+1 and −1 of the same tile) cancels. Subtracting means adding the additive inverse. (px + q)(rx + s) = prx² + (ps + qr)x + qs. x² + bx + c = (x + m)(x + n) when m + n = b and mn = c.",
+      "tips": [
+        "Like terms: treat the variables as a barcode — x²y and xy² are different.",
+        "Bracket-minus rule: when subtracting a bracket, change every sign inside first.",
+        "Sign first: an even number of negative factors gives +, an odd number gives −.",
+        "FOIL / grid: (a + b)(c + d) always gives four products ac, ad, bc, bd before combining.",
+        "Last-term check: in (2x − 3)(4x + 5) the constant is (−3)(+5) = −15."
+      ],
+      "controlCount": 11,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "bodmas",
+      "subject": "mathematics",
+      "title": "BODMAS — Order of Operations, Step by Step",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "To simplify expressions in the correct order — brackets (innermost first, including the vinculum), orders, then division and multiplication left to right, then addition and subtraction left to right.",
+      "apparatus": [
+        "Expression cards",
+        "Bracket highlighter",
+        "Step ladder"
+      ],
+      "procedure": [
+        "Choose an expression and move the Step slider one step at a time.",
+        "Brackets go from the inside out: vinculum (bar) → ( ) → { } → [ ]. A vinculum is a bracket — it groups, it does not change signs.",
+        "D and M have equal priority: work left to right. A and S also have equal priority: work left to right.",
+        "A minus sign before a bracket changes the sign of every term inside when the bracket is removed.",
+        "Look at the “common error” expressions to see what goes wrong when the order is broken."
+      ],
+      "conclusion": "Order: Brackets (innermost first) → Orders (powers, roots) → Division and Multiplication from left to right → Addition and Subtraction from left to right. A vinculum groups like a bracket; a minus sign before a bracket reverses the signs inside.",
+      "tips": [
+        "D and M are a pair, A and S are a pair: inside each pair go strictly left to right. 18 ÷ 3 × 2 = 12, not 3; 8 − 3 + 2 = 7, not 3.",
+        "Treat the vinculum as the innermost bracket: 7 − 2 × (4 − 6 with a bar) = 7 − 2 × (−2) = 11.",
+        "Minus before a bracket: −(2x − 3y) = −2x + 3y."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "bal",
+      "subject": "mathematics",
+      "title": "Solving a Linear Equation on a Pan Balance",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To solve an equation ax + b = cx + d by keeping a pan balance level.",
+      "apparatus": [
+        "Pan balance",
+        "Mystery boxes (x)",
+        "Unit weights"
+      ],
+      "procedure": [
+        "Set the equation: boxes (x) and unit weights on each pan.",
+        "Try a value of x — the beam tilts towards the heavier side.",
+        "Adjust x until the beam is level: both sides are equal.",
+        "Check algebraically: remove the same amount from both sides to get x = (d − b)/(a − c)."
+      ],
+      "conclusion": "An equation stays true when the same operation is done on both sides; the level beam gives the solution.",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "iden",
+      "subject": "mathematics",
+      "title": "Algebraic Identity (a + b)²",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "To verify the identity (a + b)² = a² + 2ab + b² using an area model.",
+      "apparatus": [
+        "Coloured paper squares & strips",
+        "Scale",
+        "Squared grid"
+      ],
+      "procedure": [
+        "Choose lengths a and b.",
+        "A square of side (a + b) is formed.",
+        "It splits into one a × a square, one b × b square and two a × b rectangles.",
+        "Add the four areas and compare with (a + b)²."
+      ],
+      "conclusion": "(a + b)² = a² + 2ab + b² is verified for all chosen values.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "logs",
+      "subject": "mathematics",
+      "title": "Logarithms — Graph, Laws, Change of Base & Number of Digits",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        8,
+        9,
+        10
+      ],
+      "aim": "To see logarithm as the inverse of exponent on the graph, verify the laws of logarithms, use change of base, and count the digits of a large power.",
+      "apparatus": [
+        "Graph sheet",
+        "Log table",
+        "Calculator for checking"
+      ],
+      "procedure": [
+        "“Graph”: y = bˣ and y = log_b x are mirror images in the line y = x. bʸ = x ⇔ log_b x = y.",
+        "“Laws”: log(MN) = log M + log N, log(M/N) = log M − log N, log(Mⁿ) = n log M — check them with the numbers.",
+        "“Change of base”: log_a b = log b / log a, and log_a b × log_b c = log_a c.",
+        "“Digits”: the number of digits of xʸ is ⌊y log₁₀ x⌋ + 1. The exact power is computed to check."
+      ],
+      "conclusion": "log_b x = y ⇔ bʸ = x (b > 0, b ≠ 1, x > 0). log(MN) = log M + log N; log(M/N) = log M − log N; log Mⁿ = n log M; log_a b = log b / log a; log_b 1 = 0; log_b b = 1. Digits of xʸ = ⌊y log₁₀ x⌋ + 1.",
+      "tips": [
+        "Chain rule: log_a b × log_b c = log_a c.",
+        "Reciprocal: 1/log_a b = log_b a.",
+        "Power of base: log_(aⁿ)(bᵐ) = (m/n) log_a b.",
+        "Digits of xʸ = ⌊y log₁₀ x⌋ + 1 (2¹⁰⁰ has ⌊100 × 0.30103⌋ + 1 = 31 digits).",
+        "Decibels: a difference of ΔL dB is an intensity ratio of 10^(ΔL/10)."
+      ],
+      "controlCount": 7,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "remfac",
+      "subject": "mathematics",
+      "title": "Remainder & Factor Theorem — Synthetic Division",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "To find the remainder of p(x) ÷ (x − a) without long division, see it as the height p(a) on the graph, and use the factor theorem to factorise a cubic.",
+      "apparatus": [
+        "Graph sheet",
+        "Synthetic division table"
+      ],
+      "procedure": [
+        "Set the cubic p(x) = x³ + bx² + cx + d and the divisor (x − a).",
+        "Synthetic division: bring down 1, multiply by a, add to the next coefficient, and repeat. The last number is the remainder.",
+        "The remainder equals p(a) — the height of the graph at x = a.",
+        "Move a until the remainder is 0: the graph crosses the x-axis there and (x − a) is a factor."
+      ],
+      "conclusion": "Remainder theorem: p(x) ÷ (x − a) leaves remainder p(a). Factor theorem: (x − a) is a factor of p(x) ⇔ p(a) = 0. p(x) = (x − a)q(x) + p(a).",
+      "tips": [
+        "Sum of coefficients = 0 ⇒ (x − 1) is a factor.",
+        "Sum of even-power coefficients = sum of odd-power coefficients ⇒ (x + 1) is a factor.",
+        "x³¹ + 31 ÷ (x + 1): put x = −1 ⇒ remainder −1 + 31 = 30.",
+        "Divisible by (x − a)²: use p(a) = 0 and p′(a) = 0 together."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sqdiff",
+      "subject": "mathematics",
+      "title": "Difference of Squares a² − b² = (a + b)(a − b)",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "To verify a² − b² = (a + b)(a − b) by cutting a small square from a big one and rearranging the rest into a rectangle.",
+      "apparatus": [
+        "Square sheet of side a",
+        "Square of side b",
+        "Scissors"
+      ],
+      "procedure": [
+        "Cut a square of side b from the corner of a square of side a. The L-shaped remainder has area a² − b².",
+        "Cut the L into two rectangles: a × (a − b) and (a − b) × b.",
+        "Slide “Rearrange”: turn the small rectangle and place it beside the big one.",
+        "The result is one rectangle of length a + b and width a − b, so a² − b² = (a + b)(a − b)."
+      ],
+      "conclusion": "a² − b² = (a + b)(a − b).",
+      "tips": [
+        "Quick squares: 47² − 43² = (47 + 43)(47 − 43) = 90 × 4 = 360.",
+        "(2k + 1)² − (2k − 1)² = 8k is always a multiple of 8."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "lin",
+      "subject": "mathematics",
+      "title": "Pair of Linear Equations — Graphical Method",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To solve a pair of linear equations graphically and check the conditions for consistency.",
+      "apparatus": [
+        "Graph sheet",
+        "Scale",
+        "Pencil"
+      ],
+      "procedure": [
+        "Set the coefficients of line 1: a₁x + b₁y = c₁.",
+        "Set the coefficients of line 2: a₂x + b₂y = c₂.",
+        "Observe whether the lines intersect, are parallel or coincide.",
+        "Compare a₁/a₂, b₁/b₂ and c₁/c₂ with the graph."
+      ],
+      "conclusion": "a₁/a₂ ≠ b₁/b₂: unique solution. a₁/a₂ = b₁/b₂ ≠ c₁/c₂: no solution (parallel). All three equal: infinitely many solutions.",
+      "tips": [],
+      "controlCount": 6,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "quadx",
+      "subject": "mathematics",
+      "title": "Quadratic Expressions — Graph, Sign, Discriminant & Roots",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To link the graph of y = ax² + bx + c with its discriminant, sign, vertex and roots, and to verify the sum and product of roots.",
+      "apparatus": [
+        "Graph sheet",
+        "Parabola template"
+      ],
+      "procedure": [
+        "Set a, b, c. The parabola opens up if a > 0 and down if a < 0; the vertex is at x = −b/2a with y = −Δ/4a.",
+        "Δ = b² − 4ac: Δ > 0 two real roots (crosses the axis), Δ = 0 equal roots (touches), Δ < 0 no real roots.",
+        "The shading shows where the expression is positive (green) and negative (red). If Δ < 0 it has the sign of a for every x.",
+        "Read the roots: α + β = −b/a, αβ = c/a, |α − β| = √Δ/|a|."
+      ],
+      "conclusion": "Δ = b² − 4ac decides the roots. Vertex (−b/2a, −Δ/4a) gives the minimum (a > 0) or maximum (a < 0) value. α + β = −b/a, αβ = c/a. If Δ < 0, ax² + bx + c has the same sign as a for all x. Roots of opposite sign ⇔ ac < 0.",
+      "tips": [
+        "a + b + c = 0 ⇒ roots are 1 and c/a.",
+        "a − b + c = 0 ⇒ roots are −1 and −c/a.",
+        "|α − β| = √Δ / |a| without finding the roots.",
+        "Roots of opposite signs whenever ac < 0 (then Δ > 0 automatically).",
+        "Reciprocal roots (αβ = 1) ⇔ a = c."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "amgm",
+      "subject": "mathematics",
+      "title": "AM ≥ GM ≥ HM — The Semicircle Proof",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To see the arithmetic, geometric and harmonic means of two positive numbers as three lengths in one semicircle, and verify A ≥ G ≥ H and G² = AH.",
+      "apparatus": [
+        "Compass",
+        "Ruler",
+        "Set square"
+      ],
+      "procedure": [
+        "Lay a and b end to end as the diameter of a semicircle. The radius is the AM = (a + b)/2.",
+        "At the joining point draw a perpendicular to the semicircle: its height is the GM = √ab (as in the √x construction).",
+        "Drop a perpendicular from the top of the GM line to the radius: the piece of radius cut off is the HM = 2ab/(a + b).",
+        "A radius is the longest, so A ≥ G ≥ H, with equality only when a = b. In the right triangle, G² = A × H."
+      ],
+      "conclusion": "For positive a, b: A = (a + b)/2, G = √ab, H = 2ab/(a + b). A ≥ G ≥ H, with equality ⇔ a = b. G² = AH, so A, G, H are in G.P.",
+      "tips": [
+        "Given A and G, the numbers a and b are the roots of x² − 2Ax + G² = 0.",
+        "Fixed sum ⇒ the product is greatest when the numbers are equal (a square has the largest area for a given perimeter).",
+        "n arithmetic means between a and b add up to n(a + b)/2; n geometric means multiply to (√ab)ⁿ."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "cubeid",
+      "subject": "mathematics",
+      "title": "Cube Identities in 3D — (a + b)³ and a³ − b³",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        9
+      ],
+      "aim": "To verify (a + b)³ = a³ + 3a²b + 3ab² + b³ and a³ − b³ = (a − b)(a² + ab + b²) by cutting cubes into blocks.",
+      "apparatus": [
+        "Unit cubes / thermocol blocks",
+        "Cutter",
+        "Scale"
+      ],
+      "procedure": [
+        "“(a + b)³”: cut each edge of a cube of side a + b at a. Slide the Explode control to separate the 8 blocks.",
+        "Count: one a³ cube, one b³ cube, three a²b slabs and three ab² rods.",
+        "“a³ − b³”: remove a b³ cube from a corner of an a³ cube. The rest splits into three cuboids, each with one edge a − b.",
+        "Their volumes (a − b)a², (a − b)ab, (a − b)b² add to (a − b)(a² + ab + b²). Drag the board to rotate."
+      ],
+      "conclusion": "(a + b)³ = a³ + 3a²b + 3ab² + b³ = a³ + b³ + 3ab(a + b). a³ − b³ = (a − b)(a² + ab + b²). Also (a − b)³ = a³ − 3a²b + 3ab² − b³ and a³ + b³ = (a + b)(a² − ab + b²).",
+      "tips": [
+        "a³ + b³ = (a + b)³ − 3ab(a + b);  a³ − b³ = (a − b)³ + 3ab(a − b).",
+        "If a + b + c = 0, then a³ + b³ + c³ = 3abc."
+      ],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": true,
+      "hasAnimation": false
+    },
+    {
+      "id": "quad",
+      "subject": "mathematics",
+      "title": "Zeros of a Quadratic Polynomial",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        10,
+        11
+      ],
+      "aim": "To find the zeros of p(x) = ax² + bx + c graphically and relate them to the discriminant.",
+      "apparatus": [
+        "Graph sheet",
+        "Table of values",
+        "French curve"
+      ],
+      "procedure": [
+        "Choose the coefficients a, b and c.",
+        "Observe the parabola and where it cuts the x-axis.",
+        "Note the vertex and axis of symmetry.",
+        "Relate the number of zeros with the discriminant D = b² − 4ac."
+      ],
+      "conclusion": "D > 0: two distinct zeros; D = 0: one repeated zero; D < 0: no real zeros. Sum of zeros = −b/a, product = c/a.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "ap",
+      "subject": "mathematics",
+      "title": "Arithmetic Progression & Sum of n Terms",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        10
+      ],
+      "aim": "To verify that the sum of first n terms of an AP is Sₙ = n/2 [2a + (n − 1)d] using a staircase model.",
+      "apparatus": [
+        "Coloured strips",
+        "Squared paper",
+        "Scissors (virtual)"
+      ],
+      "procedure": [
+        "Set the first term a, common difference d and number of terms n.",
+        "Each strip shows one term; the strips form a staircase.",
+        "Turn on “Pair with reversed copy” — the two staircases form a rectangle n × (a + l).",
+        "Half of the rectangle is Sₙ."
+      ],
+      "conclusion": "Sₙ = n/2 (a + l) = n/2 [2a + (n − 1)d], where l is the last term.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "csq",
+      "subject": "mathematics",
+      "title": "Completing the Square — Area Model",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        10
+      ],
+      "aim": "To solve x² + bx + c = 0 by completing the square using an area model.",
+      "apparatus": [
+        "Algebra tiles (x², x, 1)",
+        "Squared paper"
+      ],
+      "procedure": [
+        "Set b and c in x² + bx + c = 0.",
+        "Split the bx strip into two strips of (b/2)x on two sides of the x² square.",
+        "The missing corner is a (b/2)² square — add it to complete the square.",
+        "So x² + bx + c = (x + b/2)² − (b²/4 − c); solve for x."
+      ],
+      "conclusion": "x = −b/2 ± √(b²/4 − c); real roots exist only when b²/4 − c ≥ 0, i.e. D = b² − 4c ≥ 0.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "pnc",
+      "subject": "mathematics",
+      "title": "Permutations & Combinations",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        11
+      ],
+      "aim": "To count arrangements (permutations) and selections (combinations) of r objects from n and see why ⁿPᵣ = ⁿCᵣ × r!.",
+      "apparatus": [
+        "Letter cards",
+        "Arrangement slots",
+        "Tree diagram"
+      ],
+      "procedure": [
+        "Set n letters and r slots.",
+        "Fundamental principle: the first slot has n choices, the next n − 1, and so on.",
+        "Switch between permutations (order matters) and combinations (order ignored).",
+        "Each combination gives r! permutations."
+      ],
+      "conclusion": "ⁿPᵣ = n!/(n − r)!, ⁿCᵣ = n!/[r!(n − r)!], so ⁿPᵣ = ⁿCᵣ × r!.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "pascal",
+      "subject": "mathematics",
+      "title": "Pascal's Triangle & Binomial Theorem",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        11
+      ],
+      "aim": "To build Pascal's triangle and use its rows as the coefficients in the expansion of (a + b)ⁿ.",
+      "apparatus": [
+        "Number tiles",
+        "Triangle grid",
+        "Colour markers"
+      ],
+      "procedure": [
+        "Each number is the sum of the two numbers above it.",
+        "Choose the power n — the highlighted row gives the coefficients ⁿC₀, ⁿC₁, … ⁿCₙ.",
+        "Read the expansion of (a + b)ⁿ at the bottom.",
+        "Colour the odd numbers to discover a hidden pattern."
+      ],
+      "conclusion": "(a + b)ⁿ = Σ ⁿCᵣ aⁿ⁻ʳ bʳ; the row sum is 2ⁿ and the general term is Tᵣ₊₁ = ⁿCᵣ aⁿ⁻ʳ bʳ.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "gp",
+      "subject": "mathematics",
+      "title": "Geometric Progression & Sum to Infinity",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        11
+      ],
+      "aim": "To study the terms and partial sums of a GP and see when the sum to infinity exists.",
+      "apparatus": [
+        "Term bars",
+        "Graph sheet",
+        "Paper halving model"
+      ],
+      "procedure": [
+        "Set the first term a, the common ratio r and the number of terms n.",
+        "Amber bars show the terms; the cyan line shows the partial sums Sₙ.",
+        "For |r| < 1 the partial sums approach a/(1 − r) (green line).",
+        "Try r > 1 and r < 0 to see growth and oscillation."
+      ],
+      "conclusion": "aₙ = arⁿ⁻¹, Sₙ = a(1 − rⁿ)/(1 − r); when |r| < 1, S∞ = a/(1 − r).",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "cplx",
+      "subject": "mathematics",
+      "title": "Complex Numbers on the Argand Plane",
+      "topic": "algebra",
+      "topicLabel": "Algebra",
+      "topicColour": "#8A4FD6",
+      "classes": [
+        11
+      ],
+      "aim": "To represent complex numbers as points/vectors and see addition, multiplication, conjugate and division geometrically.",
+      "apparatus": [
+        "Argand plane",
+        "Vector arrows",
+        "Protractor"
+      ],
+      "procedure": [
+        "Drag z₁ (coral) and z₂ (cyan) on the plane.",
+        "Choose an operation; the result appears in green.",
+        "Addition follows the parallelogram law; multiplication multiplies moduli and adds arguments.",
+        "Read the modulus, argument and polar form."
+      ],
+      "conclusion": "z = a + ib = r(cos θ + i sin θ); |z₁z₂| = |z₁||z₂|, arg(z₁z₂) = arg z₁ + arg z₂; z̄ is the reflection of z in the real axis.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "geo",
+      "subject": "mathematics",
+      "title": "Perimeter & Area on a Geoboard",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        6,
+        7
+      ],
+      "aim": "To find the perimeter and area of rectangles on a geoboard and see that equal perimeters can enclose different areas.",
+      "apparatus": [
+        "Geoboard (pegs 1 unit apart)",
+        "Rubber band",
+        "Unit squares"
+      ],
+      "procedure": [
+        "Set the length and breadth of the rubber-band rectangle.",
+        "Count the unit squares inside to find the area.",
+        "Count the units along the boundary to find the perimeter.",
+        "Keep the perimeter fixed and change the sides — find which shape gives the largest area."
+      ],
+      "conclusion": "Perimeter = 2(l + b), Area = l × b. For a fixed perimeter, the square has the greatest area.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "area",
+      "subject": "mathematics",
+      "title": "Area of a Circle by Sector Rearrangement",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        7,
+        8
+      ],
+      "aim": "To find the area of a circle by cutting it into sectors and rearranging them into a parallelogram.",
+      "apparatus": [
+        "Circle cut-out",
+        "Scissors (virtual)",
+        "Scale",
+        "Coloured halves"
+      ],
+      "procedure": [
+        "Choose the radius r and the number of equal sectors.",
+        "Colour one half of the circle amber and the other cyan.",
+        "Arrange the sectors alternately to form a near-parallelogram.",
+        "Increase the sectors: base → πr, height → r, so area → πr²."
+      ],
+      "conclusion": "Area of circle = ½ × circumference × radius = πr × r = πr².",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "arearr",
+      "subject": "mathematics",
+      "title": "Area Formulas by Cutting & Rearranging",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        7,
+        8,
+        9
+      ],
+      "aim": "To derive the area formulas of a parallelogram, a triangle and a rhombus by cutting and rearranging into rectangles and parallelograms.",
+      "apparatus": [
+        "Paper shapes",
+        "Scissors",
+        "Scale"
+      ],
+      "procedure": [
+        "“Parallelogram”: cut the right triangle off one end and slide it to the other end — a rectangle b × h appears.",
+        "“Triangle”: turn a copy of the triangle about the mid-point of one side — two triangles make a parallelogram b × h, so one triangle is ½bh.",
+        "“Rhombus”: cut along the diagonals and move the two lower triangles up — a rectangle d₁ × ½d₂ appears.",
+        "Slide “Rearrange” from 0 to 1 and compare the areas before and after."
+      ],
+      "conclusion": "Parallelogram = base × height. Triangle = ½ × base × height. Rhombus = ½ × d₁ × d₂ (product of diagonals ÷ 2).",
+      "tips": [
+        "Height is always perpendicular to the base — never the slant side.",
+        "Any quadrilateral with perpendicular diagonals has area ½d₁d₂."
+      ],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "solid",
+      "subject": "mathematics",
+      "title": "3D Solids — Volume & Surface Area",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        8,
+        9,
+        10
+      ],
+      "aim": "To explore cylinder, cone, sphere and cuboid in 3D and compare their volumes and surface areas.",
+      "apparatus": [
+        "3D solid models",
+        "Measuring scale",
+        "Water jar (cylinder) for comparison"
+      ],
+      "procedure": [
+        "Select a solid and set radius r (side for cuboid) and height h.",
+        "Drag on the board to rotate the solid and view it from all sides.",
+        "Turn on “Compare with cylinder” to see the cylinder with the same base and height.",
+        "Read volume, curved and total surface area, and the ratio to the cylinder."
+      ],
+      "conclusion": "V(cone) = ⅓ V(cylinder) of same r and h; V(sphere) = ⅔ V(circumscribing cylinder).",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": true,
+      "hasAnimation": false
+    },
+    {
+      "id": "trap",
+      "subject": "mathematics",
+      "title": "Area of a Trapezium",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        8
+      ],
+      "aim": "To derive the area of a trapezium by joining it with a rotated copy to form a parallelogram.",
+      "apparatus": [
+        "Two identical trapezium cut-outs",
+        "Squared paper",
+        "Scale"
+      ],
+      "procedure": [
+        "Set the parallel sides a and b, the height h and the slant.",
+        "Turn on the rotated copy — it fits alongside to make a parallelogram.",
+        "The parallelogram has base (a + b) and height h.",
+        "The trapezium is half of it: Area = ½(a + b)h."
+      ],
+      "conclusion": "Area of trapezium = ½ × (sum of parallel sides) × height.",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "euler",
+      "subject": "mathematics",
+      "title": "Euler's Formula for Polyhedra — V − E + F = 2",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        8,
+        9
+      ],
+      "aim": "To count the vertices, edges and faces of different polyhedra and verify V − E + F = 2.",
+      "apparatus": [
+        "Straw-and-clay models",
+        "Nets of solids"
+      ],
+      "procedure": [
+        "Choose a solid. Drag the board to rotate it.",
+        "Count the vertices (corners), edges (lines) and faces (flat surfaces).",
+        "Work out V − E + F.",
+        "Repeat for every solid — the answer is always 2."
+      ],
+      "conclusion": "For every convex polyhedron, V − E + F = 2 (Euler’s formula).",
+      "tips": [
+        "Prism with an n-gon base: V = 2n, E = 3n, F = n + 2.",
+        "Pyramid with an n-gon base: V = n + 1, E = 2n, F = n + 1."
+      ],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": true,
+      "hasAnimation": false
+    },
+    {
+      "id": "heron",
+      "subject": "mathematics",
+      "title": "Heron's Formula",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        9
+      ],
+      "aim": "To find the area of a triangle from its three sides using Heron's formula and verify it with ½ × base × height.",
+      "apparatus": [
+        "Sticks of given lengths",
+        "Scale",
+        "Set square (for height)"
+      ],
+      "procedure": [
+        "Set the three sides a, b and c.",
+        "If the sum of two sides is not more than the third, no triangle can be formed.",
+        "Find s = (a + b + c)/2 and Area = √[s(s − a)(s − b)(s − c)].",
+        "Compare with ½ × a × h, where h is the measured height."
+      ],
+      "conclusion": "Area = √[s(s − a)(s − b)(s − c)] — the three sides alone fix the area.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "solnet",
+      "subject": "mathematics",
+      "title": "Cone, Cylinder & Sphere — Nets and Pouring",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To obtain the surface area formulas of a cylinder, cone and sphere by unrolling them, and the volume formulas by pouring.",
+      "apparatus": [
+        "Paper cylinder and cone",
+        "Ball and string",
+        "Measuring jar",
+        "Sand or water"
+      ],
+      "procedure": [
+        "Choose a solid and “Surface area (unroll)”. Slide Unroll from 0 to 1 to open the curved surface flat.",
+        "Cylinder: the curved surface becomes a rectangle 2πr × h. Cone: it becomes a sector of radius l and arc 2πr. Sphere: string wound on it covers exactly four circles of radius r.",
+        "Choose “Volume (pour)”. Pour cones (or a sphere) of the same radius into the cylinder and count how many fill it.",
+        "Change r and h and record the areas and volumes in the observation table."
+      ],
+      "conclusion": "Cylinder: CSA = 2πrh, TSA = 2πr(r + h), V = πr²h. Cone: CSA = πrl, TSA = πr(l + r), V = ⅓πr²h (3 cones fill the cylinder). Sphere: SA = 4πr², V = ⁴⁄₃πr³ (= ⅔ of the cylinder of height 2r).",
+      "tips": [],
+      "controlCount": 6,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sector",
+      "subject": "mathematics",
+      "title": "Arc Length, Sector & Segment Area",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        10
+      ],
+      "aim": "To find the length of an arc, the area of a sector and the area of a segment of a circle for any central angle.",
+      "apparatus": [
+        "Compass",
+        "Protractor",
+        "Circle cut-out"
+      ],
+      "procedure": [
+        "Set the radius r and the central angle θ.",
+        "The sector is the fraction θ/360 of the circle.",
+        "Arc length = θ/360 × 2πr; sector area = θ/360 × πr².",
+        "Turn on segment: segment = sector − triangle OAB."
+      ],
+      "conclusion": "l = θ/360 × 2πr, A(sector) = θ/360 × πr², A(minor segment) = A(sector) − ½r² sin θ.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "frust",
+      "subject": "mathematics",
+      "title": "Frustum & Combinations of Solids",
+      "topic": "mensuration",
+      "topicLabel": "Mensuration",
+      "topicColour": "#0F9A76",
+      "classes": [
+        10
+      ],
+      "aim": "To find the surface area and volume of a frustum of a cone and of solids made by combining a cone, cylinder and hemispheres.",
+      "apparatus": [
+        "3D solid models",
+        "Clay (virtual)",
+        "Measuring scale"
+      ],
+      "procedure": [
+        "Choose a solid: frustum (bucket), cone on a hemisphere (ice-cream) or capsule.",
+        "Set the radii and height; drag on the board to rotate.",
+        "Read the volume and surface area from the meters.",
+        "For combined solids add the volumes but count only the exposed surfaces."
+      ],
+      "conclusion": "Frustum: V = ⅓πh(R² + r² + Rr), CSA = πl(R + r) with l = √(h² + (R − r)²).",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": true,
+      "hasAnimation": false
+    },
+    {
+      "id": "compang",
+      "subject": "mathematics",
+      "title": "Compound Angles — sin(A + B) and cos(A + B) by Geometry",
+      "topic": "trigonometry",
+      "topicLabel": "Trigonometry",
+      "topicColour": "#D23A6C",
+      "classes": [
+        9,
+        10,
+        11
+      ],
+      "aim": "To prove sin(A + B) = sin A cos B + cos A sin B and cos(A + B) = cos A cos B − sin A sin B from one rectangle built around two right triangles.",
+      "apparatus": [
+        "Unit hypotenuse strip",
+        "Set square",
+        "Protractor"
+      ],
+      "procedure": [
+        "A right triangle with hypotenuse OQ = 1 and angle B sits on top of a right triangle with angle A. OQ makes angle A + B with the base.",
+        "Inner triangle: OP = cos B and PQ = sin B. Lower triangle: base cos A cos B, height sin A cos B.",
+        "The small top triangle has angle A at P: its sides are cos A sin B (vertical) and sin A sin B (horizontal).",
+        "Rectangle height = sin(A + B) = sin A cos B + cos A sin B. Top width = cos(A + B) = cos A cos B − sin A sin B."
+      ],
+      "conclusion": "sin(A ± B) = sin A cos B ± cos A sin B; cos(A ± B) = cos A cos B ∓ sin A sin B; tan(A ± B) = (tan A ± tan B)/(1 ∓ tan A tan B).",
+      "tips": [
+        "sin 15° = cos 75° = (√3 − 1)/(2√2);  cos 15° = sin 75° = (√3 + 1)/(2√2).",
+        "tan 15° = 2 − √3;  tan 75° = 2 + √3.",
+        "If A + B = 45°, then (1 + tan A)(1 + tan B) = 2.",
+        "sin(A + B) sin(A − B) = sin²A − sin²B."
+      ],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "multang",
+      "subject": "mathematics",
+      "title": "Multiple & Half Angles — Double, Triple and θ/2",
+      "topic": "trigonometry",
+      "topicLabel": "Trigonometry",
+      "topicColour": "#D23A6C",
+      "classes": [
+        9,
+        10,
+        11
+      ],
+      "aim": "To verify the double-angle formulas on graphs, prove tan(θ/2) = sin θ/(1 + cos θ) from the unit circle, and check the 60° product rule.",
+      "apparatus": [
+        "Unit circle",
+        "Graph sheet",
+        "Protractor"
+      ],
+      "procedure": [
+        "“Double angle”: the curves sin 2x and 2 sin x cos x lie exactly on top of each other; so do cos 2x, cos²x − sin²x, 1 − 2sin²x and 2cos²x − 1.",
+        "“Half angle”: from A(−1, 0), the angle PAO is half of the angle POX = θ (angle at the circumference is half the angle at the centre).",
+        "In right △APN: tan(θ/2) = PN/AN = sin θ/(1 + cos θ).",
+        "“60° product”: sin θ · sin(60° − θ) · sin(60° + θ) = ¼ sin 3θ for every θ."
+      ],
+      "conclusion": "sin 2θ = 2 sin θ cos θ; cos 2θ = cos²θ − sin²θ = 1 − 2 sin²θ = 2 cos²θ − 1; tan 2θ = 2 tan θ/(1 − tan²θ). sin 3θ = 3 sin θ − 4 sin³θ; cos 3θ = 4 cos³θ − 3 cos θ. tan(θ/2) = sin θ/(1 + cos θ) = (1 − cos θ)/sin θ.",
+      "tips": [
+        "sin θ · sin(60° − θ) · sin(60° + θ) = ¼ sin 3θ;  same with cos;  tan θ · tan(60° − θ) · tan(60° + θ) = tan 3θ.",
+        "θ = 10°: sin 10° sin 50° sin 70° = ¼ sin 30° = 1/8.",
+        "sin 18° = (√5 − 1)/4,  cos 36° = (√5 + 1)/4.",
+        "1 + cos 2θ = 2cos²θ and 1 − cos 2θ = 2sin²θ — the key to every half-angle formula."
+      ],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "unit",
+      "subject": "mathematics",
+      "title": "Trigonometric Ratios on the Unit Circle",
+      "topic": "trigonometry",
+      "topicLabel": "Trigonometry",
+      "topicColour": "#D23A6C",
+      "classes": [
+        10,
+        11
+      ],
+      "aim": "To study sin θ, cos θ and tan θ on a unit circle and trace their graphs from 0° to 360°.",
+      "apparatus": [
+        "Unit circle",
+        "Rotating radius arm",
+        "Graph tracer"
+      ],
+      "procedure": [
+        "Rotate the radius OP by changing θ (or press Animate).",
+        "cos θ is the x-coordinate (cyan); sin θ is the y-coordinate (coral) of P.",
+        "tan θ is read on the tangent line x = 1 (amber).",
+        "Watch the sine and cosine waves being traced on the right."
+      ],
+      "conclusion": "sin²θ + cos²θ = 1 for all θ; sin and cos are periodic with period 360°, and tan θ = sin θ / cos θ.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": true
+    },
+    {
+      "id": "height",
+      "subject": "mathematics",
+      "title": "Heights & Distances with a Clinometer",
+      "topic": "trigonometry",
+      "topicLabel": "Trigonometry",
+      "topicColour": "#D23A6C",
+      "classes": [
+        10
+      ],
+      "aim": "To find the height of a tower using a clinometer and the angle of elevation.",
+      "apparatus": [
+        "Clinometer (protractor + straw + plumb line)",
+        "Measuring tape",
+        "Tower model"
+      ],
+      "procedure": [
+        "Stand at a measured distance d from the foot of the tower.",
+        "Sight the top of the tower through the clinometer straw.",
+        "Read the angle of elevation θ from the plumb line.",
+        "Height = d × tan θ + eye height. Record readings for different distances."
+      ],
+      "conclusion": "Height of object h = d tan θ + observer’s eye level; the value is the same from every position.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "trigT",
+      "subject": "mathematics",
+      "title": "Trigonometric Graphs — Amplitude, Period & Phase",
+      "topic": "trigonometry",
+      "topicLabel": "Trigonometry",
+      "topicColour": "#D23A6C",
+      "classes": [
+        11
+      ],
+      "aim": "To study the graph of y = A sin(Bx + C) + D and find its amplitude, period, phase shift and range.",
+      "apparatus": [
+        "Graph plotter",
+        "Radian ruler",
+        "Wave tracer"
+      ],
+      "procedure": [
+        "Choose sin or cos; the dashed curve is the basic graph.",
+        "Change A to stretch vertically, B to change the period, C to shift sideways and D to lift the curve.",
+        "The bracket shows one full period 2π/B.",
+        "Read amplitude, period, phase shift and range."
+      ],
+      "conclusion": "For y = A sin(Bx + C) + D: amplitude |A|, period 2π/|B|, phase shift −C/B, range [D − |A|, D + |A|].",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "invtrig",
+      "subject": "mathematics",
+      "title": "Inverse Trigonometric Functions",
+      "topic": "trigonometry",
+      "topicLabel": "Trigonometry",
+      "topicColour": "#D23A6C",
+      "classes": [
+        12
+      ],
+      "aim": "To obtain the graphs of sin⁻¹x, cos⁻¹x and tan⁻¹x by reflecting the principal branch of the trigonometric graph in the line y = x.",
+      "apparatus": [
+        "Graph plotter",
+        "Mirror (line y = x)",
+        "Unit circle"
+      ],
+      "procedure": [
+        "Choose a function. The faint curve is the full trigonometric graph.",
+        "The cyan part is the principal branch where the function is one-one and onto.",
+        "Reflect it in y = x to get the inverse function (coral).",
+        "Move x and read the principal value f⁻¹(x)."
+      ],
+      "conclusion": "sin⁻¹: [−1, 1] → [−π/2, π/2], cos⁻¹: [−1, 1] → [0, π], tan⁻¹: ℝ → (−π/2, π/2); the graphs of f and f⁻¹ are mirror images in y = x.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "stat",
+      "subject": "mathematics",
+      "title": "Mean, Median & Mode",
+      "topic": "statistics-and-probability",
+      "topicLabel": "Statistics & Probability",
+      "topicColour": "#B98100",
+      "classes": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "aim": "To find the mean, median and mode of a data set using a bar graph.",
+      "apparatus": [
+        "Data cards",
+        "Bar graph board",
+        "Levelling line"
+      ],
+      "procedure": [
+        "Drag the top of each bar to set the data values (0–10).",
+        "The mean line (amber) is the level at which the bars would balance.",
+        "The median line (cyan) is the middle value after arranging in order.",
+        "The mode bars (highlighted) occur most often."
+      ],
+      "conclusion": "Mean = Σx / n; Median = middle value of ordered data; Mode = most frequent value.",
+      "tips": [],
+      "controlCount": 0,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "prob",
+      "subject": "mathematics",
+      "title": "Probability — Coins & Dice Experiment",
+      "topic": "statistics-and-probability",
+      "topicLabel": "Statistics & Probability",
+      "topicColour": "#B98100",
+      "classes": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "aim": "To find the experimental probability of outcomes by tossing coins and rolling a die, and compare with theoretical probability.",
+      "apparatus": [
+        "Coin",
+        "Die",
+        "Tally counter",
+        "Bar graph"
+      ],
+      "procedure": [
+        "Choose the experiment: one coin, one die or two coins.",
+        "Run trials in batches of 1, 10 or 100.",
+        "Observe the bar graph of experimental probabilities (bars) against theoretical values (dashed).",
+        "Record readings after 10, 100 and 1000 trials."
+      ],
+      "conclusion": "As the number of trials increases, experimental probability gets closer to the theoretical probability.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 4,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "pie",
+      "subject": "mathematics",
+      "title": "Pie Chart — Data in a Circle",
+      "topic": "statistics-and-probability",
+      "topicLabel": "Statistics & Probability",
+      "topicColour": "#B98100",
+      "classes": [
+        8
+      ],
+      "aim": "To represent data as a pie chart by finding the central angle of each sector.",
+      "apparatus": [
+        "Survey table",
+        "Compass",
+        "Protractor"
+      ],
+      "procedure": [
+        "A class survey of favourite sports — set the number of students for each sport.",
+        "Find each central angle = (value ÷ total) × 360°.",
+        "Draw the sectors with a protractor; the pie chart updates instantly.",
+        "Check that the angles add up to 360°."
+      ],
+      "conclusion": "Central angle = (frequency ÷ total) × 360°; all the sectors together make 360°.",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "ogive",
+      "subject": "mathematics",
+      "title": "Grouped Data — Histogram, Ogive & Median",
+      "topic": "statistics-and-probability",
+      "topicLabel": "Statistics & Probability",
+      "topicColour": "#B98100",
+      "classes": [
+        9,
+        10
+      ],
+      "aim": "To draw a histogram and a less-than ogive for grouped data and find the mean, median and mode.",
+      "apparatus": [
+        "Frequency table",
+        "Graph sheet",
+        "French curve"
+      ],
+      "procedure": [
+        "Drag the top of each bar to set the frequency of each class (marks out of 60).",
+        "The less-than ogive (amber) joins cumulative frequencies at the upper class limits.",
+        "Draw a line at N/2 — where it meets the ogive gives the median.",
+        "Compare with the formula values of mean, median and mode."
+      ],
+      "conclusion": "Median = l + ((N/2 − cf)/f) × h; Mode = l + ((f₁ − f₀)/(2f₁ − f₀ − f₂)) × h; empirically Mode ≈ 3 Median − 2 Mean.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sd",
+      "subject": "mathematics",
+      "title": "Measures of Dispersion — Variance & SD",
+      "topic": "statistics-and-probability",
+      "topicLabel": "Statistics & Probability",
+      "topicColour": "#B98100",
+      "classes": [
+        11
+      ],
+      "aim": "To find the mean deviation, variance and standard deviation of data and see how spread affects them.",
+      "apparatus": [
+        "Number line",
+        "Data counters",
+        "Calculator"
+      ],
+      "procedure": [
+        "Drag the seven data points along the number line.",
+        "The amber line is the mean; bars show each deviation (x − x̄).",
+        "The mean of squared deviations is the variance; its square root is σ.",
+        "Spread the points out or bunch them together and compare σ."
+      ],
+      "conclusion": "σ² = Σ(x − x̄)²/n and σ = √σ²; data clustered near the mean has a smaller standard deviation.",
+      "tips": [],
+      "controlCount": 0,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "bayes",
+      "subject": "mathematics",
+      "title": "Conditional Probability & Bayes' Theorem",
+      "topic": "statistics-and-probability",
+      "topicLabel": "Statistics & Probability",
+      "topicColour": "#B98100",
+      "classes": [
+        12
+      ],
+      "aim": "To find P(Disease | Positive test) using an area model and Bayes' theorem.",
+      "apparatus": [
+        "Unit-square area model",
+        "Probability tree",
+        "Population tokens"
+      ],
+      "procedure": [
+        "Set the prevalence P(D), the sensitivity P(+|D) and the false-positive rate P(+|D′).",
+        "The square is split: widths are P(D) and P(D′); heights are chances of a positive test.",
+        "Positive results are the two shaded regions.",
+        "P(D|+) = shaded area inside D ÷ total shaded area."
+      ],
+      "conclusion": "P(D|+) = P(D)P(+|D) / [P(D)P(+|D) + P(D′)P(+|D′)] — for a rare condition most positives can be false.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "binom",
+      "subject": "mathematics",
+      "title": "Binomial Distribution",
+      "topic": "statistics-and-probability",
+      "topicLabel": "Statistics & Probability",
+      "topicColour": "#B98100",
+      "classes": [
+        12
+      ],
+      "aim": "To study the binomial distribution B(n, p) and find P(X = k), its mean and variance.",
+      "apparatus": [
+        "Bernoulli trial simulator",
+        "Bar graph board"
+      ],
+      "procedure": [
+        "Set n (number of trials) and p (probability of success).",
+        "Bars show P(X = k) = ⁿCₖ pᵏ qⁿ⁻ᵏ.",
+        "Pick k to highlight; read P(X = k) and P(X ≤ k).",
+        "Observe the mean np and the spread √(npq)."
+      ],
+      "conclusion": "For X ~ B(n, p): mean = np, variance = npq; the distribution is symmetric when p = ½.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "concur",
+      "subject": "mathematics",
+      "title": "Concurrency of Three Lines — the Determinant Test",
+      "topic": "coordinate-geometry",
+      "topicLabel": "Coordinate Geometry",
+      "topicColour": "#0B8AA6",
+      "classes": [
+        9,
+        10,
+        11
+      ],
+      "aim": "To find when three lines pass through one point, using the 3 × 3 determinant of their coefficients, and check it on the graph.",
+      "apparatus": [
+        "Graph sheet",
+        "Ruler"
+      ],
+      "procedure": [
+        "Set lines L₁ and L₂; their meeting point is shown.",
+        "Move c₃ of L₃ (a parallel shift): L₃ slides across the plane.",
+        "When the determinant of the coefficients is 0, L₃ passes through the meeting point — the three lines are concurrent.",
+        "Check: substitute the meeting point of L₁ and L₂ into L₃. It gives 0 exactly when the lines are concurrent."
+      ],
+      "conclusion": "Lines aᵢx + bᵢy + cᵢ = 0 (i = 1, 2, 3), no two parallel, are concurrent ⇔ the determinant |a₁ b₁ c₁; a₂ b₂ c₂; a₃ b₃ c₃| = 0. Equivalently, the point of intersection of two of them satisfies the third.",
+      "tips": [
+        "Expand the determinant only along the row or column containing the unknown.",
+        "Verify: solve any two lines, substitute in the third.",
+        "A zero determinant also occurs when the lines are parallel — check that no two are parallel."
+      ],
+      "controlCount": 9,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sect",
+      "subject": "mathematics",
+      "title": "Distance & Section Formula",
+      "topic": "coordinate-geometry",
+      "topicLabel": "Coordinate Geometry",
+      "topicColour": "#0B8AA6",
+      "classes": [
+        10
+      ],
+      "aim": "To find the distance between two points and the point dividing the join in a given ratio.",
+      "apparatus": [
+        "Graph sheet",
+        "Ruler",
+        "Divider"
+      ],
+      "procedure": [
+        "Drag points A and B on the coordinate plane.",
+        "Read the distance AB = √[(x₂ − x₁)² + (y₂ − y₁)²].",
+        "Set the ratio m : n; P divides AB internally in this ratio.",
+        "Compare P with the section formula and the mid-point M."
+      ],
+      "conclusion": "P = ((mx₂ + nx₁)/(m + n), (my₂ + ny₁)/(m + n)); for m = n, P is the mid-point.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "conic",
+      "subject": "mathematics",
+      "title": "Conic Sections by Eccentricity",
+      "topic": "coordinate-geometry",
+      "topicLabel": "Coordinate Geometry",
+      "topicColour": "#0B8AA6",
+      "classes": [
+        11
+      ],
+      "aim": "To obtain circle, ellipse, parabola and hyperbola as the locus of a point whose distance from a focus bears a constant ratio e to its distance from a directrix.",
+      "apparatus": [
+        "Double cone model",
+        "Focus pin & directrix rod",
+        "Thread & pencil"
+      ],
+      "procedure": [
+        "Set the eccentricity e and the semi-latus rectum l.",
+        "Move point P along the curve with the slider.",
+        "Compare PF (amber) and PD (cyan) on the meters.",
+        "Note the conic type for e = 0, 0 < e < 1, e = 1 and e > 1."
+      ],
+      "conclusion": "PF / PD = e for every point. e = 0 circle, 0 < e < 1 ellipse, e = 1 parabola, e > 1 hyperbola.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "sline",
+      "subject": "mathematics",
+      "title": "Slope & Equation of a Straight Line",
+      "topic": "coordinate-geometry",
+      "topicLabel": "Coordinate Geometry",
+      "topicColour": "#0B8AA6",
+      "classes": [
+        11
+      ],
+      "aim": "To find the slope, angle of inclination and different forms of the equation of a line, and lines parallel and perpendicular to it.",
+      "apparatus": [
+        "Graph sheet",
+        "Ruler",
+        "Protractor",
+        "Set square"
+      ],
+      "procedure": [
+        "Drag A and B to define the line.",
+        "Read the rise and run: slope m = (y₂ − y₁)/(x₂ − x₁) = tan θ.",
+        "Compare the slope-intercept form y = mx + c and the general form ax + by + c = 0.",
+        "Turn on parallel/perpendicular lines through P: slopes m and −1/m."
+      ],
+      "conclusion": "Parallel lines have equal slopes; perpendicular lines have m₁ × m₂ = −1.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "interval",
+      "subject": "mathematics",
+      "title": "Intervals, Union & Intersection, and |x − c| < r",
+      "topic": "sets-and-functions",
+      "topicLabel": "Sets & Functions",
+      "topicColour": "#A0522D",
+      "classes": [
+        9,
+        10,
+        11
+      ],
+      "aim": "To write sets of real numbers in interval notation, find unions and intersections of intervals, and turn |x − c| ≤ r into an interval.",
+      "apparatus": [
+        "Number line",
+        "Open and closed markers"
+      ],
+      "procedure": [
+        "A square bracket [ ] includes the end point (filled dot); a round bracket ( ) excludes it (hollow dot).",
+        "Set two intervals. The intersection is the overlap (in both); the union is everything covered (in either).",
+        "If the intervals do not overlap, the intersection is empty (∅) and the union is two separate pieces.",
+        "“|x − c| ≤ r”: all points within distance r of c, i.e. [c − r, c + r]; with < the ends are open."
+      ],
+      "conclusion": "[a, b] = {x : a ≤ x ≤ b}, (a, b) = {x : a < x < b}, and the half-open forms mix them. A ∩ B is the overlap; A ∪ B is the total coverage. |x − c| ≤ r ⇔ c − r ≤ x ≤ c + r; |x − c| < r ⇔ x ∈ (c − r, c + r).",
+      "tips": [
+        "|x − c| < r: centre c, radius r ⇒ (c − r, c + r). Example |x − 3| < 5 ⇒ (−2, 8).",
+        "|x − c| > r is the outside: (−∞, c − r) ∪ (c + r, ∞).",
+        "∞ always takes a round bracket."
+      ],
+      "controlCount": 10,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "venn",
+      "subject": "mathematics",
+      "title": "Sets & Venn Diagrams",
+      "topic": "sets-and-functions",
+      "topicLabel": "Sets & Functions",
+      "topicColour": "#A0522D",
+      "classes": [
+        11
+      ],
+      "aim": "To represent set operations on Venn diagrams and verify n(A ∪ B) = n(A) + n(B) − n(A ∩ B).",
+      "apparatus": [
+        "Venn diagram board",
+        "Counters",
+        "Coloured shading"
+      ],
+      "procedure": [
+        "Set n(U), n(A), n(B) and n(A ∩ B).",
+        "Read the number of elements in each region.",
+        "Choose a set operation to shade it.",
+        "Verify the formula for n(A ∪ B)."
+      ],
+      "conclusion": "n(A ∪ B) = n(A) + n(B) − n(A ∩ B); n(A′) = n(U) − n(A).",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "func",
+      "subject": "mathematics",
+      "title": "Functions — Domain, Range & Graph Transformations",
+      "topic": "sets-and-functions",
+      "topicLabel": "Sets & Functions",
+      "topicColour": "#A0522D",
+      "classes": [
+        11
+      ],
+      "aim": "To study the graphs of standard functions and how y = a·f(x − h) + k stretches, reflects and shifts them; to read domain and range.",
+      "apparatus": [
+        "Graph plotter",
+        "Transparency sheet",
+        "Function cards"
+      ],
+      "procedure": [
+        "Choose a parent function f(x) (dashed).",
+        "Change a to stretch or reflect, h to shift right/left and k to shift up/down.",
+        "Observe how the key point moves from (0, 0) to (h, k).",
+        "Read the domain and range of the new function."
+      ],
+      "conclusion": "y = a f(x − h) + k: |a| stretches, a < 0 reflects in the x-axis, h shifts horizontally and k vertically.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "onto",
+      "subject": "mathematics",
+      "title": "Relations & Functions — One-one and Onto",
+      "topic": "sets-and-functions",
+      "topicLabel": "Sets & Functions",
+      "topicColour": "#A0522D",
+      "classes": [
+        11,
+        12
+      ],
+      "aim": "To classify a relation as a function, one-one (injective), onto (surjective) or bijective using arrow diagrams and the horizontal line test.",
+      "apparatus": [
+        "Arrow diagram board",
+        "Graph plotter",
+        "Horizontal ruler"
+      ],
+      "procedure": [
+        "Choose a relation from A to B and study its arrow diagram.",
+        "Function: every element of A has exactly one image. One-one: no two arrows meet. Onto: every element of B is hit.",
+        "Choose a real function and slide the horizontal line y = k.",
+        "If some horizontal line cuts the graph more than once, it is not one-one."
+      ],
+      "conclusion": "A bijection is both one-one and onto and only bijections have inverses. Horizontal line test: at most one intersection ⇔ one-one.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "deriv",
+      "subject": "mathematics",
+      "title": "Derivative as Slope of the Tangent",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        11,
+        12
+      ],
+      "aim": "To understand the derivative f′(x₀) as the limit of secant slopes, i.e. the slope of the tangent.",
+      "apparatus": [
+        "Graph plotter",
+        "Tangent ruler",
+        "Secant line"
+      ],
+      "procedure": [
+        "Choose a function and a point x₀.",
+        "The secant joins P(x₀, f(x₀)) and Q(x₀ + h, f(x₀ + h)).",
+        "Reduce h towards 0 and watch the secant approach the tangent.",
+        "Compare secant slope with f′(x₀) on the meters."
+      ],
+      "conclusion": "f′(x₀) = lim(h→0) [f(x₀ + h) − f(x₀)] / h is the slope of the tangent at P.",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "lim",
+      "subject": "mathematics",
+      "title": "Limit of sin x / x as x → 0",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        11
+      ],
+      "aim": "To show geometrically that sin x < x < tan x and hence lim(x→0) sin x / x = 1.",
+      "apparatus": [
+        "Unit circle",
+        "Sector cut-outs",
+        "Graph plotter"
+      ],
+      "procedure": [
+        "Set the angle x (in radians) using the slider.",
+        "Compare the areas: triangle OAP (½ sin x), sector OAP (½ x) and triangle OAT (½ tan x).",
+        "Reduce x towards 0 and watch sin x / x on the graph.",
+        "Note that cos x < sin x / x < 1, so the limit is 1."
+      ],
+      "conclusion": "Since cos x < sin x / x < 1 and cos x → 1, lim(x→0) sin x / x = 1 (squeeze principle).",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "integ",
+      "subject": "mathematics",
+      "title": "Definite Integral as Area (Riemann Sums)",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        12
+      ],
+      "aim": "To evaluate a definite integral as the limit of a sum of areas of rectangles.",
+      "apparatus": [
+        "Graph plotter",
+        "Strip rectangles",
+        "Area counter"
+      ],
+      "procedure": [
+        "Choose a function and the limits a and b.",
+        "Divide [a, b] into n strips and choose the rule (left, right, midpoint, trapezoid).",
+        "Increase n and watch the total area approach the exact integral.",
+        "Record the approximations and the error."
+      ],
+      "conclusion": "∫ₐᵇ f(x) dx = lim(n→∞) Σ f(xᵢ) Δx — the area under the curve.",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "box",
+      "subject": "mathematics",
+      "title": "Maximum Volume of an Open Box",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        12
+      ],
+      "aim": "To construct an open box of maximum volume from a square sheet by cutting equal squares from the corners.",
+      "apparatus": [
+        "Square sheet",
+        "Scissors (virtual)",
+        "Scale",
+        "Graph of V(x)"
+      ],
+      "procedure": [
+        "Choose the side L of the square sheet.",
+        "Cut squares of side x from each corner and fold up the flaps.",
+        "Read the volume V = x(L − 2x)² and watch the point move on the graph.",
+        "Find x for which V is maximum and compare with L/6."
+      ],
+      "conclusion": "dV/dx = 0 gives x = L/6; the maximum volume is 2L³/27.",
+      "tips": [],
+      "controlCount": 3,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": true,
+      "hasAnimation": false
+    },
+    {
+      "id": "cont",
+      "subject": "mathematics",
+      "title": "Continuity & Differentiability",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        12
+      ],
+      "aim": "To test a function for continuity and differentiability at a point by comparing left and right limits and derivatives, and by zooming in.",
+      "apparatus": [
+        "Graph plotter",
+        "Zoom lens",
+        "Tangent ruler"
+      ],
+      "procedure": [
+        "Choose a function and the point x = a.",
+        "Compare the left-hand limit, right-hand limit and f(a).",
+        "Compare the left and right derivatives (coral and cyan tangents).",
+        "Zoom in: a differentiable curve looks like a straight line; a corner stays a corner."
+      ],
+      "conclusion": "f is continuous at a if LHL = RHL = f(a); differentiable if the left and right derivatives are equal and finite. Differentiable ⇒ continuous, but not conversely.",
+      "tips": [],
+      "controlCount": 2,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "mono",
+      "subject": "mathematics",
+      "title": "Increasing, Decreasing & Maxima/Minima",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        12
+      ],
+      "aim": "To find the intervals where a function increases or decreases and locate its local maxima and minima using f′(x).",
+      "apparatus": [
+        "Graph plotter",
+        "Tangent ruler",
+        "Sign chart"
+      ],
+      "procedure": [
+        "Set p and q in f(x) = x³ + px² + qx.",
+        "The curve is green where f′(x) > 0 (increasing) and coral where f′(x) < 0 (decreasing).",
+        "At critical points f′(x) = 0; use the sign change or f″ to classify them.",
+        "Move x₀ to see the tangent slope at any point."
+      ],
+      "conclusion": "f′ > 0 ⇒ increasing, f′ < 0 ⇒ decreasing. At f′(c) = 0: f″(c) < 0 ⇒ local maximum, f″(c) > 0 ⇒ local minimum.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "de",
+      "subject": "mathematics",
+      "title": "Differential Equations — Slope Field & Solution Curves",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        12
+      ],
+      "aim": "To visualise a first-order differential equation as a slope field and draw the particular solution through a chosen initial point.",
+      "apparatus": [
+        "Slope-field grid",
+        "Initial-point pin",
+        "Curve tracer"
+      ],
+      "procedure": [
+        "Choose a differential equation dy/dx = f(x, y).",
+        "Each short segment shows the slope at that point.",
+        "Drag the initial point P(x₀, y₀); the solution curve follows the slopes.",
+        "Compare with the general solution and find the constant C."
+      ],
+      "conclusion": "The general solution is a family of curves; an initial condition y(x₀) = y₀ picks one particular solution.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "mvt",
+      "subject": "mathematics",
+      "title": "Rolle's Theorem & Lagrange's Mean Value Theorem",
+      "topic": "calculus",
+      "topicLabel": "Calculus",
+      "topicColour": "#4553D1",
+      "classes": [
+        12
+      ],
+      "aim": "To verify that a smooth curve has at least one point c in (a, b) where the tangent is parallel to the chord joining (a, f(a)) and (b, f(b)).",
+      "apparatus": [
+        "Graph of f(x)",
+        "Chord (secant) ruler",
+        "Sliding tangent",
+        "Slope meter"
+      ],
+      "procedure": [
+        "Choose a function f(x) and set the interval end points a and b.",
+        "Join A(a, f(a)) and B(b, f(b)) by a chord and read its slope m = [f(b) − f(a)] / (b − a).",
+        "Find every c in (a, b) where the tangent slope f′(c) equals m; these tangents are parallel to the chord.",
+        "Make f(a) = f(b) (e.g. a = −b for an even function): the chord is horizontal and f′(c) = 0, which is Rolle's theorem."
+      ],
+      "conclusion": "If f is continuous on [a, b] and differentiable on (a, b), there is at least one c in (a, b) with f′(c) = [f(b) − f(a)] / (b − a). Rolle's theorem is the special case f(a) = f(b), giving f′(c) = 0.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "vec",
+      "subject": "mathematics",
+      "title": "Addition of Vectors",
+      "topic": "vectors-and-matrices",
+      "topicLabel": "Vectors & Matrices",
+      "topicColour": "#2E7D5B",
+      "classes": [
+        12
+      ],
+      "aim": "To verify the triangle and parallelogram laws of vector addition and compute the dot product.",
+      "apparatus": [
+        "Vector arrows",
+        "Graph sheet",
+        "Protractor"
+      ],
+      "procedure": [
+        "Drag the tips of vectors a (coral) and b (cyan).",
+        "Choose triangle law (place b at the head of a) or parallelogram law.",
+        "The resultant a + b is drawn in green.",
+        "Read the components, magnitude and the angle between a and b."
+      ],
+      "conclusion": "a + b = (a₁ + b₁, a₂ + b₂); |a + b|² = |a|² + |b|² + 2a·b; the laws give the same resultant.",
+      "tips": [],
+      "controlCount": 1,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": true,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "mat",
+      "subject": "mathematics",
+      "title": "Matrices as Transformations",
+      "topic": "vectors-and-matrices",
+      "topicLabel": "Vectors & Matrices",
+      "topicColour": "#2E7D5B",
+      "classes": [
+        12
+      ],
+      "aim": "To see a 2 × 2 matrix as a transformation of the plane and relate its determinant to area.",
+      "apparatus": [
+        "Transparency grid",
+        "Unit square",
+        "Matrix cards"
+      ],
+      "procedure": [
+        "Pick a preset (identity, rotation, reflection, shear, enlargement) or set a, b, c, d.",
+        "The unit square maps to the green parallelogram; columns of the matrix are the images of î and ĵ.",
+        "Compare the image area with |det A|.",
+        "A negative determinant flips the orientation of the “F” shape."
+      ],
+      "conclusion": "Area of image = |det A| × original area; det A < 0 reverses orientation; det A = 0 collapses the plane to a line.",
+      "tips": [],
+      "controlCount": 5,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    },
+    {
+      "id": "v3d",
+      "subject": "mathematics",
+      "title": "Vectors in 3D — Dot & Cross Product",
+      "topic": "vectors-and-matrices",
+      "topicLabel": "Vectors & Matrices",
+      "topicColour": "#2E7D5B",
+      "classes": [
+        12
+      ],
+      "aim": "To visualise vectors in space and find their dot product, cross product and the area of the parallelogram they span.",
+      "apparatus": [
+        "3D axes model",
+        "Vector rods",
+        "Right-hand rule card"
+      ],
+      "procedure": [
+        "Set the components of a and b.",
+        "Drag on the board to rotate the 3D axes.",
+        "a × b (amber) is perpendicular to both a and b (right-hand rule).",
+        "Its length equals the area of the parallelogram formed by a and b."
+      ],
+      "conclusion": "a · b = |a||b|cos θ; |a × b| = |a||b|sin θ = area of the parallelogram; a × b ⟂ a and b.",
+      "tips": [],
+      "controlCount": 7,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": true,
+      "hasAnimation": false
+    },
+    {
+      "id": "lpp",
+      "subject": "mathematics",
+      "title": "Linear Programming — Corner Point Method",
+      "topic": "linear-programming",
+      "topicLabel": "Linear Programming",
+      "topicColour": "#6E7F12",
+      "classes": [
+        12
+      ],
+      "aim": "To find the maximum value of an objective function Z = px + qy over a feasible region using the corner point method.",
+      "apparatus": [
+        "Graph sheet",
+        "Shading tool",
+        "Iso-profit ruler"
+      ],
+      "procedure": [
+        "Set the constraints x + 2y ≤ k₁ and 3x + y ≤ k₂ (with x, y ≥ 0).",
+        "The feasible region is shaded green.",
+        "Set the objective function Z = px + qy.",
+        "Read Z at each corner point; the largest value is the maximum."
+      ],
+      "conclusion": "The optimal value of Z occurs at a corner point of the bounded feasible region.",
+      "tips": [],
+      "controlCount": 4,
+      "actionCount": 0,
+      "hasReadings": true,
+      "hasResult": true,
+      "hasDragHandles": false,
+      "hasRotation": false,
+      "hasAnimation": false
+    }
+  ]
+}

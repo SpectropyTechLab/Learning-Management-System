@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="position:relative;width:64px;height:96px">
+<sc-if value="{{is.bottle}}">
+  <div style="position:absolute;left:24px;top:0;width:16px;height:4px;border-radius:2px;background:#e8f0f4;border:1px solid rgba(90,110,120,.5);box-sizing:border-box"></div>
+  <div style="position:absolute;left:26px;top:3px;width:12px;height:17px;background:linear-gradient(90deg,rgba(200,220,232,.8),rgba(255,255,255,.95),rgba(200,220,232,.8));border:1px solid rgba(90,110,120,.5);border-bottom:none;box-sizing:border-box"></div>
+  <div style="position:absolute;left:9px;top:19px;width:46px;height:77px;border-radius:13px 13px 8px 8px;border:1.5px solid rgba(90,110,120,.55);background:linear-gradient(90deg,rgba(255,255,255,.6),rgba(255,255,255,.15) 40%,rgba(255,255,255,.4));box-sizing:border-box;overflow:hidden">
+    <div style="position:absolute;left:0;right:0;bottom:0;height:62%;background:{{liq}}"></div>
+    <div style="position:absolute;left:6px;right:6px;top:20px;height:22px;background:#FAFAF6;border-radius:3px;border:1px solid rgba(0,0,0,.12)"><div style="margin:6px 5px 0;height:3px;background:{{c}};border-radius:2px"></div><div style="margin:3px 5px 0;width:60%;height:2px;background:#9aa3a0"></div></div>
+  </div>
+</sc-if>
+<sc-if value="{{is.jar}}">
+  <div style="position:absolute;left:13px;top:0;width:38px;height:9px;border-radius:3px;border:1.5px solid rgba(90,110,120,.55);background:rgba(235,242,246,.9);box-sizing:border-box"></div>
+  <div style="position:absolute;left:7px;top:8px;width:50px;height:88px;border-radius:8px;border:1.5px solid rgba(90,110,120,.55);background:linear-gradient(90deg,rgba(255,255,255,.6),rgba(255,255,255,.15) 40%,rgba(255,255,255,.4));box-sizing:border-box;overflow:hidden">
+    <div style="position:absolute;left:0;right:0;bottom:0;height:48%;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.5) 0 1.5px,transparent 2px) 0 0/7px 7px,{{c}}"></div>
+    <div style="position:absolute;left:6px;right:6px;top:12px;height:20px;background:#FAFAF6;border-radius:3px;border:1px solid rgba(0,0,0,.12)"><div style="margin:6px 5px 0;height:3px;background:{{c}};border-radius:2px"></div></div>
+  </div>
+</sc-if>
+<sc-if value="{{is.dropper}}">
+  <div style="position:absolute;left:22px;top:0;width:20px;height:28px;border-radius:10px 10px 5px 5px;background:linear-gradient(90deg,#8e1c2c,#d0485a 45%,#8e1c2c)"></div>
+  <div style="position:absolute;left:27px;top:26px;width:10px;height:70px;clip-path:polygon(0 0,100% 0,100% 78%,64% 100%,36% 100%,0 78%);background:linear-gradient(rgba(225,238,246,.9) 0 45%,{{liq}} 45%)"></div>
+</sc-if>
+<sc-if value="{{is.pipette}}">
+  <div style="position:absolute;left:29px;top:0;width:6px;height:30px;background:rgba(225,238,246,.95);border:1px solid rgba(90,110,120,.5);box-sizing:border-box"></div>
+  <div style="position:absolute;left:24px;top:28px;width:16px;height:30px;border-radius:8px;background:linear-gradient({{liq}},{{liq}}) bottom/100% 70% no-repeat,rgba(225,238,246,.95);border:1px solid rgba(90,110,120,.5);box-sizing:border-box"></div>
+  <div style="position:absolute;left:29px;top:56px;width:6px;height:40px;clip-path:polygon(0 0,100% 0,70% 100%,30% 100%);background:{{liq}}"></div>
+</sc-if>
+<sc-if value="{{is.paper}}">
+  <div style="position:absolute;left:24px;top:0;width:16px;height:10px;border-radius:2px;background:#6d777d"></div>
+  <div style="position:absolute;left:25px;top:8px;width:14px;height:88px;background:linear-gradient(90deg,rgba(255,255,255,.35),rgba(255,255,255,0)),{{c}};box-shadow:0 0 0 1px rgba(0,0,0,.15)"></div>
+</sc-if>
+<sc-if value="{{is.funnel}}">
+  <div style="position:absolute;left:4px;top:0;width:56px;height:44px;clip-path:polygon(0 0,100% 0,58% 100%,42% 100%);background:rgba(215,232,244,.85)"></div>
+  <div style="position:absolute;left:12px;top:4px;width:40px;height:30px;clip-path:polygon(0 0,100% 0,50% 100%);background:#fbfbf6"></div>
+  <div style="position:absolute;left:29px;top:42px;width:6px;height:54px;background:rgba(215,232,244,.9);border:1px solid rgba(90,110,120,.4);box-sizing:border-box"></div>
+</sc-if>
+<sc-if value="{{is.glassrod}}">
+  <div style="position:absolute;left:29px;top:0;width:6px;height:96px;border-radius:3px;background:linear-gradient(90deg,rgba(190,215,232,.7),rgba(255,255,255,.98),rgba(190,215,232,.7));border:1px solid rgba(110,130,140,.45);box-sizing:border-box"></div>
+</sc-if>
+<sc-if value="{{is.rod}}">
+  <div style="position:absolute;left:31px;top:0;width:2px;height:12px;background:#e6e1d4"></div>
+  <div style="position:absolute;left:27px;top:10px;width:10px;height:86px;border-radius:2px;background:linear-gradient(90deg,{{c}},{{hi}} 45%,{{c}})"></div>
+</sc-if>
+<sc-if value="{{is.magnet}}">
+  <div style="position:absolute;left:8px;top:8px;width:48px;height:68px;border:13px solid #c0392b;border-bottom:none;border-radius:24px 24px 0 0;box-sizing:border-box"></div>
+  <div style="position:absolute;left:8px;top:74px;width:13px;height:18px;background:#cfd6db"></div>
+  <div style="position:absolute;left:43px;top:74px;width:13px;height:18px;background:#cfd6db"></div>
+</sc-if>
+<sc-if value="{{is.torch}}">
+  <div style="position:absolute;left:20px;top:0;width:24px;height:6px;border-radius:3px;background:#fff6c8;box-shadow:0 0 14px 3px rgba(255,240,170,.8)"></div>
+  <div style="position:absolute;left:16px;top:5px;width:32px;height:20px;border-radius:6px 6px 3px 3px;background:#4a555c"></div>
+  <div style="position:absolute;left:20px;top:24px;width:24px;height:72px;border-radius:5px;background:linear-gradient(90deg,#262d31,#5d6970 45%,#262d31)"></div>
+</sc-if>
+<sc-if value="{{is.loop}}">
+  <div style="position:absolute;left:26px;top:0;width:12px;height:44px;border-radius:4px;background:linear-gradient(90deg,#6b4f33,#a4825c,#6b4f33)"></div>
+  <div style="position:absolute;left:31px;top:44px;width:2px;height:40px;background:#c9ced4"></div>
+  <div style="position:absolute;left:25px;top:82px;width:14px;height:14px;border-radius:50%;border:2px solid #c9ced4;background:{{c}};box-sizing:border-box"></div>
+</sc-if>
+<sc-if value="{{is.lens}}">
+  <div style="position:absolute;left:26px;top:40px;width:12px;height:56px;border-radius:4px;background:#3C4640"></div>
+  <div style="position:absolute;left:10px;top:0;width:44px;height:44px;border:5px solid #3C4640;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.8),rgba(190,225,245,.35) 60%);box-sizing:border-box"></div>
+</sc-if>
+<sc-if value="{{is.tool}}">
+  <div style="position:absolute;left:8px;top:30px;width:48px;height:62px;border-radius:10px;background:linear-gradient(#56626a,#2b3338);display:grid;place-items:center"><div style="width:20px;height:20px;border-radius:50%;background:{{c}};box-shadow:0 0 0 2px rgba(255,255,255,.4)"></div></div>
+</sc-if>
+<sc-if value="{{is.burner}}">
+  <div style="position:absolute;left:24px;top:14px;width:16px;height:74px;background:linear-gradient(90deg,#59636a,#d4dbe0 45%,#59636a)"></div>
+  <div style="position:absolute;left:20px;top:62px;width:24px;height:9px;border-radius:2px;background:#2c3236"></div>
+  <div style="position:absolute;left:2px;top:74px;width:22px;height:6px;background:#6c767c"></div>
+  <div style="position:absolute;left:6px;top:86px;width:52px;height:10px;border-radius:5px 5px 2px 2px;background:linear-gradient(#6b767d,#2c3236)"></div>
+</sc-if>
+<sc-if value="{{is.clock}}">
+  <div style="position:absolute;left:27px;top:14px;width:10px;height:10px;border-radius:2px;background:#3C4640"></div>
+  <div style="position:absolute;left:4px;top:24px;width:56px;height:56px;border:4px solid #3C4640;border-radius:50%;background:#fff;box-sizing:border-box">
+    <div style="position:absolute;left:23px;top:7px;width:2px;height:18px;background:#1B2420"></div>
+    <div style="position:absolute;left:24px;top:23px;width:14px;height:2px;background:#C77A12"></div>
+  </div>
+</sc-if>
+<sc-if value="{{is.lighter}}">
+  <sc-if value="{{lit}}"><div style="position:absolute;left:20px;top:-30px;width:18px;height:32px;border-radius:50% 50% 45% 45% / 70% 70% 30% 30%;background:radial-gradient(ellipse 40% 55% at 50% 80%,#fff 0 22%,#ffb300 55%,transparent 78%);box-shadow:0 0 18px 6px rgba(255,170,40,.55)"></div></sc-if>
+  <div style="position:absolute;left:24px;top:2px;width:10px;height:8px;background:#7c878e"></div>
+  <div style="position:absolute;left:18px;top:9px;width:28px;height:18px;border-radius:4px 4px 0 0;background:linear-gradient(90deg,#8d979d,#dfe5e8,#8d979d)"></div>
+  <div style="position:absolute;left:18px;top:26px;width:28px;height:70px;border-radius:0 0 6px 6px;background:linear-gradient(90deg,#8e2238,{{c}} 45%,#8e2238)"></div>
+</sc-if>
+<sc-if value="{{is.thermo}}">
+  <div style="position:absolute;left:27px;top:0;width:10px;height:84px;border-radius:5px;border:1.5px solid rgba(110,130,140,.6);background:rgba(240,246,250,.95);box-sizing:border-box"></div>
+  <div style="position:absolute;left:30px;top:44px;width:4px;height:40px;background:#e2393b"></div>
+  <div style="position:absolute;left:25px;top:80px;width:14px;height:14px;border-radius:50%;background:#e2393b"></div>
+</sc-if>
+<sc-if value="{{is.capillary}}">
+  <div style="position:absolute;left:30px;top:0;width:4px;height:88px;background:rgba(225,238,246,.95);box-shadow:0 0 0 1px rgba(110,130,140,.5)"></div>
+  <div style="position:absolute;left:30px;top:66px;width:4px;height:24px;background:{{c}}"></div>
+</sc-if>
+<sc-if value="{{is.lid}}">
+  <div style="position:absolute;left:26px;top:48px;width:12px;height:12px;border-radius:4px;background:#2c3236"></div>
+  <div style="position:absolute;left:0;top:58px;width:64px;height:12px;border-radius:6px;background:linear-gradient(#6b767d,#3b4449)"></div>
+</sc-if>
+<sc-if value="{{is.hotplate}}">
+  <div style="position:absolute;left:0;top:50px;width:64px;height:10px;border-radius:4px;background:repeating-linear-gradient(90deg,#8a3416 0 5px,#c2541d 5px 8px)"></div>
+  <div style="position:absolute;left:2px;top:59px;width:60px;height:37px;border-radius:5px;background:linear-gradient(#56626a,#2b3338)"><div style="position:absolute;left:8px;top:12px;width:12px;height:12px;border-radius:50%;background:#cfd6db"></div><div style="position:absolute;right:8px;top:15px;width:6px;height:6px;border-radius:50%;background:#ff7a1a"></div></div>
+</sc-if>
+<sc-if value="{{is.cylinder}}">
+  <div style="position:absolute;left:22px;top:0;width:20px;height:90px;border:1.5px solid rgba(110,130,140,.6);border-top:none;border-radius:0 0 3px 3px;background:linear-gradient({{liq}},{{liq}}) bottom/100% 55% no-repeat,rgba(240,246,250,.7);box-sizing:border-box"></div>
+  <div style="position:absolute;left:24px;top:10px;width:7px;height:70px;background:repeating-linear-gradient(rgba(60,70,64,.55) 0 1px,transparent 1px 7px)"></div>
+  <div style="position:absolute;left:14px;top:88px;width:36px;height:8px;border-radius:3px;background:#b8c2c8"></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:64,&quot;height&quot;:96},&quot;art&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;bottle&quot;,&quot;jar&quot;,&quot;dropper&quot;,&quot;pipette&quot;,&quot;paper&quot;,&quot;funnel&quot;,&quot;glassrod&quot;,&quot;rod&quot;,&quot;magnet&quot;,&quot;torch&quot;,&quot;loop&quot;,&quot;lens&quot;,&quot;tool&quot;,&quot;burner&quot;,&quot;clock&quot;,&quot;lighter&quot;,&quot;thermo&quot;,&quot;capillary&quot;,&quot;lid&quot;,&quot;hotplate&quot;,&quot;cylinder&quot;],&quot;default&quot;:&quot;bottle&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;c&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#1d78d6&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;lit&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const ARTS=['bottle','jar','dropper','pipette','paper','funnel','glassrod','rod','magnet','torch','loop','lens','tool','burner','clock','lighter','thermo','capillary','lid','hotplate','cylinder'];
+const rgb=h=>{h=(h||'#eaf4ff').replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');const n=parseInt(h,16);return[n>>16&255,n>>8&255,n&255]};
+class Component extends DCLogic{
+  renderVals(){const a=this.props.art||'bottle',c=this.props.c||'#eaf4ff';const is={};ARTS.forEach(k=>is[k]=k===a);const[r,g,b]=rgb(c);
+    return{is,c,liq:`rgba(${r},${g},${b},.8)`,hi:'#'+[r,g,b].map(x=>Math.round(x+(255-x)*.45).toString(16).padStart(2,'0')).join(''),lit:!!this.props.lit}}
+}
+</script>
+</body>
+</html>

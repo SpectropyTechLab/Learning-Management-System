@@ -11,6 +11,7 @@ interface Model3DViewerProps {
   settings?: Model3DSettings;
   panZoomRequestToken?: number;
   onSettingsChange?: (settings: Model3DSettings) => void;
+  onReady?: () => void;
 }
 
 type Vector3 = { x: number; y: number; z: number };
@@ -114,6 +115,7 @@ export default function Model3DViewer({
   settings = DEFAULT_MODEL_3D_SETTINGS,
   panZoomRequestToken,
   onSettingsChange,
+  onReady,
 }: Model3DViewerProps) {
   const [moduleReady, setModuleReady] = useState(false);
   const [renderSource, setRenderSource] = useState('');
@@ -253,6 +255,7 @@ export default function Model3DViewer({
       setModelLoaded(true);
       setLoadProgress(1);
       setLoadError('');
+      onReady?.();
     };
     const failModel = () => {
       setModelLoaded(false);
@@ -271,7 +274,7 @@ export default function Model3DViewer({
       viewer.removeEventListener('error', failModel);
       viewer.removeEventListener('progress', reportProgress);
     };
-  }, [moduleReady, settings.animationName, settings.variant, updateSettings]);
+  }, [moduleReady, onReady, settings.animationName, settings.variant, updateSettings]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -424,7 +427,7 @@ export default function Model3DViewer({
     className={`relative min-h-0 overflow-hidden bg-transparent ${placingHotspot ? 'cursor-crosshair' : ''} ${className}`}
   >
     {viewer}
-    {!modelLoaded && <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-full bg-slate-950/75 p-1 shadow"><div className="h-1.5 rounded-full bg-cyan-400 transition-[width]" style={{ width: `${Math.max(8, Math.round(loadProgress * 100))}%` }}/></div>}
+    {!modelLoaded && !canvasMode && <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-full bg-slate-950/75 p-1 shadow"><div className="h-1.5 rounded-full bg-cyan-400 transition-[width]" style={{ width: `${Math.max(8, Math.round(loadProgress * 100))}%` }}/></div>}
 
     {hasAuthorControls && !panZoomMode && !placingHotspot && <button
       type="button"
