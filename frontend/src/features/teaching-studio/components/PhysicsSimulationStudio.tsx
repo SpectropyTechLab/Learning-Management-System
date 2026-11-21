@@ -1,4 +1,6 @@
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import {
   ArrowLeft,
   Download,
@@ -25,6 +27,10 @@ import {
   type SimulationSubject,
 } from './simulationStudioModel';
 import { PHYSICS_OBJECT_CATEGORIES, PHYSICS_OBJECT_LIBRARY, type PhysicsObjectLibraryEntry } from '../simulation-catalog/physicsObjectLibrary';
+import type { PhysicsRuntimeCommand, PhysicsRuntimeState } from './physics-runtime/PhysicsRuntimePreview';
+import { simulationDocumentFromPhysicsNative } from './physics-runtime/physicsRuntimeProject';
+import PhysicsRuntimeWizard from './physics-runtime/PhysicsRuntimeWizard';
+import { physicsEquationToLatex } from './physics-runtime/physicsExpressionLatex';
 
 export type PhysicsSimulationProject = SimulationDocument;
 export type PhysicsSimulationInsert = { project: SimulationDocument; title: string; html: string };
@@ -95,6 +101,11 @@ export default function PhysicsSimulationStudio({
   );
   const [paused, setPaused] = useState(false);
   const [resetToken, setResetToken] = useState(0);
+  const [runtimeCommand, setRuntimeCommand] = useState<PhysicsRuntimeCommand | null>(null);
+  const [runtimeState, setRuntimeState] = useState<PhysicsRuntimeState | null>(null);
+  const [physicsWizardOpen, setPhysicsWizardOpen] = useState(false);
+  const [graphType, setGraphType] = useState('line');
+  const [viewMode, setViewMode] = useState('both');
   const [tab, setTab] = useState<EditorTab>('variables');
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
@@ -103,8 +114,14 @@ export default function PhysicsSimulationStudio({
   const fileRef = useRef<HTMLInputElement>(null);
   const calculated = useMemo(() => calculateSimulationValues(simulation), [simulation]);
   const definition = templateById(simulation.templateId) || firstTemplate(simulation.subject);
-  // Keep rendering, editing, playback, and persistence on one shared state.
-  const usesOriginalPhysicsRuntime = false;
+  // Use the supplied physics runtime for physics templates so the original
+  // solver and high-fidelity rendering remain intact.
+  const usesOriginalPhysicsRuntime = simulation.subject === 'physics'
+    && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
+  const physicsRuntimeMetadata = simulation.metadata?.physicsRuntime && typeof simulation.metadata.physicsRuntime === 'object'
+    ? simulation.metadata.physicsRuntime as Record<string, unknown>
+    : {};
+  const physicsBackground = typeof physicsRuntimeMetadata.bg === 'string' ? physicsRuntimeMetadata.bg : 'blueprint';
   const controls = simulation.kind === 'scene' ? simulation.controls || [] : definition.parameters;
   const subjectTemplates = SIMULATION_TEMPLATES.filter(
     (template) => template.subject === simulation.subject && template.kind !== 'scene',
@@ -165,14 +182,17 @@ export default function PhysicsSimulationStudio({
     link.click();
     URL.revokeObjectURL(url);
   };
+  const controlRuntime = (action: PhysicsRuntimeCommand['action'], value?: number | boolean | string) => {
+    setRuntimeCommand((previous) => ({ id: (previous?.id || 0) + 1, action, value }));
+  };
 
   return (
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#07111f] text-slate-100">
-      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-cyan-400/30 bg-[#0b1728] px-3 shadow-xl">
+      <header className="flex h-11 shrink-0 items-center gap-1.5 border-b border-cyan-400/30 bg-[#0b1728] px-2 shadow-xl">
         <button
           type="button"
           onClick={onBack}
-          className="grid h-8 w-8 place-items-center rounded-lg border border-slate-600 bg-slate-900"
+          className="grid h-7 w-7 place-items-center rounded-md border border-slate-600 bg-slate-900"
           aria-label="Back"
         >
           <ArrowLeft size={17} />
@@ -185,11 +205,24 @@ export default function PhysicsSimulationStudio({
             {simulation.subject[0].toUpperCase() + simulation.subject.slice(1)} Simulation Studio
           </h1>
         </div>
-        <input
-          value={simulation.title}
-          onChange={(event) => setSimulation({ ...simulation, title: event.target.value })}
-          className="ml-3 h-8 min-w-0 flex-1 border-0 bg-transparent text-xs font-semibold outline-none"
-        />
+        <div className="min-w-0 flex-1" aria-hidden="true" />
+        {usesOriginalPhysicsRuntime ? <>
+          <select aria-label="Graph type" value={graphType} onChange={(event) => { setGraphType(event.target.value); controlRuntime('graph', event.target.value); }} className="h-8 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-[10px] text-slate-200">
+            <option value="line">Line vs variable</option><option value="xy">X-Y / phase</option><option value="bar">Bar values</option>
+          </select>
+          <select aria-label="View mode" value={viewMode} onChange={(event) => { setViewMode(event.target.value); controlRuntime('view', event.target.value); }} className="h-8 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-[10px] text-slate-200">
+            <option value="both">Scene + Graph</option><option value="scene">Scene</option><option value="graph">Graph</option><option value="side">Side by side</option>
+          </select>
+        </> : null}
+        <button
+          type="button"
+          onClick={() => usesOriginalPhysicsRuntime
+            ? setPhysicsWizardOpen(true)
+            : setSimulation(createSimulationDocument(firstTemplate(simulation.subject)))}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-400 px-3 text-xs font-bold text-slate-950 shadow-sm hover:bg-cyan-300"
+        >
+          <Plus size={17} /> New Simulation
+        </button>
         <label className="flex shrink-0 items-center">
           <span className="sr-only">Insert template</span>
           <select
@@ -269,7 +302,7 @@ export default function PhysicsSimulationStudio({
           </span>
         </div>
       */}
-      <section className="grid min-h-0 flex-1 grid-cols-[1fr_3fr] gap-3 p-3">
+      <section className="grid min-h-0 flex-1 grid-cols-[minmax(220px,22%)_minmax(0,1fr)] gap-2 p-1.5">
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#0b1728]">
           <div className="grid grid-cols-4 border-b border-slate-700">
             {(['variables', 'equations', 'objects', 'results'] as EditorTab[]).map((item) => (
@@ -283,7 +316,7 @@ export default function PhysicsSimulationStudio({
               </button>
             ))}
           </div>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
             {tab === 'variables' ? (
               <VariableEditor
                 simulation={simulation}
@@ -295,7 +328,9 @@ export default function PhysicsSimulationStudio({
               <EquationEditor
                 simulation={simulation}
                 setSimulation={setSimulation}
-                calculated={calculated}
+                calculated={usesOriginalPhysicsRuntime
+                  ? { values: { ...calculated.values, ...(runtimeState?.values || {}) }, errors: {} }
+                  : calculated}
               />
             ) : null}
             {tab === 'objects' ? (
@@ -305,24 +340,54 @@ export default function PhysicsSimulationStudio({
               <ResultEditor
                 simulation={simulation}
                 setSimulation={setSimulation}
-                values={calculated.values}
+                values={{ ...calculated.values, ...(usesOriginalPhysicsRuntime ? runtimeState?.values || {} : {}) }}
               />
             ) : null}
           </div>
         </aside>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#0a1422]">
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-700 px-4">
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-700 px-3">
             <div>
               <b className="text-sm">{simulation.title}</b>
               <span className="ml-2 text-[10px] text-slate-400">Live 16:9 preview</span>
             </div>
-            <span className="text-[10px] font-semibold text-cyan-300">Interactive output</span>
+            <div className="flex items-center gap-2">
+              {usesOriginalPhysicsRuntime ? (
+                <select
+                  aria-label="Simulation background"
+                  value={physicsBackground}
+                  onChange={(event) => setSimulation({
+                    ...simulation,
+                    metadata: {
+                      ...simulation.metadata,
+                      physicsRuntime: { ...physicsRuntimeMetadata, bg: event.target.value },
+                    },
+                  })}
+                  className="h-7 rounded border border-slate-600 bg-slate-950 px-2 text-[10px] text-slate-200"
+                >
+                  <option value="neutral">Neutral</option>
+                  <option value="blueprint">Blueprint</option>
+                  <option value="paper">Graph paper</option>
+                  <option value="earth">Earth</option>
+                  <option value="lab">Laboratory</option>
+                  <option value="space">Space</option>
+                  <option value="water">Underwater</option>
+                </select>
+              ) : null}
+              <span className="text-[10px] font-semibold text-cyan-300">Interactive output</span>
+            </div>
           </div>
-          <div className="grid min-h-0 flex-1 place-items-center p-2">
-            <div className="aspect-video max-h-full w-full overflow-hidden rounded-lg border border-slate-600 bg-[#09111d]">
+          <div className="min-h-0 flex-1 p-1">
+            <div className="h-full w-full overflow-hidden rounded-md border border-slate-600 bg-[#09111d]">
               {usesOriginalPhysicsRuntime ? (
                 <Suspense fallback={<div className="grid h-full place-items-center text-sm text-cyan-200">Loading Physics runtime…</div>}>
-                  <PhysicsRuntimePreview simulation={simulation} resetToken={resetToken} />
+                  <PhysicsRuntimePreview
+                    simulation={simulation}
+                    resetToken={resetToken}
+                    command={runtimeCommand}
+                    onState={setRuntimeState}
+                    onProject={(project) => setSimulation((current) => simulationDocumentFromPhysicsNative(current, project))}
+                  />
                 </Suspense>
               ) : (
                 <SimulationPreviewCanvas
@@ -374,10 +439,10 @@ export default function PhysicsSimulationStudio({
               </aside>
             </div>
           </div>
-          {!usesOriginalPhysicsRuntime ? <footer className="flex h-9 shrink-0 items-center gap-1.5 border-t border-slate-700 bg-slate-950/90 px-2">
+          <footer className="flex h-9 shrink-0 items-center gap-1.5 border-t border-slate-700 bg-slate-950/90 px-2">
             <button
               type="button"
-              onClick={() => setResetToken((value) => value + 1)}
+              onClick={() => usesOriginalPhysicsRuntime ? controlRuntime('reset') : setResetToken((value) => value + 1)}
               className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Restart"
             >
@@ -385,9 +450,9 @@ export default function PhysicsSimulationStudio({
             </button>
             <button
               type="button"
-              onClick={() =>
-                setSimulation({ ...simulation, speed: Math.max(0.25, simulation.speed - 0.25) })
-              }
+              onClick={() => usesOriginalPhysicsRuntime
+                ? controlRuntime('back')
+                : setSimulation({ ...simulation, speed: Math.max(0.25, simulation.speed - 0.25) })}
               className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Slower"
             >
@@ -395,17 +460,19 @@ export default function PhysicsSimulationStudio({
             </button>
             <button
               type="button"
-              onClick={() => setPaused((value) => !value)}
+              onClick={() => usesOriginalPhysicsRuntime
+                ? controlRuntime('play', !(runtimeState?.playing ?? false))
+                : setPaused((value) => !value)}
               className="grid h-7 w-8 place-items-center rounded bg-cyan-400 text-slate-950"
-              aria-label={paused ? 'Play' : 'Pause'}
+              aria-label={(usesOriginalPhysicsRuntime ? runtimeState?.playing : !paused) ? 'Pause' : 'Play'}
             >
-              {paused ? <Play size={15} /> : <Pause size={15} />}
+              {(usesOriginalPhysicsRuntime ? runtimeState?.playing : !paused) ? <Pause size={15} /> : <Play size={15} />}
             </button>
             <button
               type="button"
-              onClick={() =>
-                setSimulation({ ...simulation, speed: Math.min(3, simulation.speed + 0.25) })
-              }
+              onClick={() => usesOriginalPhysicsRuntime
+                ? controlRuntime('forward')
+                : setSimulation({ ...simulation, speed: Math.min(3, simulation.speed + 0.25) })}
               className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Faster"
             >
@@ -417,15 +484,37 @@ export default function PhysicsSimulationStudio({
                 <button
                   key={speed}
                   type="button"
-                  onClick={() => setSimulation({ ...simulation, speed })}
-                  className={`h-6 min-w-6 rounded px-1 font-semibold ${simulation.speed === speed ? 'bg-cyan-400 text-slate-950' : 'border border-slate-600 text-slate-300'}`}
+                  onClick={() => {
+                    if (usesOriginalPhysicsRuntime) controlRuntime('speed', speed);
+                    else setSimulation({ ...simulation, speed });
+                  }}
+                  className={`h-6 min-w-6 rounded px-1 font-semibold ${(usesOriginalPhysicsRuntime ? runtimeState?.speed : simulation.speed) === speed ? 'bg-cyan-400 text-slate-950' : 'border border-slate-600 text-slate-300'}`}
                   aria-label={`${speed} times speed`}
                 >
                   {speed}×
                 </button>
               ))}
-              <b className="ml-1 min-w-7 text-cyan-300">{simulation.speed}×</b>
+              <b className="ml-1 min-w-7 text-cyan-300">
+                {usesOriginalPhysicsRuntime ? (runtimeState?.speed || 1) : simulation.speed}×
+              </b>
             </div>
+            {usesOriginalPhysicsRuntime && runtimeState ? (
+              <label className="flex min-w-32 flex-1 items-center gap-1 text-[9px] font-mono">
+                <span>{runtimeState.label}</span>
+                <input
+                  type="range"
+                  min={runtimeState.min}
+                  max={runtimeState.max}
+                  step={(runtimeState.max - runtimeState.min) / 1000 || 0.001}
+                  value={runtimeState.value}
+                  onChange={(event) => controlRuntime('seek', Number(event.target.value))}
+                  className="min-w-16 flex-1 accent-cyan-400"
+                />
+                <b className="min-w-14 text-cyan-300">
+                  {runtimeState.value.toFixed(3)} {runtimeState.unit}
+                </b>
+              </label>
+            ) : null}
             {(
               [
                 ['vectors', 'Vectors'],
@@ -449,7 +538,7 @@ export default function PhysicsSimulationStudio({
                 {label}
               </label>
             ))}
-          </footer> : null}
+          </footer>
         </section>
       </section>
       {importOpen ? (
@@ -509,6 +598,13 @@ export default function PhysicsSimulationStudio({
             </div>
           </section>
         </div>
+      ) : null}
+      {physicsWizardOpen && usesOriginalPhysicsRuntime ? (
+        <PhysicsRuntimeWizard
+          simulation={simulation}
+          onClose={() => setPhysicsWizardOpen(false)}
+          onProject={(project) => setSimulation((current) => simulationDocumentFromPhysicsNative(current, project))}
+        />
       ) : null}
     </main>
   );
@@ -754,7 +850,19 @@ function EquationEditor({ simulation, setSimulation, calculated }: EditorProps &
         <div key={`${equation.id}-${index}`} className="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/70 px-2 py-2">
           <button type="button" onClick={() => openEquation(index)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colors[index % colors.length] }} />
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{equation.output} = {equation.expression}</span>
+            <span
+              className="min-w-0 flex-1 overflow-x-auto py-1 text-center text-[12px] [scrollbar-width:none] [&_.katex]:whitespace-nowrap"
+              aria-label={`${equation.output} equals ${equation.expression}`}
+              dangerouslySetInnerHTML={{
+                __html: katex.renderToString(physicsEquationToLatex(equation.output, equation.expression), {
+                  displayMode: false,
+                  throwOnError: false,
+                  strict: 'ignore',
+                  trust: false,
+                  output: 'htmlAndMathml',
+                }),
+              }}
+            />
             <span className={`text-[9px] ${calculated.errors[equation.id] ? 'text-red-300' : 'text-emerald-300'}`}>
               {calculated.errors[equation.id] ? '!' : calculated.values[equation.output]?.toFixed(2) ?? ''}
             </span>
@@ -1223,7 +1331,10 @@ function ResultEditor({
         let output = '—';
         let error = '';
         try {
-          output = evaluateSimulationExpression(result.expression, values).toFixed(result.precision);
+          const runtimeValue = values[result.label];
+          output = (Number.isFinite(runtimeValue)
+            ? runtimeValue
+            : evaluateSimulationExpression(result.expression, values)).toFixed(result.precision);
         } catch (caught) {
           error = caught instanceof Error ? caught.message : 'Invalid result.';
         }
