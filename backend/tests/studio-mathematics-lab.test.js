@@ -54,7 +54,8 @@ test('Mathematics Lab is connected to ribbon filters, resources, canvas and slid
   assert.match(exported, /embed=1&lab=/);
   assert.doesNotMatch(exported, /src="\/studio-labs/);
   assert.match(exported, /new URL\('\/studio-labs\/mathematics/);
-  assert.match(exported, /document\.referrer\|\|window\.location\.href/);
+  assert.match(exported, /document\.baseURI/);
+  assert.doesNotMatch(exported, /document\.referrer\|\|window\.location\.href/);
   assert.match(frame, /buildMathematicsLabHtml/);
   assert.match(canvas, /StudioLocalMathematicsLabFrame/);
   assert.match(player, /StudioLocalMathematicsLabFrame/);

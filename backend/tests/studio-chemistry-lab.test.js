@@ -56,7 +56,8 @@ test('Chemistry Lab is connected to the editor, responsive ribbon, resources, an
   assert.match(exported, /embed=1&lab=/);
   assert.doesNotMatch(exported, /src="\/studio-labs/);
   assert.match(exported, /new URL\('\/studio-labs\/chemistry/);
-  assert.match(exported, /document\.referrer\|\|window\.location\.href/);
+  assert.match(exported, /document\.baseURI/);
+  assert.doesNotMatch(exported, /document\.referrer\|\|window\.location\.href/);
   assert.match(frame, /buildChemistryLabHtml/);
   assert.match(canvas, /StudioLocalChemistryLabFrame/);
   assert.match(player, /StudioLocalChemistryLabFrame/);
