@@ -38,6 +38,13 @@ export default defineConfig({
         // The production bundle is slightly above 4 MiB. Keep the ceiling
         // explicit and bounded while still allowing Workbox to precache it.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Lab and simulation HTML files are standalone runtimes, not SPA routes.
+        // Without these exclusions, the navigation fallback can render the LMS
+        // application shell inside their iframes in production.
+        navigateFallbackDenylist: [
+          /^\/studio-labs\//,
+          /^\/simulation-runtimes\//,
+        ],
         // Subject simulation engines are fetched only when that subject opens.
         // Keeping them out of the install precache preserves subject-level lazy loading.
         globIgnores: ['**/simulation-runtimes/**'],
