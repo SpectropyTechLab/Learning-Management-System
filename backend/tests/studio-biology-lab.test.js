@@ -30,6 +30,8 @@ test('Biology Lab preserves the complete reference environment and exposes curri
   for (const dependency of ['support.js', 'sims-core.js', 'sims-a.js', 'sims-b.js', 'sims-c.js', 'sims-d.js']) {
     assert.ok(fs.existsSync(publicLab(dependency)), `${dependency} is available under the filename requested by the Biology components`);
   }
+  const localScripts = [...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(localScripts, ['support.js', 'sims-core.js', 'sims-a.js', 'sims-b.js', 'sims-c.js', 'sims-d.js']);
 });
 
 test('Biology Lab is wired to ribbon filters, editor insertion, canvas and slideshow', () => {

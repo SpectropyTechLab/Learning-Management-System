@@ -68,6 +68,11 @@ test('Chemistry Lab is connected to the editor, responsive ribbon, resources, an
   assert.match(page, /main\+aside\{display:block!important;position:static!important;flex:0 0 min\(380px,36vw\)/);
   assert.doesNotMatch(page, /main\+aside\{[^}]*position:fixed/);
   assert.ok(fs.existsSync(publicLab('LabItem.dc.html')), 'the Chemistry apparatus Design Component is available under its requested filename');
+  const localScripts = [...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(localScripts, ['support.js', 'chemistry-labs-runtime.js']);
+  for (const dependency of localScripts) {
+    assert.ok(fs.existsSync(publicLab(dependency)), `${dependency} is available with a browser-executable JavaScript MIME type`);
+  }
   assert.match(viteConfig, /navigateFallbackDenylist/);
   assert.match(viteConfig, /\^\\\/studio-labs\\\//);
   assert.match(viteConfig, /\^\\\/simulation-runtimes\\\//);
