@@ -2,20 +2,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { inspectRuntimePackage } from '../services/studioPackageInspection.service.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..');
-const require = createRequire(import.meta.url);
-const ts = require(path.join(root, 'frontend', 'node_modules', 'typescript'));
 
 const loadExporter = (fileName) => {
   const source = fs.readFileSync(path.join(root, 'frontend', 'src', 'features', 'teaching-studio', 'components', fileName), 'utf8');
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const module = { exports: {} };
-  Function('exports', 'module', 'require', compiled)(module.exports, module, require);
+  Function('exports', 'module', compiled)(module.exports, module);
   return module.exports;
 };
 
