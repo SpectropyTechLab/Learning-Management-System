@@ -63,6 +63,7 @@ makeImportedPanelResponsive('BioExperiments.dc.html', 'spectropy-bio-experiment'
 makeImportedPanelResponsive('BioConcepts.dc.html', 'spectropy-bio-concept');
 
 let template = scriptJson('__bundler/template');
+for (const [name, id] of Object.entries(runtimeAliases)) template = template.replaceAll(id, name);
 const topicByPrefix = {
   scope: ['microscopy', 'Microscopy & Cells', '#2563eb'],
   prep: ['slide-preparation', 'Slide Preparation', '#7c3aed'],
