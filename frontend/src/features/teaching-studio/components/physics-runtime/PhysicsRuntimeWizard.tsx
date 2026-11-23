@@ -2,27 +2,36 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SimulationDocument } from '../simulationStudioModel';
 import { injectPhysicsWizard, type PhysicsNativeProject } from './physicsRuntimeProject';
 
-let runtimePromise: Promise<string> | null = null;
-const loadRuntime = () => runtimePromise ||= fetch('/simulation-runtimes/physics.html').then((response) => {
-  if (!response.ok) throw new Error(`Physics runtime could not be loaded (${response.status}).`);
-  return response.text();
-});
+const runtimePromises = new Map<string, Promise<string>>();
+const loadRuntime = (runtimeUrl: string) => {
+  const existing = runtimePromises.get(runtimeUrl);
+  if (existing) return existing;
+  const pending = fetch(runtimeUrl).then((response) => {
+    if (!response.ok) throw new Error(`Simulation runtime could not be loaded (${response.status}).`);
+    return response.text();
+  });
+  runtimePromises.set(runtimeUrl, pending);
+  return pending;
+};
 
-export default function PhysicsRuntimeWizard({ simulation, onProject, onClose }: {
+export default function PhysicsRuntimeWizard({ simulation, onProject, onClose, runtimeUrl = '/simulation-runtimes/physics.html', title = 'New Physics Simulation' }: {
   simulation: SimulationDocument;
   onProject: (project: PhysicsNativeProject) => void;
   onClose: () => void;
+  runtimeUrl?: string;
+  title?: string;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [runtime, setRuntime] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
-    void loadRuntime().then((html) => { if (active) setRuntime(html); }).catch((reason) => {
+    setRuntime('');
+    void loadRuntime(runtimeUrl).then((html) => { if (active) setRuntime(html); }).catch((reason) => {
       if (active) setError(reason instanceof Error ? reason.message : 'Physics runtime could not be loaded.');
     });
     return () => { active = false; };
-  }, []);
+  }, [runtimeUrl]);
   const source = useMemo(() => runtime ? injectPhysicsWizard(runtime, simulation) : '', [runtime, simulation]);
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -42,7 +51,7 @@ export default function PhysicsRuntimeWizard({ simulation, onProject, onClose }:
       {source ? (
         <iframe
           ref={frameRef}
-          title="New Physics Simulation"
+          title={title}
           srcDoc={source}
           sandbox="allow-scripts allow-same-origin"
           className="h-full w-full border-0 bg-transparent"

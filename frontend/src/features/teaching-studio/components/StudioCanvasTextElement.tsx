@@ -22,6 +22,9 @@ interface Props {
   animationTextSequence?: 'paragraph' | 'word' | 'letter';
   animationTextDelay?: number;
   animationStyle?: CSSProperties;
+  contentPadding?: string | number;
+  textStrokeColor?: string;
+  textStrokeWidth?: number;
 }
 
 const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -40,7 +43,7 @@ const editableHtml = (value: string) => inlineEquationParts(value).map((part) =>
       })()).join('');
 const blockedRichTextTags = 'script,style,iframe,object,embed,link,meta,form,input,button,textarea,select';
 const supportedRichTextTags = new Set(['A', 'B', 'BR', 'DIV', 'EM', 'I', 'LI', 'OL', 'P', 'S', 'SPAN', 'STRONG', 'SUB', 'SUP', 'U', 'UL']);
-const supportedFonts = ['Arial', 'Calibri', 'Georgia', 'Times New Roman', 'Verdana', 'Trebuchet MS'];
+const supportedFonts = ['Arial', 'Bookman Old Style', 'Calibri', 'Cambria', 'Century Schoolbook', 'Georgia', 'Tahoma', 'Times New Roman', 'Verdana', 'Trebuchet MS'];
 const safeCssColor = (value: string) => Boolean(value && globalThis.CSS?.supports?.('color', value));
 const compactUrlValue = (value: string) => Array.from(value)
   .filter((character) => character.charCodeAt(0) > 32 && character.charCodeAt(0) !== 127)
@@ -113,6 +116,8 @@ const sanitizeStudioRichText = (html: string) => {
       marginTop: node.style.marginTop,
       marginBottom: node.style.marginBottom,
       listStyleType: node.style.listStyleType,
+      textStrokeColor: node.style.webkitTextStrokeColor,
+      textStrokeWidth: node.style.webkitTextStrokeWidth,
     };
     for (const attribute of [...node.attributes]) {
       const name = attribute.name.toLowerCase();
@@ -127,6 +132,7 @@ const sanitizeStudioRichText = (html: string) => {
     const line = clampedNumber(originalStyle.lineHeight, 0.8, 3);
     const marginTop = clampedNumber(originalStyle.marginTop, 0, 120);
     const marginBottom = clampedNumber(originalStyle.marginBottom, 0, 120);
+    const strokeWidth = clampedNumber(originalStyle.textStrokeWidth, 0, 12);
     if (size !== null) node.style.fontSize = `${size}px`;
     if (family) node.style.fontFamily = family;
     if (safeCssColor(originalStyle.color)) node.style.color = originalStyle.color;
@@ -138,6 +144,10 @@ const sanitizeStudioRichText = (html: string) => {
     if (marginTop !== null) node.style.marginTop = `${marginTop}px`;
     if (marginBottom !== null) node.style.marginBottom = `${marginBottom}px`;
     if (originalStyle.listStyleType && !/[;{}]/.test(originalStyle.listStyleType)) node.style.listStyleType = originalStyle.listStyleType;
+    if (strokeWidth !== null && safeCssColor(originalStyle.textStrokeColor)) {
+      node.style.webkitTextStrokeColor = originalStyle.textStrokeColor;
+      node.style.webkitTextStrokeWidth = `${strokeWidth}px`;
+    }
     if (node instanceof HTMLAnchorElement) {
       const href = node.getAttribute('href') || '';
       if (!/^(?:https?:|mailto:|tel:|#)/i.test(href)) node.removeAttribute('href');
@@ -342,7 +352,7 @@ type StudioTextStyle = CSSProperties & {
   '--studio-paragraph-after': string;
 };
 
-export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', verticalAlignment = 'top', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionSpacingChange, onInlineShapeEdit, animationTextSequence, animationTextDelay, animationStyle }: Props) {
+export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', verticalAlignment = 'top', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionSpacingChange, onInlineShapeEdit, animationTextSequence, animationTextDelay, animationStyle, contentPadding = 12, textStrokeColor = 'transparent', textStrokeWidth = 0 }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement | null>(null);
   const initializedEditorRef = useRef<HTMLDivElement | null>(null);
@@ -368,6 +378,9 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     lineHeight,
     maxWidth: '100%',
     overflowWrap: 'anywhere',
+    padding: contentPadding,
+    WebkitTextStrokeColor: textStrokeColor,
+    WebkitTextStrokeWidth: Math.max(0, textStrokeWidth),
     '--studio-paragraph-before': `${Math.max(0, paragraphSpacingBefore)}px`,
     '--studio-paragraph-after': `${Math.max(0, paragraphSpacingAfter)}px`,
   };
@@ -689,7 +702,11 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
   }, [elementId, editing, bold, italic, underline]);
   useEffect(() => {
     const target = containerRef.current;
-    if (!target || !onCommitRef.current) return;
+    // Never rewrite a slide merely because its text renderer mounted. Imported
+    // PowerPoint boxes carry deliberate source geometry; auto-fitting them on
+    // first paint changed untouched titles and made the whole import drift.
+    // Text is remeasured only while the author is actively editing it.
+    if (!editing || !target || !onCommitRef.current) return;
     let previousWidth = target.clientWidth;
     const observer = new ResizeObserver(() => {
       const nextWidth = target.clientWidth;
@@ -700,7 +717,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     observer.observe(target);
     const frame = window.requestAnimationFrame(() => commitEditor());
     return () => { observer.disconnect(); window.cancelAnimationFrame(frame); };
-  }, [fontSize, fontFamily, bold, italic, underline, alignment, lineHeight, paragraphSpacingBefore, paragraphSpacingAfter, renderedRichTextHtml, text]);
+  }, [editing, fontSize, fontFamily, bold, italic, underline, alignment, lineHeight, paragraphSpacingBefore, paragraphSpacingAfter, renderedRichTextHtml, text]);
   useEffect(() => {
     if (!editing) return;
     const finishWhenOutside = (event: PointerEvent) => {
@@ -767,12 +784,12 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     return Array.from(text).map((letter, index) => <span key={index} className="whitespace-pre-wrap" style={/\s/.test(letter) ? undefined : tokenStyle(index)}>{letter}</span>);
   })() : null;
   return <div ref={containerRef} className={`relative flex h-full w-full flex-col overflow-visible ${editing ? 'cursor-text' : ''}`} style={{ backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}`, justifyContent: verticalAlignment === 'middle' ? 'center' : verticalAlignment === 'bottom' ? 'flex-end' : 'flex-start' }} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
-    {editing ? <div ref={(node) => { editorRef.current = node; contentRef.current = node; }} contentEditable suppressContentEditableWarning className="studio-canvas-rich-text min-h-0 w-full cursor-text overflow-visible whitespace-pre-wrap p-3 outline-none" style={textStyle} onPaste={handlePaste} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-latex],[data-inline-shape]'); if (!target || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; if (target.dataset.inlineLatex) { const latex = decodeURIComponent(target.dataset.inlineLatex); const token = `\\(${latex}\\)`; inlineEquationTargetRef.current = target; target.replaceChildren(); setInlineEquationEditor({ controlId: `${elementId ?? 'text'}:inline-equation:${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`, latex, start, end: start + token.length, target }); return; } if (!target.dataset.inlineShape) return; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); scheduleEditorCommit(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={handleEditorBlur} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
-      : sequencedText ? <div ref={(node) => { contentRef.current = node; }} className="min-h-0 w-full overflow-visible p-3" style={textStyle}>{sequencedText}</div>
-      : renderedRichTextHtml ? <div ref={(node) => { contentRef.current = node; }} className="studio-canvas-rich-text min-h-0 w-full overflow-visible whitespace-pre-wrap p-3" style={textStyle} dangerouslySetInnerHTML={{ __html: renderedRichTextHtml }} />
+    {editing ? <div ref={(node) => { editorRef.current = node; contentRef.current = node; }} contentEditable suppressContentEditableWarning className="studio-canvas-rich-text min-h-0 w-full cursor-text overflow-visible whitespace-pre-wrap outline-none" style={textStyle} onPaste={handlePaste} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-latex],[data-inline-shape]'); if (!target || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; if (target.dataset.inlineLatex) { const latex = decodeURIComponent(target.dataset.inlineLatex); const token = `\\(${latex}\\)`; inlineEquationTargetRef.current = target; target.replaceChildren(); setInlineEquationEditor({ controlId: `${elementId ?? 'text'}:inline-equation:${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`, latex, start, end: start + token.length, target }); return; } if (!target.dataset.inlineShape) return; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); scheduleEditorCommit(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={handleEditorBlur} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
+      : sequencedText ? <div ref={(node) => { contentRef.current = node; }} className="min-h-0 w-full overflow-visible" style={textStyle}>{sequencedText}</div>
+      : renderedRichTextHtml ? <div ref={(node) => { contentRef.current = node; }} className="studio-canvas-rich-text min-h-0 w-full overflow-visible whitespace-pre-wrap" style={textStyle} dangerouslySetInnerHTML={{ __html: renderedRichTextHtml }} />
       : <div ref={(node) => { contentRef.current = node; }} className="min-h-0 w-full overflow-visible" style={textStyle}>{list
-        ? <ul className="list-disc space-y-1 p-3 pl-8">{text.split('\n').filter(Boolean).map((line, index) => <li key={index}>{hasInlineEquation(line) ? <StudioRichTextElement text={line} color={color} fontSize={fontSize} /> : line}</li>)}</ul>
-        : hasInlineEquation(text) ? <StudioRichTextElement text={text} color={color} fontSize={fontSize} /> : <div className="whitespace-pre-wrap p-3">{text}</div>}</div>}
+        ? <ul className="list-disc space-y-1 pl-8" style={{ padding: contentPadding }}>{text.split('\n').filter(Boolean).map((line, index) => <li key={index}>{hasInlineEquation(line) ? <StudioRichTextElement text={line} color={color} fontSize={fontSize} /> : line}</li>)}</ul>
+        : hasInlineEquation(text) ? <StudioRichTextElement text={text} color={color} fontSize={fontSize} /> : <div className="whitespace-pre-wrap" style={{ padding: contentPadding }}>{text}</div>}</div>}
     {inlineEquationEditor && inlineEquationEditor.target.isConnected ? createPortal(
       <span className="studio-inline-equation-editor" style={{ color, fontSize, lineHeight }} onPointerDown={(event) => event.stopPropagation()}>
         <MathLiveEquationEditor value={inlineEquationEditor.latex} onChange={(latex) => { const cleanLatex = stripEquationEditingPlaceholders(latex); updateInlineEquationTarget(cleanLatex); setInlineEquationEditor((current) => current ? { ...current, latex: cleanLatex, end: current.start + `\\(${cleanLatex}\\)`.length } : current); commitEditorAfterLayout(); }} ariaLabel="Edit inline equation on canvas" elementId={inlineEquationEditor.controlId} canvas />

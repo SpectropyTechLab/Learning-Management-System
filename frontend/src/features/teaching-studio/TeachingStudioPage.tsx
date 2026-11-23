@@ -18,6 +18,7 @@ import {
   Eye,
   Eraser,
   Focus,
+  FileUp,
   FileText,
   FlaskConical,
   Dna,
@@ -56,7 +57,6 @@ import {
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { sanitizeHtml } from '@/utils/htmlSanitizer';
 import {
   createBlankStudioScreen,
   deleteStudioScreen,
@@ -93,9 +93,12 @@ import StudioAdaptiveRibbon, {
   type StudioRibbonGroup,
 } from './components/StudioAdaptiveRibbon';
 import StudioClipboardGroup from './components/StudioClipboardGroup';
+import PasteOptionsMenu from './components/PasteOptionsMenu';
+import PptxImportDialog from './importing/ui/PptxImportDialog';
 import StudioElementContextMenu from './components/StudioElementContextMenu';
 import {
   applyStudioElementFormat,
+  applyStudioPasteMode,
   collectStudioClipboardElements,
   copyStudioElementFormat,
   pasteStudioClipboardElements,
@@ -105,7 +108,7 @@ import {
   type StudioPasteMode,
 } from './components/studioClipboardModel';
 import StudioLayersPanel from './components/StudioLayersPanel';
-import { moveStudioLayer } from './components/studioLayerModel';
+import { moveStudioLayer, selectionForStudioObjectClick } from './components/studioLayerModel';
 import { buildStudioAnimationSequence, persistStudioAnimationSequence, type StudioAnimationSequenceEntry } from './components/studioAnimationSequence';
 import { model3DSettingsFrom, standardModel3DView, type Model3DSettings } from './components/resources/model3DSettings';
 import {
@@ -179,12 +182,22 @@ import type { StudioLayoutSummary } from './api/studioEditorApi';
 import {
   createStudioResource,
   createStudioResourceVersion,
+  deleteStudioResource,
   getStudioResource,
   getStudioResourcePreview,
   importStudioAssetCatalogItem,
   listStudioResources,
   searchStudioAssetCatalog,
 } from './api/studioResourcesApi';
+import {
+  adaptClipboardSnapshot,
+  clipboardSnapshotFromDataTransfer,
+  clipboardSnapshotFromItems,
+  parseNativeClipboardPayload,
+  SPECTROPY_CLIPBOARD_MIME,
+  type ClipboardSnapshot,
+} from './importing/adapters/clipboardAdapter';
+import { commitClipboardDocument } from './importing/commit/clipboardCommitter';
 import type { StudioAssetCatalogItem, StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
 import {
   approveStudioSession,
@@ -416,6 +429,7 @@ export default function TeachingStudioPage() {
   const [insertResourceFilter, setInsertResourceFilter] = useState<InsertResourceType | null>(null);
   const [resourceUploadOpen, setResourceUploadOpen] = useState(false);
   const [assetCatalogOpen, setAssetCatalogOpen] = useState(false);
+  const [pptxImportOpen, setPptxImportOpen] = useState(false);
   const [layoutGalleryOpen, setLayoutGalleryOpen] = useState(false);
   const [zoomDialogMode, setZoomDialogMode] = useState<StudioZoomMode | null>(null);
   const [animationPreview, setAnimationPreview] = useState<{
@@ -600,6 +614,15 @@ export default function TeachingStudioPage() {
   const [selectedLayoutSlotId, setSelectedLayoutSlotId] = useState<string | null>(null);
   const inlineEquationCaretRef = useRef<{ elementId: string; offset: number } | null>(null);
   const [editorClipboard, setEditorClipboard] = useState<StudioElement[]>([]);
+  const [externalPasteOptions, setExternalPasteOptions] = useState<{
+    elementIds: string[];
+    originalElements: StudioElement[];
+    modes: StudioPasteMode[];
+  } | null>(null);
+  const externalPasteSequenceRef = useRef(0);
+  const [externalPasteBusy, setExternalPasteBusy] = useState(false);
+  const externalPasteBusyRef = useRef(false);
+  useEffect(() => setExternalPasteOptions(null), [selectedScreen?.id]);
   const [diagramChooserOpen, setDiagramChooserOpen] = useState(false);
   const [diagramLayoutGalleryOpen, setDiagramLayoutGalleryOpen] = useState(false);
   const [diagramTextPaneOpen, setDiagramTextPaneOpen] = useState(false);
@@ -3311,20 +3334,52 @@ export default function TeachingStudioPage() {
     const plain = elements.map(textFor).join('\n');
     const html = elements.map((element) => {
       const rich = typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : '';
+      const url = typeof element.content.url === 'string' ? element.content.url : '';
+      const mimeType = String(element.content.mimeType || '');
+      if (!rich && url && mimeType.startsWith('image/') && /^(?:data:image\/|https?:\/\/)/i.test(url)) {
+        return `<img src="${escapeHtml(url)}" alt="${escapeHtml(textFor(element))}">`;
+      }
       return rich || `<p>${escapeHtml(textFor(element)).replaceAll('\n', '<br>')}</p>`;
     }).join('');
     return { plain, html };
   };
 
+  const clipboardImageBlob = async (elements: StudioElement[]) => {
+    if (elements.length !== 1) return null;
+    const element = elements[0];
+    let url = typeof element.content.url === 'string' ? element.content.url : '';
+    if (!url && element.resource?.resource_version_id) {
+      try { url = (await getStudioResourcePreview(element.resource.resource_version_id)).url; } catch { return null; }
+    }
+    if (!url) return null;
+    try {
+      const blob = await (await fetch(url)).blob();
+      if (!blob.type.startsWith('image/')) return null;
+      if (typeof ClipboardItem !== 'undefined' && typeof ClipboardItem.supports === 'function' && !ClipboardItem.supports(blob.type)) return null;
+      return blob;
+    } catch { return null; }
+  };
+
   const writeElementsToSystemClipboard = async (elements: StudioElement[]) => {
     if (!elements.length || !navigator.clipboard) return;
     const { plain, html } = studioClipboardRepresentations(elements);
+    const native = JSON.stringify(elements);
     try {
       if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
-        await navigator.clipboard.write([new ClipboardItem({
+        const image = await clipboardImageBlob(elements);
+        const standardRepresentations: Record<string, Blob> = {
           'text/plain': new Blob([plain], { type: 'text/plain' }),
           'text/html': new Blob([html], { type: 'text/html' }),
-        })]);
+          ...(image ? { [image.type]: image } : {}),
+        };
+        try {
+          await navigator.clipboard.write([new ClipboardItem({
+            [SPECTROPY_CLIPBOARD_MIME]: new Blob([native], { type: SPECTROPY_CLIPBOARD_MIME }),
+            ...standardRepresentations,
+          })]);
+        } catch {
+          await navigator.clipboard.write([new ClipboardItem(standardRepresentations)]);
+        }
       } else await navigator.clipboard.writeText(plain);
     } catch {
       // Keyboard copy/cut still writes synchronously through ClipboardEvent.
@@ -3354,35 +3409,85 @@ export default function TeachingStudioPage() {
     });
   };
 
-  const pasteExternalText = (plain: string, html = '') => {
-    const text = plain.trim();
-    if (!text || !selectedScreen || editorReadOnly) return false;
-    addBlankElement('text', 'content', { x: 360, y: 300 }, {
-      text,
-      ...(html ? { richTextHtml: sanitizeHtml(html) } : {}),
-    });
+  const pasteNativeElements = (sources: StudioElement[]) => {
+    if (!selectedScreen || editorReadOnly || !sources.length) return false;
+    const pasted = pasteStudioClipboardElements(sources, 'source-formatting');
+    commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
+    setSelectedElementIds(pasted.map((element) => element.id));
+    setExternalPasteOptions(null);
     return true;
+  };
+
+  const pasteExternalSnapshot = async (snapshot: ClipboardSnapshot) => {
+    const targetScreen = selectedScreenRef.current;
+    if (!targetScreen || editorReadOnly || externalPasteBusyRef.current) return false;
+    const nativeElements = parseNativeClipboardPayload(snapshot.native_payload);
+    if (nativeElements) return pasteNativeElements(nativeElements);
+    const adaptation = adaptClipboardSnapshot(snapshot);
+    const fatal = adaptation.document.issues.find((issue) => issue.severity === 'error');
+    if (fatal || !adaptation.document.screens[0]?.elements.length) {
+      toast.error(fatal?.message || 'The clipboard did not contain supported content.');
+      return false;
+    }
+    externalPasteBusyRef.current = true;
+    setExternalPasteBusy(true);
+    try {
+      const committed = await commitClipboardDocument(adaptation.document, {
+        create: (input) => createStudioResource(input),
+        remove: (resourceId) => deleteStudioResource(resourceId),
+      });
+      if (selectedScreenRef.current?.id !== targetScreen.id) {
+        await Promise.allSettled(committed.created_resource_ids.map((resourceId) => deleteStudioResource(resourceId)));
+        toast.error('The Screen changed while pasting, so the paste was cancelled.');
+        return false;
+      }
+      externalPasteSequenceRef.current = (externalPasteSequenceRef.current + 1) % 9;
+      const offset = externalPasteSequenceRef.current * 24;
+      const pasted = committed.elements.map((element, index) => {
+        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${index}`;
+        const id = `element-${token}`;
+        const width = Number(element.position.width) || 400;
+        const height = Number(element.position.height) || 240;
+        return {
+          ...element,
+          id,
+          slotId: `free-${id}`,
+          position: {
+            ...element.position,
+            x: Math.max(0, Math.min(1920 - width, (Number(element.position.x) || 0) + offset)),
+            y: Math.max(0, Math.min(1080 - height, (Number(element.position.y) || 0) + offset)),
+          },
+          ...(element.resource ? { resource: { ...element.resource, usage: { ...element.resource.usage, slot_id: `free-${id}` } } } : {}),
+        } as StudioElement;
+      });
+      commitElements([...targetScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
+      const ids = pasted.map((element) => element.id);
+      setSelectedElementIds(ids);
+      setExternalPasteOptions({ elementIds: ids, originalElements: pasted, modes: adaptation.available_modes });
+      const first = pasted[0];
+      const resourceType = String(first?.resource?.usage.resource_type || '');
+      if (pasted.length === 1 && (first?.type === 'visual' || ['image', 'animation'].includes(resourceType))) setActiveRibbonTab('picture-format');
+      adaptation.warnings.forEach((warning) => toast(warning, { duration: 6500 }));
+      const warningCount = adaptation.document.issues.filter((entry) => entry.severity === 'warning').length;
+      toast.success(`${pasted.length === 1 ? 'Item' : `${pasted.length} items`} pasted${warningCount ? ` with ${warningCount} warning${warningCount === 1 ? '' : 's'}` : ''}.`);
+      return true;
+    } catch (pasteError) {
+      const cleanupIds = (pasteError as { cleanup_resource_ids?: number[] }).cleanup_resource_ids;
+      toast.error(cleanupIds?.length
+        ? `Paste failed and some temporary resources need cleanup (${cleanupIds.join(', ')}).`
+        : pasteError instanceof Error ? pasteError.message : 'Paste failed without changing the Screen.');
+      return false;
+    } finally {
+      externalPasteBusyRef.current = false;
+      setExternalPasteBusy(false);
+    }
   };
 
   const pasteFromSystemClipboard = async () => {
     if (!selectedScreen || editorReadOnly || !navigator.clipboard?.read) return false;
     try {
       const items = await navigator.clipboard.read();
-      for (const item of items) {
-        const imageType = item.types.find((type) => type.startsWith('image/'));
-        if (imageType) {
-          const blob = await item.getType(imageType);
-          addDroppedFiles([new File([blob], `Pasted image.${imageType.split('/')[1] || 'png'}`, { type: imageType })], { x: 300, y: 260 }, 'clipboard');
-          return true;
-        }
-        const html = item.types.includes('text/html') ? await (await item.getType('text/html')).text() : '';
-        const plain = item.types.includes('text/plain') ? await (await item.getType('text/plain')).text() : '';
-        if (plain || html) {
-          const template = document.createElement('template');
-          template.innerHTML = html;
-          return pasteExternalText(plain || template.content.textContent || '', html);
-        }
-      }
+      return pasteExternalSnapshot(await clipboardSnapshotFromItems(items));
     } catch {
       toast.error('Clipboard access was blocked. Use Ctrl+V inside the Studio canvas.');
     }
@@ -3400,6 +3505,16 @@ export default function TeachingStudioPage() {
     setSelectedElementIds(pasted.map((element) => element.id));
     if (mode === 'picture' && pasted.length === 1) setActiveRibbonTab('picture-format');
     toast.success(`${pasted.length === 1 ? 'Element' : `${pasted.length} elements`} pasted using ${mode.replaceAll('-', ' ')}.`);
+  };
+
+  const changeExternalPasteMode = (mode: StudioPasteMode) => {
+    const screen = selectedScreenRef.current;
+    if (!screen || !externalPasteOptions) return;
+    const replacements = applyStudioPasteMode(externalPasteOptions.originalElements, mode);
+    const byId = new Map(replacements.map((element) => [element.id, element]));
+    commitElements(screen.elements.map((element) => byId.get(element.id) || element), externalPasteOptions.elementIds.at(-1) ?? null);
+    setSelectedElementIds(externalPasteOptions.elementIds);
+    toast.success(`Paste changed to ${mode.replaceAll('-', ' ')}.`);
   };
 
   const toggleFormatPainter = (persistent: boolean) => {
@@ -3706,7 +3821,7 @@ export default function TeachingStudioPage() {
       event.preventDefault();
       event.clipboardData.setData('text/plain', plain);
       event.clipboardData.setData('text/html', html);
-      event.clipboardData.setData('application/x-spectropy-studio-elements', JSON.stringify(copied));
+      event.clipboardData.setData(SPECTROPY_CLIPBOARD_MIME, JSON.stringify(copied));
       setEditorClipboard(copied);
       if (cut && selectedScreen && !editorReadOnly) {
         const copiedIds = new Set(copied.map((element) => element.id));
@@ -3715,29 +3830,19 @@ export default function TeachingStudioPage() {
     };
     const pasteExternal = (event: ClipboardEvent) => {
       if (isTypingTarget(event.target) || editorReadOnly || !selectedScreen || !event.clipboardData) return;
-      const studioPayload = event.clipboardData.getData('application/x-spectropy-studio-elements');
+      const studioPayload = event.clipboardData.getData(SPECTROPY_CLIPBOARD_MIME);
       if (studioPayload) {
         event.preventDefault();
-        try {
-          const parsed = JSON.parse(studioPayload) as StudioElement[];
-          const pasted = pasteStudioClipboardElements(parsed, 'source-formatting');
-          commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
-          setSelectedElementIds(pasted.map((element) => element.id));
+        const parsed = parseNativeClipboardPayload(studioPayload);
+        if (parsed) {
+          pasteNativeElements(parsed);
           return;
-        } catch { /* Fall through to standard clipboard formats. */ }
+        }
       }
-      const files = Array.from(event.clipboardData.files ?? []);
-      if (files.length) {
-        event.preventDefault();
-        addDroppedFiles(files, { x: 300, y: 260 }, 'clipboard');
-        return;
-      }
-      const html = event.clipboardData.getData('text/html');
-      const plain = event.clipboardData.getData('text/plain');
-      if (!plain && !html) return;
-      const template = document.createElement('template');
-      template.innerHTML = html;
-      if (pasteExternalText(plain || template.content.textContent || '', html)) event.preventDefault();
+      const snapshot = clipboardSnapshotFromDataTransfer(event.clipboardData);
+      if (!snapshot.files.length && !snapshot.svg && !snapshot.html && !snapshot.plain) return;
+      event.preventDefault();
+      void pasteExternalSnapshot(snapshot);
     };
     const copyExternal = (event: ClipboardEvent) => writeClipboardEvent(event, false);
     const cutExternal = (event: ClipboardEvent) => writeClipboardEvent(event, true);
@@ -4222,7 +4327,7 @@ export default function TeachingStudioPage() {
     changeElementBounds(selectedElement.id, current);
   };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
-  const selectElementAndOpenControls = (elementId: string, additive = false) => {
+  const selectElementAndOpenControls = (elementId: string, additive = false, direct = false) => {
     if (!additive && animationPaintSource && animationPaintSource.elementId !== elementId && selectedScreen && !editorReadOnly) {
       const baseOrder = buildStudioAnimationSequence(selectedScreen.elements).length;
       const copied = structuredClone(animationPaintSource.animation);
@@ -4248,11 +4353,12 @@ export default function TeachingStudioPage() {
         return next;
       });
     } else {
-      const element = selectedScreen?.elements.find((candidate) => candidate.id === elementId);
-      const groupId = typeof element?.position.groupId === 'string' ? element.position.groupId : null;
-      const next = groupId
-        ? selectedScreen?.elements.filter((candidate) => candidate.position.groupId === groupId).map((candidate) => candidate.id) ?? [elementId]
-        : [elementId];
+      const next = selectionForStudioObjectClick(
+        selectedScreen?.elements ?? [],
+        selectedElementIds,
+        elementId,
+        direct,
+      );
       setSelectedElementIds((current) =>
         current.length === next.length && current.every((id, index) => id === next[index])
           ? current
@@ -4383,12 +4489,12 @@ export default function TeachingStudioPage() {
             label: 'Clipboard',
             content: (
               <StudioClipboardGroup
-                canPaste={!editorReadOnly && Boolean(selectedScreen)}
+                canPaste={!editorReadOnly && Boolean(selectedScreen) && !externalPasteBusy}
                 canCopy={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
                 canCut={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
                 formatPainterActive={Boolean(formatPainter)}
                 formatPainterLocked={formatPainter?.persistent === true}
-                availablePasteModes={studioPasteModesForElements(editorClipboard)}
+                availablePasteModes={editorClipboard.length ? studioPasteModesForElements(editorClipboard) : ['source-formatting']}
                 onPaste={pasteClipboard}
                 onCopy={copySelectedElements}
                 onCut={cutSelectedElements}
@@ -4408,6 +4514,7 @@ export default function TeachingStudioPage() {
           {
             id: 'screen', label: 'Screen', commands: [
               { id: 'add-screen', label: 'Add Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => void createBlankScreen() },
+              { id: 'import-powerpoint', label: 'Import PowerPoint', icon: <FileUp size={17} />, disabled: editorReadOnly || !sessionId, onExecute: () => setPptxImportOpen(true) },
               { id: 'screen-metadata', label: 'Metadata', icon: <SlidersHorizontal size={17} />, disabled: editorReadOnly || !selectedScreenId, onExecute: () => void openScreenMetadata() },
               { id: 'rename-screen', label: 'Rename', icon: <Pencil size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => void openRenameScreen() },
               { id: 'delete-screen', label: 'Delete', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen, onExecute: () => void requestScreenAction('delete-screen') },
@@ -4430,6 +4537,7 @@ export default function TeachingStudioPage() {
         return [
           { id: 'insert-screen', label: 'Slides', commands: [
             { id: 'insert-new-screen', label: 'New Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => void createBlankScreen() },
+            { id: 'insert-powerpoint', label: 'Import PowerPoint', icon: <FileUp size={17} />, disabled: editorReadOnly || !sessionId, onExecute: () => setPptxImportOpen(true) },
           ] },
           {
             id: 'insert-text', label: 'Text', commands: [
@@ -5482,9 +5590,14 @@ export default function TeachingStudioPage() {
                 onDropFiles={editorReadOnly ? undefined : addDroppedFiles}
               />
             </div>
+            {externalPasteOptions ? <PasteOptionsMenu
+              modes={externalPasteOptions.modes}
+              onChoose={changeExternalPasteMode}
+              onClose={() => setExternalPasteOptions(null)}
+            /> : null}
             {elementContextMenu ? <StudioElementContextMenu
               position={{ x: elementContextMenu.x, y: elementContextMenu.y }}
-              canPaste={!editorReadOnly && editorClipboard.length > 0}
+              canPaste={!editorReadOnly && Boolean(selectedScreen) && !externalPasteBusy}
               canGroup={!editorReadOnly && selectedElementIds.length > 1}
               canUngroup={!editorReadOnly && selectedHasGroup}
               onCut={cutSelectedElements}
@@ -5527,7 +5640,7 @@ export default function TeachingStudioPage() {
               <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} relative min-h-0 min-w-0 flex-1 overscroll-contain ${panel === 'animations' ? 'overflow-hidden p-2' : 'overflow-auto [scrollbar-gutter:stable]'} ${panel === 'layers' ? 'p-1.5' : panel === 'animations' ? '' : 'p-2'}`}>
                 {panel !== 'insert-resources' ? panel === 'animations' ? <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"><X size={13} /></button> : <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div> : null}
                 {panel === 'layers' && (
-                  <StudioLayersPanel screen={selectedScreen} selectedElementId={selectedElementId} readOnly={editorReadOnly} onSelect={selectElementAndOpenControls} onCommit={commitElements} />
+                  <StudioLayersPanel screen={selectedScreen} selectedElementId={selectedElementId} readOnly={editorReadOnly} onSelect={(elementId) => selectElementAndOpenControls(elementId, false, true)} onCommit={commitElements} />
                 )}
                 {panel === 'resources' && (
                   <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />
@@ -6210,6 +6323,29 @@ export default function TeachingStudioPage() {
         </div>
       )}
       {rejectionDetailsOpen && workflowStatus?.status === 'rejected' ? <StudioRejectionDetailsDialog status={workflowStatus} onClose={() => setRejectionDetailsOpen(false)} /> : null}
+      {pptxImportOpen && sessionId ? (
+        <PptxImportDialog
+          sessionId={sessionId}
+          sessions={sessionOptions}
+          currentScreenId={selectedScreen?.id ?? null}
+          onClose={() => setPptxImportOpen(false)}
+          onImported={async (result, destinationSessionId) => {
+            const firstScreenId = result.screens_created[0];
+            if (destinationSessionId !== sessionId) {
+              navigate(`/studio/editor/${destinationSessionId}${firstScreenId ? `?screen=${firstScreenId}` : ''}`);
+              toast.success(`Imported ${result.report.counts.screens} PowerPoint slide${result.report.counts.screens === 1 ? '' : 's'} into the selected Session.`);
+              return;
+            }
+            if (firstScreenId) {
+              const next = new URLSearchParams(searchParams);
+              next.set('screen', String(firstScreenId));
+              setSearchParams(next, { replace: true });
+            }
+            await loadScreens();
+            toast.success(`Imported ${result.report.counts.screens} PowerPoint slide${result.report.counts.screens === 1 ? '' : 's'} as editable Screens.`);
+          }}
+        />
+      ) : null}
       {workflowDetailsOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Publication issue details">
           <div className="flex max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">

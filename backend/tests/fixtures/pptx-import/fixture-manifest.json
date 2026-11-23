@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "date": "2026-11-22",
+  "policy": {
+    "repository_files": "Only deterministic synthetic fixtures are generated in tests.",
+    "local_acceptance_files": "Verify identity by SHA-256; do not commit proprietary or large decks.",
+    "encrypted_files": "Reject and request a password-free PPTX copy."
+  },
+  "fixtures": [
+    {
+      "id": "synthetic-package-inspection",
+      "availability": "generated-test",
+      "repository_file": null,
+      "expected": ["valid-pptx-structure", "one-slide", "one-shape", "one-text-run"]
+    },
+    {
+      "id": "maths-trigonometry-introduction",
+      "file_name": "Maths_Trigonometry introduction (2).pptx",
+      "availability": "local-acceptance",
+      "repository_file": null,
+      "size_bytes": 807159,
+      "sha256": "43568D5E0C1FB6CB8D3D18D2A21CCE95F8856BB220D3FE60FAFB7C4AF7830260",
+      "expected": ["19-slides", "editable-text-and-shapes", "groups", "connectors", "notes", "images", "timing"]
+    },
+    {
+      "id": "maths-quadratic-equations-intro",
+      "file_name": "Maths_QuadraticEquations_Intro.pptx",
+      "availability": "local-acceptance",
+      "repository_file": null,
+      "size_bytes": 278706,
+      "sha256": "82F1A91B3B7AB31B505EFED9156AEB8504A4EDE49823F436845FCA1D4324C471",
+      "expected": ["18-slides", "text-heavy", "shape-heavy", "groups", "notes", "timing"]
+    },
+    {
+      "id": "physics-heat-transfer",
+      "file_name": "Phy_Heat transfer.pptx",
+      "availability": "local-acceptance",
+      "repository_file": null,
+      "size_bytes": 8020105,
+      "sha256": "18CF63AB089C2625A99730C0879E9329980B7E53A939B093262F033BF73CFD28",
+      "expected": ["7-slides", "image-heavy", "multiple-masters", "multiple-layouts", "groups", "connectors", "timing"]
+    },
+    {
+      "id": "smart-ent",
+      "file_name": "SMART-ENT.pptx",
+      "availability": "local-acceptance",
+      "repository_file": null,
+      "size_bytes": 3926177,
+      "sha256": "609D45C8AD7FE56BF186895791CBD953B7DE245C36764762B5D14C437CC6F1F0",
+      "expected": ["13-slides", "high-shape-density", "groups", "svg", "png", "jpeg"]
+    },
+    {
+      "id": "biology-life-processes-large-encrypted",
+      "file_name": "Bio_Life Processes In Living Organisms 2 (1).pptx",
+      "availability": "local-acceptance",
+      "repository_file": null,
+      "size_bytes": 47416848,
+      "sha256": "5C3D981FB2BC69F1D7846FFDA0DB96A1774A726079095FDD3D81EB0D82506F33",
+      "expected": ["reject-encrypted-zip-entries", "request-password-free-copy"]
+    },
+    {
+      "id": "biology-life-processes-small-encrypted",
+      "file_name": "Bio_Life Processes In Living Organisms 2.pptx",
+      "availability": "local-acceptance",
+      "repository_file": null,
+      "size_bytes": 32207,
+      "sha256": "A24BD4AA54EA42DE47645C1CC2702E33A1ED8A5212316BD6B60DE211D9C1B642",
+      "expected": ["reject-encrypted-zip-entries", "request-password-free-copy"]
+    }
+  ],
+  "future_fixture_classes": [
+    "charts",
+    "smartart",
+    "3d-models",
+    "embedded-media",
+    "malicious-path-traversal",
+    "zip-bomb-limits",
+    "unsupported-active-content"
+  ]
+}

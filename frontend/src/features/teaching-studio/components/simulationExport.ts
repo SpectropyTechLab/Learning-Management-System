@@ -3,9 +3,16 @@ import { drawNativeSimulation } from './nativeSimulationRenderers.ts';
 import { injectPhysicsProject } from './physics-runtime/physicsRuntimeProject.ts';
 
 export const buildSimulationHtml = async (simulation: SimulationDocument) => {
-  if (simulation.subject === 'physics' && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML') {
-    const response = await fetch('/simulation-runtimes/physics.html');
-    if (!response.ok) throw new Error(`Physics runtime could not be loaded (${response.status}).`);
+  if (['physics', 'chemistry', 'biology', 'mathematics'].includes(simulation.subject) && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML') {
+    const runtimeUrl = simulation.subject === 'chemistry'
+      ? '/studio-labs/chemistry/chemistry-simulation-studio.html?v=chemistry-library-icons-2'
+      : simulation.subject === 'biology'
+        ? '/studio-labs/biology/biology-simulation-studio.html?v=biology-runtime-1'
+      : simulation.subject === 'mathematics'
+        ? '/studio-labs/mathematics/mathematics-simulation-studio.html?v=mathematics-runtime-1'
+      : '/simulation-runtimes/physics.html';
+    const response = await fetch(runtimeUrl);
+    if (!response.ok) throw new Error(`${simulation.subject[0].toUpperCase() + simulation.subject.slice(1)} runtime could not be loaded (${response.status}).`);
     return injectPhysicsProject(await response.text(), simulation);
   }
   return buildStandaloneSimulationHtml(simulation);
