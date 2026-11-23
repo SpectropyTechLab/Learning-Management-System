@@ -32,6 +32,7 @@ export type ActivityDocument = {
   difficulty: string;
   objective: string;
   activityType: ActivityType;
+  simulation: SimulationId;
   content: string;
   scene: string;
   sceneSource: 'built-in' | 'resource' | 'external';
@@ -54,6 +55,29 @@ export type ActivityDocument = {
   teacherNotes: string;
   misconceptions: string;
 };
+
+export type SimulationId = 'projectile' | 'pendulum' | 'ohm' | 'wave' | 'gas' | 'ph' | 'quad' | 'trig' | 'enzyme' | 'pop' | 'lens' | 'spring' | 'decay' | 'titr' | 'linear' | 'coin' | 'prey' | 'mendel';
+
+export const ACTIVITY_SIMULATIONS: readonly { id: SimulationId; label: string; subject: ActivityScene['subject'] }[] = [
+  { id: 'projectile', label: 'Projectile motion', subject: 'Physics' },
+  { id: 'pendulum', label: 'Simple pendulum', subject: 'Physics' },
+  { id: 'ohm', label: "Ohm's law circuit", subject: 'Physics' },
+  { id: 'wave', label: 'Wave on a string', subject: 'Physics' },
+  { id: 'lens', label: 'Convex lens image formation', subject: 'Physics' },
+  { id: 'spring', label: 'Spring-mass SHM', subject: 'Physics' },
+  { id: 'decay', label: 'Radioactive decay / half-life', subject: 'Physics' },
+  { id: 'gas', label: 'Ideal gas (PV = nRT)', subject: 'Chemistry' },
+  { id: 'ph', label: 'pH scale / dilution', subject: 'Chemistry' },
+  { id: 'titr', label: 'Acid-base titration curve', subject: 'Chemistry' },
+  { id: 'quad', label: 'Quadratic graph', subject: 'Mathematics' },
+  { id: 'trig', label: 'Unit circle / trig', subject: 'Mathematics' },
+  { id: 'linear', label: 'Straight line', subject: 'Mathematics' },
+  { id: 'coin', label: 'Probability: coin tosses', subject: 'Mathematics' },
+  { id: 'enzyme', label: 'Enzyme kinetics', subject: 'Biology' },
+  { id: 'pop', label: 'Population growth', subject: 'Biology' },
+  { id: 'prey', label: 'Predator-prey cycles', subject: 'Biology' },
+  { id: 'mendel', label: 'Monohybrid cross', subject: 'Biology' },
+] as const;
 
 export const ACTIVITY_TEMPLATES: readonly ActivityTemplate[] = [
   { id: 'mcq', label: 'Quiz · MCQ', icon: '❓', group: 'Questions', description: 'Single-correct multiple choice.', format: 'Question | correct | wrong 1 | wrong 2 | wrong 3 | explanation', sample: 'A body thrown upward reaches its maximum height. Its acceleration is | g downward | zero | g upward | dependent on mass | Gravity still acts at the top.\nThe SI unit of impulse is | N s | N/s | J s | kg m/s² | Impulse equals change in momentum.' },
@@ -115,7 +139,7 @@ export const createActivityDocument = (type: ActivityType = 'mcq'): ActivityDocu
   return {
     schema: 'spectropy.activity.v1', version: 1, title: template.label, subject: 'Physics', grade: 'Class 9',
     chapter: '', concept: '', track: 'Foundation', bloom: type === 'ar' || type === 'sort' || type === 'hotspot' ? 'HOT · Analyse' : 'LOT · Understand',
-    difficulty: 'Medium', objective: '', activityType: type, content: template.sample, scene: 'grid', sceneSource: 'built-in', sceneUrl: '', sceneMediaType: 'image', sceneMediaFit: 'cover', sceneResourceName: '', sceneResourceId: null, sceneResourceVersionId: null, layout: 'split', accent: '#2563eb',
+    difficulty: 'Medium', objective: '', activityType: type, simulation: 'projectile', content: template.sample, scene: 'grid', sceneSource: 'built-in', sceneUrl: '', sceneMediaType: 'image', sceneMediaFit: 'cover', sceneResourceName: '', sceneResourceId: null, sceneResourceVersionId: null, layout: 'split', accent: '#2563eb',
     timer: 0, points: 4, negativeMarks: 1, mode: 'Whole class (teacher-led)', teams: 'Team A, Team B', shuffle: true,
     instantReveal: false, ambientAnimation: true, teacherNotes: '', misconceptions: '',
   };
@@ -131,6 +155,7 @@ export const validateActivityDocument = (input: unknown): ActivityDocument => {
     ...base, ...value,
     title: String(value.title || base.title).slice(0, 160),
     content: String(value.content || ''),
+    simulation: ACTIVITY_SIMULATIONS.some((simulation) => simulation.id === value.simulation) ? value.simulation as SimulationId : base.simulation,
     scene: ACTIVITY_SCENES.some((scene) => scene.id === value.scene) ? String(value.scene) : base.scene,
     sceneSource: ['built-in', 'resource', 'external'].includes(String(value.sceneSource)) ? value.sceneSource as ActivityDocument['sceneSource'] : base.sceneSource,
     sceneUrl: typeof value.sceneUrl === 'string' ? value.sceneUrl : '',
