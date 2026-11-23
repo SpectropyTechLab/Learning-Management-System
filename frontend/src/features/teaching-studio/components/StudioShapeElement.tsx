@@ -1,4 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+
+interface ShapeGradient {
+  angle?: number;
+  stops: Array<{ position: number; color: string }>;
+}
 
 interface Props {
   elementId?: string;
@@ -10,6 +15,8 @@ interface Props {
   strokeDash?: string;
   customPath?: string;
   effect?: string;
+  effectColor?: string;
+  gradient?: ShapeGradient | null;
 }
 export default function StudioShapeElement({
   elementId,
@@ -21,7 +28,10 @@ export default function StudioShapeElement({
   strokeDash = 'solid',
   customPath,
   effect = 'none',
+  effectColor = '#2563eb',
+  gradient = null,
 }: Props) {
+  const gradientId = `studio-shape-gradient-${useId().replaceAll(':', '')}`;
   const [preview, setPreview] = useState<Partial<Pick<Props, 'fill' | 'stroke' | 'strokeWidth' | 'opacity' | 'strokeDash' | 'effect'>> | null>(null);
   useEffect(() => {
     if (!elementId) return;
@@ -40,8 +50,9 @@ export default function StudioShapeElement({
   const renderedOpacity = Number.isFinite(Number(preview?.opacity)) ? Number(preview?.opacity) : opacity;
   const renderedStrokeDash = typeof preview?.strokeDash === 'string' ? preview.strokeDash : strokeDash;
   const renderedEffect = typeof preview?.effect === 'string' ? preview.effect : effect;
+  const validGradient = gradient && Array.isArray(gradient.stops) && gradient.stops.length >= 2;
   const common = {
-    fill: renderedFill,
+    fill: validGradient ? `url(#${gradientId})` : renderedFill,
     stroke: renderedStroke,
     strokeWidth: renderedStrokeWidth,
     opacity: renderedOpacity,
@@ -56,29 +67,30 @@ export default function StudioShapeElement({
       preserveAspectRatio="none"
       aria-hidden="true"
       style={{
-        filter: renderedEffect === 'shadow' ? 'drop-shadow(8px 8px 7px rgb(15 23 42 / 0.38))'
-          : renderedEffect === 'glow' ? 'drop-shadow(0 0 9px rgb(37 99 235 / 0.75))'
+        filter: renderedEffect === 'shadow' ? `drop-shadow(8px 8px 7px ${effectColor})`
+          : renderedEffect === 'glow' ? `drop-shadow(0 0 9px ${effectColor})`
             : renderedEffect === 'soft-edges' ? 'blur(1.5px)'
               : undefined,
       }}
     >
+      {validGradient ? <defs><linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0" gradientTransform={`rotate(${Number(gradient.angle) || 0} .5 .5)`}>{gradient.stops.map((stop, index) => <stop key={`${stop.position}-${index}`} offset={`${Math.max(0, Math.min(1, Number(stop.position) || 0)) * 100}%`} stopColor={stop.color}/>)}</linearGradient></defs> : null}
       {kind === 'custom-drawing' && customPath ? (
         <path d={customPath} {...common} fill="none" strokeLinecap="round" strokeLinejoin="round" />
       ) : kind === 'diagonal-line' ? (
         <line x1="10" y1="110" x2="190" y2="10" {...common} fill="none" />
       ) : kind === 'vertical-line' ? (
         <line x1="100" y1="6" x2="100" y2="114" {...common} fill="none" />
-      ) : kind === 'connector' ? (
+      ) : ['connector', 'elbow-connector'].includes(kind) ? (
         <path d="M8 25H75V95H192" {...common} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      ) : kind === 'curve' ? (
+      ) : ['curve', 'curved-connector'].includes(kind) ? (
         <path d="M8 98C50 5 145 115 192 22" {...common} fill="none" strokeLinecap="round" />
-      ) : kind === 'circle' ? (
+      ) : ['circle', 'ellipse'].includes(kind) ? (
         <ellipse cx="100" cy="60" rx="92" ry="52" {...common} />
       ) : kind === 'triangle' ? (
         <polygon points="100,6 194,114 6,114" {...common} />
       ) : kind === 'inverted-triangle' ? (
         <polygon points="6,6 194,6 100,114" {...common} />
-      ) : ['diamond', 'flow-decision'].includes(kind) ? (
+      ) : ['diamond', 'flow-decision', 'flowchart-decision'].includes(kind) ? (
         <polygon points="100,5 195,60 100,115 5,60" {...common} />
       ) : kind === 'pentagon' ? (
         <polygon points="100,5 195,45 160,115 40,115 5,45" {...common} />
@@ -135,9 +147,9 @@ export default function StudioShapeElement({
         />
       ) : kind === 'line' ? (
         <line x1="8" y1="60" x2="192" y2="60" {...common} fill="none" />
-      ) : ['arrow', 'curved-arrow'].includes(kind) ? (
+      ) : ['arrow', 'right-arrow'].includes(kind) ? (
         <polygon points="5,45 140,45 140,20 195,60 140,100 140,75 5,75" {...common} />
-      ) : kind === 'double-arrow' ? (
+      ) : ['double-arrow', 'left-right-arrow'].includes(kind) ? (
         <polygon
           points="5,60 50,20 50,45 150,45 150,20 195,60 150,100 150,75 50,75 50,100"
           {...common}
@@ -158,6 +170,8 @@ export default function StudioShapeElement({
         <path d="M32 112V58C32 5 143 5 143 58V75H170L133 112L96 75H121V58C121 31 55 31 55 58V112Z" {...common} />
       ) : kind === 'circular-arrow' ? (
         <path d="M155 32L190 30L174 65L162 49C143 16 82 12 49 42C8 80 44 116 91 112C123 109 141 88 145 67L166 72C158 111 123 119 89 119C22 119-6 57 35 20C73-14 137-2 169 20Z" {...common} />
+      ) : kind === 'curved-arrow' ? (
+        <path d="M18 103C44 26 105 14 157 43L176 20L194 82L129 78L151 58C116 39 75 49 50 111Z" {...common} />
       ) : kind === 'notched-arrow' ? (
         <polygon points="8,25 130,25 130,5 195,60 130,115 130,95 8,95 35,60" {...common} />
       ) : kind === 'elbow-arrow' ? (
@@ -169,7 +183,7 @@ export default function StudioShapeElement({
         <polygon points="28,8 194,8 172,112 6,112" {...common} />
       ) : kind === 'flow-document' ? (
         <path d="M7 8H193V92C160 72 130 116 100 96C70 76 40 116 7 96Z" {...common} />
-      ) : kind === 'flow-terminator' ? (
+      ) : ['flow-terminator', 'flowchart-terminator'].includes(kind) ? (
         <rect x="6" y="20" width="188" height="80" rx="40" {...common} />
       ) : kind === 'flow-delay' ? (
         <path d="M7 7H130C210 7 210 113 130 113H7Z" {...common} />

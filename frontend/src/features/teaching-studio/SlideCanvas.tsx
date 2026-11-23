@@ -276,8 +276,23 @@ export default function SlideCanvas({
       ? interaction.currentRotation ?? object.rotation ?? 0
       : object?.rotation ?? 0;
   const selectObject = (objectId: string, additive = false) => {
-    if (!additive && objectId === selectedObjectId && selectedObjectIdSet.has(objectId)) return;
     onSelectObject?.(objectId, additive);
+  };
+  const selectObjectFromClick = (event: React.MouseEvent, objectId: string) => {
+    if (!event.altKey) {
+      selectObject(objectId, event.ctrlKey || event.metaKey || event.shiftKey);
+      return;
+    }
+    const knownIds = new Set(slide.objects.map((object) => object.id));
+    const stackedIds = [...new Set(document.elementsFromPoint(event.clientX, event.clientY)
+      .map((element) => element.closest<HTMLElement>('[data-element-id]')?.dataset.elementId)
+      .filter((id): id is string => Boolean(id && knownIds.has(id))))];
+    if (stackedIds.length < 2) {
+      selectObject(objectId);
+      return;
+    }
+    const currentIndex = stackedIds.indexOf(objectId);
+    selectObject(stackedIds[(currentIndex + 1 + stackedIds.length) % stackedIds.length]);
   };
 
   const slidePoint = (event: React.PointerEvent<HTMLElement>) => {
@@ -504,7 +519,6 @@ export default function SlideCanvas({
       target instanceof Element &&
       target.closest('button, a, input, textarea, select, [contenteditable="true"], [data-canvas-interactive="true"]')
     ) return;
-    event.preventDefault();
     pendingMoveRef.current = {
       pointerId: event.pointerId,
       objectId,
@@ -769,7 +783,7 @@ export default function SlideCanvas({
                   tabIndex={object ? 0 : undefined}
                   onClick={(event) => {
                     event.stopPropagation();
-                    if (object) selectObject(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
+                    if (object) selectObjectFromClick(event, object.id);
                     else onSelectSlot?.(field.id);
                   }}
                   onPointerDown={(event) => object && queueDirectMove(event, object.id, bounds, object.locked)}
@@ -873,7 +887,7 @@ export default function SlideCanvas({
                 data-element-id={object.id}
                 onClick={(event) => {
                   event.stopPropagation();
-                  selectObject(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
+                  selectObjectFromClick(event, object.id);
                 }}
                 onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds, object.locked)}
                 className={`absolute touch-none overflow-visible rounded-md border-solid ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}

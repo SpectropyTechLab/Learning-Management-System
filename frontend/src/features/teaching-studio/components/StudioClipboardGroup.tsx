@@ -10,6 +10,7 @@ import {
   Palette,
   Scissors,
   Type,
+  WandSparkles,
 } from 'lucide-react';
 import type { StudioPasteMode } from './studioClipboardModel';
 
@@ -29,6 +30,7 @@ type Props = {
 const pasteOptions: Array<{ mode: StudioPasteMode; label: string; icon: typeof Palette }> = [
   { mode: 'destination-theme', label: 'Use Destination Theme', icon: Palette },
   { mode: 'source-formatting', label: 'Keep Source Formatting', icon: ClipboardCopy },
+  { mode: 'editable-content', label: 'Paste as Editable Content', icon: WandSparkles },
   { mode: 'picture', label: 'Picture', icon: Image },
   { mode: 'text-only', label: 'Keep Text Only', icon: Type },
 ];
