@@ -7,8 +7,9 @@
     "node": ">=22 <23"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "node ./node_modules/typescript/bin/tsc && node ./node_modules/vite/bin/vite.js build",
+    "activity-player:generate": "node ./scripts/generate-activity-player-bundle.mjs",
+    "dev": "npm run activity-player:generate && vite",
+    "build": "npm run activity-player:generate && node ./node_modules/typescript/bin/tsc && node ./node_modules/vite/bin/vite.js build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:studio-foundations": "node --experimental-strip-types --test src/features/teaching-studio/components/activityBuilderModel.test.ts src/features/teaching-studio/components/studioRibbonModel.test.ts src/features/teaching-studio/components/studioAnimationRuntime.test.ts src/features/teaching-studio/components/studioAnimationSequence.test.ts src/features/teaching-studio/components/studioLayerModel.test.ts src/features/teaching-studio/components/studioClipboardModel.test.ts src/features/teaching-studio/components/studioEquationPlaceholders.test.ts src/features/teaching-studio/components/studioInlineEquationEditor.test.ts src/features/teaching-studio/components/studioEquationControlModel.test.ts src/features/teaching-studio/components/catalogSimulationRenderer.test.ts src/features/teaching-studio/components/physics-runtime/physicsRuntimeProject.test.ts src/features/teaching-studio/simulation-catalog/physicsObjectLibrary.test.ts src/features/teaching-studio/simulation-catalog/simulationCatalog.test.ts"
