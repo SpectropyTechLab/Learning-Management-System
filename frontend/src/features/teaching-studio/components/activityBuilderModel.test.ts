@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ACTIVITY_SCENES, ACTIVITY_TEMPLATES, createActivityDocument, validateActivityDocument } from './activityBuilderModel.ts';
+import { ACTIVITY_SCENES, ACTIVITY_SIMULATIONS, ACTIVITY_TEMPLATES, createActivityDocument, validateActivityDocument } from './activityBuilderModel.ts';
 import { buildStandaloneActivityHtml } from './activityExport.ts';
 import { applyActivityScore } from './activityScoring.ts';
 import { drawActivityScene } from './activitySceneRenderer.ts';
@@ -13,6 +13,14 @@ test('the Activity ribbon has a configured starting value for every supported ty
     assert.ok(activity.content.length > 0);
     assert.equal(validateActivityDocument(activity).schema, 'spectropy.activity.v1');
   }
+});
+
+test('the Activity Builder exposes every prototype simulation model', () => {
+  assert.equal(ACTIVITY_SIMULATIONS.length, 18);
+  assert.deepEqual(new Set(ACTIVITY_SIMULATIONS.map((simulation) => simulation.subject)), new Set(['Physics', 'Chemistry', 'Mathematics', 'Biology']));
+  const activity = createActivityDocument('sim');
+  activity.simulation = 'mendel';
+  assert.equal(validateActivityDocument(activity).simulation, 'mendel');
 });
 
 test('the Activity Builder exposes every prototype scene and all three layouts', () => {
@@ -71,4 +79,45 @@ test('exported Activity runtime contains timer, delayed reveal, shuffle, and sce
   assert.match(html, /"sceneMediaFit":"contain"/);
   assert.match(html, /A\.sceneMediaFit\|\|'cover'/);
   assert.match(html, /color-scheme:dark/);
+});
+
+test('exported Activity runtime keeps prototype behavior for assertion, numerical, and matching activities', () => {
+  const assertionHtml = buildStandaloneActivityHtml(createActivityDocument('ar'));
+  assert.match(assertionHtml, /Both A and R are true, and R is the correct explanation of A/);
+  assert.match(assertionHtml, /Assertion:<\/b>/);
+  assert.match(assertionHtml, /Reason:<\/b>/);
+
+  const numericalHtml = buildStandaloneActivityHtml(createActivityDocument('numeric'));
+  assert.match(numericalHtml, /Check answer/);
+  assert.match(numericalHtml, /revealAnswer\(\)/);
+
+  const matchHtml = buildStandaloneActivityHtml(createActivityDocument('match'));
+  assert.match(matchHtml, /Choose one match for every left item/);
+  assert.match(matchHtml, /data-match/);
+  assert.match(matchHtml, /Check matches/);
+});
+
+test('every Activity type produces a standalone export with valid executable code', () => {
+  for (const template of ACTIVITY_TEMPLATES) {
+    const html = buildStandaloneActivityHtml(createActivityDocument(template.id));
+    const script = html.match(/<script>([\s\S]*)<\/script>/)?.[1];
+    assert.ok(script, `${template.label} export must contain its runtime`);
+    assert.doesNotThrow(() => Function(script), `${template.label} export runtime must parse`);
+    assert.match(html, new RegExp(`"activityType":"${template.id}"`));
+  }
+});
+
+test('exported game activities contain their interactive standalone controls', () => {
+  const mazeHtml = buildStandaloneActivityHtml(createActivityDocument('maze'));
+  assert.match(mazeHtml, /maze-grid/);
+  assert.match(mazeHtml, /data-m=/);
+  assert.match(mazeHtml, /ArrowUp/);
+
+  assert.match(buildStandaloneActivityHtml(createActivityDocument('hangman')), /hang-word/);
+  assert.match(buildStandaloneActivityHtml(createActivityDocument('whack')), /class="holes"/);
+  assert.match(buildStandaloneActivityHtml(createActivityDocument('balloon')), /balloon-field/);
+  assert.match(buildStandaloneActivityHtml(createActivityDocument('crossword')), /cross-grid/);
+  assert.match(buildStandaloneActivityHtml(createActivityDocument('wordsearch')), /word-grid/);
+  assert.match(buildStandaloneActivityHtml(createActivityDocument('sort')), /data-group/);
+  assert.match(buildStandaloneActivityHtml(createActivityDocument('order')), /data-up/);
 });
