@@ -61,7 +61,13 @@ export const toPhysicsRuntimeProject = (simulation: SimulationDocument) => {
 };
 
 export const injectPhysicsProject = (runtimeHtml: string, simulation: SimulationDocument) => {
-  const project = JSON.stringify(toPhysicsRuntimeProject(simulation)).replace(/</g, '\\u003c');
+  const catalogBootstrap = ['biology', 'mathematics'].includes(simulation.subject)
+    && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML'
+    && !(simulation.metadata?.physicsNativeProject);
+  const project = JSON.stringify(physicsNativeProject(simulation)).replace(/</g, '\\u003c');
+  const catalogModelId = catalogBootstrap
+    ? JSON.stringify(simulation.kind.replace(/^(biology|mathematics)-/, '')).replace(/</g, '\\u003c')
+    : 'null';
   const playerShell = `<style id="spectropy-lms-player-shell">
     body.player #stage {
       width: 100% !important;
@@ -88,15 +94,17 @@ export const injectPhysicsProject = (runtimeHtml: string, simulation: Simulation
     body.player #pWiz:not(.hid) { display: flex !important; z-index: 20 !important; }
   </style>`;
   const hostBridge = `<script id="spectropy-lms-host-bridge">
+    var spectropyNativeWizardOpen = false;
     window.addEventListener('message', function(event) {
       var data = event.data;
       if (!data || data.spx !== 'control') return;
+      if (data.action === 'sync' && window.SPX_CATALOG_DEFAULT) return;
       if (data.action === 'sync' && data.project && typeof openScene === 'function') {
         PROJ = data.project;
         openScene(Math.max(0, Math.min(PROJ.scenes.length - 1, Number(PROJ.start) || 0)));
         return;
       }
-      if (data.action === 'newSimulation' && typeof openWizard === 'function') { openWizard('project'); return; }
+      if (data.action === 'newSimulation' && typeof openWizard === 'function') { spectropyNativeWizardOpen = true; openWizard('project'); return; }
       if (data.action === 'reset') { var reset = document.getElementById('bReset'); if (reset) reset.click(); return; }
       if (data.action === 'back' && typeof stepBy === 'function') { stepBy(-1); return; }
       if (data.action === 'forward' && typeof stepBy === 'function') { stepBy(1); return; }
@@ -115,6 +123,12 @@ export const injectPhysicsProject = (runtimeHtml: string, simulation: Simulation
     });
     window.setInterval(function() {
       if (window.parent === window || typeof sv !== 'function') return;
+      var wizard = document.getElementById('pWiz');
+      if (spectropyNativeWizardOpen && wizard && wizard.classList.contains('hid')) {
+        spectropyNativeWizardOpen = false;
+        var project = JSON.parse(JSON.stringify(PROJ, function(key, value) { return key === '_thumb' ? undefined : value; }));
+        window.parent.postMessage({ spx: 'project', project: project }, '*');
+      }
       var variable = sv();
       if (!variable) return;
       var evaluated = typeof evalAt === 'function' ? evalAt({}) : {};
@@ -124,11 +138,28 @@ export const injectPhysicsProject = (runtimeHtml: string, simulation: Simulation
         values: evaluated
       }, '*');
     }, 100);
+    if (window.SPX_CATALOG_DEFAULT) window.addEventListener('load', function() {
+      document.body.classList.add('player');
+      window.setTimeout(function() {
+        window.SPX_CATALOG_DEFAULT = false;
+        var project = JSON.parse(JSON.stringify(PROJ, function(key, value) { return key === '_thumb' ? undefined : value; }));
+        parent.postMessage({ spx: 'project', project: project }, '*');
+      }, 0);
+    });
   <\/script>`;
-  return runtimeHtml.replace(
+  const injected = runtimeHtml.replace(
     '</head>',
-    `${playerShell}<script>window.EMBED=${project};<\/script>${hostBridge}</head>`,
+    `${playerShell}${catalogBootstrap ? `<script>window.SPX_CATALOG_DEFAULT=true;window.SPX_CATALOG_MODEL=${catalogModelId};<\/script>` : `<script>window.EMBED=${project};<\/script>`}${hostBridge}</head>`,
   );
+  if (!catalogBootstrap) return injected;
+  return insertBeforeLast(injected, '</body>', `<script>
+    (function(){
+      var id=window.SPX_CATALOG_MODEL;
+      if(!id||typeof MODELS==='undefined'||typeof sceneFromModel!=='function'||typeof newProject!=='function')return;
+      var model=MODELS.find(function(candidate){return candidate.id===id;});
+      if(model)newProject(sceneFromModel(model,model.name),model.name);
+    })();
+  <\/script>`);
 };
 
 export type PhysicsNativeProject = ReturnType<typeof toPhysicsRuntimeProject>;

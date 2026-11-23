@@ -2,11 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SimulationDocument } from '../simulationStudioModel';
 import { injectPhysicsProject, toPhysicsRuntimeProject, type PhysicsNativeProject } from './physicsRuntimeProject';
 
-let runtimePromise: Promise<string> | null = null;
-const loadRuntime = () => runtimePromise ||= fetch('/simulation-runtimes/physics.html').then((response) => {
-  if (!response.ok) throw new Error(`Physics runtime could not be loaded (${response.status}).`);
+const runtimePromises = new Map<string, Promise<string>>();
+const loadRuntime = (runtimeUrl: string) => {
+  const existing = runtimePromises.get(runtimeUrl);
+  if (existing) return existing;
+  const pending = fetch(runtimeUrl).then((response) => {
+  if (!response.ok) throw new Error(`Simulation runtime could not be loaded (${response.status}).`);
   return response.text();
-});
+  });
+  runtimePromises.set(runtimeUrl, pending);
+  return pending;
+};
 
 export type PhysicsRuntimeCommand = {
   id: number;
@@ -19,24 +25,26 @@ export type PhysicsRuntimeState = {
   values: Record<string, number>;
 };
 
-export default function PhysicsRuntimePreview({ simulation, resetToken = 0, command, onState, onProject, presentationScale = 1 }: {
+export default function PhysicsRuntimePreview({ simulation, resetToken = 0, command, onState, onProject, presentationScale = 1, runtimeUrl = '/simulation-runtimes/physics.html' }: {
   simulation: SimulationDocument;
   resetToken?: number;
   command?: PhysicsRuntimeCommand | null;
   onState?: (state: PhysicsRuntimeState) => void;
   onProject?: (project: PhysicsNativeProject) => void;
   presentationScale?: number;
+  runtimeUrl?: string;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [runtime, setRuntime] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
-    void loadRuntime().then((html) => { if (active) setRuntime(html); }).catch((reason) => {
-      if (active) setError(reason instanceof Error ? reason.message : 'Physics runtime could not be loaded.');
+    setRuntime('');
+    void loadRuntime(runtimeUrl).then((html) => { if (active) setRuntime(html); }).catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'Simulation runtime could not be loaded.');
     });
     return () => { active = false; };
-  }, []);
+  }, [runtimeUrl]);
   const source = useMemo(
     () => runtime ? injectPhysicsProject(runtime, simulation) : '',
     // Ordinary edits are synchronized into the live runtime below. Rebuild the

@@ -35,7 +35,7 @@ const drawSimulation = (context: CanvasRenderingContext2D, width: number, height
   const p = simulation.parameters;
   const o = simulation.options;
   context.clearRect(0, 0, width, height);
-  context.fillStyle = '#09111d'; context.fillRect(0, 0, width, height);
+  context.fillStyle = simulation.view.background || '#09111d'; context.fillRect(0, 0, width, height);
   if (o.grid) grid(context, width, height);
   const cx = width / 2; const cy = height / 2;
 
