@@ -24,6 +24,8 @@ import StudioLocalBiologyLabFrame from './StudioLocalBiologyLabFrame';
 import StudioSmartDiagram from './StudioSmartDiagram';
 import StudioDiagramTextPane from './StudioDiagramTextPane';
 import StudioHyperlinkOverlay from './studioHyperlink';
+import ScreenSimulationPlayer from './ScreenSimulationPlayer';
+import type { SimulationDocument } from './simulationStudioModel';
 import { isSmartDiagramContent, type SmartDiagramContent } from './smartDiagramModel';
 import { studioAnimationStyle } from './studioAnimationRuntime';
 import { playStudioAnimationSound } from './studioAnimationAudio';
@@ -137,6 +139,9 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     cropOffsetY: Number(storedMediaTransform.cropOffsetY) || 0,
   };
   const effectiveMediaTransform = cropping && cropDraft ? cropDraft : mediaTransform;
+  const simulationProject = element.type === 'simulation' && element.content.simulationProject && typeof element.content.simulationProject === 'object'
+    ? element.content.simulationProject as SimulationDocument
+    : null;
 
   useEffect(() => {
     if (!cropRequestToken || handledCropRequestRef.current === cropRequestToken || !selected || !onMediaTransformChange) return;
@@ -229,6 +234,14 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     }
     if (container?.requestFullscreen) await container.requestFullscreen();
   };
+
+  if (simulationProject) {
+    return (
+      <div ref={containerRef} tabIndex={-1} className="relative h-full w-full bg-[#09111d]" onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }}>
+        <ScreenSimulationPlayer simulation={simulationProject} />
+      </div>
+    );
+  }
 
   const beginCropEdge = (event: ReactPointerEvent<HTMLButtonElement>, edge: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
     event.preventDefault();

@@ -4614,8 +4614,6 @@ export default function TeachingStudioPage() {
             id: 'simulation-create', label: 'Creator', commands: [
               { id: 'simulation-new', label: 'Open Simulation Creator', icon: simulationSaving ? <LoaderCircle size={17} className="animate-spin" /> : <WandSparkles size={17} />, disabled: editorReadOnly || !selectedScreen || simulationSaving, onExecute: () => openSimulationCreator() },
               { id: 'simulation-edit', label: 'Edit Current Simulation', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.simulationProject !== 'object', onExecute: editSelectedSimulation },
-              { id: 'simulation-update-resource', label: 'Update Resource Library', icon: <Save size={17} />, disabled: editorReadOnly || simulationSaving || selectedElement?.type !== 'simulation' || selectedElement.content.simulationHasLocalChanges !== true || !selectedElement.resource?.resource_id, onExecute: updateSelectedSimulationResource },
-              { id: 'simulation-reset-resource', label: 'Reset to Resource', icon: <RefreshCw size={17} />, disabled: editorReadOnly || simulationSaving || selectedElement?.type !== 'simulation' || selectedElement.content.simulationHasLocalChanges !== true || !selectedElement.resource?.resource_id, onExecute: resetSelectedSimulationToResource },
               { id: 'simulation-library', label: 'Resource Library', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
             ],
           },
@@ -4702,11 +4700,9 @@ export default function TeachingStudioPage() {
                           ? <img src={imported.iconUrl} alt="" className="h-5 w-5 rounded object-contain" />
                           : template
                             ? <SimulationCatalogIcon simulation={template} size={18} />
-                            : imported?.iconKey
-                              ? <StudioTopicIcon iconKey={imported.iconKey} className="h-5 w-5" />
-                              : imported
-                                ? <SimulationCatalogIcon simulation={{ icon: 'sparkles', title: imported.project.title, subject: imported.project.subject }} size={18} />
-                                : <Sparkles size={17} />}
+                            : imported
+                              ? <SimulationCatalogIcon simulation={{ icon: 'sparkles', title: imported.project.title, subject: imported.project.subject }} size={18} />
+                              : <Sparkles size={17} />}
                       </span>
                       <span className="block w-full truncate text-center">{title}</span>
                     </button>

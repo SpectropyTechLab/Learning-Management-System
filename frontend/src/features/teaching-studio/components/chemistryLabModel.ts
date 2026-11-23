@@ -35,7 +35,14 @@ export type ChemistryLabProject = {
   topic: string;
   classes: number[];
   parameters: Record<string, unknown>;
+  authoringProject?: ChemistryAuthoringProject;
   metadata?: Record<string, unknown>;
+};
+
+export type ChemistryAuthoringProject = {
+  title: string;
+  scenes: Array<Record<string, unknown>>;
+  start?: number;
 };
 
 let catalogPromise: Promise<ChemistryLabCatalog> | null = null;
@@ -67,6 +74,9 @@ export const validateChemistryLabProject = (value: unknown): ChemistryLabProject
   }
   if (!project.labId || !project.title || !project.topic || !Array.isArray(project.classes) || !project.parameters) {
     throw new Error('The Chemistry Lab project is incomplete.');
+  }
+  if (project.authoringProject && (!Array.isArray(project.authoringProject.scenes) || !project.authoringProject.scenes.length)) {
+    throw new Error('The Chemistry authoring project has no simulation scenes.');
   }
   return project as ChemistryLabProject;
 };

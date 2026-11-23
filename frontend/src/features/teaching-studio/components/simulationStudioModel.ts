@@ -267,7 +267,10 @@ export const createSimulationDocument = (template: SimulationTemplate): Simulati
   results: (template.results || []).map((item) => ({ ...item })),
   playback: { duration: template.playback?.duration ?? 10, loop: template.playback?.loop ?? true },
   view: { background: template.view?.background || '#09111d' },
-  ...(template.metadata ? { metadata: { ...template.metadata } } : {}),
+  ...(template.metadata || ['biology', 'mathematics'].includes(template.subject) ? { metadata: {
+    ...(template.metadata || {}),
+    ...(['biology', 'mathematics'].includes(template.subject) ? { source: 'SPECTROPY Activity Studio HTML' } : {}),
+  } } : {}),
 });
 
 export const validateSimulationDocument = (input: unknown): SimulationDocument => {
@@ -326,7 +329,11 @@ export const validateSimulationDocument = (input: unknown): SimulationDocument =
     playback: validatePlayback(value.playback, base.playback),
     view: validateView(value.view, base.view),
     ...(scene ? { scene } : {}),
-    ...(value.metadata && typeof value.metadata === 'object' ? { metadata: value.metadata } : {}),
+    ...(value.metadata && typeof value.metadata === 'object' || ['biology', 'mathematics'].includes(base.subject) ? { metadata: {
+      ...(base.metadata || {}),
+      ...(value.metadata && typeof value.metadata === 'object' ? value.metadata : {}),
+      ...(['biology', 'mathematics'].includes(base.subject) ? { source: 'SPECTROPY Activity Studio HTML' } : {}),
+    } } : {}),
   };
 };
 

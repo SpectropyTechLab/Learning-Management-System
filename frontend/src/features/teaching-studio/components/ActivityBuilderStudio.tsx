@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
-import { ArrowLeft, FileSpreadsheet, Images, Link2, LoaderCircle, RotateCcw, Upload, WandSparkles, X } from 'lucide-react';
-import { ACTIVITY_SCENES, ACTIVITY_TEMPLATES, activityTemplate, createActivityDocument, validateActivityDocument, type ActivityDocument, type ActivityType } from './activityBuilderModel';
+import { ArrowLeft, FileSpreadsheet, Images, Link2, LoaderCircle, Maximize2, RotateCcw, Upload, WandSparkles, X } from 'lucide-react';
+import { ACTIVITY_SCENES, ACTIVITY_SIMULATIONS, ACTIVITY_TEMPLATES, activityTemplate, createActivityDocument, validateActivityDocument, type ActivityDocument, type ActivityType, type SimulationId } from './activityBuilderModel';
 import { buildStandaloneActivityHtml } from './activityExport';
 import ActivityScenePreview from './ActivityScenePreview';
+import ActivityPlayerFrame from './ActivityPlayerFrame';
 import ResourceLibrary from './resources/ResourceLibrary';
 import { getStudioResourcePreview, type StudioResourceSummary, type StudioResourceVersion } from '../api/studioResourcesApi';
 
@@ -27,6 +28,11 @@ const rowsToContent = (rows: unknown[][]) => rows
   .map((row) => row.join(' | '))
   .join('\n');
 
+const contentToTableRows = (content: string) => content
+  .split(/\r?\n/)
+  .filter((line) => line.trim())
+  .map((line) => line.split('|').map((cell) => cell.trim()));
+
 const blobAsDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result || ''));
@@ -34,15 +40,50 @@ const blobAsDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(blob);
 });
 
+function ActivityTablePopup({ headers, rows, format, activityLabel, onChangeCell, onSaveRows, onClose }: {
+  headers: string[];
+  rows: string[][];
+  format: string;
+  activityLabel: string;
+  onChangeCell: (rowIndex: number, columnIndex: number, value: string) => void;
+  onSaveRows: (rows: string[][]) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[85] grid place-items-center bg-slate-950/65 p-5 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="activity-table-title" className="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3">
+          <div><h2 id="activity-table-title" className="font-bold text-slate-950">Activity content table</h2><p className="text-xs text-slate-500">{activityLabel} · {format}</p></div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close table popup"><X size={20} /></button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto p-5">
+          <table className="w-full border-collapse text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-100"><tr><th className="w-12 border border-slate-300 p-2 text-slate-500">#</th>{headers.map((header) => <th key={header} className="min-w-48 border border-slate-300 p-2 text-left font-bold text-slate-700">{header}</th>)}<th className="w-12 border border-slate-300" /></tr></thead>
+            <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}><td className="border border-slate-200 p-2 text-center text-slate-400">{rowIndex + 1}</td>{headers.map((_, columnIndex) => <td key={columnIndex} className="border border-slate-200 p-1"><input aria-label={`Popup row ${rowIndex + 1}, column ${columnIndex + 1}`} className="h-10 min-w-48 w-full bg-transparent px-3 outline-none focus:bg-blue-50" value={row[columnIndex] || ''} onChange={(event) => onChangeCell(rowIndex, columnIndex, event.target.value)} /></td>)}<td className="border border-slate-200 text-center"><button type="button" onClick={() => onSaveRows(rows.filter((_, index) => index !== rowIndex))} className="px-3 py-2 text-slate-400 hover:text-red-600" aria-label={`Delete popup row ${rowIndex + 1}`}>×</button></td></tr>)}</tbody>
+          </table>
+        </div>
+        <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 px-5 py-3">
+          <button type="button" onClick={() => onSaveRows([...rows, Array(headers.length).fill('')])} className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800">+ Add row</button>
+          <button type="button" onClick={() => void navigator.clipboard.writeText(rows.map((row) => row.join('\t')).join('\n'))} className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Copy for Excel</button>
+          <button type="button" onClick={() => onSaveRows([])} className="px-3 py-2 text-xs font-bold text-red-600">Clear all</button>
+          <button type="button" onClick={onClose} className="ml-auto rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700">Done</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export default function ActivityBuilderStudio({ initialProject, initialType = 'mcq', onBack, onInsert }: Props) {
   const initial = initialProject ? validateActivityDocument(initialProject) : createActivityDocument(initialType);
   const [activity, setActivity] = useState(initial);
+  const [tableRows, setTableRows] = useState<string[][]>(() => contentToTableRows(initial.content));
   const [importText, setImportText] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false);
   const [sceneMessage, setSceneMessage] = useState('');
   const [sceneLoading, setSceneLoading] = useState(false);
   const [dataView, setDataView] = useState<'table' | 'raw' | 'excel'>('table');
+  const [tablePopupOpen, setTablePopupOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (activity.sceneSource !== 'resource' || activity.sceneUrl || !activity.sceneResourceVersionId) return;
@@ -60,15 +101,22 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
       .finally(() => { if (active) setSceneLoading(false); });
     return () => { active = false; };
   }, [activity.sceneResourceVersionId, activity.sceneSource, activity.sceneUrl]);
-  const previewHtml = useMemo(() => buildStandaloneActivityHtml(activity), [activity]);
   const template = activityTemplate(activity.activityType);
   const tableHeaders = useMemo(() => {
     const parts = template.format.split('|').map((part) => part.trim()).filter(Boolean);
     return parts.length > 1 ? parts : ['Content'];
   }, [template.format]);
-  const tableRows = useMemo(() => activity.content.split(/\r?\n/).filter((line) => line.trim()).map((line) => line.split('|').map((cell) => cell.trim())), [activity.content]);
-  const update = <K extends keyof ActivityDocument>(key: K, value: ActivityDocument[K]) => setActivity((current) => ({ ...current, [key]: value }));
-  const saveTableRows = (rows: string[][]) => update('content', rows.map((row) => row.map((cell) => cell.trim()).join(' | ')).join('\n'));
+  const update = <K extends keyof ActivityDocument>(key: K, value: ActivityDocument[K]) => {
+    if (key === 'content') setTableRows(contentToTableRows(String(value)));
+    setActivity((current) => ({ ...current, [key]: value }));
+  };
+  const saveTableRows = (rows: string[][]) => {
+    setTableRows(rows);
+    setActivity((current) => ({
+      ...current,
+      content: rows.map((row) => row.map((cell) => cell.trim()).join(' | ')).join('\n'),
+    }));
+  };
   const updateTableCell = (rowIndex: number, columnIndex: number, value: string) => {
     const rows = tableRows.map((row) => [...row]);
     while (rows[rowIndex].length < tableHeaders.length) rows[rowIndex].push('');
@@ -77,6 +125,7 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
   };
   const changeType = (type: ActivityType) => {
     const next = createActivityDocument(type);
+    setTableRows(contentToTableRows(next.content));
     setActivity((current) => ({ ...current, activityType: type, title: next.title, content: next.content, bloom: next.bloom }));
   };
   const importRows = (raw: string, append = false) => {
@@ -130,8 +179,8 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
       <button type="button" onClick={onBack} className="grid h-11 w-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-blue-600 hover:bg-blue-50 hover:text-blue-800" aria-label="Back to Screen Editor"><ArrowLeft size={20} /></button>
       <div className="min-w-52"><p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-700">SPECTROPY</p><h1 className="text-lg font-bold text-slate-950">Activity Builder</h1></div>
       <div className="min-w-0 flex-1"><p className="truncate text-sm text-slate-600">{activity.title}</p></div>
-      <button type="button" onClick={() => setActivity(createActivityDocument(activity.activityType))} className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-blue-600 hover:bg-blue-50"><RotateCcw size={17} /> Reset</button>
-      <button type="button" onClick={() => onInsert({ project: activity, title: activity.title, html: buildStandaloneActivityHtml(activity) })} className="flex h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-800"><WandSparkles size={18} /> Export &amp; Insert</button>
+      <button type="button" onClick={() => { const reset = createActivityDocument(activity.activityType); setActivity(reset); setTableRows(contentToTableRows(reset.content)); }} className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-blue-600 hover:bg-blue-50"><RotateCcw size={17} /> Reset</button>
+      <button type="button" onClick={async () => onInsert({ project: activity, title: activity.title, html: await buildStandaloneActivityHtml(activity) })} className="flex h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-800"><WandSparkles size={18} /> Export &amp; Insert</button>
     </header>
 
     <section className="grid min-h-0 flex-1 grid-cols-[500px_minmax(0,1fr)] max-[1050px]:grid-cols-1">
@@ -165,7 +214,7 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
                     <tbody>{tableRows.map((row, rowIndex) => <tr key={rowIndex}><td className="border-r border-t border-slate-200 p-2 text-center text-slate-400">{rowIndex + 1}</td>{tableHeaders.map((_, columnIndex) => <td key={columnIndex} className="border-r border-t border-slate-200 p-1"><input aria-label={`Row ${rowIndex + 1}, column ${columnIndex + 1}`} className="min-w-32 w-full bg-transparent px-2 py-1.5 outline-none focus:bg-blue-50" value={row[columnIndex] || ''} onChange={(event) => updateTableCell(rowIndex, columnIndex, event.target.value)} /></td>)}<td className="border-t border-slate-200 text-center"><button type="button" onClick={() => saveTableRows(tableRows.filter((_, index) => index !== rowIndex))} className="px-2 py-1 text-slate-400 hover:text-red-600" aria-label={`Delete row ${rowIndex + 1}`}>×</button></td></tr>)}</tbody>
                   </table>
                 </div>
-                <div className="flex flex-wrap gap-2"><button type="button" onClick={() => saveTableRows([...tableRows, Array(tableHeaders.length).fill('')])} className="text-xs font-bold text-blue-800">+ Add row</button><button type="button" onClick={() => void navigator.clipboard.writeText(tableRows.map((row) => row.join('\t')).join('\n'))} className="text-xs font-bold text-slate-600">Copy for Excel</button><button type="button" onClick={() => update('content', '')} className="text-xs font-bold text-red-600">Clear all</button></div>
+                <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setTablePopupOpen(true)} className="flex items-center gap-1 text-xs font-bold text-blue-800"><Maximize2 size={13} /> Open in popup</button><button type="button" onClick={() => saveTableRows([...tableRows, Array(tableHeaders.length).fill('')])} className="text-xs font-bold text-blue-800">+ Add row</button><button type="button" onClick={() => void navigator.clipboard.writeText(tableRows.map((row) => row.join('\t')).join('\n'))} className="text-xs font-bold text-slate-600">Copy for Excel</button><button type="button" onClick={() => update('content', '')} className="text-xs font-bold text-red-600">Clear all</button></div>
               </div> : null}
               {dataView === 'raw' ? <label className={labelClass}>Raw activity content<textarea rows={10} className={`${textareaClass} font-mono text-xs`} value={activity.content} onChange={(event) => update('content', event.target.value)} /></label> : null}
               {dataView === 'excel' ? <div className="grid gap-3">
@@ -185,6 +234,7 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
                 <button type="button" onClick={() => setResourcePickerOpen(true)} className={`flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-bold ${activity.sceneSource === 'resource' ? 'border-blue-700 bg-blue-50 text-blue-900' : 'border-slate-300 bg-white text-slate-600'}`}><Images size={14} />Resource</button>
                 <button type="button" onClick={() => update('sceneSource', 'external')} className={`flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-bold ${activity.sceneSource === 'external' ? 'border-blue-700 bg-blue-50 text-blue-900' : 'border-slate-300 bg-white text-slate-600'}`}><Link2 size={14} />External URL</button>
               </div>
+              {activity.activityType === 'sim' ? <label className={labelClass}>Simulation model<select className={inputClass} value={activity.simulation} onChange={(event) => update('simulation', event.target.value as SimulationId)}>{Array.from(new Set(ACTIVITY_SIMULATIONS.map((simulation) => simulation.subject))).map((subject) => <optgroup key={subject} label={subject}>{ACTIVITY_SIMULATIONS.filter((simulation) => simulation.subject === subject).map((simulation) => <option key={simulation.id} value={simulation.id}>{simulation.label}</option>)}</optgroup>)}</select></label> : null}
               {activity.sceneSource === 'built-in' ? <label className={labelClass}>Scene<select className={inputClass} value={activity.scene} onChange={(event) => update('scene', event.target.value)}>{Array.from(new Set(ACTIVITY_SCENES.map((scene) => scene.subject))).map((subject) => <optgroup key={subject} label={subject}>{ACTIVITY_SCENES.filter((scene) => scene.subject === subject).map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}</optgroup>)}</select></label> : null}
               {activity.sceneSource === 'resource' ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm"><b>{activity.sceneResourceName || 'No Resource selected'}</b><button type="button" onClick={() => setResourcePickerOpen(true)} className="ml-2 font-bold text-blue-800 underline">Choose another</button></div> : null}
               {activity.sceneSource === 'external' ? <><label className={labelClass}>External image, GIF, or video URL<input type="url" className={inputClass} value={activity.sceneUrl} onChange={(event) => update('sceneUrl', event.target.value)} placeholder="https://example.com/scene.jpg" /></label><label className={labelClass}>Media type<select className={inputClass} value={activity.sceneMediaType} onChange={(event) => update('sceneMediaType', event.target.value as ActivityDocument['sceneMediaType'])}><option value="image">Image or animated GIF</option><option value="video">Video</option></select></label></> : null}
@@ -214,7 +264,8 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
       </aside>
 
       <section className="grid min-h-0 place-items-center overflow-hidden bg-slate-100 p-5">
-        <iframe key={previewHtml} title="Activity preview" srcDoc={previewHtml} sandbox="allow-scripts" className="aspect-video h-auto max-h-full w-full max-w-full border-0 bg-black" />
+        <ActivityPlayerFrame activity={activity} />
+        {tablePopupOpen ? <ActivityTablePopup headers={tableHeaders} rows={tableRows} format={template.format} activityLabel={template.label} onChangeCell={updateTableCell} onSaveRows={saveTableRows} onClose={() => setTablePopupOpen(false)} /> : null}
       </section>
     </section>
   </main>{resourcePickerOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/60 p-5 backdrop-blur-sm"><section className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"><header className="flex items-center justify-between border-b border-slate-200 px-5 py-3"><div><h2 className="font-bold text-slate-950">Choose a scene Resource</h2><p className="text-xs text-slate-500">Images, GIF animations, and videos can be embedded into the exported Activity.</p></div><button type="button" onClick={() => setResourcePickerOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close Resource picker"><X size={20} /></button></header><div className="min-h-0 flex-1 overflow-auto"><ResourceLibrary mode="picker" allowedTypes={['image', 'animation', 'video']} onPick={(resource, version) => void chooseSceneResource(resource, version)} /></div>{sceneLoading ? <div className="absolute inset-0 grid place-items-center bg-white/80"><span className="flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-bold text-white"><LoaderCircle size={18} className="animate-spin" />Preparing scene…</span></div> : null}</section></div> : null}</>;

@@ -1,4 +1,6 @@
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import {
   ArrowLeft,
   Download,
@@ -25,6 +27,10 @@ import {
   type SimulationSubject,
 } from './simulationStudioModel';
 import { PHYSICS_OBJECT_CATEGORIES, PHYSICS_OBJECT_LIBRARY, type PhysicsObjectLibraryEntry } from '../simulation-catalog/physicsObjectLibrary';
+import type { PhysicsRuntimeCommand, PhysicsRuntimeState } from './physics-runtime/PhysicsRuntimePreview';
+import { simulationDocumentFromPhysicsNative } from './physics-runtime/physicsRuntimeProject';
+import PhysicsRuntimeWizard from './physics-runtime/PhysicsRuntimeWizard';
+import { physicsEquationToLatex } from './physics-runtime/physicsExpressionLatex';
 
 export type PhysicsSimulationProject = SimulationDocument;
 export type PhysicsSimulationInsert = { project: SimulationDocument; title: string; html: string };
@@ -64,6 +70,60 @@ const SUBJECT_OBJECT_LIBRARY: Record<SimulationSubject, ReadonlyArray<{ type: st
     { type: 'label', name: 'Value label' }, { type: 'region', name: 'Shaded region' },
   ],
 };
+type StudioObjectLibraryEntry = {
+  type: string;
+  name: string;
+  category?: string;
+  dimension?: string;
+  icon?: string;
+  properties?: Record<string, string | number>;
+  defaultColor?: string;
+  defaultTrail?: string;
+};
+const chemistryObject = (type: string, name: string, category: string, properties: Record<string, string | number> = {}): StudioObjectLibraryEntry => ({
+  type, name, category, dimension: 'Chemistry', properties,
+  defaultColor: category === 'Lab Apparatus' || category === 'Acids, Bases & Electrochemistry' ? 'Amber' : category === 'Chemical Bonding' ? 'Violet' : 'Sky',
+});
+const CHEMISTRY_OBJECT_LIBRARY: ReadonlyArray<StudioObjectLibraryEntry> = [
+  chemistryObject('axes', 'Coordinate axes', 'General'), chemistryObject('point', 'Point', 'General'), chemistryObject('segment', 'Segment', 'General'), chemistryObject('vector', 'Vector', 'General'), chemistryObject('label', 'Value label', 'General'), chemistryObject('note', 'Text note', 'Annotation'), chemistryObject('ruler', 'Ruler', 'Annotation'),
+  chemistryObject('atom', 'Bohr atom', 'Atomic Structure'), chemistryObject('nucleus', 'Nucleus', 'Atomic Structure'), chemistryObject('electron', 'Electron', 'Atomic Structure'), chemistryObject('orbital', 'Atomic orbital', 'Atomic Structure'), chemistryObject('econfig', 'Electron configuration', 'Atomic Structure'), chemistryObject('spectrum', 'Spectrum strip', 'Atomic Structure'), chemistryObject('photon', 'Photon', 'Atomic Structure'),
+  chemistryObject('ptable', 'Periodic table', 'Periodic Table'), chemistryObject('element', 'Element atom', 'Periodic Table'),
+  chemistryObject('molecule', 'Molecule (VSEPR shape)', 'Chemical Bonding'),
+  chemistryObject('solution', 'Beaker with solution', 'Lab Apparatus'), chemistryObject('burette', 'Burette / dropper', 'Lab Apparatus'), chemistryObject('tank', 'Tank / beaker', 'Lab Apparatus'), chemistryObject('thermometer', 'Thermometer', 'Lab Apparatus'), chemistryObject('flame', 'Burner / flame', 'Lab Apparatus'), chemistryObject('meter', 'Meter (A / V / G)', 'Lab Apparatus'), chemistryObject('battery', 'Battery / cell', 'Lab Apparatus'), chemistryObject('rope', 'Wire / connector', 'Lab Apparatus'),
+  chemistryObject('particles', 'Gas / fluid particles', 'States of Matter'), chemistryObject('piston', 'Cylinder + piston', 'States of Matter'), chemistryObject('molecules', 'Reacting particles', 'Chemical Kinetics'), chemistryObject('dots', 'Decay / reaction sample', 'Chemical Kinetics'), chemistryObject('curve', 'Reaction/result curve', 'Chemical Kinetics'),
+  chemistryObject('phscale', 'pH scale', 'Acids, Bases & Electrochemistry'), chemistryObject('bridge', 'Salt bridge', 'Acids, Bases & Electrochemistry'), chemistryObject('solution', 'Indicator solution', 'Acids, Bases & Electrochemistry'), chemistryObject('battery', 'Electrochemical cell', 'Acids, Bases & Electrochemistry'), chemistryObject('meter', 'Conductivity meter', 'Acids, Bases & Electrochemistry'),
+  chemistryObject('cube3d', 'Cube / cuboid', '3D Solids'), chemistryObject('cyl3d', 'Cylinder', '3D Solids'), chemistryObject('cone3d', 'Cone', '3D Solids'), chemistryObject('sphere3d', 'Sphere / globe', '3D Solids'), chemistryObject('prism3d', 'Triangular prism', '3D Solids'), chemistryObject('helix3d', 'Helix / 3D spring', '3D Solids'), chemistryObject('axes3d', '3D axes', '3D Solids'),
+];
+const CHEMISTRY_OBJECT_CATEGORIES = [...new Set(CHEMISTRY_OBJECT_LIBRARY.map((entry) => entry.category || 'General'))];
+const biologyObject = (type: string, name: string, category: string, icon: string, properties: Record<string, string | number> = { x: '0', y: '0' }): StudioObjectLibraryEntry => ({
+  type, name, category, icon, dimension: 'Biology', properties, defaultColor: 'Sky',
+});
+const BIOLOGY_OBJECT_LIBRARY: ReadonlyArray<StudioObjectLibraryEntry> = [
+  biologyObject('ball', 'Ball', 'General', '●'), biologyObject('block', 'Block', 'General', '▰'), biologyObject('vector', 'Vector', 'General', '→'), biologyObject('star', 'Sun / star', 'General', '☀'), biologyObject('surface', 'Surface / wall', 'General', '▱'), biologyObject('label', 'Value label', 'General', 'x=1'), biologyObject('rope', 'Rope / string / wire', 'General', '╲'),
+  biologyObject('meter', 'Meter (A / V / G)', 'Lab & Graphs', '◴'), biologyObject('tank', 'Tank / beaker', 'Lab & Graphs', '▣'), biologyObject('particles', 'Gas / fluid particles', 'Lab & Graphs', '⁙'), biologyObject('thermometer', 'Thermometer', 'Lab & Graphs', '🌡'), biologyObject('flame', 'Burner / flame', 'Lab & Graphs', '🔥'), biologyObject('curve', 'Curve / wave', 'Lab & Graphs', '〰'), biologyObject('dots', 'Decay sample', 'Lab & Graphs', '⠿'),
+  biologyObject('cell', 'Cell (animal / plant)', 'Cell Biology', '🔬', { x: '0', y: '0', size: '4', type: '1', hl: '0' }), biologyObject('mitosis', 'Mitosis stage cell', 'Cell Biology', '🧫', { x: '0', y: '0', size: '3', stage: '2' }), biologyObject('enzyme', 'Enzymes & substrate', 'Cell Biology', '🧩', { x: '0', y: '0', w: '10', h: '6', f: '0.5', inh: '0', n: '6' }),
+  biologyObject('punnett', 'Punnett square', 'Genetics', '▦', { x: '-4', y: '4', cell: '1.4', genes: '1', pa1: '1', pb1: '1', pa2: '1', pb2: '1', dom: '1' }),
+  biologyObject('dna', 'DNA double helix', 'Molecular Biology', '🧬', { x: '0', y: '0', len: '12', r: '1', yaw: '0', seq: 'ATGCGTACCGATTAGCCATGGTAC', bp: '20' }), biologyObject('translation', 'mRNA translation', 'Molecular Biology', '🧬', { x: '-9', y: '0', w: '18', seq: 'ATGGCTTCAAAGTGGGAACGTTAA', p: '0.5' }),
+  biologyObject('plantcell', 'Plant cell', 'Plant Physiology', '🌿', { x: '0', y: '0', size: '3', shrink: '1', dir: '0' }), biologyObject('plant', 'Aquatic plant with O₂ bubbles', 'Plant Physiology', '🌱', { x: '0', y: '0', size: '1', rate: '5' }),
+  biologyObject('heart', 'Heart (4 chambers)', 'Human Physiology', '🫀', { x: '0', y: '0', size: '3', phase: '0' }), biologyObject('neuron', 'Neuron with action potential', 'Human Physiology', '⚡', { x: '-9', y: '0', len: '18', pos: '0.5', myelin: '1' }),
+  biologyObject('population', 'Population (organisms)', 'Ecology', '🐾', { x: '0', y: '0', w: '8', h: '5', nA: '30', nB: '10', nC: '0', shape: '1', bark: '0', pal: '1', speed: '0.4' }), biologyObject('pyramid', 'Ecological pyramid', 'Ecology', '△', { x: '0', y: '-3', w: '12', h: '1.5', E0: '10000', eff: '10', levels: '4', names: 'Producers; Herbivores; Carnivores; Top carnivores' }),
+  biologyObject('gel', 'Gel electrophoresis', 'Biotechnology', '▥', { x: '-5', y: '4', w: '10', h: '7', lanes: 'L; 300, 1200; 500; 150, 800, 2500', p: '1' }),
+  biologyObject('cube3d', 'Cube / cuboid', '3D Solids', '◈'), biologyObject('cyl3d', 'Cylinder', '3D Solids', '◉'), biologyObject('cone3d', 'Cone', '3D Solids', '▲'), biologyObject('sphere3d', 'Sphere / globe', '3D Solids', '🌐'), biologyObject('prism3d', 'Triangular prism', '3D Solids', '◆'), biologyObject('helix3d', 'Helix / 3D spring', '3D Solids', '〰'), biologyObject('axes3d', '3D axes x, y, z', '3D Solids', '↗'),
+  biologyObject('note', 'Text note', 'Annotation', 'Aa'), biologyObject('ruler', 'Ruler', 'Annotation', '↔'), biologyObject('anglemark', 'Angle marker', 'Annotation', '∠'), biologyObject('axes', 'Coordinate axes', 'Annotation', '⊞'), biologyObject('point', 'Point', 'Annotation', '●'), biologyObject('segment', 'Segment', 'Annotation', '╱'),
+];
+const BIOLOGY_OBJECT_CATEGORIES = [...new Set(BIOLOGY_OBJECT_LIBRARY.map((entry) => entry.category || 'General'))];
+const mathematicsObject = (type: string, name: string, category: string, icon: string, properties: Record<string, string | number> = { x: '0', y: '0' }): StudioObjectLibraryEntry => ({
+  type, name, category, icon, dimension: 'Mathematics', properties, defaultColor: 'Sky',
+});
+const MATHEMATICS_OBJECT_LIBRARY: ReadonlyArray<StudioObjectLibraryEntry> = [
+  mathematicsObject('axes', 'Coordinate axes', 'General', '⊞'), mathematicsObject('point', 'Point', 'General', '●'), mathematicsObject('segment', 'Segment', 'General', '╱'), mathematicsObject('line', 'Line through 2 points', 'General', '／'), mathematicsObject('vector', 'Vector', 'General', '→'), mathematicsObject('label', 'Value label', 'General', 'x=1'),
+  mathematicsObject('fplot', 'Function plot y = f(x)', 'Functions & Graphs', 'ƒ', { x: '0', y: '0', from: '-10', to: '10', f: 'x^2' }), mathematicsObject('polar', 'Polar curve', 'Functions & Graphs', 'ρ'), mathematicsObject('param', 'Parametric curve', 'Functions & Graphs', 't'), mathematicsObject('tangent', 'Tangent / secant', 'Calculus', '∕'), mathematicsObject('area', 'Area under curve', 'Calculus', '∫'), mathematicsObject('slopefield', 'Slope field', 'Calculus', '⠿'),
+  mathematicsObject('circle', 'Circle', 'Coordinate Geometry', '○'), mathematicsObject('ellipse', 'Ellipse', 'Coordinate Geometry', '⬭'), mathematicsObject('polygon', 'Polygon', 'Coordinate Geometry', '⬠'), mathematicsObject('anglemark', 'Angle marker', 'Trigonometry', '∠'), mathematicsObject('unitcircle', 'Unit circle', 'Trigonometry', '◯'),
+  mathematicsObject('numberline', 'Number line', 'Algebra', '↔'), mathematicsObject('sequence', 'Sequence / progression', 'Sequences & Series', '⋯'), mathematicsObject('bars', 'Bar chart', 'Probability & Statistics', '▥'), mathematicsObject('dice', 'Dice', 'Probability & Statistics', '⚄'), mathematicsObject('dots', 'Sample / scatter dots', 'Probability & Statistics', '⠿'),
+  mathematicsObject('lintrans', 'Linear transformation', 'Vectors & 3D', '▱'), mathematicsObject('vector3d', '3D vector', 'Vectors & 3D', '↗'), mathematicsObject('cube3d', 'Cube / cuboid', '3D Solids', '◈'), mathematicsObject('cyl3d', 'Cylinder', '3D Solids', '◉'), mathematicsObject('cone3d', 'Cone', '3D Solids', '▲'), mathematicsObject('sphere3d', 'Sphere / globe', '3D Solids', '🌐'), mathematicsObject('pyr3d', 'Pyramid', '3D Solids', '△'), mathematicsObject('prism3d', 'Triangular prism', '3D Solids', '◆'), mathematicsObject('helix3d', 'Helix / 3D spring', '3D Solids', '〰'), mathematicsObject('axes3d', '3D axes x, y, z', '3D Solids', '↗'),
+  mathematicsObject('note', 'Text note', 'Annotation', 'Aa'), mathematicsObject('ruler', 'Ruler', 'Annotation', '↔'),
+];
+const MATHEMATICS_OBJECT_CATEGORIES = [...new Set(MATHEMATICS_OBJECT_LIBRARY.map((entry) => entry.category || 'General'))];
 const firstTemplate = (subject: SimulationSubject) =>
   SIMULATION_TEMPLATES.find(
     (item) => item.subject === subject && !['scene', 'periodic-table'].includes(item.kind),
@@ -95,6 +155,15 @@ export default function PhysicsSimulationStudio({
   );
   const [paused, setPaused] = useState(false);
   const [resetToken, setResetToken] = useState(0);
+  const [runtimeCommand, setRuntimeCommand] = useState<PhysicsRuntimeCommand | null>(null);
+  const [runtimeState, setRuntimeState] = useState<PhysicsRuntimeState | null>(null);
+  const [physicsWizardOpen, setPhysicsWizardOpen] = useState(false);
+  const [newSimulationOpen, setNewSimulationOpen] = useState(false);
+  const [newTemplateId, setNewTemplateId] = useState(requestedTemplate.id);
+  const [newBackground, setNewBackground] = useState('#09111d');
+  const [graphType, setGraphType] = useState('line');
+  const [viewMode, setViewMode] = useState('both');
+  const [templateTransitioning, setTemplateTransitioning] = useState(false);
   const [tab, setTab] = useState<EditorTab>('variables');
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
@@ -103,8 +172,22 @@ export default function PhysicsSimulationStudio({
   const fileRef = useRef<HTMLInputElement>(null);
   const calculated = useMemo(() => calculateSimulationValues(simulation), [simulation]);
   const definition = templateById(simulation.templateId) || firstTemplate(simulation.subject);
-  // Keep rendering, editing, playback, and persistence on one shared state.
-  const usesOriginalPhysicsRuntime = false;
+  // Use the supplied physics runtime for physics templates so the original
+  // solver and high-fidelity rendering remain intact.
+  const usesOriginalPhysicsRuntime = simulation.subject === 'physics'
+    && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
+  const usesOriginalChemistryRuntime = simulation.subject === 'chemistry'
+    && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
+  const usesOriginalBiologyRuntime = simulation.subject === 'biology'
+    && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
+  const usesOriginalMathematicsRuntime = simulation.subject === 'mathematics'
+    && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
+  const usesOriginalRuntime = usesOriginalPhysicsRuntime || usesOriginalChemistryRuntime || usesOriginalBiologyRuntime || usesOriginalMathematicsRuntime;
+  const physicsRuntimeMetadata = simulation.metadata?.physicsRuntime && typeof simulation.metadata.physicsRuntime === 'object'
+    ? simulation.metadata.physicsRuntime as Record<string, unknown>
+    : {};
+  const physicsBackground = typeof physicsRuntimeMetadata.bg === 'string' ? physicsRuntimeMetadata.bg : 'blueprint';
+  const showsStudioViewControls = usesOriginalRuntime;
   const controls = simulation.kind === 'scene' ? simulation.controls || [] : definition.parameters;
   const subjectTemplates = SIMULATION_TEMPLATES.filter(
     (template) => template.subject === simulation.subject && template.kind !== 'scene',
@@ -115,8 +198,25 @@ export default function PhysicsSimulationStudio({
   const openTemplate = (templateId: string) => {
     const template = templateById(templateId);
     if (!template) return;
+    if (['biology', 'mathematics'].includes(template.subject)) {
+      setTemplateTransitioning(true);
+      window.setTimeout(() => {
+        setSimulation(createSimulationDocument(template));
+        setResetToken((value) => value + 1);
+        window.setTimeout(() => setTemplateTransitioning(false), 320);
+      }, 140);
+      return;
+    }
     setSimulation(createSimulationDocument(template));
     setResetToken((value) => value + 1);
+  };
+  const createNewSimulation = () => {
+    const template = templateById(newTemplateId) || firstTemplate(simulation.subject);
+    const next = createSimulationDocument(template);
+    setSimulation({ ...next, view: { ...next.view, background: newBackground } });
+    setPaused(false);
+    setResetToken((value) => value + 1);
+    setNewSimulationOpen(false);
   };
   const setVariable = (index: number, patch: Partial<SimulationDocument['variables'][number]>) =>
     setSimulation((current) => {
@@ -165,14 +265,17 @@ export default function PhysicsSimulationStudio({
     link.click();
     URL.revokeObjectURL(url);
   };
+  const controlRuntime = (action: PhysicsRuntimeCommand['action'], value?: number | boolean | string) => {
+    setRuntimeCommand((previous) => ({ id: (previous?.id || 0) + 1, action, value }));
+  };
 
   return (
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#07111f] text-slate-100">
-      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-cyan-400/30 bg-[#0b1728] px-3 shadow-xl">
+      <header className="flex h-11 shrink-0 items-center gap-1.5 border-b border-cyan-400/30 bg-[#0b1728] px-2 shadow-xl">
         <button
           type="button"
           onClick={onBack}
-          className="grid h-8 w-8 place-items-center rounded-lg border border-slate-600 bg-slate-900"
+          className="grid h-7 w-7 place-items-center rounded-md border border-slate-600 bg-slate-900"
           aria-label="Back"
         >
           <ArrowLeft size={17} />
@@ -185,11 +288,46 @@ export default function PhysicsSimulationStudio({
             {simulation.subject[0].toUpperCase() + simulation.subject.slice(1)} Simulation Studio
           </h1>
         </div>
-        <input
-          value={simulation.title}
-          onChange={(event) => setSimulation({ ...simulation, title: event.target.value })}
-          className="ml-3 h-8 min-w-0 flex-1 border-0 bg-transparent text-xs font-semibold outline-none"
-        />
+        <div className="min-w-0 flex-1" aria-hidden="true" />
+        {showsStudioViewControls ? <>
+          <select aria-label="Graph type" value={graphType} onChange={(event) => {
+            const value = event.target.value;
+            setGraphType(value);
+            setSimulation((current) => {
+              const runtime = current.metadata?.physicsRuntime && typeof current.metadata.physicsRuntime === 'object' ? current.metadata.physicsRuntime as Record<string, unknown> : {};
+              const graph = runtime.graph && typeof runtime.graph === 'object' ? runtime.graph as Record<string, unknown> : {};
+              return { ...current, metadata: { ...current.metadata, graphType: value, physicsRuntime: { ...runtime, graph: { ...graph, type: value } } } };
+            });
+            controlRuntime('graph', value);
+          }} className="h-8 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-[10px] text-slate-200">
+            <option value="line">Line vs variable</option><option value="xy">X-Y / phase</option><option value="bar">Bar values</option>
+          </select>
+          <select aria-label="View mode" value={viewMode} onChange={(event) => {
+            const value = event.target.value;
+            setViewMode(value);
+            setSimulation((current) => {
+              const runtime = current.metadata?.physicsRuntime && typeof current.metadata.physicsRuntime === 'object' ? current.metadata.physicsRuntime as Record<string, unknown> : {};
+              return { ...current, metadata: { ...current.metadata, viewMode: value, physicsRuntime: { ...runtime, layout: value } } };
+            });
+            controlRuntime('view', value);
+          }} className="h-8 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-[10px] text-slate-200">
+            <option value="both">Scene + Graph</option><option value="scene">Scene</option><option value="graph">Graph</option><option value="side">Side by side</option>
+          </select>
+        </> : null}
+        <button
+          type="button"
+          onClick={() => {
+            if (usesOriginalRuntime) setPhysicsWizardOpen(true);
+            else {
+              setNewTemplateId(subjectTemplates[0]?.id || requestedTemplate.id);
+              setNewBackground(simulation.view.background || '#09111d');
+              setNewSimulationOpen(true);
+            }
+          }}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-400 px-3 text-xs font-bold text-slate-950 shadow-sm hover:bg-cyan-300"
+        >
+          <Plus size={17} /> New Simulation
+        </button>
         <label className="flex shrink-0 items-center">
           <span className="sr-only">Insert template</span>
           <select
@@ -269,7 +407,7 @@ export default function PhysicsSimulationStudio({
           </span>
         </div>
       */}
-      <section className="grid min-h-0 flex-1 grid-cols-[1fr_3fr] gap-3 p-3">
+      <section className="grid min-h-0 flex-1 grid-cols-[minmax(220px,22%)_minmax(0,1fr)] gap-2 p-1.5">
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#0b1728]">
           <div className="grid grid-cols-4 border-b border-slate-700">
             {(['variables', 'equations', 'objects', 'results'] as EditorTab[]).map((item) => (
@@ -283,7 +421,7 @@ export default function PhysicsSimulationStudio({
               </button>
             ))}
           </div>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
             {tab === 'variables' ? (
               <VariableEditor
                 simulation={simulation}
@@ -295,7 +433,9 @@ export default function PhysicsSimulationStudio({
               <EquationEditor
                 simulation={simulation}
                 setSimulation={setSimulation}
-                calculated={calculated}
+                calculated={usesOriginalRuntime
+                  ? { values: { ...calculated.values, ...(runtimeState?.values || {}) }, errors: {} }
+                  : calculated}
               />
             ) : null}
             {tab === 'objects' ? (
@@ -305,24 +445,74 @@ export default function PhysicsSimulationStudio({
               <ResultEditor
                 simulation={simulation}
                 setSimulation={setSimulation}
-                values={calculated.values}
+                values={{ ...calculated.values, ...(usesOriginalRuntime ? runtimeState?.values || {} : {}) }}
               />
             ) : null}
           </div>
         </aside>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#0a1422]">
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-700 px-4">
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-700 px-3">
             <div>
               <b className="text-sm">{simulation.title}</b>
               <span className="ml-2 text-[10px] text-slate-400">Live 16:9 preview</span>
             </div>
-            <span className="text-[10px] font-semibold text-cyan-300">Interactive output</span>
+            <div className="flex items-center gap-2">
+              {usesOriginalRuntime ? (
+                <select
+                  aria-label="Simulation background"
+                  value={physicsBackground}
+                  onChange={(event) => setSimulation({
+                    ...simulation,
+                    metadata: {
+                      ...simulation.metadata,
+                      physicsRuntime: { ...physicsRuntimeMetadata, bg: event.target.value },
+                    },
+                  })}
+                  className="h-7 rounded border border-slate-600 bg-slate-950 px-2 text-[10px] text-slate-200"
+                >
+                  <option value="neutral">Neutral</option>
+                  <option value="blueprint">Blueprint</option>
+                  <option value="paper">Graph paper</option>
+                  <option value="earth">Earth</option>
+                  <option value="lab">Laboratory</option>
+                  <option value="space">Space</option>
+                  <option value="water">Underwater</option>
+                </select>
+              ) : simulation.subject === 'chemistry' ? (
+                <select
+                  aria-label="Simulation background"
+                  value={simulation.view.background}
+                  onChange={(event) => setSimulation({ ...simulation, view: { ...simulation.view, background: event.target.value } })}
+                  className="h-7 rounded border border-slate-600 bg-slate-950 px-2 text-[10px] text-slate-200"
+                >
+                  <option value="#09111d">Midnight laboratory</option>
+                  <option value="#10243a">Blueprint</option>
+                  <option value="#172554">Deep blue</option>
+                  <option value="#1f2937">Neutral slate</option>
+                  <option value="#f8fafc">Whiteboard</option>
+                  <option value="#f4f1e8">Lab paper</option>
+                </select>
+              ) : null}
+              <span className="text-[10px] font-semibold text-cyan-300">Interactive output</span>
+            </div>
           </div>
-          <div className="grid min-h-0 flex-1 place-items-center p-2">
-            <div className="aspect-video max-h-full w-full overflow-hidden rounded-lg border border-slate-600 bg-[#09111d]">
-              {usesOriginalPhysicsRuntime ? (
+          <div className="min-h-0 flex-1 p-1">
+            <div className="relative h-full w-full overflow-hidden rounded-md border border-slate-600 bg-[#09111d]">
+              {usesOriginalRuntime ? (
                 <Suspense fallback={<div className="grid h-full place-items-center text-sm text-cyan-200">Loading Physics runtime…</div>}>
-                  <PhysicsRuntimePreview simulation={simulation} resetToken={resetToken} />
+                  <PhysicsRuntimePreview
+                    simulation={simulation}
+                    runtimeUrl={usesOriginalChemistryRuntime ? '/studio-labs/chemistry/chemistry-simulation-studio.html?v=chemistry-library-icons-2' : usesOriginalBiologyRuntime ? '/studio-labs/biology/biology-simulation-studio.html?v=biology-runtime-1' : usesOriginalMathematicsRuntime ? '/studio-labs/mathematics/mathematics-simulation-studio.html?v=mathematics-runtime-1' : undefined}
+                    resetToken={resetToken}
+                    command={runtimeCommand}
+                    onState={setRuntimeState}
+                    onProject={(project) => {
+                      const scene = project.scenes[Math.max(0, Math.min(project.scenes.length - 1, Number(project.start) || 0))];
+                      if (scene?.G?.type) setGraphType(scene.G.type);
+                      if (scene?.layout) setViewMode(scene.layout);
+                      setSimulation((current) => simulationDocumentFromPhysicsNative(current, project));
+                    }}
+                  />
                 </Suspense>
               ) : (
                 <SimulationPreviewCanvas
@@ -372,12 +562,15 @@ export default function PhysicsSimulationStudio({
                   />
                 </label>
               </aside>
+              {templateTransitioning ? (
+                <div className="pointer-events-none absolute inset-0 z-20 bg-[#07111f]" aria-hidden="true" />
+              ) : null}
             </div>
           </div>
-          {!usesOriginalPhysicsRuntime ? <footer className="flex h-9 shrink-0 items-center gap-1.5 border-t border-slate-700 bg-slate-950/90 px-2">
+          <footer className="flex h-9 shrink-0 items-center gap-1.5 border-t border-slate-700 bg-slate-950/90 px-2">
             <button
               type="button"
-              onClick={() => setResetToken((value) => value + 1)}
+              onClick={() => usesOriginalRuntime ? controlRuntime('reset') : setResetToken((value) => value + 1)}
               className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Restart"
             >
@@ -385,9 +578,9 @@ export default function PhysicsSimulationStudio({
             </button>
             <button
               type="button"
-              onClick={() =>
-                setSimulation({ ...simulation, speed: Math.max(0.25, simulation.speed - 0.25) })
-              }
+              onClick={() => usesOriginalRuntime
+                ? controlRuntime('back')
+                : setSimulation({ ...simulation, speed: Math.max(0.25, simulation.speed - 0.25) })}
               className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Slower"
             >
@@ -395,17 +588,19 @@ export default function PhysicsSimulationStudio({
             </button>
             <button
               type="button"
-              onClick={() => setPaused((value) => !value)}
+              onClick={() => usesOriginalRuntime
+                ? controlRuntime('play', !(runtimeState?.playing ?? false))
+                : setPaused((value) => !value)}
               className="grid h-7 w-8 place-items-center rounded bg-cyan-400 text-slate-950"
-              aria-label={paused ? 'Play' : 'Pause'}
+              aria-label={(usesOriginalRuntime ? runtimeState?.playing : !paused) ? 'Pause' : 'Play'}
             >
-              {paused ? <Play size={15} /> : <Pause size={15} />}
+              {(usesOriginalRuntime ? runtimeState?.playing : !paused) ? <Pause size={15} /> : <Play size={15} />}
             </button>
             <button
               type="button"
-              onClick={() =>
-                setSimulation({ ...simulation, speed: Math.min(3, simulation.speed + 0.25) })
-              }
+              onClick={() => usesOriginalRuntime
+                ? controlRuntime('forward')
+                : setSimulation({ ...simulation, speed: Math.min(3, simulation.speed + 0.25) })}
               className="grid h-6 w-6 place-items-center rounded border border-slate-600"
               aria-label="Faster"
             >
@@ -417,15 +612,37 @@ export default function PhysicsSimulationStudio({
                 <button
                   key={speed}
                   type="button"
-                  onClick={() => setSimulation({ ...simulation, speed })}
-                  className={`h-6 min-w-6 rounded px-1 font-semibold ${simulation.speed === speed ? 'bg-cyan-400 text-slate-950' : 'border border-slate-600 text-slate-300'}`}
+                  onClick={() => {
+                    if (usesOriginalRuntime) controlRuntime('speed', speed);
+                    else setSimulation({ ...simulation, speed });
+                  }}
+                  className={`h-6 min-w-6 rounded px-1 font-semibold ${(usesOriginalRuntime ? runtimeState?.speed : simulation.speed) === speed ? 'bg-cyan-400 text-slate-950' : 'border border-slate-600 text-slate-300'}`}
                   aria-label={`${speed} times speed`}
                 >
                   {speed}×
                 </button>
               ))}
-              <b className="ml-1 min-w-7 text-cyan-300">{simulation.speed}×</b>
+              <b className="ml-1 min-w-7 text-cyan-300">
+                {usesOriginalRuntime ? (runtimeState?.speed || 1) : simulation.speed}×
+              </b>
             </div>
+            {usesOriginalRuntime && runtimeState ? (
+              <label className="flex min-w-32 flex-1 items-center gap-1 text-[9px] font-mono">
+                <span>{runtimeState.label}</span>
+                <input
+                  type="range"
+                  min={runtimeState.min}
+                  max={runtimeState.max}
+                  step={(runtimeState.max - runtimeState.min) / 1000 || 0.001}
+                  value={runtimeState.value}
+                  onChange={(event) => controlRuntime('seek', Number(event.target.value))}
+                  className="min-w-16 flex-1 accent-cyan-400"
+                />
+                <b className="min-w-14 text-cyan-300">
+                  {runtimeState.value.toFixed(3)} {runtimeState.unit}
+                </b>
+              </label>
+            ) : null}
             {(
               [
                 ['vectors', 'Vectors'],
@@ -449,7 +666,7 @@ export default function PhysicsSimulationStudio({
                 {label}
               </label>
             ))}
-          </footer> : null}
+          </footer>
         </section>
       </section>
       {importOpen ? (
@@ -509,6 +726,35 @@ export default function PhysicsSimulationStudio({
             </div>
           </section>
         </div>
+      ) : null}
+      {newSimulationOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/80 p-5" role="dialog" aria-modal="true" aria-label="New Chemistry simulation">
+          <section className="w-full max-w-xl rounded-2xl border border-cyan-400/30 bg-[#0b1728] p-5 shadow-2xl">
+            <h2 className="text-xl font-bold">New {simulation.subject[0].toUpperCase() + simulation.subject.slice(1)} Simulation</h2>
+            <p className="mt-1 text-sm text-slate-400">Choose a complete simulation model and its canvas background.</p>
+            <label className="mt-5 block text-xs font-bold uppercase tracking-wide text-cyan-300">Simulation model
+              <select value={newTemplateId} onChange={(event) => setNewTemplateId(event.target.value)} className={`${fieldClass} mt-2 w-full`}>
+                {subjectCategories.map((category) => <optgroup key={category} label={category}>{subjectTemplates.filter((template) => simulationCategory(template) === category).map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}</optgroup>)}
+              </select>
+            </label>
+            <label className="mt-4 block text-xs font-bold uppercase tracking-wide text-cyan-300">Background
+              <select value={newBackground} onChange={(event) => setNewBackground(event.target.value)} className={`${fieldClass} mt-2 w-full`}>
+                <option value="#09111d">Midnight laboratory</option><option value="#10243a">Blueprint</option><option value="#172554">Deep blue</option><option value="#1f2937">Neutral slate</option><option value="#f8fafc">Whiteboard</option><option value="#f4f1e8">Lab paper</option>
+              </select>
+            </label>
+            <div className="mt-4 aspect-[16/5] rounded-xl border border-slate-600" style={{ background: newBackground }} />
+            <footer className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setNewSimulationOpen(false)} className="rounded-lg border border-slate-600 px-4 py-2 text-sm">Cancel</button><button type="button" onClick={createNewSimulation} className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950">Create Simulation</button></footer>
+          </section>
+        </div>
+      ) : null}
+      {physicsWizardOpen && usesOriginalRuntime ? (
+        <PhysicsRuntimeWizard
+          simulation={simulation}
+            runtimeUrl={usesOriginalChemistryRuntime ? '/studio-labs/chemistry/chemistry-simulation-studio.html?v=chemistry-library-icons-2' : usesOriginalBiologyRuntime ? '/studio-labs/biology/biology-simulation-studio.html?v=biology-runtime-1' : usesOriginalMathematicsRuntime ? '/studio-labs/mathematics/mathematics-simulation-studio.html?v=mathematics-runtime-1' : undefined}
+            title={`New ${simulation.subject[0].toUpperCase() + simulation.subject.slice(1)} Simulation`}
+          onClose={() => setPhysicsWizardOpen(false)}
+          onProject={(project) => setSimulation((current) => simulationDocumentFromPhysicsNative(current, project))}
+        />
       ) : null}
     </main>
   );
@@ -754,7 +1000,19 @@ function EquationEditor({ simulation, setSimulation, calculated }: EditorProps &
         <div key={`${equation.id}-${index}`} className="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/70 px-2 py-2">
           <button type="button" onClick={() => openEquation(index)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colors[index % colors.length] }} />
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{equation.output} = {equation.expression}</span>
+            <span
+              className="min-w-0 flex-1 overflow-x-auto py-1 text-center text-[12px] [scrollbar-width:none] [&_.katex]:whitespace-nowrap"
+              aria-label={`${equation.output} equals ${equation.expression}`}
+              dangerouslySetInnerHTML={{
+                __html: katex.renderToString(physicsEquationToLatex(equation.output, equation.expression), {
+                  displayMode: false,
+                  throwOnError: false,
+                  strict: 'ignore',
+                  trust: false,
+                  output: 'htmlAndMathml',
+                }),
+              }}
+            />
             <span className={`text-[9px] ${calculated.errors[equation.id] ? 'text-red-300' : 'text-emerald-300'}`}>
               {calculated.errors[equation.id] ? '!' : calculated.values[equation.output]?.toFixed(2) ?? ''}
             </span>
@@ -945,6 +1203,15 @@ function ObjectEditor({ simulation, setSimulation }: EditorProps) {
     if (/spring|wave/i.test(type)) return '∿';
     return '◇';
   };
+  const chemistryIconFor = (type: string) => ({
+    axes: '⊞', point: '●', segment: '╱', vector: '→', label: 'x=1', note: 'Aa', ruler: '↔', anglemark: '∠',
+    atom: '⚛', nucleus: '◉', electron: 'e⁻', orbital: '◉', econfig: '1s', spectrum: '≋', photon: 'hν',
+    ptable: '▦', element: '◈', molecule: 'H₂O', bond: '⧓', ion: '±',
+    solution: '⚗', beaker: '⚗', testtube: '⚗', flask: '⚗', burette: '║', dropper: '⋮', thermometer: '🌡', flame: '♨',
+    meter: 'V', battery: '▥', rope: '╲', particles: '⁙', molecules: '⁙', piston: '▣', tank: '▢', reactionvessel: '◈',
+    dots: '⁙', curve: '〰', phscale: 'pH', bridge: '∩', electrode: '┃', conductivity: 'Ω',
+    cube3d: '◈', cyl3d: '◉', cone3d: '▲', sphere3d: '●', prism3d: '◆', helix3d: '〰', axes3d: '⊞',
+  } as Record<string, string>)[type] || iconFor(type);
   const updateObject = (index: number, patch: Partial<SimulationDocument['objects'][number]>) =>
     setSimulation((current) => ({
       ...current,
@@ -954,16 +1221,22 @@ function ObjectEditor({ simulation, setSimulation }: EditorProps) {
     setSimulation((current) => ({ ...current, objects: current.objects.filter((_, itemIndex) => itemIndex !== index) }));
     setSelectedIndex((current) => current === index ? null : current !== null && current > index ? current - 1 : current);
   };
-  const addObject = (entry: { type: string; name: string; properties?: Record<string, string | number>; defaultColor?: string; defaultTrail?: string }) => {
+  const addObject = (entry: StudioObjectLibraryEntry) => {
     const index = simulation.objects.length;
     const object = { id: `${entry.type}-${index + 1}`, name: entry.name, type: entry.type, visible: true, properties: { ...(entry.properties || {}), ...(entry.defaultColor ? { color: entry.defaultColor } : {}), ...(entry.defaultTrail ? { trail: entry.defaultTrail } : {}) } };
     setSimulation({ ...simulation, objects: [...simulation.objects, object] });
     setSelectedIndex(index);
     setLibraryOpen(false);
   };
-  const libraryEntries = simulation.subject === 'physics'
+  const libraryEntries: ReadonlyArray<StudioObjectLibraryEntry> = simulation.subject === 'physics'
     ? PHYSICS_OBJECT_LIBRARY.filter((entry) => libraryCategory === 'All' || entry.category === libraryCategory)
-    : SUBJECT_OBJECT_LIBRARY[simulation.subject];
+    : simulation.subject === 'chemistry'
+      ? CHEMISTRY_OBJECT_LIBRARY.filter((entry) => libraryCategory === 'All' || entry.category === libraryCategory)
+      : simulation.subject === 'biology'
+        ? BIOLOGY_OBJECT_LIBRARY.filter((entry) => libraryCategory === 'All' || entry.category === libraryCategory)
+      : simulation.subject === 'mathematics'
+        ? MATHEMATICS_OBJECT_LIBRARY.filter((entry) => libraryCategory === 'All' || entry.category === libraryCategory)
+      : SUBJECT_OBJECT_LIBRARY[simulation.subject];
   return (
     <div className="space-y-2 overflow-x-hidden">
       {simulation.objects.length ? simulation.objects.map((object, index) => (
@@ -1035,19 +1308,19 @@ function ObjectEditor({ simulation, setSimulation }: EditorProps) {
             <b className="text-xs uppercase tracking-wide text-amber-400">Object library</b>
             <button type="button" onClick={() => setLibraryOpen(false)} className="text-slate-400 hover:text-white" aria-label="Close object library">×</button>
           </header>
-          {simulation.subject === 'physics' ? (
+          {simulation.subject === 'physics' || simulation.subject === 'chemistry' || simulation.subject === 'biology' || simulation.subject === 'mathematics' ? (
             <div className="flex shrink-0 flex-wrap gap-1 border-b border-slate-700 px-3 py-2">
-              {['All', ...PHYSICS_OBJECT_CATEGORIES].map((category) => (
+              {['All', ...(simulation.subject === 'physics' ? PHYSICS_OBJECT_CATEGORIES : simulation.subject === 'chemistry' ? CHEMISTRY_OBJECT_CATEGORIES : simulation.subject === 'biology' ? BIOLOGY_OBJECT_CATEGORIES : MATHEMATICS_OBJECT_CATEGORIES)].map((category) => (
                 <button type="button" key={category} onClick={() => setLibraryCategory(category)} className={`rounded-full px-2 py-1 text-[9px] font-semibold ${libraryCategory === category ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                   {category}
                 </button>
               ))}
             </div>
           ) : null}
-          <div className={`grid min-h-0 flex-1 content-start gap-1.5 overflow-y-auto p-2 ${simulation.subject === 'physics' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : 'grid-cols-2 sm:grid-cols-4'}`}>
+          <div className={`grid min-h-0 flex-1 content-start gap-1.5 overflow-y-auto p-2 ${['physics', 'chemistry', 'biology', 'mathematics'].includes(simulation.subject) ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : 'grid-cols-2 sm:grid-cols-4'}`}>
           {libraryEntries.map((entry) => (
             <button type="button" key={entry.type} onClick={() => addObject(entry)} className="group flex min-h-16 flex-col items-center justify-center rounded-md border border-slate-700 bg-[#111827] px-1.5 py-1.5 text-center transition hover:border-cyan-300 hover:bg-cyan-400/10">
-              <span className="mb-0.5 grid h-7 w-7 place-items-center rounded bg-slate-800 text-base text-cyan-300">{'icon' in entry ? entry.icon : iconFor(entry.type)}</span><b className="line-clamp-2 text-[8px] leading-tight text-slate-100">{entry.name}</b>
+              <span className="mb-0.5 grid h-7 w-7 place-items-center rounded bg-slate-800 text-base text-cyan-300">{'icon' in entry ? entry.icon : simulation.subject === 'chemistry' ? chemistryIconFor(entry.type) : iconFor(entry.type)}</span><b className="line-clamp-2 text-[8px] leading-tight text-slate-100">{entry.name}</b>
               {'category' in entry ? <span className="ml-2 block text-[8px] text-slate-500">{entry.category} · {entry.dimension}</span> : null}
             </button>
           ))}
@@ -1223,7 +1496,10 @@ function ResultEditor({
         let output = '—';
         let error = '';
         try {
-          output = evaluateSimulationExpression(result.expression, values).toFixed(result.precision);
+          const runtimeValue = values[result.label];
+          output = (Number.isFinite(runtimeValue)
+            ? runtimeValue
+            : evaluateSimulationExpression(result.expression, values)).toFixed(result.precision);
         } catch (caught) {
           error = caught instanceof Error ? caught.message : 'Invalid result.';
         }
