@@ -3,6 +3,7 @@ import type { StudioElement } from '../types';
 export type StudioPasteMode =
   | 'destination-theme'
   | 'source-formatting'
+  | 'editable-content'
   | 'picture'
   | 'text-only';
 
@@ -41,6 +42,7 @@ export const studioPasteModesForElements = (elements: StudioElement[]): StudioPa
       && !['simulation', 'embedded_object'].includes(element.type);
   });
   const modes: StudioPasteMode[] = ['destination-theme', 'source-formatting'];
+  if (allText) modes.push('editable-content');
   if (supportsPicture) modes.push('picture');
   if (allText) modes.push('text-only');
   return modes;
@@ -163,6 +165,9 @@ const transformForPasteMode = (element: StudioElement, mode: StudioPasteMode): S
   return element;
 };
 
+export const applyStudioPasteMode = (elements: StudioElement[], mode: StudioPasteMode) =>
+  elements.map((element) => transformForPasteMode(structuredClone(element), mode));
+
 export const pasteStudioClipboardElements = (
   sources: StudioElement[],
   mode: StudioPasteMode,
@@ -173,7 +178,7 @@ export const pasteStudioClipboardElements = (
   ),
 ) => {
   const groupIds = new Map<string, string>();
-  return sources.map((source, index) => {
+  return sources.map((source) => {
     const transformed = transformForPasteMode(structuredClone(source), mode);
     const token = createToken();
     const id = `element-${token}`;
@@ -189,8 +194,8 @@ export const pasteStudioClipboardElements = (
     }
     const position = {
       ...transformed.position,
-      x: Math.min((Number(transformed.position.x) || 0) + 40 + index * 12, 1920 - width),
-      y: Math.min((Number(transformed.position.y) || 0) + 40 + index * 12, 1080 - height),
+      x: Math.min((Number(transformed.position.x) || 0) + 40, 1920 - width),
+      y: Math.min((Number(transformed.position.y) || 0) + 40, 1080 - height),
     };
     if (groupId) position.groupId = groupId;
     else delete position.groupId;

@@ -120,7 +120,7 @@ const normalizeTags = (tags) => {
   return [...new Set(normalized)];
 };
 
-const normalizePosition = (value, label, { allowBottomOverflow = false } = {}) => {
+const normalizePosition = (value, label, { allowBottomOverflow = false, allowSmall = false } = {}) => {
   const position = value === undefined ? {} : assertObject(value, label);
   const normalized = { ...position };
   for (const key of ['x', 'y', 'width', 'height']) {
@@ -133,19 +133,21 @@ const normalizePosition = (value, label, { allowBottomOverflow = false } = {}) =
     throw new AppError(`${label} x must be inside the 1920 pixel canvas`, 422);
   if (normalized.y !== undefined && (normalized.y < 0 || normalized.y > 1080))
     throw new AppError(`${label} y must be inside the 1080 pixel canvas`, 422);
-  if (normalized.width !== undefined && (normalized.width < 80 || normalized.width > 1920))
-    throw new AppError(`${label} width must be between 80 and 1920`, 422);
+  const minimumWidth = allowSmall ? 1 : 80;
+  const minimumHeight = allowSmall ? 1 : 60;
+  if (normalized.width !== undefined && (normalized.width < minimumWidth || normalized.width > 1920))
+    throw new AppError(`${label} width must be between ${minimumWidth} and 1920`, 422);
   const maximumHeight = allowBottomOverflow ? 10000 : 1080;
-  if (normalized.height !== undefined && (normalized.height < 60 || normalized.height > maximumHeight))
-    throw new AppError(`${label} height must be between 60 and ${maximumHeight}`, 422);
+  if (normalized.height !== undefined && (normalized.height < minimumHeight || normalized.height > maximumHeight))
+    throw new AppError(`${label} height must be between ${minimumHeight} and ${maximumHeight}`, 422);
   if (normalized.x !== undefined && normalized.width !== undefined && normalized.x + normalized.width > 1920)
     throw new AppError(`${label} extends beyond the right canvas edge`, 422);
   if (!allowBottomOverflow && normalized.y !== undefined && normalized.height !== undefined && normalized.y + normalized.height > 1080)
     throw new AppError(`${label} extends beyond the bottom canvas edge`, 422);
   if (position.zIndex !== undefined) {
     const zIndex = Number(position.zIndex);
-    if (!Number.isInteger(zIndex) || zIndex < 0 || zIndex > 100)
-      throw new AppError(`${label} zIndex must be an integer from 0 to 100`, 422);
+    if (!Number.isInteger(zIndex) || zIndex < 0 || zIndex > 5000)
+      throw new AppError(`${label} zIndex must be an integer from 0 to 5000`, 422);
     normalized.zIndex = zIndex;
   }
   if (position.locked !== undefined && typeof position.locked !== 'boolean')
@@ -332,6 +334,7 @@ const normalizeElements = (elements, layout) => {
     validateElementPresentationContent(content, key);
     const position = normalizePosition(element.position, `Element ${key} position`, {
       allowBottomOverflow: AUTO_HEIGHT_TEXT_ELEMENT_TYPES.has(type),
+      allowSmall: Boolean(content.importSource),
     });
     const zoom = type === 'zoom' ? normalizeZoom(element.zoom ?? content.zoom, key) : null;
     if (type === 'zoom' && !zoom) throw new AppError(`Element ${key} requires a Zoom destination`, 422);

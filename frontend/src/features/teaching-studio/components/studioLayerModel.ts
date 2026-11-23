@@ -22,6 +22,26 @@ export const orderedStudioLayers = (elements: StudioElement[]) =>
     })
     .map(({ element }) => element);
 
+export const selectionForStudioObjectClick = (
+  elements: StudioElement[],
+  selectedIds: string[],
+  clickedId: string,
+  direct = false,
+) => {
+  const clicked = elements.find((element) => element.id === clickedId);
+  if (!clicked || direct) return [clickedId];
+  const groupId = typeof clicked.position.groupId === 'string' ? clicked.position.groupId : null;
+  if (!groupId) return [clickedId];
+  const groupIds = elements
+    .filter((element) => element.position.groupId === groupId)
+    .map((element) => element.id);
+  const wholeGroupSelected = groupIds.length > 1
+    && groupIds.every((id) => selectedIds.includes(id))
+    && selectedIds.every((id) => groupIds.includes(id));
+  const alreadyDrilledIntoClickedObject = selectedIds.length === 1 && selectedIds[0] === clickedId;
+  return wholeGroupSelected || alreadyDrilledIntoClickedObject ? [clickedId] : groupIds;
+};
+
 export const updateStudioLayer = (
   elements: StudioElement[],
   elementId: string,

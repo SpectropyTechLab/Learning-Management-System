@@ -38,6 +38,7 @@ import {
   presenterTriggerCueIds,
   type PresenterAnimationNavigation,
 } from './studioClickerRuntime';
+import { studioElementSlotId } from '../importing/elementSlot';
 
 interface BlankScreenCanvasProps {
   screen: StudioScreen | null;
@@ -495,6 +496,18 @@ const elementBounds = (position: Record<string, unknown>): Rect | undefined => {
     : undefined;
 };
 
+const textBoxPadding = (content: Record<string, unknown>): string | number => {
+  const margins = content.margins;
+  if (!margins || typeof margins !== 'object') return 12;
+  const values = margins as Record<string, unknown>;
+  const raw = [values.top, values.right, values.bottom, values.left].map((value) => Math.max(0, Number(value) || 0));
+  // Phase-3 imports briefly persisted raw EMUs. Keep those screens readable while
+  // all new imports explicitly store canonical 1920x1080 canvas pixels.
+  const factor = content.marginsUnit === 'canvas-px' || Math.max(...raw) < 1000 ? 1 : 1 / 6350;
+  const [top, right, bottom, left] = raw.map((value) => Number((value * factor).toFixed(3)));
+  return `${top}px ${right}px ${bottom}px ${left}px`;
+};
+
 export default function BlankScreenCanvas({
   screen,
   screenTitle,
@@ -593,6 +606,11 @@ export default function BlankScreenCanvas({
     const key = mediaKeyFor(element);
     return !key || readyMediaKeys.has(key);
   };
+  // Older imports assigned the same freeform slot to every item of a type.
+  // Freeform render slots are per-element so the canvas object map cannot
+  // overwrite siblings that happen to share the legacy slot id.
+  const slotIdForElement = (element: StudioElement) =>
+    studioElementSlotId(element.id, element.slotId, element.content);
   const markElementMediaReadyAfterPaint = (element: StudioElement) => {
     const key = mediaKeyFor(element);
     if (!key) return;
@@ -780,7 +798,7 @@ export default function BlankScreenCanvas({
                   ? { x: 90, y: 950, width: 1740, height: 90 }
                   : { x: 180 + (index % 2) * 800, y: 260, width: 760, height: 420 };
             return {
-              id: element.slotId || `free-${element.id}`,
+              id: slotIdForElement(element),
               label: element.type,
               region,
               allowed: [element.type as ObjectType],
@@ -802,11 +820,11 @@ export default function BlankScreenCanvas({
                 (element) =>
                   element.position.hidden !== true &&
                   !baseLayout.slots.some(
-                    (slot) => slot.id === (element.slotId || `free-${element.id}`),
+                    (slot) => slot.id === slotIdForElement(element),
                   ),
               )
               .map((element, index) => ({
-                id: element.slotId || `free-${element.id}`,
+                id: slotIdForElement(element),
                 label: element.type === 'math' ? 'Math equation' : element.type,
                 region: (element.type === 'title'
                   ? 'header'
@@ -833,7 +851,7 @@ export default function BlankScreenCanvas({
     const currentBounds =
       elementBounds(element.position) ??
       renderLayout?.slots.find(
-        (slot) => slot.id === (element.slotId || `free-${element.id}`),
+        (slot) => slot.id === slotIdForElement(element),
       )?.bounds;
     if (!currentBounds) return;
     const nextBounds = {
@@ -851,7 +869,7 @@ export default function BlankScreenCanvas({
           creationMode: 'layout',
           objects: screen.elements.filter((element) => element.position.hidden !== true).map((element) => ({
             id: element.id,
-            slotId: element.slotId || `free-${element.id}`,
+            slotId: slotIdForElement(element),
             type: element.type as Slide['objects'][number]['type'],
             text: elementText(element.content),
             position: elementBounds(element.position),
@@ -930,7 +948,7 @@ export default function BlankScreenCanvas({
           selectedNodeId={selectedElementId === element.id ? selectedDiagramNodeId : null}
           visibleNodeIds={visibleNodeIds}
             onAspectRatioChange={!previewMode && onChangeElementBounds ? (aspectRatio) => {
-              const currentBounds = elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === element.slotId)?.bounds;
+              const currentBounds = elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === slotIdForElement(element))?.bounds;
               if (!currentBounds || !Number.isFinite(aspectRatio) || aspectRatio <= 0) return;
               const maximumWidth = 1920 - currentBounds.x;
               const maximumHeight = 1080 - currentBounds.y;
@@ -1000,9 +1018,11 @@ export default function BlankScreenCanvas({
               strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
               customPath={typeof element.content.customPath === 'string' ? element.content.customPath : undefined}
               effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
+              effectColor={typeof element.content.shapeEffectColor === 'string' ? element.content.shapeEffectColor : undefined}
+              gradient={element.content.gradient && typeof element.content.gradient === 'object' ? element.content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
             />
           </div>
-          <div className="absolute inset-[8%] overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden">
             <StudioCanvasTextElement
               elementId={element.id}
               text={typeof element.content.text === 'string' ? element.content.text : ''}
@@ -1013,6 +1033,9 @@ export default function BlankScreenCanvas({
               bold={element.content.bold === true}
               italic={element.content.italic === true}
               underline={element.content.underline === true}
+              contentPadding={textBoxPadding(element.content)}
+              textStrokeColor={typeof element.content.textStrokeColor === 'string' ? element.content.textStrokeColor : undefined}
+              textStrokeWidth={Number(element.content.textStrokeWidth) || undefined}
               alignment={element.content.alignment === 'left' || element.content.alignment === 'right' || element.content.alignment === 'justify' ? element.content.alignment : 'center'}
               verticalAlignment={element.content.verticalAlignment === 'top' || element.content.verticalAlignment === 'bottom' ? element.content.verticalAlignment : 'middle'}
               list={element.content.list === true}
@@ -1096,8 +1119,10 @@ export default function BlankScreenCanvas({
           opacity={Number(element.content.opacity) || undefined}
           strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
           effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
+          effectColor={typeof element.content.shapeEffectColor === 'string' ? element.content.shapeEffectColor : undefined}
+          gradient={element.content.gradient && typeof element.content.gradient === 'object' ? element.content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
         /></div> : null}
-        <div className={textFrameKind ? 'absolute inset-[3%]' : 'h-full w-full'}><StudioCanvasTextElement
+        <div className="absolute inset-0"><StudioCanvasTextElement
           key={element.id}
           elementId={element.id}
           text={text}
@@ -1113,6 +1138,9 @@ export default function BlankScreenCanvas({
           bold={element.content.bold === true}
           italic={element.content.italic === true}
           underline={element.content.underline === true}
+          contentPadding={textBoxPadding(element.content)}
+          textStrokeColor={typeof element.content.textStrokeColor === 'string' ? element.content.textStrokeColor : undefined}
+          textStrokeWidth={Number(element.content.textStrokeWidth) || undefined}
           alignment={
             element.content.alignment === 'center' ||
             element.content.alignment === 'right' ||
@@ -1136,7 +1164,7 @@ export default function BlankScreenCanvas({
             const currentBounds =
               elementBounds(element.position) ??
               renderLayout?.slots.find(
-                (slot) => slot.id === (element.slotId || `free-${element.id}`),
+                (slot) => slot.id === slotIdForElement(element),
               )?.bounds;
             if (!currentBounds) return;
             const nextContent: Record<string, unknown> = { ...element.content, text: value, ...formatting };
@@ -1205,7 +1233,7 @@ export default function BlankScreenCanvas({
       <BoundResource
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
-        bounds={elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === (element.slotId || `free-${element.id}`))?.bounds}
+        bounds={elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === slotIdForElement(element))?.bounds}
         selected={!previewMode && selectedElementId === element.id}
         cropRequestToken={cropRequest?.elementId === element.id ? cropRequest.token : undefined}
         model3DModeRequestToken={model3DModeRequest?.elementId === element.id ? model3DModeRequest.token : undefined}
@@ -1216,6 +1244,21 @@ export default function BlankScreenCanvas({
         onMediaTransformChange={onChangeElementContent ? (mediaTransform) => onChangeElementContent(element.id, { mediaTransform }) : undefined}
         onReady={() => markElementMediaReadyAfterPaint(element)}
       />
+    );
+  }
+  for (const element of screen?.elements ?? []) {
+    const overlay = objectOverlays[element.id];
+    if (!overlay) continue;
+    const flipX = element.position.flipX === true;
+    const flipY = element.position.flipY === true;
+    if (!flipX && !flipY) continue;
+    objectOverlays[element.id] = (
+      <div
+        className="h-full w-full"
+        style={{ transform: `scale(${flipX ? -1 : 1}, ${flipY ? -1 : 1})`, transformOrigin: 'center' }}
+      >
+        {overlay}
+      </div>
     );
   }
   for (const element of screen?.elements ?? []) {
@@ -1406,6 +1449,7 @@ export default function BlankScreenCanvas({
             }}
           >
           <SlideCanvas
+            key={`screen-${screen.id}`}
             layout={renderLayout}
             slide={slide}
             showGuides={displayLayoutGuides}
@@ -1453,6 +1497,7 @@ export default function BlankScreenCanvas({
         ) : (
           <div className={previewMode ? 'relative h-full' : 'studio-editor-slide-frame absolute inset-3'}>
             <SlideCanvas
+              key={`screen-${screen?.id ?? 'empty'}`}
               layout={null}
               slide={emptySlide}
               allowCanvasOverflow={!previewMode}
