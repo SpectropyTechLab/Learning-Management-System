@@ -4,7 +4,7 @@ import { ArrowLeft, FileSpreadsheet, Images, Link2, LoaderCircle, Maximize2, Rot
 import { ACTIVITY_SCENES, ACTIVITY_SIMULATIONS, ACTIVITY_TEMPLATES, activityTemplate, createActivityDocument, validateActivityDocument, type ActivityDocument, type ActivityType, type SimulationId } from './activityBuilderModel';
 import { buildStandaloneActivityHtml } from './activityExport';
 import ActivityScenePreview from './ActivityScenePreview';
-import ActivityLivePreview from './ActivityLivePreview';
+import ActivityPlayerFrame from './ActivityPlayerFrame';
 import ResourceLibrary from './resources/ResourceLibrary';
 import { getStudioResourcePreview, type StudioResourceSummary, type StudioResourceVersion } from '../api/studioResourcesApi';
 
@@ -180,7 +180,7 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
       <div className="min-w-52"><p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-700">SPECTROPY</p><h1 className="text-lg font-bold text-slate-950">Activity Builder</h1></div>
       <div className="min-w-0 flex-1"><p className="truncate text-sm text-slate-600">{activity.title}</p></div>
       <button type="button" onClick={() => { const reset = createActivityDocument(activity.activityType); setActivity(reset); setTableRows(contentToTableRows(reset.content)); }} className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-blue-600 hover:bg-blue-50"><RotateCcw size={17} /> Reset</button>
-      <button type="button" onClick={() => onInsert({ project: activity, title: activity.title, html: buildStandaloneActivityHtml(activity) })} className="flex h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-800"><WandSparkles size={18} /> Export &amp; Insert</button>
+      <button type="button" onClick={async () => onInsert({ project: activity, title: activity.title, html: await buildStandaloneActivityHtml(activity) })} className="flex h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-800"><WandSparkles size={18} /> Export &amp; Insert</button>
     </header>
 
     <section className="grid min-h-0 flex-1 grid-cols-[500px_minmax(0,1fr)] max-[1050px]:grid-cols-1">
@@ -264,7 +264,7 @@ export default function ActivityBuilderStudio({ initialProject, initialType = 'm
       </aside>
 
       <section className="grid min-h-0 place-items-center overflow-hidden bg-slate-100 p-5">
-        <ActivityLivePreview activity={activity} />
+        <ActivityPlayerFrame activity={activity} />
         {tablePopupOpen ? <ActivityTablePopup headers={tableHeaders} rows={tableRows} format={template.format} activityLabel={template.label} onChangeCell={updateTableCell} onSaveRows={saveTableRows} onClose={() => setTablePopupOpen(false)} /> : null}
       </section>
     </section>
