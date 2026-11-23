@@ -53,7 +53,8 @@ test('Biology Lab is wired to ribbon filters, editor insertion, canvas and slide
   assert.match(studio, /const \[source\] = useState/);
   assert.doesNotMatch(studio, /key=\{source\}/);
   assert.match(exported, /embed=1&lab=/);
-  assert.match(exported, /document\.referrer\|\|window\.location\.href/);
+  assert.match(exported, /document\.baseURI/);
+  assert.doesNotMatch(exported, /document\.referrer\|\|window\.location\.href/);
   assert.match(frame, /buildBiologyLabHtml/);
   assert.match(canvas, /StudioLocalBiologyLabFrame/);
   assert.match(player, /StudioLocalBiologyLabFrame/);
