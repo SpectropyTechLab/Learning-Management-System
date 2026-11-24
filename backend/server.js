@@ -38,6 +38,7 @@ import studioResourceRuntimeRoutes from './routes/studioResourceRuntime.routes.j
 import studioBranchRuntimeRoutes from './routes/studioBranchRuntime.routes.js';
 import studioSessionsRoutes from './routes/studioSessions.routes.js';
 import studioCurriculumImportRoutes from './routes/studioCurriculumImport.routes.js';
+import studioPptxImportRoutes from './routes/studioPptxImport.routes.js';
 import studioScormRuntimeRoutes from './routes/studioScormRuntime.routes.js';
 import { serveRuntimeAsset } from './controllers/studioResourceRuntime.controller.js';
 import studioTaxonomyRoutes from './routes/studioTaxonomy.routes.js';
@@ -265,6 +266,7 @@ app.use('/api', studioScreensRoutes);
 // teacher-only branch runtime router evaluates its role boundary.
 app.use('/api', studioSessionsRoutes);
 app.use('/api', studioCurriculumImportRoutes);
+app.use('/api', studioPptxImportRoutes);
 app.use('/api', studioBranchRuntimeRoutes);
 app.use('/api', studioScormRuntimeRoutes);
 

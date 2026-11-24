@@ -131,8 +131,13 @@ test('Chemistry Lab is connected to the editor, responsive ribbon, resources, an
   assert.match(exported, /chemistry-simulation-studio\.html/);
   assert.doesNotMatch(exported, /src="\/studio-labs/);
   assert.match(exported, /new URL\('/);
+<<<<<<< HEAD
   assert.match(exported, /document\.referrer\|\|document\.baseURI\|\|window\.location\.href/);
   assert.match(exported, /document\.baseURI/);
+=======
+  assert.match(exported, /document\.baseURI/);
+  assert.doesNotMatch(exported, /document\.referrer\|\|window\.location\.href/);
+>>>>>>> efed2b01a8096aae15d7ff14134da93d6ed3b549
   assert.match(frame, /buildChemistryLabHtml/);
   assert.match(canvas, /StudioLocalChemistryLabFrame/);
   assert.match(player, /StudioLocalChemistryLabFrame/);

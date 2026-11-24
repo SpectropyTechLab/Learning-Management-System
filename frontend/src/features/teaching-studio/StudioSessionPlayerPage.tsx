@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
 import type { Layout, ObjectType, Rect, Slide } from './layouts';
 import { targetLayouts } from './targetLayouts';
+import { studioElementSlotId } from './importing/elementSlot';
 import SlideCanvas from './SlideCanvas';
 import StudioShell from './components/StudioShell';
 import { downloadPublishedSessionPlan, getPublishedPresenterData, getPublishedTeachingMaterials, getPublishedRelease, getSessionPlayerPreview, launchPublishedResource, previewPublishedObject, previewPublishedResource } from './api/studioPublishedApi';
@@ -113,6 +114,9 @@ const elementBounds = (position: Record<string, unknown>): Rect | undefined => {
   return [x, y, width, height].every(Number.isFinite) && width > 0 && height > 0 ? { x, y, width, height } : undefined;
 };
 
+const publishedElementSlotId = (element: PublishedScreen['elements'][number]) =>
+  studioElementSlotId(element.element_key, element.slot_id, element.content_json);
+
 const freeformLayoutFor = (screen: PublishedScreen): Layout => ({
   id: 'FREEFORM',
   name: 'Freeform screen',
@@ -122,7 +126,7 @@ const freeformLayoutFor = (screen: PublishedScreen): Layout => ({
     const region = element.element_type === 'title' ? 'header' : element.element_type === 'footer' ? 'footer' : 'content';
     const fallback = region === 'header' ? { x: 90, y: 60, width: 1740, height: 150 } : region === 'footer' ? { x: 90, y: 950, width: 1740, height: 90 } : { x: 180 + (index % 2) * 800, y: 260, width: 760, height: 420 };
     return {
-      id: element.slot_id || `free-${element.element_key}`,
+      id: publishedElementSlotId(element),
       label: element.element_type,
       region,
       allowed: [element.element_type as ObjectType],
@@ -239,6 +243,15 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   } : undefined} />;
 }
 
+const publishedTextPadding = (content: Record<string, unknown>) => {
+  const margins = content.margins;
+  if (!margins || typeof margins !== 'object') return 12;
+  const values = margins as Record<string, unknown>;
+  const raw = [values.top, values.right, values.bottom, values.left].map((value) => Math.max(0, Number(value) || 0));
+  const factor = content.marginsUnit === 'canvas-px' || Math.max(...raw) < 1000 ? 1 : 1 / 6350;
+  return raw.map((value) => `${Number((value * factor).toFixed(3))}px`).join(' ');
+};
+
 function PublishedTextFrame({ element, shape = false, animationEffects = [] }: { element: PublishedScreen['elements'][number]; shape?: boolean; animationEffects?: Array<Record<string, unknown>> }) {
   const content = element.content_json ?? {};
   const text = shape ? (typeof content.text === 'string' ? content.text : '') : textFrom(content);
@@ -258,6 +271,9 @@ function PublishedTextFrame({ element, shape = false, animationEffects = [] }: {
     bold={content.bold === true}
     italic={content.italic === true}
     underline={content.underline === true}
+    contentPadding={publishedTextPadding(content)}
+    textStrokeColor={typeof content.textStrokeColor === 'string' ? content.textStrokeColor : undefined}
+    textStrokeWidth={Number(content.textStrokeWidth) || undefined}
     alignment={content.alignment === 'center' || content.alignment === 'right' || content.alignment === 'justify' ? content.alignment : shape ? 'center' : 'left'}
     verticalAlignment={content.verticalAlignment === 'middle' || content.verticalAlignment === 'bottom' ? content.verticalAlignment : shape ? 'middle' : 'top'}
     list={content.list === true}
@@ -279,8 +295,10 @@ function PublishedTextFrame({ element, shape = false, animationEffects = [] }: {
       strokeDash={typeof content.strokeDash === 'string' ? content.strokeDash : undefined}
       customPath={typeof content.customPath === 'string' ? content.customPath : undefined}
       effect={typeof content.shapeEffect === 'string' ? content.shapeEffect : undefined}
+      effectColor={typeof content.shapeEffectColor === 'string' ? content.shapeEffectColor : undefined}
+      gradient={content.gradient && typeof content.gradient === 'object' ? content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
     /></div>
-    <div className={shape ? 'absolute inset-[8%] overflow-hidden' : 'absolute inset-[3%] overflow-hidden'}>{textElement}</div>
+    <div className="absolute inset-0 overflow-hidden">{textElement}</div>
   </div>;
 }
 
@@ -291,7 +309,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
     creationMode: layout ? 'layout' : 'blank',
     objects: screen.elements.filter((element) => element.position_json?.hidden !== true).map((element) => ({
       id: element.element_key,
-      slotId: element.slot_id || `free-${element.element_key}`,
+      slotId: publishedElementSlotId(element),
       type: element.element_type as ObjectType,
       text: textFrom(element.content_json || {}),
       position: elementBounds(element.position_json),
@@ -364,6 +382,17 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
       ? <div key={element.element_key} className="grid h-full w-full place-items-center bg-slate-900 p-4 text-center text-white"><div><Presentation className="mx-auto text-cyan-300" size={34} /><p className="mt-2 font-semibold">{element.resource_mapping.name}</p><p className="mt-1 text-xs uppercase text-slate-400">{element.resource_mapping.resource_type} activity</p></div></div>
       : <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} elementContent={element.content_json} onMediaTime={(previous, current) => onMediaTime?.(element.element_key, previous, current)} />]];
   }));
+  for (const element of screen.elements) {
+    const overlay = overlays[element.element_key];
+    if (!overlay) continue;
+    const flipX = element.position_json?.flipX === true;
+    const flipY = element.position_json?.flipY === true;
+    if (!flipX && !flipY) continue;
+    overlays[element.element_key] = <div
+      className="h-full w-full"
+      style={{ transform: `scale(${flipX ? -1 : 1}, ${flipY ? -1 : 1})`, transformOrigin: 'center' }}
+    >{overlay}</div>;
+  }
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
     if (!overlay || !element.content_json?.hyperlink) continue;

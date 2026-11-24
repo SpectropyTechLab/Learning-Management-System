@@ -6,6 +6,7 @@ import {
   orderedStudioLayers,
   reorderStudioLayers,
   studioLayerName,
+  selectionForStudioObjectClick,
   updateStudioLayer,
 } from './studioLayerModel.ts';
 
@@ -48,4 +49,18 @@ test('drag ordering persists one complete front-to-back layer order', () => {
     orderedStudioLayers(reordered).map((layer) => layer.id),
     ['back', 'front', 'middle'],
   );
+});
+
+test('group selection drills into an individual member on the second click', () => {
+  const one = { ...element('one', 1), position: { ...element('one', 1).position, groupId: 'group-a' } };
+  const two = { ...element('two', 2), position: { ...element('two', 2).position, groupId: 'group-a' } };
+  assert.deepEqual(selectionForStudioObjectClick([one, two], [], 'one'), ['one', 'two']);
+  assert.deepEqual(selectionForStudioObjectClick([one, two], ['one', 'two'], 'one'), ['one']);
+  assert.deepEqual(selectionForStudioObjectClick([one, two], ['one'], 'one'), ['one']);
+});
+
+test('direct layer selection bypasses imported group expansion', () => {
+  const one = { ...element('one', 1), position: { ...element('one', 1).position, groupId: 'group-a' } };
+  const two = { ...element('two', 2), position: { ...element('two', 2).position, groupId: 'group-a' } };
+  assert.deepEqual(selectionForStudioObjectClick([one, two], [], 'two', true), ['two']);
 });

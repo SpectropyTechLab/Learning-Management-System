@@ -173,9 +173,13 @@ const uploadFile = async (file) => {
 
 const removeUploads = async (storageKeys) => {
   const keys = [...new Set((Array.isArray(storageKeys) ? storageKeys : [storageKeys]).filter(Boolean))];
-  if (!keys.length) return;
+  if (!keys.length) return true;
   const { error } = await supabase.storage.from(BUCKET).remove(keys);
-  if (error) console.error('Studio resource cleanup failed:', error.message);
+  if (error) {
+    console.error('Studio resource cleanup failed:', error.message);
+    return false;
+  }
+  return true;
 };
 
 const prepareVersionUpload = async ({ resourceType, body, file }) => {
@@ -479,8 +483,8 @@ export const deleteResource = async ({ resourceId: rawResourceId, user }) => {
     storageKeys = storageKeysForVersions(versions.rows);
     await client.query('DELETE FROM resources WHERE id = $1', [resource.id]);
     await client.query('COMMIT');
-    await removeUploads(storageKeys);
-    return { id: resource.id, deleted: true };
+    const storageCleanupComplete = await removeUploads(storageKeys);
+    return { id: resource.id, deleted: true, storage_cleanup_complete: storageCleanupComplete };
   } catch (error) {
     if (client) {
       try { await client.query('ROLLBACK'); } catch (rollbackError) {
