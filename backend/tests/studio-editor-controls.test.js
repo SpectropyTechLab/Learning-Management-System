@@ -576,8 +576,9 @@ test('Canvas elements support direct pointer dragging as well as resize handles'
   assert.match(slide, /\[contenteditable="true"\]/);
   const queueStart = slide.indexOf('const queueDirectMove');
   const queueEnd = slide.indexOf('useEffect(() => {', queueStart);
-  assert.match(slide.slice(queueStart, queueEnd), /event\.preventDefault\(\)/);
-  assert.doesNotMatch(slide.slice(queueStart, queueEnd), /stopPropagation|setInteraction/);
+  const dragEffectEnd = slide.indexOf('const drawingPoint', queueEnd);
+  assert.doesNotMatch(slide.slice(queueStart, queueEnd), /preventDefault|stopPropagation|setInteraction/);
+  assert.match(slide.slice(queueEnd, dragEffectEnd), /Math\.hypot\(movementX, movementY\) < 6[\s\S]*event\.preventDefault\(\)/);
   assert.match(slide, /root\.style\.userSelect = 'none'/);
   assert.match(slide, /window\.getSelection\(\)\?\.removeAllRanges\(\)/);
 });

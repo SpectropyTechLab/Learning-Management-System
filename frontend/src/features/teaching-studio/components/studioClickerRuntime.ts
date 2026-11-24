@@ -222,6 +222,10 @@ export const buildPresenterAnimationTimeline = (
     const start = String(item.effect.start || (item.effectIndex === 0 ? 'on-click' : 'after-previous'));
     const ownDelay = Math.max(0, Number(item.effect.delay) || 0);
     const duration = Math.max(0.001, Number(item.effect.duration) || 0.8);
+    // PowerPoint permits the first item in a sequence to be With Previous or
+    // After Previous. With no earlier click group to attach to, it belongs to
+    // the first click just as the Animation Pane displays it.
+    if (currentStep === 0 && start !== 'on-click' && start !== 'trigger') currentStep = 1;
     if (start === 'on-click') {
       currentStep += 1;
       previousStart = ownDelay;

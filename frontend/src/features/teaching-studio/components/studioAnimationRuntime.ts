@@ -181,7 +181,7 @@ export const studioAnimationStyle = (animation?: Record<string, unknown>): CSSPr
     ...(motionPath ? {
       offsetPath: motionPath,
       offsetDistance: '100%',
-      offsetRotate: String(primary.pathRotate === false ? '0deg' : 'auto'),
+      offsetRotate: String(primary.pathRotate === true ? 'auto' : '0deg'),
     } : {}),
     '--studio-enter-x': enterX,
     '--studio-enter-y': enterY,

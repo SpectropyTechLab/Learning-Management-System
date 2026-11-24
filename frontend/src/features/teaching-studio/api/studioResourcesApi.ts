@@ -318,4 +318,4 @@ export const getStudioObjectPreview = async (versionId: number) =>
   )).data);
 
 export const deleteStudioResource = async (resourceId: number) =>
-  dataOf<{ id: number; deleted: true }>((await api.delete(`/studio/resources/${resourceId}`)).data);
+  dataOf<{ id: number; deleted: true; storage_cleanup_complete?: boolean }>((await api.delete(`/studio/resources/${resourceId}`)).data);
