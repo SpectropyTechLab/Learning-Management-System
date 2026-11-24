@@ -30,6 +30,8 @@ import { isSmartDiagramContent, type SmartDiagramContent } from './smartDiagramM
 import { studioAnimationStyle } from './studioAnimationRuntime';
 import { playStudioAnimationSound } from './studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './studioAnimationModel';
+import { studioAnimationCapabilities } from './studioAnimationModel';
+import StudioMotionPathCanvasOverlay from './StudioMotionPathCanvasOverlay';
 import type { InlineShapeData } from './studioInlineShape';
 import {
   buildPresenterAnimationTimeline,
@@ -72,6 +74,8 @@ interface BlankScreenCanvasProps {
   showGuides?: boolean;
   previewMode?: boolean;
   animationPreview?: { elementId?: string; token: number; mode?: 'element' | 'sequence'; fromEffectId?: string } | null;
+  selectedAnimationEffect?: StudioAnimationEffectDefinition | null;
+  onChangeSelectedAnimationEffect?: (changes: Partial<StudioAnimationEffectDefinition>) => void;
   cropRequest?: { elementId: string; token: number } | null;
   model3DModeRequest?: { elementId: string; token: number } | null;
   previewStartAtEnd?: boolean;
@@ -551,6 +555,8 @@ export default function BlankScreenCanvas({
   showGuides = false,
   previewMode = false,
   animationPreview = null,
+  selectedAnimationEffect = null,
+  onChangeSelectedAnimationEffect,
   cropRequest = null,
   model3DModeRequest = null,
   previewStartAtEnd = false,
@@ -1375,6 +1381,10 @@ export default function BlankScreenCanvas({
   }
   const selectedElement =
     screen?.elements.find((element) => element.id === selectedElementId) ?? null;
+  const selectedMotionPathBounds = selectedElement && selectedAnimationEffect
+    && studioAnimationCapabilities(selectedElement.type, selectedElement.content.visualType, selectedAnimationEffect.effect).motionPath
+    ? elementBounds(selectedElement.position) ?? renderLayout?.slots.find((slot) => slot.id === slotIdForElement(selectedElement))?.bounds
+    : undefined;
 
   return (
     <section
@@ -1480,6 +1490,11 @@ export default function BlankScreenCanvas({
             objectOverlays={objectOverlays}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
+            canvasOverlay={selectedMotionPathBounds && selectedAnimationEffect ? <StudioMotionPathCanvasOverlay
+              bounds={selectedMotionPathBounds}
+              effect={selectedAnimationEffect}
+              onChange={onChangeSelectedAnimationEffect}
+            /> : null}
             selectionChromeHidden={previewMode}
             allowCanvasOverflow={!previewMode}
             showTextEditorOutlines={!previewMode}

@@ -218,4 +218,6 @@ test('custom motion paths persist and drive CSS offset-path playback', () => {
   assert.equal(style.animationName, 'studio-path-custom-legacy');
   assert.match(String(style.offsetPath), /M 0 0 L 80 -20 L 160 40/);
   assert.equal(style.offsetDistance, '100%');
+  assert.equal(style.offsetRotate, '0deg');
+  assert.equal(studioAnimationStyle({ effects: [{ effect: 'path-line', pathRotate: true }] }).offsetRotate, 'auto');
 });

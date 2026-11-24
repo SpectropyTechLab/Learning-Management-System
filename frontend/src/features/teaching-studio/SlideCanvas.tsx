@@ -134,6 +134,7 @@ export default function SlideCanvas({
   objectOverlays = {},
   objectAnimationStyles = {},
   objectAnimationKeys = {},
+  canvasOverlay,
   selectionChromeHidden = false,
   transition,
   fixedDrawingStrokes = [],
@@ -173,6 +174,7 @@ export default function SlideCanvas({
   objectOverlays?: Record<string, ReactNode>;
   objectAnimationStyles?: Record<string, CSSProperties>;
   objectAnimationKeys?: Record<string, string | number>;
+  canvasOverlay?: ReactNode;
   selectionChromeHidden?: boolean;
   transition?: Record<string, unknown>;
   fixedDrawingStrokes?: AuthorDrawingStroke[];
@@ -916,6 +918,7 @@ export default function SlideCanvas({
               </div>
             );
           })}
+          {canvasOverlay}
           <svg
             viewBox={`0 0 ${MASTER.width} ${MASTER.height}`}
             className={`absolute inset-0 z-10 h-full w-full touch-none ${drawingEnabled ? 'cursor-crosshair' : interactionOverlayEnabled ? 'cursor-none' : 'pointer-events-none'}`}

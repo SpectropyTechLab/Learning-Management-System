@@ -5519,6 +5519,8 @@ export default function TeachingStudioPage() {
                 layout={selectedLayout}
                 showGuides={showCanvasGuides}
                 animationPreview={animationPreview}
+                selectedAnimationEffect={activeSelectedAnimationEffect ?? null}
+                onChangeSelectedAnimationEffect={editorReadOnly ? undefined : updateSelectedAnimationEffect}
                 cropRequest={cropRequest}
                 model3DModeRequest={model3DModeRequest}
                 selectedElementId={selectedElementId}
