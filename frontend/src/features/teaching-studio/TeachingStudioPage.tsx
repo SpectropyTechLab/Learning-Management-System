@@ -409,6 +409,12 @@ export default function TeachingStudioPage() {
     screens: [],
   });
   const [selectedScreen, setSelectedScreen] = useState<StudioScreen | null>(null);
+  const selectedScreenId = useMemo(() => {
+    if (requestedScreenId && screenList.screens.some((screen) => screen.id === requestedScreenId)) {
+      return requestedScreenId;
+    }
+    return screenList.screens[0]?.id ?? null;
+  }, [requestedScreenId, screenList.screens]);
   const [loadingScreens, setLoadingScreens] = useState(false);
   const [screenListLoaded, setScreenListLoaded] = useState(false);
   const [loadingScreen, setLoadingScreen] = useState(Boolean(sessionId));
@@ -498,6 +504,9 @@ export default function TeachingStudioPage() {
       return current.includes(selectedElementId) ? current : [selectedElementId];
     });
   }, [selectedElementId]);
+  useEffect(() => {
+    setAnimationPreview(null);
+  }, [selectedScreenId]);
   const [activeRibbonTab, setActiveRibbonTab] = useState<StudioRibbonTabId>('home');
   const [simulationStudio, setSimulationStudio] = useState<{
     subject?: SimulationSubject;
@@ -508,6 +517,7 @@ export default function TeachingStudioPage() {
   const [simulationRibbonSubject, setSimulationRibbonSubject] = useState<SimulationSubject>('physics');
   const [simulationRibbonCategory, setSimulationRibbonCategory] = useState('all');
   const [simulationRibbonPage, setSimulationRibbonPage] = useState(0);
+  const [activityRibbonPage, setActivityRibbonPage] = useState(0);
   const [quickStartSimulations, setQuickStartSimulations] = useState<QuickStartSimulation[]>([]);
   const [simulationSaving, setSimulationSaving] = useState(false);
   const [physicsLabStudio, setPhysicsLabStudio] = useState<{ elementId?: string; project?: PhysicsLabProject } | null>(null);
@@ -521,6 +531,7 @@ export default function TeachingStudioPage() {
   const [labRibbonSubject, setLabRibbonSubject] = useState<'physics' | 'chemistry' | 'mathematics' | 'biology'>('physics');
   const [physicsLabClassFilter, setPhysicsLabClassFilter] = useState<number | 'all'>('all');
   const [physicsLabTopicFilter, setPhysicsLabTopicFilter] = useState('all');
+  const [labRibbonPage, setLabRibbonPage] = useState(0);
   const [quickStartLabs, setQuickStartLabs] = useState<QuickStartLab[]>([]);
   const [physicsLabSaving, setPhysicsLabSaving] = useState(false);
   const [activityStudio, setActivityStudio] = useState<{
@@ -788,13 +799,6 @@ export default function TeachingStudioPage() {
       window.removeEventListener('offline', goOffline);
     };
   }, []);
-
-  const selectedScreenId = useMemo(() => {
-    if (requestedScreenId && screenList.screens.some((screen) => screen.id === requestedScreenId)) {
-      return requestedScreenId;
-    }
-    return screenList.screens[0]?.id ?? null;
-  }, [requestedScreenId, screenList.screens]);
 
   const importedTitleByScreenId = useMemo(
     () => new Map(
@@ -4095,12 +4099,17 @@ export default function TeachingStudioPage() {
   );
   const selectedModel3DSettings = model3DSettingsFrom(selectedElement?.content);
   const selectedDiagramContent = selectedElement && isSmartDiagramContent(selectedElement.content) ? selectedElement.content : null;
+  const selectedChartContent = selectedElement?.content?.visualType === 'chart' ? selectedElement.content : null;
   const selectedDiagramNode = selectedDiagramContent?.nodes.find((node) => node.id === selectedDiagramNodeId)
     ?? selectedDiagramContent?.nodes[0]
     ?? null;
   const updateSelectedDiagram = (changes: Partial<NonNullable<typeof selectedDiagramContent>>) => {
     if (!selectedElement || !selectedDiagramContent || editorReadOnly) return;
     updateElement({ ...selectedElement, content: { ...selectedDiagramContent, ...changes } });
+  };
+  const updateSelectedChart = (changes: Record<string, unknown>) => {
+    if (!selectedElement || !selectedChartContent || editorReadOnly) return;
+    updateElement({ ...selectedElement, content: { ...selectedChartContent, ...changes } });
   };
   const replaceSelectedDiagramNodes = (nodes: SmartDiagramNode[]) => updateSelectedDiagram({ nodes: rebuildDiagramParents(nodes) });
   const updateSelectedDiagramNode = (changes: Partial<SmartDiagramNode>) => {
@@ -4370,6 +4379,7 @@ export default function TeachingStudioPage() {
   };
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string, additive = false, direct = false) => {
+    setAnimationPreview(null);
     if (!additive && animationPaintSource && animationPaintSource.elementId !== elementId && selectedScreen && !editorReadOnly) {
       const baseOrder = buildStudioAnimationSequence(selectedScreen.elements).length;
       const copied = structuredClone(animationPaintSource.animation);
@@ -4416,6 +4426,7 @@ export default function TeachingStudioPage() {
     setSelectedLayoutSlotId(element?.slotId ?? null);
   };
   const selectElementsFromMarquee = (elementIds: string[], additive = false) => {
+    setAnimationPreview(null);
     const expandedIds = selectedScreen?.elements.reduce<string[]>((ids, element) => {
       if (!elementIds.includes(element.id)) return ids;
       const groupId = typeof element.position.groupId === 'string' ? element.position.groupId : null;
@@ -4757,6 +4768,13 @@ export default function TeachingStudioPage() {
       }
       case 'activity': {
         const quickActivities = ACTIVITY_TEMPLATES;
+        const activityRibbonPageSize = 15;
+        const activityRibbonPageCount = Math.max(1, Math.ceil(quickActivities.length / activityRibbonPageSize));
+        const visibleActivityRibbonPage = Math.min(activityRibbonPage, activityRibbonPageCount - 1);
+        const visibleQuickActivities = quickActivities.slice(
+          visibleActivityRibbonPage * activityRibbonPageSize,
+          (visibleActivityRibbonPage + 1) * activityRibbonPageSize,
+        );
         return [
           {
             id: 'activity-builder', label: 'Builder', commands: [
@@ -4769,13 +4787,47 @@ export default function TeachingStudioPage() {
             id: 'activity-quick-start',
             label: 'Quick Start from a Template',
             fitAvailableSpace: true,
-            commands: quickActivities.map((template) => ({
-              id: `activity-template-${template.id}`,
-              label: template.label,
-              icon: <span className="text-base" aria-hidden="true">{template.icon}</span>,
-              disabled: editorReadOnly || !selectedScreen || activitySaving,
-              onExecute: () => openActivityBuilder(template.id),
-            })),
+            content: (
+              <div className="flex w-[44rem] min-w-[44rem] items-center gap-0.5" aria-label="Activity templates">
+                {activityRibbonPageCount > 1 ? (
+                  <div className="mr-0.5 flex h-12 w-5 shrink-0 flex-col overflow-hidden rounded border border-slate-300 bg-white">
+                    <button
+                      type="button"
+                      aria-label="Show previous activities"
+                      title="Previous activities"
+                      disabled={visibleActivityRibbonPage === 0}
+                      onClick={() => setActivityRibbonPage((page) => Math.max(0, page - 1))}
+                      className="grid flex-1 place-items-center text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
+                    >
+                      <ChevronUp size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Show next activities"
+                      title="Next activities"
+                      disabled={visibleActivityRibbonPage >= activityRibbonPageCount - 1}
+                      onClick={() => setActivityRibbonPage((page) => Math.min(activityRibbonPageCount - 1, page + 1))}
+                      className="grid flex-1 place-items-center border-t border-slate-200 text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
+                ) : <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />}
+                {Array.from({ length: activityRibbonPageSize }, (_, index) => visibleQuickActivities[index] ?? null).map((template, index) => template ? (
+                  <button
+                    key={`activity-template-${template.id}`}
+                    type="button"
+                    title={template.label}
+                    disabled={editorReadOnly || !selectedScreen || activitySaving}
+                    onClick={() => openActivityBuilder(template.id)}
+                    className="flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 hover:border-violet-300 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <span className="grid h-5 w-5 place-items-center text-base" aria-hidden="true">{template.icon}</span>
+                    <span className="block w-full truncate text-center">{template.label}</span>
+                  </button>
+                ) : <div key={`empty-activity-slot-${index}`} className="h-12 w-11 shrink-0" aria-hidden="true" />)}
+              </div>
+            ),
           },
         ];
       }
@@ -4784,6 +4836,13 @@ export default function TeachingStudioPage() {
         const labs = (activeLabCatalog?.labs || []).filter((entry) =>
           (physicsLabClassFilter === 'all' || entry.classes.includes(physicsLabClassFilter))
           && (physicsLabTopicFilter === 'all' || entry.topic === physicsLabTopicFilter));
+        const labRibbonPageSize = 15;
+        const labRibbonPageCount = Math.max(1, Math.ceil(labs.length / labRibbonPageSize));
+        const visibleLabRibbonPage = Math.min(labRibbonPage, labRibbonPageCount - 1);
+        const visibleLabs = labs.slice(
+          visibleLabRibbonPage * labRibbonPageSize,
+          (visibleLabRibbonPage + 1) * labRibbonPageSize,
+        );
         const openActiveLab = (labId?: string) => labRibbonSubject === 'chemistry' ? void openChemistryLab(labId) : labRibbonSubject === 'mathematics' ? void openMathematicsLab(labId) : labRibbonSubject === 'biology' ? void openBiologyLab(labId) : void openPhysicsLab(labId);
         return [
           {
@@ -4797,36 +4856,72 @@ export default function TeachingStudioPage() {
           },
           {
             id: 'lab-subjects', label: 'Subject Labs', commands: [
-              { id: 'lab-physics', label: 'Physics Lab', icon: <Orbit size={18} />, active: labRibbonSubject === 'physics', onExecute: () => { setLabRibbonSubject('physics'); setPhysicsLabTopicFilter('all'); } },
-              { id: 'lab-chemistry', label: 'Chemistry Lab', icon: <FlaskConical size={18} />, active: labRibbonSubject === 'chemistry', onExecute: () => { setLabRibbonSubject('chemistry'); setPhysicsLabTopicFilter('all'); } },
-              { id: 'lab-biology', label: 'Biology Lab', icon: <Dna size={18} />, active: labRibbonSubject === 'biology', onExecute: () => { setLabRibbonSubject('biology'); setPhysicsLabTopicFilter('all'); } },
-              { id: 'lab-mathematics', label: 'Mathematics Lab', icon: <Sigma size={18} />, active: labRibbonSubject === 'mathematics', onExecute: () => { setLabRibbonSubject('mathematics'); setPhysicsLabTopicFilter('all'); } },
+              { id: 'lab-physics', label: 'Physics Lab', icon: <Orbit size={18} />, active: labRibbonSubject === 'physics', onExecute: () => { setLabRibbonSubject('physics'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
+              { id: 'lab-chemistry', label: 'Chemistry Lab', icon: <FlaskConical size={18} />, active: labRibbonSubject === 'chemistry', onExecute: () => { setLabRibbonSubject('chemistry'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
+              { id: 'lab-biology', label: 'Biology Lab', icon: <Dna size={18} />, active: labRibbonSubject === 'biology', onExecute: () => { setLabRibbonSubject('biology'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
+              { id: 'lab-mathematics', label: 'Mathematics Lab', icon: <Sigma size={18} />, active: labRibbonSubject === 'mathematics', onExecute: () => { setLabRibbonSubject('mathematics'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
             ],
           },
           {
             id: 'lab-filters', label: 'Class & Topic Filters', content: <div className="flex items-center gap-2 px-1">
-              <select aria-label={`Filter ${labRibbonSubject} Labs by class`} value={physicsLabClassFilter} onChange={(event) => setPhysicsLabClassFilter(event.target.value === 'all' ? 'all' : Number(event.target.value))} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
+              <select aria-label={`Filter ${labRibbonSubject} Labs by class`} value={physicsLabClassFilter} onChange={(event) => { setPhysicsLabClassFilter(event.target.value === 'all' ? 'all' : Number(event.target.value)); setLabRibbonPage(0); }} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
                 <option value="all">All classes</option>{[6, 7, 8, 9, 10, 11, 12].map((grade) => <option key={grade} value={grade}>Class {grade}</option>)}
               </select>
-              <select aria-label={`Filter ${labRibbonSubject} Labs by topic`} value={physicsLabTopicFilter} onChange={(event) => setPhysicsLabTopicFilter(event.target.value)} className="h-9 min-w-36 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
+              <select aria-label={`Filter ${labRibbonSubject} Labs by topic`} value={physicsLabTopicFilter} onChange={(event) => { setPhysicsLabTopicFilter(event.target.value); setLabRibbonPage(0); }} className="h-9 min-w-36 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
                 <option value="all">All topics</option>{Object.entries(activeLabCatalog?.topics || {}).map(([id, topic]) => <option key={id} value={id}>{topic.label}</option>)}
               </select>
             </div>,
           },
           {
-            id: 'lab-quick-start', label: 'Quick Start from a Template', fitAvailableSpace: true, commands: labs.map((entry) => ({
-              id: `${labRibbonSubject}-lab-${entry.id}`,
-              label: entry.title,
-              icon: labRibbonSubject === 'chemistry'
-                ? <ChemistryLabIcon entry={entry as import('./components/chemistryLabModel').ChemistryLabCatalogEntry} className="h-7 w-7" />
-                : labRibbonSubject === 'mathematics'
-                  ? <MathematicsLabIcon entry={entry as import('./components/mathematicsLabModel').MathematicsLabCatalogEntry} className="h-7 w-7" />
-                  : labRibbonSubject === 'biology'
-                    ? <BiologyLabIcon entry={entry as import('./components/biologyLabModel').BiologyLabCatalogEntry} className="h-7 w-7" />
-                : <PhysicsLabIcon entry={entry as import('./components/physicsLabModel').PhysicsLabCatalogEntry} className="h-7 w-7" />,
-              disabled: editorReadOnly || !selectedScreen || physicsLabSaving,
-              onExecute: () => openActiveLab(entry.id),
-            })),
+            id: 'lab-quick-start', label: 'Quick Start from a Template', fitAvailableSpace: true, content: (
+              <div className="flex w-[44rem] min-w-[44rem] items-center gap-0.5" aria-label="Lab templates">
+                {labRibbonPageCount > 1 ? (
+                  <div className="mr-0.5 flex h-12 w-5 shrink-0 flex-col overflow-hidden rounded border border-slate-300 bg-white">
+                    <button
+                      type="button"
+                      aria-label="Show previous labs"
+                      title="Previous labs"
+                      disabled={visibleLabRibbonPage === 0}
+                      onClick={() => setLabRibbonPage((page) => Math.max(0, page - 1))}
+                      className="grid flex-1 place-items-center text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
+                    >
+                      <ChevronUp size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Show next labs"
+                      title="Next labs"
+                      disabled={visibleLabRibbonPage >= labRibbonPageCount - 1}
+                      onClick={() => setLabRibbonPage((page) => Math.min(labRibbonPageCount - 1, page + 1))}
+                      className="grid flex-1 place-items-center border-t border-slate-200 text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
+                ) : <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />}
+                {Array.from({ length: labRibbonPageSize }, (_, index) => visibleLabs[index] ?? null).map((entry, index) => entry ? (
+                  <button
+                    key={`${labRibbonSubject}-lab-${entry.id}`}
+                    type="button"
+                    title={entry.title}
+                    disabled={editorReadOnly || !selectedScreen || physicsLabSaving}
+                    onClick={() => openActiveLab(entry.id)}
+                    className="flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <span className="grid h-6 w-6 place-items-center" aria-hidden="true">
+                      {labRibbonSubject === 'chemistry'
+                        ? <ChemistryLabIcon entry={entry as import('./components/chemistryLabModel').ChemistryLabCatalogEntry} className="h-6 w-6" />
+                        : labRibbonSubject === 'mathematics'
+                          ? <MathematicsLabIcon entry={entry as import('./components/mathematicsLabModel').MathematicsLabCatalogEntry} className="h-6 w-6" />
+                          : labRibbonSubject === 'biology'
+                            ? <BiologyLabIcon entry={entry as import('./components/biologyLabModel').BiologyLabCatalogEntry} className="h-6 w-6" />
+                            : <PhysicsLabIcon entry={entry as import('./components/physicsLabModel').PhysicsLabCatalogEntry} className="h-6 w-6" />}
+                    </span>
+                    <span className="block w-full truncate text-center">{entry.title}</span>
+                  </button>
+                ) : <div key={`empty-lab-slot-${index}`} className="h-12 w-11 shrink-0" aria-hidden="true" />)}
+              </div>
+            ),
           },
         ];
       }
@@ -4916,7 +5011,7 @@ export default function TeachingStudioPage() {
         ];
       case 'transitions':
         return [
-          { id: 'transition-controls', label: 'Transition to This Screen', content: (
+          { id: 'transition-controls', label: 'Transition to This Screen', fitAvailableSpace: true, content: (
             <StudioTransitionRibbon
               settings={selectedScreen?.screen_settings_json ?? null}
               disabled={editorReadOnly || !selectedScreen}
@@ -4930,14 +5025,14 @@ export default function TeachingStudioPage() {
         return [
           { id: 'animation-preview', label: 'Preview', content: <div className="flex h-full items-center gap-1 px-1"><button type="button" title="Preview selected animation" aria-label="Preview selected animation" disabled={!selectedElement || selectedAnimationEffects.length === 0} onClick={() => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() })} className="grid h-10 w-10 place-items-center rounded-lg text-blue-900 hover:bg-blue-50 disabled:opacity-35"><Eye size={18}/></button><label className="flex h-10 cursor-pointer flex-col items-center justify-center rounded px-1 text-[8px] font-semibold text-slate-600 hover:bg-slate-50"><input type="checkbox" checked={animationAutoPreview} onChange={(event) => setAnimationAutoPreview(event.target.checked)} className="h-3 w-3"/><span>AutoPreview</span></label></div> },
           {
-            id: 'animation-gallery', label: 'Animation', content: <StudioAnimationRibbonGallery activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')} disabled={!selectedElement || editorReadOnly} isEffectDisabled={isSelectedAnimationEffectDisabled} onSelect={(effect) => applyQuickAnimation(effect)} onRemove={removeSelectedAnimation} />,
+            id: 'animation-gallery', label: 'Animation', fitAvailableSpace: true, content: <StudioAnimationRibbonGallery activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')} disabled={!selectedElement || editorReadOnly} isEffectDisabled={isSelectedAnimationEffectDisabled} onSelect={(effect) => applyQuickAnimation(effect)} onRemove={removeSelectedAnimation} />,
           },
           { id: 'animation-effect-options', label: 'Effect Options', content: <div data-studio-animation-effect-options><StudioAnimationAdvancedOptions effect={(activeSelectedAnimationEffect as StudioAnimationEffectDefinition | undefined) ?? null} element={selectedElement ?? null} onChange={updateSelectedAnimationEffect}/></div> },
           { id: 'advanced-animation', label: 'Advanced Animation', commands: [
             { id: 'animation-pane', label: 'Animation Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, active: rightPanelOpen && panel === 'animations', onExecute: openAnimationPane },
             { id: 'animation-painter', label: animationPaintSource?.locked ? 'Painter Locked' : 'Animation Painter', icon: <Paintbrush size={17} />, disabled: !selectedElement || selectedAnimationEffects.length === 0, active: Boolean(animationPaintSource), onExecute: () => animationPaintSource ? setAnimationPaintSource(null) : startAnimationPainter(false), onDoubleClick: () => startAnimationPainter(true) },
           ], content: <div className="flex h-full items-center"><StudioAnimationMenu label="Add Animation" addMode disabled={!selectedElement || editorReadOnly} isEffectDisabled={isSelectedAnimationEffectDisabled} onSelect={(effect) => applyQuickAnimation(effect, true)}/><StudioAnimationTriggerMenu effect={(activeSelectedAnimationEffect as StudioAnimationEffectDefinition | undefined) ?? null} element={selectedElement ?? null} elements={selectedScreen?.elements ?? []} disabled={!activeSelectedAnimationEffect || editorReadOnly} onChange={updateSelectedAnimationEffect}/></div> },
-          { id: 'animation-timing', label: 'Timing', content: <div className="grid gap-0.5"><select aria-label="Animation start" disabled={!activeSelectedAnimationEffect || activeSelectedAnimationEffect?.start === 'trigger'} value={String(activeSelectedAnimationEffect?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="h-5 w-28 rounded border px-1 text-[9px]"><option value="on-click">Start: On Click</option><option value="with-previous">Start: With Previous</option><option value="after-previous">Start: After Previous</option>{activeSelectedAnimationEffect?.start === 'trigger' ? <option value="trigger">Start: Trigger</option> : null}</select><select aria-label="Animation repeat" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.repeat || 1)} onChange={(event) => updateSelectedAnimationEffect({ repeat: /^\d+$/.test(event.target.value) ? Number(event.target.value) : event.target.value })} className="h-5 w-28 rounded border px-1 text-[9px]"><option value="1">Repeat: Once</option><option value="2">Repeat: Twice</option><option value="3">Repeat: 3 times</option><option value="5">Repeat: 5 times</option><option value="10">Repeat: 10 times</option><option value="until-next-click">Until next click</option><option value="until-end">Until end of Screen</option></select><label className="flex items-center justify-between gap-1 text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label><label className="flex items-center justify-between gap-1 text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-5 w-14 rounded border px-1" /></label></div> },
+          { id: 'animation-timing', label: 'Timing', content: <div className="grid w-52 grid-cols-2 gap-x-2 gap-y-0.5 px-1"><select aria-label="Animation start" disabled={!activeSelectedAnimationEffect || activeSelectedAnimationEffect?.start === 'trigger'} value={String(activeSelectedAnimationEffect?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="col-span-2 h-5 w-full rounded border px-1 text-[9px]"><option value="on-click">Start: On Click</option><option value="with-previous">Start: With Previous</option><option value="after-previous">Start: After Previous</option>{activeSelectedAnimationEffect?.start === 'trigger' ? <option value="trigger">Start: Trigger</option> : null}</select><select aria-label="Animation repeat" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.repeat || 1)} onChange={(event) => updateSelectedAnimationEffect({ repeat: /^\d+$/.test(event.target.value) ? Number(event.target.value) : event.target.value })} className="col-span-2 h-5 w-full rounded border px-1 text-[9px]"><option value="1">Repeat: Once</option><option value="2">Repeat: Twice</option><option value="3">Repeat: 3 times</option><option value="5">Repeat: 5 times</option><option value="10">Repeat: 10 times</option><option value="until-next-click">Until next click</option><option value="until-end">Until end of Screen</option></select><label className="flex min-w-0 items-center justify-between gap-1 text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-5 w-12 rounded border px-1" /></label><label className="flex min-w-0 items-center justify-between gap-1 text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-5 w-12 rounded border px-1" /></label></div> },
           { id: 'animation-reorder', label: 'Reorder Animation', content: <div className="grid gap-0.5"><button type="button" disabled={selectedAnimationSequenceIndex <= 0} onClick={() => moveSelectedAnimation(-1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronUp size={13}/>Move Earlier</button><button type="button" disabled={selectedAnimationSequenceIndex < 0 || selectedAnimationSequenceIndex >= globalAnimationSequence.length - 1} onClick={() => moveSelectedAnimation(1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronDown size={13}/>Move Later</button></div> },
         ];
       case 'present':
@@ -5061,6 +5156,18 @@ export default function TeachingStudioPage() {
           { id: 'diagram-connectors', label: 'Connectors', content: <select aria-label="Diagram connector style" value={selectedDiagramContent?.connectorStyle || 'straight'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ connectorStyle: event.target.value as SmartDiagramContent['connectorStyle'] })} className="mx-1 h-9 rounded border px-2 text-[10px]"><option value="straight">Straight</option><option value="elbow">Elbow</option><option value="curve">Curved</option><option value="none">None</option></select> },
           { id: 'diagram-animation', label: 'Diagram Animation', content: <div className="flex gap-1 px-1"><select aria-label="Diagram animation mode" value={selectedDiagramContent?.revealMode || 'as-one-object'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ revealMode: event.target.value as SmartDiagramContent['revealMode'] })} className="h-9 w-28 rounded border px-1 text-[9px]"><option value="as-one-object">As one object</option><option value="all-at-once">All at once</option><option value="one-by-one">One by one</option><option value="level-at-once">Level at once</option><option value="level-one-by-one">Level one by one</option></select><button type="button" disabled={!selectedDiagramContent} onClick={() => updateSelectedDiagram({ reverseAnimation: !selectedDiagramContent?.reverseAnimation })} className={`h-9 rounded border px-2 text-[9px] font-semibold ${selectedDiagramContent?.reverseAnimation ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>Reverse</button></div> },
           { id: 'diagram-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Diagram accessibility description" type="text" value={selectedDiagramContent?.altText || ''} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ altText: event.target.value })} className="h-8 w-32 rounded border px-1 text-[10px]"/></label> },
+        ];
+      case 'chart-design':
+        return [
+          { id: 'chart-type', label: 'Change Chart Type', content: <div className="flex gap-1 px-1">{(['bar', 'line', 'pie', 'doughnut'] as const).map((chartType) => <button key={chartType} type="button" disabled={!selectedChartContent} onClick={() => updateSelectedChart({ chartType })} className={`h-10 rounded border px-3 text-[10px] font-semibold capitalize ${selectedChartContent?.chartType === chartType ? 'border-emerald-700 bg-emerald-50' : 'border-slate-200 hover:bg-emerald-50'}`}>{chartType}</button>)}</div> },
+          { id: 'chart-elements', label: 'Chart Elements', content: <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 px-1 text-[9px] font-semibold text-slate-700"><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showTitle !== false} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showTitle: event.target.checked })}/>Title</label><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showLegend === true} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showLegend: event.target.checked })}/>Legend</label><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showAxes !== false} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showAxes: event.target.checked })}/>Axes</label><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showDataLabels === true} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showDataLabels: event.target.checked })}/>Labels</label></div> },
+          { id: 'chart-title', label: 'Chart Title', content: <label className="grid px-1 text-[9px]">Title<input aria-label="Chart title" type="text" value={String(selectedChartContent?.title || '')} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ title: event.target.value })} className="h-8 w-40 rounded border px-2 text-[10px]"/></label> },
+        ];
+      case 'chart-format':
+        return [
+          { id: 'chart-colours', label: 'Series Colours', content: <div className="flex gap-1 px-1">{(Array.isArray((selectedChartContent?.data as Record<string, unknown> | undefined)?.datasets) ? ((selectedChartContent?.data as Record<string, unknown>).datasets as Array<Record<string, unknown>>) : []).slice(0, 6).map((dataset, index, datasets) => <label key={index} className="relative grid h-9 w-9 place-items-center rounded border" title={`Series ${index + 1}`}><span className="h-5 w-5 rounded" style={{ backgroundColor: String(dataset.color || '#2563eb') }}/><input type="color" value={String(dataset.color || '#2563eb')} onChange={(event) => updateSelectedChart({ data: { ...selectedChartContent?.data as Record<string, unknown>, datasets: datasets.map((entry, entryIndex) => entryIndex === index ? { ...entry, color: event.target.value } : entry) } })} className="absolute inset-0 opacity-0"/></label>)}</div> },
+          { id: 'chart-background', label: 'Chart Area', content: <label className="relative grid h-10 w-12 place-items-center rounded border" title="Chart background"><span className="h-6 w-8 rounded border" style={{ backgroundColor: String(selectedChartContent?.backgroundColor || '#ffffff') }}/><input aria-label="Chart background colour" type="color" value={String(selectedChartContent?.backgroundColor || '#ffffff')} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ backgroundColor: event.target.value })} className="absolute inset-0 opacity-0"/></label> },
+          { id: 'chart-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Chart alt text" type="text" value={String(selectedChartContent?.altText || '')} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ altText: event.target.value })} className="h-8 w-36 rounded border px-2 text-[10px]"/></label> },
         ];
       case '3d-model':
         return [
@@ -5547,6 +5654,7 @@ export default function TeachingStudioPage() {
               const elementId = target?.dataset.elementId;
               if (!elementId) return;
               event.preventDefault();
+              setAnimationPreview(null);
               setSelectedElementId(elementId);
               setSelectedElementIds((current) => current.includes(elementId) ? current : [elementId]);
               setElementContextMenu({ elementId, x: event.clientX, y: event.clientY });
@@ -5563,6 +5671,8 @@ export default function TeachingStudioPage() {
                 resourceCache={screenResourceCache}
                 showGuides={showCanvasGuides}
                 animationPreview={animationPreview}
+                selectedAnimationEffect={activeSelectedAnimationEffect ?? null}
+                onChangeSelectedAnimationEffect={editorReadOnly ? undefined : updateSelectedAnimationEffect}
                 cropRequest={cropRequest}
                 model3DModeRequest={model3DModeRequest}
                 selectedElementId={selectedElementId}
@@ -5574,9 +5684,9 @@ export default function TeachingStudioPage() {
                 selectedSlotId={selectedLayoutSlotId}
                 onSelectElement={selectElementAndOpenControls}
                 onSelectElements={selectElementsFromMarquee}
-                onSelectDiagramNode={(elementId, nodeId) => { setSelectedElementId(elementId); setSelectedDiagramNodeId(nodeId); }}
-                onSelectSlot={(slotId) => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
-                onClearElementSelection={() => { setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
+                onSelectDiagramNode={(elementId, nodeId) => { setAnimationPreview(null); setSelectedElementId(elementId); setSelectedDiagramNodeId(nodeId); }}
+                onSelectSlot={(slotId) => { setAnimationPreview(null); setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
+                onClearElementSelection={() => { setAnimationPreview(null); setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
                 onChangeElement={editorReadOnly ? undefined : updateElement}
                 onCommitElementChange={editorReadOnly ? undefined : updateElementPreservingSelection}
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}

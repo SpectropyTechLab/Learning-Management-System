@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronUp, CopyCheck, Eye, GalleryVertical, LoaderCircle, MousePointerClick, ShieldCheck, Volume2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, CopyCheck, Eye, GalleryVertical, LoaderCircle, MousePointerClick, ShieldCheck, SlidersHorizontal, Volume2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { StudioScreenSettings } from '../types';
@@ -14,8 +14,8 @@ type Props = {
 };
 
 const TransitionIcon = ({ effect }: { effect: string }) => {
-  const directional = ['push', 'wipe', 'reveal', 'uncover', 'cover', 'pan', 'conveyor', 'fly-through', 'wind'].includes(effect);
-  const divided = ['split', 'curtains', 'doors', 'blinds', 'comb', 'random-bars', 'window'].includes(effect);
+  const directional = ['push', 'wipe', 'reveal', 'uncover', 'cover', 'pan', 'conveyor', 'fly-through', 'wind', 'peel-off', 'page-curl', 'airplane', 'origami'].includes(effect);
+  const divided = ['split', 'curtains', 'doors', 'blinds', 'comb', 'random-bars', 'window', 'checkerboard', 'shred', 'fracture'].includes(effect);
   const rotating = ['rotate', 'clock', 'orbit', 'ferris-wheel', 'vortex', 'ripple'].includes(effect);
   const dimensional = ['flip', 'cube', 'gallery', 'switch', 'fall-over', 'drape'].includes(effect);
   return (
@@ -34,7 +34,31 @@ const TransitionIcon = ({ effect }: { effect: string }) => {
   );
 };
 
-const controlClass = 'h-6 rounded border-0 bg-transparent px-1 text-[9px] text-slate-800 outline-none hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 disabled:text-slate-400';
+const EffectOptionIcon = ({ value }: { value: string }) => {
+  const left = value.includes('left');
+  const right = value.includes('right');
+  const top = value.includes('top');
+  const bottom = value.includes('bottom');
+  const horizontal = value.includes('horizontal');
+  const vertical = value.includes('vertical');
+  return (
+    <svg viewBox="0 0 38 28" className="h-7 w-10" aria-hidden="true">
+      <rect x="1" y="1" width="36" height="26" rx="2" fill="#dbeafe" stroke="currentColor" />
+      {value.includes('circle') || value === 'center' ? <circle cx="19" cy="14" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+        : value.includes('diamond') ? <path d="M19 5l10 9-10 9-10-9z" fill="#60a5fa" stroke="currentColor" />
+        : value.includes('hexagon') ? <path d="M11 6h16l7 8-7 8H11l-7-8z" fill="#60a5fa" stroke="currentColor" />
+        : value.includes('plus') ? <path d="M16 5h6v6h7v6h-7v6h-6v-6H9v-6h7z" fill="#60a5fa" />
+        : horizontal ? <><path d="M4 9h30M4 19h30" stroke="currentColor" strokeWidth="2" /><path d="M14 14h10" stroke="#2563eb" strokeWidth="3" /></>
+        : vertical ? <><path d="M12 4v20M26 4v20" stroke="currentColor" strokeWidth="2" /><path d="M19 8v12" stroke="#2563eb" strokeWidth="3" /></>
+        : left || right || top || bottom ? <><path d={`M${left ? 31 : right ? 7 : 19} ${top ? 23 : bottom ? 5 : 14}L${left ? 8 : right ? 30 : 19} ${top ? 6 : bottom ? 22 : 14}`} stroke="#2563eb" strokeWidth="3" /><path d={left ? 'M13 8l-6 6 6 6' : right ? 'M25 8l6 6-6 6' : top ? 'M13 11l6-6 6 6' : 'M13 17l6 6 6-6'} fill="none" stroke="#2563eb" strokeWidth="2" /></>
+        : value.includes('black') ? <><rect x="3" y="3" width="15" height="22" fill="#0f172a" /><rect x="20" y="3" width="15" height="22" fill="#93c5fd" /></>
+        : value.includes('bounce') ? <path d="M5 20c5-17 9 2 14-8s8 8 14-6" fill="none" stroke="#2563eb" strokeWidth="2" />
+        : <path d="M6 20L19 7l13 13" fill="none" stroke="#2563eb" strokeWidth="2" />}
+    </svg>
+  );
+};
+
+const controlClass = 'h-8 rounded-md border-0 bg-transparent px-2 text-[10px] font-medium text-slate-800 outline-none hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 disabled:text-slate-400';
 const galleryPageSize = 8;
 const allTransitionEffects = STUDIO_TRANSITION_GROUPS.flatMap((item) => item.effects);
 
@@ -42,8 +66,11 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
   const [galleryPage, setGalleryPage] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryPosition, setGalleryPosition] = useState({ left: 0, top: 0 });
+  const [effectOptionsOpen, setEffectOptionsOpen] = useState(false);
+  const [effectOptionsPosition, setEffectOptionsPosition] = useState({ left: 0, top: 0 });
   const [applying, setApplying] = useState(false);
   const galleryRef = useRef<HTMLDivElement>(null);
+  const effectOptionsRef = useRef<HTMLButtonElement>(null);
   const saved = settings?.transition && typeof settings.transition === 'object'
     ? settings.transition as Record<string, unknown>
     : {};
@@ -56,13 +83,35 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
   const preview = (transition = saved) => replayStudioTransition(document.querySelector<HTMLElement>('[data-testid=slide-transition-layer]'), transition);
   const effect = String(saved.effect || 'none');
   const selectedEffect = allTransitionEffects.find((item) => item.value === effect);
+  const persistedOption = String(saved.option || saved.direction || '');
+  const selectedOptionValue = selectedEffect?.options?.some((option) => option.value === persistedOption)
+    ? persistedOption
+    : selectedEffect?.defaultOption || '';
   const galleryPageCount = Math.ceil(allTransitionEffects.length / galleryPageSize);
   const visibleEffects = allTransitionEffects.slice(galleryPage * galleryPageSize, (galleryPage + 1) * galleryPageSize);
   const chooseEffect = (nextEffect: string) => {
-    const next = transitionWith({ effect: nextEffect });
+    const definition = allTransitionEffects.find((item) => item.value === nextEffect);
+    const next = transitionWith({
+      effect: nextEffect,
+      option: definition?.defaultOption || '',
+      direction: definition?.defaultOption || 'right',
+    });
     onChange(next);
     setGalleryOpen(false);
+    setEffectOptionsOpen(false);
     window.requestAnimationFrame(() => preview(next));
+  };
+  const openEffectOptions = () => {
+    if (!selectedEffect?.options?.length) return;
+    const rect = effectOptionsRef.current?.getBoundingClientRect();
+    if (rect) {
+      const width = Math.min(360, window.innerWidth - 24);
+      setEffectOptionsPosition({
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+        top: rect.bottom + 4,
+      });
+    }
+    setEffectOptionsOpen(true);
   };
   const openGallery = () => {
     const rect = galleryRef.current?.getBoundingClientRect();
@@ -82,27 +131,30 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
   }, [effect]);
 
   useEffect(() => {
-    if (!galleryOpen) return undefined;
+    if (!galleryOpen && !effectOptionsOpen) return undefined;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setGalleryOpen(false);
+      if (event.key === 'Escape') {
+        setGalleryOpen(false);
+        setEffectOptionsOpen(false);
+      }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [galleryOpen]);
+  }, [effectOptionsOpen, galleryOpen]);
 
   return (
-    <div className="flex min-w-max items-center gap-1" aria-label="Transition controls">
-      <div className="flex items-center gap-1 border-r border-slate-200 pr-2">
-        <button type="button" disabled={disabled} onClick={() => preview()} title="Preview transition" className="grid h-10 w-10 place-items-center rounded-lg border border-transparent text-blue-900 hover:border-blue-200 hover:bg-blue-50 disabled:opacity-40"><Eye size={19} /></button>
-        <div ref={galleryRef} className="flex h-11 w-[31rem] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+    <div className="flex w-full min-w-0 items-center gap-2" aria-label="Transition controls">
+      <div className="flex min-w-0 flex-1 items-center gap-2 border-r border-slate-200 pr-3">
+        <button type="button" disabled={disabled} onClick={() => preview()} title="Preview transition" className="flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-lg border border-transparent text-blue-900 hover:border-blue-200 hover:bg-blue-50 disabled:opacity-40"><Eye size={21} /><span className="text-[9px] font-semibold">Preview</span></button>
+        <div ref={galleryRef} className="flex h-14 min-w-[18rem] max-w-[36rem] flex-1 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
           <div className="grid min-w-0 flex-1 grid-cols-8 items-center gap-0.5 px-1">
             {visibleEffects.map((item) => (
-              <button key={item.value} type="button" disabled={disabled} title={item.label} aria-label={`Use ${item.label} transition`} onClick={() => chooseEffect(item.value)} className={`flex h-9 min-w-0 flex-col items-center justify-center rounded-md border px-1 text-[8px] font-semibold ${effect === item.value ? 'border-blue-600 bg-blue-100 text-blue-950' : 'border-transparent bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'}`}>
-                <TransitionIcon effect={item.value} /><span className="w-full truncate text-center">{item.label}</span>
+              <button key={item.value} type="button" disabled={disabled} title={item.label} aria-label={`Use ${item.label} transition`} onClick={() => chooseEffect(item.value)} className={`flex h-12 min-w-0 flex-col items-center justify-center rounded-md border px-1 text-[10px] font-semibold ${effect === item.value ? 'border-blue-600 bg-blue-100 text-blue-950' : 'border-transparent bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'}`}>
+                <TransitionIcon effect={item.value} /><span className="mt-0.5 w-full truncate text-center">{item.label}</span>
               </button>
             ))}
           </div>
-          <div className="grid w-6 shrink-0 grid-rows-3 border-l border-slate-200 bg-white">
+          <div className="grid w-7 shrink-0 grid-rows-3 border-l border-slate-200 bg-white">
             <button type="button" disabled={disabled || galleryPage === 0} onClick={() => setGalleryPage((page) => Math.max(0, page - 1))} title="Previous transition row" aria-label="Previous transition row" className="grid place-items-center border-b border-slate-200 hover:bg-blue-50 disabled:text-slate-300"><ChevronUp size={13} /></button>
             <button type="button" disabled={disabled || galleryPage >= galleryPageCount - 1} onClick={() => setGalleryPage((page) => Math.min(galleryPageCount - 1, page + 1))} title="Next transition row" aria-label="Next transition row" className="grid place-items-center border-b border-slate-200 hover:bg-blue-50 disabled:text-slate-300"><ChevronDown size={13} /></button>
             <button type="button" disabled={disabled} onClick={openGallery} title="Show all transitions" aria-label="Show all transitions" aria-expanded={galleryOpen} className="grid place-items-center hover:bg-blue-50 disabled:text-slate-300"><GalleryVertical size={12} /></button>
@@ -130,28 +182,44 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
         document.body,
       ) : null}
 
-      <div className="grid grid-cols-[5.5rem_6.5rem] gap-0.5 border-r border-slate-200 pr-1">
-        <select aria-label="Transition direction" title="Direction" disabled={disabled || selectedEffect?.directions !== true} value={String(saved.direction || 'right')} onChange={(event) => update({ direction: event.target.value })} className={`${controlClass} w-[5.5rem] bg-slate-100`}><option value="right">From right</option><option value="left">From left</option><option value="top">From top</option><option value="bottom">From bottom</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select>
-        <label className="flex h-6 items-center gap-0.5 rounded bg-slate-100 px-1 text-[8px] font-semibold text-slate-600">Duration<input aria-label="Transition duration" title="Duration in seconds" type="number" min="0.1" max="20" step="0.1" disabled={disabled} value={Number(saved.duration) || 0.7} onChange={(event) => update({ duration: Number(event.target.value) })} className={`${controlClass} min-w-0 flex-1 bg-transparent px-0`} /></label>
-        <select aria-label="Motion intensity" title="Motion intensity" disabled={disabled} value={String(saved.intensity || 'standard')} onChange={(event) => update({ intensity: event.target.value })} className={`${controlClass} w-[5.5rem] bg-slate-100`}><option value="subtle">Subtle</option><option value="standard">Standard</option><option value="dramatic">Dramatic</option></select>
-        <select aria-label="Transition easing" title="Easing" disabled={disabled} value={String(saved.easing || 'ease-in-out')} onChange={(event) => update({ easing: event.target.value })} className={`${controlClass} w-[6.5rem] bg-slate-100`}><option value="ease-in-out">Smooth</option><option value="ease-out">Decelerate</option><option value="ease-in">Accelerate</option><option value="linear">Linear</option><option value="cubic-bezier(.2,.8,.2,1)">Cinematic</option></select>
+      {effectOptionsOpen && selectedEffect?.options?.length ? createPortal(
+        <div className="fixed inset-0 z-[260]" onMouseDown={() => setEffectOptionsOpen(false)}>
+          <div role="menu" aria-label={`${selectedEffect.label} effect options`} onMouseDown={(event) => event.stopPropagation()} className="fixed w-[min(22.5rem,calc(100vw-1.5rem))] rounded-lg border border-slate-300 bg-white p-2 shadow-2xl" style={effectOptionsPosition}>
+            <h3 className="mb-2 border-b border-slate-200 px-1 pb-2 text-xs font-bold text-slate-800">{selectedEffect.label} Effect Options</h3>
+            <div className="grid grid-cols-2 gap-1.5">
+              {selectedEffect.options.map((option) => (
+                <button key={option.value} type="button" role="menuitemradio" aria-checked={selectedOptionValue === option.value} onClick={() => { update({ option: option.value, direction: option.value }); setEffectOptionsOpen(false); window.requestAnimationFrame(() => preview({ ...saved, option: option.value, direction: option.value })); }} className={`flex min-h-14 items-center gap-2 rounded-md border p-2 text-left text-[11px] font-semibold ${selectedOptionValue === option.value ? 'border-blue-600 bg-blue-50 text-blue-950' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50'}`}>
+                  <EffectOptionIcon value={option.value} /><span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+
+      <div className="grid grid-cols-[8.5rem_7.5rem] gap-1 border-r border-slate-200 pr-2">
+        <button ref={effectOptionsRef} type="button" aria-haspopup="menu" aria-expanded={effectOptionsOpen} title="Effect Options" disabled={disabled || !selectedEffect?.options?.length} onClick={openEffectOptions} className="flex h-8 w-[8.5rem] items-center justify-center gap-1 rounded-md bg-slate-100 px-2 text-[10px] font-semibold text-slate-800 hover:bg-blue-50 disabled:text-slate-400"><SlidersHorizontal size={14} /><span>Effect Options</span><ChevronDown size={11} /></button>
+        <label className="flex h-8 items-center gap-1 rounded-md bg-slate-100 px-2 text-[10px] font-semibold text-slate-600">Duration<input aria-label="Transition duration" title="Duration in seconds" type="number" min="0.1" max="20" step="0.1" disabled={disabled} value={Number(saved.duration) || 0.7} onChange={(event) => update({ duration: Number(event.target.value) })} className={`${controlClass} min-w-0 flex-1 bg-transparent px-0`} /></label>
+        <select aria-label="Motion intensity" title="Motion intensity" disabled={disabled} value={String(saved.intensity || 'standard')} onChange={(event) => update({ intensity: event.target.value })} className={`${controlClass} w-[8.5rem] bg-slate-100`}><option value="subtle">Subtle motion</option><option value="standard">Standard motion</option><option value="dramatic">Dramatic motion</option></select>
+        <select aria-label="Transition easing" title="Easing" disabled={disabled} value={String(saved.easing || 'ease-in-out')} onChange={(event) => update({ easing: event.target.value })} className={`${controlClass} w-[7.5rem] bg-slate-100`}><option value="ease-in-out">Smooth</option><option value="ease-out">Decelerate</option><option value="ease-in">Accelerate</option><option value="linear">Linear</option><option value="cubic-bezier(.2,.8,.2,1)">Cinematic</option></select>
       </div>
 
-      <div className="grid grid-cols-[auto_6.25rem] items-center gap-x-0.5 border-r border-slate-200 pr-1">
-        <Volume2 size={13} className="text-slate-500" />
-        <select aria-label="Transition sound" title="Sound" disabled={disabled} value={String(saved.sound || 'none')} onChange={(event) => { const sound = event.target.value; update({ sound }); void playStudioTransitionSound(sound).catch(() => undefined); }} className={`${controlClass} w-[6.25rem] bg-slate-100`}>
+      <div className="grid grid-cols-[auto_7.5rem] items-center gap-x-1 border-r border-slate-200 pr-2">
+        <Volume2 size={15} className="text-slate-500" />
+        <select aria-label="Transition sound" title="Sound" disabled={disabled} value={String(saved.sound || 'none')} onChange={(event) => { const sound = event.target.value; update({ sound }); void playStudioTransitionSound(sound).catch(() => undefined); }} className={`${controlClass} w-[7.5rem] bg-slate-100`}>
           {STUDIO_TRANSITION_SOUNDS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        <label className="col-span-2 flex h-5 items-center gap-1 rounded px-1 text-[8px] font-semibold hover:bg-slate-50"><input className="h-3 w-3" type="checkbox" disabled={disabled || ['none', 'stop'].includes(String(saved.sound || 'none'))} checked={saved.loopSound === true} onChange={(event) => update({ loopSound: event.target.checked })} />Loop sound</label>
+        <label className="col-span-2 flex h-6 items-center gap-1 rounded px-1 text-[10px] font-semibold hover:bg-slate-50"><input className="h-3.5 w-3.5" type="checkbox" disabled={disabled || ['none', 'stop'].includes(String(saved.sound || 'none'))} checked={saved.loopSound === true} onChange={(event) => update({ loopSound: event.target.checked })} />Loop sound</label>
       </div>
 
-      <div className="grid grid-cols-2 items-center gap-x-1 border-r border-slate-200 pr-1 text-[8px] font-semibold">
-        <label className="flex h-5 items-center gap-0.5 rounded px-0.5 hover:bg-slate-50"><MousePointerClick size={11} /><input className="h-3 w-3" type="checkbox" disabled={disabled} checked={saved.advanceOnClick !== false} onChange={(event) => update({ advanceOnClick: event.target.checked })} />On click</label>
-        <label className="flex h-5 items-center gap-0.5 rounded px-0.5 hover:bg-slate-50"><input className="h-3 w-3" type="checkbox" disabled={disabled} checked={saved.advanceAfterEnabled === true} onChange={(event) => update({ advanceAfterEnabled: event.target.checked })} />After<input aria-label="Advance after seconds" type="number" min="0" max="3600" step="0.5" disabled={disabled || saved.advanceAfterEnabled !== true} value={Number(saved.advanceAfterSeconds) || 0} onChange={(event) => update({ advanceAfterSeconds: Number(event.target.value) })} className={`${controlClass} w-9 bg-slate-100 text-center`} />s</label>
-        <label className="col-span-2 flex h-5 items-center gap-0.5 rounded px-0.5 hover:bg-slate-50"><ShieldCheck size={11} /><input className="h-3 w-3" type="checkbox" disabled={disabled} checked={saved.respectReducedMotion !== false} onChange={(event) => update({ respectReducedMotion: event.target.checked })} />Reduced motion</label>
+      <div className="grid grid-cols-2 items-center gap-x-2 border-r border-slate-200 pr-2 text-[10px] font-semibold">
+        <label className="flex h-7 items-center gap-1 rounded px-1 hover:bg-slate-50"><MousePointerClick size={13} /><input className="h-3.5 w-3.5" type="checkbox" disabled={disabled} checked={saved.advanceOnClick !== false} onChange={(event) => update({ advanceOnClick: event.target.checked })} />On click</label>
+        <label className="flex h-7 items-center gap-1 rounded px-1 hover:bg-slate-50"><input className="h-3.5 w-3.5" type="checkbox" disabled={disabled} checked={saved.advanceAfterEnabled === true} onChange={(event) => update({ advanceAfterEnabled: event.target.checked })} />After<input aria-label="Advance after seconds" type="number" min="0" max="3600" step="0.5" disabled={disabled || saved.advanceAfterEnabled !== true} value={Number(saved.advanceAfterSeconds) || 0} onChange={(event) => update({ advanceAfterSeconds: Number(event.target.value) })} className={`${controlClass} w-11 bg-slate-100 text-center`} />s</label>
+        <label className="col-span-2 flex h-7 items-center gap-1 rounded px-1 hover:bg-slate-50"><ShieldCheck size={13} /><input className="h-3.5 w-3.5" type="checkbox" disabled={disabled} checked={saved.respectReducedMotion !== false} onChange={(event) => update({ respectReducedMotion: event.target.checked })} />Respect reduced motion</label>
       </div>
 
-      {onApplyToAll && screenCount > 1 ? <button type="button" disabled={disabled || applying} onClick={async () => { setApplying(true); try { await onApplyToAll(transitionWith({})); } finally { setApplying(false); } }} className="inline-flex h-9 items-center gap-0.5 rounded-md bg-blue-50 px-1.5 text-[8px] font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-40">{applying ? <LoaderCircle size={13} className="animate-spin" /> : <CopyCheck size={13} />}{applying ? 'Applying' : 'Apply all'}{!applying ? <Check size={10} /> : null}</button> : null}
+      {onApplyToAll && screenCount > 1 ? <button type="button" disabled={disabled || applying} onClick={async () => { setApplying(true); try { await onApplyToAll(transitionWith({})); } finally { setApplying(false); } }} className="inline-flex h-12 items-center gap-1 rounded-md bg-blue-50 px-3 text-[10px] font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-40">{applying ? <LoaderCircle size={15} className="animate-spin" /> : <CopyCheck size={15} />}{applying ? 'Applying…' : 'Apply to all'}{!applying ? <Check size={11} /> : null}</button> : null}
     </div>
   );
 }

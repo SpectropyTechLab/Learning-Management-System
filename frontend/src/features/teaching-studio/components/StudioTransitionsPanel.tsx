@@ -35,6 +35,10 @@ export default function StudioTransitionsPanel({ settings, onChange, onApplyToAl
   };
   const effect = String(saved.effect || 'none');
   const selectedEffect = STUDIO_TRANSITION_GROUPS.flatMap((item) => item.effects).find((item) => item.value === effect);
+  const persistedOption = String(saved.option || saved.direction || '');
+  const selectedOptionValue = selectedEffect?.options?.some((option) => option.value === persistedOption)
+    ? persistedOption
+    : selectedEffect?.defaultOption || '';
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -70,14 +74,14 @@ export default function StudioTransitionsPanel({ settings, onChange, onApplyToAl
         ))}
       </div>
       <div className="mt-3 grid grid-cols-5 gap-2">
-        {STUDIO_TRANSITION_GROUPS[group].effects.map(({ value, label, glyph }) => (
+        {STUDIO_TRANSITION_GROUPS[group].effects.map(({ value, label, glyph, defaultOption }) => (
           <button
             key={value}
             type="button"
             title={label}
             aria-label={`Use ${label} transition`}
             onClick={() => {
-              const next = transitionWith({ effect: value });
+              const next = transitionWith({ effect: value, option: defaultOption || '', direction: defaultOption || 'right' });
               onChange(next);
               window.requestAnimationFrame(() => preview(next));
             }}
@@ -90,19 +94,14 @@ export default function StudioTransitionsPanel({ settings, onChange, onApplyToAl
       <p className="mt-2 text-xs font-medium text-slate-600">Selected: {selectedEffect?.label ?? 'None'}</p>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <label className="text-xs font-semibold text-slate-600">
-          Direction
+          Effect Options
           <select
-            value={String(saved.direction || 'right')}
-            onChange={(event) => update({ direction: event.target.value })}
-            disabled={selectedEffect?.directions !== true}
+            value={selectedOptionValue}
+            onChange={(event) => update({ option: event.target.value, direction: event.target.value })}
+            disabled={!selectedEffect?.options?.length}
             className="mt-1 h-9 w-full rounded-lg border px-2"
           >
-            <option value="right">From right</option>
-            <option value="left">From left</option>
-            <option value="top">From top</option>
-            <option value="bottom">From bottom</option>
-            <option value="vertical">Vertical</option>
-            <option value="horizontal">Horizontal</option>
+            {!selectedEffect?.options?.length ? <option value="">No options</option> : selectedEffect.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
         <label className="text-xs font-semibold text-slate-600">

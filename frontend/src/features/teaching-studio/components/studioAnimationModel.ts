@@ -1,6 +1,13 @@
 export type StudioAnimationStart = 'on-click' | 'with-previous' | 'after-previous' | 'trigger';
 export type StudioAnimationRepeat = number | 'until-next-click' | 'until-end';
 export type StudioAnimationTextSequence = 'object' | 'paragraph' | 'word' | 'letter';
+
+export const STUDIO_SPIN_AMOUNT_OPTIONS = [
+  [90, 'Quarter Spin'],
+  [180, 'Half Spin'],
+  [360, 'Full Spin'],
+  [720, 'Two Spins'],
+] as const;
 export type StudioAnimationAfter = 'none' | 'dim' | 'hide-after' | 'hide-on-next-click';
 export type StudioAnimationCategory = 'entrance' | 'emphasis' | 'exit' | 'motion' | 'model-3d';
 export type StudioAnimationBuildSequence =
@@ -146,6 +153,7 @@ export const studioAnimationDefaultOptions = (effect: string): Partial<StudioAni
     ...(effect === 'split' || effect === 'split-out' ? { splitMode: 'out' as const } : {}),
     ...(effect === 'shape' || effect === 'shape-out' ? { shapeKind: 'circle' as const } : {}),
     ...(effect === 'wheel' || effect === 'wheel-out' ? { spokes: 1 as const } : {}),
+    ...(effect === 'spin' ? { clockwise: true, rotation: 360 } : {}),
   };
 };
 
@@ -232,18 +240,23 @@ export const studioAnimationTimingFunction = (effect: StudioAnimationEffectDefin
   return `cubic-bezier(${(0.42 * smoothStart).toFixed(3)}, 0, ${(1 - 0.42 * smoothEnd).toFixed(3)}, 1)`;
 };
 
+const STUDIO_MOTION_PATH_PRESETS: Record<string, StudioMotionPathPoint[]> = {
+  'path-line': [{ x: 0, y: 0 }, { x: 180, y: 0 }],
+  'path-arc': [{ x: 0, y: 0 }, { x: 45, y: -70 }, { x: 120, y: -70 }, { x: 180, y: 0 }],
+  'path-turn': [{ x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 100 }],
+  'path-shape': [{ x: 0, y: 0 }, { x: 120, y: -80 }, { x: 240, y: 0 }, { x: 120, y: 80 }, { x: 0, y: 0 }],
+  'path-loop': [{ x: 0, y: 0 }, { x: 70, y: -70 }, { x: 140, y: 0 }, { x: 70, y: 70 }, { x: 0, y: 0 }],
+  'path-circle': [{ x: 0, y: 0 }, { x: 55, y: -55 }, { x: 110, y: 0 }, { x: 55, y: 55 }, { x: 0, y: 0 }],
+  'path-zigzag': [{ x: 0, y: 0 }, { x: 45, y: -45 }, { x: 90, y: 45 }, { x: 135, y: -45 }, { x: 180, y: 0 }],
+};
+
+export const studioMotionPathPoints = (effect: StudioAnimationEffectDefinition) => {
+  const custom = Array.isArray(effect.motionPath) ? effect.motionPath : [];
+  return custom.length >= 2 ? custom : STUDIO_MOTION_PATH_PRESETS[effect.effect] ?? [];
+};
+
 export const studioMotionPathCss = (effect: StudioAnimationEffectDefinition) => {
-  const points = Array.isArray(effect.motionPath) ? effect.motionPath : [];
-  const presetPoints: Record<string, StudioMotionPathPoint[]> = {
-    'path-line': [{ x: 0, y: 0 }, { x: 180, y: 0 }],
-    'path-arc': [{ x: 0, y: 0 }, { x: 45, y: -70 }, { x: 120, y: -70 }, { x: 180, y: 0 }],
-    'path-turn': [{ x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 100 }],
-    'path-shape': [{ x: 0, y: 0 }, { x: 120, y: -80 }, { x: 240, y: 0 }, { x: 120, y: 80 }, { x: 0, y: 0 }],
-    'path-loop': [{ x: 0, y: 0 }, { x: 70, y: -70 }, { x: 140, y: 0 }, { x: 70, y: 70 }, { x: 0, y: 0 }],
-    'path-circle': [{ x: 0, y: 0 }, { x: 55, y: -55 }, { x: 110, y: 0 }, { x: 55, y: 55 }, { x: 0, y: 0 }],
-    'path-zigzag': [{ x: 0, y: 0 }, { x: 45, y: -45 }, { x: 90, y: 45 }, { x: 135, y: -45 }, { x: 180, y: 0 }],
-  };
-  const resolved = points.length >= 2 ? points : presetPoints[effect.effect];
+  const resolved = studioMotionPathPoints(effect);
   if (!resolved || resolved.length < 2) return undefined;
   const commands = resolved.map((point, index) => `${index === 0 ? 'M' : 'L'} ${Number(point.x) || 0} ${Number(point.y) || 0}`);
   return `path('${commands.join(' ')}')`;

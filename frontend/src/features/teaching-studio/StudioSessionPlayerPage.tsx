@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, MousePointer2, Music, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -18,7 +18,7 @@ import Model3DViewer from './components/resources/Model3DViewer';
 import { model3DSettingsFrom } from './components/resources/model3DSettings';
 import { ExecutableResourceFrame, ExternalLinkFrame } from './components/resources/StudioResourceFrames';
 import { resolveAssetUrl } from '@/lib/apiBaseUrl';
-import { studioAnimationStyle } from './components/studioAnimationRuntime';
+import { studioAnimationStyle, studioContainerAnimationEffects, studioShapePaintAnimationEffects } from './components/studioAnimationRuntime';
 import EmbeddedObjectViewer from './components/resources/EmbeddedObjectViewer';
 import {
   buildPresenterAnimationTimeline,
@@ -50,7 +50,7 @@ import type { PublishedPresenterData, PublishedRelease, PublishedResourceMapping
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
-import { playStudioTransitionSound, stopStudioTransitionSound, unlockStudioTransitionAudio } from './components/studioTransition';
+import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioUsesViewTransition, unlockStudioTransitionAudio } from './components/studioTransition';
 import { playStudioAnimationSound } from './components/studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './components/studioAnimationModel';
 
@@ -135,12 +135,25 @@ const freeformLayoutFor = (screen: PublishedScreen): Layout => ({
   }),
 });
 
-function PublishedImage({ source, alt, content, children }: { source: string; alt: string; content?: Record<string, unknown>; children?: ReactNode }) {
+const afterVisiblePaint = (callback?: () => void) => {
+  if (!callback) return;
+  window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
+};
+
+function PublishedImage({ source, alt, content, children, onReady }: { source: string; alt: string; content?: Record<string, unknown>; children?: ReactNode; onReady?: () => void }) {
+  const markImageReady = (image: HTMLImageElement) => {
+    const markPainted = () => {
+      if (image.complete && image.naturalWidth > 0) afterVisiblePaint(onReady);
+    };
+    void image.decode().catch(() => undefined).finally(markPainted);
+  };
   const mediaTransform = content?.mediaTransform && typeof content.mediaTransform === 'object' && !Array.isArray(content.mediaTransform)
     ? content.mediaTransform as Record<string, unknown>
     : null;
   const cropped = mediaTransform?.cropped === true || mediaTransform?.edgeCrop === true || mediaTransform?.cropGeometry === true;
-  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><img src={source} alt={alt} className="h-full w-full object-contain" />{children}</div>;
+  const imageFilter = typeof mediaTransform?.filter === 'string' ? mediaTransform.filter : undefined;
+  const imageOpacity = Number.isFinite(Number(mediaTransform?.opacity)) ? Math.max(0, Math.min(1, Number(mediaTransform?.opacity))) : undefined;
+  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><img src={source} alt={alt} onLoad={(event) => markImageReady(event.currentTarget)} className="h-full w-full object-contain" style={{ filter: imageFilter, opacity: imageOpacity }} />{children}</div>;
   const hasEdgeCrop = mediaTransform?.edgeCrop === true;
   const hasCropGeometry = mediaTransform?.cropGeometry === true;
   const cropScaleX = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleX) || 1) : 1;
@@ -152,6 +165,7 @@ function PublishedImage({ source, alt, content, children }: { source: string; al
     <img
       src={source}
       alt={alt}
+      onLoad={(event) => markImageReady(event.currentTarget)}
       className="absolute max-h-none max-w-none"
       style={{
         width: `${cropScaleX * 100}%`,
@@ -163,17 +177,35 @@ function PublishedImage({ source, alt, content, children }: { source: string; al
           ? `translate(${Number(mediaTransform?.x) || 0}%, ${Number(mediaTransform?.y) || 0}%) scale(${Math.max(1, Number(mediaTransform?.scale) || 1)})`
           : 'none',
         transformOrigin: 'center',
+        filter: imageFilter,
+        opacity: imageOpacity,
       }}
     />
     {children}
   </div>;
 }
 
-function PublishedResource({ releaseId, mapping, previewMode = false, elementContent, onMediaTime }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean; elementContent?: Record<string, unknown>; onMediaTime?: (previousSeconds: number, currentSeconds: number) => void }) {
+function PublishedResource({ releaseId, mapping, previewMode = false, elementContent, onMediaTime, onReady }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean; elementContent?: Record<string, unknown>; onMediaTime?: (previousSeconds: number, currentSeconds: number) => void; onReady?: () => void }) {
   const [source, setSource] = useState(mapping.external_url || '');
   const [error, setError] = useState('');
   const [objectPreview, setObjectPreview] = useState<StudioObjectPreviewDescriptor | null>(null);
   const [scormAttemptId, setScormAttemptId] = useState<number | null>(null);
+  const readyReportedRef = useRef(false);
+  const markReady = useCallback(() => {
+    if (readyReportedRef.current) return;
+    readyReportedRef.current = true;
+    afterVisiblePaint(onReady);
+  }, [onReady]);
+
+  useEffect(() => {
+    readyReportedRef.current = false;
+  }, [mapping.resource_version_id, mapping.external_url]);
+
+  useEffect(() => {
+    if (!source || mapping.resource_type !== 'presentation') return;
+    const frame = window.requestAnimationFrame(() => afterVisiblePaint(markReady));
+    return () => window.cancelAnimationFrame(frame);
+  }, [mapping.resource_type, markReady, source]);
 
   useEffect(() => {
     if (mapping.external_url) return;
@@ -215,11 +247,11 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
 
   if (error) return <div className="grid h-full place-items-center bg-slate-950 p-3 text-center text-xs text-white">{error}</div>;
   if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
-  if (mapping.resource_type === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} className="h-full w-full" />;
-  if (mapping.resource_type === 'image') return <PublishedImage source={source} alt={mapping.name} content={elementContent} />;
-  if (mapping.resource_type === 'video' || mapping.mime_type?.startsWith('video/')) return <video src={source} controls className="h-full w-full" onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }} />;
-  if (mapping.resource_type === 'audio' || mapping.mime_type?.startsWith('audio/')) return <audio src={source} controls className="w-full" onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }} />;
-  if (mapping.resource_type === 'model_3d') return <Model3DViewer src={source} alt={mapping.name} className="h-full w-full" mode="runtime" settings={model3DSettingsFrom(elementContent)} />;
+  if (mapping.resource_type === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} className="h-full w-full" onReady={markReady} />;
+  if (mapping.resource_type === 'image' || (mapping.resource_type === 'animation' && mapping.mime_type?.startsWith('image/'))) return <PublishedImage source={source} alt={String(elementContent?.altText || mapping.name)} content={elementContent} onReady={markReady} />;
+  if (mapping.resource_type === 'video' || (mapping.resource_type === 'animation' && mapping.mime_type?.startsWith('video/')) || mapping.mime_type?.startsWith('video/')) return <video src={source} controls preload="auto" aria-label={mapping.name} className="h-full w-full" onCanPlayThrough={markReady} onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }} />;
+  if (mapping.resource_type === 'audio' || mapping.mime_type?.startsWith('audio/')) return <audio src={source} controls preload="auto" aria-label={mapping.name} className="w-full" onCanPlayThrough={markReady} onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }} />;
+  if (mapping.resource_type === 'model_3d') return <Model3DViewer src={source} alt={mapping.name} className="h-full w-full" mode="runtime" settings={model3DSettingsFrom(elementContent)} onReady={markReady} />;
   if (mapping.resource_type === 'presentation')
     return (
       <div className="grid h-full place-items-center bg-gradient-to-br from-orange-50 to-amber-100 p-4 text-center">
@@ -234,8 +266,8 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
         </div>
       </div>
     );
-  if (mapping.resource_type === 'external_link') return <ExternalLinkFrame source={source} title={mapping.name} className="h-full w-full" openLinkLabel="Open" width={mapping.width} height={mapping.height} />;
-  return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} onRuntimeMessage={mapping.resource_type === 'scorm' && scormAttemptId ? (data) => {
+  if (mapping.resource_type === 'external_link') return <ExternalLinkFrame source={source} title={mapping.name} className="h-full w-full" openLinkLabel="Open" width={mapping.width} height={mapping.height} onReady={markReady} />;
+  return <ExecutableResourceFrame source={source} title={mapping.name} className="h-full w-full" width={mapping.width} height={mapping.height} onReady={markReady} onRuntimeMessage={mapping.resource_type === 'scorm' && scormAttemptId ? (data) => {
     if (data.source !== 'spectropy-scorm' || data.type !== 'STUDIO_SCORM_COMMIT' || Number(data.attemptId) !== scormAttemptId) return;
     const values = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data as Record<string, string> : {};
     const event = data.event === 'suspend' || data.event === 'terminate' ? data.event : 'commit';
@@ -258,6 +290,7 @@ function PublishedTextFrame({ element, shape = false, animationEffects = [] }: {
   const kind = shape ? String(content.kind || 'rectangle') : typeof content.kind === 'string' ? content.kind : '';
   const textSequence = String(animationEffects[0]?.textSequence || 'object');
   const animationTextSequence = textSequence === 'paragraph' || textSequence === 'word' || textSequence === 'letter' ? textSequence : undefined;
+  const shapePaintEffects = kind ? studioShapePaintAnimationEffects(animationEffects) : [];
   const textElement = <StudioCanvasTextElement
     elementId={element.element_key}
     text={text}
@@ -274,8 +307,8 @@ function PublishedTextFrame({ element, shape = false, animationEffects = [] }: {
     contentPadding={publishedTextPadding(content)}
     textStrokeColor={typeof content.textStrokeColor === 'string' ? content.textStrokeColor : undefined}
     textStrokeWidth={Number(content.textStrokeWidth) || undefined}
-    alignment={content.alignment === 'center' || content.alignment === 'right' || content.alignment === 'justify' ? content.alignment : shape ? 'center' : 'left'}
-    verticalAlignment={content.verticalAlignment === 'middle' || content.verticalAlignment === 'bottom' ? content.verticalAlignment : shape ? 'middle' : 'top'}
+    alignment={content.alignment === 'left' || content.alignment === 'center' || content.alignment === 'right' || content.alignment === 'justify' ? content.alignment : shape ? 'center' : 'left'}
+    verticalAlignment={content.verticalAlignment === 'top' || content.verticalAlignment === 'middle' || content.verticalAlignment === 'bottom' ? content.verticalAlignment : shape ? 'middle' : 'top'}
     list={content.list === true}
     lineHeight={Number(content.lineHeight) || undefined}
     paragraphSpacingBefore={Number(content.paragraphSpacingBefore) || undefined}
@@ -284,25 +317,66 @@ function PublishedTextFrame({ element, shape = false, animationEffects = [] }: {
     animationTextDelay={Number.isFinite(Number(animationEffects[0]?.textDelay)) ? Number(animationEffects[0]?.textDelay) : undefined}
     animationStyle={animationTextSequence && animationEffects.length ? studioAnimationStyle({ effects: animationEffects }) : undefined}
   />;
-  if (!kind) return textElement;
-  return <div className="relative h-full w-full overflow-hidden">
+  if (!kind) return <div className="relative h-full w-full overflow-visible"><div className="absolute inset-0">{textElement}</div></div>;
+  return <div className={`relative h-full w-full ${shape ? 'overflow-hidden' : 'overflow-visible'}`}>
     <div className="pointer-events-none absolute inset-0"><StudioShapeElement
+      elementId={element.element_key}
       kind={kind}
-      fill={typeof content.fill === 'string' ? content.fill : 'transparent'}
-      stroke={typeof content.stroke === 'string' ? content.stroke : 'transparent'}
+      fill={typeof content.fill === 'string' ? content.fill : shape ? undefined : 'transparent'}
+      stroke={typeof content.stroke === 'string' ? content.stroke : shape ? undefined : 'transparent'}
       strokeWidth={Number(content.strokeWidth) || undefined}
       opacity={Number(content.opacity) || undefined}
       strokeDash={typeof content.strokeDash === 'string' ? content.strokeDash : undefined}
       customPath={typeof content.customPath === 'string' ? content.customPath : undefined}
+      arrowStart={content.arrowStart === true}
+      arrowEnd={content.arrowEnd === true}
       effect={typeof content.shapeEffect === 'string' ? content.shapeEffect : undefined}
       effectColor={typeof content.shapeEffectColor === 'string' ? content.shapeEffectColor : undefined}
       gradient={content.gradient && typeof content.gradient === 'object' ? content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
+      animationStyle={shapePaintEffects.length ? studioAnimationStyle({ effects: shapePaintEffects }) : undefined}
     /></div>
-    <div className="absolute inset-0 overflow-hidden">{textElement}</div>
+    <div className={shape ? 'absolute inset-0 overflow-hidden' : 'absolute inset-0'}>{textElement}</div>
   </div>;
 }
 
+const publishedLocalProjectReadinessIds = new WeakMap<object, number>();
+let nextPublishedLocalProjectReadinessId = 1;
+
+const publishedElementReadinessKey = (screenId: number, element: PublishedScreen['elements'][number]) => {
+  const url = typeof element.content_json?.url === 'string' ? element.content_json.url : '';
+  const mime = typeof element.content_json?.mimeType === 'string' ? element.content_json.mimeType : '';
+  const localProject = element.content_json?.labProject && typeof element.content_json.labProject === 'object'
+      ? element.content_json.labProject
+      : element.content_json?.simulationProject && typeof element.content_json.simulationProject === 'object'
+        ? element.content_json.simulationProject
+      : null;
+  if (element.element_type === 'simulation' && localProject) {
+    let projectId = publishedLocalProjectReadinessIds.get(localProject);
+    if (!projectId) {
+      projectId = nextPublishedLocalProjectReadinessId++;
+      publishedLocalProjectReadinessIds.set(localProject, projectId);
+    }
+    return `${screenId}:${element.element_key}:local-simulation:${projectId}`;
+  }
+  if (element.resource_mapping) return `${screenId}:${element.element_key}:resource:${element.resource_mapping.resource_type}:${element.resource_mapping.resource_version_id}:${element.resource_mapping.external_url || ''}`;
+  if (url && (element.element_type === 'visual' || mime.startsWith('image/') || mime.startsWith('video/') || mime.startsWith('audio/') || mime === 'application/pdf'))
+    return `${screenId}:${element.element_key}:inline:${url}`;
+  return null;
+};
+
 function PublishedCanvas({ releaseId, screen, previewMode = false, passivePreview = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onLiveAnnotationChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation, triggeredCueIds = new Set(), onTriggerElement, onMediaTime }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; passivePreview?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onLiveAnnotationChange?: (stroke: AuthorDrawingStroke | null) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null; triggeredCueIds?: ReadonlySet<string>; onTriggerElement?: (elementKey: string) => void; onMediaTime?: (elementKey: string, previousSeconds: number, currentSeconds: number) => void }) {
+  const [readyResourceKeys, setReadyResourceKeys] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    setReadyResourceKeys(new Set());
+  }, [passivePreview, previewMode, releaseId, screen.screen_id]);
+  const markResourceReady = useCallback((elementKey: string) => {
+    setReadyResourceKeys((current) => {
+      const element = screen.elements.find((candidate) => candidate.element_key === elementKey);
+      const key = element && publishedElementReadinessKey(screen.screen_id, element);
+      if (!key || current.has(key)) return current;
+      return new Set(current).add(key);
+    });
+  }, [screen.elements, screen.screen_id]);
   const layout = layoutFor(screen) ?? freeformLayoutFor(screen);
   const slide: Slide = {
     title: screen.title,
@@ -317,15 +391,24 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
       altText: typeof element.content_json?.altText === 'string' ? element.content_json.altText : undefined,
       caption: typeof element.content_json?.caption === 'string' ? element.content_json.caption : undefined,
       color: typeof element.content_json?.color === 'string' ? element.content_json.color : undefined,
-      backgroundColor: typeof element.content_json?.backgroundColor === 'string'
-        ? element.content_json.backgroundColor
-        : typeof element.content_json?.fill === 'string' ? element.content_json.fill : undefined,
+      // Shape fills belong to StudioShapeElement. Copying them onto the generic
+      // SlideCanvas wrapper exposes the element's rectangular bounds during
+      // fill/colour animations and makes arrows, lines and custom geometry look
+      // like boxes in Slide Show. Keep the wrapper styling aligned with the
+      // editor and let the actual visual renderer own the shape surface.
+      backgroundColor: element.resource_mapping?.resource_type === 'model_3d'
+        ? 'transparent'
+        : element.element_type !== 'shape' && typeof element.content_json?.backgroundColor === 'string'
+          ? element.content_json.backgroundColor
+          : undefined,
       borderColor: element.element_type !== 'shape' && typeof element.content_json?.borderColor === 'string'
         ? element.content_json.borderColor
         : undefined,
-      borderWidth: element.element_type !== 'shape' && Number.isFinite(Number(element.content_json?.borderWidth))
-        ? Number(element.content_json?.borderWidth)
-        : undefined,
+      borderWidth: element.resource_mapping?.resource_type === 'model_3d'
+        ? 0
+        : element.element_type !== 'shape' && Number.isFinite(Number(element.content_json?.borderWidth))
+          ? Number(element.content_json?.borderWidth)
+          : undefined,
       rotation: Number(element.position_json?.rotation) || 0,
       zIndex: typeof element.position_json?.zIndex === 'number' ? element.position_json.zIndex : undefined,
     })),
@@ -349,10 +432,10 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
     const droppedMime = typeof element.content_json?.mimeType === 'string' ? element.content_json.mimeType : '';
     if (droppedUrl && element.content_json?.source === 'drag-drop') {
       const name = textFrom(element.content_json || {}) || 'Dropped file';
-      if (element.element_type === 'visual' || droppedMime.startsWith('image/')) return [[element.element_key, <PublishedImage key={element.element_key} source={droppedUrl} alt={String(element.content_json?.altText || name)} content={element.content_json}><span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span></PublishedImage>]];
-      if (droppedMime.startsWith('video/')) return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-black"><video src={droppedUrl} controls className="h-full w-full object-contain" onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(element.element_key, previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }}/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>]];
-      if (droppedMime.startsWith('audio/')) return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white"><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls className="mt-4 w-full" onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(element.element_key, previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }}/></div></div>]];
-      if (droppedMime === 'application/pdf') return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-slate-200"><iframe src={droppedUrl} title={name} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>]];
+      if (element.element_type === 'visual' || droppedMime.startsWith('image/')) return [[element.element_key, <PublishedImage key={element.element_key} source={droppedUrl} alt={String(element.content_json?.altText || name)} content={element.content_json} onReady={() => markResourceReady(element.element_key)}><span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white"><ImageIcon size={11}/>{name}</span></PublishedImage>]];
+      if (droppedMime.startsWith('video/')) return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-black"><video src={droppedUrl} controls preload="auto" className="h-full w-full object-contain" onCanPlayThrough={() => afterVisiblePaint(() => markResourceReady(element.element_key))} onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(element.element_key, previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }}/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>]];
+      if (droppedMime.startsWith('audio/')) return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white"><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls preload="auto" className="mt-4 w-full" onCanPlayThrough={() => afterVisiblePaint(() => markResourceReady(element.element_key))} onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(element.element_key, previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }}/></div></div>]];
+      if (droppedMime === 'application/pdf') return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-slate-200"><iframe src={droppedUrl} title={name} onLoad={() => afterVisiblePaint(() => markResourceReady(element.element_key))} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>]];
       return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center"><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{droppedMime || 'Document'}</p><a href={droppedUrl} download={name} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>]];
     }
     if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <PublishedTextFrame key={element.element_key} element={element} animationEffects={textPlaybackEffects} />]];
@@ -364,6 +447,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
         project={element.content_json.labProject}
         title={String(element.content_json.labTitle || element.content_json.text || `Interactive ${subject === 'chemistry' ? 'Chemistry' : subject === 'mathematics' ? 'Mathematics' : subject === 'biology' ? 'Biology' : 'Physics'} Lab`)}
         interactive={!passivePreview}
+        onReady={() => afterVisiblePaint(() => markResourceReady(element.element_key))}
         className="h-full w-full"
       />]];
     }
@@ -373,6 +457,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
         project={element.content_json.simulationProject}
         title={String(element.content_json.simulationTitle || element.content_json.text || 'Interactive Simulation')}
         interactive={!passivePreview}
+        onReady={() => markResourceReady(element.element_key)}
         className="h-full w-full"
       />]];
     }
@@ -380,7 +465,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
     const executablePreview = passivePreview && ['scorm', 'html', 'zip', 'simulation'].includes(element.resource_mapping.resource_type);
     return [[element.element_key, executablePreview
       ? <div key={element.element_key} className="grid h-full w-full place-items-center bg-slate-900 p-4 text-center text-white"><div><Presentation className="mx-auto text-cyan-300" size={34} /><p className="mt-2 font-semibold">{element.resource_mapping.name}</p><p className="mt-1 text-xs uppercase text-slate-400">{element.resource_mapping.resource_type} activity</p></div></div>
-      : <PublishedResource key={element.element_key} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} elementContent={element.content_json} onMediaTime={(previous, current) => onMediaTime?.(element.element_key, previous, current)} />]];
+      : <PublishedResource key={`${element.element_key}:${element.resource_mapping.resource_version_id}:${element.resource_mapping.external_url || ''}`} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} elementContent={element.content_json} onReady={() => markResourceReady(element.element_key)} onMediaTime={(previous, current) => onMediaTime?.(element.element_key, previous, current)} />]];
   }));
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
@@ -414,6 +499,16 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
     if (!overlay || !animationTimeline || animationStep === undefined) continue;
+    const readinessKey = publishedElementReadinessKey(screen.screen_id, element);
+    const hasAnimationCue = animationTimeline.cues.some((cue) => cue.elementKey === element.element_key);
+    if (readinessKey && hasAnimationCue && !readyResourceKeys.has(readinessKey)) {
+      // Keep loading UI and partially rendered media out of the animation
+      // target. Once the resource reports a painted, usable frame, the changed
+      // key replays the current cue against the real resource surface.
+      objectAnimationStyles[element.element_key] = { opacity: 0, animation: 'none' };
+      objectAnimationKeys[element.element_key] = `${screen.screen_id}-${element.element_key}-waiting-for-resource`;
+      continue;
+    }
     const playbackState = presenterElementPlaybackState(
       animationTimeline,
       element.element_key,
@@ -422,8 +517,12 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
       animationNavigation,
       triggeredCueIds,
     );
-    const activeStyle = playbackState.activeEffects.length
-      ? studioAnimationStyle({ effects: playbackState.activeEffects })
+    const containerEffects = studioContainerAnimationEffects(
+      playbackState.activeEffects,
+      element.element_type === 'shape' || typeof element.content_json?.kind === 'string',
+    );
+    const activeStyle = containerEffects.length
+      ? studioAnimationStyle({ effects: containerEffects })
       : null;
     const sequenceRunsInsideText = playbackState.activeEffects.some((effect) => ['paragraph', 'word', 'letter'].includes(String(effect.textSequence || 'object')))
       && (element.element_type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type));
@@ -447,7 +546,9 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
 
   const drawingEnabled = annotationTool === 'pen' || annotationTool === 'highlighter' || annotationTool === 'eraser';
   const drawingTool = annotationTool === 'eraser' ? 'eraser' : annotationTool === 'highlighter' ? 'highlighter' : 'pen';
-  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={screen.screen_settings_json?.transition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} onDrawingPreviewChange={onLiveAnnotationChange} />;
+  const slideTransition = screen.screen_settings_json?.transition;
+  const useLayeredBrowserTransition = studioUsesViewTransition(slideTransition);
+  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={useLayeredBrowserTransition ? undefined : slideTransition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} onDrawingPreviewChange={onLiveAnnotationChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -544,6 +645,16 @@ export default function StudioSessionPlayerPage() {
   const screens = useMemo(() => [...(release?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [release]);
   const currentIndex = screens.findIndex((screen) => screen.screen_id === screenId);
   const screen = currentIndex >= 0 ? screens[currentIndex] : null;
+  const navigateToScreen = useCallback((nextScreenId: number | null) => {
+    if (!Number.isInteger(nextScreenId) || nextScreenId === screenIdRef.current) return;
+    const destination = screens.find((item) => item.screen_id === nextScreenId);
+    const transition = destination?.screen_settings_json?.transition;
+    const transitionSettings = transition && typeof transition === 'object'
+      ? transition as Record<string, unknown>
+      : undefined;
+    const updateScreen = () => setScreenId(nextScreenId);
+    if (!startStudioSlideTransition(updateScreen, transitionSettings)) updateScreen();
+  }, [screens]);
   const animationTimeline = useMemo(() => buildPresenterAnimationTimeline(screen?.elements ?? []), [screen]);
   const zoomElements = useMemo(() => [...(screen?.elements ?? [])]
     .filter((element) => element.element_type === 'zoom' && element.zoom)
@@ -673,7 +784,7 @@ export default function StudioSessionPlayerPage() {
     if (!Number.isInteger(nextScreenId) || nextScreenId === screenId) return;
     suppressAutoRuntimeRef.current = true;
     setActiveRuntimeElement(null);
-    setScreenId(nextScreenId);
+    navigateToScreen(nextScreenId);
   };
 
   useEffect(() => {
@@ -807,10 +918,10 @@ export default function StudioSessionPlayerPage() {
       if (zoomRun.index < zoomRun.targetIds.length - 1) {
         const nextIndex = zoomRun.index + 1;
         setZoomRun({ ...zoomRun, index: nextIndex });
-        setScreenId(zoomRun.targetIds[nextIndex]);
+        navigateToScreen(zoomRun.targetIds[nextIndex]);
       } else if (zoomRun.returnToZoom) {
         enterScreenAtEndRef.current = true;
-        setScreenId(zoomRun.originScreenId);
+        navigateToScreen(zoomRun.originScreenId);
         setZoomRun(null);
       } else setZoomRun(null);
       return;
@@ -838,12 +949,12 @@ export default function StudioSessionPlayerPage() {
       const followingScreen = screens.slice(currentIndex + 1).find((candidate) => !zoomTargetIds.has(candidate.screen_id));
       if (followingScreen) {
         setZoomHubRun(null);
-        setScreenId(followingScreen.screen_id);
+        navigateToScreen(followingScreen.screen_id);
       }
       return;
     }
     if (currentIndex >= 0 && currentIndex < screens.length - 1)
-      setScreenId(screens[currentIndex + 1]?.screen_id ?? null);
+      navigateToScreen(screens[currentIndex + 1]?.screen_id ?? null);
   };
   advancePresenterRef.current = advancePresenter;
 
@@ -882,16 +993,16 @@ export default function StudioSessionPlayerPage() {
         const previousIndex = zoomRun.index - 1;
         setZoomRun({ ...zoomRun, index: previousIndex });
         enterScreenAtEndRef.current = true;
-        setScreenId(zoomRun.targetIds[previousIndex]);
+        navigateToScreen(zoomRun.targetIds[previousIndex]);
       } else {
-        setScreenId(zoomRun.originScreenId);
+        navigateToScreen(zoomRun.originScreenId);
         setZoomRun(null);
       }
       return;
     }
     if (currentIndex > 0) {
       enterScreenAtEndRef.current = true;
-      setScreenId(screens[currentIndex - 1]?.screen_id ?? null);
+      navigateToScreen(screens[currentIndex - 1]?.screen_id ?? null);
     }
   };
   retreatPresenterRef.current = retreatPresenter;
@@ -932,7 +1043,7 @@ export default function StudioSessionPlayerPage() {
         remotePresenterStateRef.current = state;
         if (state.screenId !== screenIdRef.current) {
           if (audienceLiveInkRef.current) audienceLiveInkRef.current.style.display = 'none';
-          setScreenId(state.screenId);
+          navigateToScreen(state.screenId);
         }
         else {
           setAnimationStep(state.animationStep);
@@ -955,7 +1066,7 @@ export default function StudioSessionPlayerPage() {
     };
     channel.postMessage({ type: 'ready' });
     return () => channel.close();
-  }, [presentationChannel]);
+  }, [navigateToScreen, presentationChannel]);
 
   useEffect(() => {
     if (!presenterMode || !presenterChannelRef.current || !presenterStateRef.current) return;
@@ -985,7 +1096,7 @@ export default function StudioSessionPlayerPage() {
       index: resolvedIndex,
     });
     setZoomRun({ originScreenId: screen.screen_id, targetIds, index: 0, returnToZoom: element.zoom.return_to_zoom });
-    setScreenId(targetIds[0]);
+    navigateToScreen(targetIds[0]);
   };
 
   useEffect(() => {
@@ -1090,11 +1201,11 @@ export default function StudioSessionPlayerPage() {
       } else if (event.key === 'Home' && screens.length > 0) {
         event.preventDefault();
         enterScreenAtEndRef.current = false;
-        setScreenId(screens[0].screen_id);
+        navigateToScreen(screens[0].screen_id);
       } else if (event.key === 'End' && screens.length > 0) {
         event.preventDefault();
         enterScreenAtEndRef.current = false;
-        setScreenId(screens.at(-1)?.screen_id ?? null);
+        navigateToScreen(screens.at(-1)?.screen_id ?? null);
       } else if (event.key.toLowerCase() === 'f' || event.key === 'F5') {
         event.preventDefault();
         void toggleFullScreen();
@@ -1150,7 +1261,7 @@ export default function StudioSessionPlayerPage() {
     };
     window.addEventListener('keydown', handleClicker);
     return () => window.removeEventListener('keydown', handleClicker);
-  }, [animationStep, animationTimeline.maxStep, audienceMode, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, previewMode, screens, shortcutGuideOpen, teacherAnnotations.length, zoomElements]);
+  }, [animationStep, animationTimeline.maxStep, audienceMode, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, navigateToScreen, previewMode, screens, shortcutGuideOpen, teacherAnnotations.length, zoomElements]);
 
   const downloadPlan = async () => {
     if (!release) return;
@@ -1310,7 +1421,7 @@ export default function StudioSessionPlayerPage() {
           <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.65fr)_minmax(17rem,0.85fr)] gap-3 p-3">
             <section className="flex min-h-0 flex-col gap-2">
               <div className="flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">Current slide</h2><span className="text-xs text-slate-400">{currentIndex + 1} / {screens.length} · Build {animationStep}/{animationTimeline.maxStep}</span></div>
-              <div ref={presenterSlideRef} className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/20 bg-slate-900" onPointerMove={(event) => { if (annotationTool === 'pointer') broadcastPointer(event); }} onPointerLeave={() => { if (annotationTool === 'pointer') clearBroadcastPointer(); }}>
+              <div ref={presenterSlideRef} className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/20 bg-slate-900" style={{ viewTransitionName: 'studio-slide' }} onPointerMove={(event) => { if (annotationTool === 'pointer') broadcastPointer(event); }} onPointerLeave={() => { if (annotationTool === 'pointer') clearBroadcastPointer(); }}>
                 <PublishedCanvas releaseId={release.id} screen={screen} teacherAnnotations={teacherAnnotations} annotationTool={annotationTool} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onLiveAnnotationChange={broadcastLiveAnnotation} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />
                 {annotationTool === 'pointer' ? <span ref={presenterPointerDotRef} className="pointer-events-none absolute z-[65] hidden h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-md" /> : null}
               </div>
@@ -1518,8 +1629,8 @@ export default function StudioSessionPlayerPage() {
             </div>
           )}
           {!discoveryItem && !loading && release && screen && (
-            <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})` }}>
-              <PublishedCanvas key={screen.screen_id} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />
+            <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})`, viewTransitionName: presenterMode ? 'none' : 'studio-slide' }}>
+              <PublishedCanvas key={`${release.id}:${screen.screen_id}:${previewMode ? 'preview' : 'published'}:active`} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />
             </div>
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-600">This release contains no Screens.</div>}

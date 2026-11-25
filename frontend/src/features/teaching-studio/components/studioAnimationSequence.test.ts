@@ -11,7 +11,6 @@ const element = (id: string, effects: Array<Record<string, unknown>>): StudioEle
   content: { text: id, animation: { effects } },
   position: { x: 0, y: 0, width: 100, height: 100 },
 });
-
 test('the Screen animation pane combines effects from every element', () => {
   const elements = [
     element('title', [{ id: 'fade', effect: 'fade', start: 'on-click' }]),
@@ -75,6 +74,17 @@ test('With Previous and After Previous retain exact cross-element timing', () =>
   ]);
   assert.equal(timeline.maxStep, 1);
   assert.deepEqual(timeline.cues.map((cue) => cue.effect.runtimeDelay), [0.2, 0.3, 1.5]);
+});
+
+test('a sequence beginning With Previous is anchored to the first playable click group', () => {
+  const timeline = buildPresenterAnimationTimeline([
+    { element_key: 'a', content_json: { animation: { effects: [{ id: 'a', effect: 'zoom', start: 'with-previous', duration: 0.6, sequenceOrder: 0 }] } } },
+    { element_key: 'b', content_json: { animation: { effects: [{ id: 'b', effect: 'pulse', start: 'after-previous', duration: 0.5, sequenceOrder: 1 }] } } },
+    { element_key: 'c', content_json: { animation: { effects: [{ id: 'c', effect: 'path-line', start: 'after-previous', duration: 0.4, sequenceOrder: 2 }] } } },
+  ]);
+  assert.equal(timeline.maxStep, 1);
+  assert.deepEqual(timeline.cues.map((cue) => cue.step), [1, 1, 1]);
+  assert.deepEqual(timeline.cues.map((cue) => cue.effect.runtimeDelay), [0, 0.6, 1.1]);
 });
 
 test('animation pane groups On Click, With Previous and After Previous like PowerPoint', () => {

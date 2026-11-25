@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Download, ExternalLink, Loader2, PackageOpen, Presentation, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Download, ExternalLink, Loader2, Music, PackageOpen, Presentation, RefreshCw } from 'lucide-react';
 import { getApiErrorDetails } from '@/lib/api';
 import { resolveAssetUrl } from '@/lib/apiBaseUrl';
 import { commitStudioScormAttempt, getStudioObjectPreview, getStudioResourceDownload, getStudioResourcePreview, launchStudioResourceVersion, startStudioScormAttempt, type StudioObjectPreviewDescriptor, type StudioResourcePreview, type StudioResourceType, type StudioResourceVersion } from '../../api/studioResourcesApi';
@@ -30,6 +30,8 @@ interface StudioResourcePlayerProps {
     cropScaleY?: number;
     cropOffsetX?: number;
     cropOffsetY?: number;
+    filter?: string;
+    opacity?: number;
   };
   model3DSettings?: Model3DSettings;
   model3DModeRequestToken?: number;
@@ -45,6 +47,9 @@ const afterVisiblePaint = (callback?: () => void) => {
 };
 
 export default function StudioResourcePlayer({ resourceType, version, mode = 'preview', selected = false, className = '', mediaTransform, model3DSettings, model3DModeRequestToken, onModel3DSettingsChange, onReady, getPreview, getObjectPreview }: StudioResourcePlayerProps) {
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const notifyReady = useCallback(() => afterVisiblePaint(onReadyRef.current), []);
   const [source, setSource] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -83,22 +88,22 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
   useEffect(() => {
     if (loading) return;
     if (error) {
-      const frame = window.requestAnimationFrame(() => afterVisiblePaint(onReady));
+      const frame = window.requestAnimationFrame(notifyReady);
       return () => window.cancelAnimationFrame(frame);
     }
     const embeddedDocument = resourceType === 'document' &&
       (objectPreview?.mode === 'pdf' || objectPreview?.mode === 'interactive');
     if (!['document', 'presentation'].includes(resourceType) || embeddedDocument) return;
-    const frame = window.requestAnimationFrame(() => afterVisiblePaint(onReady));
+    const frame = window.requestAnimationFrame(notifyReady);
     return () => window.cancelAnimationFrame(frame);
-  }, [error, loading, objectPreview, onReady, resourceType]);
+  }, [error, loading, notifyReady, objectPreview, resourceType]);
 
   useEffect(() => {
     if (loading || error || resourceType !== 'document' ||
       (objectPreview?.mode !== 'pdf' && objectPreview?.mode !== 'interactive')) return;
-    const timeout = window.setTimeout(() => afterVisiblePaint(onReady), 12_000);
+    const timeout = window.setTimeout(notifyReady, 12_000);
     return () => window.clearTimeout(timeout);
-  }, [error, loading, objectPreview, onReady, resourceType]);
+  }, [error, loading, notifyReady, objectPreview, resourceType]);
 
   const mediaPreviewFailed = () => setError(version.external_url
     ? 'This external URL is not an embeddable media file. Use a direct image/video URL or upload the file.'
@@ -108,40 +113,49 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
   if (error) return <div className={`grid place-items-center bg-slate-950 p-6 text-center text-white ${className}`}><div><PackageOpen className="mx-auto text-slate-400" size={42} /><p className="mt-3 font-semibold">Preview unavailable</p><p className="mt-1 max-w-md text-sm text-slate-300">{error}</p><div className="mt-4 flex flex-wrap justify-center gap-2"><button type="button" onClick={() => setReloadKey((value) => value + 1)} className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900"><RefreshCw size={15} />Retry</button>{version.external_url ? <a href={version.external_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-3 py-2 text-sm font-semibold text-white"><ExternalLink size={15} />Open source URL</a> : null}</div></div></div>;
 
   const commonTitle = `${resourceType} Resource version ${version.version_number}`;
+  const isImageMedia = resourceType === 'image' || (resourceType === 'animation' && version.mime_type?.startsWith('image/'));
   const hasEdgeCrop = mediaTransform?.edgeCrop === true;
   const hasCropGeometry = mediaTransform?.cropGeometry === true;
   const cropScaleX = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleX) || 1) : 1;
   const cropScaleY = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleY) || 1) : 1;
   const transformedMediaStyle = mode === 'canvas' ? {
-    width: resourceType === 'image' ? `${cropScaleX * 100}%` : '100%',
-    height: resourceType === 'image' ? `${cropScaleY * 100}%` : '100%',
+    width: isImageMedia ? `${cropScaleX * 100}%` : '100%',
+    height: isImageMedia ? `${cropScaleY * 100}%` : '100%',
     maxWidth: 'none',
     maxHeight: 'none',
-    objectFit: resourceType === 'image'
+    objectFit: isImageMedia
       ? 'fill' as const
       : mediaTransform?.cropped === true && !hasEdgeCrop
       ? 'cover' as const
       : 'contain' as const,
-    position: resourceType === 'image' ? 'absolute' as const : undefined,
-    left: resourceType === 'image' ? `${(hasCropGeometry ? Number(mediaTransform?.cropOffsetX) || 0 : 0) * 100}%` : undefined,
-    top: resourceType === 'image' ? `${(hasCropGeometry ? Number(mediaTransform?.cropOffsetY) || 0 : 0) * 100}%` : undefined,
-    transform: resourceType === 'image' && !hasEdgeCrop && !hasCropGeometry
+    position: isImageMedia ? 'absolute' as const : undefined,
+    left: isImageMedia ? `${(hasCropGeometry ? Number(mediaTransform?.cropOffsetX) || 0 : 0) * 100}%` : undefined,
+    top: isImageMedia ? `${(hasCropGeometry ? Number(mediaTransform?.cropOffsetY) || 0 : 0) * 100}%` : undefined,
+    transform: isImageMedia && !hasEdgeCrop && !hasCropGeometry
       ? 'none'
       : `translate(${Number(mediaTransform?.x) || 0}%, ${Number(mediaTransform?.y) || 0}%) scale(${Math.max(1, Number(mediaTransform?.scale) || 1)})`,
     transformOrigin: 'center',
+    filter: mediaTransform?.filter || undefined,
+    opacity: mediaTransform?.opacity,
   } : undefined;
   const cropMaskStyle = hasEdgeCrop ? {
     clipPath: `inset(${Number(mediaTransform?.cropTop) || 0}% ${Number(mediaTransform?.cropRight) || 0}% ${Number(mediaTransform?.cropBottom) || 0}% ${Number(mediaTransform?.cropLeft) || 0}%)`,
   } : undefined;
-  if (resourceType === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} className={className} onReady={onReady} />;
-  const markImageReady = (image: HTMLImageElement) => { void image.decode().catch(() => undefined).finally(() => afterVisiblePaint(onReady)); };
+  if (resourceType === 'audio' || version.mime_type?.startsWith('audio/')) return <div className={['grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white', className].join(' ')}><div className="w-full text-center"><Music className="mx-auto text-purple-200" size={38}/><p className="mt-2 truncate text-sm font-semibold">{version.original_file_name || 'Audio'}</p><audio src={source} controls preload="auto" onCanPlayThrough={notifyReady} onError={mediaPreviewFailed} className="mt-3 w-full"/></div></div>;
+  if (resourceType === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} onReady={notifyReady} className={className} />;
+  const markImageReady = (image: HTMLImageElement) => {
+    const markPainted = () => {
+      if (image.complete && image.naturalWidth > 0) notifyReady();
+    };
+    void image.decode().then(markPainted).catch(markPainted);
+  };
   if (resourceType === 'image') return <div className={`relative grid place-items-center ${hasEdgeCrop ? 'overflow-visible' : 'overflow-hidden'} ${mode === 'canvas' ? 'bg-transparent' : 'bg-slate-950'} ${className}`} style={cropMaskStyle}><img src={source} alt={commonTitle} onLoad={(event) => markImageReady(event.currentTarget)} onError={mediaPreviewFailed} className={mode === 'canvas' ? '' : 'max-h-full max-w-full object-contain'} style={transformedMediaStyle} /></div>;
-  if (resourceType === 'video' || (resourceType === 'animation' && version.mime_type?.startsWith('video/'))) return <div className={`grid place-items-center overflow-hidden bg-black ${className}`}><video src={source} controls playsInline onLoadedData={() => afterVisiblePaint(onReady)} onCanPlay={() => afterVisiblePaint(onReady)} onError={mediaPreviewFailed} className={mode === 'canvas' ? '' : 'max-h-full max-w-full'} style={transformedMediaStyle} /></div>;
+  if (resourceType === 'video' || (resourceType === 'animation' && version.mime_type?.startsWith('video/'))) return <div className={`grid place-items-center overflow-hidden bg-black ${className}`}><video src={source} controls playsInline preload="auto" onCanPlayThrough={notifyReady} onError={mediaPreviewFailed} className={mode === 'canvas' ? '' : 'max-h-full max-w-full'} style={transformedMediaStyle} /></div>;
   if (resourceType === 'animation' && version.mime_type?.startsWith('image/')) return <div className={`grid place-items-center overflow-hidden ${mode === 'canvas' ? 'bg-transparent' : 'bg-slate-950'} ${className}`}><img src={source} alt={commonTitle} onLoad={(event) => markImageReady(event.currentTarget)} onError={mediaPreviewFailed} className={mode === 'canvas' ? '' : 'max-h-full max-w-full object-contain'} style={transformedMediaStyle} /></div>;
-  if (resourceType === 'model_3d') return <Model3DViewer src={source} alt={commonTitle} className={className} mode={mode} selected={selected} settings={model3DSettings} panZoomRequestToken={model3DModeRequestToken} onSettingsChange={onModel3DSettingsChange} onReady={() => afterVisiblePaint(onReady)} />;
+  if (resourceType === 'model_3d') return <Model3DViewer src={source} alt={commonTitle} className={className} mode={mode} selected={selected} settings={model3DSettings} panZoomRequestToken={model3DModeRequestToken} onSettingsChange={onModel3DSettingsChange} onReady={notifyReady} />;
   if (resourceType === 'presentation') return <div className={`grid place-items-center bg-gradient-to-br from-orange-50 to-amber-100 p-5 text-center ${className}`}><div><Presentation className="mx-auto text-orange-700" size={48} /><p className="mt-3 font-bold text-slate-900">{version.original_file_name || 'PowerPoint Show'}</p><p className="mt-1 max-w-sm text-sm text-slate-600">PPSX playback is handled by Microsoft PowerPoint or another compatible presentation application.</p><a href={source} download={version.original_file_name || undefined} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-700 px-4 py-2 text-sm font-semibold text-white"><Download size={16} />Download and open</a></div></div>;
-  if (resourceType === 'external_link') return <ExternalLinkFrame source={source} title={commonTitle} className={className} width={version.width} height={version.height} onReady={() => afterVisiblePaint(onReady)} />;
-  return <ExecutableResourceFrame source={source} title={commonTitle} className={className} frameKey={`${source}-${mode}`} width={version.width} height={version.height} onReady={() => afterVisiblePaint(onReady)} onRuntimeMessage={resourceType === 'scorm' && scormAttemptId ? (data) => {
+  if (resourceType === 'external_link') return <ExternalLinkFrame source={source} title={commonTitle} className={className} width={version.width} height={version.height} onReady={notifyReady} />;
+  return <ExecutableResourceFrame source={source} title={commonTitle} className={className} frameKey={`${source}-${mode}`} width={version.width} height={version.height} onReady={notifyReady} onRuntimeMessage={resourceType === 'scorm' && scormAttemptId ? (data) => {
     if (data.source !== 'spectropy-scorm' || data.type !== 'STUDIO_SCORM_COMMIT' || Number(data.attemptId) !== scormAttemptId) return;
     const values = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data as Record<string, string> : {};
     const event = data.event === 'suspend' || data.event === 'terminate' ? data.event : 'commit';

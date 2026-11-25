@@ -5,7 +5,7 @@
 **Document version:** 1.0 — Approved  
 **Date:** 22 November 2026  
 **Status:** Approved for phased implementation  
-**Implementation status:** Phase 3 correction in progress after product-owner visual review rejected the first reconstruction; Phase 4 has not started
+**Implementation status:** Phase 3 visual review remains open; Phase 4 implementation is complete in code; joint Phase 3+4 gate validation is pending by agreement
 
 ---
 
@@ -752,19 +752,21 @@ Representative benchmarks must include small, medium, and large educational PPTX
 
 **Purpose:** Cover the content most valuable to Spectropy teachers.
 
-**Priority order:**
+**Work:**
 
-1. Tables and equations.
-2. Audio, video, and GIF.
-3. Notes and accessibility metadata.
-4. Crop and advanced image treatment.
-5. Approved PowerPoint animation and transition mappings.
-6. Charts used in educational material.
+- Convert PowerPoint tables into editable Spectropy table elements, preserving cell text, basic cell formatting, merged cells, and declared header/row/column bands.
+- Convert standalone Office MathML equations into editable math elements; preserve inline math as readable linearized text and report the conversion.
+- Extract embedded audio/video into Resource Library files, keep GIF images animated, and render browser-supported media in editor and playback.
+- Preserve speaker notes and accessibility names/descriptions.
+- Preserve picture crop geometry and map grayscale, luminance, and alpha treatments into image styles; report other image effects that are not represented.
+- Map supported entrance/exit animation filters, direction, wheel spokes, repeat/timing, and common transitions into existing Spectropy runtime fields; report unsupported effects and approximations.
+- Reconstruct charts with embedded cached data as editable Spectropy chart elements; report chart types approximated, combination-chart omissions, and missing cached data.
 
-Each feature must have its own fixture, mapping definition, fallback, and acceptance tests.
+**Implementation record (24 November 2026):** The importer, normalized model, commit mapper, resource upload contract, authoring renderers, and published player now carry the Phase 4 content above. The import report exposes object counts for tables, equations, charts, and media. Joint product-owner validation confirmed editable tables and charts, equations, grouped image/audio/video content, supported transitions, movement, saving, reload, and playback. The Phase 3 and Phase 4 exit gates are **accepted**.
 
-**Exit gate:** Approved teaching-content fixtures import without silent loss and work in editor, preview, and presentation.
+**Known mapping limits:** Inline equations are linearized instead of split into separate inline math objects. Cached chart data is reconstructed as editable 2D charts; combination charts retain only the first chart type. Chart axes and legends, complex PowerPoint table presets, some 3D/area/scatter chart styles, complex image treatments, animation paths/triggers, and transition variants are simplified, approximated, or reported unsupported. Embedded media playback depends on the browser's codec support. These limits must remain visible in the report.
 
+**Exit gate:** Passed on 24 November 2026 through joint validation of the approved Trigonometry deck and the representative `Testing.pptx` teaching-content fixture. Known limitations remain documented rather than silently discarded.
 ### Phase 5 — Advanced compatibility
 
 **Purpose:** Incrementally improve fidelity without destabilizing the core importer.
@@ -780,6 +782,46 @@ Potential scope:
 - 3D models and camera/view mappings.
 
 This phase is not required for declaring the editable MVP complete.
+
+**Approved priority order (24 November 2026):**
+
+1. **Phase 5A — Stability baseline:** lock the accepted Phase 3–4 behavior with portable regression fixtures and documented compatibility expectations.
+2. **Phase 5B — Complex slide structures:** nested groups, custom geometry, connectors, transformation fidelity, and inherited formatting.
+3. **Phase 5C — SmartArt and diagrams:** reconstruct supported diagrams as editable grouped objects with explicit fallback for unsupported layouts.
+4. **Phase 5D — 3D content:** extract supported embedded models and preserve available transform, camera, lighting, and view metadata.
+5. **Phase 5E — Advanced animation and transitions:** motion paths, triggers, sequencing, additional effects, and Spectropy-authored equivalents for proprietary transitions where feasible.
+6. **Phase 5F — Advanced charts and embedded workbooks:** workbook-backed data, more chart types and styling, followed by contextual Chart Design/Format controls.
+
+Chart-specific authoring controls remain planned but are intentionally lower priority because imported charts are already editable, movable, resizable, saved, and rendered. Every Phase 5 increment must preserve the accepted importer path and keep unsupported content visible in the report.
+
+**Phase 5A status (24 November 2026): Complete.** A portable regression fixture now protects editable tables, charts, equations, grouped image/audio/video content, supported transitions, and the database contracts required by imported audio and tables.
+
+**Phase 5B implementation record (24 November 2026):**
+
+- Nested group coordinate systems now compose through affine transforms, including group rotation and flips, instead of projecting only one unrotated level.
+- All descendants retain the top-level editable Studio group while the original nested hierarchy and leaf group remain in import-source metadata.
+- Numeric and guide-based PowerPoint custom geometry paths convert into editable Spectropy SVG-path shapes. Lines, quadratic/cubic curves, arcs, and closed paths are supported; unresolved guide commands are reported as approximations.
+- Imported straight, elbow, and curved connectors preserve line styling, start/end arrowheads, and source connection identifiers.
+- Placeholder shapes can inherit fill, outline, font reference, default run formatting, vertical alignment, and margins from their layout/master definitions when the slide omits those values.
+- The editor and published player render imported custom geometry and connector arrowheads through the shared shape renderer.
+
+**Phase 5B compatibility limits:** Spectropy currently exposes one editable group ID per element, so nested PowerPoint groups operate as their top-level group in the editor; the source hierarchy remains available for future drill-down support. Connector source attachments are retained as metadata, but moving one connected shape does not yet reroute the imported connector automatically. Unsupported custom-geometry guide expressions remain visible in the import report rather than silently disappearing.
+
+**Phase 5B exit gate:** Import a representative nested-group/custom-shape deck and confirm geometry placement, group movement, custom-shape rendering, connector arrowheads, inherited placeholder styling, save/reload, preview, and presentation playback. The automated structural regression must remain green before product-owner validation.
+
+**Phase 5B engineering verification (24 November 2026):** The focused PPTX/import-foundation suite passes 15/15 checks. The approved Trigonometry deck parses 19 slides with 1,463 editable elements, including 11 custom geometries, 41 members of nested groups, 251 connectors, and no unsupported shapes or import errors. The representative `Testing.pptx` fixture continues to produce its expected table, chart, equation, image, audio, and video objects without errors. Product-owner visual verification of the Phase 5B exit gate remains pending.
+
+**Phase 5C implementation record (24 November 2026):** PowerPoint SmartArt data and layout package parts now reconstruct as editable Spectropy Smart Diagrams. The importer preserves node text, parent relationships, hierarchy levels, assistant roles, direction, accessibility text, and a mapped diagram category/layout. PowerPoint-specific SmartArt styling is explicitly reported as an approximation. Invalid or unavailable SmartArt data continues through the configured visible fallback.
+
+**Phase 5D implementation record (24 November 2026):** Embedded GLB models now import into the Resource Library as `model_3d` resources and bind to interactive Studio objects. Available camera preset, lighting preset, and source rotation metadata are retained. Spectropy maps lighting to its closest supported environment and exposes the established 3D Model contextual controls after import.
+
+**Phase 5E implementation record (24 November 2026):** The animation importer now handles supported entrance and exit effects plus PowerPoint motion paths, spin, grow/shrink, opacity/fill property animations, repeats, auto-reverse, text iteration, sequence timing, and object-click triggers. Trigger source references are translated to the persisted Studio element identifiers during commit. The existing transition mapper covers common, dynamic, and Spectropy-authored equivalents while keeping unmapped proprietary variants visible in the report.
+
+**Phase 5F implementation record (24 November 2026):** Charts can now reconstruct editable labels and series from an embedded `.xlsx` workbook when the chart cache is empty. Selected charts expose contextual Chart Design and Chart Format tabs for chart type, title, axes, legend, data labels, series colours, chart background, and accessibility text. Combination charts still retain the first supported chart family, and unsupported PowerPoint-only rendering details remain explicit import issues.
+
+**Phase 5 engineering verification (24 November 2026):** The focused importer and commit suite passes 16/16 checks, including a portable advanced fixture covering editable SmartArt, an embedded interactive 3D model, motion/spin animation mappings, and an embedded-workbook chart. Frontend TypeScript compilation passes. The user elected to defer separate Phase 5B–5F product gates and perform one combined visual and functional validation after all implementation work.
+
+**Combined Phase 5 exit gate:** Import representative decks containing nested groups, custom geometry, connectors, SmartArt, GLB models, motion paths, object triggers, additional transitions, cached charts, and workbook-backed charts. Confirm selection and editing, contextual tabs, movement and resize, animation sequencing, save/reload, preview, presentation playback, import-report accuracy, and no regression to the accepted Phase 3–4 content. This gate remains pending product-owner validation.
 
 ---
 

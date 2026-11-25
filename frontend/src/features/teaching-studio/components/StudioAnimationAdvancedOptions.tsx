@@ -10,6 +10,7 @@ import type { StudioElement } from '../types';
 import {
   STUDIO_AMOUNT_EFFECTS,
   STUDIO_COLOUR_EFFECTS,
+  STUDIO_SPIN_AMOUNT_OPTIONS,
   studioAnimationCapabilities,
   studioAnimationDirectionOptions,
   type StudioAnimationEffectDefinition,
@@ -116,6 +117,15 @@ export default function StudioAnimationAdvancedOptions({ effect, element, onChan
       heading: 'Direction', value: effect.clockwise === false ? 'counter-clockwise' : 'clockwise',
       choices: [{ value: 'clockwise', label: 'Clockwise', icon: directionIcon('clockwise') }, { value: 'counter-clockwise', label: 'Counter-clockwise', icon: directionIcon('counter-clockwise') }],
       select: (value) => onChange({ clockwise: value === 'clockwise' }),
+    });
+  }
+  if (effect.effect === 'spin') {
+    groups.push({
+      heading: 'Amount', value: String(Number(effect.rotation) || 360),
+      choices: STUDIO_SPIN_AMOUNT_OPTIONS.map(([rotation, label]) => ({
+        value: String(rotation), label, icon: <span className="text-base font-black">{rotation === 90 ? '¼' : rotation === 180 ? '½' : rotation === 360 ? '1×' : '2×'}</span>,
+      })),
+      select: (rotation) => onChange({ rotation: Number(rotation) }),
     });
   }
   if (capabilities.textSequence) {
