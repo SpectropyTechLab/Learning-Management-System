@@ -945,6 +945,7 @@ export default function SlideCanvas({
                     if (object && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && object.id !== selectedObjectId && !selectedObjectIdSet.has(object.id))
                       selectObject(object.id);
                   }}
+                  onPointerDown={(event) => object && queueDirectMove(event, object.id, bounds, object.locked)}
                   onKeyDown={(event) => {
                     if (object && (event.key === 'Enter' || event.key === ' '))
                       selectObject(object.id);
@@ -1076,7 +1077,6 @@ export default function SlideCanvas({
                   selectObjectFromClick(event, object.id);
                 }}
                 onPointerDownCapture={(event) => {
-                  if (selectionChromeHidden) return;
                   const target = event.target;
                   const shapeOutline = target instanceof Element ? target.closest('[data-object-shape-outline]') : null;
                   if (shapeOutline) {
@@ -1084,6 +1084,7 @@ export default function SlideCanvas({
                     return;
                   }
                   if (target instanceof Element && target.closest('[data-object-move-edge], button, a, input, textarea, select, iframe, video, audio, [contenteditable="true"], [data-canvas-interactive="true"]')) return;
+                  if (!selectionChromeHidden) queueDirectMove(event, object.id, bounds, object.locked);
                   if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && object.id !== selectedObjectId && !selectedObjectIdSet.has(object.id))
                     selectObject(object.id);
                 }}
