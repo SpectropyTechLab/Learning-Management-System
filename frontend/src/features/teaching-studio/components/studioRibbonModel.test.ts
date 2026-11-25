@@ -42,6 +42,10 @@ test('element selection exposes only its applicable contextual tabs', () => {
     ['diagram-design', 'diagram-format'],
   );
   assert.deepEqual(
+    studioContextualRibbonTabs({ elementType: 'graph', visualType: 'chart' }).map((tab) => tab.id),
+    ['chart-design', 'chart-format'],
+  );
+  assert.deepEqual(
     studioContextualRibbonTabs({ elementType: 'simulation', resourceType: 'simulation' }).map((tab) => tab.id),
     [],
   );

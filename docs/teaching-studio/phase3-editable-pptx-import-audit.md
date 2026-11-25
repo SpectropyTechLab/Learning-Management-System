@@ -3,7 +3,7 @@
 **Date:** 23 November 2026  
 **Branch:** `feature/clipboard-pptx-import`  
 **Controlling specification:** [Cross-Application Clipboard and Editable PPTX Import](./clipboard-pptx-import-requirements-and-implementation-plan.md)  
-**Status:** Reopened after product-owner visual review. Phase 4 has not started.
+**Status:** Phase 3 and Phase 4 accepted by joint product-owner validation on 24 November 2026. Phase 5A compatibility-baseline work is active.
 
 ## Visual review correction — 23 Nov 2026
 
@@ -164,7 +164,7 @@ Automated tests additionally verify:
 10. Review the import report for deferred or substituted content.
 11. Cancel a second import while processing and confirm no partial Screens remain.
 
-Phase 4 must not begin until this review is accepted or Phase 3 corrections are recorded.
+The owner completed the combined Phase 3 and Phase 4 validation on 24 November 2026. Representative imported objects were visible and editable; grouped content, movement, media, supported transitions, save/reload, and playback were confirmed. Known approximations and unsupported proprietary effects remain visible in the import report.
 
 ## 8. Imported-object slot collision — 23 Nov 2026
 
@@ -189,4 +189,4 @@ This caused a playback-specific failure: `StudioSessionPlayerPage` built both it
 - The owner refreshed the existing localhost session and confirmed the imported screens now appear separately and work in Presentation View. The slot-collision defect is verified without reimporting the deck.
 - Live localhost inspection in Microsoft Edge also confirmed Screens 1 and 2 render their own contents, and selecting a Screen 2 object opens Shape Format with resize handles. No slide content was changed during this check.
 - Visual fidelity is not yet accepted: Screen 2 currently shows overlapping text labels and crowded diagram labels/geometry. Compare this slide with its source before changing conversion rules.
-- Remaining Phase 3 acceptance: compare representative slide fidelity with PowerPoint; verify object selection/editing, grouping, image crop/fit, save/reload, import report, and cancellation cleanup. No Phase 4 work has started.
+- Phase 3 acceptance is complete. The remaining fidelity improvements belong to the explicitly prioritized Phase 5 advanced-compatibility work and must not weaken the accepted editable-import baseline.

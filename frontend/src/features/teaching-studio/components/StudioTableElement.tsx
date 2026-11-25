@@ -80,9 +80,10 @@ export default function StudioTableElement({ elementId, content, editable, onCha
   const cellMargin = Math.max(0, Number(content.cellMargin) || 8);
   const alignment = String(content.alignment || 'left') as 'left' | 'center' | 'right';
   const verticalAlignment = String(content.verticalAlignment || 'middle');
+  const cellStyles = Array.isArray(content.cellStyles) ? content.cellStyles as Array<Array<Record<string, unknown>>> : [];
 
   return <div className={`h-full w-full overflow-auto ${content.effect === 'shadow' ? 'drop-shadow-lg' : ''}`} data-canvas-interactive="true">
-    <table className="h-full w-full table-fixed border-collapse" style={{ color: String(content.textColor || '#0f172a'), fontSize: Number(content.fontSize) || 22 }}>
+    <table aria-label={String(content.altText || 'Imported table')} className="h-full w-full table-fixed border-collapse" style={{ color: String(content.textColor || '#0f172a'), fontSize: Number(content.fontSize) || 22 }}>
       <tbody>
         {rows.map((values, row) => <tr key={row}>
           {values.map((value, column) => {
@@ -94,9 +95,11 @@ export default function StudioTableElement({ elementId, content, editable, onCha
             const last = content.lastColumn === true && column === columnCount - 1;
             const bandedRow = content.bandedRows === true && row % 2 === 1;
             const bandedColumn = content.bandedColumns === true && column % 2 === 1;
+            const sourceStyle = cellStyles[row]?.[column] || {};
             const backgroundColor = header || total
-              ? String(content.headerFill || '#1d4ed8')
-              : bandedRow || bandedColumn ? String(content.bandFill || '#dbeafe') : String(content.cellFill || '#ffffff');
+              ? String(sourceStyle.fill || content.headerFill || '#1d4ed8')
+              : String(sourceStyle.fill || (bandedRow || bandedColumn ? content.bandFill || '#dbeafe' : content.cellFill || '#ffffff'));
+            const textColor = String(sourceStyle.color || ((header || total) && !sourceStyle.fill ? content.headerTextColor || '#ffffff' : content.textColor || '#0f172a'));
             const selected = editable && activeCell.row === row && activeCell.column === column;
             const buildItem = animationBuildState?.sequence === 'by-row' ? row
               : animationBuildState?.sequence === 'by-column' ? column
@@ -105,8 +108,8 @@ export default function StudioTableElement({ elementId, content, editable, onCha
             const buildActive = animationBuildState?.activeItem === buildItem && animationBuildState.effect
               ? studioAnimationStyle({ effects: [animationBuildState.effect] })
               : {};
-            return <td key={column} rowSpan={Math.max(1, Number(merge?.rowSpan) || 1)} colSpan={Math.max(1, Number(merge?.colSpan) || 1)} onClick={() => setActiveCell({ row, column })} style={{ border: `${borderWidth}px ${borderStyle} ${borderColor}`, backgroundColor, padding: cellMargin, textAlign: alignment, verticalAlign: verticalAlignment as 'top' | 'middle' | 'bottom', fontWeight: header || total || first || last ? 700 : 400, outline: selected ? '3px solid #2563eb' : undefined, outlineOffset: -3, opacity: buildVisible ? 1 : 0, ...buildActive }}>
-              <div contentEditable={editable} suppressContentEditableWarning onFocus={() => setActiveCell({ row, column })} onBlur={(event) => { const text = event.currentTarget.textContent ?? ''; if (text === value || !onChange) return; const next = rows.map((items) => [...items]); next[row][column] = text; onChange({ rows: next }); }} className="min-h-[1.4em] w-full outline-none">{value}</div>
+            return <td key={column} rowSpan={Math.max(1, Number(merge?.rowSpan) || 1)} colSpan={Math.max(1, Number(merge?.colSpan) || 1)} onClick={() => setActiveCell({ row, column })} style={{ border: `${borderWidth}px ${borderStyle} ${borderColor}`, backgroundColor, padding: cellMargin, textAlign: (sourceStyle.alignment as 'left' | 'center' | 'right') || alignment, verticalAlign: (sourceStyle.verticalAlignment as 'top' | 'middle' | 'bottom') || verticalAlignment as 'top' | 'middle' | 'bottom', fontWeight: header || total || first || last ? 700 : 400, outline: selected ? '3px solid #2563eb' : undefined, outlineOffset: -3, opacity: buildVisible ? 1 : 0, ...buildActive }}>
+              <div contentEditable={editable} suppressContentEditableWarning onFocus={() => setActiveCell({ row, column })} onBlur={(event) => { const text = event.currentTarget.textContent ?? ''; if (text === value || !onChange) return; const next = rows.map((items) => [...items]); next[row][column] = text; onChange({ rows: next }); }} style={{ color: textColor, fontSize: Number(sourceStyle.fontSize) || Number(content.fontSize) || 22, fontWeight: sourceStyle.bold === true || header || total || first || last ? 700 : 400, fontStyle: sourceStyle.italic === true ? 'italic' : undefined }} className="min-h-[1.4em] w-full outline-none">{value}</div>
             </td>;
           })}
         </tr>)}

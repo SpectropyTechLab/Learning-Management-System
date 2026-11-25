@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Move as MoveIcon, RotateCw } from 'lucide-react';
 import { MASTER, fitScale, validateSlide } from './layouts';
 import type { Layout, Rect, Slide, Slot } from './layouts';
 import type { AuthorDrawingStroke, StudioDrawingTool } from './types';
 import { studioAnimationClass } from './components/studioAnimation';
-import { studioTransitionStyle } from './components/studioTransition';
+import { studioDynamicTransitionClass, studioTransitionStyle } from './components/studioTransition';
 
 const colors: Record<string, { fill: string; stroke: string; ink: string }> = {
   title: { fill: '#eaf2fd', stroke: '#c9ddf6', ink: '#173b65' },
@@ -194,6 +194,8 @@ export default function SlideCanvas({
   onCanvasClick?: (point: { x: number; y: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const animatedContentRefs = useRef(new Map<string, HTMLDivElement>());
+  const previousAnimationKeysRef = useRef<Record<string, string | number>>({});
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [interaction, setInteraction] = useState<GeometryInteraction | null>(null);
   const interactionRef = useRef<GeometryInteraction | null>(null);
@@ -234,7 +236,17 @@ export default function SlideCanvas({
     return () => observer.disconnect();
   }, []);
   const scale = fitScale(available.width, available.height) * Math.max(0.25, zoom);
-  const transitionStyle = useMemo(() => studioTransitionStyle(transition), [transition]);
+  const dynamicTransitionClass = useMemo(() => studioDynamicTransitionClass(transition), [transition]);
+  const transitionStyle = useMemo(() => {
+    const style = studioTransitionStyle(transition);
+    if (!dynamicTransitionClass) return style;
+    return {
+      ...style,
+      animationName: undefined,
+      '--studio-transition-duration': `${Math.max(0.1, Number(transition?.duration) || 0.7)}s`,
+      '--studio-transition-easing': String(transition?.easing || 'ease-in-out'),
+    } as CSSProperties;
+  }, [dynamicTransitionClass, transition]);
   const errors = useMemo(() => validateSlide(layout, slide), [layout, slide]);
   const objectsBySlotId = useMemo(
     () => new Map(slide.objects.map((object) => [object.slotId, object])),
@@ -260,6 +272,25 @@ export default function SlideCanvas({
   useEffect(() => {
     if (!transitionStyle.animationName) setTransitionRunning(false);
   }, [transitionStyle.animationName]);
+  useLayoutEffect(() => {
+    const nextKeys: Record<string, string | number> = {};
+    for (const [objectId, animationKey] of Object.entries(objectAnimationKeys)) {
+      nextKeys[objectId] = animationKey;
+      if (previousAnimationKeysRef.current[objectId] === animationKey) continue;
+      const animationName = objectAnimationStyles[objectId]?.animationName;
+      if (!animationName || animationName === 'none') continue;
+      const content = animatedContentRefs.current.get(objectId);
+      if (!content) continue;
+      // Restart only the wrapper's CSS animation. Remounting this node would
+      // also reload its image/video/model child exactly when the cue begins.
+      for (const animation of content.getAnimations()) {
+        if (!('animationName' in animation)) continue;
+        animation.cancel();
+        animation.play();
+      }
+    }
+    previousAnimationKeysRef.current = nextKeys;
+  }, [objectAnimationKeys, objectAnimationStyles]);
   useEffect(() => {
     const layer = transitionLayerRef.current;
     if (!layer) return undefined;
@@ -709,7 +740,7 @@ export default function SlideCanvas({
           <div
             ref={transitionLayerRef}
             data-testid="slide-transition-layer"
-            className={`absolute inset-0 ${allowCanvasOverflow ? 'overflow-visible' : 'overflow-hidden'}`}
+            className={`absolute inset-0 ${dynamicTransitionClass} ${allowCanvasOverflow ? 'overflow-visible' : 'overflow-hidden'}`}
             style={{ backgroundColor, ...transitionStyle }}
             onAnimationStart={(event) => {
               if (event.target === event.currentTarget) setTransitionRunning(true);
@@ -765,6 +796,7 @@ export default function SlideCanvas({
               const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
               const objectSelected = Boolean(!selectionChromeHidden && object && (object.id === selectedObjectId || selectedObjectIdSet.has(object.id)));
               const selectedWithoutBorder = Boolean(objectSelected && !hasVisibleObjectBorder(object));
+              const dynamicIndex = object ? slide.objects.findIndex((candidate) => candidate.id === object.id) : -1;
               // Resource overlays (3D, video, protected images, and packages) own
               // their complete visual surface. Rendering the legacy SVG image URL
               // underneath a transparent overlay exposes the browser's broken-image
@@ -780,6 +812,7 @@ export default function SlideCanvas({
                   key={field.id}
                   data-slot={field.id}
                   data-element-id={object?.id}
+                  data-transition-content={object && !objectOverlays[object.id] ? 'true' : undefined}
                   transform={object ? `rotate(${rotationFor(object)} ${bounds.x + bounds.width / 2} ${bounds.y + bounds.height / 2})` : undefined}
                   role={object ? 'button' : undefined}
                   tabIndex={object ? 0 : undefined}
@@ -800,6 +833,7 @@ export default function SlideCanvas({
                           animationDuration: `${Number(animation?.duration) || 0.8}s`,
                           animationDelay: `${Number(animation?.delay) || 0}s`,
                           animationFillMode: 'both',
+                          '--studio-dynamic-delay': `${Math.max(0, dynamicIndex) * 55}ms`,
                         }
                       : undefined
                   }
@@ -807,6 +841,7 @@ export default function SlideCanvas({
                   {!objectOverlays[object?.id ?? ''] && (
                     <rect
                       {...bounds}
+                      data-selection-chrome={objectSelected || selectedEmptySlot ? 'true' : undefined}
                       rx={field.region === 'footer' ? 12 : 22}
                       fill={!object && !showGuides ? selectedEmptySlot ? '#dbeafe55' : 'transparent' : object?.backgroundColor ?? tone.fill}
                       stroke={selectedEmptySlot ? '#2563eb' : !object && !showGuides ? 'transparent' : objectSelected ? '#1d4ed8' : object?.borderColor ?? tone.stroke}
@@ -887,12 +922,16 @@ export default function SlideCanvas({
               <div
                 key={`overlay-${object.id}`}
                 data-element-id={object.id}
+                data-transition-content="true"
+                data-selection-chrome={selected ? 'true' : undefined}
                 onClick={(event) => {
                   event.stopPropagation();
                   selectObjectFromClick(event, object.id);
                 }}
-                onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds, object.locked)}
-                className={`absolute touch-none overflow-visible rounded-md border-solid ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
+                onPointerDownCapture={(event) => {
+                  if (!selectionChromeHidden) queueDirectMove(event, object.id, bounds, object.locked);
+                }}
+                className={`absolute touch-none overflow-visible rounded-md border-solid ${onChangeObjectBounds && !drawingEnabled && !selectionChromeHidden ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -900,11 +939,15 @@ export default function SlideCanvas({
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
                   rotate: `${rotationFor(object)}deg`,
+                  '--studio-dynamic-delay': `${Math.max(0, slide.objects.findIndex((candidate) => candidate.id === object.id)) * 55}ms`,
                 }}
               >
                 <div
-                  key={`animated-content-${object.id}-${objectAnimationKeys[object.id] ?? 'static'}`}
                   data-animated-content-for={object.id}
+                  ref={(node) => {
+                    if (node) animatedContentRefs.current.set(object.id, node);
+                    else animatedContentRefs.current.delete(object.id);
+                  }}
                   className={`h-full w-full rounded-md border-solid ${object.id === overflowVisibleForObjectId || allowCanvasOverflow && textObjectTypes.has(object.type) ? 'overflow-visible' : 'overflow-hidden'}`}
                   style={{
                     backgroundColor: object.backgroundColor,
@@ -956,6 +999,7 @@ export default function SlideCanvas({
                 <div
                   key={`controls-${object.id}`}
                   data-element-id={object.id}
+                  data-selection-chrome="true"
                   className="pointer-events-none absolute z-20"
                   style={{
                     left: `${(bounds.x / MASTER.width) * 100}%`,
