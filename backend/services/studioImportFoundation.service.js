@@ -17,6 +17,10 @@ const ELEMENT_KIND_MAP = Object.freeze({
   title: 'title',
   text: 'text',
   shape: 'shape',
+  equation: 'math',
+  table: 'table',
+  chart: 'graph',
+  diagram: 'visual',
   image: 'visual',
   vector: 'visual',
   media: 'media',
@@ -27,7 +31,7 @@ const ELEMENT_KIND_MAP = Object.freeze({
 });
 const RESOURCE_TYPES = new Set([
   'image', 'video', 'animation', 'simulation', 'document', 'presentation',
-  'external_link', 'html', 'zip', 'scorm', 'model_3d',
+  'audio', 'external_link', 'html', 'zip', 'scorm', 'model_3d',
 ]);
 const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -308,10 +312,10 @@ export const fitImportBounds = (screen, bounds) => {
 const resourceTypeFor = (entry) => {
   const requested = text(entry.metadata?.resource_type);
   if (RESOURCE_TYPES.has(requested)) return requested;
+  if (entry.media_type.startsWith('audio/')) return 'audio';
   if (entry.media_type === 'image/gif') return 'animation';
   if (entry.media_type.startsWith('image/')) return 'image';
   if (entry.media_type.startsWith('video/')) return 'video';
-  if (entry.media_type.startsWith('audio/')) return 'video';
   if (entry.media_type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'presentation';
   if (entry.media_type === 'application/pdf') return 'document';
   return 'document';
@@ -336,6 +340,7 @@ const studioElementFor = (screen, element, persistedResources, resourcePlan, ele
         element_id: element.source_id,
         kind: element.kind,
         ...(isRecord(element.metadata) ? { metadata: element.metadata } : {}),
+        ...(isRecord(element.group) ? { group: element.group } : {}),
       },
     },
     position: {
@@ -445,6 +450,19 @@ export const commitImportDocument = async ({
       const elements = [...importScreen.elements]
         .sort((left, right) => Number(left.z_index || 0) - Number(right.z_index || 0))
         .map((element, elementIndex) => studioElementFor(importScreen, element, persistedResources, resourcePlan, elementIndex));
+      const sourceIdToElementId = new Map(elements.map((element) => [text(element.content?.importSource?.element_id), element.id]));
+      for (const element of elements) {
+        const animation = isRecord(element.content?.animation) ? element.content.animation : null;
+        const effects = Array.isArray(animation?.effects) ? animation.effects : [];
+        for (const effect of effects) {
+          if (!isRecord(effect)) continue;
+          const triggerSourceElementId = text(effect.triggerSourceElementId);
+          if (!triggerSourceElementId) continue;
+          const triggerElementId = sourceIdToElementId.get(triggerSourceElementId);
+          if (triggerElementId) effect.triggerElementId = triggerElementId;
+          delete effect.triggerSourceElementId;
+        }
+      }
       const saved = await ports.saveScreen(created.id, {
         revision_no: Number(created.revision_no),
         title: text(importScreen.title) || 'Imported Screen',
@@ -454,6 +472,8 @@ export const commitImportDocument = async ({
         screen_settings: {
           background: importScreen.background || {},
           ...(importScreen.background?.color ? { backgroundColor: importScreen.background.color } : {}),
+          ...(importScreen.transition ? { transition: importScreen.transition } : {}),
+          ...(text(importScreen.notes?.speaker_notes) ? { speaker_notes: text(importScreen.notes.speaker_notes) } : {}),
           import: {
             schema_version: document.schema_version,
             source: document.source,

@@ -19,6 +19,10 @@ const RESOURCE_FORMATS: Record<StudioResourceType, { short: string; help: string
     short: 'MP4, WebM',
     help: 'For reliable browser playback, upload an MP4 (H.264/AAC) or WebM video.',
   },
+  audio: {
+    short: 'MP3, M4A, AAC, WAV, OGG',
+    help: 'Upload an audio file. Browser playback depends on its codec and browser support.',
+  },
   animation: {
     short: 'GIF, MP4, WebM, JSON',
     help: 'Upload an animated GIF, MP4, WebM or JSON animation file. JSON animation preview support may depend on its format.',
@@ -126,6 +130,7 @@ export default function ResourceUploadModal({
   const accept = useMemo(() => ({
     image: '.png,.jpg,.jpeg,.gif,.webp,.svg,image/png,image/jpeg,image/gif,image/webp,image/svg+xml',
     video: '.mp4,.webm,video/mp4,video/webm',
+    audio: '.mp3,.m4a,.aac,.wav,.ogg,.oga,audio/mpeg,audio/mp4,audio/aac,audio/wav,audio/ogg',
     animation: '.gif,.mp4,.webm,.json,image/gif,video/mp4,video/webm,application/json',
     simulation: '.zip,.html,.htm,application/zip,text/html',
     external_link: '',
