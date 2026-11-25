@@ -8,6 +8,7 @@ interface ShapeGradient {
 
 interface Props {
   elementId?: string;
+  moveOutline?: boolean;
   kind: string;
   fill?: string;
   stroke?: string;
@@ -24,6 +25,7 @@ interface Props {
 }
 export default function StudioShapeElement({
   elementId,
+  moveOutline = false,
   kind,
   fill = '#dbeafe',
   stroke = '#1d4ed8',
@@ -77,10 +79,13 @@ export default function StudioShapeElement({
   return (
     <svg
       viewBox="0 0 200 120"
-      className="pointer-events-none h-full w-full"
+      data-object-shape-outline={moveOutline ? 'true' : undefined}
+      className={`${moveOutline ? 'cursor-move' : 'pointer-events-none'} h-full w-full`}
       preserveAspectRatio="none"
       aria-hidden="true"
       style={{
+        pointerEvents: moveOutline ? 'stroke' : 'none',
+        cursor: moveOutline ? 'move' : undefined,
         filter: renderedEffect === 'shadow' ? `drop-shadow(8px 8px 7px ${effectColor})`
           : renderedEffect === 'glow' ? `drop-shadow(0 0 9px ${effectColor})`
             : renderedEffect === 'soft-edges' ? 'blur(1.5px)'

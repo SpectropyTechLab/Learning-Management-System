@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Crop, FileText, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
+import { Check, Crop, FileText, LoaderCircle, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
 import { getStudioResource } from '../api/studioResourcesApi';
 import type { StudioResourceDetails, StudioResourceVersion } from '../api/studioResourcesApi';
+import type { StudioScreenResourceCache } from '../studioScreenResourceCache';
 import type { Layout, ObjectType, Rect, Slide, Slot } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
 import type { AuthorDrawingStroke, StudioDrawingTool, StudioElement, StudioScreen } from '../types';
@@ -50,6 +51,9 @@ interface BlankScreenCanvasProps {
   contextBreadcrumb?: string;
   loading: boolean;
   layout?: Layout | null;
+  layoutLoading?: boolean;
+  resourceCache?: StudioScreenResourceCache;
+  onScreenContentReady?: (screenId: number, revisionNo: number) => void;
   selectedElementId?: string | null;
   selectedElementIds?: string[];
   selectedDiagramNodeId?: string | null;
@@ -100,6 +104,9 @@ const emptySlide: Slide = {
   objects: [],
 };
 
+const EMPTY_READY_MEDIA_KEYS = new Set<string>();
+const MAX_READY_SCREEN_STATES = 64;
+
 const elementText = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title;
   if (typeof preferred === 'string') return preferred;
@@ -112,8 +119,11 @@ let nextLocalProjectReadinessId = 1;
 
 type MediaTransform = { fit: 'contain' | 'cover'; scale: number; x: number; y: number; cropped: boolean; edgeCrop: boolean; cropGeometry: boolean; cropLeft: number; cropRight: number; cropTop: number; cropBottom: number; cropScaleX: number; cropScaleY: number; cropOffsetX: number; cropOffsetY: number; filter?: string; opacity?: number };
 
-function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange, onReady }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: (additive?: boolean) => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void; onReady?: () => void }) {
+function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange, onReady, resourceCache }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: (additive?: boolean) => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void; onReady?: () => void; resourceCache?: StudioScreenResourceCache }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const notifyReadyRef = useRef(() => onReadyRef.current?.());
   const [resource, setResource] = useState<StudioResourceDetails | null>(null);
   const [version, setVersion] = useState<StudioResourceVersion | null>(null);
   const [error, setError] = useState('');
@@ -181,12 +191,16 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
   }, [cropRequestToken, onCroppingChange, onMediaTransformChange, selected, storedMediaTransform.scale, storedMediaTransform.x, storedMediaTransform.y]);
 
   useEffect(() => {
-    if (!resourceId || !versionId) return;
+    if (!resourceId || !versionId) {
+      setError('The linked Resource version is unavailable.');
+      notifyReadyRef.current();
+      return;
+    }
     let active = true;
     setResource(null);
     setVersion(null);
     setError('');
-    void getStudioResource(resourceId)
+    void (resourceCache?.getResourceDetails(resourceId, versionId) ?? getStudioResource(resourceId))
       .then((details) => {
         if (!active) return;
         const selectedVersion = details.versions.find((candidate) => candidate.id === versionId);
@@ -196,15 +210,17 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
         setVersion(selectedVersion);
       })
       .catch((loadError) => {
-        if (active)
+        if (active) {
           setError(
             loadError instanceof Error ? loadError.message : 'Unable to load the linked Resource.',
           );
+          notifyReadyRef.current();
+        }
       });
     return () => {
       active = false;
     };
-  }, [resourceId, versionId]);
+  }, [resourceCache, resourceId, versionId]);
 
   useEffect(() => {
     const syncFullScreen = () => setFullScreen(document.fullscreenElement === containerRef.current);
@@ -245,14 +261,6 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     }
     if (container?.requestFullscreen) await container.requestFullscreen();
   };
-
-  if (simulationProject) {
-    return (
-      <div ref={containerRef} tabIndex={-1} className="relative h-full w-full bg-[#09111d]" onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }}>
-        <ScreenSimulationPlayer simulation={simulationProject} onReady={onReady} />
-      </div>
-    );
-  }
 
   const beginCropEdge = (event: ReactPointerEvent<HTMLButtonElement>, edge: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
     event.preventDefault();
@@ -358,18 +366,21 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     onCroppingChange?.(false);
   }, [cropping, selected]);
 
+  if (simulationProject) {
+    return (
+      <div ref={containerRef} tabIndex={-1} className="relative h-full w-full bg-[#09111d]" onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }}>
+        <ScreenSimulationPlayer simulation={simulationProject} onReady={onReady} />
+      </div>
+    );
+  }
+
   if (error)
     return (
       <div className="grid h-full place-items-center bg-slate-900 p-3 text-center text-xs text-white">
         {error}
       </div>
     );
-  if (!resource || !version)
-    return (
-      <div className="grid h-full place-items-center bg-slate-900 text-xs font-medium text-white">
-        Preparing media…
-      </div>
-    );
+  if (!resource || !version) return null;
 
   return (
     <div ref={containerRef} tabIndex={-1} className={`group relative h-full w-full ${resource.resource_type === 'image' || resource.resource_type === 'model_3d' ? 'bg-transparent' : 'bg-black'}`} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); if (isExecutableResource && !fullScreen) containerRef.current?.focus({ preventScroll: true }); }}>
@@ -399,7 +410,7 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
         <StudioLocalSimulationFrame
           project={element.content.simulationProject}
           title={String(element.content.simulationTitle || element.content.text || resource.name)}
-          onReady={onReady}
+          onReady={notifyReadyRef.current}
           className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
         />
       ) : (
@@ -412,7 +423,9 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
           model3DSettings={resource.resource_type === 'model_3d' ? model3DSettingsFrom(element.content) : undefined}
           model3DModeRequestToken={resource.resource_type === 'model_3d' ? model3DModeRequestToken : undefined}
           onModel3DSettingsChange={resource.resource_type === 'model_3d' ? onModel3DSettingsChange : undefined}
-          onReady={onReady}
+          getPreview={resourceCache?.getPreview}
+          getObjectPreview={resourceCache?.getObjectPreview}
+          onReady={notifyReadyRef.current}
           className={`h-full w-full ${isExecutableResource && !fullScreen ? 'pointer-events-none' : ''}`}
         />
       )}
@@ -519,7 +532,7 @@ const elementBounds = (position: Record<string, unknown>): Rect | undefined => {
   const y = Number(position.y);
   const width = Number(position.width);
   const height = Number(position.height);
-  return [x, y, width, height].every(Number.isFinite) && width > 0 && height > 0
+  return [x, y, width, height].every(Number.isFinite) && width >= 0 && height >= 0
     ? { x, y, width, height }
     : undefined;
 };
@@ -542,6 +555,9 @@ export default function BlankScreenCanvas({
   contextBreadcrumb,
   loading,
   layout = null,
+  layoutLoading = false,
+  resourceCache,
+  onScreenContentReady,
   selectedElementId,
   selectedElementIds = [],
   selectedDiagramNodeId = null,
@@ -610,7 +626,8 @@ export default function BlankScreenCanvas({
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
   const [croppingElementId, setCroppingElementId] = useState<string | null>(null);
-  const [readyMediaKeys, setReadyMediaKeys] = useState<Set<string>>(() => new Set());
+  const screenReadyKey = screen ? String(screen.id) : null;
+  const [readyMediaByScreen, setReadyMediaByScreen] = useState<Map<string, Set<string>>>(() => new Map());
   const selectionChromeHidden = previewMode || Boolean(animationPreview);
   const slideFrameRef = useRef<HTMLDivElement>(null);
   const zoomPointersRef = useRef(new Map<number, { x: number; y: number }>());
@@ -625,9 +642,6 @@ export default function BlankScreenCanvas({
       ),
     [screen?.elements],
   );
-  useEffect(() => {
-    setReadyMediaKeys(new Set());
-  }, [screen?.id]);
   const mediaKeyFor = (element: StudioElement) => {
     const localProject = element.content.simulationProject && typeof element.content.simulationProject === 'object'
       ? element.content.simulationProject
@@ -643,12 +657,16 @@ export default function BlankScreenCanvas({
       return `${screen?.id ?? 'screen'}:${element.id}:local-simulation:${projectId}`;
     }
     if (element.resource) return `${screen?.id ?? 'screen'}:${element.id}:resource:${element.resource.resource_version_id}`;
+    if (element.content.source !== 'drag-drop' && element.content.source !== 'clipboard') return null;
     const url = typeof element.content.url === 'string' ? element.content.url : '';
     const mimeType = typeof element.content.mimeType === 'string' ? element.content.mimeType : '';
     return url && (element.type === 'visual' || mimeType.startsWith('image/') || mimeType.startsWith('video/') || mimeType.startsWith('audio/') || mimeType === 'application/pdf')
       ? `${screen?.id ?? 'screen'}:${element.id}:inline:${url}`
       : null;
   };
+  const readyMediaKeys = screenReadyKey
+    ? readyMediaByScreen.get(screenReadyKey) ?? EMPTY_READY_MEDIA_KEYS
+    : EMPTY_READY_MEDIA_KEYS;
   const elementMediaReady = (element: StudioElement) => {
     const key = mediaKeyFor(element);
     return !key || readyMediaKeys.has(key);
@@ -660,9 +678,22 @@ export default function BlankScreenCanvas({
     studioElementSlotId(element.id, element.slotId, element.content);
   const markElementMediaReadyAfterPaint = (element: StudioElement) => {
     const key = mediaKeyFor(element);
-    if (!key) return;
+    const elementScreenReadyKey = screenReadyKey;
+    if (!key || !elementScreenReadyKey) return;
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      setReadyMediaKeys((current) => current.has(key) ? current : new Set(current).add(key));
+      setReadyMediaByScreen((current) => {
+        const currentKeys = current.get(elementScreenReadyKey) ?? EMPTY_READY_MEDIA_KEYS;
+        if (currentKeys.has(key)) return current;
+        const next = new Map(current);
+        next.delete(elementScreenReadyKey);
+        next.set(elementScreenReadyKey, new Set(currentKeys).add(key));
+        while (next.size > MAX_READY_SCREEN_STATES) {
+          const oldestKey = next.keys().next().value as string | undefined;
+          if (!oldestKey) break;
+          next.delete(oldestKey);
+        }
+        return next;
+      });
     }));
   };
   const previewMediaReady = (screen?.elements ?? [])
@@ -889,6 +920,23 @@ export default function BlankScreenCanvas({
           ],
         }
       : baseLayout;
+  const readyScreenId = screen?.id ?? null;
+  const readyScreenRevisionNo = screen?.revision_no ?? null;
+  const screenMediaElements = (screen?.elements ?? []).filter(
+    (element) => element.position.hidden !== true && mediaKeyFor(element) !== null &&
+      !(element.resource && isSmartDiagramContent(element.content)),
+  );
+  const screenMediaReady = screenMediaElements.every(elementMediaReady);
+  const pendingMediaElementIds = screenMediaElements
+    .filter((element) => !elementMediaReady(element))
+    .map((element) => element.id);
+  const screenContentReady = Boolean(
+    screen && renderLayout && !loading && !layoutLoading && screenMediaReady,
+  );
+  useEffect(() => {
+    if (readyScreenId === null || readyScreenRevisionNo === null || !screenContentReady) return;
+    onScreenContentReady?.(readyScreenId, readyScreenRevisionNo);
+  }, [onScreenContentReady, readyScreenId, readyScreenRevisionNo, screenContentReady]);
   const fitElementToRenderedSize = (
     element: StudioElement,
     requiredWidthRatio: number,
@@ -961,13 +1009,15 @@ export default function BlankScreenCanvas({
       ? savedAnimation.effects as Array<Record<string, unknown>>
       : savedAnimation && String(savedAnimation.effect || 'none') !== 'none' ? [savedAnimation] : [];
     const mediaReady = elementMediaReady(element);
-    const editorSequencePreviewing = !previewMode && animationPreview?.mode === 'sequence' && editorPreviewStep !== null && mediaReady;
+    const editorSequencePreviewing = !previewMode && animationPreview?.mode === 'sequence' && editorPreviewStep !== null && mediaReady && screenContentReady;
     const editorPlaybackState = editorSequencePreviewing
       ? presenterElementPlaybackState(animationTimeline, element.id, editorPreviewStep, editorPreviewCycle)
       : null;
     const textPlaybackEffects = previewMode
-      ? presenterElementPlaybackState(animationTimeline, element.id, previewStep, previewCycle, previewNavigation, triggeredAnimationCueIds).activeEffects
-      : editorPlaybackState?.activeEffects ?? (animationPreview?.elementId === element.id && mediaReady ? savedEffects : []);
+      ? screenContentReady
+        ? presenterElementPlaybackState(animationTimeline, element.id, previewStep, previewCycle, previewNavigation, triggeredAnimationCueIds).activeEffects
+        : []
+      : editorPlaybackState?.activeEffects ?? (animationPreview?.elementId === element.id && mediaReady && screenContentReady ? savedEffects : []);
     const textSequenceValue = String(textPlaybackEffects[0]?.textSequence || 'object');
     const animationTextSequence = textSequenceValue === 'paragraph' || textSequenceValue === 'word' || textSequenceValue === 'letter'
       ? textSequenceValue
@@ -1058,9 +1108,10 @@ export default function BlankScreenCanvas({
     if (element.type === 'shape') {
       objectOverlays[element.id] = (
         <div className="relative h-full w-full overflow-hidden">
-          <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 z-10">
             <StudioShapeElement
               elementId={element.id}
+              moveOutline={!previewMode && Boolean(onChangeElementBounds) && element.position.locked !== true}
               kind={String(element.content.kind || 'rectangle')}
               fill={typeof element.content.fill === 'string' ? element.content.fill : undefined}
               stroke={typeof element.content.stroke === 'string' ? element.content.stroke : undefined}
@@ -1275,15 +1326,15 @@ export default function BlankScreenCanvas({
                 if (image.complete && image.naturalWidth > 0) markElementMediaReadyAfterPaint(element);
               };
               void image.decode().then(markPainted).catch(markPainted);
-            }} className="h-full w-full object-fill" />
+            }} onError={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full object-fill" />
           </div>
         );
       } else if (mimeType.startsWith('video/')) {
-        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><video src={droppedUrl} controls preload="auto" onCanPlayThrough={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
+        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><video src={droppedUrl} controls preload="auto" onLoadedData={() => markElementMediaReadyAfterPaint(element)} onCanPlay={() => markElementMediaReadyAfterPaint(element)} onCanPlayThrough={() => markElementMediaReadyAfterPaint(element)} onError={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
       } else if (mimeType.startsWith('audio/')) {
-        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls preload="auto" onCanPlayThrough={() => markElementMediaReadyAfterPaint(element)} className="mt-4 w-full"/></div></div>;
+        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls preload="auto" onCanPlay={() => markElementMediaReadyAfterPaint(element)} onCanPlayThrough={() => markElementMediaReadyAfterPaint(element)} onError={() => markElementMediaReadyAfterPaint(element)} className="mt-4 w-full"/></div></div>;
       } else if (mimeType === 'application/pdf') {
-        objectOverlays[element.id] = <div className="relative h-full w-full bg-slate-200" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><iframe src={droppedUrl} title={name} onLoad={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>;
+        objectOverlays[element.id] = <div className="relative h-full w-full bg-slate-200" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><iframe src={droppedUrl} title={name} onLoad={() => markElementMediaReadyAfterPaint(element)} onError={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>;
       } else {
         objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{mimeType || 'Document'}</p><a href={droppedUrl} download={name} onClick={(event) => event.stopPropagation()} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>;
       }
@@ -1304,6 +1355,7 @@ export default function BlankScreenCanvas({
         onModel3DSettingsChange={onChangeElementContent ? (settings) => onChangeElementContent(element.id, { model3d: settings }) : undefined}
         onMediaTransformChange={onChangeElementContent ? (mediaTransform) => onChangeElementContent(element.id, { mediaTransform }) : undefined}
         onReady={() => markElementMediaReadyAfterPaint(element)}
+        resourceCache={resourceCache}
       />
     );
   }
@@ -1359,6 +1411,11 @@ export default function BlankScreenCanvas({
     const hasAnimation =
       Boolean(animation) && (effects.length > 0 || String(animation?.effect || 'none') !== 'none');
     if (!overlay || !hasAnimation) continue;
+    if (!screenContentReady && (previewMode || animationPreview)) {
+      objectAnimationStyles[element.id] = {};
+      objectAnimationKeys[element.id] = `waiting-${screen?.id ?? 'screen'}-${element.id}`;
+      continue;
+    }
     if (!elementMediaReady(element)) {
       const previewPending = previewMode || animationPreview?.mode === 'sequence' || animationPreview?.elementId === element.id;
       objectAnimationStyles[element.id] = previewPending ? { opacity: 0 } : {};
@@ -1481,7 +1538,7 @@ export default function BlankScreenCanvas({
         ) : null}
         {!previewMode && animationPreview && !previewMediaReady ? <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-semibold text-white shadow-lg">Preparing media before preview…</div> : null}
         {!previewMode && editorPreviewStep !== null ? <div className="absolute right-3 top-3 z-30 flex items-center gap-2 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-semibold text-white shadow-lg"><span>Animation preview · Step {editorPreviewStep}/{animationTimeline.maxStep}</span><button type="button" onClick={() => { editorPreviewStoppedRef.current = true; setEditorPreviewStep(null); }} className="rounded-full bg-white/15 px-2 py-0.5 hover:bg-white/25">Stop</button></div> : null}
-        {screen && slide && renderLayout && !loading ? (
+        {screen && slide && renderLayout && !loading && !layoutLoading ? (
           <div
             ref={slideFrameRef}
             className={previewMode ? 'h-full' : 'studio-editor-slide-frame absolute inset-3'}
@@ -1545,6 +1602,7 @@ export default function BlankScreenCanvas({
             onChangeObjectBounds={onChangeElementBounds}
             onChangeObjectRotation={onChangeElementRotation}
             objectOverlays={objectOverlays}
+            hiddenObjectIds={pendingMediaElementIds}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
             canvasOverlay={!selectionChromeHidden && selectedMotionPathBounds && selectedAnimationEffect ? <StudioMotionPathCanvasOverlay
@@ -1556,7 +1614,7 @@ export default function BlankScreenCanvas({
             allowCanvasOverflow={!previewMode}
             showTextEditorOutlines={!selectionChromeHidden}
             transition={
-              screen.screen_settings_json?.transition &&
+              previewMode && screenContentReady && screen.screen_settings_json?.transition &&
               typeof screen.screen_settings_json.transition === 'object'
                 ? screen.screen_settings_json.transition
                 : undefined
@@ -1602,6 +1660,14 @@ export default function BlankScreenCanvas({
             </p>
           </div>
         )}
+        {previewMode && screen && !screenContentReady ? (
+          <div className="absolute inset-0 z-40 grid place-items-center bg-slate-100/95" role="status" aria-live="polite">
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
+              <LoaderCircle size={18} className="animate-spin text-blue-800" />
+              Preparing screen content…
+            </div>
+          </div>
+        ) : null}
       </div>
       {!previewMode ? (
         <footer className="studio-editor-status-bar flex h-8 shrink-0 items-center justify-between border-t border-slate-300 bg-white/95 px-2 text-[11px] text-slate-600" aria-label="Editor status and zoom controls">
