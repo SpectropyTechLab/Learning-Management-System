@@ -142,7 +142,11 @@ export const studioAnimationStyle = (animation?: Record<string, unknown>): CSSPr
   const animationDelays = [...delays];
   const animationIterations = [...iterationCounts];
   const animationDirections = active.map((effect) => (effect as StudioAnimationEffectDefinition).autoReverse ? 'alternate' : 'normal');
-  const animationFillModes = active.map((effect) => (effect as StudioAnimationEffectDefinition).rewind ? 'backwards' : 'both');
+  // A delayed later effect must not apply its backwards keyframe before it
+  // starts, otherwise it masks the effect currently playing on the object.
+  const animationFillModes = active.map((effect, index) => (effect as StudioAnimationEffectDefinition).rewind
+    ? 'backwards'
+    : delays[index] > 0 ? 'forwards' : 'both');
   const animationTimingFunctions = active.map((effect) => ['appear', 'disappear'].includes(String(effect.effect)) ? 'step-start' : studioAnimationTimingFunction(effect as StudioAnimationEffectDefinition));
   active.forEach((effect, index) => {
     const after = String((effect as StudioAnimationEffectDefinition).afterAnimation || 'none');
@@ -156,11 +160,14 @@ export const studioAnimationStyle = (animation?: Record<string, unknown>): CSSPr
     animationFillModes.push('forwards');
     animationTimingFunctions.push('step-end');
   });
-  const motionPath = studioMotionPathCss(primary);
+  const motionEffect = active.find((effect) => studioMotionPathCss(effect as StudioAnimationEffectDefinition)) as StudioAnimationEffectDefinition | undefined;
+  const spinEffect = active.find((effect) => String(effect.effect) === 'spin') as StudioAnimationEffectDefinition | undefined;
+  const motionPath = motionEffect ? studioMotionPathCss(motionEffect) : undefined;
   const effectAmount = Number(primary.amount);
   const scaleAmount = Number.isFinite(effectAmount) && effectAmount > 0 ? effectAmount / 100 : (primary.effect === 'pulse' ? 1.08 : 1.2);
   const transparencyAmount = Number.isFinite(effectAmount) ? Math.max(0, Math.min(100, effectAmount)) / 100 : 0.3;
-  const rotation = Math.max(1, Math.min(3600, Number(primary.rotation) || 360)) * (primary.clockwise === false ? -1 : 1);
+  const rotationSource = spinEffect ?? primary;
+  const rotation = Math.max(1, Math.min(3600, Number(rotationSource.rotation) || 360)) * (rotationSource.clockwise === false ? -1 : 1);
   const wheelSpokes = [1, 2, 3, 4, 8].includes(Number(primary.spokes)) ? Number(primary.spokes) : 1;
   const wheelMask = 'repeating-conic-gradient(from -90deg, #000 0deg var(--studio-wheel-sweep), transparent var(--studio-wheel-sweep) var(--studio-wheel-sector, 360deg))';
   const clockwise = primary.clockwise !== false && direction !== 'counter-clockwise';
@@ -180,8 +187,7 @@ export const studioAnimationStyle = (animation?: Record<string, unknown>): CSSPr
     } : {}),
     ...(motionPath ? {
       offsetPath: motionPath,
-      offsetDistance: '100%',
-      offsetRotate: String(primary.pathRotate === true ? 'auto' : '0deg'),
+      offsetRotate: String(motionEffect?.pathRotate === true ? 'auto' : '0deg'),
     } : {}),
     '--studio-enter-x': enterX,
     '--studio-enter-y': enterY,
