@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { STUDIO_ANIMATION_CATEGORIES } from './studioAnimationCatalog.ts';
-import { studioAnimationDirectionOptions, studioAnimationEffectSupported } from './studioAnimationModel.ts';
+import { STUDIO_ANIMATION_CATEGORIES, STUDIO_ANIMATION_ICON_NAMES } from './studioAnimationCatalog.ts';
+import { STUDIO_SPIN_AMOUNT_OPTIONS, studioAnimationDefaultOptions, studioAnimationDirectionOptions, studioAnimationEffectSupported } from './studioAnimationModel.ts';
 import {
   STUDIO_ANIMATION_NAMES,
   studioAnimationName,
@@ -25,6 +25,13 @@ test('every exposed animation effect has a dedicated runtime animation', () => {
     );
   }
   assert.equal(studioAnimationName('appear'), 'studio-appear');
+});
+
+test('every exposed animation has its own explicit icon in both animation galleries', () => {
+  const effects = STUDIO_ANIMATION_CATEGORIES.flatMap((category) => category.effects.map(([effect]) => effect));
+  const iconNames = effects.map((effect) => STUDIO_ANIMATION_ICON_NAMES[effect]);
+  assert.ok(iconNames.every(Boolean), 'no exposed animation may fall back to a generic icon');
+  assert.equal(new Set(iconNames).size, iconNames.length, 'unrelated animations must not reuse icons');
 });
 
 test('every animation shown in the four galleries has a matching CSS keyframe', () => {
@@ -176,6 +183,11 @@ test('effect-specific PowerPoint options reach the animation runtime', () => {
   assert.equal(counterClockwise['--studio-spin-rotation'], '-720deg');
   assert.equal(grow['--studio-effect-scale'], '1.65');
   assert.equal(transparency['--studio-effect-opacity'], '0.45');
+  assert.deepEqual(STUDIO_SPIN_AMOUNT_OPTIONS.map(([rotation]) => rotation), [90, 180, 360, 720]);
+  assert.equal(studioAnimationDefaultOptions('spin').rotation, 360);
+  for (const [rotation] of STUDIO_SPIN_AMOUNT_OPTIONS) {
+    assert.equal(studioAnimationStyle({ effects: [{ effect: 'spin', rotation }] })['--studio-spin-rotation'], `${rotation}deg`);
+  }
 });
 
 test('Split modes and Shape kinds produce genuinely different reveal geometry', () => {
@@ -200,6 +212,21 @@ test('animation sequence preserves timing, repeat and with-previous behaviour', 
   assert.equal(style.animationDuration, '1s, 0.5s, 0.4s');
   assert.equal(style.animationDelay, '0.2s, 0.3s, 1.5s');
   assert.equal(style.animationIterationCount, '1, 3, 1');
+});
+
+test('Zoom then Spin then Custom Path keeps each delayed effect isolated and uses its own options', () => {
+  const style = studioAnimationStyle({ effects: [
+    { effect: 'zoom', duration: 0.75, start: 'on-click' },
+    { effect: 'spin', rotation: 180, duration: 0.75, start: 'after-previous' },
+    { effect: 'path-custom', motionPath: [{ x: 0, y: 0 }, { x: 240, y: 30 }], duration: 2, start: 'after-previous' },
+  ] });
+  assert.equal(style.animationName, 'studio-zoom, studio-spin, studio-path-custom-legacy');
+  assert.equal(style.animationDelay, '0s, 0.75s, 1.5s');
+  assert.equal(style.animationFillMode, 'both, forwards, forwards');
+  assert.equal(style['--studio-spin-rotation'], '180deg');
+  assert.match(String(style.offsetPath), /M 0 0 L 240 30/);
+  assert.equal(style.offsetDistance, undefined);
+  assert.equal(style.offsetRotate, '0deg');
 });
 
 test('advanced PowerPoint timing uses real infinite, auto-reverse, rewind and easing semantics', () => {
@@ -239,7 +266,7 @@ test('custom motion paths persist and drive CSS offset-path playback', () => {
   }] });
   assert.equal(style.animationName, 'studio-path-custom-legacy');
   assert.match(String(style.offsetPath), /M 0 0 L 80 -20 L 160 40/);
-  assert.equal(style.offsetDistance, '100%');
+  assert.equal(style.offsetDistance, undefined);
   assert.equal(style.offsetRotate, '0deg');
   assert.equal(studioAnimationStyle({ effects: [{ effect: 'path-line', pathRotate: true }] }).offsetRotate, 'auto');
 });

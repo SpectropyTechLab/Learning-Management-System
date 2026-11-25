@@ -221,18 +221,40 @@ test('a stale concurrent Screen save returns conflict without overwriting the ne
   assert.equal(calls.some((sql) => sql.startsWith('delete from screen_elements')), false);
 });
 
-test('Screen save rejects element geometry outside the master canvas', async (t) => {
+test('Screen save accepts element geometry outside the master canvas', async (t) => {
+  const calls = [];
   const client = {
-    async query(text) {
+    async query(text, params = []) {
       const sql = normalizedSql(text);
-      if (['begin', 'rollback'].includes(sql)) return { rows: [] };
+      calls.push({ sql, params });
+      if (['begin', 'commit', 'rollback'].includes(sql)) return { rows: [] };
       if (sql.includes('from screens s join sessions se') && sql.includes('for update')) {
         return { rows: [{
           id: 31, session_id: 21, client_id: 12, title: 'Draft', layout_id: null,
           revision_no: 5, screen_settings_json: {}, session_status: 'draft', session_revision_no: 7,
         }] };
       }
-      throw new Error(`Invalid geometry must stop before this query: ${sql}`);
+      if (sql.startsWith('update screens set title')) {
+        return { rows: [{
+          id: 31, session_id: 21, client_id: 12, title: 'Draft', layout_id: null,
+          revision_no: 6, screen_settings_json: {},
+        }] };
+      }
+      if (sql.startsWith('delete from screen_elements')) return { rows: [] };
+      if (sql.startsWith('insert into screen_elements')) return { rows: [] };
+      if (sql.startsWith('delete from screen_tags')) return { rows: [] };
+      if (sql.startsWith('update sessions set status')) return { rows: [{ id: 21, status: 'draft', revision_no: 8 }] };
+      if (sql.includes('from screen_elements se')) {
+        return { rows: [{
+          id: 'text-1', slot_id: 'free-text-1', type: 'text', content: { text: 'Outside' },
+          position: { x: 1800, y: 100, width: 300, height: 120 }, resource_id: null, resource_version_id: null,
+          usage: null,
+        }] };
+      }
+      if (sql.startsWith('select tag from screen_tags')) return { rows: [] };
+      if (sql.includes('from screen_branches')) return { rows: [] };
+      if (sql.includes('from screen_zoom_links')) return { rows: [] };
+      throw new Error(`Unhandled query: ${sql}`);
     },
     release() {},
   };
@@ -240,22 +262,21 @@ test('Screen save rejects element geometry outside the master canvas', async (t)
   pool.connect = async () => client;
   t.after(() => { pool.connect = originalConnect; });
 
-  await assert.rejects(
-    saveScreen({
-      screenId: 31,
-      user: author,
-      body: {
-        revision_no: 5,
-        title: 'Draft',
-        tags: [],
-        elements: [{
-          id: 'text-1', type: 'text', slotId: 'free-text-1', content: { text: 'Outside' },
-          position: { x: 1800, y: 100, width: 300, height: 120 },
-        }],
-      },
-    }),
-    (error) => error?.status === 422 && /right canvas edge/i.test(error.message),
-  );
+  const result = await saveScreen({
+    screenId: 31,
+    user: author,
+    body: {
+      revision_no: 5,
+      title: 'Draft',
+      tags: [],
+      elements: [{
+        id: 'text-1', type: 'text', slotId: 'free-text-1', content: { text: 'Outside' },
+        position: { x: 1800, y: 100, width: 300, height: 120 },
+      }],
+    },
+  });
+  assert.equal(result.elements[0].position.x, 1800);
+  assert.ok(calls.some(({ sql, params }) => sql.startsWith('insert into screen_elements') && JSON.parse(params[5]).width === 300));
 });
 
 test('Screen save rejects executable markup inside rich text', async (t) => {
