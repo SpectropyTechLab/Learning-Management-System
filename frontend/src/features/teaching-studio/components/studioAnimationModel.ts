@@ -1,6 +1,13 @@
 export type StudioAnimationStart = 'on-click' | 'with-previous' | 'after-previous' | 'trigger';
 export type StudioAnimationRepeat = number | 'until-next-click' | 'until-end';
 export type StudioAnimationTextSequence = 'object' | 'paragraph' | 'word' | 'letter';
+
+export const STUDIO_SPIN_AMOUNT_OPTIONS = [
+  [90, 'Quarter Spin'],
+  [180, 'Half Spin'],
+  [360, 'Full Spin'],
+  [720, 'Two Spins'],
+] as const;
 export type StudioAnimationAfter = 'none' | 'dim' | 'hide-after' | 'hide-on-next-click';
 export type StudioAnimationCategory = 'entrance' | 'emphasis' | 'exit' | 'motion' | 'model-3d';
 export type StudioAnimationBuildSequence =
@@ -146,6 +153,7 @@ export const studioAnimationDefaultOptions = (effect: string): Partial<StudioAni
     ...(effect === 'split' || effect === 'split-out' ? { splitMode: 'out' as const } : {}),
     ...(effect === 'shape' || effect === 'shape-out' ? { shapeKind: 'circle' as const } : {}),
     ...(effect === 'wheel' || effect === 'wheel-out' ? { spokes: 1 as const } : {}),
+    ...(effect === 'spin' ? { clockwise: true, rotation: 360 } : {}),
   };
 };
 

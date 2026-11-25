@@ -1547,7 +1547,7 @@ export default function BlankScreenCanvas({
             objectOverlays={objectOverlays}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
-            canvasOverlay={selectedMotionPathBounds && selectedAnimationEffect ? <StudioMotionPathCanvasOverlay
+            canvasOverlay={!selectionChromeHidden && selectedMotionPathBounds && selectedAnimationEffect ? <StudioMotionPathCanvasOverlay
               bounds={selectedMotionPathBounds}
               effect={selectedAnimationEffect}
               onChange={onChangeSelectedAnimationEffect}
