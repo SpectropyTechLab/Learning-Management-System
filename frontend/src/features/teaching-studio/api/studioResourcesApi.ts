@@ -3,6 +3,7 @@ import api from '@/lib/api';
 export const STUDIO_RESOURCE_TYPES = [
   'image',
   'video',
+  'audio',
   'animation',
   'simulation',
   'external_link',
@@ -19,6 +20,7 @@ export type StudioResourceType = (typeof STUDIO_RESOURCE_TYPES)[number];
 export const studioResourceTypeLabel = (type: StudioResourceType) => ({
   image: 'Image',
   video: 'Video',
+  audio: 'Audio',
   animation: 'Animation',
   simulation: 'Simulation',
   external_link: 'External link',

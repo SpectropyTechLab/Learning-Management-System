@@ -1,11 +1,9 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import StudioAnimationMenu from './StudioAnimationMenu';
 import StudioAnimationIcon from './StudioAnimationIcon';
 import { STUDIO_ANIMATION_EFFECTS } from './studioAnimationCatalog';
 import { studioAnimationCategoryColour } from './studioAnimationModel';
-
-const galleryPageSize = 7;
 
 export default function StudioAnimationRibbonGallery({ activeEffect, disabled, isEffectDisabled, onSelect, onRemove }: {
   activeEffect: string;
@@ -14,22 +12,44 @@ export default function StudioAnimationRibbonGallery({ activeEffect, disabled, i
   onSelect: (effect: string) => void;
   onRemove: () => void;
 }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [galleryPageSize, setGalleryPageSize] = useState(7);
   const [galleryPage, setGalleryPage] = useState(0);
   const galleryPageCount = Math.ceil(STUDIO_ANIMATION_EFFECTS.length / galleryPageSize);
-  const visibleEffects = STUDIO_ANIMATION_EFFECTS.slice(galleryPage * galleryPageSize, (galleryPage + 1) * galleryPageSize);
+  const galleryStart = Math.min(galleryPage * galleryPageSize, Math.max(0, STUDIO_ANIMATION_EFFECTS.length - galleryPageSize));
+  const visibleEffects = STUDIO_ANIMATION_EFFECTS.slice(galleryStart, galleryStart + galleryPageSize);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const measure = () => {
+      // Match the Transition gallery: a 68px effect tile and a 28px paging rail.
+      // The remaining allowance covers the fixed None tile and inter-item gaps.
+      const available = Math.max(0, host.getBoundingClientRect().width - 104);
+      setGalleryPageSize(Math.max(1, Math.min(STUDIO_ANIMATION_EFFECTS.length, Math.floor(available / 70))));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const selectedIndex = STUDIO_ANIMATION_EFFECTS.findIndex((effect) => effect.id === activeEffect);
     if (selectedIndex >= 0) setGalleryPage(Math.floor(selectedIndex / galleryPageSize));
-  }, [activeEffect]);
+  }, [activeEffect, galleryPageSize]);
 
-  return <div data-studio-animation-gallery className="flex h-full items-center gap-0.5 px-1">
-    <button type="button" disabled={disabled} onClick={onRemove} title="Remove animation" className={`grid h-11 w-11 place-items-center rounded-md border text-[8px] ${activeEffect === 'none' ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'} disabled:opacity-40`}><span className="grid place-items-center"><StudioAnimationIcon effect="none" size={15}/><span>None</span></span></button>
+  useEffect(() => {
+    setGalleryPage((page) => Math.min(page, Math.max(0, galleryPageCount - 1)));
+  }, [galleryPageCount]);
+
+  return <div ref={hostRef} data-studio-animation-gallery className="flex h-14 w-full min-w-0 flex-1 items-center gap-0.5 overflow-hidden px-1">
+    <button type="button" disabled={disabled} onClick={onRemove} title="Remove animation" className={`flex h-12 min-w-[4.25rem] flex-1 basis-[4.25rem] flex-col items-center justify-center rounded-md border px-1 text-[10px] font-semibold ${activeEffect === 'none' ? 'border-blue-600 bg-blue-100 text-blue-950' : 'border-transparent bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'} disabled:opacity-40`}><StudioAnimationIcon effect="none" size={20}/><span className="mt-0.5 w-full truncate text-center">None</span></button>
     {visibleEffects.map((item) => {
       const effectDisabled = isEffectDisabled?.(item.id) === true;
-      return <button key={item.id} type="button" disabled={disabled || effectDisabled} onClick={() => onSelect(item.id)} title={effectDisabled ? `${item.name} is not available for this object` : item.name} className={`group grid h-11 w-11 place-items-center rounded-md border px-0.5 text-[8px] transition-all ${activeEffect === item.id ? 'border-blue-600 bg-blue-50 text-blue-900 ring-1 ring-blue-300' : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm'} disabled:opacity-40`}><span className="grid place-items-center"><span className="transition-transform group-hover:scale-125"><StudioAnimationIcon effect={item.id} size={15} styleColour={studioAnimationCategoryColour(item.id)}/></span><span className="w-10 truncate">{item.name}</span></span></button>;
+      return <button key={item.id} type="button" disabled={disabled || effectDisabled} onClick={() => onSelect(item.id)} title={effectDisabled ? `${item.name} is not available for this object` : item.name} className={`group flex h-12 min-w-[4.25rem] flex-1 basis-[4.25rem] flex-col items-center justify-center rounded-md border px-1 text-[10px] font-semibold transition-all ${activeEffect === item.id ? 'border-blue-600 bg-blue-100 text-blue-950' : 'border-transparent bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'} disabled:opacity-40`}><span className="transition-transform group-hover:scale-110"><StudioAnimationIcon effect={item.id} size={20} styleColour={studioAnimationCategoryColour(item.id)}/></span><span className="mt-0.5 w-full truncate text-center">{item.name}</span></button>;
     })}
-    <div className="grid h-11 w-6 shrink-0 grid-rows-3 overflow-hidden rounded border border-slate-200 bg-white">
+    <div className="grid h-14 w-7 shrink-0 grid-rows-3 overflow-hidden rounded border border-slate-200 bg-white">
       <button type="button" disabled={disabled || galleryPage === 0} onClick={() => setGalleryPage((page) => Math.max(0, page - 1))} title="Previous animation row" aria-label="Previous animation row" className="grid place-items-center border-b border-slate-200 hover:bg-blue-50 disabled:text-slate-300"><ChevronUp size={12}/></button>
       <button type="button" disabled={disabled || galleryPage >= galleryPageCount - 1} onClick={() => setGalleryPage((page) => Math.min(galleryPageCount - 1, page + 1))} title="Next animation row" aria-label="Next animation row" className="grid place-items-center border-b border-slate-200 hover:bg-blue-50 disabled:text-slate-300"><ChevronDown size={12}/></button>
       <StudioAnimationMenu compact label="Show all animations" disabled={disabled} isEffectDisabled={isEffectDisabled} onSelect={onSelect} onRemove={onRemove}/>

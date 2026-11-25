@@ -7,7 +7,7 @@ import { inspectRuntimePackage } from './studioPackageInspection.service.js';
 const BUCKET = process.env.STUDIO_RESOURCES_BUCKET || 'studio-resources';
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const RESOURCE_TYPES = new Set([
-  'image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm',
+  'image', 'video', 'audio', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm',
   'presentation', 'model_3d', 'document',
 ]);
 
@@ -112,7 +112,7 @@ const normalizeVersionInput = (body, file, resourceType) => {
   if (resourceType === 'external_link' && !externalUrl) {
     throw new AppError('external_link resources require external_url');
   }
-  if (['html', 'zip', 'scorm', 'presentation', 'document'].includes(resourceType) && !file) {
+  if (['html', 'zip', 'scorm', 'presentation', 'document', 'audio'].includes(resourceType) && !file) {
     throw new AppError(`${resourceType} resources require a file`);
   }
   if (resourceType === 'presentation' && file) {

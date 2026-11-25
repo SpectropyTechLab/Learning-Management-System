@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -7,10 +7,10 @@ import SimulationPreviewCanvas from './SimulationPreviewCanvas';
 import PhysicsRuntimePreview, { type PhysicsRuntimeCommand, type PhysicsRuntimeState } from './physics-runtime/PhysicsRuntimePreview';
 import { physicsEquationToLatex } from './physics-runtime/physicsExpressionLatex';
 
-type Props = { simulation: SimulationDocument; className?: string };
+type Props = { simulation: SimulationDocument; className?: string; onReady?: () => void };
 
 /** Presentation-only simulation surface used by Screen elements. */
-export default function ScreenSimulationPlayer({ simulation, className = '' }: Props) {
+export default function ScreenSimulationPlayer({ simulation, className = '', onReady }: Props) {
   const [paused, setPaused] = useState(false);
   const [resetToken, setResetToken] = useState(0);
   const [tab, setTab] = useState<'variables' | 'equations' | 'objects' | 'results'>('variables');
@@ -19,11 +19,23 @@ export default function ScreenSimulationPlayer({ simulation, className = '' }: P
   const [fullScreen, setFullScreen] = useState(false);
   const [graphType, setGraphType] = useState('line');
   const [viewMode, setViewMode] = useState('both');
+  const readyReportedRef = useRef(false);
   const nativePhysics = simulation.subject === 'physics' && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
   const nativeChemistry = simulation.subject === 'chemistry' && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
   const nativeBiology = simulation.subject === 'biology' && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
   const nativeMathematics = simulation.subject === 'mathematics' && simulation.metadata?.source === 'SPECTROPY Activity Studio HTML';
   const nativeRuntime = nativePhysics || nativeChemistry || nativeBiology || nativeMathematics;
+  const markReady = useCallback(() => {
+    if (readyReportedRef.current || !onReady) return;
+    readyReportedRef.current = true;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(onReady));
+  }, [onReady]);
+  useEffect(() => {
+    readyReportedRef.current = false;
+  }, [simulation]);
+  useEffect(() => {
+    if (!nativeRuntime) markReady();
+  }, [markReady, nativeRuntime, simulation]);
   const values = runtimeState?.values || {};
   const sendVariable = (key: string, value: number) => setRuntimeCommand((previous) => ({ id: (previous?.id || 0) + 1, action: 'setVariable', key, value }));
   const visibleRows = useMemo(() => tab === 'variables' ? simulation.variables : tab === 'equations' ? simulation.equations : tab === 'objects' ? simulation.objects : simulation.results, [simulation, tab]);
@@ -51,7 +63,7 @@ export default function ScreenSimulationPlayer({ simulation, className = '' }: P
         </aside>
         <section className="relative min-h-0 overflow-hidden rounded border border-slate-700 bg-[#09111d]">
           {nativeRuntime ? <div className="absolute right-12 top-2 z-10 flex gap-1 rounded bg-slate-950/90 p-1 text-sm"><select aria-label="Graph type" value={graphType} onChange={(event) => { setGraphType(event.target.value); setRuntimeCommand((p) => ({ id: (p?.id || 0) + 1, action: 'graph', value: event.target.value })); }} className="rounded border border-slate-600 bg-slate-900 px-1 py-1 text-white"><option value="line">Line vs variable</option><option value="xy">X-Y / phase</option><option value="bar">Bar values</option></select><select aria-label="View mode" value={viewMode} onChange={(event) => { setViewMode(event.target.value); setRuntimeCommand((p) => ({ id: (p?.id || 0) + 1, action: 'view', value: event.target.value })); }} className="rounded border border-slate-600 bg-slate-900 px-1 py-1 text-white"><option value="both">Scene + Graph</option><option value="scene">Scene</option><option value="graph">Graph</option><option value="side">Side by side</option></select></div> : null}
-          {nativeRuntime ? <PhysicsRuntimePreview simulation={simulation} runtimeUrl={nativeChemistry ? '/studio-labs/chemistry/chemistry-simulation-studio.html?v=chemistry-library-icons-2' : nativeBiology ? '/studio-labs/biology/biology-simulation-studio.html?v=biology-runtime-1' : nativeMathematics ? '/studio-labs/mathematics/mathematics-simulation-studio.html?v=mathematics-runtime-1' : undefined} resetToken={resetToken} command={runtimeCommand} onState={setRuntimeState} presentationScale={1.25} /> : <SimulationPreviewCanvas simulation={simulation} paused={paused} resetToken={resetToken} />}
+          {nativeRuntime ? <PhysicsRuntimePreview simulation={simulation} runtimeUrl={nativeChemistry ? '/studio-labs/chemistry/chemistry-simulation-studio.html?v=chemistry-library-icons-2' : nativeBiology ? '/studio-labs/biology/biology-simulation-studio.html?v=biology-runtime-1' : nativeMathematics ? '/studio-labs/mathematics/mathematics-simulation-studio.html?v=mathematics-runtime-1' : undefined} resetToken={resetToken} command={runtimeCommand} onState={(state) => { setRuntimeState(state); if (state) markReady(); }} presentationScale={1.25} /> : <SimulationPreviewCanvas simulation={simulation} paused={paused} resetToken={resetToken} />}
         </section>
       </div>
       {!nativeRuntime ? (

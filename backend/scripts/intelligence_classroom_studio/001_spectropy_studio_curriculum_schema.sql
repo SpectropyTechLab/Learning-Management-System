@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS public.screen_elements (
   slot_id TEXT,
   element_type VARCHAR(30) NOT NULL CHECK (element_type IN (
     'title', 'text', 'visual', 'question', 'response', 'steps', 'workspace',
-    'footer', 'simulation', 'activity', 'media', 'graph', 'data', 'options',
+    'footer', 'simulation', 'activity', 'media', 'graph', 'table', 'data', 'options',
     'math', 'shape', 'zoom', 'embedded_object'
   )),
   content_json JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(content_json) = 'object'),
@@ -313,7 +313,7 @@ CREATE TABLE IF NOT EXISTS public.resources (
   name VARCHAR(250) NOT NULL,
   description TEXT,
   resource_type VARCHAR(30) NOT NULL CHECK (resource_type IN
-    ('image', 'video', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm', 'presentation', 'model_3d', 'document')),
+    ('image', 'video', 'audio', 'animation', 'simulation', 'external_link', 'html', 'zip', 'scorm', 'presentation', 'model_3d', 'document')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
