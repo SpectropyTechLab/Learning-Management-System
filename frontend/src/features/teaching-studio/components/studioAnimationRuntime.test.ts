@@ -6,6 +6,8 @@ import { studioAnimationDirectionOptions, studioAnimationEffectSupported } from 
 import {
   STUDIO_ANIMATION_NAMES,
   studioAnimationName,
+  studioContainerAnimationEffects,
+  studioShapePaintAnimationEffects,
   studioAnimationStyle,
 } from './studioAnimationRuntime.ts';
 
@@ -145,6 +147,26 @@ test('Colour Pulse carries its selected colour into the runtime style', () => {
     effects: [{ effect: 'color-pulse', color: '#ef4444' }],
   }) as Record<string, unknown>;
   assert.equal(style['--studio-pulse-color'], '#ef4444');
+});
+
+test('shape paint effects stay on shape geometry instead of the rectangular canvas container', () => {
+  const effects = [
+    { effect: 'fly-in', direction: 'left' },
+    { effect: 'fill-color', color: '#ef4444' },
+    { effect: 'line-color', color: '#2563eb' },
+  ];
+  assert.deepEqual(
+    studioShapePaintAnimationEffects(effects).map((effect) => effect.effect),
+    ['fill-color', 'line-color'],
+  );
+  assert.deepEqual(
+    studioContainerAnimationEffects(effects, true).map((effect) => effect.effect),
+    ['fly-in'],
+  );
+  assert.deepEqual(
+    studioContainerAnimationEffects(effects, false).map((effect) => effect.effect),
+    ['fly-in', 'fill-color', 'line-color'],
+  );
 });
 
 test('effect-specific PowerPoint options reach the animation runtime', () => {

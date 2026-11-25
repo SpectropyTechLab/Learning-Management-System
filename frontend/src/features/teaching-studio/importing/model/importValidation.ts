@@ -1,7 +1,7 @@
 import { createImportIssue, IMPORT_ISSUE_CODES } from './importIssues.ts';
 import { IMPORT_SCHEMA_VERSION, type ImportDocument, type ImportIssue } from './importTypes.ts';
 
-const elementKinds = new Set(['title', 'text', 'shape', 'image', 'vector', 'media', 'video', 'audio', 'simulation', 'embedded_object']);
+const elementKinds = new Set(['title', 'text', 'shape', 'equation', 'table', 'chart', 'image', 'vector', 'media', 'video', 'audio', 'simulation', 'embedded_object']);
 const sourceKinds = new Set(['clipboard', 'pptx', 'synthetic']);
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);

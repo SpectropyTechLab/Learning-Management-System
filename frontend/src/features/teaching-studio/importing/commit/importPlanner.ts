@@ -4,7 +4,7 @@ import { normalizeImportStyle } from '../converters/styleConverter.ts';
 import type { ImportElement, ImportScreen, PersistedImportResource } from '../model/importTypes.ts';
 
 const typeByKind: Record<ImportElement['kind'], string> = {
-  title: 'title', text: 'text', shape: 'shape', image: 'visual', vector: 'visual',
+  title: 'title', text: 'text', shape: 'shape', equation: 'math', table: 'table', chart: 'graph', diagram: 'visual', image: 'visual', vector: 'visual',
   media: 'media', video: 'media', audio: 'media', simulation: 'simulation', embedded_object: 'embedded_object',
 };
 

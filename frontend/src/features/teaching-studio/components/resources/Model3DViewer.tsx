@@ -27,6 +27,9 @@ type ModelViewerElement = HTMLElement & {
   animationName: string;
   availableAnimations: string[];
   availableVariants?: string[];
+  loaded: boolean;
+  modelIsVisible: boolean;
+  updateComplete?: Promise<unknown>;
   variantName?: string;
   currentTime: number;
   timeScale: number;
@@ -135,6 +138,10 @@ export default function Model3DViewer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const orbitDragRef = useRef<OrbitDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
+  const onReadyRef = useRef(onReady);
+  const onSettingsChangeRef = useRef(onSettingsChange);
+  onReadyRef.current = onReady;
+  onSettingsChangeRef.current = onSettingsChange;
   const latestSettings = useRef(settings);
   latestSettings.current = settings;
 
@@ -180,13 +187,16 @@ export default function Model3DViewer({
   useEffect(() => {
     setAnimations([]);
     setVariants([]);
-    setSelectedAnimation(settings.animationName);
     setPlaying(false);
     setModelLoaded(false);
     setLoadProgress(0);
     setLoadError('');
     setMaterialWarning('');
-  }, [src, settings.animationName]);
+  }, [src]);
+
+  useEffect(() => {
+    setSelectedAnimation(settings.animationName);
+  }, [settings.animationName]);
 
   useEffect(() => {
     if (mode === 'canvas' && !selected) {
@@ -197,8 +207,8 @@ export default function Model3DViewer({
   }, [mode, selected]);
 
   const updateSettings = useCallback((changes: Partial<Model3DSettings>) => {
-    onSettingsChange?.({ ...latestSettings.current, ...changes });
-  }, [onSettingsChange]);
+    onSettingsChangeRef.current?.({ ...latestSettings.current, ...changes });
+  }, []);
 
   const persistCamera = useCallback(() => {
     const viewer = viewerRef.current;
@@ -237,25 +247,47 @@ export default function Model3DViewer({
 
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!moduleReady || !viewer) return;
+    if (!moduleReady || !renderSource || !viewer) return;
+    let active = true;
+    let readyReported = false;
+    let readinessPending = false;
+    const finishWhenVisible = async () => {
+      if (!active || readyReported || readinessPending || !viewer.loaded || !viewer.modelIsVisible) return;
+      readinessPending = true;
+      try {
+        if (viewer.updateComplete) await viewer.updateComplete;
+        await new Promise<void>((resolve) => {
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+        });
+        if (!active) return;
+        if (!viewer.loaded || !viewer.modelIsVisible) {
+          readinessPending = false;
+          return;
+        }
+        readyReported = true;
+        const availableAnimations = [...(viewer.availableAnimations || [])];
+        const availableVariants = [...(viewer.availableVariants || [])];
+        setAnimations(availableAnimations);
+        setVariants(availableVariants);
+        setSelectedAnimation((current) => {
+          const next = availableAnimations.includes(latestSettings.current.animationName)
+            ? latestSettings.current.animationName
+            : availableAnimations.includes(current) ? current : availableAnimations[0] || '';
+          if (next && next !== latestSettings.current.animationName) updateSettings({ animationName: next });
+          return next;
+        });
+        if (latestSettings.current.variant && availableVariants.includes(latestSettings.current.variant)) viewer.variantName = latestSettings.current.variant;
+        setMaterialWarning(missingMaterialMessage(viewer));
+        setModelLoaded(true);
+        setLoadProgress(1);
+        setLoadError('');
+        onReadyRef.current?.();
+      } catch {
+        readinessPending = false;
+      }
+    };
     const synchronizeModel = () => {
-      const availableAnimations = [...(viewer.availableAnimations || [])];
-      const availableVariants = [...(viewer.availableVariants || [])];
-      setAnimations(availableAnimations);
-      setVariants(availableVariants);
-      setSelectedAnimation((current) => {
-        const next = availableAnimations.includes(settings.animationName)
-          ? settings.animationName
-          : availableAnimations.includes(current) ? current : availableAnimations[0] || '';
-        if (next && next !== settings.animationName) updateSettings({ animationName: next });
-        return next;
-      });
-      if (settings.variant && availableVariants.includes(settings.variant)) viewer.variantName = settings.variant;
-      setMaterialWarning(missingMaterialMessage(viewer));
-      setModelLoaded(true);
-      setLoadProgress(1);
-      setLoadError('');
-      onReady?.();
+      void finishWhenVisible();
     };
     const failModel = () => {
       setModelLoaded(false);
@@ -266,15 +298,18 @@ export default function Model3DViewer({
       if (Number.isFinite(progress)) setLoadProgress(progress);
     };
     viewer.addEventListener('load', synchronizeModel);
+    viewer.addEventListener('model-visibility', synchronizeModel);
     viewer.addEventListener('error', failModel);
     viewer.addEventListener('progress', reportProgress);
-    if (viewer.availableAnimations?.length || viewer.model) synchronizeModel();
+    if (viewer.loaded && viewer.modelIsVisible) synchronizeModel();
     return () => {
+      active = false;
       viewer.removeEventListener('load', synchronizeModel);
+      viewer.removeEventListener('model-visibility', synchronizeModel);
       viewer.removeEventListener('error', failModel);
       viewer.removeEventListener('progress', reportProgress);
     };
-  }, [moduleReady, onReady, settings.animationName, settings.variant, updateSettings]);
+  }, [moduleReady, renderSource, updateSettings]);
 
   useEffect(() => {
     const container = containerRef.current;
