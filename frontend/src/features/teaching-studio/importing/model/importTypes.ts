@@ -3,8 +3,8 @@ export const IMPORT_SCHEMA_VERSION = 'spectropy.import.v1' as const;
 export type ImportSourceKind = 'clipboard' | 'pptx' | 'synthetic';
 export type ImportIssueSeverity = 'info' | 'warning' | 'error';
 export type ImportElementKind =
-  | 'title' | 'text' | 'shape' | 'image' | 'vector' | 'media'
-  | 'video' | 'audio' | 'simulation' | 'embedded_object';
+  | 'title' | 'text' | 'shape' | 'equation' | 'table' | 'chart' | 'diagram'
+  | 'image' | 'vector' | 'media' | 'video' | 'audio' | 'simulation' | 'embedded_object';
 
 export interface ImportIssue {
   severity: ImportIssueSeverity;

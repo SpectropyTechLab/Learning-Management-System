@@ -235,7 +235,7 @@ test('Canvas zoom scales one canonical surface and elements resize from every ed
   assert.match(slide, /outline outline-2 outline-dotted/);
   assert.match(slide, /selected \? 'outline-blue-600' : 'outline-slate-400'/);
   const blankCanvas = readFrontend('components/BlankScreenCanvas.tsx');
-  assert.match(blankCanvas, /showTextEditorOutlines=\{!previewMode\}/);
+  assert.match(blankCanvas, /showTextEditorOutlines=\{!selectionChromeHidden\}/);
   const textElement = readFrontend('components/StudioCanvasTextElement.tsx');
   assert.match(textElement, /overflowWrap: 'anywhere'/);
   assert.match(slide, /after:h-3 after:w-3/);
@@ -308,7 +308,7 @@ test('Selected media supports component fitting and non-destructive crop control
   assert.match(toolbar, /mediaTransform/);
   assert.match(player, /mediaTransform\?\.cropped === true && !hasEdgeCrop/);
   assert.match(player, /resourceType === 'image'[\s\S]*?\? 'fill' as const/);
-  assert.match(player, /resourceType === 'image' && !hasEdgeCrop/);
+  assert.match(player, /isImageMedia && !hasEdgeCrop && !hasCropGeometry/);
   assert.match(player, /mediaTransform\?\.edgeCrop === true/);
   assert.match(blankCanvas, /continuingEdgeCrop/);
   assert.match(blankCanvas, /continuingCropGeometry/);
@@ -526,8 +526,8 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   const retreatStart = player.indexOf('const retreatPresenter =');
   const retreatEnd = player.indexOf('useEffect(() => {', retreatStart);
   const retreatImplementation = player.slice(retreatStart, retreatEnd);
-  assert.match(player, /<PublishedCanvas key=\{screen\.screen_id\}/);
-  assert.doesNotMatch(player, /<PublishedCanvas key=\{`\$\{screen\.screen_id\}-\$\{playbackCycle\}`\}/);
+  assert.match(player, /<PublishedCanvas key=\{`\$\{release\.id\}:\$\{screen\.screen_id\}:\$\{previewMode \? 'preview' : 'published'\}:active`\}/);
+  assert.doesNotMatch(player, /<PublishedCanvas key=\{[^}]*playbackCycle/);
   assert.doesNotMatch(retreatImplementation, /setPlaybackCycle/);
   assert.match(runtime, /presenterElementPlaybackState/);
   assert.match(runtime, /reachedCueIndex/);
@@ -557,13 +557,13 @@ test('Transitions keep their complete PowerPoint-style workflow in the ribbon', 
   assert.doesNotMatch(editor, /<StudioTransitionsPanel/);
   assert.match(transitionRibbon, /STUDIO_TRANSITION_GROUPS/);
   assert.match(transitionRibbon, /All transitions/);
-  assert.match(transitionRibbon, /Transition direction/);
+  assert.match(transitionRibbon, /Effect Options/);
   assert.match(transitionRibbon, /Transition duration/);
   assert.match(transitionRibbon, /Motion intensity/);
   assert.match(transitionRibbon, /Transition easing/);
   assert.match(transitionRibbon, /Transition sound/);
-  assert.match(transitionRibbon, /Reduced motion/);
-  assert.match(transitionRibbon, /Apply all/);
+  assert.match(transitionRibbon, /Respect reduced motion/);
+  assert.match(transitionRibbon, /Apply to all/);
 });
 
 test('Canvas elements support direct pointer dragging as well as resize handles', () => {
@@ -571,7 +571,7 @@ test('Canvas elements support direct pointer dragging as well as resize handles'
   assert.match(slide, /const queueDirectMove/);
   assert.match(slide, /Math\.hypot\(movementX, movementY\) < 6/);
   assert.match(slide, /onPointerDown=\{\(event\) => object && queueDirectMove\(event, object\.id, bounds, object\.locked\)\}/);
-  assert.match(slide, /onPointerDownCapture=\{\(event\) => queueDirectMove\(event, object\.id, bounds, object\.locked\)\}/);
+  assert.match(slide, /onPointerDownCapture=\{\(event\) => \{[\s\S]*?if \(!selectionChromeHidden\) queueDirectMove\(event, object\.id, bounds, object\.locked\);[\s\S]*?\}\}/);
   assert.match(slide, /if \(locked \|\| !onChangeObjectBounds/);
   assert.match(slide, /\[contenteditable="true"\]/);
   const queueStart = slide.indexOf('const queueDirectMove');
@@ -590,7 +590,7 @@ test('Adaptive ribbon exposes PowerPoint-style collapse, contextual crop, shape 
   const shapeRibbon = readFrontend('components/StudioShapeFormatRibbon.tsx');
 
   assert.match(ribbon, /aria-label=\{collapsed \? 'Show ribbon commands' : 'Hide ribbon commands'\}/);
-  assert.match(ribbon, /height: collapsed \? '2rem' : '6\.35rem'/);
+  assert.match(ribbon, /height: collapsed \? '2rem' : '7\.65rem'/);
   assert.match(ribbon, /if \(collapsed\) onToggleCollapsed\?\.\(\)/);
 
   assert.match(editor, /id: 'picture-crop'/);

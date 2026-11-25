@@ -18,6 +18,8 @@ export type StudioRibbonTabId =
   | 'table-layout'
   | 'diagram-design'
   | 'diagram-format'
+  | 'chart-design'
+  | 'chart-format'
   | '3d-model'
   | 'group-format'
   | 'drawing-format';
@@ -82,6 +84,10 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
       accent: 'emerald',
     });
     tabs.push({ id: 'diagram-format', label: 'Diagram Format', contextual: true, accent: 'emerald' });
+  }
+  if (visualType === 'chart') {
+    tabs.push({ id: 'chart-design', label: 'Chart Design', contextual: true, accent: 'emerald' });
+    tabs.push({ id: 'chart-format', label: 'Chart Format', contextual: true, accent: 'emerald' });
   }
   if (resourceType === 'model_3d') {
     tabs.push({ id: '3d-model', label: '3D Model', contextual: true, accent: 'amber' });

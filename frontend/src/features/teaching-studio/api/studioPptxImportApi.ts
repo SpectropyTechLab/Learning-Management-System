@@ -19,6 +19,11 @@ export interface PptxSlideSummary {
   editable_text_count: number;
   shape_count: number;
   image_count: number;
+  table_count: number;
+  equation_count: number;
+  chart_count: number;
+  diagram_count: number;
+  media_count: number;
   warning_count: number;
 }
 
@@ -30,7 +35,7 @@ export interface PptxPreflight {
   resource_count: number;
   issue_counts: { info: number; warning: number; error: number };
   issues: PptxImportIssue[];
-  defaults: { selected_slide_ids: string[]; formatting: 'source'; fit_mode: 'fit'; fallback: 'picture'; animations: false };
+  defaults: { selected_slide_ids: string[]; formatting: 'source'; fit_mode: 'fit'; fallback: 'picture'; animations: boolean };
 }
 
 export interface PptxImportOptions {
@@ -40,7 +45,7 @@ export interface PptxImportOptions {
   formatting: 'source' | 'destination';
   fit_mode: 'fit' | 'preserve';
   fallback: 'picture' | 'placeholder' | 'skip';
-  animations: false;
+  animations: boolean;
 }
 
 export interface PptxImportResult {
@@ -54,7 +59,7 @@ export interface PptxImportResult {
     file_name: string;
     screens: PptxSlideSummary[];
     issues: PptxImportIssue[];
-    counts: { screens: number; elements: number; editable_text: number; shapes: number; images: number; resources: number; warnings: number };
+    counts: { screens: number; elements: number; editable_text: number; shapes: number; images: number; tables: number; equations: number; charts: number; diagrams: number; media: number; resources: number; warnings: number };
   };
 }
 

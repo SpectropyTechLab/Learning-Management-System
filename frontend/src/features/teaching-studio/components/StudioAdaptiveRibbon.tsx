@@ -97,7 +97,7 @@ export default function StudioAdaptiveRibbon({
   onToggleCollapsed,
 }: Props) {
   return (
-    <section style={{ height: collapsed ? '2rem' : '6.35rem' }} className="studio-adaptive-ribbon relative z-[80] shrink-0 overflow-visible rounded-xl border border-slate-200 bg-white/95 shadow-sm transition-[height] duration-200" aria-label="Editor ribbon">
+    <section style={{ height: collapsed ? '2rem' : '7.65rem' }} className="studio-adaptive-ribbon relative z-[80] shrink-0 overflow-visible rounded-xl border border-slate-200 bg-white/95 shadow-sm transition-[height] duration-200" aria-label="Editor ribbon">
       <div role="tablist" aria-label="Editor command tabs" className="studio-ribbon-tabs flex h-8 min-w-0 items-end gap-0.5 overflow-hidden border-b border-slate-200 px-2 pt-0.5">
         {tabs.map((tab) => {
           const selected = tab.id === activeTab;
@@ -121,14 +121,14 @@ export default function StudioAdaptiveRibbon({
           </button>
         ) : null}
       </div>
-      <div id="studio-ribbon-command-panel" role="tabpanel" aria-hidden={collapsed} tabIndex={collapsed ? -1 : 0} className={`studio-ribbon-groups h-[4.35rem] min-w-0 items-stretch gap-1 overflow-x-auto overflow-y-hidden px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 ${collapsed ? 'hidden' : 'flex'}`}>
+      <div id="studio-ribbon-command-panel" data-ribbon-tab={activeTab} role="tabpanel" aria-hidden={collapsed} tabIndex={collapsed ? -1 : 0} className={`studio-ribbon-groups h-[5.65rem] min-w-0 items-stretch gap-1 overflow-y-hidden px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 ${activeTab === 'animations' || activeTab === 'transitions' ? 'overflow-x-hidden' : 'overflow-x-auto'} ${collapsed ? 'hidden' : 'flex'}`}>
         {groups.length ? groups.map((group) => (
           <Fragment key={group.id}>
           {activeTab === 'home' && group.id === 'selection' ? <div id="studio-contextual-toolbar-host" className="flex min-w-0 empty:hidden shrink-0 items-stretch overflow-hidden [&>*]:w-full" aria-live="polite" /> : null}
           <div className={`studio-ribbon-group flex min-w-0 flex-col border-r border-slate-200 pr-1 last:border-r-0 ${group.fitAvailableSpace ? 'flex-1' : 'shrink-0'}`}>
             <div className="flex min-h-0 flex-1 items-center gap-0.5 overflow-hidden">
               {group.content}
-              <RibbonCommandList commands={group.commands ?? []} fitAvailableSpace={group.fitAvailableSpace} />
+              {group.commands?.length ? <RibbonCommandList commands={group.commands} fitAvailableSpace={group.fitAvailableSpace} /> : null}
             </div>
             <div className="relative mt-0.5 min-h-3 text-center text-[9px] font-medium text-slate-400">
               <span>{group.label}</span>

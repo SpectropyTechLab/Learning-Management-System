@@ -27,9 +27,11 @@ import StudioHyperlinkOverlay from './studioHyperlink';
 import ScreenSimulationPlayer from './ScreenSimulationPlayer';
 import type { SimulationDocument } from './simulationStudioModel';
 import { isSmartDiagramContent, type SmartDiagramContent } from './smartDiagramModel';
-import { studioAnimationStyle } from './studioAnimationRuntime';
+import { studioAnimationStyle, studioContainerAnimationEffects, studioShapePaintAnimationEffects } from './studioAnimationRuntime';
 import { playStudioAnimationSound } from './studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './studioAnimationModel';
+import { studioAnimationCapabilities } from './studioAnimationModel';
+import StudioMotionPathCanvasOverlay from './StudioMotionPathCanvasOverlay';
 import type { InlineShapeData } from './studioInlineShape';
 import {
   buildPresenterAnimationTimeline,
@@ -72,6 +74,8 @@ interface BlankScreenCanvasProps {
   showGuides?: boolean;
   previewMode?: boolean;
   animationPreview?: { elementId?: string; token: number; mode?: 'element' | 'sequence'; fromEffectId?: string } | null;
+  selectedAnimationEffect?: StudioAnimationEffectDefinition | null;
+  onChangeSelectedAnimationEffect?: (changes: Partial<StudioAnimationEffectDefinition>) => void;
   cropRequest?: { elementId: string; token: number } | null;
   model3DModeRequest?: { elementId: string; token: number } | null;
   previewStartAtEnd?: boolean;
@@ -103,7 +107,10 @@ const elementText = (content: Record<string, unknown>) => {
   return typeof firstText === 'string' ? firstText : '';
 };
 
-type MediaTransform = { fit: 'contain' | 'cover'; scale: number; x: number; y: number; cropped: boolean; edgeCrop: boolean; cropGeometry: boolean; cropLeft: number; cropRight: number; cropTop: number; cropBottom: number; cropScaleX: number; cropScaleY: number; cropOffsetX: number; cropOffsetY: number };
+const localProjectReadinessIds = new WeakMap<object, number>();
+let nextLocalProjectReadinessId = 1;
+
+type MediaTransform = { fit: 'contain' | 'cover'; scale: number; x: number; y: number; cropped: boolean; edgeCrop: boolean; cropGeometry: boolean; cropLeft: number; cropRight: number; cropTop: number; cropBottom: number; cropScaleX: number; cropScaleY: number; cropOffsetX: number; cropOffsetY: number; filter?: string; opacity?: number };
 
 function BoundResource({ element, bounds, selected = false, cropRequestToken, model3DModeRequestToken, onSelect, onCroppingChange, onCommitCrop, onModel3DSettingsChange, onMediaTransformChange, onReady }: { element: StudioElement; bounds?: Rect; selected?: boolean; cropRequestToken?: number; model3DModeRequestToken?: number; onSelect?: (additive?: boolean) => void; onCroppingChange?: (cropping: boolean) => void; onCommitCrop?: (bounds: Rect, transform: MediaTransform) => void; onModel3DSettingsChange?: (settings: Model3DSettings) => void; onMediaTransformChange?: (transform: MediaTransform) => void; onReady?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,6 +144,8 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
     cropScaleY: Math.max(1, Number(storedMediaTransform.cropScaleY) || 1),
     cropOffsetX: Number(storedMediaTransform.cropOffsetX) || 0,
     cropOffsetY: Number(storedMediaTransform.cropOffsetY) || 0,
+    ...(typeof storedMediaTransform.filter === 'string' ? { filter: storedMediaTransform.filter } : {}),
+    ...(Number.isFinite(Number(storedMediaTransform.opacity)) ? { opacity: Math.max(0, Math.min(1, Number(storedMediaTransform.opacity))) } : {}),
   };
   const effectiveMediaTransform = cropping && cropDraft ? cropDraft : mediaTransform;
   const simulationProject = element.type === 'simulation' && element.content.simulationProject && typeof element.content.simulationProject === 'object'
@@ -164,6 +173,8 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
       cropScaleY: Math.max(1, Number(storedMediaTransform.cropScaleY) || 1),
       cropOffsetX: Number(storedMediaTransform.cropOffsetX) || 0,
       cropOffsetY: Number(storedMediaTransform.cropOffsetY) || 0,
+      ...(typeof storedMediaTransform.filter === 'string' ? { filter: storedMediaTransform.filter } : {}),
+      ...(Number.isFinite(Number(storedMediaTransform.opacity)) ? { opacity: Math.max(0, Math.min(1, Number(storedMediaTransform.opacity))) } : {}),
     });
     setCropping(true);
     onCroppingChange?.(true);
@@ -238,7 +249,7 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
   if (simulationProject) {
     return (
       <div ref={containerRef} tabIndex={-1} className="relative h-full w-full bg-[#09111d]" onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }}>
-        <ScreenSimulationPlayer simulation={simulationProject} />
+        <ScreenSimulationPlayer simulation={simulationProject} onReady={onReady} />
       </div>
     );
   }
@@ -366,18 +377,22 @@ function BoundResource({ element, bounds, selected = false, cropRequestToken, mo
         (element.content.labProject as { subject?: unknown }).subject === 'chemistry' ? <StudioLocalChemistryLabFrame
           project={element.content.labProject}
           title={String(element.content.labTitle || element.content.text || resource.name)}
+          onReady={onReady}
           className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
         /> : (element.content.labProject as { subject?: unknown }).subject === 'mathematics' ? <StudioLocalMathematicsLabFrame
           project={element.content.labProject}
           title={String(element.content.labTitle || element.content.text || resource.name)}
+          onReady={onReady}
           className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
         /> : (element.content.labProject as { subject?: unknown }).subject === 'biology' ? <StudioLocalBiologyLabFrame
           project={element.content.labProject}
           title={String(element.content.labTitle || element.content.text || resource.name)}
+          onReady={onReady}
           className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
         /> : <StudioLocalPhysicsLabFrame
           project={element.content.labProject}
           title={String(element.content.labTitle || element.content.text || resource.name)}
+          onReady={onReady}
           className={`h-full w-full ${!fullScreen ? 'pointer-events-none' : ''}`}
         />
       ) : element.type === 'simulation' && element.content.simulationProject && typeof element.content.simulationProject === 'object' ? (
@@ -551,6 +566,8 @@ export default function BlankScreenCanvas({
   showGuides = false,
   previewMode = false,
   animationPreview = null,
+  selectedAnimationEffect = null,
+  onChangeSelectedAnimationEffect,
   cropRequest = null,
   model3DModeRequest = null,
   previewStartAtEnd = false,
@@ -594,6 +611,7 @@ export default function BlankScreenCanvas({
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
   const [croppingElementId, setCroppingElementId] = useState<string | null>(null);
   const [readyMediaKeys, setReadyMediaKeys] = useState<Set<string>>(() => new Set());
+  const selectionChromeHidden = previewMode || Boolean(animationPreview);
   const slideFrameRef = useRef<HTMLDivElement>(null);
   const zoomPointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | null>(null);
@@ -607,12 +625,28 @@ export default function BlankScreenCanvas({
       ),
     [screen?.elements],
   );
+  useEffect(() => {
+    setReadyMediaKeys(new Set());
+  }, [screen?.id]);
   const mediaKeyFor = (element: StudioElement) => {
-    if (element.resource) return `${element.id}:resource:${element.resource.resource_version_id}`;
+    const localProject = element.content.simulationProject && typeof element.content.simulationProject === 'object'
+      ? element.content.simulationProject
+      : element.content.labProject && typeof element.content.labProject === 'object'
+        ? element.content.labProject
+        : null;
+    if (element.type === 'simulation' && localProject) {
+      let projectId = localProjectReadinessIds.get(localProject);
+      if (!projectId) {
+        projectId = nextLocalProjectReadinessId++;
+        localProjectReadinessIds.set(localProject, projectId);
+      }
+      return `${screen?.id ?? 'screen'}:${element.id}:local-simulation:${projectId}`;
+    }
+    if (element.resource) return `${screen?.id ?? 'screen'}:${element.id}:resource:${element.resource.resource_version_id}`;
     const url = typeof element.content.url === 'string' ? element.content.url : '';
     const mimeType = typeof element.content.mimeType === 'string' ? element.content.mimeType : '';
-    return url && (mimeType.startsWith('image/') || mimeType.startsWith('video/') || mimeType.startsWith('audio/') || mimeType === 'application/pdf')
-      ? `${element.id}:inline:${url}`
+    return url && (element.type === 'visual' || mimeType.startsWith('image/') || mimeType.startsWith('video/') || mimeType.startsWith('audio/') || mimeType === 'application/pdf')
+      ? `${screen?.id ?? 'screen'}:${element.id}:inline:${url}`
       : null;
   };
   const elementMediaReady = (element: StudioElement) => {
@@ -944,6 +978,10 @@ export default function BlankScreenCanvas({
     const textAnimationStyle = animationTextSequence && textPlaybackEffects.length
       ? studioAnimationStyle({ effects: textPlaybackEffects })
       : undefined;
+    const shapePaintEffects = studioShapePaintAnimationEffects(textPlaybackEffects);
+    const shapePaintAnimationStyle = shapePaintEffects.length
+      ? studioAnimationStyle({ effects: shapePaintEffects })
+      : undefined;
     if (isSmartDiagramContent(element.content)) {
       const diagramContent = element.content;
       const visibleNodeIds = previewMode || editorSequencePreviewing
@@ -957,8 +995,8 @@ export default function BlankScreenCanvas({
       objectOverlays[element.id] = (
         <StudioSmartDiagram
           content={selectedElementId === element.id && diagramLivePreview ? { ...diagramContent, ...diagramLivePreview } : diagramContent}
-          editable={!previewMode && Boolean(onChangeElementContent)}
-          selectedNodeId={selectedElementId === element.id ? selectedDiagramNodeId : null}
+          editable={!selectionChromeHidden && Boolean(onChangeElementContent)}
+          selectedNodeId={!selectionChromeHidden && selectedElementId === element.id ? selectedDiagramNodeId : null}
           visibleNodeIds={visibleNodeIds}
             onAspectRatioChange={!previewMode && onChangeElementBounds ? (aspectRatio) => {
               const currentBounds = elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === slotIdForElement(element))?.bounds;
@@ -1030,9 +1068,12 @@ export default function BlankScreenCanvas({
               opacity={Number(element.content.opacity) || undefined}
               strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
               customPath={typeof element.content.customPath === 'string' ? element.content.customPath : undefined}
+              arrowStart={element.content.arrowStart === true}
+              arrowEnd={element.content.arrowEnd === true}
               effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
               effectColor={typeof element.content.shapeEffectColor === 'string' ? element.content.shapeEffectColor : undefined}
               gradient={element.content.gradient && typeof element.content.gradient === 'object' ? element.content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
+              animationStyle={shapePaintAnimationStyle}
             />
           </div>
           <div className="absolute inset-0 overflow-hidden">
@@ -1058,9 +1099,9 @@ export default function BlankScreenCanvas({
               animationTextSequence={animationTextSequence}
               animationTextDelay={animationTextDelay}
               animationStyle={textAnimationStyle}
-              editable={!previewMode && Boolean(onChangeElementContent)}
-              selected={selectedElementId === element.id}
-              startEditing={editingElementId === element.id}
+              editable={!selectionChromeHidden && Boolean(onChangeElementContent)}
+              selected={!selectionChromeHidden && selectedElementId === element.id}
+              startEditing={!selectionChromeHidden && editingElementId === element.id}
               onSelect={onSelectElement ? (additive) => onSelectElement(element.id, additive) : undefined}
               onCommit={onChangeElementContent ? ({ text, richTextHtml, formatting }) => onChangeElementContent(element.id, { text, ...(richTextHtml !== undefined ? { richTextHtml } : {}), ...formatting }) : undefined}
               onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
@@ -1088,7 +1129,7 @@ export default function BlankScreenCanvas({
         <StudioTableElement
           elementId={element.id}
           content={element.content}
-          editable={!previewMode && Boolean(onChangeElementContent)}
+          editable={!selectionChromeHidden && Boolean(onChangeElementContent)}
           onChange={(changes) => onChangeElementContent?.(element.id, changes)}
           animationBuildState={previewMode ? presenterComponentBuildState(animationTimeline, element.id, previewStep, triggeredAnimationCueIds) : editorSequencePreviewing ? presenterComponentBuildState(animationTimeline, element.id, editorPreviewStep ?? 0) : null}
         />
@@ -1134,6 +1175,7 @@ export default function BlankScreenCanvas({
           effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
           effectColor={typeof element.content.shapeEffectColor === 'string' ? element.content.shapeEffectColor : undefined}
           gradient={element.content.gradient && typeof element.content.gradient === 'object' ? element.content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
+          animationStyle={shapePaintAnimationStyle}
         /></div> : null}
         <div className="absolute inset-0"><StudioCanvasTextElement
           key={element.id}
@@ -1169,9 +1211,9 @@ export default function BlankScreenCanvas({
           animationTextSequence={animationTextSequence}
           animationTextDelay={animationTextDelay}
           animationStyle={textAnimationStyle}
-          editable={!previewMode && Boolean(onChangeElementContent)}
-          selected={selectedElementId === element.id}
-          startEditing={editingElementId === element.id}
+          editable={!selectionChromeHidden && Boolean(onChangeElementContent)}
+          selected={!selectionChromeHidden && selectedElementId === element.id}
+          startEditing={!selectionChromeHidden && editingElementId === element.id}
           onSelect={onSelectElement ? (additive) => onSelectElement(element.id, additive) : undefined}
           onCommit={onChangeElement ? ({ text: value, richTextHtml: richText, formatting, requiredHeight }) => {
             const currentBounds =
@@ -1227,13 +1269,19 @@ export default function BlankScreenCanvas({
       if (element.type === 'visual' || mimeType.startsWith('image/')) {
         objectOverlays[element.id] = (
           <div className="group relative h-full w-full bg-slate-100" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}>
-            <img src={droppedUrl} alt={String(element.content.altText || name)} onLoad={(event) => { void event.currentTarget.decode().catch(() => undefined).finally(() => markElementMediaReadyAfterPaint(element)); }} className="h-full w-full object-fill" />
+            <img src={droppedUrl} alt={String(element.content.altText || name)} onLoad={(event) => {
+              const image = event.currentTarget;
+              const markPainted = () => {
+                if (image.complete && image.naturalWidth > 0) markElementMediaReadyAfterPaint(element);
+              };
+              void image.decode().then(markPainted).catch(markPainted);
+            }} className="h-full w-full object-fill" />
           </div>
         );
       } else if (mimeType.startsWith('video/')) {
-        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><video src={droppedUrl} controls onLoadedData={() => markElementMediaReadyAfterPaint(element)} onCanPlay={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
+        objectOverlays[element.id] = <div className="relative h-full w-full bg-black" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><video src={droppedUrl} controls preload="auto" onCanPlayThrough={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full object-contain"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white"><Video size={11}/>{name}</span></div>;
       } else if (mimeType.startsWith('audio/')) {
-        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls onCanPlay={() => markElementMediaReadyAfterPaint(element)} className="mt-4 w-full"/></div></div>;
+        objectOverlays[element.id] = <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-950 to-blue-900 p-5 text-white" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><div className="w-full text-center"><Music size={42} className="mx-auto text-purple-200"/><p className="mt-3 truncate text-sm font-bold">{name}</p><audio src={droppedUrl} controls preload="auto" onCanPlayThrough={() => markElementMediaReadyAfterPaint(element)} className="mt-4 w-full"/></div></div>;
       } else if (mimeType === 'application/pdf') {
         objectOverlays[element.id] = <div className="relative h-full w-full bg-slate-200" onClick={(event) => { event.stopPropagation(); onSelectElement?.(element.id, event.ctrlKey || event.metaKey || event.shiftKey); }}><iframe src={droppedUrl} title={name} onLoad={() => markElementMediaReadyAfterPaint(element)} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>;
       } else {
@@ -1247,7 +1295,7 @@ export default function BlankScreenCanvas({
         key={`${element.resource.resource_id}-${element.resource.resource_version_id}`}
         element={element}
         bounds={elementBounds(element.position) ?? renderLayout?.slots.find((slot) => slot.id === slotIdForElement(element))?.bounds}
-        selected={!previewMode && selectedElementId === element.id}
+        selected={!selectionChromeHidden && selectedElementId === element.id}
         cropRequestToken={cropRequest?.elementId === element.id ? cropRequest.token : undefined}
         model3DModeRequestToken={model3DModeRequest?.elementId === element.id ? model3DModeRequest.token : undefined}
         onSelect={onSelectElement ? (additive) => onSelectElement(element.id, additive) : undefined}
@@ -1325,8 +1373,12 @@ export default function BlankScreenCanvas({
         previewNavigation,
         triggeredAnimationCueIds,
       );
-      const activeStyle = playbackState.activeEffects.length
-        ? studioAnimationStyle({ effects: playbackState.activeEffects })
+      const containerEffects = studioContainerAnimationEffects(
+        playbackState.activeEffects,
+        element.type === 'shape' || typeof element.content.kind === 'string',
+      );
+      const activeStyle = containerEffects.length
+        ? studioAnimationStyle({ effects: containerEffects })
         : null;
       const sequenceRunsInsideText = playbackState.activeEffects.some((effect) => ['paragraph', 'word', 'letter'].includes(String(effect.textSequence || 'object')))
         && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
@@ -1353,13 +1405,17 @@ export default function BlankScreenCanvas({
         editorPreviewStep,
         editorPreviewCycle,
       );
+      const containerEffects = studioContainerAnimationEffects(
+        playbackState.activeEffects,
+        element.type === 'shape' || typeof element.content.kind === 'string',
+      );
       const sequenceRunsInsideText = playbackState.activeEffects.some((effect) => ['paragraph', 'word', 'letter'].includes(String(effect.textSequence || 'object')))
         && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
       const sequenceRunsInsideComponent = playbackState.activeEffects.some((effect) => !['as-one-object', 'all-at-once', ''].includes(String(effect.buildSequence || '')));
       objectAnimationStyles[element.id] = sequenceRunsInsideComponent || sequenceRunsInsideText
         ? {}
-        : playbackState.activeEffects.length
-          ? studioAnimationStyle({ effects: playbackState.activeEffects })
+        : containerEffects.length
+          ? studioAnimationStyle({ effects: containerEffects })
           : playbackState.visible
             ? playbackState.afterStyle
             : { opacity: 0 };
@@ -1367,7 +1423,14 @@ export default function BlankScreenCanvas({
     } else if (animationPreview?.elementId === element.id) {
       const sequenceRunsInsideText = effects.some((effect) => effect && typeof effect === 'object' && ['paragraph', 'word', 'letter'].includes(String((effect as Record<string, unknown>).textSequence || 'object')))
         && (element.type === 'shape' || ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type));
-      objectAnimationStyles[element.id] = sequenceRunsInsideText ? {} : studioAnimationStyle(animation);
+      const animationEffects = effects.length ? effects as Array<Record<string, unknown>> : animation ? [animation] : [];
+      const containerEffects = studioContainerAnimationEffects(
+        animationEffects,
+        element.type === 'shape' || typeof element.content.kind === 'string',
+      );
+      objectAnimationStyles[element.id] = sequenceRunsInsideText || !containerEffects.length
+        ? {}
+        : studioAnimationStyle({ effects: containerEffects });
       objectAnimationKeys[element.id] = animationPreview.token;
     } else {
       objectAnimationStyles[element.id] = {};
@@ -1375,6 +1438,10 @@ export default function BlankScreenCanvas({
   }
   const selectedElement =
     screen?.elements.find((element) => element.id === selectedElementId) ?? null;
+  const selectedMotionPathBounds = selectedElement && selectedAnimationEffect
+    && studioAnimationCapabilities(selectedElement.type, selectedElement.content.visualType, selectedAnimationEffect.effect).motionPath
+    ? elementBounds(selectedElement.position) ?? renderLayout?.slots.find((slot) => slot.id === slotIdForElement(selectedElement))?.bounds
+    : undefined;
 
   return (
     <section
@@ -1393,7 +1460,7 @@ export default function BlankScreenCanvas({
           setLastClickerAction('next');
         }}
       >
-        {!previewMode && toolbarHost && screen && onChangeElementContent
+        {!selectionChromeHidden && toolbarHost && screen && onChangeElementContent
           ? createPortal(
               <StudioElementToolbar
                 element={selectedElement}
@@ -1480,9 +1547,14 @@ export default function BlankScreenCanvas({
             objectOverlays={objectOverlays}
             objectAnimationStyles={objectAnimationStyles}
             objectAnimationKeys={objectAnimationKeys}
-            selectionChromeHidden={previewMode}
+            canvasOverlay={selectedMotionPathBounds && selectedAnimationEffect ? <StudioMotionPathCanvasOverlay
+              bounds={selectedMotionPathBounds}
+              effect={selectedAnimationEffect}
+              onChange={onChangeSelectedAnimationEffect}
+            /> : null}
+            selectionChromeHidden={selectionChromeHidden}
             allowCanvasOverflow={!previewMode}
-            showTextEditorOutlines={!previewMode}
+            showTextEditorOutlines={!selectionChromeHidden}
             transition={
               screen.screen_settings_json?.transition &&
               typeof screen.screen_settings_json.transition === 'object'

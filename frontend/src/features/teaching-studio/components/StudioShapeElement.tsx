@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import type { CSSProperties } from 'react';
 
 interface ShapeGradient {
   angle?: number;
@@ -14,9 +15,12 @@ interface Props {
   opacity?: number;
   strokeDash?: string;
   customPath?: string;
+  arrowStart?: boolean;
+  arrowEnd?: boolean;
   effect?: string;
   effectColor?: string;
   gradient?: ShapeGradient | null;
+  animationStyle?: CSSProperties;
 }
 export default function StudioShapeElement({
   elementId,
@@ -27,11 +31,15 @@ export default function StudioShapeElement({
   opacity = 1,
   strokeDash = 'solid',
   customPath,
+  arrowStart = false,
+  arrowEnd = false,
   effect = 'none',
   effectColor = '#2563eb',
   gradient = null,
+  animationStyle,
 }: Props) {
   const gradientId = `studio-shape-gradient-${useId().replaceAll(':', '')}`;
+  const arrowId = `studio-shape-arrow-${useId().replaceAll(':', '')}`;
   const [preview, setPreview] = useState<Partial<Pick<Props, 'fill' | 'stroke' | 'strokeWidth' | 'opacity' | 'strokeDash' | 'effect'>> | null>(null);
   useEffect(() => {
     if (!elementId) return;
@@ -52,14 +60,20 @@ export default function StudioShapeElement({
   const renderedEffect = typeof preview?.effect === 'string' ? preview.effect : effect;
   const validGradient = gradient && Array.isArray(gradient.stops) && gradient.stops.length >= 2;
   const common = {
-    fill: validGradient ? `url(#${gradientId})` : renderedFill,
-    stroke: renderedStroke,
+    fill: `var(--studio-shape-fill, ${validGradient ? `url(#${gradientId})` : renderedFill})`,
+    stroke: `var(--studio-shape-stroke, ${renderedStroke})`,
     strokeWidth: renderedStrokeWidth,
     opacity: renderedOpacity,
     strokeDasharray: renderedStrokeDash === 'dash' ? '12 8' : renderedStrokeDash === 'dot' ? '2 7' : undefined,
     vectorEffect: 'non-scaling-stroke' as const,
   };
   const textCommon = { fill: renderedStroke, stroke: 'none', fontSize: 64, fontWeight: 700 };
+  const lineCommon = {
+    ...common,
+    fill: 'none',
+    markerStart: arrowStart ? `url(#${arrowId}-start)` : undefined,
+    markerEnd: arrowEnd ? `url(#${arrowId}-end)` : undefined,
+  };
   return (
     <svg
       viewBox="0 0 200 120"
@@ -71,19 +85,26 @@ export default function StudioShapeElement({
           : renderedEffect === 'glow' ? `drop-shadow(0 0 9px ${effectColor})`
             : renderedEffect === 'soft-edges' ? 'blur(1.5px)'
               : undefined,
+        ...animationStyle,
       }}
     >
-      {validGradient ? <defs><linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0" gradientTransform={`rotate(${Number(gradient.angle) || 0} .5 .5)`}>{gradient.stops.map((stop, index) => <stop key={`${stop.position}-${index}`} offset={`${Math.max(0, Math.min(1, Number(stop.position) || 0)) * 100}%`} stopColor={stop.color}/>)}</linearGradient></defs> : null}
+      <defs>
+        {validGradient ? <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0" gradientTransform={`rotate(${Number(gradient.angle) || 0} .5 .5)`}>{gradient.stops.map((stop, index) => <stop key={`${stop.position}-${index}`} offset={`${Math.max(0, Math.min(1, Number(stop.position) || 0)) * 100}%`} stopColor={stop.color}/>)}</linearGradient> : null}
+        <marker id={`${arrowId}-end`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill={`var(--studio-shape-stroke, ${renderedStroke})`}/></marker>
+        <marker id={`${arrowId}-start`} viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M10 0L0 5L10 10Z" fill={`var(--studio-shape-stroke, ${renderedStroke})`}/></marker>
+      </defs>
       {kind === 'custom-drawing' && customPath ? (
         <path d={customPath} {...common} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      ) : kind === 'custom-geometry' && customPath ? (
+        <path d={customPath} {...common} strokeLinecap="round" strokeLinejoin="round" />
       ) : kind === 'diagonal-line' ? (
         <line x1="10" y1="110" x2="190" y2="10" {...common} fill="none" />
       ) : kind === 'vertical-line' ? (
         <line x1="100" y1="6" x2="100" y2="114" {...common} fill="none" />
       ) : ['connector', 'elbow-connector'].includes(kind) ? (
-        <path d="M8 25H75V95H192" {...common} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M8 25H75V95H192" {...lineCommon} strokeLinecap="round" strokeLinejoin="round" />
       ) : ['curve', 'curved-connector'].includes(kind) ? (
-        <path d="M8 98C50 5 145 115 192 22" {...common} fill="none" strokeLinecap="round" />
+        <path d="M8 98C50 5 145 115 192 22" {...lineCommon} strokeLinecap="round" />
       ) : ['circle', 'ellipse'].includes(kind) ? (
         <ellipse cx="100" cy="60" rx="92" ry="52" {...common} />
       ) : kind === 'triangle' ? (
@@ -120,8 +141,16 @@ export default function StudioShapeElement({
         <path d="M15 105A85 85 0 0 1 185 105" {...common} fill="none" />
       ) : kind === 'bracket-pair' ? (
         <path d="M55 7H28V113H55M145 7H172V113H145" {...common} fill="none" />
+      ) : kind === 'left-bracket' ? (
+        <path d="M145 7H55V113H145" {...common} fill="none" />
+      ) : kind === 'right-bracket' ? (
+        <path d="M55 7H145V113H55" {...common} fill="none" />
       ) : kind === 'brace-pair' ? (
         <path d="M60 5C35 5 48 48 22 60C48 72 35 115 60 115M140 5C165 5 152 48 178 60C152 72 165 115 140 115" {...common} fill="none" />
+      ) : kind === 'left-brace' ? (
+        <path d="M145 5C75 5 110 48 55 60C110 72 75 115 145 115" {...common} fill="none" />
+      ) : kind === 'right-brace' ? (
+        <path d="M55 5C125 5 90 48 145 60C90 72 125 115 55 115" {...common} fill="none" />
       ) : kind === 'star' ? (
         <polygon
           points="100,5 122,42 168,28 143,65 184,91 133,88 100,116 67,88 16,91 57,65 32,28 78,42"
@@ -146,7 +175,7 @@ export default function StudioShapeElement({
           {...common}
         />
       ) : kind === 'line' ? (
-        <line x1="8" y1="60" x2="192" y2="60" {...common} fill="none" />
+        <line x1="8" y1="60" x2="192" y2="60" {...lineCommon} />
       ) : ['arrow', 'right-arrow'].includes(kind) ? (
         <polygon points="5,45 140,45 140,20 195,60 140,100 140,75 5,75" {...common} />
       ) : ['double-arrow', 'left-right-arrow'].includes(kind) ? (

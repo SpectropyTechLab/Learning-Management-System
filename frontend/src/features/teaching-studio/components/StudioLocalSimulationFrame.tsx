@@ -47,6 +47,12 @@ export default function StudioLocalSimulationFrame({
     return () => { active = false; };
   }, [result.simulation]);
 
+  useEffect(() => {
+    if (interactive || !result.simulation || !onReady) return;
+    const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(onReady));
+    return () => window.cancelAnimationFrame(frame);
+  }, [interactive, onReady, result.simulation]);
+
   if (result.error) {
     return <div className={`grid place-items-center bg-slate-950 p-4 text-center text-xs text-white ${className}`}>{result.error}</div>;
   }

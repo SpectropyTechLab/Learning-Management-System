@@ -44,6 +44,18 @@ export const STUDIO_ANIMATION_NAMES = {
 export const studioAnimationName = (effect: string) =>
   STUDIO_ANIMATION_NAMES[effect as keyof typeof STUDIO_ANIMATION_NAMES] || 'studio-appear';
 
+const shapePaintEffectNames = new Set(['fill-color', 'line-color']);
+
+export const studioShapePaintAnimationEffects = (effects: Array<Record<string, unknown>>) =>
+  effects.filter((effect) => shapePaintEffectNames.has(String(effect.effect || '')));
+
+export const studioContainerAnimationEffects = (
+  effects: Array<Record<string, unknown>>,
+  shape: boolean,
+) => shape
+  ? effects.filter((effect) => !shapePaintEffectNames.has(String(effect.effect || '')))
+  : effects;
+
 export const studioAnimationStyle = (animation?: Record<string, unknown>): CSSProperties => {
   const effects =
     Array.isArray(animation?.effects) && animation.effects.length
@@ -181,7 +193,7 @@ export const studioAnimationStyle = (animation?: Record<string, unknown>): CSSPr
     ...(motionPath ? {
       offsetPath: motionPath,
       offsetDistance: '100%',
-      offsetRotate: String(primary.pathRotate === false ? '0deg' : 'auto'),
+      offsetRotate: String(primary.pathRotate === true ? 'auto' : '0deg'),
     } : {}),
     '--studio-enter-x': enterX,
     '--studio-enter-y': enterY,

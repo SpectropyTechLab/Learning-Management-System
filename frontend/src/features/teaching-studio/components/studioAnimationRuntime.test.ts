@@ -6,6 +6,8 @@ import { studioAnimationDirectionOptions, studioAnimationEffectSupported } from 
 import {
   STUDIO_ANIMATION_NAMES,
   studioAnimationName,
+  studioContainerAnimationEffects,
+  studioShapePaintAnimationEffects,
   studioAnimationStyle,
 } from './studioAnimationRuntime.ts';
 
@@ -147,6 +149,26 @@ test('Colour Pulse carries its selected colour into the runtime style', () => {
   assert.equal(style['--studio-pulse-color'], '#ef4444');
 });
 
+test('shape paint effects stay on shape geometry instead of the rectangular canvas container', () => {
+  const effects = [
+    { effect: 'fly-in', direction: 'left' },
+    { effect: 'fill-color', color: '#ef4444' },
+    { effect: 'line-color', color: '#2563eb' },
+  ];
+  assert.deepEqual(
+    studioShapePaintAnimationEffects(effects).map((effect) => effect.effect),
+    ['fill-color', 'line-color'],
+  );
+  assert.deepEqual(
+    studioContainerAnimationEffects(effects, true).map((effect) => effect.effect),
+    ['fly-in'],
+  );
+  assert.deepEqual(
+    studioContainerAnimationEffects(effects, false).map((effect) => effect.effect),
+    ['fly-in', 'fill-color', 'line-color'],
+  );
+});
+
 test('effect-specific PowerPoint options reach the animation runtime', () => {
   const counterClockwise = studioAnimationStyle({ effects: [{ effect: 'spin', rotation: 720, clockwise: false }] }) as Record<string, unknown>;
   const grow = studioAnimationStyle({ effects: [{ effect: 'grow-shrink', amount: 165 }] }) as Record<string, unknown>;
@@ -218,4 +240,6 @@ test('custom motion paths persist and drive CSS offset-path playback', () => {
   assert.equal(style.animationName, 'studio-path-custom-legacy');
   assert.match(String(style.offsetPath), /M 0 0 L 80 -20 L 160 40/);
   assert.equal(style.offsetDistance, '100%');
+  assert.equal(style.offsetRotate, '0deg');
+  assert.equal(studioAnimationStyle({ effects: [{ effect: 'path-line', pathRotate: true }] }).offsetRotate, 'auto');
 });

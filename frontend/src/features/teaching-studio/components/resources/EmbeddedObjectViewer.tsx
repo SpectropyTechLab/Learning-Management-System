@@ -1,21 +1,34 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, FileSpreadsheet } from 'lucide-react';
 import type { StudioObjectPreviewDescriptor } from '../../api/studioResourcesApi';
 
 interface Props {
   descriptor: StudioObjectPreviewDescriptor;
   className?: string;
+  onReady?: () => void;
 }
 
-export default function EmbeddedObjectViewer({ descriptor, className = '' }: Props) {
+export default function EmbeddedObjectViewer({ descriptor, className = '', onReady }: Props) {
   const [sheetIndex, setSheetIndex] = useState(0);
+  const readyReportedRef = useRef(false);
+  const markReady = useCallback(() => {
+    if (readyReportedRef.current || !onReady) return;
+    readyReportedRef.current = true;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(onReady));
+  }, [onReady]);
+
+  useEffect(() => {
+    readyReportedRef.current = false;
+    if (descriptor.mode !== 'pdf' && descriptor.mode !== 'interactive') markReady();
+  }, [descriptor.mode, descriptor.url, markReady]);
+
   if (descriptor.mode === 'pdf' && descriptor.url) {
-    return <iframe title={descriptor.name} src={descriptor.url} className={`h-full w-full border-0 bg-white ${className}`} />;
+    return <iframe title={descriptor.name} src={descriptor.url} onLoad={markReady} className={`h-full w-full border-0 bg-white ${className}`} />;
   }
   if (descriptor.mode === 'interactive' && descriptor.url) {
     return (
       <div className={`relative h-full w-full bg-white ${className}`}>
-        <iframe title={descriptor.name} src={descriptor.url} sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" className="h-full w-full border-0" />
+        <iframe title={descriptor.name} src={descriptor.url} onLoad={markReady} sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" className="h-full w-full border-0" />
         <a href={descriptor.url} target="_blank" rel="noreferrer" className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg bg-slate-950/80 px-3 py-2 text-xs font-semibold text-white"><ExternalLink size={14} />Open source</a>
       </div>
     );
