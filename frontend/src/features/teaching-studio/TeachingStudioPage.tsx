@@ -217,6 +217,9 @@ import type {
   StudioScreenList,
 } from './types';
 import type { Layout, ObjectType, Slot } from './layouts';
+import { preserveStudioElementBounds } from './studioElementBounds';
+import { studioScreensAround } from './studioScreenPreloadModel';
+import { createStudioScreenResourceCache } from './studioScreenResourceCache';
 import { targetLayouts } from './targetLayouts';
 import { remapElementsToLayout } from './layoutApplication';
 import {
@@ -396,6 +399,10 @@ export default function TeachingStudioPage() {
   const { sessionId: rawSessionId } = useParams<{ sessionId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = positiveInteger(rawSessionId);
+  const screenResourceCache = useMemo(
+    () => ({ sessionId, cache: createStudioScreenResourceCache() }),
+    [sessionId],
+  ).cache;
   const requestedScreenId = positiveInteger(searchParams.get('screen') ?? undefined);
   const [screenList, setScreenList] = useState<StudioScreenList>({
     session_revision_no: 0,
@@ -403,7 +410,8 @@ export default function TeachingStudioPage() {
   });
   const [selectedScreen, setSelectedScreen] = useState<StudioScreen | null>(null);
   const [loadingScreens, setLoadingScreens] = useState(false);
-  const [loadingScreen, setLoadingScreen] = useState(false);
+  const [screenListLoaded, setScreenListLoaded] = useState(false);
+  const [loadingScreen, setLoadingScreen] = useState(Boolean(sessionId));
   const [creating, setCreating] = useState(false);
   const [createScreenOpen, setCreateScreenOpen] = useState(false);
   const [screenMetadataOpen, setScreenMetadataOpen] = useState(false);
@@ -456,6 +464,7 @@ export default function TeachingStudioPage() {
   const [cropRequest, setCropRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [model3DModeRequest, setModel3DModeRequest] = useState<{ elementId: string; token: number } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
+  const [layoutsLoading, setLayoutsLoading] = useState(Boolean(sessionId));
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
   const reloadScreenScripts = useCallback(async () => {
     if (!sessionId) {
@@ -814,6 +823,7 @@ export default function TeachingStudioPage() {
   const loadScreens = useCallback(async () => {
     if (!sessionId) return;
     setLoadingScreens(true);
+    setScreenListLoaded(false);
     setError(null);
     try {
       const result = await listStudioScreens(sessionId);
@@ -830,6 +840,7 @@ export default function TeachingStudioPage() {
       return false;
     } finally {
       setLoadingScreens(false);
+      setScreenListLoaded(true);
     }
   }, [sessionId]);
 
@@ -843,6 +854,8 @@ export default function TeachingStudioPage() {
   useEffect(() => {
     setScreenList({ session_revision_no: 0, screens: [] });
     setSelectedScreen(null);
+    setLoadingScreen(Boolean(sessionId));
+    setScreenListLoaded(false);
     if (sessionId) void loadScreens();
   }, [loadScreens, sessionId]);
 
@@ -866,15 +879,26 @@ export default function TeachingStudioPage() {
   }, []);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setLayoutsLoading(false);
+      return;
+    }
+    let active = true;
+    setLayoutsLoading(true);
+    setLayouts([]);
     Promise.all([ensureTargetStudioLayouts(), studioDocumentsApi.screenScripts(sessionId)])
       .then(([layoutRows, scriptRows]) => {
+        if (!active) return;
         setLayouts(layoutRows);
         setScripts(scriptRows);
       })
       .catch(() => {
         /* Individual editor panels show their empty state. */
+      })
+      .finally(() => {
+        if (active) setLayoutsLoading(false);
       });
+    return () => { active = false; };
   }, [sessionId]);
 
   const loadWorkflow = useCallback(
@@ -906,6 +930,7 @@ export default function TeachingStudioPage() {
   useEffect(() => {
     if (!selectedScreenId) {
       setSelectedScreen(null);
+      if (screenListLoaded) setLoadingScreen(false);
       return;
     }
 
@@ -955,7 +980,7 @@ export default function TeachingStudioPage() {
     return () => {
       active = false;
     };
-  }, [latestScreenRevision, rememberScreenRevision, screenRequestVersion, selectedScreenId]);
+  }, [latestScreenRevision, rememberScreenRevision, screenListLoaded, screenRequestVersion, selectedScreenId]);
 
   const selectScreen = async (screenId: number) => {
     if (hasUnsavedChanges) {
@@ -1381,6 +1406,19 @@ export default function TeachingStudioPage() {
       }
     );
   }, [layouts, selectedScreen?.layout_id]);
+
+  const activeScreenId = selectedScreen?.id ?? null;
+
+  useEffect(() => {
+    if (activeScreenId === null) return;
+    const { next, previous } = studioScreensAround(screenList.screens, activeScreenId);
+    const adjacentScreens = [next, previous].filter((screen): screen is StudioScreen => Boolean(screen));
+    void Promise.allSettled(
+      adjacentScreens.map((screen) => screenResourceCache.preloadScreen(screen)),
+    ).catch(() => {
+      // A failed prefetch should never interrupt editing; normal screen loading can retry.
+    });
+  }, [activeScreenId, screenList.screens, screenResourceCache]);
 
   const commitElements = useCallback((elements: StudioElement[], selectElementId?: string | null) => {
     if (!selectedScreen || editorReadOnly) return;
@@ -1965,11 +2003,12 @@ export default function TeachingStudioPage() {
     if (!selectedScreen) return;
     const element = selectedScreen.elements.find((candidate) => candidate.id === elementId);
     if (!element) return;
+    const constrainedBounds = preserveStudioElementBounds(element, bounds);
     const previous = {
       x: Number(element.position.x) || 0,
       y: Number(element.position.y) || 0,
-      width: Math.max(1, Number(element.position.width) || bounds.width),
-      height: Math.max(1, Number(element.position.height) || bounds.height),
+      width: Math.max(1, Number(element.position.width) || constrainedBounds.width),
+      height: Math.max(1, Number(element.position.height) || constrainedBounds.height),
     };
     const groupId = typeof element.position.groupId === 'string' ? element.position.groupId : null;
     const preserveUnlockedMotionPath = (candidate: StudioElement, fromX: number, fromY: number, toX: number, toY: number) => {
@@ -1990,33 +2029,36 @@ export default function TeachingStudioPage() {
       return { ...candidate, content: { ...candidate.content, animation: { ...saved, effects } } };
     };
     if (!groupId) {
-      const moved = preserveUnlockedMotionPath(element, previous.x, previous.y, bounds.x, bounds.y);
-      updateElement({ ...moved, position: { ...moved.position, ...bounds } });
+      const moved = preserveUnlockedMotionPath(element, previous.x, previous.y, constrainedBounds.x, constrainedBounds.y);
+      updateElement({ ...moved, position: { ...moved.position, ...constrainedBounds } });
       return;
     }
-    const scaleX = bounds.width / previous.width;
-    const scaleY = bounds.height / previous.height;
+    const scaleX = constrainedBounds.width / previous.width;
+    const scaleY = constrainedBounds.height / previous.height;
     const grouped = selectedScreen.elements.map((candidate) => {
       if (candidate.position.groupId !== groupId) return candidate;
       if (candidate.id === elementId) {
-        const moved = preserveUnlockedMotionPath(candidate, previous.x, previous.y, bounds.x, bounds.y);
-        return { ...moved, position: { ...moved.position, ...bounds } };
+        const moved = preserveUnlockedMotionPath(candidate, previous.x, previous.y, constrainedBounds.x, constrainedBounds.y);
+        return { ...moved, position: { ...moved.position, ...constrainedBounds } };
       }
       const x = Number(candidate.position.x) || 0;
       const y = Number(candidate.position.y) || 0;
       const width = Number(candidate.position.width) || 80;
       const height = Number(candidate.position.height) || 60;
-      const nextX = Math.round(bounds.x + (x - previous.x) * scaleX);
-      const nextY = Math.round(bounds.y + (y - previous.y) * scaleY);
+      const nextX = Math.round(constrainedBounds.x + (x - previous.x) * scaleX);
+      const nextY = Math.round(constrainedBounds.y + (y - previous.y) * scaleY);
       const moved = preserveUnlockedMotionPath(candidate, x, y, nextX, nextY);
+      const nextBounds = preserveStudioElementBounds(candidate, {
+        x: nextX,
+        y: nextY,
+        width: Math.max(candidate.type === 'shape' ? 0 : 20, Math.round(width * scaleX)),
+        height: Math.max(candidate.type === 'shape' ? 0 : 20, Math.round(height * scaleY)),
+      });
       return {
         ...moved,
         position: {
           ...moved.position,
-          x: nextX,
-          y: nextY,
-          width: Math.max(20, Math.round(width * scaleX)),
-          height: Math.max(20, Math.round(height * scaleY)),
+          ...nextBounds,
         },
       };
     });
@@ -4960,7 +5002,7 @@ export default function TeachingStudioPage() {
           { id: 'shape-text', label: 'Text in Shape', content: <div className="grid gap-0.5 px-1"><select aria-label="Vertical text alignment" value={String(selectedElement?.content.verticalAlignment || (selectedElement?.type === 'shape' ? 'middle' : 'top'))} disabled={!selectedElement || editorReadOnly} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, verticalAlignment: event.target.value } })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[10px] outline-none ring-0"><option value="top">Align top</option><option value="middle">Align middle</option><option value="bottom">Align bottom</option></select><button type="button" disabled={!selectedElement || editorReadOnly} onClick={() => selectedElement && window.dispatchEvent(new CustomEvent('studio-edit-element-text', { detail: { elementId: selectedElement.id } }))} className="h-7 rounded bg-blue-50 px-2 text-[10px] font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-40">Add Text</button></div> },
           { id: 'shape-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Shape alt text" type="text" value={String(selectedElement?.content.altText || '')} disabled={!selectedElement} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, altText: event.target.value } })} className="h-8 w-24 rounded border px-1 text-[10px]" /></label> },
           { id: 'shape-arrange', label: 'Arrange & Rotate', content: <ShapeArrangeControls disabled={!selectedElement || editorReadOnly} groupDisabled={editorReadOnly || selectedElementIds.length < 2} rotation={Number(selectedElement?.position.rotation) || 0} selectionPaneActive={rightPanelOpen && panel === 'layers'} onForward={() => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'), selectedElement.id)} onBackward={() => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'backward'), selectedElement.id)} onSelectionPane={openSelectionPane} onGroup={groupSelectedElements} onAlign={alignSelectedElement} onRotate={(rotation) => selectedElement && changeElementRotation(selectedElement.id, rotation)} /> },
-          { id: 'shape-size', label: 'Size', content: selectedElement ? <ShapeSizeControls width={Number(selectedElement.position.width) || 80} height={Number(selectedElement.position.height) || 60} disabled={editorReadOnly} onChange={(size) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: size.width ?? (Number(selectedElement.position.width) || 80), height: size.height ?? (Number(selectedElement.position.height) || 60) })} /> : null },
+          { id: 'shape-size', label: 'Size', content: selectedElement ? <ShapeSizeControls width={Number.isFinite(Number(selectedElement.position.width)) ? Number(selectedElement.position.width) : 80} height={Number.isFinite(Number(selectedElement.position.height)) ? Number(selectedElement.position.height) : 60} disabled={editorReadOnly} onChange={(size) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: size.width ?? (Number.isFinite(Number(selectedElement.position.width)) ? Number(selectedElement.position.width) : 80), height: size.height ?? (Number.isFinite(Number(selectedElement.position.height)) ? Number(selectedElement.position.height) : 60) })} /> : null },
         ];
       case 'table-design':
         return [
@@ -5517,6 +5559,8 @@ export default function TeachingStudioPage() {
                 contextBreadcrumb={[sessionContext?.chapter_name, sessionContext?.topic_name, sessionContext?.subtopic_name].filter(Boolean).join(' › ')}
                 loading={loadingScreen}
                 layout={selectedLayout}
+                layoutLoading={Boolean(selectedScreen?.layout_id && layoutsLoading && !selectedLayout)}
+                resourceCache={screenResourceCache}
                 showGuides={showCanvasGuides}
                 animationPreview={animationPreview}
                 cropRequest={cropRequest}
@@ -5960,6 +6004,8 @@ export default function TeachingStudioPage() {
               screen={selectedScreen}
               loading={loadingScreen}
               layout={selectedLayout}
+              layoutLoading={Boolean(selectedScreen?.layout_id && layoutsLoading && !selectedLayout)}
+              resourceCache={screenResourceCache}
               showGuides={showCanvasGuides}
               selectedElementId={selectedElementId}
               onSelectElement={(elementId) => {

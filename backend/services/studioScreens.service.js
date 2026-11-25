@@ -29,10 +29,6 @@ const ELEMENT_TYPES = new Set([
   'data',
   'options', 'math', 'shape', 'zoom', 'embedded_object',
 ]);
-const AUTO_HEIGHT_TEXT_ELEMENT_TYPES = new Set([
-  'title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data',
-]);
-
 const normalizeZoom = (value, elementKey) => {
   if (value === undefined || value === null) return null;
   const zoom = assertObject(value, `Element ${elementKey} zoom`);
@@ -120,7 +116,7 @@ const normalizeTags = (tags) => {
   return [...new Set(normalized)];
 };
 
-const normalizePosition = (value, label, { allowBottomOverflow = false, allowSmall = false } = {}) => {
+const normalizePosition = (value, label, { allowCanvasOverflow = false, allowSmall = false } = {}) => {
   const position = value === undefined ? {} : assertObject(value, label);
   const normalized = { ...position };
   for (const key of ['x', 'y', 'width', 'height']) {
@@ -129,20 +125,23 @@ const normalizePosition = (value, label, { allowBottomOverflow = false, allowSma
     if (!Number.isFinite(number)) throw new AppError(`${label} ${key} must be a number`, 422);
     normalized[key] = number;
   }
-  if (normalized.x !== undefined && (normalized.x < 0 || normalized.x > 1920))
+  if (!allowCanvasOverflow && normalized.x !== undefined && (normalized.x < 0 || normalized.x > 1920))
     throw new AppError(`${label} x must be inside the 1920 pixel canvas`, 422);
-  if (normalized.y !== undefined && (normalized.y < 0 || normalized.y > 1080))
+  if (!allowCanvasOverflow && normalized.y !== undefined && (normalized.y < 0 || normalized.y > 1080))
     throw new AppError(`${label} y must be inside the 1080 pixel canvas`, 422);
   const minimumWidth = allowSmall ? 1 : 80;
   const minimumHeight = allowSmall ? 1 : 60;
-  if (normalized.width !== undefined && (normalized.width < minimumWidth || normalized.width > 1920))
+  if (allowCanvasOverflow && normalized.width !== undefined && normalized.width < 0)
+    throw new AppError(`${label} width cannot be negative`, 422);
+  if (allowCanvasOverflow && normalized.height !== undefined && normalized.height < 0)
+    throw new AppError(`${label} height cannot be negative`, 422);
+  if (!allowCanvasOverflow && normalized.width !== undefined && (normalized.width < minimumWidth || normalized.width > 1920))
     throw new AppError(`${label} width must be between ${minimumWidth} and 1920`, 422);
-  const maximumHeight = allowBottomOverflow ? 10000 : 1080;
-  if (normalized.height !== undefined && (normalized.height < minimumHeight || normalized.height > maximumHeight))
-    throw new AppError(`${label} height must be between ${minimumHeight} and ${maximumHeight}`, 422);
-  if (normalized.x !== undefined && normalized.width !== undefined && normalized.x + normalized.width > 1920)
+  if (!allowCanvasOverflow && normalized.height !== undefined && (normalized.height < minimumHeight || normalized.height > 1080))
+    throw new AppError(`${label} height must be between ${minimumHeight} and 1080`, 422);
+  if (!allowCanvasOverflow && normalized.x !== undefined && normalized.width !== undefined && normalized.x + normalized.width > 1920)
     throw new AppError(`${label} extends beyond the right canvas edge`, 422);
-  if (!allowBottomOverflow && normalized.y !== undefined && normalized.height !== undefined && normalized.y + normalized.height > 1080)
+  if (!allowCanvasOverflow && normalized.y !== undefined && normalized.height !== undefined && normalized.y + normalized.height > 1080)
     throw new AppError(`${label} extends beyond the bottom canvas edge`, 422);
   if (position.zIndex !== undefined) {
     const zIndex = Number(position.zIndex);
@@ -333,7 +332,7 @@ const normalizeElements = (elements, layout) => {
     validateSmartDiagramContent(content, key);
     validateElementPresentationContent(content, key);
     const position = normalizePosition(element.position, `Element ${key} position`, {
-      allowBottomOverflow: AUTO_HEIGHT_TEXT_ELEMENT_TYPES.has(type),
+      allowCanvasOverflow: true,
       allowSmall: Boolean(content.importSource),
     });
     const zoom = type === 'zoom' ? normalizeZoom(element.zoom ?? content.zoom, key) : null;

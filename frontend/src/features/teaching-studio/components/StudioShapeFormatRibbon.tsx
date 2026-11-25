@@ -131,7 +131,7 @@ export function ShapeArrangeControls({ disabled, groupDisabled, rotation, select
 
 export function ShapeSizeControls({ width, height, disabled, onChange }: { width: number; height: number; disabled?: boolean; onChange: (size: { width?: number; height?: number }) => void }) {
   return <div className="grid gap-0.5 px-1 text-[9px] text-slate-500">
-    <label className="flex h-6 items-center gap-1 rounded bg-slate-50 px-1.5">W <input aria-label="Shape width" type="number" min="20" value={Math.round(width)} disabled={disabled} onChange={(event) => onChange({ width: Number(event.target.value) })} className="w-14 border-0 bg-transparent text-right text-[10px] text-slate-800 outline-none"/></label>
-    <label className="flex h-6 items-center gap-1 rounded bg-slate-50 px-1.5">H <input aria-label="Shape height" type="number" min="20" value={Math.round(height)} disabled={disabled} onChange={(event) => onChange({ height: Number(event.target.value) })} className="w-14 border-0 bg-transparent text-right text-[10px] text-slate-800 outline-none"/></label>
+    <label className="flex h-6 items-center gap-1 rounded bg-slate-50 px-1.5">W <input aria-label="Shape width" type="number" min="0" value={Math.round(width)} disabled={disabled} onChange={(event) => onChange({ width: Number(event.target.value) })} className="w-14 border-0 bg-transparent text-right text-[10px] text-slate-800 outline-none"/></label>
+    <label className="flex h-6 items-center gap-1 rounded bg-slate-50 px-1.5">H <input aria-label="Shape height" type="number" min="0" value={Math.round(height)} disabled={disabled} onChange={(event) => onChange({ height: Number(event.target.value) })} className="w-14 border-0 bg-transparent text-right text-[10px] text-slate-800 outline-none"/></label>
   </div>;
 }

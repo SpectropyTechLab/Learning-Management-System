@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Move as MoveIcon, RotateCw } from 'lucide-react';
 import { MASTER, fitScale, validateSlide } from './layouts';
@@ -53,7 +53,9 @@ function FittedText({ slot, text, ink }: { slot: Slot; text: string; ink: string
 }
 
 type GeometryInteraction = {
+  pointerId: number;
   objectId: string;
+  allowsOverflow?: boolean;
   mode: 'move' | 'rotate' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w' | 'resize-nw';
   startClientX: number;
   startClientY: number;
@@ -69,6 +71,7 @@ type GeometryInteraction = {
 type PendingMove = {
   pointerId: number;
   objectId: string;
+  additive: boolean;
   startClientX: number;
   startClientY: number;
   bounds: Rect;
@@ -132,6 +135,7 @@ export default function SlideCanvas({
   onChangeObjectBounds,
   onChangeObjectRotation,
   objectOverlays = {},
+  hiddenObjectIds = [],
   objectAnimationStyles = {},
   objectAnimationKeys = {},
   selectionChromeHidden = false,
@@ -171,6 +175,7 @@ export default function SlideCanvas({
   onChangeObjectBounds?: (objectId: string, bounds: Rect) => void;
   onChangeObjectRotation?: (objectId: string, rotation: number) => void;
   objectOverlays?: Record<string, ReactNode>;
+  hiddenObjectIds?: string[];
   objectAnimationStyles?: Record<string, CSSProperties>;
   objectAnimationKeys?: Record<string, string | number>;
   selectionChromeHidden?: boolean;
@@ -197,6 +202,9 @@ export default function SlideCanvas({
   const interactionRef = useRef<GeometryInteraction | null>(null);
   const onChangeObjectBoundsRef = useRef(onChangeObjectBounds);
   const onChangeObjectRotationRef = useRef(onChangeObjectRotation);
+  const onSelectObjectRef = useRef(onSelectObject);
+  const allowCanvasOverflowRef = useRef(allowCanvasOverflow);
+  const scaleRef = useRef(0);
   const pendingMoveRef = useRef<PendingMove | null>(null);
   const [marqueeSelection, setMarqueeSelection] = useState<MarqueeSelection | null>(null);
   const marqueeSelectionRef = useRef<MarqueeSelection | null>(null);
@@ -207,6 +215,9 @@ export default function SlideCanvas({
   const [drawingPointerActive, setDrawingPointerActive] = useState(false);
   const [transitionRunning, setTransitionRunning] = useState(false);
   const transitionLayerRef = useRef<HTMLDivElement>(null);
+  const overflowOriginRef = useRef({ minX: 0, minY: 0, scale: 0 });
+  const previousZoomRef = useRef(zoom);
+  const suppressClickAfterDragRef = useRef(false);
   const geometryGestureActive = interaction !== null;
   onChangeObjectBoundsRef.current = onChangeObjectBounds;
   onChangeObjectRotationRef.current = onChangeObjectRotation;
@@ -218,20 +229,35 @@ export default function SlideCanvas({
     window.getSelection()?.removeAllRanges();
     return () => { root.style.userSelect = previousUserSelect; };
   }, [geometryGestureActive]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const width = entry.contentRect.width;
-      const height = entry.contentRect.height;
+    const updateAvailable = (width: number, height: number) => {
       setAvailable((current) => current.width === width && current.height === height
         ? current
         : { width, height });
-    });
+    };
+    const measureStableContentBox = () => {
+      const bounds = element.getBoundingClientRect();
+      const styles = window.getComputedStyle(element);
+      const horizontalInsets = Number.parseFloat(styles.paddingLeft) + Number.parseFloat(styles.paddingRight)
+        + Number.parseFloat(styles.borderLeftWidth) + Number.parseFloat(styles.borderRightWidth);
+      const verticalInsets = Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom)
+        + Number.parseFloat(styles.borderTopWidth) + Number.parseFloat(styles.borderBottomWidth);
+      updateAvailable(
+        Math.max(0, bounds.width - horizontalInsets),
+        Math.max(0, bounds.height - verticalInsets),
+      );
+    };
+    measureStableContentBox();
+    const observer = new ResizeObserver(measureStableContentBox);
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
   const scale = fitScale(available.width, available.height) * Math.max(0.25, zoom);
+  scaleRef.current = scale;
+  onSelectObjectRef.current = onSelectObject;
+  allowCanvasOverflowRef.current = allowCanvasOverflow;
   const transitionStyle = useMemo(() => studioTransitionStyle(transition), [transition]);
   const errors = useMemo(() => validateSlide(layout, slide), [layout, slide]);
   const objectsBySlotId = useMemo(
@@ -241,6 +267,10 @@ export default function SlideCanvas({
   const selectedObjectIdSet = useMemo(
     () => new Set(selectedObjectIds),
     [selectedObjectIds],
+  );
+  const hiddenObjectIdSet = useMemo(
+    () => new Set(hiddenObjectIds),
+    [hiddenObjectIds],
   );
   const multiSelectionBounds = useMemo(() => {
     if (selectedObjectIds.length < 2) return null;
@@ -271,6 +301,53 @@ export default function SlideCanvas({
     if (interaction && object?.id === interaction.objectId) return interaction.currentBounds;
     return object?.position ?? slot.bounds;
   };
+  const workspaceBounds = useMemo(() => {
+    if (!allowCanvasOverflow) return { minX: 0, minY: 0, maxX: MASTER.width, maxY: MASTER.height };
+    const contentBounds = slide.objects.reduce((bounds, object) => {
+      const slot = layout?.slots.find((candidate) => candidate.id === object.slotId);
+      const position = interaction?.objectId === object.id
+        ? interaction.currentBounds
+        : object.position ?? slot?.bounds;
+      if (!position) return bounds;
+      return {
+        minX: Math.min(bounds.minX, position.x),
+        minY: Math.min(bounds.minY, position.y),
+        maxX: Math.max(bounds.maxX, position.x + position.width),
+        maxY: Math.max(bounds.maxY, position.y + position.height),
+      };
+    }, { minX: 0, minY: 0, maxX: MASTER.width, maxY: MASTER.height });
+    const horizontalExtent = Math.max(MASTER.width / 2 - contentBounds.minX, contentBounds.maxX - MASTER.width / 2);
+    const verticalExtent = Math.max(MASTER.height / 2 - contentBounds.minY, contentBounds.maxY - MASTER.height / 2);
+    return {
+      minX: MASTER.width / 2 - horizontalExtent,
+      minY: MASTER.height / 2 - verticalExtent,
+      maxX: MASTER.width / 2 + horizontalExtent,
+      maxY: MASTER.height / 2 + verticalExtent,
+    };
+  }, [allowCanvasOverflow, interaction, layout?.slots, slide.objects]);
+  const workspaceWidth = (workspaceBounds.maxX - workspaceBounds.minX) * scale;
+  const workspaceHeight = (workspaceBounds.maxY - workspaceBounds.minY) * scale;
+  const canvasNeedsScrolling = workspaceWidth > available.width + 0.5
+    || workspaceHeight > available.height + 0.5;
+  useLayoutEffect(() => {
+    if (!allowCanvasOverflow || scale <= 0) return;
+    const viewport = containerRef.current;
+    if (!viewport) return;
+    const previous = overflowOriginRef.current;
+    viewport.scrollLeft += previous.minX * previous.scale - workspaceBounds.minX * scale;
+    viewport.scrollTop += previous.minY * previous.scale - workspaceBounds.minY * scale;
+    overflowOriginRef.current = { minX: workspaceBounds.minX, minY: workspaceBounds.minY, scale };
+  }, [allowCanvasOverflow, scale, workspaceBounds.minX, workspaceBounds.minY]);
+  useLayoutEffect(() => {
+    if (previousZoomRef.current === zoom) return;
+    previousZoomRef.current = zoom;
+    const viewport = containerRef.current;
+    if (!allowCanvasOverflow || !viewport || scale <= 0) return;
+    const slideCenterX = (MASTER.width / 2 - workspaceBounds.minX) * scale;
+    const slideCenterY = (MASTER.height / 2 - workspaceBounds.minY) * scale;
+    viewport.scrollLeft = clamp(slideCenterX - viewport.clientWidth / 2, 0, viewport.scrollWidth - viewport.clientWidth);
+    viewport.scrollTop = clamp(slideCenterY - viewport.clientHeight / 2, 0, viewport.scrollHeight - viewport.clientHeight);
+  }, [allowCanvasOverflow, scale, workspaceBounds.minX, workspaceBounds.minY, zoom]);
   const rotationFor = (object: Slide['objects'][number] | undefined) =>
     interaction?.mode === 'rotate' && object?.id === interaction.objectId
       ? interaction.currentRotation ?? object.rotation ?? 0
@@ -345,15 +422,16 @@ export default function SlideCanvas({
   };
 
   useEffect(() => {
-    if (!geometryGestureActive || scale <= 0) return;
     let animationFrame = 0;
     let queuedPointer: { clientX: number; clientY: number; shiftKey: boolean } | null = null;
     const applyPointer = (clientX: number, clientY: number, shiftKey: boolean) => {
       const currentInteraction = interactionRef.current;
-      if (!currentInteraction) return;
-      const deltaX = (clientX - currentInteraction.startClientX) / scale;
-      const deltaY = (clientY - currentInteraction.startClientY) / scale;
+      const currentScale = scaleRef.current;
+      if (!currentInteraction || currentScale <= 0) return;
+      const deltaX = (clientX - currentInteraction.startClientX) / currentScale;
+      const deltaY = (clientY - currentInteraction.startClientY) / currentScale;
       const start = currentInteraction.startBounds;
+      const allowsOverflow = currentInteraction.allowsOverflow === true;
       let currentBounds: Rect;
       if (currentInteraction.mode === 'rotate') {
         const pointerAngle = Math.atan2(
@@ -372,8 +450,8 @@ export default function SlideCanvas({
           : MASTER.height - start.height;
         currentBounds = {
           ...start,
-          x: Math.round(clamp(start.x + deltaX, 0, MASTER.width - start.width)),
-          y: Math.round(clamp(start.y + deltaY, 0, Math.max(0, maximumY))),
+          x: allowsOverflow ? Math.round(start.x + deltaX) : Math.round(clamp(start.x + deltaX, 0, MASTER.width - start.width)),
+          y: allowsOverflow ? Math.round(start.y + deltaY) : Math.round(clamp(start.y + deltaY, 0, Math.max(0, maximumY))),
         };
       } else {
         const direction = currentInteraction.mode.replace('resize-', '');
@@ -383,15 +461,15 @@ export default function SlideCanvas({
         const west = direction.includes('w');
         const right = start.x + start.width;
         const bottom = start.y + start.height;
-        let x = west ? clamp(start.x + deltaX, 0, right - 80) : start.x;
-        let y = north ? clamp(start.y + deltaY, 0, bottom - 60) : start.y;
+        let x = west ? allowsOverflow ? Math.min(start.x + deltaX, right) : clamp(start.x + deltaX, 0, right - 80) : start.x;
+        let y = north ? allowsOverflow ? Math.min(start.y + deltaY, bottom) : clamp(start.y + deltaY, 0, bottom - 60) : start.y;
         let width = west
           ? right - x
-          : east ? clamp(start.width + deltaX, 80, MASTER.width - start.x) : start.width;
+          : east ? clamp(start.width + deltaX, allowsOverflow ? 0 : 80, allowsOverflow ? Number.MAX_SAFE_INTEGER : MASTER.width - start.x) : start.width;
         let height = north
           ? bottom - y
-          : south ? clamp(start.height + deltaY, 60, MASTER.height - start.y) : start.height;
-        if (shiftKey) {
+          : south ? clamp(start.height + deltaY, allowsOverflow ? 0 : 60, allowsOverflow ? Number.MAX_SAFE_INTEGER : MASTER.height - start.y) : start.height;
+        if (shiftKey && start.width > 0 && start.height > 0) {
           const horizontalScale = width / start.width;
           const verticalScale = height / start.height;
           const scaleFromHorizontal = east || west;
@@ -399,9 +477,9 @@ export default function SlideCanvas({
           const scaleFactor = scaleFromHorizontal && scaleFromVertical
             ? (Math.abs(horizontalScale - 1) >= Math.abs(verticalScale - 1) ? horizontalScale : verticalScale)
             : scaleFromHorizontal ? horizontalScale : verticalScale;
-          const maximumWidth = west ? right : MASTER.width - start.x;
-          const maximumHeight = north ? bottom : MASTER.height - start.y;
-          const constrainedScale = clamp(scaleFactor, Math.max(80 / start.width, 60 / start.height), Math.min(maximumWidth / start.width, maximumHeight / start.height));
+          const maximumWidth = allowsOverflow ? Number.MAX_SAFE_INTEGER : west ? right : MASTER.width - start.x;
+          const maximumHeight = allowsOverflow ? Number.MAX_SAFE_INTEGER : north ? bottom : MASTER.height - start.y;
+          const constrainedScale = clamp(scaleFactor, allowsOverflow ? 0 : Math.max(80 / start.width, 60 / start.height), Math.min(maximumWidth / start.width, maximumHeight / start.height));
           width = Math.round(start.width * constrainedScale);
           height = Math.round(start.height * constrainedScale);
           x = west ? right - width : east ? start.x : Math.round(start.x + (start.width - width) / 2);
@@ -419,6 +497,7 @@ export default function SlideCanvas({
       setInteraction(next);
     };
     const move = (event: PointerEvent) => {
+      if (interactionRef.current?.pointerId !== event.pointerId) return;
       queuedPointer = { clientX: event.clientX, clientY: event.clientY, shiftKey: event.shiftKey };
       if (animationFrame) return;
       animationFrame = window.requestAnimationFrame(() => {
@@ -429,6 +508,7 @@ export default function SlideCanvas({
       });
     };
     const finish = (event: PointerEvent) => {
+      if (interactionRef.current?.pointerId !== event.pointerId) return;
       if (animationFrame) {
         window.cancelAnimationFrame(animationFrame);
         animationFrame = 0;
@@ -443,15 +523,15 @@ export default function SlideCanvas({
       setInteraction(null);
     };
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', finish, { once: true });
-    window.addEventListener('pointercancel', finish, { once: true });
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
     return () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', finish);
       window.removeEventListener('pointercancel', finish);
     };
-  }, [geometryGestureActive, scale]);
+  }, []);
 
   const beginInteraction = (
     event: React.PointerEvent,
@@ -465,7 +545,9 @@ export default function SlideCanvas({
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const nextInteraction: GeometryInteraction = {
+      pointerId: event.pointerId,
       objectId,
+      allowsOverflow: allowCanvasOverflow,
       mode,
       startClientX: event.clientX,
       startClientY: event.clientY,
@@ -491,6 +573,7 @@ export default function SlideCanvas({
     const centerClientY = frame ? frame.top + frame.height / 2 : event.clientY;
     const startPointerAngle = Math.atan2(event.clientY - centerClientY, event.clientX - centerClientX) * 180 / Math.PI;
     const nextInteraction: GeometryInteraction = {
+      pointerId: event.pointerId,
       objectId,
       mode: 'rotate',
       startClientX: event.clientX,
@@ -508,47 +591,59 @@ export default function SlideCanvas({
   };
 
   const queueDirectMove = (
-    event: React.PointerEvent<SVGGElement | HTMLDivElement>,
+    event: React.PointerEvent<Element>,
     objectId: string,
     bounds: Rect,
     locked = false,
   ) => {
+    suppressClickAfterDragRef.current = false;
     if (locked || !onChangeObjectBounds || drawingEnabled || event.button !== 0) return;
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('button, a, input, textarea, select, [contenteditable="true"], [data-canvas-interactive="true"]')
+      target.closest('button, a, input, textarea, select, iframe, video, audio, [contenteditable="true"], [data-canvas-interactive="true"]')
     ) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
     pendingMoveRef.current = {
       pointerId: event.pointerId,
       objectId,
+      additive: event.ctrlKey || event.metaKey || event.shiftKey,
       startClientX: event.clientX,
       startClientY: event.clientY,
       bounds,
     };
+    if (!pendingMoveRef.current.additive && objectId !== selectedObjectId && !selectedObjectIdSet.has(objectId)) {
+      onSelectObject?.(objectId);
+    }
   };
 
   useEffect(() => {
     const move = (event: PointerEvent) => {
       const pending = pendingMoveRef.current;
-      if (!pending || pending.pointerId !== event.pointerId || scale <= 0) return;
+      const currentScale = scaleRef.current;
+      const allowsOverflow = allowCanvasOverflowRef.current;
+      if (!pending || pending.pointerId !== event.pointerId || currentScale <= 0) return;
       const movementX = event.clientX - pending.startClientX;
       const movementY = event.clientY - pending.startClientY;
       if (Math.hypot(movementX, movementY) < 6) return;
       event.preventDefault();
       const currentBounds = {
         ...pending.bounds,
-        x: Math.round(clamp(pending.bounds.x + movementX / scale, 0, MASTER.width - pending.bounds.width)),
-        y: Math.round(clamp(
-          pending.bounds.y + movementY / scale,
-          0,
-          Math.max(0, pending.bounds.y + pending.bounds.height > MASTER.height ? MASTER.height - 60 : MASTER.height - pending.bounds.height),
-        )),
+        x: Math.round(allowsOverflow ? pending.bounds.x + movementX / currentScale : clamp(pending.bounds.x + movementX / currentScale, 0, MASTER.width - pending.bounds.width)),
+        y: Math.round(allowsOverflow
+          ? pending.bounds.y + movementY / currentScale
+          : clamp(
+            pending.bounds.y + movementY / currentScale,
+            0,
+            Math.max(0, pending.bounds.y + pending.bounds.height > MASTER.height ? MASTER.height - 60 : MASTER.height - pending.bounds.height),
+          )),
       };
-      if (pending.objectId !== selectedObjectId && !selectedObjectIdSet.has(pending.objectId))
-        onSelectObject?.(pending.objectId);
+      if (pending.additive) onSelectObjectRef.current?.(pending.objectId, true);
+      suppressClickAfterDragRef.current = true;
       const nextInteraction: GeometryInteraction = {
+        pointerId: pending.pointerId,
         objectId: pending.objectId,
+        allowsOverflow,
         mode: 'move',
         startClientX: pending.startClientX,
         startClientY: pending.startClientY,
@@ -570,7 +665,7 @@ export default function SlideCanvas({
       window.removeEventListener('pointerup', clear);
       window.removeEventListener('pointercancel', clear);
     };
-  }, [onSelectObject, scale, selectedObjectId, selectedObjectIdSet]);
+  }, []);
 
   const drawingPoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -659,13 +754,16 @@ export default function SlideCanvas({
   return (
     <div
       ref={containerRef}
-      className={`flex h-full min-h-[240px] w-full ${zoom > 1 ? 'items-start justify-start' : 'items-center justify-center'} ${transitionRunning ? 'overflow-hidden' : zoom > 1 || allowCanvasOverflow ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
+      className={`flex h-full min-h-[240px] w-full ${canvasNeedsScrolling ? 'items-start justify-start' : 'items-center justify-center'} ${transitionRunning ? 'overflow-hidden' : canvasNeedsScrolling ? 'overflow-auto' : 'overflow-hidden'} ${immersiveViewport ? 'rounded-none bg-blue-50 p-0' : `rounded-xl bg-slate-200 ${compactViewport ? 'p-1' : 'p-2'}`}`}
       data-testid="slide-viewport"
     >
       {scale > 0 && (
         <div
-          className="relative shrink-0"
-          style={{ width: MASTER.width * scale, height: MASTER.height * scale }}
+          className="relative m-auto shrink-0"
+          style={{
+            width: workspaceWidth,
+            height: workspaceHeight,
+          }}
         >
         <div
           data-testid="slide-surface"
@@ -675,6 +773,11 @@ export default function SlideCanvas({
           onPointerUp={finishMarqueeSelection}
           onPointerCancel={finishMarqueeSelection}
           onClick={(event) => {
+            if (suppressClickAfterDragRef.current) {
+              suppressClickAfterDragRef.current = false;
+              event.preventDefault();
+              return;
+            }
             if (suppressCanvasClickRef.current) {
               suppressCanvasClickRef.current = false;
               return;
@@ -698,6 +801,8 @@ export default function SlideCanvas({
             });
           }}
           style={{
+            left: -workspaceBounds.minX * scale,
+            top: -workspaceBounds.minY * scale,
             width: MASTER.width,
             height: MASTER.height,
             transform: `scale(${scale})`,
@@ -763,6 +868,8 @@ export default function SlideCanvas({
               const tone = colors[object?.type ?? field.allowed[0]] ?? colors.text;
               const objectSelected = Boolean(!selectionChromeHidden && object && (object.id === selectedObjectId || selectedObjectIdSet.has(object.id)));
               const selectedWithoutBorder = Boolean(objectSelected && !hasVisibleObjectBorder(object));
+              const objectMoving = Boolean(object && interaction?.objectId === object.id && interaction.mode === 'move');
+              const canMoveObject = Boolean(object && onChangeObjectBounds && !drawingEnabled && !object.locked);
               // Resource overlays (3D, video, protected images, and packages) own
               // their complete visual surface. Rendering the legacy SVG image URL
               // underneath a transparent overlay exposes the browser's broken-image
@@ -786,12 +893,28 @@ export default function SlideCanvas({
                     if (object) selectObjectFromClick(event, object.id);
                     else onSelectSlot?.(field.id);
                   }}
-                  onPointerDown={(event) => object && queueDirectMove(event, object.id, bounds, object.locked)}
+                  onClickCapture={(event) => {
+                    if (!suppressClickAfterDragRef.current) return;
+                    suppressClickAfterDragRef.current = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onPointerDownCapture={(event) => {
+                    const target = event.target;
+                    const shapeOutline = target instanceof Element ? target.closest('[data-object-shape-outline]') : null;
+                    if (shapeOutline && object) {
+                      queueDirectMove(event, object.id, bounds, object.locked);
+                      return;
+                    }
+                    if (target instanceof Element && target.closest('[data-object-move-edge], button, a, input, textarea, select, iframe, video, audio, [contenteditable="true"], [data-canvas-interactive="true"]')) return;
+                    if (object && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && object.id !== selectedObjectId && !selectedObjectIdSet.has(object.id))
+                      selectObject(object.id);
+                  }}
                   onKeyDown={(event) => {
                     if (object && (event.key === 'Enter' || event.key === ' '))
                       selectObject(object.id);
                   }}
-                  className={`${(object && onSelectObject) || (!object && onSelectSlot) ? 'cursor-pointer' : ''} ${animateSvgObject ? studioAnimationClass(String(animation?.effect || 'none')) : ''}`}
+                  className={`${!object && onSelectSlot ? 'cursor-pointer' : ''} ${animateSvgObject ? studioAnimationClass(String(animation?.effect || 'none')) : ''}`}
                   style={
                     animateSvgObject
                       ? {
@@ -851,6 +974,21 @@ export default function SlideCanvas({
                       {field.label}
                     </text>
                   )}
+                  {object && canMoveObject && !objectOverlays[object.id] ? (
+                    <rect
+                      data-object-move-edge="true"
+                      {...bounds}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={Math.max(12 / scale, 1)}
+                      pointerEvents="stroke"
+                      className={objectMoving ? 'cursor-grabbing' : 'cursor-move'}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        queueDirectMove(event, object.id, bounds, object.locked);
+                      }}
+                    />
+                  ) : null}
                 </g>
               );
             })}
@@ -881,16 +1019,35 @@ export default function SlideCanvas({
             const selectedWithoutBorder = selected && !hasVisibleObjectBorder(object);
             const textEditorOutline = showTextEditorOutlines && textObjectTypes.has(object.type) &&
               (selected || object.text.trim().length === 0);
+            const objectMoving = interaction?.objectId === object.id && interaction.mode === 'move';
+            const canMoveObject = object.type !== 'shape' && onChangeObjectBounds && !drawingEnabled && !object.locked;
+            const hiddenUntilReady = hiddenObjectIdSet.has(object.id);
             return (
               <div
                 key={`overlay-${object.id}`}
                 data-element-id={object.id}
+                onClickCapture={(event) => {
+                  if (!suppressClickAfterDragRef.current) return;
+                  suppressClickAfterDragRef.current = false;
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
                 onClick={(event) => {
                   event.stopPropagation();
                   selectObjectFromClick(event, object.id);
                 }}
-                onPointerDownCapture={(event) => queueDirectMove(event, object.id, bounds, object.locked)}
-                className={`absolute touch-none overflow-visible rounded-md border-solid ${onChangeObjectBounds && !drawingEnabled ? 'cursor-move' : ''} ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
+                onPointerDownCapture={(event) => {
+                  const target = event.target;
+                  const shapeOutline = target instanceof Element ? target.closest('[data-object-shape-outline]') : null;
+                  if (shapeOutline) {
+                    queueDirectMove(event, object.id, bounds, object.locked);
+                    return;
+                  }
+                  if (target instanceof Element && target.closest('[data-object-move-edge], button, a, input, textarea, select, iframe, video, audio, [contenteditable="true"], [data-canvas-interactive="true"]')) return;
+                  if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && object.id !== selectedObjectId && !selectedObjectIdSet.has(object.id))
+                    selectObject(object.id);
+                }}
+                className={`absolute touch-none overflow-visible rounded-md border-solid ${textEditorOutline ? `outline outline-2 outline-dotted ${selected ? 'outline-blue-600' : 'outline-slate-400'}` : selected ? selectedWithoutBorder ? 'border-2 border-dashed border-blue-600' : 'border-2 border-solid border-blue-700' : ''}`}
                 style={{
                   left: `${(bounds.x / MASTER.width) * 100}%`,
                   top: `${(bounds.y / MASTER.height) * 100}%`,
@@ -898,7 +1055,10 @@ export default function SlideCanvas({
                   height: `${(bounds.height / MASTER.height) * 100}%`,
                   zIndex: object.zIndex,
                   rotate: `${rotationFor(object)}deg`,
+                  visibility: hiddenUntilReady ? 'hidden' : undefined,
+                  pointerEvents: hiddenUntilReady ? 'none' : undefined,
                 }}
+                aria-hidden={hiddenUntilReady || undefined}
               >
                 <div
                   key={`animated-content-${object.id}-${objectAnimationKeys[object.id] ?? 'static'}`}
@@ -913,6 +1073,34 @@ export default function SlideCanvas({
                 >
                   {overlay}
                 </div>
+                {canMoveObject ? (
+                  <>
+                    <div
+                      data-object-move-edge="true"
+                      aria-hidden="true"
+                      onPointerDown={(event) => { event.stopPropagation(); queueDirectMove(event, object.id, bounds, object.locked); }}
+                      className={`absolute inset-x-0 top-0 z-10 h-[10px] touch-none ${objectMoving ? 'cursor-grabbing' : 'cursor-move'}`}
+                    />
+                    <div
+                      data-object-move-edge="true"
+                      aria-hidden="true"
+                      onPointerDown={(event) => { event.stopPropagation(); queueDirectMove(event, object.id, bounds, object.locked); }}
+                      className={`absolute inset-x-0 bottom-0 z-10 h-[10px] touch-none ${objectMoving ? 'cursor-grabbing' : 'cursor-move'}`}
+                    />
+                    <div
+                      data-object-move-edge="true"
+                      aria-hidden="true"
+                      onPointerDown={(event) => { event.stopPropagation(); queueDirectMove(event, object.id, bounds, object.locked); }}
+                      className={`absolute inset-y-0 left-0 z-10 w-[10px] touch-none ${objectMoving ? 'cursor-grabbing' : 'cursor-move'}`}
+                    />
+                    <div
+                      data-object-move-edge="true"
+                      aria-hidden="true"
+                      onPointerDown={(event) => { event.stopPropagation(); queueDirectMove(event, object.id, bounds, object.locked); }}
+                      className={`absolute inset-y-0 right-0 z-10 w-[10px] touch-none ${objectMoving ? 'cursor-grabbing' : 'cursor-move'}`}
+                    />
+                  </>
+                ) : null}
               </div>
             );
           })}
@@ -946,6 +1134,7 @@ export default function SlideCanvas({
             (layout?.slots ?? []).map((slot) => {
               const object = objectsBySlotId.get(slot.id);
               if (!object || object.id !== selectedObjectId) return null;
+              if (hiddenObjectIdSet.has(object.id)) return null;
               if (object.id === geometryControlsHiddenForObjectId) return null;
               if (object.locked) return null;
               const bounds = boundsFor(object, slot);
