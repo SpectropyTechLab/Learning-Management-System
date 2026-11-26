@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, FileUp, Save, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, FileUp, Save, X } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
@@ -41,6 +41,7 @@ export default function StudioSessionScriptsPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(Boolean(sessionId));
   const [busy, setBusy] = useState(false);
+  const [templateDownloading, setTemplateDownloading] = useState(false);
   const [error, setError] = useState('');
 
   const editable = !session || session.status === 'draft' || session.status === 'rejected';
@@ -164,6 +165,18 @@ export default function StudioSessionScriptsPage() {
     }
   };
 
+  const downloadTemplate = async () => {
+    if (!sessionId) return;
+    setTemplateDownloading(true);
+    try {
+      await studioDocumentsApi.downloadScreenScriptsTemplate(sessionId);
+    } catch (requestError) {
+      toast.error(getApiErrorDetails(requestError).message);
+    } finally {
+      setTemplateDownloading(false);
+    }
+  };
+
   if (!sessionId)
     return (
       <StudioShell
@@ -240,19 +253,12 @@ export default function StudioSessionScriptsPage() {
               </div>
               <button
                 type="button"
-                onClick={() =>
-                  navigate(
-                    returnToLibrary
-                      ? '/studio/sessions'
-                      : `/studio/editor/${sessionId}${selectedScreenId ? `?screen=${selectedScreenId}` : ''}`,
-                  )
-                }
+                disabled={templateDownloading}
+                onClick={() => void downloadTemplate()}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white"
               >
-                {returnToLibrary
-                  ? 'Back to Session Library'
-                  : 'Continue to Screen Editor'}{' '}
-                <ArrowRight size={16} />
+                <Download size={15} />
+                {templateDownloading ? 'Downloading…' : 'Download Template'}
               </button>
             </header>
 

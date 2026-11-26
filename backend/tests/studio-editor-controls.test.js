@@ -438,7 +438,14 @@ test('Editor commands, direct canvas authoring and canvas-only zoom share one wo
   assert.match(editor, /key === 'd'/);
   assert.match(editor, /key === 'x'/);
   assert.match(editor, /addDroppedFiles/);
-  assert.match(editor, /onCreateTextAt/);
+  assert.doesNotMatch(editor, /onCreateTextAt/);
+  assert.doesNotMatch(canvas, /onCreateTextAt/);
+  assert.match(editor, /addBlankElement\('text', 'content', undefined, \{ text: 'Type here' \}\)/);
+  assert.match(editor, /fontSize: 38/);
+  assert.match(canvas, /onCanvasDoubleClick=\{!previewMode && onActivateSlotAt/);
+  const textElement = readFrontend('components/StudioCanvasTextElement.tsx');
+  assert.match(textElement, /data-canvas-interactive="true"/);
+  assert.match(textElement, /caretRangeFromPoint/);
   assert.match(canvas, /canvasZoom/);
   assert.match(canvas, /event\.ctrlKey/);
   assert.match(canvas, /zoomPointersRef/);
