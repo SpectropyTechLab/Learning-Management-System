@@ -153,7 +153,7 @@ function PublishedImage({ source, alt, content, children, onReady }: { source: s
   const cropped = mediaTransform?.cropped === true || mediaTransform?.edgeCrop === true || mediaTransform?.cropGeometry === true;
   const imageFilter = typeof mediaTransform?.filter === 'string' ? mediaTransform.filter : undefined;
   const imageOpacity = Number.isFinite(Number(mediaTransform?.opacity)) ? Math.max(0, Math.min(1, Number(mediaTransform?.opacity))) : undefined;
-  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><img src={source} alt={alt} onLoad={(event) => markImageReady(event.currentTarget)} className="h-full w-full object-contain" style={{ filter: imageFilter, opacity: imageOpacity }} />{children}</div>;
+  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><img src={source} alt={alt} onLoad={(event) => markImageReady(event.currentTarget)} className="h-full w-full object-fill" style={{ filter: imageFilter, opacity: imageOpacity }} />{children}</div>;
   const hasEdgeCrop = mediaTransform?.edgeCrop === true;
   const hasCropGeometry = mediaTransform?.cropGeometry === true;
   const cropScaleX = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleX) || 1) : 1;
