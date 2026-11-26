@@ -35,7 +35,9 @@ test('Day 10 routes expose preview, confirm, manual and original-download operat
   assert.equal(has('/studio/sessions/:sessionId/session-plan/import-preview', 'post'), true);
   assert.equal(has('/studio/sessions/:sessionId/session-plan/import', 'post'), true);
   assert.equal(has('/studio/sessions/:sessionId/session-plan/content', 'patch'), true);
+  assert.equal(has('/studio/sessions/:sessionId/session-plan/template', 'get'), true);
   assert.equal(has('/studio/sessions/:sessionId/screen-scripts/import-preview', 'post'), true);
+  assert.equal(has('/studio/sessions/:sessionId/screen-scripts/template', 'get'), true);
   assert.equal(has('/studio/sessions/:sessionId/screens/:screenId/script', 'put'), true);
   assert.equal(has('/studio/chapters/:chapterId/curriculum-document/download', 'get'), true);
 });

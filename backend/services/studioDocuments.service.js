@@ -1,9 +1,18 @@
 import { createHash, randomUUID } from 'node:crypto';
+import {
+  AlignmentType, BorderStyle, Document, Footer, HeadingLevel, Packer, PageNumber,
+  PageOrientation, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, WidthType,
+} from 'docx';
 import supabase from '../config/supabaseClient.js';
 import { getClient, query as dbQuery } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
 import { returnSessionToDraft } from './studioSessionWorkflow.service.js';
-import { parseScreenScriptDocx, parseSessionPlanDocx } from './studioDocumentParser.service.js';
+import {
+  parseScreenScriptDocx,
+  parseSessionPlanDocx,
+  SCREEN_SCRIPT_V2_SECTION_HEADINGS,
+  SESSION_PLAN_HEADINGS,
+} from './studioDocumentParser.service.js';
 import { createTerm, taxonomyCode } from './studioTaxonomy.service.js';
 
 const BUCKET = process.env.STUDIO_DOCUMENTS_BUCKET || 'sessions-scripts-plans';
@@ -145,7 +154,8 @@ const validateScreenScriptContent = (content) => {
 
 const getSession = async (db, sessionId, { lock = false } = {}) => {
   const result = await db.query(
-    `SELECT se.id, se.client_id, se.status, p.id AS program_id, p.school_id AS program_school_id
+    `SELECT se.id, se.client_id, se.status, se.session_number, se.title,
+            p.id AS program_id, p.school_id AS program_school_id
      FROM sessions se
      JOIN subtopics st ON st.id = se.subtopic_id
      JOIN topics t ON t.id = st.topic_id
@@ -567,6 +577,212 @@ export const downloadDocument = async ({ sessionId: rawSessionId, documentType: 
     sha256,
     revisionNo: document.revision_no,
   };
+};
+
+const templateDownload = async ({ bytes, fileName }) => ({
+  bytes,
+  fileName,
+  contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  sizeBytes: bytes.length,
+  sha256: createHash('sha256').update(bytes).digest('hex'),
+  revisionNo: 0,
+});
+
+const templateSessionContext = async ({ sessionId: rawSessionId, user }) => {
+  assertAuthor(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const session = await getSession({ query: dbQuery }, sessionId);
+  assertTenant(session, user);
+  const screens = await dbQuery(
+    `SELECT id, screen_number, title, display_order
+     FROM screens WHERE session_id = $1
+     ORDER BY display_order, screen_number, id`,
+    [sessionId],
+  );
+  return { session, screens: screens.rows };
+};
+
+const sessionCode = (session) => `S${String(Number(session.session_number) || 1).padStart(2, '0')}`;
+const templateName = (session, suffix) => `${sessionCode(session)}-${suffix}-template.docx`;
+const TEMPLATE_NAVY = '17365D';
+const TEMPLATE_BLUE = 'DCE6F1';
+const TEMPLATE_ROW = 'F7F9FC';
+const TEMPLATE_BORDER = 'B8C6D9';
+const TEMPLATE_PAGE = {
+  size: { orientation: PageOrientation.LANDSCAPE },
+  margin: { top: 540, right: 540, bottom: 650, left: 540, header: 240, footer: 240 },
+};
+const TEMPLATE_BORDERS = Object.fromEntries(
+  ['top', 'bottom', 'left', 'right', 'insideHorizontal', 'insideVertical']
+    .map((side) => [side, { style: BorderStyle.SINGLE, size: 4, color: TEMPLATE_BORDER }]),
+);
+const templateFooter = (label) => new Footer({ children: [new Paragraph({
+  alignment: AlignmentType.RIGHT,
+  spacing: { before: 80, after: 0 },
+  children: [
+    new TextRun({ text: `${label}  •  Page `, color: '64748B', size: 16 }),
+    new TextRun({ children: [PageNumber.CURRENT], color: '64748B', size: 16 }),
+  ],
+})] });
+const cell = (text, bold = false, { fill, color, widthPct, alignment } = {}) => new TableCell({
+  children: [new Paragraph({
+    alignment,
+    spacing: { before: 40, after: 40, line: 240 },
+    children: [new TextRun({ text: String(text), bold, color, size: bold ? 17 : 16, font: 'Aptos' })],
+  })],
+  margins: { top: 80, bottom: 80, left: 90, right: 90 },
+  verticalAlign: 'center',
+  ...(fill ? { shading: { fill, color: 'auto' } } : {}),
+  ...(widthPct ? { width: { size: widthPct, type: WidthType.PERCENTAGE } } : {}),
+});
+const templateTable = (rows, columnWidths) => new Table({
+  rows,
+  width: { size: 100, type: WidthType.PERCENTAGE },
+  layout: TableLayoutType.FIXED,
+  borders: TEMPLATE_BORDERS,
+  ...(columnWidths ? { columnWidths } : {}),
+});
+
+const SCREEN_SCRIPT_TEMPLATE_COLUMNS = [
+  ['Area / layer', 'Position', 'Size', 'Description'],
+  ['Text', 'Style', 'Position', 'Timing'],
+  ['Element', 'Content', 'Purpose', 'Interaction'],
+  ['Asset', 'Prompt', 'Style', 'Dimensions'],
+  ['Asset', 'File format', 'Resolution', 'Notes'],
+  ['Start time', 'Duration', 'Element', 'Animation', 'Trigger', 'Narration cue'],
+  ['Stage / time', 'Teacher action', 'Notes'],
+  ['Start time', 'Speaker', 'Dialogue', 'On-screen action'],
+  ['Prompt', 'Expected response', 'Evidence'],
+  ['Condition', 'Destination', 'Teacher response'],
+  ['Misconception', 'Target exam', 'Pedagogy', 'Remediation'],
+];
+
+const screenScriptSectionTable = (columns) => new Table({
+  rows: [
+    new TableRow({
+      tableHeader: true,
+      cantSplit: true,
+      children: columns.map((column) => cell(column, true, {
+        fill: TEMPLATE_NAVY, color: 'FFFFFF', widthPct: 100 / columns.length,
+      })),
+    }),
+    new TableRow({
+      cantSplit: true,
+      children: columns.map((column) => cell(`[Enter ${column.toLowerCase()}]`, false, {
+        fill: TEMPLATE_ROW, widthPct: 100 / columns.length,
+      })),
+    }),
+  ],
+  width: { size: 100, type: WidthType.PERCENTAGE },
+  layout: TableLayoutType.FIXED,
+  borders: TEMPLATE_BORDERS,
+});
+
+export const downloadSessionPlanTemplate = async ({ sessionId, user }) => {
+  const { session, screens } = await templateSessionContext({ sessionId, user });
+  const rows = screens.length ? screens : [{ screen_number: 1, title: 'Screen 1' }];
+  const planWidths = [8, 8, 14, 8, 10, 11, 11, 10, 7, 7, 6];
+  const tableRows = [
+    new TableRow({
+      tableHeader: true,
+      cantSplit: true,
+      children: SESSION_PLAN_HEADINGS.map((heading, index) => cell(heading, true, {
+        fill: TEMPLATE_NAVY, color: 'FFFFFF', widthPct: planWidths[index],
+      })),
+    }),
+    ...rows.map((screen, index) => new TableRow({
+      cantSplit: true,
+      children: SESSION_PLAN_HEADINGS.map((heading, headingIndex) => {
+        if (heading === 'Screen mapped') {
+          return cell(`${sessionCode(session)}-${String(Number(screen.screen_number) || index + 1).padStart(2, '0')} | ${screen.title}`, false, {
+            fill: index % 2 ? 'FFFFFF' : TEMPLATE_ROW, widthPct: planWidths[headingIndex],
+          });
+        }
+        return cell(`[Enter ${heading.toLowerCase()}]`, false, {
+          fill: index % 2 ? 'FFFFFF' : TEMPLATE_ROW, widthPct: planWidths[headingIndex],
+        });
+      }),
+    })),
+  ];
+  const document = new Document({ sections: [{
+    properties: { page: TEMPLATE_PAGE },
+    footers: { default: templateFooter('Session Plan Template') },
+    children: [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+      children: [new TextRun({ text: 'SESSION PLAN TEMPLATE', bold: true, size: 34, color: TEMPLATE_NAVY, font: 'Aptos Display' })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 160 },
+      children: [new TextRun({ text: `${sessionCode(session)}  |  ${session.title}`, bold: true, size: 22, color: '315A8A', font: 'Aptos' })],
+    }),
+    templateTable([new TableRow({ children: [
+      cell('HOW TO USE', true, { fill: TEMPLATE_BLUE, color: TEMPLATE_NAVY, widthPct: 14 }),
+      cell('Replace every bracketed prompt. Keep the column headings and Screen identifiers unchanged before uploading the DOCX.', false, { widthPct: 86 }),
+    ] })], [1400, 8600]),
+    new Paragraph({ spacing: { before: 100, after: 0 }, children: [] }),
+    templateTable(tableRows, planWidths.map((value) => value * 100)),
+  ] }] });
+  return templateDownload({
+    bytes: await Packer.toBuffer(document),
+    fileName: templateName(session, 'session-plan'),
+  });
+};
+
+export const downloadScreenScriptsTemplate = async ({ sessionId, user }) => {
+  const { session, screens } = await templateSessionContext({ sessionId, user });
+  if (!screens.length) throw new AppError('Create at least one Screen before downloading the Screen Scripts template', 409);
+  const children = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+      children: [new TextRun({ text: 'SCREEN SCRIPT TEMPLATE', bold: true, size: 34, color: TEMPLATE_NAVY, font: 'Aptos Display' })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 150 },
+      children: [new TextRun({ text: `${sessionCode(session)}  |  ${session.title}`, bold: true, size: 22, color: '315A8A', font: 'Aptos' })],
+    }),
+    templateTable([new TableRow({ children: [
+      cell('HOW TO USE', true, { fill: TEMPLATE_BLUE, color: TEMPLATE_NAVY, widthPct: 14 }),
+      cell('Complete the editable row in each table. Add rows when needed, but keep Screen identifiers and section headings unchanged.', false, { widthPct: 86 }),
+    ] })], [1400, 8600]),
+  ];
+  screens.forEach((screen, screenIndex) => {
+    const key = `${sessionCode(session)}-${String(Number(screen.screen_number)).padStart(2, '0')}`;
+    children.push(
+      new Paragraph({
+        pageBreakBefore: screenIndex > 0,
+        spacing: { before: screenIndex ? 0 : 260, after: 80 },
+        children: [new TextRun({ text: `${key}  |  ${screen.title}`, bold: true, size: 28, color: TEMPLATE_NAVY, font: 'Aptos Display' })],
+        heading: HeadingLevel.HEADING_2,
+      }),
+      templateTable([new TableRow({ children: [
+        cell('TIME & PEDAGOGY', true, { fill: TEMPLATE_BLUE, color: TEMPLATE_NAVY, widthPct: 20 }),
+        cell('[Enter time range, duration, pedagogy, outcome, sources and verification notes]', false, { widthPct: 80 }),
+      ] })], [2000, 8000]),
+      ...SCREEN_SCRIPT_V2_SECTION_HEADINGS.flatMap((heading, index) => [
+        new Paragraph({
+          text: heading,
+          heading: HeadingLevel.HEADING_3,
+          keepNext: true,
+          spacing: { before: 180, after: 70 },
+        }),
+        screenScriptSectionTable(SCREEN_SCRIPT_TEMPLATE_COLUMNS[index]),
+      ]),
+    );
+  });
+  const document = new Document({ sections: [{
+    properties: { page: TEMPLATE_PAGE },
+    footers: { default: templateFooter('Screen Script Template') },
+    children,
+  }] });
+  return templateDownload({
+    bytes: await Packer.toBuffer(document),
+    fileName: templateName(session, 'screen-scripts'),
+  });
 };
 
 export const uploadSessionPlan = (input) => uploadDocument({ ...input, documentType: 'session_plan' });

@@ -161,6 +161,8 @@ export const studioDocumentsApi = {
     ),
   downloadSessionPlan: (sessionId: number) =>
     download(`/studio/sessions/${sessionId}/session-plan/download`, 'session-plan.docx'),
+  downloadSessionPlanTemplate: (sessionId: number) =>
+    download(`/studio/sessions/${sessionId}/session-plan/template`, 'session-plan-template.docx'),
   previewScreenScripts: async (sessionId: number, file: File) =>
     unwrap<ScreenScriptPreview>(
       await api.post(`/studio/sessions/${sessionId}/screen-scripts/import-preview`, fileForm(file)),
@@ -195,6 +197,8 @@ export const studioDocumentsApi = {
     unwrap(await api.put(`/studio/sessions/${sessionId}/screens/${screenId}/script`, { content })),
   downloadScreenScriptSource: (sessionId: number) =>
     download(`/studio/sessions/${sessionId}/screen-script/download`, 'screen-script.docx'),
+  downloadScreenScriptsTemplate: (sessionId: number) =>
+    download(`/studio/sessions/${sessionId}/screen-scripts/template`, 'screen-scripts-template.docx'),
   curriculumDocument: async (chapterId: number) =>
     unwrap<StudioDocumentRecord | null>(
       await api.get(`/studio/chapters/${chapterId}/curriculum-document`),
