@@ -4,10 +4,12 @@ import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ChevronDown, Cr
 import type { StudioElement } from '../types';
 import { normalizeStudioHyperlink } from './studioHyperlinkModel';
 import { dispatchStudioTextCommand } from './studioTextCommands';
+import { filterStudioFonts, STUDIO_FONT_CATEGORIES, studioFontCssFamily } from './studioFonts';
 
 interface Props {
   element: StudioElement | null;
   selectionFontSize?: number | 'mixed' | null;
+  selectionFontFamily?: string | 'mixed' | null;
   selectionSpacing?: {
     lineHeight: number | 'mixed';
     paragraphSpacingBefore: number | 'mixed';
@@ -18,7 +20,7 @@ interface Props {
 
 const textTypes = ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data', 'shape'];
 
-export default function StudioElementToolbar({ element, selectionFontSize, selectionSpacing, onChange }: Props) {
+export default function StudioElementToolbar({ element, selectionFontSize, selectionFontFamily, selectionSpacing, onChange }: Props) {
   const [listMenuOpen, setListMenuOpen] = useState(false);
   const [spacingMenuOpen, setSpacingMenuOpen] = useState(false);
   const [linkMenuOpen, setLinkMenuOpen] = useState(false);
@@ -28,12 +30,17 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
   const [linkError, setLinkError] = useState('');
   const [fontSizeDraft, setFontSizeDraft] = useState('18');
   const [fontSizeEditing, setFontSizeEditing] = useState(false);
+  const [fontMenuOpen, setFontMenuOpen] = useState(false);
+  const [fontQuery, setFontQuery] = useState('Arial');
+  const [activeFontIndex, setActiveFontIndex] = useState(0);
   const [lineSpacingDraft, setLineSpacingDraft] = useState('1.35');
   const [paragraphBeforeDraft, setParagraphBeforeDraft] = useState('0');
   const [paragraphAfterDraft, setParagraphAfterDraft] = useState('0');
   const [menuPosition, setMenuPosition] = useState({ left: 12, top: 48 });
   const spacingButtonRef = useRef<HTMLButtonElement>(null);
   const spacingMenuRef = useRef<HTMLDivElement>(null);
+  const fontInputRef = useRef<HTMLInputElement>(null);
+  const fontMenuRef = useRef<HTMLDivElement>(null);
   const textElement = Boolean(element && textTypes.includes(element.type));
   const content = element?.content ?? {};
   const resourceType = String(element?.resource?.usage?.resource_type || '');
@@ -53,6 +60,15 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
   const displayedFontSize = selectionFontSize === 'mixed'
     ? ''
     : String(selectionFontSize ?? (Number(content.fontSize) || 18));
+  const displayedFontFamily = selectionFontFamily === 'mixed'
+    ? ''
+    : String(selectionFontFamily || content.fontFamily || 'Arial');
+  const filteredFonts = filterStudioFonts(fontQuery);
+  useEffect(() => {
+    if (fontMenuOpen) return;
+    setFontQuery(displayedFontFamily);
+    setActiveFontIndex(0);
+  }, [displayedFontFamily, element?.id, fontMenuOpen]);
   useEffect(() => {
     if (fontSizeEditing) return;
     setFontSizeDraft(displayedFontSize);
@@ -88,6 +104,27 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
     document.addEventListener('pointerdown', closeOnOutsidePointerDown);
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointerDown);
   }, [spacingMenuOpen]);
+  useEffect(() => {
+    if (!fontMenuOpen) return;
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && (fontInputRef.current?.contains(target) || fontMenuRef.current?.contains(target))) return;
+      setFontMenuOpen(false);
+      setFontQuery(displayedFontFamily);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointerDown);
+  }, [displayedFontFamily, fontMenuOpen]);
+  const openFontMenu = (input: HTMLInputElement) => {
+    positionMenu(input, 288);
+    setFontMenuOpen(true);
+    setActiveFontIndex(0);
+  };
+  const applyFont = (fontName: string) => {
+    setFontQuery(fontName);
+    setFontMenuOpen(false);
+    sendTextCommand({ type: 'style', property: 'fontFamily', value: fontName, restoreEditorFocus: true });
+  };
   const previewLineSpacing = (value: string) => {
     setLineSpacingDraft(value);
     const spacing = Number(value);
@@ -152,7 +189,12 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
   return <div data-studio-element-toolbar className="relative flex min-w-0 flex-1 items-stretch overflow-hidden" aria-label="Home text controls">
     {ribbonGroup('Font', <div className="grid gap-0.5">
       <div className="flex items-center gap-0.5">
-        <select disabled={!textElement} value={String(content.fontFamily || 'Arial')} onChange={(event) => sendTextCommand({ type: 'style', property: 'fontFamily', value: event.target.value })} aria-label="Font family" className="h-6 w-20 shrink-0 rounded border px-1 text-[10px] disabled:opacity-35"><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option></select>
+        <input ref={fontInputRef} disabled={!textElement} role="combobox" aria-label="Font family" aria-autocomplete="list" aria-expanded={fontMenuOpen} aria-controls="studio-font-family-options" value={fontQuery} placeholder={selectionFontFamily === 'mixed' ? 'Mixed' : undefined} onFocus={(event) => { openFontMenu(event.currentTarget); event.currentTarget.select(); }} onClick={(event) => openFontMenu(event.currentTarget)} onChange={(event) => { setFontQuery(event.target.value); setActiveFontIndex(0); setFontMenuOpen(true); }} onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') { event.preventDefault(); setFontMenuOpen(true); setActiveFontIndex((index) => Math.min(index + 1, Math.max(0, filteredFonts.length - 1))); }
+          else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveFontIndex((index) => Math.max(0, index - 1)); }
+          else if (event.key === 'Enter' && filteredFonts.length) { event.preventDefault(); applyFont(filteredFonts[activeFontIndex]?.name ?? filteredFonts[0].name); }
+          else if (event.key === 'Escape') { event.preventDefault(); setFontMenuOpen(false); setFontQuery(displayedFontFamily); event.currentTarget.blur(); }
+        }} className="h-6 w-28 shrink-0 rounded border px-1 text-[10px] disabled:opacity-35" style={{ fontFamily: studioFontCssFamily(displayedFontFamily || String(content.fontFamily || 'Arial')) }} />
         <input disabled={!textElement} type="number" min="10" max="160" value={fontSizeDraft} placeholder={selectionFontSize === 'mixed' ? 'Mixed' : undefined} onFocus={() => setFontSizeEditing(true)} onChange={(event) => previewFontSize(event.target.value)} onBlur={() => { setFontSizeEditing(false); const size = Number(fontSizeDraft); if (!Number.isFinite(size) || size < 10 || size > 160) setFontSizeDraft(displayedFontSize); }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} aria-label="Font size" className="h-6 w-10 shrink-0 rounded border px-1 text-[10px] disabled:opacity-35" />
         <input disabled={!textElement} type="color" value={typeof content.color === 'string' ? content.color : '#25436b'} onChange={(event) => sendTextCommand({ type: 'style', property: 'color', value: event.target.value })} aria-label="Text colour" className="h-6 w-6 shrink-0 rounded border p-0.5 disabled:opacity-35" />
       </div>
@@ -162,6 +204,17 @@ export default function StudioElementToolbar({ element, selectionFontSize, selec
         <button disabled={!textElement} type="button" title="Underline selected text" onClick={() => sendTextCommand({ type: 'format', command: 'underline' })} className={compactFontButton(content.underline === true)}><Underline size={12} /></button>
       </div>
     </div>)}
+    {fontMenuOpen && textElement && typeof document !== 'undefined' ? createPortal(<div ref={fontMenuRef} data-studio-element-toolbar id="studio-font-family-options" role="listbox" aria-label="Font families" className="fixed z-[270] max-h-80 w-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl" style={menuPosition}>
+      {filteredFonts.length ? STUDIO_FONT_CATEGORIES.map((category) => {
+        const fonts = filteredFonts.filter((font) => font.category === category);
+        if (!fonts.length) return null;
+        return <section key={category} aria-label={category}><div className="sticky top-0 bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{category}</div>{fonts.map((font) => {
+          const optionIndex = filteredFonts.indexOf(font);
+          const active = optionIndex === activeFontIndex;
+          return <button key={font.name} type="button" role="option" aria-selected={font.name === displayedFontFamily} onPointerDown={(event) => event.preventDefault()} onMouseEnter={() => setActiveFontIndex(optionIndex)} onClick={() => applyFont(font.name)} className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${active ? 'bg-blue-50 text-blue-950' : 'hover:bg-slate-50'}`} style={{ fontFamily: studioFontCssFamily(font.name) }}>{font.name}</button>;
+        })}</section>;
+      }) : <p className="px-3 py-5 text-center text-xs text-slate-500">No matching font</p>}
+    </div>, document.body) : null}
     {ribbonGroup('Paragraph', <div className="grid gap-0.5">
       <div className="flex items-center gap-0.5">
         <button disabled={!textElement} type="button" title="Align left" onClick={() => sendTextCommand({ type: 'block-style', property: 'textAlign', value: 'left' })} className={button(alignment === 'left')}><AlignLeft size={14} /></button>
