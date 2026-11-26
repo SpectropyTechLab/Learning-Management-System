@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, Loader2, Music, PackageOpen, Presentation, RefreshCw } from 'lucide-react';
 import { getApiErrorDetails } from '@/lib/api';
 import { resolveAssetUrl } from '@/lib/apiBaseUrl';
-import { commitStudioScormAttempt, getStudioObjectPreview, getStudioResourceDownload, getStudioResourcePreview, launchStudioResourceVersion, startStudioScormAttempt, type StudioObjectPreviewDescriptor, type StudioResourceType, type StudioResourceVersion } from '../../api/studioResourcesApi';
+import { commitStudioScormAttempt, getStudioObjectPreview, getStudioResourceDownload, getStudioResourcePreview, launchStudioResourceVersion, startStudioScormAttempt, type StudioObjectPreviewDescriptor, type StudioResourcePreview, type StudioResourceType, type StudioResourceVersion } from '../../api/studioResourcesApi';
 import Model3DViewer from './Model3DViewer';
 import type { Model3DSettings } from './model3DSettings';
 import EmbeddedObjectViewer from './EmbeddedObjectViewer';
@@ -37,6 +37,8 @@ interface StudioResourcePlayerProps {
   model3DModeRequestToken?: number;
   onModel3DSettingsChange?: (settings: Model3DSettings) => void;
   onReady?: () => void;
+  getPreview?: (versionId: number) => Promise<StudioResourcePreview>;
+  getObjectPreview?: (versionId: number) => Promise<StudioObjectPreviewDescriptor>;
 }
 
 const afterVisiblePaint = (callback?: () => void) => {
@@ -44,7 +46,7 @@ const afterVisiblePaint = (callback?: () => void) => {
   window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
 };
 
-export default function StudioResourcePlayer({ resourceType, version, mode = 'preview', selected = false, className = '', mediaTransform, model3DSettings, model3DModeRequestToken, onModel3DSettingsChange, onReady }: StudioResourcePlayerProps) {
+export default function StudioResourcePlayer({ resourceType, version, mode = 'preview', selected = false, className = '', mediaTransform, model3DSettings, model3DModeRequestToken, onModel3DSettingsChange, onReady, getPreview, getObjectPreview }: StudioResourcePlayerProps) {
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
   const notifyReady = useCallback(() => afterVisiblePaint(onReadyRef.current), []);
@@ -60,7 +62,7 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
     setLoading(true); setError(''); setSource(''); setObjectPreview(null);
     const resolveSource = async () => {
       if (resourceType === 'document') {
-        const descriptor = await getStudioObjectPreview(version.id);
+        const descriptor = await (getObjectPreview?.(version.id) ?? getStudioObjectPreview(version.id));
         if (active) setObjectPreview(descriptor);
         return descriptor.url || '';
       }
@@ -77,17 +79,31 @@ export default function StudioResourcePlayer({ resourceType, version, mode = 'pr
         if (!launch.launchable || !launch.launch_url) throw new Error(launch.message || 'This package cannot be previewed.');
         return resolveAssetUrl(launch.launch_url) || launch.launch_url;
       }
-      return (await getStudioResourcePreview(version.id)).url;
+      return (await (getPreview?.(version.id) ?? getStudioResourcePreview(version.id))).url;
     };
     void resolveSource().then((value) => { if (active) setSource(value); }).catch((loadError) => { if (active) setError(getApiErrorDetails(loadError, loadError instanceof Error ? loadError.message : 'Unable to open Resource preview.').message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [reloadKey, resourceType, version.external_url, version.id]);
+  }, [getObjectPreview, getPreview, reloadKey, resourceType, version.external_url, version.id]);
 
   useEffect(() => {
-    if (loading || error || resourceType !== 'presentation') return;
+    if (loading) return;
+    if (error) {
+      const frame = window.requestAnimationFrame(notifyReady);
+      return () => window.cancelAnimationFrame(frame);
+    }
+    const embeddedDocument = resourceType === 'document' &&
+      (objectPreview?.mode === 'pdf' || objectPreview?.mode === 'interactive');
+    if (!['document', 'presentation'].includes(resourceType) || embeddedDocument) return;
     const frame = window.requestAnimationFrame(notifyReady);
     return () => window.cancelAnimationFrame(frame);
-  }, [error, loading, notifyReady, resourceType]);
+  }, [error, loading, notifyReady, objectPreview, resourceType]);
+
+  useEffect(() => {
+    if (loading || error || resourceType !== 'document' ||
+      (objectPreview?.mode !== 'pdf' && objectPreview?.mode !== 'interactive')) return;
+    const timeout = window.setTimeout(notifyReady, 12_000);
+    return () => window.clearTimeout(timeout);
+  }, [error, loading, notifyReady, objectPreview, resourceType]);
 
   const mediaPreviewFailed = () => setError(version.external_url
     ? 'This external URL is not an embeddable media file. Use a direct image/video URL or upload the file.'
