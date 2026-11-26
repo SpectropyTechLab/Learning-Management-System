@@ -90,6 +90,7 @@ export default function StudioSessionPlanPage() {
   >([]);
   const [loading, setLoading] = useState(Boolean(sessionId));
   const [busy, setBusy] = useState(false);
+  const [templateDownloading, setTemplateDownloading] = useState(false);
   const [error, setError] = useState('');
   const requestedMode = searchParams.get('mode');
   const isCreatePipeline = searchParams.get('flow') === 'create';
@@ -282,6 +283,17 @@ export default function StudioSessionPlanPage() {
       toast.error(getApiErrorDetails(requestError).message);
     }
   };
+  const downloadPlanTemplate = async () => {
+    if (!sessionId) return;
+    setTemplateDownloading(true);
+    try {
+      await studioDocumentsApi.downloadSessionPlanTemplate(sessionId);
+    } catch (requestError) {
+      toast.error(getApiErrorDetails(requestError).message);
+    } finally {
+      setTemplateDownloading(false);
+    }
+  };
 
   if (!sessionId)
     return (
@@ -343,6 +355,15 @@ export default function StudioSessionPlanPage() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={templateDownloading}
+                  onClick={() => void downloadPlanTemplate()}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 hover:text-blue-900 disabled:opacity-50"
+                >
+                  <Download size={16} />
+                  {templateDownloading ? 'Downloading…' : 'Download Template'}
+                </button>
                 {document?.original_file_name && (
                   <button
                     type="button"

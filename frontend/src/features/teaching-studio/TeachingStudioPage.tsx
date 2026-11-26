@@ -1545,7 +1545,7 @@ export default function TeachingStudioPage() {
       type: requestedType,
       content: requestedType === 'text' ? {
         text: '', kind: 'rectangle', fill: 'transparent', stroke: 'transparent', strokeWidth: 2,
-        color: '#25436b', fontSize: 18, alignment: 'left', verticalAlignment: 'top',
+        color: '#25436b', fontSize: 38, alignment: 'left', verticalAlignment: 'top',
       } : { text: '' },
       position: { ...slot.bounds },
     };
@@ -1566,7 +1566,7 @@ export default function TeachingStudioPage() {
       if (hasContent && !window.confirm(`Replace the existing ${existing.type} content with ${type} content?`)) return;
       updateElement({ ...existing, type, content: type === 'text' ? {
         text: '', kind: 'rectangle', fill: 'transparent', stroke: 'transparent', strokeWidth: 2,
-        color: '#25436b', fontSize: 18, alignment: 'left', verticalAlignment: 'top',
+        color: '#25436b', fontSize: 38, alignment: 'left', verticalAlignment: 'top',
       } : { text: '' }, resource: undefined });
     } else {
       addElement(slot, type);
@@ -1613,7 +1613,7 @@ export default function TeachingStudioPage() {
       stroke: 'transparent',
       strokeWidth: 2,
       color: '#25436b',
-      fontSize: 18,
+      fontSize: 38,
       alignment: 'left',
       verticalAlignment: 'top',
     } : {};
@@ -5725,11 +5725,6 @@ export default function TeachingStudioPage() {
                 drawingWidth={drawingWidth}
                 drawingOpacity={drawingOpacity}
                 onDrawingChange={editorReadOnly ? undefined : setAuthoredDrawings}
-                onCreateTextAt={
-                  editorReadOnly
-                    ? undefined
-                    : (point) => addBlankElement('text', 'content', point, { text: 'Type here' })
-                }
                 onActivateSlotAt={
                   editorReadOnly || !selectedLayout
                     ? undefined

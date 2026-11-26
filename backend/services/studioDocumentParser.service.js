@@ -16,7 +16,7 @@ export const SESSION_PLAN_FIELDS = [
   'remarks_assessment',
 ];
 
-const SESSION_PLAN_HEADINGS = [
+export const SESSION_PLAN_HEADINGS = [
   'Time / duration',
   'Screen mapped',
   'Learning objective / evidence',
