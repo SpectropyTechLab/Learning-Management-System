@@ -606,6 +606,10 @@ export default function BlankScreenCanvas({
     elementId: string;
     value: number | 'mixed' | null;
   } | null>(null);
+  const [textSelectionFontFamily, setTextSelectionFontFamily] = useState<{
+    elementId: string;
+    value: string | 'mixed' | null;
+  } | null>(null);
   const [textSelectionSpacing, setTextSelectionSpacing] = useState<{
     elementId: string;
     value: {
@@ -747,6 +751,7 @@ export default function BlankScreenCanvas({
     setEditingElementId(null);
     setCroppingElementId(null);
     setTextSelectionFontSize(null);
+    setTextSelectionFontFamily(null);
     setTextSelectionSpacing(null);
   }, [screen?.id]);
   useEffect(() => {
@@ -1157,12 +1162,14 @@ export default function BlankScreenCanvas({
               onCommit={onChangeElementContent ? ({ text, richTextHtml, formatting }) => onChangeElementContent(element.id, { text, ...(richTextHtml !== undefined ? { richTextHtml } : {}), ...formatting }) : undefined}
               onCaretChange={(offset) => onTextCaretChange?.(element.id, offset)}
               onSelectionFontSizeChange={(value) => setTextSelectionFontSize({ elementId: element.id, value })}
+              onSelectionFontFamilyChange={(value) => setTextSelectionFontFamily({ elementId: element.id, value })}
               onSelectionSpacingChange={(value) => setTextSelectionSpacing({ elementId: element.id, value })}
               onInlineShapeEdit={(shape, start, end) => onEditInlineShape?.(element.id, shape, start, end)}
               onInlineEquationEdit={(latex, start, end) => onEditInlineEquation?.(element.id, latex, start, end)}
               onEditingChange={(editing) => {
                 setEditingElementId(editing ? element.id : (current) => current === element.id ? null : current);
                 if (!editing) setTextSelectionFontSize((current) => current?.elementId === element.id ? null : current);
+                if (!editing) setTextSelectionFontFamily((current) => current?.elementId === element.id ? null : current);
                 if (!editing) setTextSelectionSpacing((current) => current?.elementId === element.id ? null : current);
               }}
             />
@@ -1292,6 +1299,11 @@ export default function BlankScreenCanvas({
               ? current
               : { elementId: element.id, value }
           )}
+          onSelectionFontFamilyChange={(value) => setTextSelectionFontFamily((current) =>
+            current?.elementId === element.id && current.value === value
+              ? current
+              : { elementId: element.id, value }
+          )}
           onSelectionSpacingChange={(value) => setTextSelectionSpacing((current) =>
             current?.elementId === element.id &&
             current.value.lineHeight === value.lineHeight &&
@@ -1307,6 +1319,7 @@ export default function BlankScreenCanvas({
               editing ? element.id : (current) => (current === element.id ? null : current),
             );
             if (!editing) setTextSelectionFontSize((current) => current?.elementId === element.id ? null : current);
+            if (!editing) setTextSelectionFontFamily((current) => current?.elementId === element.id ? null : current);
             if (!editing) setTextSelectionSpacing((current) => current?.elementId === element.id ? null : current);
           }}
         /></div></div>
@@ -1522,6 +1535,7 @@ export default function BlankScreenCanvas({
               <StudioElementToolbar
                 element={selectedElement}
                 selectionFontSize={selectedElement && textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
+                selectionFontFamily={selectedElement && textSelectionFontFamily?.elementId === selectedElement.id ? textSelectionFontFamily.value : null}
                 selectionSpacing={selectedElement && textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
                 onChange={(changes) => { if (selectedElement) onChangeElementContent(selectedElement.id, changes); }}
                 />,
