@@ -92,7 +92,6 @@ interface BlankScreenCanvasProps {
   drawingWidth?: number;
   drawingOpacity?: number;
   onDrawingChange?: (strokes: AuthorDrawingStroke[]) => void;
-  onCreateTextAt?: (point: { x: number; y: number }) => string | void;
   onActivateSlotAt?: (point: { x: number; y: number }) => string | void;
   onDropFiles?: (files: File[], point: { x: number; y: number }) => void;
   onCanvasPointChange?: (point: { x: number; y: number }) => void;
@@ -596,7 +595,6 @@ export default function BlankScreenCanvas({
   drawingWidth = 6,
   drawingOpacity = 1,
   onDrawingChange,
-  onCreateTextAt,
   onCanvasPointChange,
   onActivateSlotAt,
   onDropFiles,
@@ -1629,8 +1627,8 @@ export default function BlankScreenCanvas({
             onRemoveObject={onRemoveElement}
             zoom={previewMode ? 1 : canvasZoom}
             backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'}
-            onCanvasDoubleClick={!previewMode && (onActivateSlotAt || onCreateTextAt) ? (point) => {
-              const createdId = onActivateSlotAt?.(point) ?? onCreateTextAt?.(point);
+            onCanvasDoubleClick={!previewMode && onActivateSlotAt ? (point) => {
+              const createdId = onActivateSlotAt(point);
               if (createdId) setEditingElementId(createdId);
             } : undefined}
             onCanvasClick={!previewMode ? onCanvasPointChange : undefined}

@@ -750,7 +750,23 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
       onEditingChange?.(false);
     }, 0);
   };
-  const beginEditing = () => { setEditing(true); onEditingChange?.(true); requestAnimationFrame(() => editorRef.current?.focus()); };
+  const beginEditing = (clientPoint?: { x: number; y: number }) => {
+    setEditing(true);
+    onEditingChange?.(true);
+    requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      editor.focus();
+      if (!clientPoint) return;
+      const caretRange = document.caretRangeFromPoint?.(clientPoint.x, clientPoint.y);
+      if (!caretRange || !editor.contains(caretRange.startContainer)) return;
+      const selection = window.getSelection();
+      if (!selection) return;
+      selection.removeAllRanges();
+      selection.addRange(caretRange);
+      reportCaret();
+    });
+  };
   useEffect(() => {
     if (!editable || !elementId) return;
     const handleEditRequest = (event: Event) => {
@@ -783,7 +799,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     if (animationTextSequence === 'word') return text.split(/(\s+)/).map((word, index) => <span key={index} className="whitespace-pre-wrap" style={/^\s+$/.test(word) ? undefined : tokenStyle(index)}>{word}</span>);
     return Array.from(text).map((letter, index) => <span key={index} className="whitespace-pre-wrap" style={/\s/.test(letter) ? undefined : tokenStyle(index)}>{letter}</span>);
   })() : null;
-  return <div ref={containerRef} className={`relative flex h-full w-full flex-col overflow-visible ${editing ? 'cursor-text' : ''}`} style={{ backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}`, justifyContent: verticalAlignment === 'middle' ? 'center' : verticalAlignment === 'bottom' ? 'flex-end' : 'flex-start' }} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }} onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); beginEditing(); }}>
+  return <div ref={containerRef} data-canvas-interactive="true" className={`relative flex h-full w-full flex-col overflow-visible ${editing ? 'cursor-text' : ''}`} style={{ backgroundColor, border: borderColor === 'transparent' || borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${borderColor}`, justifyContent: verticalAlignment === 'middle' ? 'center' : verticalAlignment === 'bottom' ? 'flex-end' : 'flex-start' }} onClick={(event) => { event.stopPropagation(); onSelect?.(event.ctrlKey || event.metaKey || event.shiftKey); }} onDoubleClick={(event) => { if (!editable) return; event.preventDefault(); event.stopPropagation(); beginEditing({ x: event.clientX, y: event.clientY }); }}>
     {editing ? <div ref={(node) => { editorRef.current = node; contentRef.current = node; }} contentEditable suppressContentEditableWarning className="studio-canvas-rich-text min-h-0 w-full cursor-text overflow-visible whitespace-pre-wrap outline-none" style={textStyle} onPaste={handlePaste} onDoubleClick={(event) => { const target = (event.target as HTMLElement).closest<HTMLElement>('[data-inline-latex],[data-inline-shape]'); if (!target || !editorRef.current) return; event.preventDefault(); event.stopPropagation(); const prefix = document.createRange(); prefix.selectNodeContents(editorRef.current); prefix.setEndBefore(target); const start = serializeNodes(prefix.cloneContents().childNodes).length; if (target.dataset.inlineLatex) { const latex = decodeURIComponent(target.dataset.inlineLatex); const token = `\\(${latex}\\)`; inlineEquationTargetRef.current = target; target.replaceChildren(); setInlineEquationEditor({ controlId: `${elementId ?? 'text'}:inline-equation:${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`, latex, start, end: start + token.length, target }); return; } if (!target.dataset.inlineShape) return; const token = `[[shape:${target.dataset.inlineShape}]]`; try { onInlineShapeEdit?.(JSON.parse(decodeURIComponent(target.dataset.inlineShape)) as InlineShapeData, start, start + token.length); } catch { /* Ignore malformed legacy tokens. */ } }} onInput={() => { reportCaret(); scheduleEditorCommit(); }} onKeyUp={reportCaret} onPointerUp={reportCaret} onBlur={handleEditorBlur} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); } }} />
       : sequencedText ? <div ref={(node) => { contentRef.current = node; }} className="min-h-0 w-full overflow-visible" style={textStyle}>{sequencedText}</div>
       : renderedRichTextHtml ? <div ref={(node) => { contentRef.current = node; }} className="studio-canvas-rich-text min-h-0 w-full overflow-visible whitespace-pre-wrap" style={textStyle} dangerouslySetInnerHTML={{ __html: renderedRichTextHtml }} />

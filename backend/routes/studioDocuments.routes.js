@@ -3,6 +3,7 @@ import multer from 'multer';
 import { authenticateToken, attachClientContext, requireRole } from '../middleware/auth.js';
 import {
   uploadSessionPlan, uploadScreenScript, downloadSessionPlan, downloadScreenScript,
+  downloadSessionPlanTemplate, downloadScreenScriptsTemplate,
   saveSessionPlanContent, saveScreenScriptContent, getSessionPlan, getScreenScriptSource,
   previewSessionPlanImport, importSessionPlan, previewScreenScriptImport,
   importScreenScripts, listScreenScripts, saveScreenScript,
@@ -23,6 +24,7 @@ router.post('/studio/sessions/:sessionId/session-plan', authors, upload.single('
 router.put('/studio/sessions/:sessionId/session-plan', authors, upload.single('file'), uploadSessionPlan);
 router.patch('/studio/sessions/:sessionId/session-plan/content', authors, saveSessionPlanContent);
 router.get('/studio/sessions/:sessionId/session-plan/download', downloadSessionPlan);
+router.get('/studio/sessions/:sessionId/session-plan/template', authors, downloadSessionPlanTemplate);
 router.get('/studio/sessions/:sessionId/session-plan', getSessionPlan);
 router.post('/studio/sessions/:sessionId/session-plan/import-preview', authors, upload.single('file'), previewSessionPlanImport);
 router.post('/studio/sessions/:sessionId/session-plan/import', authors, upload.single('file'), importSessionPlan);
@@ -30,6 +32,7 @@ router.post('/studio/sessions/:sessionId/screen-script', authors, upload.single(
 router.put('/studio/sessions/:sessionId/screen-script', authors, upload.single('file'), uploadScreenScript);
 router.patch('/studio/sessions/:sessionId/screen-script/content', authors, saveScreenScriptContent);
 router.get('/studio/sessions/:sessionId/screen-script/download', downloadScreenScript);
+router.get('/studio/sessions/:sessionId/screen-scripts/template', authors, downloadScreenScriptsTemplate);
 router.get('/studio/sessions/:sessionId/screen-script', getScreenScriptSource);
 router.post('/studio/sessions/:sessionId/screen-scripts/import-preview', authors, upload.single('file'), previewScreenScriptImport);
 router.post('/studio/sessions/:sessionId/screen-scripts/import', authors, upload.single('file'), importScreenScripts);
