@@ -459,6 +459,11 @@ test('Editor commands, direct canvas authoring and canvas-only zoom share one wo
   assert.doesNotMatch(canvas, /absolute bottom-3 left-1\/2/);
 });
 
+test('Session Preview renders uncropped images with the same full-frame fit as the editor canvas', () => {
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(player, /className="h-full w-full object-fill"/);
+});
+
 test('Home ribbon Clipboard group shares multi-element paste and Format Painter workflows', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const clipboard = readFrontend('components/StudioClipboardGroup.tsx');
