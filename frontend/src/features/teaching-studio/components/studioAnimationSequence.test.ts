@@ -11,7 +11,6 @@ const element = (id: string, effects: Array<Record<string, unknown>>): StudioEle
   content: { text: id, animation: { effects } },
   position: { x: 0, y: 0, width: 100, height: 100 },
 });
-
 test('the Screen animation pane combines effects from every element', () => {
   const elements = [
     element('title', [{ id: 'fade', effect: 'fade', start: 'on-click' }]),

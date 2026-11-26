@@ -1,6 +1,7 @@
 import { isAxiosError } from 'axios';
 import api from '@/lib/api';
 import type { StudioScreen, StudioScreenList, StudioScreenSection } from '../types';
+import { prepareStudioElementForSave } from '../studioElementBounds';
 
 interface DataEnvelope<T> {
   data: T;
@@ -87,7 +88,7 @@ export const updateStudioScreen = async (
 ) => restoreTableElementTypes(unwrap<StudioScreen & { session_revision_no: number }>(
   await api.patch(`/studio/screens/${screenId}`, {
     ...payload,
-    elements: payload.elements.map((element) => element.type === 'table'
+    elements: payload.elements.map(prepareStudioElementForSave).map((element) => element.type === 'table'
       ? { ...element, type: 'data', content: { ...element.content, visualType: 'table' } }
       : element),
   }),
