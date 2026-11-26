@@ -4,7 +4,7 @@ export type StudioTextCommand =
   | { type: 'indent' }
   | { type: 'outdent' }
   | { type: 'format'; command: 'bold' | 'italic' | 'underline' }
-  | { type: 'style'; property: 'fontSize' | 'fontFamily' | 'color'; value: string }
+  | { type: 'style'; property: 'fontSize' | 'fontFamily' | 'color'; value: string; restoreEditorFocus?: boolean }
   | {
       type: 'apply-character-format';
       styles: Record<string, string>;
