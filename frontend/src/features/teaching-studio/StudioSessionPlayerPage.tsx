@@ -54,6 +54,7 @@ import { clearCachedSessionPreview, getCachedResourcePreviewUrl, getCachedSessio
 import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioUsesViewTransition, unlockStudioTransitionAudio } from './components/studioTransition';
 import { playStudioAnimationSound } from './components/studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './components/studioAnimationModel';
+import { clearCachedSessionPreview, getCachedResourcePreviewUrl, getCachedSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
 
 const textFrom = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title ?? content.caption;

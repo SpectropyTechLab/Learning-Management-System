@@ -475,6 +475,7 @@ test('Session Preview uses the prepared editor manifest before its background re
   assert.match(player, /getCachedResourcePreviewUrl\(mapping\.resource_version_id\)/);
   assert.match(player, /preparedPreviewScreens\.map/);
   assert.match(player, /passivePreview=\{!active\}/);
+  assert.match(player, /Preparing presentation/);
 });
 
 test('Home ribbon Clipboard group shares multi-element paste and Format Painter workflows', () => {
@@ -551,7 +552,8 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   const retreatStart = player.indexOf('const retreatPresenter =');
   const retreatEnd = player.indexOf('useEffect(() => {', retreatStart);
   const retreatImplementation = player.slice(retreatStart, retreatEnd);
-  assert.match(player, /<PublishedCanvas key=\{`\$\{release\.id\}:\$\{screen\.screen_id\}:\$\{previewMode \? 'preview' : 'published'\}:active`\}/);
+  assert.match(player, /<div key=\{`\$\{release\.id\}:\$\{preparedScreen\.screen_id\}:prepared`\}/);
+  assert.match(player, /<PublishedCanvas key=\{`\$\{release\.id\}:\$\{screen\.screen_id\}:published:active`\}/);
   assert.doesNotMatch(player, /<PublishedCanvas key=\{[^}]*playbackCycle/);
   assert.doesNotMatch(retreatImplementation, /setPlaybackCycle/);
   assert.match(runtime, /presenterElementPlaybackState/);
