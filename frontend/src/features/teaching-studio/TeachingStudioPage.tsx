@@ -231,8 +231,6 @@ import { studioSetupApi } from './api/studioSetupApi';
 import { getSessionPlayerPreview } from './api/studioPublishedApi';
 import { cacheSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
 import type { StudioSession } from './api/studioSetupApi';
-import { getSessionPlayerPreview } from './api/studioPublishedApi';
-import { cacheSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
 import { studioTaxonomyApi } from './api/studioTaxonomyApi';
 import type { StudioTaxonomyTerm } from './api/studioTaxonomyApi';
 
