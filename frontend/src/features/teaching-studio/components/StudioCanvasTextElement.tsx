@@ -9,6 +9,7 @@ import StudioShapeElement from './StudioShapeElement';
 import type { InlineShapeData } from './studioInlineShape';
 import { STUDIO_TEXT_COMMAND_EVENT, type StudioTextCommand } from './studioTextCommands';
 import MathLiveEquationEditor from './MathLiveEquationEditor';
+import { normalizeStudioFontFamily, studioFontCssFamily } from './studioFonts';
 
 interface Props {
   elementId?: string; text: string; richTextHtml?: string; color?: string; backgroundColor?: string; borderColor?: string; borderWidth?: number; fontSize?: number; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean;
@@ -16,6 +17,7 @@ interface Props {
   alignment?: 'left' | 'center' | 'right' | 'justify'; list?: boolean; lineHeight?: number; paragraphSpacingBefore?: number; paragraphSpacingAfter?: number; editable?: boolean; selected?: boolean; startEditing?: boolean;
   onSelect?: (additive?: boolean) => void; onCommit?: (change: { text: string; richTextHtml?: string; formatting: Record<string, unknown>; requiredHeight: number }) => void; onCaretChange?: (offset: number) => void; onEditingChange?: (editing: boolean) => void;
   onSelectionFontSizeChange?: (fontSize: number | 'mixed' | null) => void;
+  onSelectionFontFamilyChange?: (fontFamily: string | 'mixed' | null) => void;
   onSelectionSpacingChange?: (spacing: SelectionSpacing) => void;
   onInlineShapeEdit?: (shape: InlineShapeData, start: number, end: number) => void;
   onInlineEquationEdit?: (latex: string, start: number, end: number) => void;
@@ -43,7 +45,6 @@ const editableHtml = (value: string) => inlineEquationParts(value).map((part) =>
       })()).join('');
 const blockedRichTextTags = 'script,style,iframe,object,embed,link,meta,form,input,button,textarea,select';
 const supportedRichTextTags = new Set(['A', 'B', 'BR', 'DIV', 'EM', 'I', 'LI', 'OL', 'P', 'S', 'SPAN', 'STRONG', 'SUB', 'SUP', 'U', 'UL']);
-const supportedFonts = ['Arial', 'Bookman Old Style', 'Calibri', 'Cambria', 'Century Schoolbook', 'Georgia', 'Tahoma', 'Times New Roman', 'Verdana', 'Trebuchet MS'];
 const safeCssColor = (value: string) => Boolean(value && globalThis.CSS?.supports?.('color', value));
 const compactUrlValue = (value: string) => Array.from(value)
   .filter((character) => character.charCodeAt(0) > 32 && character.charCodeAt(0) !== 127)
@@ -53,10 +54,7 @@ const clampedNumber = (value: string, minimum: number, maximum: number) => {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : null;
 };
-const normalizedFont = (value: string) => {
-  const candidates = value.split(',').map((font) => font.trim().replace(/^['"]|['"]$/g, ''));
-  return supportedFonts.find((font) => candidates.some((candidate) => candidate.toLowerCase() === font.toLowerCase()));
-};
+const normalizedFont = normalizeStudioFontFamily;
 const sanitizeStudioRichText = (html: string) => {
   if (typeof document === 'undefined') return html;
   const template = document.createElement('template');
@@ -306,6 +304,26 @@ const fontSizeForRange = (editor: HTMLElement, range: Range): number | 'mixed' |
   if (sizes.size === 0) return null;
   return sizes.size === 1 ? [...sizes][0] : 'mixed';
 };
+const fontFamilyForRange = (editor: HTMLElement, range: Range): string | 'mixed' | null => {
+  const familyForElement = (element: HTMLElement | null) => element && editor.contains(element)
+    ? normalizeStudioFontFamily(window.getComputedStyle(element).fontFamily) ?? null
+    : null;
+  if (range.collapsed) {
+    return familyForElement(range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement);
+  }
+  const families = new Set<string>();
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    if (node.textContent && range.intersectsNode(node)) {
+      const family = familyForElement(node.parentElement);
+      if (family) families.add(family);
+    }
+    node = walker.nextNode();
+  }
+  if (families.size === 0) return null;
+  return families.size === 1 ? [...families][0] : 'mixed';
+};
 type SelectionSpacing = {
   lineHeight: number | 'mixed';
   paragraphSpacingBefore: number | 'mixed';
@@ -352,7 +370,7 @@ type StudioTextStyle = CSSProperties & {
   '--studio-paragraph-after': string;
 };
 
-export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', verticalAlignment = 'top', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionSpacingChange, onInlineShapeEdit, animationTextSequence, animationTextDelay, animationStyle, contentPadding = 12, textStrokeColor = 'transparent', textStrokeWidth = 0 }: Props) {
+export default function StudioCanvasTextElement({ elementId, text, richTextHtml, color = '#25436b', backgroundColor = 'transparent', borderColor = 'transparent', borderWidth = 1, fontSize = 18, fontFamily = 'Arial', bold = false, italic = false, underline = false, alignment = 'left', verticalAlignment = 'top', list = false, lineHeight = 1.35, paragraphSpacingBefore = 0, paragraphSpacingAfter = 0, editable = false, selected = false, startEditing = false, onSelect, onCommit, onCaretChange, onEditingChange, onSelectionFontSizeChange, onSelectionFontFamilyChange, onSelectionSpacingChange, onInlineShapeEdit, animationTextSequence, animationTextDelay, animationStyle, contentPadding = 12, textStrokeColor = 'transparent', textStrokeWidth = 0 }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement | null>(null);
   const initializedEditorRef = useRef<HTMLDivElement | null>(null);
@@ -370,7 +388,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
   const textStyle: StudioTextStyle = {
     color,
     fontSize,
-    fontFamily,
+    fontFamily: studioFontCssFamily(fontFamily),
     fontWeight: bold ? 700 : 400,
     fontStyle: italic ? 'italic' : 'normal',
     textDecoration: underline ? 'underline' : 'none',
@@ -409,6 +427,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     ) return;
     savedRangeRef.current = range.cloneRange();
     onSelectionFontSizeChange?.(fontSizeForRange(editor, range));
+    onSelectionFontFamilyChange?.(fontFamilyForRange(editor, range));
     onSelectionSpacingChange?.(spacingForRange(editor, range, { lineHeight, paragraphSpacingBefore, paragraphSpacingAfter }));
     const prefix = range.cloneRange();
     prefix.selectNodeContents(editor);
@@ -429,12 +448,13 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
       ) return;
       savedRangeRef.current = range.cloneRange();
       onSelectionFontSizeChange?.(fontSizeForRange(editor, range));
+      onSelectionFontFamilyChange?.(fontFamilyForRange(editor, range));
       onSelectionSpacingChange?.(spacingForRange(editor, range, { lineHeight, paragraphSpacingBefore, paragraphSpacingAfter }));
     };
     document.addEventListener('selectionchange', captureSelectedText);
     captureSelectedText();
     return () => document.removeEventListener('selectionchange', captureSelectedText);
-  }, [editing, lineHeight, onSelectionFontSizeChange, onSelectionSpacingChange, paragraphSpacingAfter, paragraphSpacingBefore]);
+  }, [editing, lineHeight, onSelectionFontFamilyChange, onSelectionFontSizeChange, onSelectionSpacingChange, paragraphSpacingAfter, paragraphSpacingBefore]);
   const measureRequiredHeight = (source: HTMLElement | null = editorRef.current ?? contentRef.current) => {
     if (!source || source.clientWidth <= 0) return 0;
     const measurement = source.cloneNode(true) as HTMLElement;
@@ -664,6 +684,15 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     }
     reportCaret();
     commitEditorAfterLayout(formatting);
+    if (command.type === 'style' && command.restoreEditorFocus) {
+      const rangeToRestore = savedRangeRef.current?.cloneRange() ?? selectedRange.cloneRange();
+      window.requestAnimationFrame(() => {
+        if (!editor.isConnected) return;
+        editor.focus();
+        restoreRange(rangeToRestore);
+        reportCaret();
+      });
+    }
   };
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
     event.preventDefault();
