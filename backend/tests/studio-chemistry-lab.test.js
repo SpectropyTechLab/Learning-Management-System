@@ -132,6 +132,7 @@ test('Chemistry Lab is connected to the editor, responsive ribbon, resources, an
   assert.doesNotMatch(exported, /src="\/studio-labs/);
   assert.match(exported, /new URL\('/);
   assert.match(exported, /document\.referrer\|\|document\.baseURI\|\|window\.location\.href/);
+  assert.match(exported, /document\.baseURI/);
   assert.match(frame, /buildChemistryLabHtml/);
   assert.match(canvas, /StudioLocalChemistryLabFrame/);
   assert.match(player, /StudioLocalChemistryLabFrame/);
