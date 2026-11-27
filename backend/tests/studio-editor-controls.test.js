@@ -464,6 +464,19 @@ test('Session Preview renders uncropped images with the same full-frame fit as t
   assert.match(player, /className="h-full w-full object-fill"/);
 });
 
+test('Session Preview uses the prepared editor manifest before its background refresh', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(editor, /cacheSessionPreview\(sessionId, preview/);
+  assert.match(player, /getCachedSessionPreview\(sessionId\)/);
+  assert.match(player, /useState\(!initialPreviewRef\.current\)/);
+  assert.match(player, /clearCachedSessionPreview\(sessionId\)/);
+  assert.match(editor, /prepareSessionPreviewImages\(preview, getStudioResourcePreview\)/);
+  assert.match(player, /getCachedResourcePreviewUrl\(mapping\.resource_version_id\)/);
+  assert.match(player, /preparedPreviewScreens\.map/);
+  assert.match(player, /passivePreview=\{!active\}/);
+});
+
 test('Home ribbon Clipboard group shares multi-element paste and Format Painter workflows', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const clipboard = readFrontend('components/StudioClipboardGroup.tsx');
