@@ -53,6 +53,7 @@ import FloatingWhiteboards from './components/FloatingWhiteboards';
 import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioUsesViewTransition, unlockStudioTransitionAudio } from './components/studioTransition';
 import { playStudioAnimationSound } from './components/studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './components/studioAnimationModel';
+import { clearCachedSessionPreview, getCachedResourcePreviewUrl, getCachedSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
 
 const textFrom = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title ?? content.caption;
@@ -186,7 +187,7 @@ function PublishedImage({ source, alt, content, children, onReady }: { source: s
 }
 
 function PublishedResource({ releaseId, mapping, previewMode = false, elementContent, onMediaTime, onReady }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean; elementContent?: Record<string, unknown>; onMediaTime?: (previousSeconds: number, currentSeconds: number) => void; onReady?: () => void }) {
-  const [source, setSource] = useState(mapping.external_url || '');
+  const [source, setSource] = useState(mapping.external_url || (previewMode ? getCachedResourcePreviewUrl(mapping.resource_version_id) : ''));
   const [error, setError] = useState('');
   const [objectPreview, setObjectPreview] = useState<StudioObjectPreviewDescriptor | null>(null);
   const [scormAttemptId, setScormAttemptId] = useState<number | null>(null);
@@ -208,7 +209,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   }, [mapping.resource_type, markReady, source]);
 
   useEffect(() => {
-    if (mapping.external_url) return;
+    if (mapping.external_url || source) return;
     let active = true;
     const request = mapping.resource_type === 'document'
       ? (previewMode
@@ -243,7 +244,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
     return () => {
       active = false;
     };
-  }, [mapping.external_url, mapping.resource_type, mapping.resource_version_id, previewMode, releaseId]);
+  }, [mapping.external_url, mapping.resource_type, mapping.resource_version_id, previewMode, releaseId, source]);
 
   if (error) return <div className="grid h-full place-items-center bg-slate-950 p-3 text-center text-xs text-white">{error}</div>;
   if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
@@ -555,6 +556,10 @@ export default function StudioSessionPlayerPage() {
   const params = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const sessionId = Number(params.sessionId);
+  const releaseNumber = Number(params.releaseNumber);
+  const previewMode = params.releaseNumber === undefined;
+  const initialPreviewRef = useRef(previewMode ? getCachedSessionPreview(sessionId) : null);
   const playerRef = useRef<HTMLDivElement>(null);
   const enterScreenAtEndRef = useRef(false);
   const suppressAutoRuntimeRef = useRef(false);
@@ -576,9 +581,14 @@ export default function StudioSessionPlayerPage() {
   const audienceLiveInkRef = useRef<SVGPolylineElement | null>(null);
   const liveAnnotationFrameRef = useRef<number | null>(null);
   const latestLiveAnnotationRef = useRef<AuthorDrawingStroke | null>(null);
-  const [release, setRelease] = useState<PublishedRelease | null>(null);
-  const [screenId, setScreenId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [release, setRelease] = useState<PublishedRelease | null>(() => initialPreviewRef.current?.release ?? null);
+  const [screenId, setScreenId] = useState<number | null>(() => {
+    const cached = initialPreviewRef.current;
+    if (!cached) return null;
+    if (cached.preferredScreenId && cached.release.manifest.screens.some((screen) => screen.screen_id === cached.preferredScreenId)) return cached.preferredScreenId;
+    return [...cached.release.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0]?.screen_id ?? null;
+  });
+  const [loading, setLoading] = useState(!initialPreviewRef.current);
   const [error, setError] = useState('');
   const [annotationTool, setAnnotationTool] = useState<PresenterAnnotationTool>('pointer');
   const [annotationColor, setAnnotationColor] = useState('#ef4444');
@@ -613,9 +623,6 @@ export default function StudioSessionPlayerPage() {
   const [presenterData, setPresenterData] = useState<PublishedPresenterData | null>(null);
   const [presenterDataBusy, setPresenterDataBusy] = useState(false);
 
-  const sessionId = Number(params.sessionId);
-  const releaseNumber = Number(params.releaseNumber);
-  const previewMode = params.releaseNumber === undefined;
   const presentationChannel = new URLSearchParams(window.location.search).get('channel');
   const audienceMode = new URLSearchParams(window.location.search).get('mode') === 'audience';
 
@@ -625,26 +632,35 @@ export default function StudioSessionPlayerPage() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!initialPreviewRef.current) setLoading(true);
     setError('');
     const request = previewMode
       ? getSessionPlayerPreview(sessionId)
       : getPublishedRelease(sessionId, releaseNumber);
     void request
-      .then((data) => {
+      .then(async (data) => {
+        if (previewMode) await prepareSessionPreviewImages(data, getStudioResourcePreview);
         setRelease(data);
         const first = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0];
-        setScreenId(audienceMode && remotePresenterStateRef.current?.screenId
+        setScreenId((current) => audienceMode && remotePresenterStateRef.current?.screenId
           ? remotePresenterStateRef.current.screenId
-          : first?.screen_id ?? null);
+          : current && data.manifest.screens.some((screen) => screen.screen_id === current)
+            ? current
+            : first?.screen_id ?? null);
+        if (previewMode) clearCachedSessionPreview(sessionId);
       })
-      .catch((requestError) => setError(getApiErrorDetails(requestError).message))
+      .catch((requestError) => {
+        if (!initialPreviewRef.current) setError(getApiErrorDetails(requestError).message);
+      })
       .finally(() => setLoading(false));
   }, [audienceMode, previewMode, releaseNumber, sessionId]);
 
   const screens = useMemo(() => [...(release?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [release]);
   const currentIndex = screens.findIndex((screen) => screen.screen_id === screenId);
   const screen = currentIndex >= 0 ? screens[currentIndex] : null;
+  const preparedPreviewScreens = previewMode && currentIndex >= 0
+    ? screens.filter((_, index) => Math.abs(index - currentIndex) <= 1)
+    : [];
   const navigateToScreen = useCallback((nextScreenId: number | null) => {
     if (!Number.isInteger(nextScreenId) || nextScreenId === screenIdRef.current) return;
     const destination = screens.find((item) => item.screen_id === nextScreenId);
@@ -1622,7 +1638,7 @@ export default function StudioSessionPlayerPage() {
           {!discoveryLoading && discoveryItem?.type === 'resource' && discoveryItem.resource_mapping && <div className="h-full overflow-hidden rounded-xl bg-black"><PublishedResource releaseId={discoveryItem.release_id} mapping={discoveryItem.resource_mapping} /></div>}
           {!discoveryLoading && discoveryItem && discoveryItem.type !== 'resource' && discoveryRelease && discoveryScreen && <PublishedCanvas releaseId={discoveryRelease.id} screen={discoveryScreen} teacherAnnotations={[]} annotationTool="pointer" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} />}
           {!discoveryLoading && discoveryItem && discoveryError && <div className="grid h-full place-items-center"><div className="rounded-xl border border-red-400/30 bg-red-950/40 p-6 text-red-100">{discoveryError}</div></div>}
-          {loading && <div className="grid h-full place-items-center text-slate-600">Loading published Session…</div>}
+          {loading && <div className="grid h-full place-items-center text-slate-600"><span className="inline-flex items-center gap-2"><Loader2 className="animate-spin" size={20} />Preparing presentation…</span></div>}
           {!discoveryItem && !loading && error && !release && (
             <div className="grid h-full place-items-center">
               <div className="rounded-xl border border-red-400/30 bg-red-950/40 p-6 text-red-100">{error}</div>
@@ -1630,7 +1646,12 @@ export default function StudioSessionPlayerPage() {
           )}
           {!discoveryItem && !loading && release && screen && (
             <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})`, viewTransitionName: presenterMode ? 'none' : 'studio-slide' }}>
-              <PublishedCanvas key={`${release.id}:${screen.screen_id}:${previewMode ? 'preview' : 'published'}:active`} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />
+              {previewMode ? preparedPreviewScreens.map((preparedScreen) => {
+                const active = preparedScreen.screen_id === screen.screen_id;
+                return <div key={`${release.id}:${preparedScreen.screen_id}:prepared`} className={`absolute inset-0 ${active ? 'visible' : 'invisible pointer-events-none'}`} aria-hidden={!active}>
+                  <PublishedCanvas releaseId={release.id} screen={preparedScreen} previewMode passivePreview={!active} immersiveViewport={active && (fullScreen || audienceMode)} teacherAnnotations={active ? teacherAnnotations : []} annotationTool={active ? audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer' : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={active ? setTeacherAnnotations : () => undefined} onZoom={active ? openZoom : undefined} animationTimeline={active ? animationTimeline : undefined} animationStep={active ? animationStep : undefined} playbackCycle={active ? playbackCycle : undefined} animationNavigation={active ? animationNavigation : null} triggeredCueIds={active ? triggeredAnimationCueIds : new Set()} onTriggerElement={active ? triggerAnimationForElement : undefined} onMediaTime={active ? triggerAnimationAtMediaBookmark : undefined} />
+                </div>;
+              }) : <PublishedCanvas key={`${release.id}:${screen.screen_id}:published:active`} releaseId={release.id} screen={screen} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />}
             </div>
           )}
           {!discoveryItem && !loading && release && !screen && <div className="grid h-full place-items-center text-slate-600">This release contains no Screens.</div>}
