@@ -12,6 +12,8 @@ const respond = (action, status = 200) => async (req, res) => {
 export const startScormAttempt = respond((req) => runtime.startScormAttempt({
   versionId: req.body.resource_version_id,
   releaseId: req.body.release_id,
+  sourceReleaseId: req.body.source_release_id,
+  gapBridgeId: req.body.gap_bridge_id,
   resume: req.body.resume !== false,
   user: req.user,
 }), 201);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, MousePointer2, Music, Palette, PenLine, Presentation, RotateCcw, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Download, Eraser, FileText, GitBranch, Grid3X3, Highlighter, Image as ImageIcon, Loader2, Maximize2, Minimize2, MousePointer2, Music, Palette, PenLine, Presentation, RotateCcw, Route, SlidersHorizontal, Trash2, Video, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getApiErrorDetails } from '@/lib/api';
@@ -9,7 +9,7 @@ import { targetLayouts } from './targetLayouts';
 import { studioElementSlotId } from './importing/elementSlot';
 import SlideCanvas from './SlideCanvas';
 import StudioShell from './components/StudioShell';
-import { downloadPublishedSessionPlan, getPublishedPresenterData, getPublishedTeachingMaterials, getPublishedRelease, getSessionPlayerPreview, launchPublishedResource, previewPublishedObject, previewPublishedResource } from './api/studioPublishedApi';
+import { downloadPublishedSessionPlan, getPublishedPresenterData, getPublishedTeachingMaterials, getPublishedRelease, getSessionPlayerPreview, launchPublishedResource, previewPublishedObject, previewPublishedResource, resolvePublishedGapBridge } from './api/studioPublishedApi';
 import { commitStudioScormAttempt, getStudioObjectPreview, getStudioResourcePreview, launchStudioResourceVersion, startStudioScormAttempt, type StudioObjectPreviewDescriptor } from './api/studioResourcesApi';
 import { studioDocumentsApi } from './api/studioDocumentsApi';
 import type { CurriculumDocumentPreview } from './api/studioDocumentsApi';
@@ -46,7 +46,7 @@ import StudioLocalBiologyLabFrame from './components/StudioLocalBiologyLabFrame'
 import StudioHyperlinkOverlay from './components/studioHyperlink';
 import { isSmartDiagramContent } from './components/smartDiagramModel';
 import StudioBranchDiscoveryPanel from './components/StudioBranchDiscoveryPanel';
-import type { PublishedPresenterData, PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
+import type { PublishedGapBridge, PublishedGapBridgeContext, PublishedPresenterData, PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
@@ -63,6 +63,14 @@ const textFrom = (content: Record<string, unknown>) => {
 
 type PresenterAnnotationTool = 'pointer' | 'laser' | 'pen' | 'highlighter' | 'eraser';
 
+type GapBridgeRun = {
+  gapBridgeId: number;
+  name: string;
+  releaseId: number;
+  screen: PublishedScreen;
+  resourceContext?: PublishedGapBridgeContext;
+};
+
 type PresenterSyncState = {
   screenId: number | null;
   animationStep: number;
@@ -71,6 +79,7 @@ type PresenterSyncState = {
   blankMode: 'black' | 'white' | null;
   presentationZoom: number;
   triggeredCueIds: string[];
+  gapBridge: GapBridgeRun | null;
 };
 
 const presenterText = (value: unknown) => {
@@ -185,7 +194,7 @@ function PublishedImage({ source, alt, content, children, onReady }: { source: s
   </div>;
 }
 
-function PublishedResource({ releaseId, mapping, previewMode = false, elementContent, onMediaTime, onReady }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean; elementContent?: Record<string, unknown>; onMediaTime?: (previousSeconds: number, currentSeconds: number) => void; onReady?: () => void }) {
+function PublishedResource({ releaseId, mapping, previewMode = false, gapBridgeContext, elementContent, onMediaTime, onReady }: { releaseId: number; mapping: PublishedResourceMapping; previewMode?: boolean; gapBridgeContext?: PublishedGapBridgeContext; elementContent?: Record<string, unknown>; onMediaTime?: (previousSeconds: number, currentSeconds: number) => void; onReady?: () => void }) {
   const [source, setSource] = useState(mapping.external_url || '');
   const [error, setError] = useState('');
   const [objectPreview, setObjectPreview] = useState<StudioObjectPreviewDescriptor | null>(null);
@@ -213,12 +222,12 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
     const request = mapping.resource_type === 'document'
       ? (previewMode
           ? getStudioObjectPreview(mapping.resource_version_id)
-          : previewPublishedObject(releaseId, mapping.resource_version_id)).then((descriptor) => {
+          : previewPublishedObject(releaseId, mapping.resource_version_id, gapBridgeContext)).then((descriptor) => {
           if (active) setObjectPreview(descriptor);
           return descriptor.url || 'embedded-object-ready';
         })
       : mapping.resource_type === 'scorm'
-      ? startStudioScormAttempt(mapping.resource_version_id, previewMode ? undefined : releaseId).then((attempt) => {
+      ? startStudioScormAttempt(mapping.resource_version_id, previewMode ? undefined : releaseId, gapBridgeContext).then((attempt) => {
           if (active) setScormAttemptId(attempt.id);
           if (!attempt.launch.launchable || !attempt.launch.launch_url) throw new Error(attempt.launch.message || 'SCORM Resource cannot be launched.');
           return resolveAssetUrl(attempt.launch.launch_url) || attempt.launch.launch_url;
@@ -226,13 +235,13 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
       : ['html', 'zip', 'simulation'].includes(mapping.resource_type)
       ? (previewMode
           ? launchStudioResourceVersion(mapping.resource_version_id)
-          : launchPublishedResource(releaseId, mapping.resource_version_id)).then((result) => {
+          : launchPublishedResource(releaseId, mapping.resource_version_id, gapBridgeContext)).then((result) => {
           if (!result.launchable || !result.launch_url) throw new Error(result.message || 'Resource cannot be launched.');
           return resolveAssetUrl(result.launch_url) || result.launch_url;
         })
       : (previewMode
           ? getStudioResourcePreview(mapping.resource_version_id)
-          : previewPublishedResource(releaseId, mapping.resource_version_id)).then((result) => result.url);
+          : previewPublishedResource(releaseId, mapping.resource_version_id, gapBridgeContext)).then((result) => result.url);
     void request
       .then((url) => {
         if (active) setSource(url);
@@ -243,7 +252,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
     return () => {
       active = false;
     };
-  }, [mapping.external_url, mapping.resource_type, mapping.resource_version_id, previewMode, releaseId]);
+  }, [gapBridgeContext, mapping.external_url, mapping.resource_type, mapping.resource_version_id, previewMode, releaseId]);
 
   if (error) return <div className="grid h-full place-items-center bg-slate-950 p-3 text-center text-xs text-white">{error}</div>;
   if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
@@ -364,7 +373,7 @@ const publishedElementReadinessKey = (screenId: number, element: PublishedScreen
   return null;
 };
 
-function PublishedCanvas({ releaseId, screen, previewMode = false, passivePreview = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onLiveAnnotationChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation, triggeredCueIds = new Set(), onTriggerElement, onMediaTime }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; passivePreview?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onLiveAnnotationChange?: (stroke: AuthorDrawingStroke | null) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null; triggeredCueIds?: ReadonlySet<string>; onTriggerElement?: (elementKey: string) => void; onMediaTime?: (elementKey: string, previousSeconds: number, currentSeconds: number) => void }) {
+function PublishedCanvas({ releaseId, screen, previewMode = false, passivePreview = false, immersiveViewport = false, gapBridgeContext, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onLiveAnnotationChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation, triggeredCueIds = new Set(), onTriggerElement, onMediaTime }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; passivePreview?: boolean; immersiveViewport?: boolean; gapBridgeContext?: PublishedGapBridgeContext; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onLiveAnnotationChange?: (stroke: AuthorDrawingStroke | null) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null; triggeredCueIds?: ReadonlySet<string>; onTriggerElement?: (elementKey: string) => void; onMediaTime?: (elementKey: string, previousSeconds: number, currentSeconds: number) => void }) {
   const [readyResourceKeys, setReadyResourceKeys] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     setReadyResourceKeys(new Set());
@@ -465,7 +474,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
     const executablePreview = passivePreview && ['scorm', 'html', 'zip', 'simulation'].includes(element.resource_mapping.resource_type);
     return [[element.element_key, executablePreview
       ? <div key={element.element_key} className="grid h-full w-full place-items-center bg-slate-900 p-4 text-center text-white"><div><Presentation className="mx-auto text-cyan-300" size={34} /><p className="mt-2 font-semibold">{element.resource_mapping.name}</p><p className="mt-1 text-xs uppercase text-slate-400">{element.resource_mapping.resource_type} activity</p></div></div>
-      : <PublishedResource key={`${element.element_key}:${element.resource_mapping.resource_version_id}:${element.resource_mapping.external_url || ''}`} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} elementContent={element.content_json} onReady={() => markResourceReady(element.element_key)} onMediaTime={(previous, current) => onMediaTime?.(element.element_key, previous, current)} />]];
+      : <PublishedResource key={`${element.element_key}:${element.resource_mapping.resource_version_id}:${element.resource_mapping.external_url || ''}`} releaseId={releaseId} mapping={element.resource_mapping} previewMode={previewMode} gapBridgeContext={gapBridgeContext} elementContent={element.content_json} onReady={() => markResourceReady(element.element_key)} onMediaTime={(previous, current) => onMediaTime?.(element.element_key, previous, current)} />]];
   }));
   for (const element of screen.elements) {
     const overlay = overlays[element.element_key];
@@ -576,6 +585,8 @@ export default function StudioSessionPlayerPage() {
   const audienceLiveInkRef = useRef<SVGPolylineElement | null>(null);
   const liveAnnotationFrameRef = useRef<number | null>(null);
   const latestLiveAnnotationRef = useRef<AuthorDrawingStroke | null>(null);
+  const pausedParentMediaRef = useRef<HTMLMediaElement[]>([]);
+  const gapBridgeReturnFocusRef = useRef<HTMLElement | null>(null);
   const [release, setRelease] = useState<PublishedRelease | null>(null);
   const [screenId, setScreenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -612,12 +623,17 @@ export default function StudioSessionPlayerPage() {
   const [presenterMode, setPresenterMode] = useState(false);
   const [presenterData, setPresenterData] = useState<PublishedPresenterData | null>(null);
   const [presenterDataBusy, setPresenterDataBusy] = useState(false);
+  const [gapBridgeMenuOpen, setGapBridgeMenuOpen] = useState(false);
+  const [gapBridgeLoading, setGapBridgeLoading] = useState(false);
+  const [gapBridgeError, setGapBridgeError] = useState('');
+  const [gapBridgeRun, setGapBridgeRun] = useState<GapBridgeRun | null>(null);
 
   const sessionId = Number(params.sessionId);
   const releaseNumber = Number(params.releaseNumber);
   const previewMode = params.releaseNumber === undefined;
   const presentationChannel = new URLSearchParams(window.location.search).get('channel');
   const audienceMode = new URLSearchParams(window.location.search).get('mode') === 'audience';
+  const requestedScreenId = Number(new URLSearchParams(window.location.search).get('screen'));
 
   useEffect(() => {
     if (!Number.isInteger(sessionId) || (!previewMode && !Number.isInteger(releaseNumber))) {
@@ -633,18 +649,39 @@ export default function StudioSessionPlayerPage() {
     void request
       .then((data) => {
         setRelease(data);
-        const first = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0];
+        const orderedScreens = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order);
+        const requestedMain = Number.isInteger(requestedScreenId)
+          ? orderedScreens.find((candidate) => candidate.screen_id === requestedScreenId)
+          : null;
+        const requestedChild = Number.isInteger(requestedScreenId)
+          ? data.manifest.gap_bridge_screens?.find((candidate) => candidate.screen_id === requestedScreenId)
+          : null;
+        const childBridge = requestedChild
+          ? data.manifest.gap_bridges?.find((bridge) => bridge.child_screen_id === requestedChild.screen_id)
+          : null;
+        const first = orderedScreens[0];
         setScreenId(audienceMode && remotePresenterStateRef.current?.screenId
           ? remotePresenterStateRef.current.screenId
-          : first?.screen_id ?? null);
+          : requestedMain?.screen_id ?? childBridge?.source_screen_id ?? first?.screen_id ?? null);
+        if (!audienceMode && requestedChild && childBridge) {
+          setGapBridgeRun({
+            gapBridgeId: childBridge.gap_bridge_id,
+            name: childBridge.name,
+            releaseId: data.id,
+            screen: requestedChild,
+          });
+        }
       })
       .catch((requestError) => setError(getApiErrorDetails(requestError).message))
       .finally(() => setLoading(false));
-  }, [audienceMode, previewMode, releaseNumber, sessionId]);
+  }, [audienceMode, previewMode, releaseNumber, requestedScreenId, sessionId]);
 
   const screens = useMemo(() => [...(release?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [release]);
   const currentIndex = screens.findIndex((screen) => screen.screen_id === screenId);
   const screen = currentIndex >= 0 ? screens[currentIndex] : null;
+  const gapBridges = useMemo(() => [...(release?.manifest.gap_bridges || [])]
+    .filter((bridge) => bridge.source_screen_id === screenId)
+    .sort((left, right) => left.display_order - right.display_order || left.gap_bridge_id - right.gap_bridge_id), [release, screenId]);
   const navigateToScreen = useCallback((nextScreenId: number | null) => {
     if (!Number.isInteger(nextScreenId) || nextScreenId === screenIdRef.current) return;
     const destination = screens.find((item) => item.screen_id === nextScreenId);
@@ -668,7 +705,10 @@ export default function StudioSessionPlayerPage() {
   const discoveryIndex = discoveryScreens.findIndex((candidate) => candidate.screen_id === discoveryScreenId);
   const discoveryScreen = discoveryIndex >= 0 ? discoveryScreens[discoveryIndex] : null;
   const isTrackedBranchUser = user?.role === 'teacher';
-  const teacherAnnotations = screenId ? (annotationsByScreen[screenId] ?? []) : [];
+  const teacherAnnotations = useMemo(
+    () => screenId ? (annotationsByScreen[screenId] ?? []) : [],
+    [annotationsByScreen, screenId],
+  );
   screenIdRef.current = screenId;
   const nextScreen = currentIndex >= 0 ? screens[currentIndex + 1] ?? null : null;
   const currentPresenterScript = presenterData?.screen_scripts.find((item) => item.screen_id === screenId);
@@ -682,6 +722,7 @@ export default function StudioSessionPlayerPage() {
     blankMode,
     presentationZoom,
     triggeredCueIds: [...triggeredAnimationCueIds],
+    gapBridge: gapBridgeRun,
   };
 
   const audienceSlideBounds = () => {
@@ -778,7 +819,7 @@ export default function StudioSessionPlayerPage() {
     const autoFullScreen = first?.resource_mapping && ['simulation', 'html', 'zip', 'scorm'].includes(first.resource_mapping.resource_type)
       && (first.resource_mapping.usage_details_json?.auto_fullscreen === true || first.content_json?.auto_fullscreen === true);
     setActiveRuntimeElement(autoFullScreen ? first : null);
-  }, [screenId]);
+  }, [screen, screenId]);
 
   const selectTeacherScreen = (nextScreenId: number) => {
     if (!Number.isInteger(nextScreenId) || nextScreenId === screenId) return;
@@ -890,8 +931,81 @@ export default function StudioSessionPlayerPage() {
     setDiscoveryLoading(false);
   };
 
+  const closeGapBridge = useCallback(() => {
+    setGapBridgeRun(null);
+    setGapBridgeMenuOpen(false);
+    setGapBridgeError('');
+  }, []);
+
+  const openGapBridge = async (bridge: PublishedGapBridge) => {
+    if (!release) return;
+    setGapBridgeMenuOpen(false);
+    setGapBridgeError('');
+    setGapBridgeLoading(true);
+    try {
+      if (bridge.target_kind === 'child') {
+        const child = release.manifest.gap_bridge_screens?.find(
+          (candidate) => candidate.screen_id === bridge.child_screen_id,
+        );
+        if (!child) throw new Error('This Gap Bridge child Screen is unavailable in the published release.');
+        setGapBridgeRun({
+          gapBridgeId: bridge.gap_bridge_id,
+          name: bridge.name,
+          releaseId: release.id,
+          screen: child,
+        });
+      } else {
+        const resolved = await resolvePublishedGapBridge(release.id, bridge.gap_bridge_id);
+        setGapBridgeRun({
+          gapBridgeId: bridge.gap_bridge_id,
+          name: bridge.name,
+          releaseId: resolved.target_release_id,
+          screen: resolved.screen,
+          resourceContext: { sourceReleaseId: release.id, gapBridgeId: bridge.gap_bridge_id },
+        });
+      }
+    } catch (requestError) {
+      setGapBridgeError(getApiErrorDetails(requestError, 'Unable to open this Gap Bridge.').message);
+      setGapBridgeMenuOpen(true);
+    } finally {
+      setGapBridgeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!gapBridgeRun) return;
+    const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    gapBridgeReturnFocusRef.current = focused && playerRef.current?.contains(focused) ? focused : null;
+    const media = [...(playerRef.current?.querySelectorAll<HTMLMediaElement>('[data-gap-bridge-parent] video, [data-gap-bridge-parent] audio') || [])]
+      .filter((item) => !item.paused);
+    const frames = [...(playerRef.current?.querySelectorAll<HTMLIFrameElement>('[data-gap-bridge-parent] iframe') || [])];
+    pausedParentMediaRef.current = media;
+    media.forEach((item) => item.pause());
+    frames.forEach((frame) => frame.contentWindow?.postMessage({
+      source: 'spectropy-player',
+      type: 'STUDIO_RUNTIME_VISIBILITY',
+      visible: false,
+    }, '*'));
+    return () => {
+      const paused = pausedParentMediaRef.current;
+      pausedParentMediaRef.current = [];
+      paused.forEach((item) => void item.play().catch(() => undefined));
+      frames.forEach((frame) => frame.contentWindow?.postMessage({
+        source: 'spectropy-player',
+        type: 'STUDIO_RUNTIME_VISIBILITY',
+        visible: true,
+      }, '*'));
+      gapBridgeReturnFocusRef.current?.focus({ preventScroll: true });
+      gapBridgeReturnFocusRef.current = null;
+    };
+  }, [gapBridgeRun]);
+
   const advancePresenter = () => {
     setBlankMode(null);
+    if (gapBridgeRun) {
+      closeGapBridge();
+      return;
+    }
     if (activeRuntimeElement) {
       const frame = playerRef.current?.querySelector<HTMLIFrameElement>('[data-active-runtime] iframe');
       frame?.contentWindow?.postMessage({ source: 'spectropy-player', type: 'STUDIO_RUNTIME_COMMAND', direction: 'next' }, '*');
@@ -969,6 +1083,10 @@ export default function StudioSessionPlayerPage() {
 
   const retreatPresenter = () => {
     setBlankMode(null);
+    if (gapBridgeRun) {
+      closeGapBridge();
+      return;
+    }
     if (activeRuntimeElement) {
       const frame = playerRef.current?.querySelector<HTMLIFrameElement>('[data-active-runtime] iframe');
       frame?.contentWindow?.postMessage({ source: 'spectropy-player', type: 'STUDIO_RUNTIME_COMMAND', direction: 'previous' }, '*');
@@ -1041,6 +1159,15 @@ export default function StudioSessionPlayerPage() {
       if (event.data?.type === 'state' && event.data.state) {
         const state = event.data.state;
         remotePresenterStateRef.current = state;
+        setGapBridgeRun((current) => {
+          const incoming = state.gapBridge || null;
+          if (!current || !incoming) return incoming;
+          return current.gapBridgeId === incoming.gapBridgeId
+            && current.releaseId === incoming.releaseId
+            && current.screen.screen_id === incoming.screen.screen_id
+            ? current
+            : incoming;
+        });
         if (state.screenId !== screenIdRef.current) {
           if (audienceLiveInkRef.current) audienceLiveInkRef.current.style.display = 'none';
           navigateToScreen(state.screenId);
@@ -1071,7 +1198,7 @@ export default function StudioSessionPlayerPage() {
   useEffect(() => {
     if (!presenterMode || !presenterChannelRef.current || !presenterStateRef.current) return;
     presenterChannelRef.current.postMessage({ type: 'state', state: presenterStateRef.current });
-  }, [animationStep, blankMode, playbackCycle, presentationZoom, presenterMode, screenId, teacherAnnotations, triggeredAnimationCueIds]);
+  }, [animationStep, blankMode, gapBridgeRun, playbackCycle, presentationZoom, presenterMode, screenId, teacherAnnotations, triggeredAnimationCueIds]);
 
   useEffect(() => () => {
     if (presenterWindowWatchRef.current !== null) window.clearInterval(presenterWindowWatchRef.current);
@@ -1154,6 +1281,11 @@ export default function StudioSessionPlayerPage() {
     const handleClicker = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.key === 'Escape' && gapBridgeRun) {
+        event.preventDefault();
+        closeGapBridge();
+        return;
+      }
       if (event.key === 'Escape' && discoveryPanelOpen) {
         event.preventDefault();
         setDiscoveryPanelOpen(false);
@@ -1407,7 +1539,7 @@ export default function StudioSessionPlayerPage() {
   if (presenterMode && release && screen && !audienceMode) {
     return (
       <StudioShell title="Presenter View" subtitle={release.manifest.session?.title || `Release ${release.release_number}`} hideHeader scrollContent={false} wrapContent={false}>
-        <div ref={playerRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-950 text-white">
+        <div ref={playerRef} className="relative flex h-full min-h-0 flex-col overflow-hidden bg-slate-950 text-white">
           <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/15 px-4 py-2">
             <div className="min-w-0">
               <h1 className="truncate text-base font-bold">Presenter View</h1>
@@ -1422,7 +1554,9 @@ export default function StudioSessionPlayerPage() {
             <section className="flex min-h-0 flex-col gap-2">
               <div className="flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">Current slide</h2><span className="text-xs text-slate-400">{currentIndex + 1} / {screens.length} · Build {animationStep}/{animationTimeline.maxStep}</span></div>
               <div ref={presenterSlideRef} className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/20 bg-slate-900" style={{ viewTransitionName: 'studio-slide' }} onPointerMove={(event) => { if (annotationTool === 'pointer') broadcastPointer(event); }} onPointerLeave={() => { if (annotationTool === 'pointer') clearBroadcastPointer(); }}>
-                <PublishedCanvas releaseId={release.id} screen={screen} teacherAnnotations={teacherAnnotations} annotationTool={annotationTool} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onLiveAnnotationChange={broadcastLiveAnnotation} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />
+                <div data-gap-bridge-parent className="h-full w-full"><PublishedCanvas releaseId={release.id} screen={screen} teacherAnnotations={teacherAnnotations} annotationTool={annotationTool} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onLiveAnnotationChange={broadcastLiveAnnotation} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} /></div>
+                {gapBridgeRun ? <div className="absolute inset-0 z-[68] bg-slate-950"><PublishedCanvas releaseId={gapBridgeRun.releaseId} screen={gapBridgeRun.screen} gapBridgeContext={gapBridgeRun.resourceContext} teacherAnnotations={[]} annotationTool="pointer" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} /></div> : null}
+                {gapBridgeRun ? <button type="button" onClick={closeGapBridge} className="absolute right-3 top-3 z-[70] inline-flex items-center gap-1 rounded-lg bg-slate-950/85 px-3 py-2 text-xs font-bold text-white shadow-lg"><X size={15} />Return from {gapBridgeRun.name}</button> : null}
                 {annotationTool === 'pointer' ? <span ref={presenterPointerDotRef} className="pointer-events-none absolute z-[65] hidden h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-md" /> : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-white/15 bg-slate-900 p-2">
@@ -1433,6 +1567,7 @@ export default function StudioSessionPlayerPage() {
                   <button type="button" onClick={() => setAnnotationTool('eraser')} className={`rounded-lg p-2 ${annotationTool === 'eraser' ? 'bg-blue-600' : 'hover:bg-white/10'}`} title="Eraser"><Eraser size={18} /></button>
                   <label className="relative grid h-9 w-9 cursor-pointer place-items-center rounded-lg hover:bg-white/10" title="Ink colour"><Palette size={18} /><span className="absolute bottom-1 h-1 w-5 rounded-full" style={{ backgroundColor: annotationColor }} /><input type="color" value={annotationColor} onChange={(event) => setAnnotationColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" /></label>
                   <button type="button" disabled={teacherAnnotations.length === 0} onClick={() => setTeacherAnnotations([])} className="rounded-lg p-2 text-red-300 hover:bg-red-500/15 disabled:opacity-30" title="Clear ink"><Trash2 size={18} /></button>
+                  {gapBridges.length > 0 ? <button type="button" onClick={() => setGapBridgeMenuOpen((open) => !open)} className={`rounded-lg p-2 ${gapBridgeMenuOpen ? 'bg-cyan-600' : 'hover:bg-white/10'}`} title="Gap Bridge" aria-label="Gap Bridge" aria-expanded={gapBridgeMenuOpen}><Route size={18} /></button> : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-white/25 px-3 text-sm font-semibold hover:bg-white/10 disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
@@ -1449,6 +1584,7 @@ export default function StudioSessionPlayerPage() {
               </section>
             </aside>
           </main>
+          {gapBridgeMenuOpen && !gapBridgeRun ? <aside className="absolute bottom-16 left-3 z-[100] w-80 rounded-xl border border-white/20 bg-slate-900 p-2 shadow-2xl"><div className="mb-2 flex items-center justify-between px-1"><p className="text-sm font-bold">Gap Bridge</p><button type="button" onClick={() => setGapBridgeMenuOpen(false)} className="rounded p-1 hover:bg-white/10" aria-label="Close Gap Bridge list"><X size={15}/></button></div><div className="space-y-1">{gapBridges.map((bridge) => <button key={bridge.gap_bridge_id} type="button" disabled={gapBridgeLoading} onClick={() => void openGapBridge(bridge)} className="flex w-full items-center justify-between rounded-lg border border-white/15 px-3 py-2 text-left text-sm hover:bg-white/10"><span>{bridge.name}</span><ChevronRight size={15}/></button>)}</div>{gapBridgeError ? <p className="mt-2 rounded bg-red-950 p-2 text-xs text-red-200">{gapBridgeError}</p> : null}</aside> : null}
         </div>
       </StudioShell>
     );
@@ -1473,6 +1609,26 @@ export default function StudioSessionPlayerPage() {
           </div>
         </header> : null}
         {!previewMode && release && screen && <StudioBranchDiscoveryPanel open={discoveryPanelOpen} fullScreen={fullScreen} releaseId={release.id} screenId={screen.screen_id} onClose={() => setDiscoveryPanelOpen(false)} onSelect={(item) => void openDiscoveredContent(item)} />}
+        {gapBridgeMenuOpen && !gapBridgeRun ? (
+          <aside className={`absolute z-[115] w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-cyan-200 bg-white text-slate-900 shadow-2xl ${fullScreen ? 'bottom-14 left-3' : 'bottom-12 right-3'}`} role="dialog" aria-label="Gap Bridges">
+            <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
+              <div><h2 className="font-bold text-blue-950">Gap Bridge</h2><p className="text-xs text-slate-500">Supporting Screens selected by the author</p></div>
+              <button type="button" onClick={() => { setGapBridgeMenuOpen(false); setGapBridgeError(''); }} className="rounded-lg p-1.5 hover:bg-slate-100" aria-label="Close Gap Bridge list"><X size={17} /></button>
+            </header>
+            <div className="max-h-72 space-y-2 overflow-y-auto p-3">
+              {gapBridges.map((bridge) => <button key={bridge.gap_bridge_id} type="button" disabled={gapBridgeLoading} onClick={() => void openGapBridge(bridge)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-cyan-400 hover:bg-cyan-50 disabled:opacity-50"><span><span className="block text-sm font-semibold">{bridge.name}</span><span className="block text-[11px] text-slate-500">{bridge.target_kind === 'child' ? 'Author-created child Screen' : 'Latest published external Screen'}</span></span>{gapBridgeLoading ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} />}</button>)}
+              {gapBridges.length === 0 ? <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">No Gap Bridges are available for this Screen.</p> : null}
+              {gapBridgeError ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{gapBridgeError}</p> : null}
+            </div>
+          </aside>
+        ) : null}
+        {gapBridgeRun ? (
+          <section className="absolute inset-0 z-[120] flex flex-col bg-slate-950" role="dialog" aria-modal={!audienceMode} aria-label={`Gap Bridge: ${gapBridgeRun.name}`}>
+            {!audienceMode ? <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/15 px-4 py-2 text-white"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">Gap Bridge</p><h2 className="truncate font-bold">{gapBridgeRun.name}</h2></div><button type="button" onClick={closeGapBridge} className="inline-flex items-center gap-2 rounded-lg border border-white/30 px-3 py-2 text-sm font-semibold hover:bg-white/10"><X size={17} />Return to parent Screen</button></header> : null}
+            <div className="min-h-0 flex-1"><PublishedCanvas releaseId={gapBridgeRun.releaseId} screen={gapBridgeRun.screen} previewMode={previewMode} gapBridgeContext={gapBridgeRun.resourceContext} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={[]} annotationTool="pointer" annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={() => undefined} /></div>
+            {!audienceMode ? <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/15 bg-slate-950 px-4 py-2 text-white"><button type="button" onClick={closeGapBridge} className="inline-flex items-center gap-1 rounded-lg border border-white/30 px-3 py-2 text-sm font-semibold"><ChevronLeft size={17} />Previous</button><span className="text-xs text-slate-300">Returns to Screen {screen?.screen_number}: {screen?.title}</span><button type="button" onClick={closeGapBridge} className="inline-flex items-center gap-1 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-bold text-slate-950">Next<ChevronRight size={17} /></button></footer> : null}
+          </section>
+        ) : null}
         {blankMode && (
           <button type="button" onClick={() => setBlankMode(null)} className={`absolute inset-0 z-[70] ${blankMode === 'black' ? 'bg-black' : 'bg-white'}`} aria-label={`Restore presentation from ${blankMode} Screen`} />
         )}
@@ -1599,6 +1755,7 @@ export default function StudioSessionPlayerPage() {
                 <button type="button" disabled={(annotationHistoryByScreen[screenId || 0] ?? []).length === 0} onClick={undoTeacherAnnotation} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-30" title="Undo ink" aria-label="Undo ink"><RotateCcw size={17} /></button>
                 <button type="button" disabled={teacherAnnotations.length === 0} onClick={() => setTeacherAnnotations([])} className="grid h-10 w-10 place-items-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-30" title="Clear ink" aria-label="Clear ink"><Trash2 size={17} /></button>
                 {!previewMode && <button type="button" disabled={!release || !screen} onClick={() => { const open = !discoveryPanelOpen; setMaterialsOpen(false); setCurriculumPreview(null); setDiscoveryPanelOpen(open); }} className={`grid h-10 w-10 place-items-center rounded-lg ${discoveryPanelOpen ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'} disabled:opacity-40`} title={discoveryPanelOpen ? 'Close Branching' : 'Branching'} aria-label={discoveryPanelOpen ? 'Close Branching' : 'Branching'} aria-pressed={discoveryPanelOpen}><GitBranch size={17} /></button>}
+                {isTrackedBranchUser && gapBridges.length > 0 ? <button type="button" onClick={() => { setGapBridgeMenuOpen((open) => !open); setGapBridgeError(''); }} className={`grid h-10 w-10 place-items-center rounded-lg ${gapBridgeMenuOpen ? 'bg-cyan-700 text-white' : 'border border-cyan-300 bg-white text-cyan-800 hover:bg-cyan-50'}`} title="Gap Bridge" aria-label="Gap Bridge" aria-expanded={gapBridgeMenuOpen}><Route size={17} /></button> : null}
                 {!previewMode && <button type="button" onClick={() => void openTeachingMaterials()} className={`grid h-10 w-10 place-items-center rounded-lg ${materialsOpen || curriculumPreview ? 'bg-blue-900 text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} title={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'View teaching materials'} aria-label={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'View teaching materials'} aria-pressed={materialsOpen || Boolean(curriculumPreview)}><FileText size={17} /></button>}
                 </div>
                 <label className="relative grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700" title="Ink width"><SlidersHorizontal size={15} className="pointer-events-none absolute left-1 top-1" aria-hidden="true" /><input type="number" min="2" max="24" value={annotationWidth} onChange={(event) => setAnnotationWidth(Math.min(24, Math.max(2, Number(event.target.value) || 2)))} className="h-full w-full rounded-lg bg-transparent pt-2 text-center text-xs font-bold outline-none" aria-label="Ink width" /></label>
@@ -1629,7 +1786,7 @@ export default function StudioSessionPlayerPage() {
             </div>
           )}
           {!discoveryItem && !loading && release && screen && (
-            <div className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})`, viewTransitionName: presenterMode ? 'none' : 'studio-slide' }}>
+            <div data-gap-bridge-parent className="h-full w-full transition-transform duration-200" style={{ transform: `scale(${presentationZoom})`, viewTransitionName: presenterMode ? 'none' : 'studio-slide' }}>
               <PublishedCanvas key={`${release.id}:${screen.screen_id}:${previewMode ? 'preview' : 'published'}:active`} releaseId={release.id} screen={screen} previewMode={previewMode} immersiveViewport={fullScreen || audienceMode} teacherAnnotations={teacherAnnotations} annotationTool={audienceMode ? 'pointer' : isTrackedBranchUser ? annotationTool : 'pointer'} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />
             </div>
           )}
@@ -1700,6 +1857,7 @@ export default function StudioSessionPlayerPage() {
                 <button type="button" onClick={() => { setFullscreenSlidesOpen(false); if (fullscreenDrawOpen || annotationTool !== 'pointer') { setFullscreenDrawOpen(false); setAnnotationTool('pointer'); } else setFullscreenDrawOpen(true); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${fullscreenDrawOpen || annotationTool !== 'pointer' ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-label={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-expanded={fullscreenDrawOpen} aria-pressed={annotationTool !== 'pointer'}><PenLine size={19} /></button>
                 <button type="button" onClick={() => { setFullscreenSlidesOpen((open) => !open); setFullscreenDrawOpen(false); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${fullscreenSlidesOpen ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title="All slides" aria-label="All slides" aria-expanded={fullscreenSlidesOpen}><Grid3X3 size={19} /></button>
                 {!previewMode ? <button type="button" disabled={!release || !screen} onClick={() => { if (discoveryItem) closeDiscoveredContent(); else { const open = !discoveryPanelOpen; setMaterialsOpen(false); setCurriculumPreview(null); setDiscoveryPanelOpen(open); } setFullscreenDrawOpen(false); setFullscreenSlidesOpen(false); setAnnotationTool('pointer'); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${discoveryPanelOpen || discoveryItem ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'} disabled:opacity-30`} title={discoveryPanelOpen || discoveryItem ? 'Close Branching' : 'Branching'} aria-label={discoveryPanelOpen || discoveryItem ? 'Close Branching' : 'Branching'} aria-pressed={discoveryPanelOpen || Boolean(discoveryItem)}>{discoveryPanelOpen || discoveryItem ? <X size={18} /> : <GitBranch size={18} />}</button> : null}
+                {isTrackedBranchUser && gapBridges.length > 0 ? <button type="button" onClick={() => { setGapBridgeMenuOpen((open) => !open); setFullscreenDrawOpen(false); setFullscreenSlidesOpen(false); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${gapBridgeMenuOpen ? 'border-cyan-500 bg-cyan-100' : 'border-cyan-300 bg-white hover:bg-cyan-50'}`} title="Gap Bridge" aria-label="Gap Bridge" aria-expanded={gapBridgeMenuOpen}><Route size={18} /></button> : null}
                 {!previewMode ? <button type="button" onClick={() => { setFullscreenDrawOpen(false); setFullscreenSlidesOpen(false); setAnnotationTool('pointer'); void openTeachingMaterials(); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${materialsOpen || curriculumPreview ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'Teaching materials'} aria-label={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'Teaching materials'} aria-pressed={materialsOpen || Boolean(curriculumPreview)}><FileText size={18} /></button> : null}
                 <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100 disabled:opacity-30" title="Next" aria-label="Next"><ChevronRight size={20} /></button>
                 <button type="button" onClick={() => void toggleFullScreen()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100" title="Exit full screen" aria-label="Exit full screen"><Minimize2 size={19} /></button>

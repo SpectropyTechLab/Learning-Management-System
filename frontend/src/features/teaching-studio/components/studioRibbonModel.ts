@@ -1,6 +1,7 @@
 export type StudioRibbonTabId =
   | 'home'
   | 'insert'
+  | 'gap-bridge'
   | 'simulation'
   | 'activity'
   | 'lab'
@@ -36,6 +37,7 @@ export type StudioRibbonSelection = {
   visualType?: string | null;
   selectionCount?: number;
   drawingActive?: boolean;
+  gapBridgeActive?: boolean;
 };
 
 export const STUDIO_PERMANENT_RIBBON_TABS: readonly StudioRibbonTab[] = [
@@ -83,7 +85,12 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
       contextual: true,
       accent: 'emerald',
     });
-    tabs.push({ id: 'diagram-format', label: 'Diagram Format', contextual: true, accent: 'emerald' });
+    tabs.push({
+      id: 'diagram-format',
+      label: 'Diagram Format',
+      contextual: true,
+      accent: 'emerald',
+    });
   }
   if (visualType === 'chart') {
     tabs.push({ id: 'chart-design', label: 'Chart Design', contextual: true, accent: 'emerald' });
@@ -105,6 +112,11 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
 export const studioRibbonTabs = (selection: StudioRibbonSelection): StudioRibbonTab[] => [
   ...STUDIO_PERMANENT_RIBBON_TABS,
   ...studioContextualRibbonTabs(selection),
+  ...(selection.gapBridgeActive
+    ? ([
+        { id: 'gap-bridge', label: 'Gap Bridge', contextual: true, accent: 'violet' },
+      ] satisfies StudioRibbonTab[])
+    : []),
 ];
 
 export const preferredStudioRibbonTab = (

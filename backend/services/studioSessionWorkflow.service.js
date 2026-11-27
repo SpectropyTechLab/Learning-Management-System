@@ -25,6 +25,16 @@ const assertTenantAccess = (session, user) => {
   }
 };
 
+const jsonArray = (value) => {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const loadSession = async (db, sessionId, { lock = false } = {}) => {
   const result = await db.query(
     `SELECT s.id, s.client_id, s.subtopic_id, s.title, s.status, s.revision_no,
@@ -56,13 +66,72 @@ const validateContent = async (db, session) => {
   }
 
   const screensResult = await db.query(
-    `SELECT id, screen_number, revision_no
-     FROM screens WHERE session_id = $1 ORDER BY display_order, screen_number`,
-    [session.id]
+    `SELECT sc.id, sc.screen_number, sc.revision_no,
+            COALESCE((
+              SELECT jsonb_agg(jsonb_build_object(
+                'gap_bridge_id', gb.id,
+                'name', gb.name,
+                'target_kind', gb.target_kind,
+                'child_valid', CASE WHEN gb.target_kind = 'child' THEN
+                  child.id IS NOT NULL
+                  AND child.session_id = gb.source_session_id
+                  AND child.screen_kind = 'gap_bridge_child'
+                  AND child.parent_screen_id = gb.source_screen_id
+                ELSE TRUE END,
+                'external_available', CASE WHEN gb.target_kind = 'external' THEN EXISTS (
+                  SELECT 1
+                  FROM session_releases sr
+                  WHERE sr.session_id = gb.external_session_id
+                    AND sr.client_id IS NOT DISTINCT FROM $2::int
+                    AND sr.release_number = (
+                      SELECT MAX(latest.release_number)
+                      FROM session_releases latest
+                      WHERE latest.session_id = gb.external_session_id
+                        AND latest.client_id IS NOT DISTINCT FROM $2::int
+                    )
+                    AND EXISTS (
+                      SELECT 1
+                      FROM jsonb_array_elements(
+                        COALESCE(sr.manifest_json->'screens', '[]'::jsonb)
+                        || COALESCE(sr.manifest_json->'gap_bridge_screens', '[]'::jsonb)
+                      ) target
+                      WHERE (target->>'screen_id')::int = gb.external_screen_id
+                    )
+                ) ELSE TRUE END
+              ) ORDER BY gb.display_order, gb.id)
+              FROM gap_bridges gb
+              LEFT JOIN screens child ON child.id = gb.child_screen_id
+              WHERE gb.source_screen_id = sc.id
+            ), '[]'::jsonb) AS gap_bridges
+     FROM screens sc
+     WHERE sc.session_id = $1 AND sc.screen_kind = 'main'
+     ORDER BY sc.display_order, sc.screen_number`,
+    [session.id, session.client_id]
   );
 
   if (screensResult.rows.length === 0) {
     errors.push({ code: 'SCREENS_MISSING', message: 'At least one Screen is required.' });
+  }
+
+  for (const screen of screensResult.rows) {
+    for (const bridge of jsonArray(screen.gap_bridges)) {
+      if (bridge.target_kind === 'child' && bridge.child_valid !== true) {
+        errors.push({
+          code: 'GAP_BRIDGE_CHILD_INVALID',
+          message: `Gap Bridge "${bridge.name}" has an invalid local child Screen.`,
+          screen_id: Number(screen.id),
+          gap_bridge_id: Number(bridge.gap_bridge_id),
+        });
+      }
+      if (bridge.target_kind === 'external' && bridge.external_available !== true) {
+        errors.push({
+          code: 'GAP_BRIDGE_EXTERNAL_TARGET_UNAVAILABLE',
+          message: `Gap Bridge "${bridge.name}" is not available in the destination Session's latest publication.`,
+          screen_id: Number(screen.id),
+          gap_bridge_id: Number(bridge.gap_bridge_id),
+        });
+      }
+    }
   }
 
   const legacyScriptDocument = documents.screen_script && !documents.screen_script.metadata_json?.parser;

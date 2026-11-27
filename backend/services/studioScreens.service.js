@@ -556,7 +556,9 @@ export const listSessionScreens = async ({ sessionId: rawSessionId, user }) => {
   const sessionId = parseId(rawSessionId, 'Session ID');
   const session = await loadSession({ query: dbQuery }, sessionId, user);
   const result = await dbQuery(
-    'SELECT * FROM screens WHERE session_id = $1 ORDER BY display_order, screen_number, id',
+    `SELECT * FROM screens
+     WHERE session_id = $1 AND screen_kind = 'main'
+     ORDER BY display_order, screen_number, id`,
     [session.id],
   );
   const screens = await hydrateScreens({ query: dbQuery }, result.rows);
@@ -592,7 +594,8 @@ const validateZoomLinks = async (db, elements, sessionId, sourceScreenId) => {
         throw new AppError(`Element ${element.key} cannot Zoom to its own Screen`, 422);
       }
       const target = await db.query(
-        'SELECT id FROM screens WHERE id = $1 AND session_id = $2',
+        `SELECT id FROM screens
+         WHERE id = $1 AND session_id = $2 AND screen_kind = 'main'`,
         [zoom.targetScreenId, sessionId],
       );
       if (!target.rows[0]) throw new AppError(`Element ${element.key} Zoom target Screen is unavailable`, 422);
@@ -743,11 +746,20 @@ export const deleteScreen = async ({ screenId: rawScreenId, user }) => {
   try {
     await client.query('BEGIN');
     const screen = await loadScreenRow(client, screenId, user, { lock: true });
+    if (screen.screen_kind === 'gap_bridge_child') {
+      throw new AppError('Delete this child Screen through its Gap Bridge', 409);
+    }
     const references = await client.query(
-      `SELECT (
+      `WITH deletion_screens AS (
+         SELECT id FROM screens
+         WHERE id = $1 OR (parent_screen_id = $1 AND screen_kind = 'gap_bridge_child')
+       )
+       SELECT (
          (SELECT COUNT(*) FROM screen_branches
-          WHERE destination_screen_id = $1 OR return_screen_id = $1) +
-         (SELECT COUNT(*) FROM screen_zoom_links WHERE target_screen_id = $1)
+          WHERE destination_screen_id IN (SELECT id FROM deletion_screens)
+             OR return_screen_id IN (SELECT id FROM deletion_screens)) +
+         (SELECT COUNT(*) FROM screen_zoom_links
+          WHERE target_screen_id IN (SELECT id FROM deletion_screens))
        )::integer AS count`,
       [screen.id],
     );
@@ -757,7 +769,14 @@ export const deleteScreen = async ({ screenId: rawScreenId, user }) => {
     // Session Script revisions belong to the screen. Remove them in the same
     // transaction so deleting a screen also removes it from Session Script and
     // does not fail on the screen_script_revisions.screen_id foreign key.
-    await client.query('DELETE FROM screen_script_revisions WHERE screen_id = $1', [screen.id]);
+    await client.query(
+      `DELETE FROM screen_script_revisions
+       WHERE screen_id IN (
+         SELECT id FROM screens
+         WHERE id = $1 OR (parent_screen_id = $1 AND screen_kind = 'gap_bridge_child')
+       )`,
+      [screen.id],
+    );
     await client.query('DELETE FROM screens WHERE id = $1', [screen.id]);
     const session = await returnSessionToDraft(screen.session_id, client);
     await client.query('COMMIT');
@@ -787,17 +806,20 @@ export const reorderScreens = async ({ sessionId: rawSessionId, body = {}, user 
       throw new AppError('Session revision is stale; reload before reordering', 409);
     }
     const existingResult = await client.query(
-      'SELECT id FROM screens WHERE session_id = $1 ORDER BY id FOR UPDATE',
+      `SELECT id FROM screens
+       WHERE session_id = $1 AND screen_kind = 'main'
+       ORDER BY id FOR UPDATE`,
       [session.id],
     );
     const existing = existingResult.rows.map((row) => Number(row.id)).sort((a, b) => a - b);
     const requested = [...screenIds].sort((a, b) => a - b);
     if (JSON.stringify(existing) !== JSON.stringify(requested)) {
-      throw new AppError('screen_ids must contain every Screen in the Session exactly once', 422);
+      throw new AppError('screen_ids must contain every main Screen in the Session exactly once', 422);
     }
     for (let index = 0; index < screenIds.length; index += 1) {
       await client.query(
-        'UPDATE screens SET display_order = $1, updated_at = NOW() WHERE id = $2 AND session_id = $3',
+        `UPDATE screens SET display_order = $1, updated_at = NOW()
+         WHERE id = $2 AND session_id = $3 AND screen_kind = 'main'`,
         [index, screenIds[index], session.id],
       );
     }
@@ -829,7 +851,7 @@ const hydrateSections = async (db, sessionId) => {
             ) FILTER (WHERE ssm.screen_id IS NOT NULL), '[]'::jsonb) AS screens
      FROM screen_sections ss
      LEFT JOIN screen_section_members ssm ON ssm.section_id = ss.id
-     LEFT JOIN screens sc ON sc.id = ssm.screen_id
+     LEFT JOIN screens sc ON sc.id = ssm.screen_id AND sc.screen_kind = 'main'
      WHERE ss.session_id = $1
      GROUP BY ss.id
      ORDER BY ss.display_order, ss.id`,
@@ -873,7 +895,9 @@ export const saveScreenSection = async ({ sessionId: rawSessionId, sectionId: ra
     await client.query('BEGIN');
     const session = await loadSession(client, sessionId, user, { lock: true });
     const screens = await client.query(
-      'SELECT id FROM screens WHERE session_id = $1 AND id = ANY($2::int[]) FOR UPDATE',
+      `SELECT id FROM screens
+       WHERE session_id = $1 AND screen_kind = 'main' AND id = ANY($2::int[])
+       FOR UPDATE`,
       [session.id, screenIds],
     );
     if (screens.rows.length !== screenIds.length) throw new AppError('Every Section Screen must belong to the Session', 422);

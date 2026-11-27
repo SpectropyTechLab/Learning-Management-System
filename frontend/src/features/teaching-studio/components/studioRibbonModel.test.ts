@@ -9,8 +9,32 @@ import {
 test('permanent tabs remain available without a selection', () => {
   assert.deepEqual(
     studioRibbonTabs({}).map((tab) => tab.id),
-    ['home', 'insert', 'simulation', 'activity', 'lab', 'equation', 'draw', 'design', 'transitions', 'animations', 'present', 'review', 'view'],
+    [
+      'home',
+      'insert',
+      'simulation',
+      'activity',
+      'lab',
+      'equation',
+      'draw',
+      'design',
+      'transitions',
+      'animations',
+      'present',
+      'review',
+      'view',
+    ],
   );
+});
+
+test('Gap Bridge is contextual and always appears at the right end', () => {
+  assert.equal(
+    studioRibbonTabs({}).some((tab) => tab.id === 'gap-bridge'),
+    false,
+  );
+  const tabs = studioRibbonTabs({ elementType: 'shape', gapBridgeActive: true });
+  assert.equal(tabs.at(-1)?.id, 'gap-bridge');
+  assert.equal(tabs.at(-1)?.contextual, true);
 });
 test('element selection exposes only its applicable contextual tabs', () => {
   assert.deepEqual(
@@ -38,7 +62,9 @@ test('element selection exposes only its applicable contextual tabs', () => {
     ['picture-format'],
   );
   assert.deepEqual(
-    studioContextualRibbonTabs({ elementType: 'visual', visualType: 'smart_diagram' }).map((tab) => tab.id),
+    studioContextualRibbonTabs({ elementType: 'visual', visualType: 'smart_diagram' }).map(
+      (tab) => tab.id,
+    ),
     ['diagram-design', 'diagram-format'],
   );
   assert.deepEqual(
@@ -46,7 +72,9 @@ test('element selection exposes only its applicable contextual tabs', () => {
     ['chart-design', 'chart-format'],
   );
   assert.deepEqual(
-    studioContextualRibbonTabs({ elementType: 'simulation', resourceType: 'simulation' }).map((tab) => tab.id),
+    studioContextualRibbonTabs({ elementType: 'simulation', resourceType: 'simulation' }).map(
+      (tab) => tab.id,
+    ),
     [],
   );
 });

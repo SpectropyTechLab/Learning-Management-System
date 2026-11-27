@@ -34,6 +34,7 @@ import studioSessionWorkflowRoutes from './routes/studioSessionWorkflow.routes.j
 import studioLayoutsRoutes from './routes/studioLayouts.routes.js';
 import studioResourcesRoutes from './routes/studioResources.routes.js';
 import studioScreensRoutes from './routes/studioScreens.routes.js';
+import studioGapBridgesRoutes from './routes/studioGapBridges.routes.js';
 import studioResourceRuntimeRoutes from './routes/studioResourceRuntime.routes.js';
 import studioBranchRuntimeRoutes from './routes/studioBranchRuntime.routes.js';
 import studioSessionsRoutes from './routes/studioSessions.routes.js';
@@ -262,6 +263,7 @@ app.use('/api', studioSessionWorkflowRoutes);
 app.use('/api', studioLayoutsRoutes);
 app.use('/api', studioResourcesRoutes);
 app.use('/api', studioScreensRoutes);
+app.use('/api', studioGapBridgesRoutes);
 // Session setup must be reached by Content Authorizers before the later
 // teacher-only branch runtime router evaluates its role boundary.
 app.use('/api', studioSessionsRoutes);

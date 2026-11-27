@@ -82,8 +82,10 @@ const loadScreenScripts = async (db, sessionId, authorization) => {
   const recorded = parseJsonArray(authorization.screen_script_revisions_json);
   const ids = recorded.map((script) => Number(script.script_revision_id)).filter(Number.isInteger);
   if (ids.length === 0) {
-    if (authorization.screen_script_document_id) return [];
-    throw new AppError('Authorized per-Screen Script revisions are incomplete', 409);
+    // Per-Screen Scripts are optional in workflow validation. An empty array is
+    // therefore valid authorization evidence, with or without a legacy source
+    // document, and must publish as an empty manifest collection.
+    return [];
   }
   const result = await db.query(
     `SELECT id, session_id, screen_id, revision_no, source_mode, source_document_id,
@@ -103,8 +105,83 @@ const loadScreens = async (db, sessionId) => (await db.query(
           l.description AS layout_description, l.layout_data_json,
           l.thumbnail_url, l.is_default, l.canvas_width, l.canvas_height, l.safe_margin
    FROM screens sc LEFT JOIN layouts l ON l.id = sc.layout_id
-   WHERE sc.session_id = $1 ORDER BY sc.display_order, sc.screen_number, sc.id`, [sessionId]
+   WHERE sc.session_id = $1 AND sc.screen_kind = 'main'
+   ORDER BY sc.display_order, sc.screen_number, sc.id`, [sessionId]
 )).rows;
+
+const loadGapBridgePublicationData = async (db, session) => {
+  const bridges = (await db.query(
+    `SELECT gb.id, gb.source_session_id, gb.source_screen_id, gb.name, gb.target_kind,
+            gb.child_screen_id, gb.external_session_id, gb.external_screen_id, gb.display_order,
+            child.id AS child_id, child.client_id AS child_client_id, child.title AS child_title,
+            child.screen_number AS child_screen_number, child.display_order AS child_display_order,
+            child.creation_mode AS child_creation_mode, child.revision_no AS child_revision_no,
+            child.screen_settings_json AS child_screen_settings_json, child.layout_id AS child_layout_id,
+            child.parent_screen_id AS child_parent_screen_id, child.session_id AS child_session_id,
+            child.screen_kind AS child_screen_kind,
+            l.layout_key AS child_layout_key, l.version_no AS child_layout_version_no,
+            l.name AS child_layout_name, l.description AS child_layout_description,
+            l.layout_data_json AS child_layout_data_json, l.thumbnail_url AS child_thumbnail_url,
+            l.is_default AS child_is_default, l.canvas_width AS child_canvas_width,
+            l.canvas_height AS child_canvas_height, l.safe_margin AS child_safe_margin
+     FROM gap_bridges gb
+     LEFT JOIN screens child ON child.id = gb.child_screen_id
+     LEFT JOIN layouts l ON l.id = child.layout_id
+     WHERE gb.source_session_id = $1
+     ORDER BY gb.source_screen_id, gb.display_order, gb.id`,
+    [session.id],
+  )).rows;
+
+  const childScreens = [];
+  for (const bridge of bridges) {
+    if (bridge.target_kind === 'child') {
+      if (!bridge.child_id || bridge.child_screen_kind !== 'gap_bridge_child'
+          || Number(bridge.child_session_id) !== Number(session.id)
+          || Number(bridge.child_parent_screen_id) !== Number(bridge.source_screen_id)) {
+        throw new AppError(`Gap Bridge "${bridge.name}" has an invalid child Screen`, 422);
+      }
+      childScreens.push({
+        id: bridge.child_id, client_id: bridge.child_client_id, title: bridge.child_title,
+        screen_number: bridge.child_screen_number, display_order: bridge.child_display_order,
+        creation_mode: bridge.child_creation_mode, revision_no: bridge.child_revision_no,
+        screen_settings_json: bridge.child_screen_settings_json, layout_id: bridge.child_layout_id,
+        parent_screen_id: bridge.child_parent_screen_id, layout_key: bridge.child_layout_key,
+        layout_version_no: bridge.child_layout_version_no, layout_name: bridge.child_layout_name,
+        layout_description: bridge.child_layout_description, layout_data_json: bridge.child_layout_data_json,
+        thumbnail_url: bridge.child_thumbnail_url, is_default: bridge.child_is_default,
+        canvas_width: bridge.child_canvas_width, canvas_height: bridge.child_canvas_height,
+        safe_margin: bridge.child_safe_margin,
+      });
+      continue;
+    }
+    if (bridge.target_kind !== 'external'
+        || Number(bridge.external_session_id) === Number(session.id)) {
+      throw new AppError(`Gap Bridge "${bridge.name}" has an invalid external target`, 422);
+    }
+    const targetRelease = (await db.query(
+      `SELECT id, manifest_json FROM session_releases
+       WHERE session_id = $1 AND client_id IS NOT DISTINCT FROM $2
+       ORDER BY release_number DESC LIMIT 1`,
+      [bridge.external_session_id, session.client_id],
+    )).rows[0];
+    const targetExists = [
+      ...(targetRelease?.manifest_json?.screens || []),
+      ...(targetRelease?.manifest_json?.gap_bridge_screens || []),
+    ].some(
+      (screen) => Number(screen.screen_id) === Number(bridge.external_screen_id),
+    );
+    if (!targetExists) {
+      throw new AppError(`Gap Bridge "${bridge.name}" target is not available in the latest published Session`, 422);
+    }
+  }
+
+  const uniqueChildScreens = [...new Map(childScreens.map((screen) => [Number(screen.id), screen])).values()];
+  return {
+    bridges,
+    childScreens: uniqueChildScreens,
+    childContent: await loadScreenContent(db, uniqueChildScreens.map((screen) => Number(screen.id))),
+  };
+};
 
 const assertAuthorizedScreens = (screens, authorization) => {
   const recorded = parseJsonArray(authorization.screen_revisions_json);
@@ -223,14 +300,76 @@ const effectiveTaxonomy = (entry = { screen: {}, topic: {} }) => ({
   target_exam: entry.topic.target_exam || [],
 });
 
-const buildManifest = ({ session, authorization, documents, screenScripts, screens, content, releaseNumber }) => {
+const serializeManifestScreens = (screens, content, { child = false } = {}) => {
   const elementsByScreen = groupBy(content.elements, 'screen_id');
   const tagsByScreen = groupBy(content.tags, 'screen_id');
   const branchesByScreen = groupBy(content.branches, 'source_screen_id');
   const taxonomy = taxonomyByScreen(content.taxonomy);
   const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
+  return screens.map((screen) => ({
+    screen_id: Number(screen.id), revision_no: Number(screen.revision_no),
+    client_id: screen.client_id, title: screen.title,
+    screen_number: screen.screen_number === null ? null : Number(screen.screen_number),
+    display_order: Number(screen.display_order),
+    ...(child ? { parent_screen_id: Number(screen.parent_screen_id) } : {}),
+    creation_mode: screen.creation_mode, screen_settings_json: screen.screen_settings_json,
+    taxonomy: effectiveTaxonomy(taxonomy.get(Number(screen.id))),
+    layout: screen.layout_id ? {
+      layout_id: Number(screen.layout_id), layout_key: screen.layout_key,
+      version_no: Number(screen.layout_version_no), name: screen.layout_name,
+      description: screen.layout_description, layout_data_json: screen.layout_data_json,
+      thumbnail_url: screen.thumbnail_url, is_default: screen.is_default,
+      canvas_width: Number(screen.canvas_width), canvas_height: Number(screen.canvas_height),
+      safe_margin: Number(screen.safe_margin),
+    } : null,
+    elements: (elementsByScreen.get(Number(screen.id)) || []).map((element) => ({
+      screen_element_id: Number(element.screen_element_id), element_key: element.element_key,
+      slot_id: element.slot_id, element_type: element.element_type,
+      content_json: element.content_json, position_json: element.position_json,
+      display_order: Number(element.display_order),
+      zoom: zoomByElement.has(String(element.element_key)) ? {
+        zoom_kind: zoomByElement.get(String(element.element_key)).zoom_kind,
+        target_screen_id: zoomByElement.get(String(element.element_key)).target_screen_id === null
+          ? null : Number(zoomByElement.get(String(element.element_key)).target_screen_id),
+        target_section_id: zoomByElement.get(String(element.element_key)).target_section_id === null
+          ? null : Number(zoomByElement.get(String(element.element_key)).target_section_id),
+        return_to_zoom: Boolean(zoomByElement.get(String(element.element_key)).return_to_zoom),
+      } : null,
+      resource_mapping: element.mapping_id ? {
+        mapping_id: Number(element.mapping_id), usage_details_json: element.usage_details_json,
+        resource_id: Number(element.resource_id), resource_version_id: Number(element.resource_version_id),
+        version_number: Number(element.version_number), client_id: element.resource_client_id,
+        name: element.resource_name, description: element.resource_description,
+        resource_type: element.resource_type, storage_key: element.storage_key,
+        original_file_name: element.original_file_name, mime_type: element.mime_type,
+        file_size: element.file_size === null ? null : Number(element.file_size),
+        checksum_sha256: element.checksum_sha256, thumbnail_storage_key: element.thumbnail_storage_key,
+        external_url: element.external_url, width: element.width, height: element.height,
+        duration_seconds: element.duration_seconds, entry_point: element.entry_point,
+        metadata_json: element.metadata_json,
+      } : null,
+    })),
+    tags: (tagsByScreen.get(Number(screen.id)) || []).map((row) => row.tag),
+    branches: branchesByScreen.get(Number(screen.id)) || [],
+  }));
+};
+
+const serializeGapBridges = (gapBridgeData) => gapBridgeData.bridges.map((bridge) => ({
+  gap_bridge_id: Number(bridge.id),
+  source_screen_id: Number(bridge.source_screen_id),
+  name: bridge.name,
+  display_order: Number(bridge.display_order),
+  target_kind: bridge.target_kind,
+  child_screen_id: bridge.child_screen_id === null ? null : Number(bridge.child_screen_id),
+  external_target: bridge.target_kind === 'external' ? {
+    session_id: Number(bridge.external_session_id),
+    screen_id: Number(bridge.external_screen_id),
+  } : null,
+}));
+
+const buildManifest = ({ session, authorization, documents, screenScripts, screens, content, gapBridgeData, releaseNumber }) => {
   return {
-    manifest_version: 4, release_number: releaseNumber,
+    manifest_version: 5, release_number: releaseNumber,
     session: {
       session_id: Number(session.id), revision_no: Number(session.revision_no),
       client_id: session.client_id, subtopic_id: session.subtopic_id,
@@ -260,61 +399,15 @@ const buildManifest = ({ session, authorization, documents, screenScripts, scree
         screen_id: Number(item.screen_id), display_order: Number(item.display_order),
       })),
     })),
-    screens: screens.map((screen) => ({
-      screen_id: Number(screen.id), revision_no: Number(screen.revision_no),
-      client_id: screen.client_id, title: screen.title,
-      screen_number: Number(screen.screen_number), display_order: Number(screen.display_order),
-      creation_mode: screen.creation_mode, screen_settings_json: screen.screen_settings_json,
-      taxonomy: effectiveTaxonomy(taxonomy.get(Number(screen.id))),
-      layout: screen.layout_id ? {
-        layout_id: Number(screen.layout_id), layout_key: screen.layout_key,
-        version_no: Number(screen.layout_version_no), name: screen.layout_name,
-        description: screen.layout_description, layout_data_json: screen.layout_data_json,
-        thumbnail_url: screen.thumbnail_url, is_default: screen.is_default,
-        canvas_width: Number(screen.canvas_width), canvas_height: Number(screen.canvas_height),
-        safe_margin: Number(screen.safe_margin),
-      } : null,
-      elements: (elementsByScreen.get(Number(screen.id)) || []).map((element) => ({
-        screen_element_id: Number(element.screen_element_id), element_key: element.element_key,
-        slot_id: element.slot_id, element_type: element.element_type,
-        content_json: element.content_json, position_json: element.position_json,
-        display_order: Number(element.display_order),
-        zoom: zoomByElement.has(String(element.element_key)) ? {
-          zoom_kind: zoomByElement.get(String(element.element_key)).zoom_kind,
-          target_screen_id: zoomByElement.get(String(element.element_key)).target_screen_id === null
-            ? null : Number(zoomByElement.get(String(element.element_key)).target_screen_id),
-          target_section_id: zoomByElement.get(String(element.element_key)).target_section_id === null
-            ? null : Number(zoomByElement.get(String(element.element_key)).target_section_id),
-          return_to_zoom: Boolean(zoomByElement.get(String(element.element_key)).return_to_zoom),
-        } : null,
-        resource_mapping: element.mapping_id ? {
-          mapping_id: Number(element.mapping_id), usage_details_json: element.usage_details_json,
-          resource_id: Number(element.resource_id), resource_version_id: Number(element.resource_version_id),
-          version_number: Number(element.version_number), client_id: element.resource_client_id,
-          name: element.resource_name, description: element.resource_description,
-          resource_type: element.resource_type, storage_key: element.storage_key,
-          original_file_name: element.original_file_name, mime_type: element.mime_type,
-          file_size: element.file_size === null ? null : Number(element.file_size),
-          checksum_sha256: element.checksum_sha256, thumbnail_storage_key: element.thumbnail_storage_key,
-          external_url: element.external_url, width: element.width, height: element.height,
-          duration_seconds: element.duration_seconds, entry_point: element.entry_point,
-          metadata_json: element.metadata_json,
-        } : null,
-      })),
-      tags: (tagsByScreen.get(Number(screen.id)) || []).map((row) => row.tag),
-      branches: branchesByScreen.get(Number(screen.id)) || [],
-    })),
+    screens: serializeManifestScreens(screens, content),
+    gap_bridges: serializeGapBridges(gapBridgeData),
+    gap_bridge_screens: serializeManifestScreens(gapBridgeData.childScreens, gapBridgeData.childContent, { child: true }),
   };
 };
 
-const buildPlayerPreviewManifest = ({ session, screens, content }) => {
-  const elementsByScreen = groupBy(content.elements, 'screen_id');
-  const tagsByScreen = groupBy(content.tags, 'screen_id');
-  const branchesByScreen = groupBy(content.branches, 'source_screen_id');
-  const taxonomy = taxonomyByScreen(content.taxonomy);
-  const zoomByElement = new Map(content.zoomLinks.map((row) => [String(row.element_id), row]));
+const buildPlayerPreviewManifest = ({ session, screens, content, gapBridgeData }) => {
   return {
-    manifest_version: 4,
+    manifest_version: 5,
     release_number: 0,
     session: {
       session_id: Number(session.id),
@@ -333,61 +426,9 @@ const buildPlayerPreviewManifest = ({ session, screens, content }) => {
         screen_id: Number(item.screen_id), display_order: Number(item.display_order),
       })),
     })),
-    screens: screens.map((screen) => ({
-      screen_id: Number(screen.id),
-      revision_no: Number(screen.revision_no),
-      client_id: screen.client_id,
-      title: screen.title,
-      screen_number: Number(screen.screen_number),
-      display_order: Number(screen.display_order),
-      creation_mode: screen.creation_mode,
-      screen_settings_json: screen.screen_settings_json,
-      taxonomy: effectiveTaxonomy(taxonomy.get(Number(screen.id))),
-      layout: screen.layout_id ? {
-        layout_id: Number(screen.layout_id),
-        layout_key: screen.layout_key,
-        version_no: Number(screen.layout_version_no),
-        name: screen.layout_name,
-        description: screen.layout_description,
-        layout_data_json: screen.layout_data_json,
-        thumbnail_url: screen.thumbnail_url,
-        is_default: screen.is_default,
-        canvas_width: Number(screen.canvas_width),
-        canvas_height: Number(screen.canvas_height),
-        safe_margin: Number(screen.safe_margin),
-      } : null,
-      elements: (elementsByScreen.get(Number(screen.id)) || []).map((element) => ({
-        screen_element_id: Number(element.screen_element_id),
-        element_key: element.element_key,
-        slot_id: element.slot_id,
-        element_type: element.element_type,
-        content_json: element.content_json,
-        position_json: element.position_json,
-        display_order: Number(element.display_order),
-        zoom: zoomByElement.has(String(element.element_key)) ? {
-          zoom_kind: zoomByElement.get(String(element.element_key)).zoom_kind,
-          target_screen_id: zoomByElement.get(String(element.element_key)).target_screen_id === null
-            ? null : Number(zoomByElement.get(String(element.element_key)).target_screen_id),
-          target_section_id: zoomByElement.get(String(element.element_key)).target_section_id === null
-            ? null : Number(zoomByElement.get(String(element.element_key)).target_section_id),
-          return_to_zoom: Boolean(zoomByElement.get(String(element.element_key)).return_to_zoom),
-        } : null,
-        resource_mapping: element.mapping_id ? {
-          resource_id: Number(element.resource_id),
-          resource_version_id: Number(element.resource_version_id),
-          version_number: Number(element.version_number),
-          usage_details_json: element.usage_details_json,
-          name: element.resource_name,
-          resource_type: element.resource_type,
-          external_url: element.external_url,
-          mime_type: element.mime_type,
-          width: element.width === null ? null : Number(element.width),
-          height: element.height === null ? null : Number(element.height),
-        } : null,
-      })),
-      tags: (tagsByScreen.get(Number(screen.id)) || []).map((row) => row.tag),
-      branches: branchesByScreen.get(Number(screen.id)) || [],
-    })),
+    screens: serializeManifestScreens(screens, content),
+    gap_bridges: serializeGapBridges(gapBridgeData),
+    gap_bridge_screens: serializeManifestScreens(gapBridgeData.childScreens, gapBridgeData.childContent, { child: true }),
   };
 };
 
@@ -399,13 +440,14 @@ export const getSessionPlayerPreview = async ({ sessionId: rawSessionId, user })
   assertPublisherTenant(session, user);
   const screens = await loadScreens(db, sessionId);
   const content = await loadScreenContent(db, screens.map((screen) => Number(screen.id)));
+  const gapBridgeData = await loadGapBridgePublicationData(db, session);
   return {
     id: 0,
     client_id: session.client_id,
     session_id: sessionId,
     release_number: 0,
     published_at: null,
-    manifest: buildPlayerPreviewManifest({ session, screens, content }),
+    manifest: buildPlayerPreviewManifest({ session, screens, content, gapBridgeData }),
   };
 };
 
@@ -443,7 +485,7 @@ export const listPublishedChapters = async ({ user }) => {
      JOIN subjects su ON su.id = ch.subject_id
      JOIN grades g ON g.id = su.grade_id
      JOIN programs p ON p.id = g.program_id
-     LEFT JOIN screens sc ON sc.session_id = se.id
+     LEFT JOIN screens sc ON sc.session_id = se.id AND sc.screen_kind = 'main'
      GROUP BY latest.id, latest.release_number, latest.published_at, se.id, se.title,
               p.id, p.name, g.grade_number, su.id, su.name, ch.id, ch.name, ch.chapter_number
      ORDER BY latest.published_at DESC, ch.chapter_number, se.id`,
@@ -473,12 +515,13 @@ export const publishSessionRelease = async ({ sessionId: rawSessionId, user }) =
     if (screens.length === 0) throw new AppError('At least one Screen is required for publication', 422);
     assertAuthorizedScreens(screens, authorization);
     const content = await loadScreenContent(client, screens.map((screen) => Number(screen.id)));
+    const gapBridgeData = await loadGapBridgePublicationData(client, session);
     const numberResult = await client.query(
       'SELECT COALESCE(MAX(release_number), 0) + 1 AS release_number FROM session_releases WHERE session_id = $1',
       [session.id]
     );
     const releaseNumber = Number(numberResult.rows[0].release_number);
-    const manifest = buildManifest({ session, authorization, documents, screenScripts, screens, content, releaseNumber });
+    const manifest = buildManifest({ session, authorization, documents, screenScripts, screens, content, gapBridgeData, releaseNumber });
     const releaseResult = await client.query(
       `INSERT INTO session_releases
         (client_id, session_id, release_number, session_revision_no,
@@ -587,6 +630,8 @@ const serializePublishedRelease = (row) => {
       release_number: Number(row.release_number),
       session: manifest.session || null,
       screens: Array.isArray(manifest.screens) ? manifest.screens : [],
+      gap_bridges: Array.isArray(manifest.gap_bridges) ? manifest.gap_bridges : [],
+      gap_bridge_screens: Array.isArray(manifest.gap_bridge_screens) ? manifest.gap_bridge_screens : [],
     },
   };
 };
@@ -695,10 +740,97 @@ export const listPublishedSessionReleases = async ({ sessionId: rawSessionId, us
   return releases;
 };
 
-export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleaseId, versionId: rawVersionId, user }) => {
+const gapBridgeUnavailable = (message = 'This Gap Bridge target is currently unavailable') => {
+  throw new AppError(message, 409, 'GAP_BRIDGE_TARGET_UNAVAILABLE');
+};
+
+export const resolvePublishedGapBridge = async ({
+  sourceReleaseId: rawSourceReleaseId,
+  gapBridgeId: rawGapBridgeId,
+  user,
+}) => {
+  assertPublishedReader(user);
+  const sourceReleaseId = parseId(rawSourceReleaseId, 'Source release ID');
+  const gapBridgeId = parseId(rawGapBridgeId, 'Gap Bridge ID');
+  const tenantId = publishedTenantId(user);
+  const sourceRelease = (await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE id = $1 AND ($2::int IS NULL OR client_id = $2) LIMIT 1`,
+    [sourceReleaseId, tenantId],
+  )).rows[0];
+  if (!sourceRelease) throw new AppError('Published Session release not found', 404);
+  await assertPublishedReleaseAccess(sourceRelease, user);
+
+  const bridge = (sourceRelease.manifest_json?.gap_bridges || []).find(
+    (item) => Number(item.gap_bridge_id) === gapBridgeId,
+  );
+  if (!bridge) throw new AppError('Gap Bridge is not part of this published release', 404);
+
+  if (bridge.target_kind === 'child') {
+    const screen = (sourceRelease.manifest_json?.gap_bridge_screens || []).find(
+      (item) => Number(item.screen_id) === Number(bridge.child_screen_id),
+    );
+    if (!screen) gapBridgeUnavailable();
+    return {
+      gap_bridge_id: gapBridgeId,
+      name: bridge.name,
+      target_kind: 'child',
+      target_release_id: sourceReleaseId,
+      screen,
+    };
+  }
+
+  if (bridge.target_kind !== 'external' || !bridge.external_target) gapBridgeUnavailable();
+  const targetRelease = (await dbQuery(
+    `SELECT ${releaseColumns} FROM session_releases
+     WHERE session_id = $1 AND client_id IS NOT DISTINCT FROM $2
+     ORDER BY release_number DESC LIMIT 1`,
+    [bridge.external_target.session_id, sourceRelease.client_id],
+  )).rows[0];
+  const screen = [
+    ...(targetRelease?.manifest_json?.screens || []),
+    ...(targetRelease?.manifest_json?.gap_bridge_screens || []),
+  ].find(
+    (item) => Number(item.screen_id) === Number(bridge.external_target.screen_id),
+  );
+  if (!targetRelease || !screen) gapBridgeUnavailable();
+  return {
+    gap_bridge_id: gapBridgeId,
+    name: bridge.name,
+    target_kind: 'external',
+    target_release_id: Number(targetRelease.id),
+    screen,
+  };
+};
+
+export const assertPinnedPublishedResourceAccess = async ({
+  releaseId: rawReleaseId,
+  versionId: rawVersionId,
+  sourceReleaseId: rawSourceReleaseId,
+  gapBridgeId: rawGapBridgeId,
+  user,
+}) => {
   assertPublishedReader(user);
   const releaseId = parseId(rawReleaseId, 'Release ID');
   const versionId = parseId(rawVersionId, 'Resource version ID');
+  if (rawSourceReleaseId !== undefined || rawGapBridgeId !== undefined) {
+    if (rawSourceReleaseId === undefined || rawGapBridgeId === undefined) {
+      throw new AppError('Both source_release_id and gap_bridge_id are required', 400);
+    }
+    const resolved = await resolvePublishedGapBridge({
+      sourceReleaseId: rawSourceReleaseId,
+      gapBridgeId: rawGapBridgeId,
+      user,
+    });
+    if (Number(resolved.target_release_id) !== releaseId) {
+      throw new AppError('Gap Bridge resource release does not match its resolved target', 403);
+    }
+    const pinned = (resolved.screen.elements || []).some(
+      (element) => Number(element.resource_mapping?.resource_version_id) === versionId,
+    );
+    if (!pinned) throw new AppError('Resource version is not part of this Gap Bridge Screen', 403);
+    return { release: null, versionId };
+  }
   const tenantId = publishedTenantId(user);
   const release = (await dbQuery(
     `SELECT ${releaseColumns} FROM session_releases
@@ -707,7 +839,11 @@ export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleas
   )).rows[0];
   if (!release) throw new AppError('Published Session release not found', 404);
   await assertPublishedReleaseAccess(release, user);
-  const pinned = (release.manifest_json?.screens || []).some((screen) =>
+  const publishedScreens = [
+    ...(release.manifest_json?.screens || []),
+    ...(release.manifest_json?.gap_bridge_screens || []),
+  ];
+  const pinned = publishedScreens.some((screen) =>
     (screen.elements || []).some((element) =>
       Number(element.resource_mapping?.resource_version_id) === versionId));
   if (!pinned) throw new AppError('Resource version is not part of this published release', 403);

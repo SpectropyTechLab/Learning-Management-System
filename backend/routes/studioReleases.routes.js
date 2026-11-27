@@ -17,6 +17,7 @@ import {
   previewPublishedResource,
   previewPublishedObject,
   publishSessionRelease,
+  resolvePublishedGapBridge,
 } from '../controllers/studioReleases.controller.js';
 
 const router = Router();
@@ -53,6 +54,11 @@ router.post(
   '/studio/published-releases/:releaseId/resource-versions/:versionId/launch',
   publishedReaders,
   launchPublishedResource
+);
+router.get(
+  '/studio/published-releases/:sourceReleaseId/gap-bridges/:gapBridgeId/resolve',
+  publishedReaders,
+  resolvePublishedGapBridge
 );
 router.get(
   '/studio/published-releases/:releaseId/resource-versions/:versionId/preview',

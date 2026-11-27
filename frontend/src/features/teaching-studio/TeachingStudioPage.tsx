@@ -24,6 +24,7 @@ import {
   Dna,
   GalleryHorizontalEnd,
   Grid3X3,
+  GitBranch,
   GripVertical,
   Highlighter,
   LayoutTemplate,
@@ -32,6 +33,7 @@ import {
   LoaderCircle,
   Maximize2,
   Minimize2,
+  MoreVertical,
   MousePointer2,
   Microscope,
   Orbit,
@@ -69,6 +71,13 @@ import {
 } from './api/studioScreensApi';
 import BlankScreenCanvas from './components/BlankScreenCanvas';
 import StudioScreenNavigator from './components/StudioScreenNavigator';
+import StudioGapBridgePane from './components/StudioGapBridgePane';
+import StudioGapBridgeRibbonAdd from './components/StudioGapBridgeRibbonAdd';
+import {
+  listStudioGapBridges,
+  moveStudioGapBridgeChild,
+  type StudioGapBridge,
+} from './api/studioGapBridgesApi';
 import StudioShell from './components/StudioShell';
 import StudioLayoutGallery from './components/StudioLayoutGallery';
 import StudioLayoutRibbon from './components/StudioLayoutRibbon';
@@ -79,7 +88,11 @@ import StudioAnimationRibbonGallery from './components/StudioAnimationRibbonGall
 import StudioAnimationMenu from './components/StudioAnimationMenu';
 import StudioAnimationAdvancedOptions from './components/StudioAnimationAdvancedOptions';
 import StudioAnimationTriggerMenu from './components/StudioAnimationTriggerMenu';
-import { studioAnimationDefaultOptions, studioAnimationEffectSupported, type StudioAnimationEffectDefinition } from './components/studioAnimationModel';
+import {
+  studioAnimationDefaultOptions,
+  studioAnimationEffectSupported,
+  type StudioAnimationEffectDefinition,
+} from './components/studioAnimationModel';
 import { STUDIO_EQUATION_GROUPS } from './components/StudioMathPanel';
 import StudioEquationRibbon from './components/StudioEquationRibbon';
 import { inlineEquationInsertionOffset } from './components/studioEquationControlModel';
@@ -89,9 +102,7 @@ import StudioShapeElement from './components/StudioShapeElement';
 import StudioColourMenu from './components/StudioColourMenu';
 import { inlineShapeToken, type InlineShapeData } from './components/studioInlineShape';
 import StudioIconButton from './components/StudioIconButton';
-import StudioAdaptiveRibbon, {
-  type StudioRibbonGroup,
-} from './components/StudioAdaptiveRibbon';
+import StudioAdaptiveRibbon, { type StudioRibbonGroup } from './components/StudioAdaptiveRibbon';
 import StudioClipboardGroup from './components/StudioClipboardGroup';
 import PasteOptionsMenu from './components/PasteOptionsMenu';
 import PptxImportDialog from './importing/ui/PptxImportDialog';
@@ -109,12 +120,17 @@ import {
 } from './components/studioClipboardModel';
 import StudioLayersPanel from './components/StudioLayersPanel';
 import { moveStudioLayer, selectionForStudioObjectClick } from './components/studioLayerModel';
-import { buildStudioAnimationSequence, persistStudioAnimationSequence, type StudioAnimationSequenceEntry } from './components/studioAnimationSequence';
-import { model3DSettingsFrom, standardModel3DView, type Model3DSettings } from './components/resources/model3DSettings';
 import {
-  studioRibbonTabs,
-  type StudioRibbonTabId,
-} from './components/studioRibbonModel';
+  buildStudioAnimationSequence,
+  persistStudioAnimationSequence,
+  type StudioAnimationSequenceEntry,
+} from './components/studioAnimationSequence';
+import {
+  model3DSettingsFrom,
+  standardModel3DView,
+  type Model3DSettings,
+} from './components/resources/model3DSettings';
+import { studioRibbonTabs, type StudioRibbonTabId } from './components/studioRibbonModel';
 import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionRibbon from './components/StudioTransitionRibbon';
 import StudioRejectionDetailsDialog from './components/StudioRejectionDetailsDialog';
@@ -125,7 +141,10 @@ import {
   ShapeGalleryDropdown,
   ShapeSizeControls,
 } from './components/StudioShapeFormatRibbon';
-import StudioZoomPanel, { type StudioZoomMode, type ZoomInsert } from './components/StudioZoomPanel';
+import StudioZoomPanel, {
+  type StudioZoomMode,
+  type ZoomInsert,
+} from './components/StudioZoomPanel';
 import StudioZoomMenu from './components/StudioZoomMenu';
 import PhysicsSimulationStudio, {
   type PhysicsSimulationInsert,
@@ -141,16 +160,54 @@ import BiologyLabStudio from './components/BiologyLabStudio';
 import BiologyLabIcon from './components/BiologyLabIcon';
 import StudioTopicIcon, { simulationTopicIconKey } from './components/StudioTopicIcon';
 import { buildPhysicsLabHtml, loadPhysicsLabRuntimeSource } from './components/physicsLabExport';
-import { createPhysicsLabProject, loadPhysicsLabCatalog, loadPhysicsLabRuntime, validatePhysicsLabProject, type PhysicsLabCatalog, type PhysicsLabProject } from './components/physicsLabModel';
+import {
+  createPhysicsLabProject,
+  loadPhysicsLabCatalog,
+  loadPhysicsLabRuntime,
+  validatePhysicsLabProject,
+  type PhysicsLabCatalog,
+  type PhysicsLabProject,
+} from './components/physicsLabModel';
 import { buildChemistryLabHtml } from './components/chemistryLabExport';
-import { createChemistryLabProject, loadChemistryLabCatalog, validateChemistryLabProject, type ChemistryLabCatalog, type ChemistryLabProject } from './components/chemistryLabModel';
+import {
+  createChemistryLabProject,
+  loadChemistryLabCatalog,
+  validateChemistryLabProject,
+  type ChemistryLabCatalog,
+  type ChemistryLabProject,
+} from './components/chemistryLabModel';
 import { buildMathematicsLabHtml } from './components/mathematicsLabExport';
-import { createMathematicsLabProject, loadMathematicsLabCatalog, validateMathematicsLabProject, type MathematicsLabCatalog, type MathematicsLabProject } from './components/mathematicsLabModel';
+import {
+  createMathematicsLabProject,
+  loadMathematicsLabCatalog,
+  validateMathematicsLabProject,
+  type MathematicsLabCatalog,
+  type MathematicsLabProject,
+} from './components/mathematicsLabModel';
 import { buildBiologyLabHtml } from './components/biologyLabExport';
-import { createBiologyLabProject, loadBiologyLabCatalog, validateBiologyLabProject, type BiologyLabCatalog, type BiologyLabProject } from './components/biologyLabModel';
-import ActivityBuilderStudio, { type ActivityBuilderInsert } from './components/ActivityBuilderStudio';
-import { ACTIVITY_TEMPLATES, validateActivityDocument, type ActivityDocument, type ActivityType } from './components/activityBuilderModel';
-import { SIMULATION_TEMPLATES, simulationCategory, validateSimulationDocument, type SimulationDocument, type SimulationSubject } from './components/simulationStudioModel';
+import {
+  createBiologyLabProject,
+  loadBiologyLabCatalog,
+  validateBiologyLabProject,
+  type BiologyLabCatalog,
+  type BiologyLabProject,
+} from './components/biologyLabModel';
+import ActivityBuilderStudio, {
+  type ActivityBuilderInsert,
+} from './components/ActivityBuilderStudio';
+import {
+  ACTIVITY_TEMPLATES,
+  validateActivityDocument,
+  type ActivityDocument,
+  type ActivityType,
+} from './components/activityBuilderModel';
+import {
+  SIMULATION_TEMPLATES,
+  simulationCategory,
+  validateSimulationDocument,
+  type SimulationDocument,
+  type SimulationSubject,
+} from './components/simulationStudioModel';
 import { SimulationCatalogIcon } from './simulation-catalog/simulationIcons';
 import { buildSimulationHtml } from './components/simulationExport';
 import StudioSmartDiagramPanel from './components/StudioSmartDiagramPanel';
@@ -198,7 +255,11 @@ import {
   type ClipboardSnapshot,
 } from './importing/adapters/clipboardAdapter';
 import { commitClipboardDocument } from './importing/commit/clipboardCommitter';
-import type { StudioAssetCatalogItem, StudioResourceSummary, StudioResourceVersion } from './api/studioResourcesApi';
+import type {
+  StudioAssetCatalogItem,
+  StudioResourceSummary,
+  StudioResourceVersion,
+} from './api/studioResourcesApi';
 import {
   approveStudioSession,
   getStudioWorkflowStatus,
@@ -237,7 +298,18 @@ const positiveInteger = (value: string | undefined) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const RIBBON_VISIBLE_SHAPES = ['line', 'rectangle', 'rounded-rectangle', 'circle', 'triangle', 'arrow', 'diamond', 'star', 'heart', 'cloud'];
+const RIBBON_VISIBLE_SHAPES = [
+  'line',
+  'rectangle',
+  'rounded-rectangle',
+  'circle',
+  'triangle',
+  'arrow',
+  'diamond',
+  'star',
+  'heart',
+  'cloud',
+];
 
 type QuickStartSimulation = {
   resourceId: number;
@@ -268,15 +340,24 @@ type SimulationIconMetadata = {
 
 const simulationIconMetadata = (project: SimulationDocument): SimulationIconMetadata => {
   const source = project.metadata?.icon;
-  const value = source && typeof source === 'object' ? source as Partial<SimulationIconMetadata> : {};
+  const value =
+    source && typeof source === 'object' ? (source as Partial<SimulationIconMetadata>) : {};
   return {
-    query: typeof value.query === 'string' && value.query.trim() ? value.query.trim() : project.title,
-    alt: typeof value.alt === 'string' && value.alt.trim() ? value.alt.trim() : `${project.title} simulation`,
+    query:
+      typeof value.query === 'string' && value.query.trim() ? value.query.trim() : project.title,
+    alt:
+      typeof value.alt === 'string' && value.alt.trim()
+        ? value.alt.trim()
+        : `${project.title} simulation`,
     ...(typeof value.key === 'string' && value.key.trim() ? { key: value.key.trim() } : {}),
-    ...(typeof value.preferredProvider === 'string' ? { preferredProvider: value.preferredProvider } : {}),
+    ...(typeof value.preferredProvider === 'string'
+      ? { preferredProvider: value.preferredProvider }
+      : {}),
     ...(typeof value.provider === 'string' ? { provider: value.provider } : {}),
     ...(Number.isInteger(value.resourceId) ? { resourceId: value.resourceId } : {}),
-    ...(Number.isInteger(value.resourceVersionId) ? { resourceVersionId: value.resourceVersionId } : {}),
+    ...(Number.isInteger(value.resourceVersionId)
+      ? { resourceVersionId: value.resourceVersionId }
+      : {}),
     ...(value.providerAssetId ? { providerAssetId: value.providerAssetId } : {}),
     ...(value.license ? { license: value.license } : {}),
     ...(value.attribution ? { attribution: value.attribution } : {}),
@@ -300,8 +381,10 @@ const resolveSimulationTopicIcon = async (project: SimulationDocument) => {
     biology: ['bioicons', 'scidraw', 'fluent-emoji'],
     mathematics: ['fluent-emoji', 'kitbitz'],
   };
-  const providers = [current.preferredProvider, ...subjectProviders[project.subject]]
-    .filter((provider, index, all): provider is StudioAssetCatalogItem['provider'] => Boolean(provider) && all.indexOf(provider) === index);
+  const providers = [current.preferredProvider, ...subjectProviders[project.subject]].filter(
+    (provider, index, all): provider is StudioAssetCatalogItem['provider'] =>
+      Boolean(provider) && all.indexOf(provider) === index,
+  );
   let chosen: StudioAssetCatalogItem | undefined;
   for (const provider of providers) {
     try {
@@ -312,7 +395,9 @@ const resolveSimulationTopicIcon = async (project: SimulationDocument) => {
         provider,
         limit: 12,
       });
-      chosen = result.results.find((asset) => asset.importable && ['image', 'animation'].includes(asset.resource_type));
+      chosen = result.results.find(
+        (asset) => asset.importable && ['image', 'animation'].includes(asset.resource_type),
+      );
       if (chosen) break;
     } catch {
       // A provider outage must not prevent the Simulation itself from importing.
@@ -410,9 +495,7 @@ export default function TeachingStudioPage() {
   });
   const [selectedScreen, setSelectedScreen] = useState<StudioScreen | null>(null);
   const selectedScreenId = useMemo(() => {
-    if (requestedScreenId && screenList.screens.some((screen) => screen.id === requestedScreenId)) {
-      return requestedScreenId;
-    }
+    if (requestedScreenId) return requestedScreenId;
     return screenList.screens[0]?.id ?? null;
   }, [requestedScreenId, screenList.screens]);
   const [loadingScreens, setLoadingScreens] = useState(false);
@@ -437,6 +520,7 @@ export default function TeachingStudioPage() {
     | 'transitions'
     | 'diagrams'
     | 'layers'
+    | 'gap-bridges'
     | null
   >('elements');
   const [insertResourceType, setInsertResourceType] = useState<InsertResourceType>('image');
@@ -446,6 +530,15 @@ export default function TeachingStudioPage() {
   const [pptxImportOpen, setPptxImportOpen] = useState(false);
   const [layoutGalleryOpen, setLayoutGalleryOpen] = useState(false);
   const [zoomDialogMode, setZoomDialogMode] = useState<StudioZoomMode | null>(null);
+  const [selectedGapBridgeId, setSelectedGapBridgeId] = useState<number | null>(null);
+  const [gapBridgeRibbonVisible, setGapBridgeRibbonVisible] = useState(false);
+  const [gapBridgeCommand, setGapBridgeCommand] = useState<{
+    action: 'add-new' | 'select-existing' | 'rename' | 'preview' | 'delete';
+    token: number;
+  } | null>(null);
+  const [gapBridgesBySource, setGapBridgesBySource] = useState<Record<number, StudioGapBridge[]>>(
+    {},
+  );
   const [animationPreview, setAnimationPreview] = useState<{
     elementId?: string;
     token: number;
@@ -468,7 +561,10 @@ export default function TeachingStudioPage() {
     return () => window.removeEventListener('keydown', stopPainter);
   }, [animationPaintSource]);
   const [cropRequest, setCropRequest] = useState<{ elementId: string; token: number } | null>(null);
-  const [model3DModeRequest, setModel3DModeRequest] = useState<{ elementId: string; token: number } | null>(null);
+  const [model3DModeRequest, setModel3DModeRequest] = useState<{
+    elementId: string;
+    token: number;
+  } | null>(null);
   const [layouts, setLayouts] = useState<StudioLayoutSummary[]>([]);
   const [layoutsLoading, setLayoutsLoading] = useState(Boolean(sessionId));
   const [scripts, setScripts] = useState<ScreenScriptRow[]>([]);
@@ -496,8 +592,12 @@ export default function TeachingStudioPage() {
   } | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
-  const selectedHasGroup = Boolean(selectedScreen?.elements.some((element) =>
-    selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string'));
+  const selectedHasGroup = Boolean(
+    selectedScreen?.elements.some(
+      (element) =>
+        selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string',
+    ),
+  );
   useEffect(() => {
     setSelectedElementIds((current) => {
       if (!selectedElementId) return current.length ? [] : current;
@@ -514,21 +614,38 @@ export default function TeachingStudioPage() {
     elementId?: string;
     project?: PhysicsSimulationProject;
   } | null>(null);
-  const [simulationRibbonSubject, setSimulationRibbonSubject] = useState<SimulationSubject>('physics');
+  const [simulationRibbonSubject, setSimulationRibbonSubject] =
+    useState<SimulationSubject>('physics');
   const [simulationRibbonCategory, setSimulationRibbonCategory] = useState('all');
   const [simulationRibbonPage, setSimulationRibbonPage] = useState(0);
   const [activityRibbonPage, setActivityRibbonPage] = useState(0);
   const [quickStartSimulations, setQuickStartSimulations] = useState<QuickStartSimulation[]>([]);
   const [simulationSaving, setSimulationSaving] = useState(false);
-  const [physicsLabStudio, setPhysicsLabStudio] = useState<{ elementId?: string; project?: PhysicsLabProject } | null>(null);
-  const [chemistryLabStudio, setChemistryLabStudio] = useState<{ elementId?: string; project?: ChemistryLabProject } | null>(null);
-  const [mathematicsLabStudio, setMathematicsLabStudio] = useState<{ elementId?: string; project?: MathematicsLabProject } | null>(null);
-  const [biologyLabStudio, setBiologyLabStudio] = useState<{ elementId?: string; project?: BiologyLabProject } | null>(null);
+  const [physicsLabStudio, setPhysicsLabStudio] = useState<{
+    elementId?: string;
+    project?: PhysicsLabProject;
+  } | null>(null);
+  const [chemistryLabStudio, setChemistryLabStudio] = useState<{
+    elementId?: string;
+    project?: ChemistryLabProject;
+  } | null>(null);
+  const [mathematicsLabStudio, setMathematicsLabStudio] = useState<{
+    elementId?: string;
+    project?: MathematicsLabProject;
+  } | null>(null);
+  const [biologyLabStudio, setBiologyLabStudio] = useState<{
+    elementId?: string;
+    project?: BiologyLabProject;
+  } | null>(null);
   const [physicsLabCatalog, setPhysicsLabCatalog] = useState<PhysicsLabCatalog | null>(null);
   const [chemistryLabCatalog, setChemistryLabCatalog] = useState<ChemistryLabCatalog | null>(null);
-  const [mathematicsLabCatalog, setMathematicsLabCatalog] = useState<MathematicsLabCatalog | null>(null);
+  const [mathematicsLabCatalog, setMathematicsLabCatalog] = useState<MathematicsLabCatalog | null>(
+    null,
+  );
   const [biologyLabCatalog, setBiologyLabCatalog] = useState<BiologyLabCatalog | null>(null);
-  const [labRibbonSubject, setLabRibbonSubject] = useState<'physics' | 'chemistry' | 'mathematics' | 'biology'>('physics');
+  const [labRibbonSubject, setLabRibbonSubject] = useState<
+    'physics' | 'chemistry' | 'mathematics' | 'biology'
+  >('physics');
   const [physicsLabClassFilter, setPhysicsLabClassFilter] = useState<number | 'all'>('all');
   const [physicsLabTopicFilter, setPhysicsLabTopicFilter] = useState('all');
   const [labRibbonPage, setLabRibbonPage] = useState(0);
@@ -542,60 +659,86 @@ export default function TeachingStudioPage() {
   const [activitySaving, setActivitySaving] = useState(false);
   useEffect(() => {
     const openBiology3DLibrary = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.type !== 'spectropy-open-biology-3d-library') return;
+      if (
+        event.origin !== window.location.origin ||
+        event.data?.type !== 'spectropy-open-biology-3d-library'
+      )
+        return;
       setBiologyLabStudio(null);
       setInsertResourceFilter('model_3d');
       setPanel('insert-resources');
       setRightPanelOpen(true);
-      toast.success('Choose a verified GLB model. It will be inserted as an interactive 3D object.');
+      toast.success(
+        'Choose a verified GLB model. It will be inserted as an interactive 3D object.',
+      );
     };
     window.addEventListener('message', openBiology3DLibrary);
     return () => window.removeEventListener('message', openBiology3DLibrary);
   }, []);
   useEffect(() => {
     let active = true;
-    void listStudioResources({ resourceType: 'simulation' }).then(async (resources) => {
-      if (!active) return;
-      const entries = (await Promise.all(resources.map(async (resource): Promise<QuickStartSimulation | null> => {
-        const authoring = resource.latest_version?.metadata_json?.authoring;
-        if (!authoring || typeof authoring !== 'object') return null;
-        const project = (authoring as Record<string, unknown>).project;
-        try {
-          const validated = validateSimulationDocument(project);
-          const registeredProject: SimulationDocument = {
-            ...validated,
-            metadata: {
-              ...validated.metadata,
-              quickStartResourceId: resource.id,
-              quickStartResourceVersionId: resource.latest_version.id,
-            },
-          };
-          const iconVersionId = simulationIconMetadata(registeredProject).resourceVersionId;
-          let iconUrl: string | undefined;
-          if (iconVersionId) {
-            try { iconUrl = (await getStudioResourcePreview(iconVersionId)).url; } catch { /* Use fallback icon. */ }
-          }
-          return {
-            resourceId: resource.id,
-            versionId: resource.latest_version.id,
-            project: registeredProject,
-            ...(iconUrl ? { iconUrl } : {}),
-            iconKey: simulationIconMetadata(registeredProject).key || simulationTopicIconKey(registeredProject),
-          };
-        } catch {
-          return null;
-        }
-      }))).filter((entry): entry is QuickStartSimulation => Boolean(entry));
-      if (!active) return;
-      setQuickStartSimulations(entries);
-    }).catch(() => {
-      if (active) setQuickStartSimulations([]);
-    });
-    return () => { active = false; };
+    void listStudioResources({ resourceType: 'simulation' })
+      .then(async (resources) => {
+        if (!active) return;
+        const entries = (
+          await Promise.all(
+            resources.map(async (resource): Promise<QuickStartSimulation | null> => {
+              const authoring = resource.latest_version?.metadata_json?.authoring;
+              if (!authoring || typeof authoring !== 'object') return null;
+              const project = (authoring as Record<string, unknown>).project;
+              try {
+                const validated = validateSimulationDocument(project);
+                const registeredProject: SimulationDocument = {
+                  ...validated,
+                  metadata: {
+                    ...validated.metadata,
+                    quickStartResourceId: resource.id,
+                    quickStartResourceVersionId: resource.latest_version.id,
+                  },
+                };
+                const iconVersionId = simulationIconMetadata(registeredProject).resourceVersionId;
+                let iconUrl: string | undefined;
+                if (iconVersionId) {
+                  try {
+                    iconUrl = (await getStudioResourcePreview(iconVersionId)).url;
+                  } catch {
+                    /* Use fallback icon. */
+                  }
+                }
+                return {
+                  resourceId: resource.id,
+                  versionId: resource.latest_version.id,
+                  project: registeredProject,
+                  ...(iconUrl ? { iconUrl } : {}),
+                  iconKey:
+                    simulationIconMetadata(registeredProject).key ||
+                    simulationTopicIconKey(registeredProject),
+                };
+              } catch {
+                return null;
+              }
+            }),
+          )
+        ).filter((entry): entry is QuickStartSimulation => Boolean(entry));
+        if (!active) return;
+        setQuickStartSimulations(entries);
+      })
+      .catch(() => {
+        if (active) setQuickStartSimulations([]);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   useEffect(() => {
     let active = true;
-    void Promise.all([loadPhysicsLabCatalog(), loadChemistryLabCatalog(), loadMathematicsLabCatalog(), loadBiologyLabCatalog(), listStudioResources({ resourceType: 'simulation' })])
+    void Promise.all([
+      loadPhysicsLabCatalog(),
+      loadChemistryLabCatalog(),
+      loadMathematicsLabCatalog(),
+      loadBiologyLabCatalog(),
+      listStudioResources({ resourceType: 'simulation' }),
+    ])
       .then(([catalog, chemistryCatalog, mathematicsCatalog, biologyCatalog, resources]) => {
         if (!active) return;
         setPhysicsLabCatalog(catalog);
@@ -605,30 +748,50 @@ export default function TeachingStudioPage() {
         const entries = resources.flatMap((resource): QuickStartLab[] => {
           const version = resource.latest_version;
           const authoring = version?.metadata_json?.authoring;
-          if (!version || !authoring || typeof authoring !== 'object' || (authoring as Record<string, unknown>).kind !== 'spectropy_lab_studio') return [];
+          if (
+            !version ||
+            !authoring ||
+            typeof authoring !== 'object' ||
+            (authoring as Record<string, unknown>).kind !== 'spectropy_lab_studio'
+          )
+            return [];
           try {
             const rawProject = (authoring as Record<string, unknown>).project;
             const subject = (rawProject as { subject?: unknown })?.subject;
-            const validated = subject === 'chemistry' ? validateChemistryLabProject(rawProject)
-              : subject === 'mathematics' ? validateMathematicsLabProject(rawProject)
-                : subject === 'biology' ? validateBiologyLabProject(rawProject)
-                : validatePhysicsLabProject(rawProject);
-            return [{
-              resourceId: resource.id,
-              versionId: version.id,
-              project: {
-                ...validated,
-                metadata: { ...validated.metadata, quickStartResourceId: resource.id, quickStartResourceVersionId: version.id },
+            const validated =
+              subject === 'chemistry'
+                ? validateChemistryLabProject(rawProject)
+                : subject === 'mathematics'
+                  ? validateMathematicsLabProject(rawProject)
+                  : subject === 'biology'
+                    ? validateBiologyLabProject(rawProject)
+                    : validatePhysicsLabProject(rawProject);
+            return [
+              {
+                resourceId: resource.id,
+                versionId: version.id,
+                project: {
+                  ...validated,
+                  metadata: {
+                    ...validated.metadata,
+                    quickStartResourceId: resource.id,
+                    quickStartResourceVersionId: version.id,
+                  },
+                },
               },
-            }];
+            ];
           } catch {
             return [];
           }
         });
         setQuickStartLabs(entries);
       })
-      .catch(() => { if (active) setQuickStartLabs([]); });
-    return () => { active = false; };
+      .catch(() => {
+        if (active) setQuickStartLabs([]);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   const [ribbonCollapsed, setRibbonCollapsed] = useState(false);
   const [selectedLayoutSlotId, setSelectedLayoutSlotId] = useState<string | null>(null);
@@ -647,8 +810,14 @@ export default function TeachingStudioPage() {
   const [diagramLayoutGalleryOpen, setDiagramLayoutGalleryOpen] = useState(false);
   const [diagramTextPaneOpen, setDiagramTextPaneOpen] = useState(false);
   const [selectedDiagramNodeId, setSelectedDiagramNodeId] = useState<string | null>(null);
-  const [diagramLivePreview, setDiagramLivePreview] = useState<Partial<SmartDiagramContent> | null>(null);
-  const [elementContextMenu, setElementContextMenu] = useState<{ elementId: string; x: number; y: number } | null>(null);
+  const [diagramLivePreview, setDiagramLivePreview] = useState<Partial<SmartDiagramContent> | null>(
+    null,
+  );
+  const [elementContextMenu, setElementContextMenu] = useState<{
+    elementId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [formatPainter, setFormatPainter] = useState<{
     sourceElementId: string;
     format: StudioCopiedFormat;
@@ -713,6 +882,12 @@ export default function TeachingStudioPage() {
   const [reorderingScreens, setReorderingScreens] = useState(false);
   const [draggingScreenId, setDraggingScreenId] = useState<number | null>(null);
   const reorderIdsRef = useRef<number[]>([]);
+  const [draggingChild, setDraggingChild] = useState<{
+    bridgeId: number;
+    sourceScreenId: number;
+  } | null>(null);
+  const [childDropScreenId, setChildDropScreenId] = useState<number | null>(null);
+  const childDropScreenIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (draggingScreenId) return;
     const ids = screenList.screens.map((screen) => screen.id);
@@ -801,11 +976,12 @@ export default function TeachingStudioPage() {
   }, []);
 
   const importedTitleByScreenId = useMemo(
-    () => new Map(
-      scripts
-        .map((script) => [script.screen_id, script.content_json?.title?.trim()] as const)
-        .filter((entry): entry is readonly [number, string] => Boolean(entry[1])),
-    ),
+    () =>
+      new Map(
+        scripts
+          .map((script) => [script.screen_id, script.content_json?.title?.trim()] as const)
+          .filter((entry): entry is readonly [number, string] => Boolean(entry[1])),
+      ),
     [scripts],
   );
 
@@ -857,6 +1033,9 @@ export default function TeachingStudioPage() {
 
   useEffect(() => {
     setScreenList({ session_revision_no: 0, screens: [] });
+    setGapBridgesBySource({});
+    setSelectedGapBridgeId(null);
+    setGapBridgeRibbonVisible(false);
     setSelectedScreen(null);
     setLoadingScreen(Boolean(sessionId));
     setScreenListLoaded(false);
@@ -902,7 +1081,9 @@ export default function TeachingStudioPage() {
       .finally(() => {
         if (active) setLayoutsLoading(false);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [sessionId]);
 
   const loadWorkflow = useCallback(
@@ -984,7 +1165,13 @@ export default function TeachingStudioPage() {
     return () => {
       active = false;
     };
-  }, [latestScreenRevision, rememberScreenRevision, screenListLoaded, screenRequestVersion, selectedScreenId]);
+  }, [
+    latestScreenRevision,
+    rememberScreenRevision,
+    screenListLoaded,
+    screenRequestVersion,
+    selectedScreenId,
+  ]);
 
   const selectScreen = async (screenId: number) => {
     if (hasUnsavedChanges) {
@@ -992,8 +1179,129 @@ export default function TeachingStudioPage() {
       if (!saved) return;
     }
     setError(null);
+    setSelectedGapBridgeId(null);
+    setGapBridgeRibbonVisible(false);
     setSearchParams({ screen: String(screenId) }, { replace: true });
   };
+
+  const selectedIsGapBridgeChild = selectedScreen?.screen_kind === 'gap_bridge_child';
+  const selectedParentScreenId = selectedIsGapBridgeChild
+    ? Number(selectedScreen?.parent_screen_id) || null
+    : null;
+
+  const openGapBridges = async () => {
+    if (!selectedScreen || selectedIsGapBridgeChild || editorReadOnly) return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    setGapBridgeCommand(null);
+    setGapBridgeRibbonVisible(true);
+    setActiveRibbonTab('gap-bridge');
+    setPanel('gap-bridges');
+    setRightPanelOpen(true);
+  };
+
+  const openGapBridgeChild = async (bridge: StudioGapBridge) => {
+    if (bridge.target_kind !== 'child') return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    setSelectedGapBridgeId(bridge.id);
+    setGapBridgeRibbonVisible(true);
+    setActiveRibbonTab('gap-bridge');
+    setRightPanelOpen(false);
+    const childScreenId = bridge.target.screen_id;
+    if (selectedScreenId === childScreenId) {
+      setScreenRequestVersion((version) => version + 1);
+    } else {
+      setSearchParams({ screen: String(childScreenId) }, { replace: true });
+    }
+  };
+
+  const updateGapBridgeSessionRevision = useCallback((revisionNo: number) => {
+    setScreenList((current) => ({
+      ...current,
+      session_revision_no: Math.max(current.session_revision_no, revisionNo),
+    }));
+  }, []);
+
+  const updateGapBridgeMap = useCallback((sourceScreenId: number, bridges: StudioGapBridge[]) => {
+    setGapBridgesBySource((current) => ({ ...current, [sourceScreenId]: bridges }));
+  }, []);
+
+  const gapBridgeScreenIds = useMemo(
+    () => screenList.screens.map((screen) => screen.id).join(','),
+    [screenList.screens],
+  );
+  useEffect(() => {
+    if (!leftPanelOpen || !gapBridgeScreenIds) return;
+    let active = true;
+    const screenIds = gapBridgeScreenIds.split(',').map(Number);
+    void Promise.all(
+      screenIds.map(async (screenId) => [screenId, await listStudioGapBridges(screenId)] as const),
+    ).then((results) => {
+      if (!active) return;
+      setGapBridgesBySource((current) => {
+        const next = { ...current };
+        for (const [screenId, result] of results) next[screenId] = result.bridges;
+        return next;
+      });
+      const latestRevision = Math.max(
+        screenListRef.current.session_revision_no,
+        ...results.map(([, result]) => result.source_session_revision_no),
+      );
+      updateGapBridgeSessionRevision(latestRevision);
+    }).catch(() => {
+      /* The selected Gap Bridge pane reports authoring errors. */
+    });
+    return () => {
+      active = false;
+    };
+  }, [gapBridgeScreenIds, leftPanelOpen, updateGapBridgeSessionRevision]);
+
+  const selectedGapBridgeSourceId = selectedIsGapBridgeChild
+    ? selectedParentScreenId
+    : (selectedScreen?.id ?? null);
+  const selectedSourceGapBridges = selectedGapBridgeSourceId
+    ? gapBridgesBySource[selectedGapBridgeSourceId] || []
+    : [];
+  const selectedGapBridge =
+    selectedSourceGapBridges.find((bridge) => bridge.id === selectedGapBridgeId) ||
+    (selectedIsGapBridgeChild
+      ? selectedSourceGapBridges.find(
+          (bridge) =>
+            bridge.target_kind === 'child' && bridge.target.screen_id === selectedScreen?.id,
+        )
+      : null);
+  const selectedGapBridgeSourceScreen = selectedGapBridgeSourceId
+    ? screenList.screens.find((screen) => screen.id === selectedGapBridgeSourceId) || null
+    : null;
+
+  useEffect(() => {
+    if (!selectedGapBridgeSourceId) return;
+    let active = true;
+    void listStudioGapBridges(selectedGapBridgeSourceId)
+      .then((result) => {
+        if (!active) return;
+        updateGapBridgeMap(selectedGapBridgeSourceId, result.bridges);
+        updateGapBridgeSessionRevision(result.source_session_revision_no);
+        if (selectedIsGapBridgeChild) {
+          const owner = result.bridges.find(
+            (bridge) =>
+              bridge.target_kind === 'child' && bridge.target.screen_id === selectedScreen?.id,
+          );
+          if (owner) setSelectedGapBridgeId(owner.id);
+        }
+      })
+      .catch(() => {
+        /* The dedicated panel reports authoring errors; the canvas remains usable. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    selectedGapBridgeSourceId,
+    selectedIsGapBridgeChild,
+    selectedScreen?.id,
+    updateGapBridgeMap,
+    updateGapBridgeSessionRevision,
+  ]);
 
   const editSelectedScreenScript = async () => {
     if (!sessionId || !selectedScreenId) return;
@@ -1014,7 +1322,10 @@ export default function TeachingStudioPage() {
     try {
       setTaxonomyTerms(await studioTaxonomyApi.list());
     } catch (taxonomyError) {
-      console.error('[Teaching Studio] Failed to load taxonomy values for Add Screen.', taxonomyError);
+      console.error(
+        '[Teaching Studio] Failed to load taxonomy values for Add Screen.',
+        taxonomyError,
+      );
       setTaxonomyTerms([]);
     }
     setCreateScreenOpen(true);
@@ -1416,7 +1727,9 @@ export default function TeachingStudioPage() {
   useEffect(() => {
     if (activeScreenId === null) return;
     const { next, previous } = studioScreensAround(screenList.screens, activeScreenId);
-    const adjacentScreens = [next, previous].filter((screen): screen is StudioScreen => Boolean(screen));
+    const adjacentScreens = [next, previous].filter((screen): screen is StudioScreen =>
+      Boolean(screen),
+    );
     void Promise.allSettled(
       adjacentScreens.map((screen) => screenResourceCache.preloadScreen(screen)),
     ).catch(() => {
@@ -1424,17 +1737,20 @@ export default function TeachingStudioPage() {
     });
   }, [activeScreenId, screenList.screens, screenResourceCache]);
 
-  const commitElements = useCallback((elements: StudioElement[], selectElementId?: string | null) => {
-    if (!selectedScreen || editorReadOnly) return;
-    setElementPast((past) => [...past.slice(-99), selectedScreen.elements]);
-    setElementFuture([]);
-    setSelectedScreen({ ...selectedScreen, elements });
-    if (selectElementId !== undefined) {
-      setSelectedElementId(selectElementId);
-      setSelectedElementIds(selectElementId ? [selectElementId] : []);
-    }
-    setHasUnsavedChanges(true);
-  }, [editorReadOnly, selectedScreen]);
+  const commitElements = useCallback(
+    (elements: StudioElement[], selectElementId?: string | null) => {
+      if (!selectedScreen || editorReadOnly) return;
+      setElementPast((past) => [...past.slice(-99), selectedScreen.elements]);
+      setElementFuture([]);
+      setSelectedScreen({ ...selectedScreen, elements });
+      if (selectElementId !== undefined) {
+        setSelectedElementId(selectElementId);
+        setSelectedElementIds(selectElementId ? [selectElementId] : []);
+      }
+      setHasUnsavedChanges(true);
+    },
+    [editorReadOnly, selectedScreen],
+  );
 
   const setAuthoredDrawings = (strokes: AuthorDrawingStroke[], recordHistory = true) => {
     if (!selectedScreen || editorReadOnly) return;
@@ -1471,15 +1787,17 @@ export default function TeachingStudioPage() {
     setSavingScreen(true);
     setSaveStatus('saving');
     try {
-      const sourceScreens = screenList.screens.map((screen) => screen.id === selectedScreen.id
-        ? {
-            ...selectedScreen,
-            screen_settings_json: {
-              ...(selectedScreen.screen_settings_json ?? {}),
-              transition,
-            },
-          }
-        : screen);
+      const sourceScreens = screenList.screens.map((screen) =>
+        screen.id === selectedScreen.id
+          ? {
+              ...selectedScreen,
+              screen_settings_json: {
+                ...(selectedScreen.screen_settings_json ?? {}),
+                transition,
+              },
+            }
+          : screen,
+      );
       const savedScreens: StudioScreen[] = [];
       let sessionRevisionNo = screenList.session_revision_no;
       for (const screen of sourceScreens) {
@@ -1543,10 +1861,20 @@ export default function TeachingStudioPage() {
       id: `${slot.id}-${Date.now()}`,
       slotId: slot.id,
       type: requestedType,
-      content: requestedType === 'text' ? {
-        text: '', kind: 'rectangle', fill: 'transparent', stroke: 'transparent', strokeWidth: 2,
-        color: '#25436b', fontSize: 38, alignment: 'left', verticalAlignment: 'top',
-      } : { text: '' },
+      content:
+        requestedType === 'text'
+          ? {
+              text: '',
+              kind: 'rectangle',
+              fill: 'transparent',
+              stroke: 'transparent',
+              strokeWidth: 2,
+              color: '#25436b',
+              fontSize: 38,
+              alignment: 'left',
+              verticalAlignment: 'top',
+            }
+          : { text: '' },
       position: { ...slot.bounds },
     };
     commitElements([...selectedScreen.elements, element], element.id);
@@ -1560,14 +1888,37 @@ export default function TeachingStudioPage() {
     if (existing?.type === type) {
       setSelectedElementId(existing.id);
     } else if (existing) {
-      const hasContent = Boolean(existing.resource) || Object.values(existing.content).some((value) =>
-        typeof value === 'string' ? value.trim().length > 0 : value !== null && value !== undefined,
-      );
-      if (hasContent && !window.confirm(`Replace the existing ${existing.type} content with ${type} content?`)) return;
-      updateElement({ ...existing, type, content: type === 'text' ? {
-        text: '', kind: 'rectangle', fill: 'transparent', stroke: 'transparent', strokeWidth: 2,
-        color: '#25436b', fontSize: 38, alignment: 'left', verticalAlignment: 'top',
-      } : { text: '' }, resource: undefined });
+      const hasContent =
+        Boolean(existing.resource) ||
+        Object.values(existing.content).some((value) =>
+          typeof value === 'string'
+            ? value.trim().length > 0
+            : value !== null && value !== undefined,
+        );
+      if (
+        hasContent &&
+        !window.confirm(`Replace the existing ${existing.type} content with ${type} content?`)
+      )
+        return;
+      updateElement({
+        ...existing,
+        type,
+        content:
+          type === 'text'
+            ? {
+                text: '',
+                kind: 'rectangle',
+                fill: 'transparent',
+                stroke: 'transparent',
+                strokeWidth: 2,
+                color: '#25436b',
+                fontSize: 38,
+                alignment: 'left',
+                verticalAlignment: 'top',
+              }
+            : { text: '' },
+        resource: undefined,
+      });
     } else {
       addElement(slot, type);
     }
@@ -1607,16 +1958,19 @@ export default function TeachingStudioPage() {
           height: type === 'text' ? 150 : 420,
         }
       : defaultPosition;
-    const textFrameDefaults = type === 'text' ? {
-      kind: 'rectangle',
-      fill: 'transparent',
-      stroke: 'transparent',
-      strokeWidth: 2,
-      color: '#25436b',
-      fontSize: 38,
-      alignment: 'left',
-      verticalAlignment: 'top',
-    } : {};
+    const textFrameDefaults =
+      type === 'text'
+        ? {
+            kind: 'rectangle',
+            fill: 'transparent',
+            stroke: 'transparent',
+            strokeWidth: 2,
+            color: '#25436b',
+            fontSize: 38,
+            alignment: 'left',
+            verticalAlignment: 'top',
+          }
+        : {};
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -1645,7 +1999,11 @@ export default function TeachingStudioPage() {
     return id;
   };
 
-  const addDroppedFiles = (files: File[], point: { x: number; y: number }, source = 'drag-drop') => {
+  const addDroppedFiles = (
+    files: File[],
+    point: { x: number; y: number },
+    source = 'drag-drop',
+  ) => {
     if (editorReadOnly) return;
     files.slice(0, 10).forEach((file, index) => {
       if (file.size > 8 * 1024 * 1024) {
@@ -1660,14 +2018,19 @@ export default function TeachingStudioPage() {
           : file.type.startsWith('video/') || file.type.startsWith('audio/')
             ? 'media'
             : 'embedded_object';
-        addBlankElement(type, 'content', { x: point.x + index * 32, y: point.y + index * 32 }, {
-          text: file.name,
-          url,
-          altText: file.name,
-          mimeType: file.type,
-          ...(type === 'visual' ? { visualType: 'image' } : {}),
-          source,
-        });
+        addBlankElement(
+          type,
+          'content',
+          { x: point.x + index * 32, y: point.y + index * 32 },
+          {
+            text: file.name,
+            url,
+            altText: file.name,
+            mimeType: file.type,
+            ...(type === 'visual' ? { visualType: 'image' } : {}),
+            source,
+          },
+        );
       };
       reader.readAsDataURL(file);
     });
@@ -1730,7 +2093,8 @@ export default function TeachingStudioPage() {
 
   const addTableElement = (rowCount = 3, columnCount = 4) => {
     if (!selectedScreen || editorReadOnly) return null;
-    const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+    const token =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `table-${token}`;
     const element: StudioElement = {
       id,
@@ -1758,7 +2122,13 @@ export default function TeachingStudioPage() {
         fontSize: 22,
         merges: [],
       },
-      position: { x: 360, y: 260, width: 1200, height: 520, zIndex: selectedScreen.elements.length + 1 },
+      position: {
+        x: 360,
+        y: 260,
+        width: 1200,
+        height: 520,
+        zIndex: selectedScreen.elements.length + 1,
+      },
     };
     commitElements([...selectedScreen.elements, element], id);
     setActiveRibbonTab('table-design');
@@ -1787,9 +2157,27 @@ export default function TeachingStudioPage() {
     const token =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `shape-${token}`;
-    const lineLikeShape = ['line', 'diagonal-line', 'arrow', 'double-arrow', 'connector', 'curve'].includes(kind);
-    const verticalShape = ['vertical-line', 'up-arrow', 'down-arrow', 'up-down-arrow'].includes(kind);
-    const squareShape = ['circle', 'diamond', 'plus', 'minus', 'multiply', 'divide', 'equal', 'not-equal'].includes(kind);
+    const lineLikeShape = [
+      'line',
+      'diagonal-line',
+      'arrow',
+      'double-arrow',
+      'connector',
+      'curve',
+    ].includes(kind);
+    const verticalShape = ['vertical-line', 'up-arrow', 'down-arrow', 'up-down-arrow'].includes(
+      kind,
+    );
+    const squareShape = [
+      'circle',
+      'diamond',
+      'plus',
+      'minus',
+      'multiply',
+      'divide',
+      'equal',
+      'not-equal',
+    ].includes(kind);
     const defaultSize = verticalShape
       ? { width: 140, height: 400 }
       : lineLikeShape
@@ -1828,11 +2216,14 @@ export default function TeachingStudioPage() {
 
   const addSmartDiagram = (layoutId: string) => {
     if (!selectedScreen || editorReadOnly) return;
-    const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+    const token =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `diagram-${token}`;
     const content = createSmartDiagramContent(layoutId);
     if (selectedLayout) {
-      const selectedElement = selectedScreen.elements.find((element) => element.id === selectedElementId);
+      const selectedElement = selectedScreen.elements.find(
+        (element) => element.id === selectedElementId,
+      );
       const targetSlotId = selectedElement?.slotId || selectedLayoutSlotId;
       const targetSlot = selectedLayout.slots.find((slot) => slot.id === targetSlotId);
       if (!targetSlot) {
@@ -1840,17 +2231,31 @@ export default function TeachingStudioPage() {
         return;
       }
       const existing = selectedScreen.elements.find((element) => element.slotId === targetSlot.id);
-      if (existing && !window.confirm(`Replace the existing content in ${targetSlot.label} with this Smart Diagram?`)) return;
+      if (
+        existing &&
+        !window.confirm(
+          `Replace the existing content in ${targetSlot.label} with this Smart Diagram?`,
+        )
+      )
+        return;
       const element: StudioElement = {
         id: existing?.id ?? id,
         slotId: targetSlot.id,
-        type: existing && targetSlot.allowed.includes(existing.type as ObjectType) ? existing.type : targetSlot.allowed[0],
+        type:
+          existing && targetSlot.allowed.includes(existing.type as ObjectType)
+            ? existing.type
+            : targetSlot.allowed[0],
         content,
-        position: { ...targetSlot.bounds, zIndex: Number(existing?.position.zIndex) || selectedScreen.elements.length + 1 },
+        position: {
+          ...targetSlot.bounds,
+          zIndex: Number(existing?.position.zIndex) || selectedScreen.elements.length + 1,
+        },
       };
       commitElements(
         existing
-          ? selectedScreen.elements.map((candidate) => candidate.id === existing.id ? element : candidate)
+          ? selectedScreen.elements.map((candidate) =>
+              candidate.id === existing.id ? element : candidate,
+            )
           : [...selectedScreen.elements, element],
         element.id,
       );
@@ -1865,13 +2270,21 @@ export default function TeachingStudioPage() {
       slotId: `free-${id}`,
       type: 'visual',
       content,
-      position: { x: 260, y: 210, width: 1400, height: 700, zIndex: selectedScreen.elements.length + 1 },
+      position: {
+        x: 260,
+        y: 210,
+        width: 1400,
+        height: 700,
+        zIndex: selectedScreen.elements.length + 1,
+      },
     };
     commitElements([...selectedScreen.elements, element], id);
     setDiagramChooserOpen(false);
     setSelectedDiagramNodeId(content.nodes[0]?.id ?? null);
     setActiveRibbonTab('diagram-design');
-    toast.success('Smart Diagram inserted. Edit its Text Pane or double-click a node on the Screen.');
+    toast.success(
+      'Smart Diagram inserted. Edit its Text Pane or double-click a node on the Screen.',
+    );
   };
 
   const convertDiagramToShapes = (elementId: string) => {
@@ -1885,56 +2298,155 @@ export default function TeachingStudioPage() {
     const height = Number(diagram.position.height) || 600;
     const sx = width / 1000;
     const sy = height / 600;
-    const theme = SMART_DIAGRAM_THEMES.find((candidate) => candidate.id === diagram.content.themeId) ?? SMART_DIAGRAM_THEMES[0];
+    const theme =
+      SMART_DIAGRAM_THEMES.find((candidate) => candidate.id === diagram.content.themeId) ??
+      SMART_DIAGRAM_THEMES[0];
     const boxes = new Map(geometry.boxes.map((box) => [box.id, box]));
     const converted: StudioElement[] = [];
     geometry.edges.forEach((edge, index) => {
-      const from = boxes.get(edge.from); const to = boxes.get(edge.to);
+      const from = boxes.get(edge.from);
+      const to = boxes.get(edge.to);
       if (!from || !to || diagram.content.connectorStyle === 'none') return;
-      const x1 = left + (from.x + from.width / 2) * sx; const y1 = top + (from.y + from.height / 2) * sy;
-      const x2 = left + (to.x + to.width / 2) * sx; const y2 = top + (to.y + to.height / 2) * sy;
-      converted.push({ id: `${elementId}-connector-${index}`, slotId: `free-${elementId}-connector-${index}`, type: 'shape', content: { kind: 'line', fill: 'transparent', stroke: '#64748b', strokeWidth: 4 }, position: { x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.max(80, Math.abs(x2 - x1)), height: Math.max(60, Math.abs(y2 - y1)), zIndex: Number(diagram.position.zIndex) || 0 } });
+      const x1 = left + (from.x + from.width / 2) * sx;
+      const y1 = top + (from.y + from.height / 2) * sy;
+      const x2 = left + (to.x + to.width / 2) * sx;
+      const y2 = top + (to.y + to.height / 2) * sy;
+      converted.push({
+        id: `${elementId}-connector-${index}`,
+        slotId: `free-${elementId}-connector-${index}`,
+        type: 'shape',
+        content: { kind: 'line', fill: 'transparent', stroke: '#64748b', strokeWidth: 4 },
+        position: {
+          x: Math.min(x1, x2),
+          y: Math.min(y1, y2),
+          width: Math.max(80, Math.abs(x2 - x1)),
+          height: Math.max(60, Math.abs(y2 - y1)),
+          zIndex: Number(diagram.position.zIndex) || 0,
+        },
+      });
     });
     diagram.content.nodes.forEach((node, index) => {
-      const box = boxes.get(node.id); if (!box) return;
-      const x = left + box.x * sx; const y = top + box.y * sy; const nodeWidth = Math.max(80, box.width * sx); const nodeHeight = Math.max(60, box.height * sy);
+      const box = boxes.get(node.id);
+      if (!box) return;
+      const x = left + box.x * sx;
+      const y = top + box.y * sy;
+      const nodeWidth = Math.max(80, box.width * sx);
+      const nodeHeight = Math.max(60, box.height * sy);
       const fill = node.fill || theme.colors[index % theme.colors.length];
       const shapeId = `${elementId}-shape-${index}`;
-      converted.push({ id: shapeId, slotId: `free-${shapeId}`, type: 'shape', content: { kind: node.shape === 'circle' ? 'ellipse' : node.shape === 'diamond' ? 'diamond' : node.shape === 'rectangle' ? 'rectangle' : 'rounded-rectangle', fill, stroke: '#ffffff', strokeWidth: 3, opacity: 1 }, position: { x, y, width: nodeWidth, height: nodeHeight, zIndex: (Number(diagram.position.zIndex) || 0) + 1 } });
+      converted.push({
+        id: shapeId,
+        slotId: `free-${shapeId}`,
+        type: 'shape',
+        content: {
+          kind:
+            node.shape === 'circle'
+              ? 'ellipse'
+              : node.shape === 'diamond'
+                ? 'diamond'
+                : node.shape === 'rectangle'
+                  ? 'rectangle'
+                  : 'rounded-rectangle',
+          fill,
+          stroke: '#ffffff',
+          strokeWidth: 3,
+          opacity: 1,
+        },
+        position: {
+          x,
+          y,
+          width: nodeWidth,
+          height: nodeHeight,
+          zIndex: (Number(diagram.position.zIndex) || 0) + 1,
+        },
+      });
       const textId = `${elementId}-text-${index}`;
-      converted.push({ id: textId, slotId: `free-${textId}`, type: 'text', content: { text: `${node.icon ? `${node.icon} ` : ''}${node.text}`, color: node.textColor || '#ffffff', fontSize: Math.max(18, Math.min(34, nodeWidth / 7)), bold: true, alignment: 'center' }, position: { x: x + 8, y: y + 8, width: Math.max(80, nodeWidth - 16), height: Math.max(60, nodeHeight - 16), zIndex: (Number(diagram.position.zIndex) || 0) + 2 } });
+      converted.push({
+        id: textId,
+        slotId: `free-${textId}`,
+        type: 'text',
+        content: {
+          text: `${node.icon ? `${node.icon} ` : ''}${node.text}`,
+          color: node.textColor || '#ffffff',
+          fontSize: Math.max(18, Math.min(34, nodeWidth / 7)),
+          bold: true,
+          alignment: 'center',
+        },
+        position: {
+          x: x + 8,
+          y: y + 8,
+          width: Math.max(80, nodeWidth - 16),
+          height: Math.max(60, nodeHeight - 16),
+          zIndex: (Number(diagram.position.zIndex) || 0) + 2,
+        },
+      });
     });
-    commitElements([...selectedScreen.elements.filter((element) => element.id !== elementId), ...converted], converted.at(-1)?.id ?? null);
+    commitElements(
+      [...selectedScreen.elements.filter((element) => element.id !== elementId), ...converted],
+      converted.at(-1)?.id ?? null,
+    );
     setPanel('elements');
-    toast.success('Smart Diagram converted to individual shapes. This conversion is one-way unless you use Undo.');
+    toast.success(
+      'Smart Diagram converted to individual shapes. This conversion is one-way unless you use Undo.',
+    );
   };
 
   const insertInlineShape = (shape: InlineShapeData) => {
     if (!selectedScreen || editorReadOnly) return;
     const target = selectedScreen.elements.find(
-      (element) => element.id === selectedElementId && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.type),
+      (element) =>
+        element.id === selectedElementId &&
+        [
+          'title',
+          'text',
+          'question',
+          'response',
+          'steps',
+          'workspace',
+          'footer',
+          'options',
+          'data',
+        ].includes(element.type),
     );
     if (!target) return;
     const text = String(target.content.text ?? '');
     const rememberedCaret = inlineEquationCaretRef.current;
-    const offset = rememberedCaret?.elementId === target.id
-      ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
-      : text.length;
+    const offset =
+      rememberedCaret?.elementId === target.id
+        ? Math.min(Math.max(rememberedCaret.offset, 0), text.length)
+        : text.length;
     const token = inlineShapeToken(shape);
-    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` } };
+    const updated = {
+      ...target,
+      content: { ...target.content, text: `${text.slice(0, offset)}${token}${text.slice(offset)}` },
+    };
     inlineEquationCaretRef.current = { elementId: target.id, offset: offset + token.length };
-    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === target.id ? updated : element)),
+      target.id,
+    );
     toast.success('Shape inserted into the selected text element.');
   };
 
   const saveInlineShapeEdit = (shape: InlineShapeData) => {
     if (!selectedScreen || !inlineShapeEdit) return;
-    const target = selectedScreen.elements.find((element) => element.id === inlineShapeEdit.elementId);
+    const target = selectedScreen.elements.find(
+      (element) => element.id === inlineShapeEdit.elementId,
+    );
     if (!target) return;
     const text = String(target.content.text ?? '');
     const token = inlineShapeToken(shape);
-    const updated = { ...target, content: { ...target.content, text: `${text.slice(0, inlineShapeEdit.start)}${token}${text.slice(inlineShapeEdit.end)}` } };
-    commitElements(selectedScreen.elements.map((element) => element.id === target.id ? updated : element), target.id);
+    const updated = {
+      ...target,
+      content: {
+        ...target.content,
+        text: `${text.slice(0, inlineShapeEdit.start)}${token}${text.slice(inlineShapeEdit.end)}`,
+      },
+    };
+    commitElements(
+      selectedScreen.elements.map((element) => (element.id === target.id ? updated : element)),
+      target.id,
+    );
     setInlineShapeEdit(null);
     toast.success('Inline shape updated.');
   };
@@ -2015,7 +2527,13 @@ export default function TeachingStudioPage() {
       height: Math.max(1, Number(element.position.height) || constrainedBounds.height),
     };
     const groupId = typeof element.position.groupId === 'string' ? element.position.groupId : null;
-    const preserveUnlockedMotionPath = (candidate: StudioElement, fromX: number, fromY: number, toX: number, toY: number) => {
+    const preserveUnlockedMotionPath = (
+      candidate: StudioElement,
+      fromX: number,
+      fromY: number,
+      toX: number,
+      toY: number,
+    ) => {
       const animation = candidate.content.animation;
       if (!animation || typeof animation !== 'object' || Array.isArray(animation)) return candidate;
       const saved = animation as Record<string, unknown>;
@@ -2024,16 +2542,29 @@ export default function TeachingStudioPage() {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
         const effect = raw as Record<string, unknown>;
         if (effect.lockPathOrigin !== false || !Array.isArray(effect.motionPath)) return effect;
-        return { ...effect, motionPath: effect.motionPath.map((point) => {
-          if (!point || typeof point !== 'object' || Array.isArray(point)) return point;
-          const value = point as Record<string, unknown>;
-          return { ...value, x: (Number(value.x) || 0) + fromX - toX, y: (Number(value.y) || 0) + fromY - toY };
-        }) };
+        return {
+          ...effect,
+          motionPath: effect.motionPath.map((point) => {
+            if (!point || typeof point !== 'object' || Array.isArray(point)) return point;
+            const value = point as Record<string, unknown>;
+            return {
+              ...value,
+              x: (Number(value.x) || 0) + fromX - toX,
+              y: (Number(value.y) || 0) + fromY - toY,
+            };
+          }),
+        };
       });
       return { ...candidate, content: { ...candidate.content, animation: { ...saved, effects } } };
     };
     if (!groupId) {
-      const moved = preserveUnlockedMotionPath(element, previous.x, previous.y, constrainedBounds.x, constrainedBounds.y);
+      const moved = preserveUnlockedMotionPath(
+        element,
+        previous.x,
+        previous.y,
+        constrainedBounds.x,
+        constrainedBounds.y,
+      );
       updateElement({ ...moved, position: { ...moved.position, ...constrainedBounds } });
       return;
     }
@@ -2042,7 +2573,13 @@ export default function TeachingStudioPage() {
     const grouped = selectedScreen.elements.map((candidate) => {
       if (candidate.position.groupId !== groupId) return candidate;
       if (candidate.id === elementId) {
-        const moved = preserveUnlockedMotionPath(candidate, previous.x, previous.y, constrainedBounds.x, constrainedBounds.y);
+        const moved = preserveUnlockedMotionPath(
+          candidate,
+          previous.x,
+          previous.y,
+          constrainedBounds.x,
+          constrainedBounds.y,
+        );
         return { ...moved, position: { ...moved.position, ...constrainedBounds } };
       }
       const x = Number(candidate.position.x) || 0;
@@ -2074,10 +2611,14 @@ export default function TeachingStudioPage() {
     const element = selectedScreen.elements.find((candidate) => candidate.id === elementId);
     if (!element) return;
     const groupId = typeof element.position.groupId === 'string' ? element.position.groupId : null;
-    commitElements(selectedScreen.elements.map((candidate) =>
-      candidate.id === elementId || (groupId && candidate.position.groupId === groupId)
-        ? { ...candidate, position: { ...candidate.position, rotation } }
-        : candidate), elementId);
+    commitElements(
+      selectedScreen.elements.map((candidate) =>
+        candidate.id === elementId || (groupId && candidate.position.groupId === groupId)
+          ? { ...candidate, position: { ...candidate.position, rotation } }
+          : candidate,
+      ),
+      elementId,
+    );
   };
 
   const removeElement = (elementId: string) => {
@@ -2149,54 +2690,74 @@ export default function TeachingStudioPage() {
       : ['video', 'presentation'].includes(resource.resource_type)
         ? 'media'
         : 'simulation';
-    const token = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}`;
+    const token =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const id = `resource-${token}`;
     let naturalWidth = Number(version.width);
     let naturalHeight = Number(version.height);
     if (resource.resource_type === 'image' && !(naturalWidth > 0 && naturalHeight > 0)) {
       try {
         const source = version.external_url || (await getStudioResourcePreview(version.id)).url;
-        const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-          const image = new Image();
-          image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
-          image.onerror = () => reject(new Error('Unable to read image dimensions.'));
-          image.src = source;
-        });
+        const dimensions = await new Promise<{ width: number; height: number }>(
+          (resolve, reject) => {
+            const image = new Image();
+            image.onload = () =>
+              resolve({ width: image.naturalWidth, height: image.naturalHeight });
+            image.onerror = () => reject(new Error('Unable to read image dimensions.'));
+            image.src = source;
+          },
+        );
         naturalWidth = dimensions.width;
         naturalHeight = dimensions.height;
       } catch (dimensionError) {
-        console.warn('Unable to resolve intrinsic image dimensions; using the default image area.', dimensionError);
+        console.warn(
+          'Unable to resolve intrinsic image dimensions; using the default image area.',
+          dimensionError,
+        );
       }
     }
-    const imageScale = resource.resource_type === 'image' && naturalWidth > 0 && naturalHeight > 0
-      ? Math.min(1, 960 / naturalWidth, 540 / naturalHeight)
-      : null;
-    const imageWidth = imageScale === null ? 960 : Math.max(1, Math.round(naturalWidth * imageScale));
-    const imageHeight = imageScale === null ? 540 : Math.max(1, Math.round(naturalHeight * imageScale));
-    const size = type === 'visual'
-      ? resource.resource_type === 'image'
-        ? { x: Math.round((1920 - imageWidth) / 2), y: Math.round((1080 - imageHeight) / 2), width: imageWidth, height: imageHeight }
-        : { x: 480, y: 270, width: 960, height: 540 }
-      : type === 'media'
-        ? { x: 400, y: 225, width: 1120, height: 630 }
-        : resource.resource_type === 'simulation'
-          ? { x: 0, y: 0, width: 1920, height: 1080 }
-          : { x: 320, y: 180, width: 1280, height: 720 };
+    const imageScale =
+      resource.resource_type === 'image' && naturalWidth > 0 && naturalHeight > 0
+        ? Math.min(1, 960 / naturalWidth, 540 / naturalHeight)
+        : null;
+    const imageWidth =
+      imageScale === null ? 960 : Math.max(1, Math.round(naturalWidth * imageScale));
+    const imageHeight =
+      imageScale === null ? 540 : Math.max(1, Math.round(naturalHeight * imageScale));
+    const size =
+      type === 'visual'
+        ? resource.resource_type === 'image'
+          ? {
+              x: Math.round((1920 - imageWidth) / 2),
+              y: Math.round((1080 - imageHeight) / 2),
+              width: imageWidth,
+              height: imageHeight,
+            }
+          : { x: 480, y: 270, width: 960, height: 540 }
+        : type === 'media'
+          ? { x: 400, y: 225, width: 1120, height: 630 }
+          : resource.resource_type === 'simulation'
+            ? { x: 0, y: 0, width: 1920, height: 1080 }
+            : { x: 320, y: 180, width: 1280, height: 720 };
     const authoring = version.metadata_json?.authoring;
-    const editableSimulation = authoring && typeof authoring === 'object'
-      && (authoring as Record<string, unknown>).kind === 'spectropy_simulation_studio'
-      ? authoring as Record<string, unknown>
-      : null;
-    const editableActivity = authoring && typeof authoring === 'object'
-      && (authoring as Record<string, unknown>).kind === 'spectropy_activity_builder'
-      ? authoring as Record<string, unknown>
-      : null;
-    const editableLab = authoring && typeof authoring === 'object'
-      && (authoring as Record<string, unknown>).kind === 'spectropy_lab_studio'
-      ? authoring as Record<string, unknown>
-      : null;
+    const editableSimulation =
+      authoring &&
+      typeof authoring === 'object' &&
+      (authoring as Record<string, unknown>).kind === 'spectropy_simulation_studio'
+        ? (authoring as Record<string, unknown>)
+        : null;
+    const editableActivity =
+      authoring &&
+      typeof authoring === 'object' &&
+      (authoring as Record<string, unknown>).kind === 'spectropy_activity_builder'
+        ? (authoring as Record<string, unknown>)
+        : null;
+    const editableLab =
+      authoring &&
+      typeof authoring === 'object' &&
+      (authoring as Record<string, unknown>).kind === 'spectropy_lab_studio'
+        ? (authoring as Record<string, unknown>)
+        : null;
     const element: StudioElement = {
       id,
       slotId: `free-${id}`,
@@ -2207,7 +2768,9 @@ export default function TeachingStudioPage() {
         altText: resource.description || resource.name,
         source: resource.name,
         mediaTransform: { fit: 'contain', scale: 1, x: 0, y: 0, cropped: false },
-        ...(editableSimulation && editableSimulation.project && typeof editableSimulation.project === 'object'
+        ...(editableSimulation &&
+        editableSimulation.project &&
+        typeof editableSimulation.project === 'object'
           ? {
               simulationProject: editableSimulation.project,
               simulationTitle: resource.name,
@@ -2216,11 +2779,14 @@ export default function TeachingStudioPage() {
               simulationHasLocalChanges: false,
             }
           : {}),
-        ...(editableActivity && editableActivity.project && typeof editableActivity.project === 'object'
+        ...(editableActivity &&
+        editableActivity.project &&
+        typeof editableActivity.project === 'object'
           ? {
               activityProject: editableActivity.project,
               activityTitle: resource.name,
-              activityType: (editableActivity.project as Record<string, unknown>).activityType || null,
+              activityType:
+                (editableActivity.project as Record<string, unknown>).activityType || null,
             }
           : {}),
         ...(editableLab && editableLab.project && typeof editableLab.project === 'object'
@@ -2246,7 +2812,9 @@ export default function TeachingStudioPage() {
     toast.success(`${resource.name} added directly to the current Screen.`);
   };
 
-  const registerImportedSimulation = async (project: SimulationDocument): Promise<SimulationDocument> => {
+  const registerImportedSimulation = async (
+    project: SimulationDocument,
+  ): Promise<SimulationDocument> => {
     const existingResourceId = Number(project.metadata?.quickStartResourceId);
     if (Number.isInteger(existingResourceId) && existingResourceId > 0) return project;
     const resolvedIcon = await resolveSimulationTopicIcon({
@@ -2255,7 +2823,12 @@ export default function TeachingStudioPage() {
     });
     const enrichedProject = resolvedIcon.project;
     const cleanTitle = enrichedProject.title.trim() || 'Interactive Simulation';
-    const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-simulation'}.html`;
+    const fileName = `${
+      cleanTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'interactive-simulation'
+    }.html`;
     const html = await buildSimulationHtml(enrichedProject);
     const file = new File([html], fileName, { type: 'text/html' });
     const resource = await createStudioResource({
@@ -2302,7 +2875,10 @@ export default function TeachingStudioPage() {
     return registered;
   };
 
-  const openSimulationCreator = (subject: SimulationSubject = simulationRibbonSubject, templateId?: string) => {
+  const openSimulationCreator = (
+    subject: SimulationSubject = simulationRibbonSubject,
+    templateId?: string,
+  ) => {
     if (editorReadOnly) {
       toast.error('Start an update before creating a Simulation.');
       return;
@@ -2327,16 +2903,27 @@ export default function TeachingStudioPage() {
     }
     try {
       const validated = validateSimulationDocument(project);
-      setSimulationStudio({ elementId: element.id, subject: validated.subject, project: validated });
+      setSimulationStudio({
+        elementId: element.id,
+        subject: validated.subject,
+        project: validated,
+      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'This Simulation uses an unsupported schema.');
+      toast.error(
+        error instanceof Error ? error.message : 'This Simulation uses an unsupported schema.',
+      );
     }
   };
 
   const insertSimulation = async ({ project, title, html }: PhysicsSimulationInsert) => {
     if (!selectedScreen || !simulationStudio || simulationSaving) return;
     const cleanTitle = title.trim() || 'Interactive Simulation';
-    const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-simulation'}.html`;
+    const fileName = `${
+      cleanTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'interactive-simulation'
+    }.html`;
     const file = new File([html], fileName, { type: 'text/html' });
     const metadataJson = {
       authoring: {
@@ -2347,28 +2934,37 @@ export default function TeachingStudioPage() {
       },
     };
     const quickStartResourceId = Number(project.metadata?.quickStartResourceId);
-    const templateQuickStartEntry = !Number.isInteger(quickStartResourceId) && simulationStudio.templateId
-      ? quickStartSimulations.find((entry) =>
-          entry.project.subject === project.subject
-          && entry.project.templateId === simulationStudio.templateId)
-      : undefined;
-    const reusableQuickStartResourceId = Number.isInteger(quickStartResourceId) && quickStartResourceId > 0
-      ? quickStartResourceId
-      : templateQuickStartEntry?.resourceId;
+    const templateQuickStartEntry =
+      !Number.isInteger(quickStartResourceId) && simulationStudio.templateId
+        ? quickStartSimulations.find(
+            (entry) =>
+              entry.project.subject === project.subject &&
+              entry.project.templateId === simulationStudio.templateId,
+          )
+        : undefined;
+    const reusableQuickStartResourceId =
+      Number.isInteger(quickStartResourceId) && quickStartResourceId > 0
+        ? quickStartResourceId
+        : templateQuickStartEntry?.resourceId;
     setSimulationSaving(true);
     try {
       const existing = simulationStudio.elementId
         ? selectedScreen.elements.find((element) => element.id === simulationStudio.elementId)
         : null;
       if (simulationStudio.elementId && !existing) {
-        throw new Error('The Simulation being edited is no longer present on this Screen. Nothing was created.');
+        throw new Error(
+          'The Simulation being edited is no longer present on this Screen. Nothing was created.',
+        );
       }
       if (existing && !existing.resource?.resource_id) {
-        throw new Error('The Simulation being edited has lost its Resource link. Nothing was created.');
+        throw new Error(
+          'The Simulation being edited has lost its Resource link. Nothing was created.',
+        );
       }
       if (existing?.resource?.resource_id) {
-        const baseResourceVersionId = Number(existing.content.simulationBaseResourceVersionId)
-          || existing.resource.resource_version_id;
+        const baseResourceVersionId =
+          Number(existing.content.simulationBaseResourceVersionId) ||
+          existing.resource.resource_version_id;
         const updated: StudioElement = {
           ...existing,
           position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
@@ -2384,21 +2980,29 @@ export default function TeachingStudioPage() {
           },
         };
         commitElements(
-          selectedScreen.elements.map((element) => element.id === updated.id ? updated : element),
+          selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
           updated.id,
         );
-        toast.success(`${cleanTitle} updated only on this Screen. The Resource Library was not changed.`);
-      } else if (Number.isInteger(reusableQuickStartResourceId) && Number(reusableQuickStartResourceId) > 0) {
-        const quickStartEntry = quickStartSimulations.find((entry) => entry.resourceId === reusableQuickStartResourceId)
-          || templateQuickStartEntry;
-        const quickStartVersionId = Number(project.metadata?.quickStartResourceVersionId)
-          || quickStartEntry?.versionId;
+        toast.success(
+          `${cleanTitle} updated only on this Screen. The Resource Library was not changed.`,
+        );
+      } else if (
+        Number.isInteger(reusableQuickStartResourceId) &&
+        Number(reusableQuickStartResourceId) > 0
+      ) {
+        const quickStartEntry =
+          quickStartSimulations.find(
+            (entry) => entry.resourceId === reusableQuickStartResourceId,
+          ) || templateQuickStartEntry;
+        const quickStartVersionId =
+          Number(project.metadata?.quickStartResourceVersionId) || quickStartEntry?.versionId;
         if (!Number.isInteger(quickStartVersionId) || Number(quickStartVersionId) <= 0) {
           throw new Error('The Quick Start Simulation Resource version is unavailable.');
         }
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}`;
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`;
         const id = `simulation-${token}`;
         const registeredProject: SimulationDocument = {
           ...project,
@@ -2423,7 +3027,13 @@ export default function TeachingStudioPage() {
             simulationBaseResourceVersionId: Number(quickStartVersionId),
             simulationHasLocalChanges: false,
           },
-          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
+          position: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            zIndex: selectedScreen.elements.length + 1,
+          },
           resource: {
             resource_id: Number(reusableQuickStartResourceId),
             resource_version_id: Number(quickStartVersionId),
@@ -2431,7 +3041,9 @@ export default function TeachingStudioPage() {
           },
         };
         commitElements([...selectedScreen.elements, element], element.id);
-        toast.success(`${cleanTitle} inserted from Quick Start without creating a Resource version.`);
+        toast.success(
+          `${cleanTitle} inserted from Quick Start without creating a Resource version.`,
+        );
       } else {
         const resource = await createStudioResource({
           name: cleanTitle,
@@ -2445,9 +3057,10 @@ export default function TeachingStudioPage() {
         });
         const version = resource.latest_version;
         if (!version) throw new Error('The Simulation Resource was created without a version.');
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}`;
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`;
         const id = `simulation-${token}`;
         const registeredProject: SimulationDocument = {
           ...project,
@@ -2494,9 +3107,10 @@ export default function TeachingStudioPage() {
       }
       setSimulationStudio(null);
     } catch (simulationError) {
-      const message = simulationError instanceof Error
-        ? simulationError.message
-        : 'Unable to save the Simulation.';
+      const message =
+        simulationError instanceof Error
+          ? simulationError.message
+          : 'Unable to save the Simulation.';
       toast.error(message);
     } finally {
       setSimulationSaving(false);
@@ -2513,8 +3127,15 @@ export default function TeachingStudioPage() {
     try {
       const project = validateSimulationDocument(element.content.simulationProject);
       const cleanTitle = project.title.trim() || 'Interactive Simulation';
-      const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-simulation'}.html`;
-      const file = new File([buildStandaloneSimulationHtml(project)], fileName, { type: 'text/html' });
+      const fileName = `${
+        cleanTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '') || 'interactive-simulation'
+      }.html`;
+      const file = new File([buildStandaloneSimulationHtml(project)], fileName, {
+        type: 'text/html',
+      });
       setSimulationSaving(true);
       const created = await createStudioResourceVersion(element.resource.resource_id, {
         file,
@@ -2554,13 +3175,24 @@ export default function TeachingStudioPage() {
         },
         resource: { ...element.resource, resource_version_id: created.version.id },
       };
-      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
-      setQuickStartSimulations((current) => current.map((entry) => entry.resourceId === element.resource?.resource_id
-        ? { ...entry, versionId: created.version.id, project: registeredProject }
-        : entry));
+      commitElements(
+        selectedScreen.elements.map((candidate) =>
+          candidate.id === updated.id ? updated : candidate,
+        ),
+        updated.id,
+      );
+      setQuickStartSimulations((current) =>
+        current.map((entry) =>
+          entry.resourceId === element.resource?.resource_id
+            ? { ...entry, versionId: created.version.id, project: registeredProject }
+            : entry,
+        ),
+      );
       toast.success(`${cleanTitle} was explicitly saved as a new Resource Library version.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to update the Simulation Resource.');
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to update the Simulation Resource.',
+      );
     } finally {
       setSimulationSaving(false);
     }
@@ -2576,14 +3208,19 @@ export default function TeachingStudioPage() {
     try {
       setSimulationSaving(true);
       const resource = await getStudioResource(element.resource.resource_id);
-      const baseVersionId = Number(element.content.simulationBaseResourceVersionId)
-        || element.resource.resource_version_id;
-      const version = resource.versions.find((candidate) => candidate.id === baseVersionId)
-        || resource.versions.find((candidate) => candidate.id === element.resource?.resource_version_id);
+      const baseVersionId =
+        Number(element.content.simulationBaseResourceVersionId) ||
+        element.resource.resource_version_id;
+      const version =
+        resource.versions.find((candidate) => candidate.id === baseVersionId) ||
+        resource.versions.find(
+          (candidate) => candidate.id === element.resource?.resource_version_id,
+        );
       const authoring = version?.metadata_json?.authoring;
-      const project = authoring && typeof authoring === 'object'
-        ? (authoring as Record<string, unknown>).project
-        : null;
+      const project =
+        authoring && typeof authoring === 'object'
+          ? (authoring as Record<string, unknown>).project
+          : null;
       const validated = validateSimulationDocument(project);
       const updated: StudioElement = {
         ...element,
@@ -2598,10 +3235,19 @@ export default function TeachingStudioPage() {
           simulationHasLocalChanges: false,
         },
       };
-      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
+      commitElements(
+        selectedScreen.elements.map((candidate) =>
+          candidate.id === updated.id ? updated : candidate,
+        ),
+        updated.id,
+      );
       toast.success(`${validated.title} was reset to its linked Resource version.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to reset the Simulation from its Resource.');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Unable to reset the Simulation from its Resource.',
+      );
     } finally {
       setSimulationSaving(false);
     }
@@ -2609,7 +3255,11 @@ export default function TeachingStudioPage() {
 
   const openPhysicsLab = async (labId?: string) => {
     if (editorReadOnly || !selectedScreen) {
-      toast.error(editorReadOnly ? 'Start an update before opening Physics Lab.' : 'Select a Screen before opening Physics Lab.');
+      toast.error(
+        editorReadOnly
+          ? 'Start an update before opening Physics Lab.'
+          : 'Select a Screen before opening Physics Lab.',
+      );
       return;
     }
     if (!labId) {
@@ -2617,21 +3267,27 @@ export default function TeachingStudioPage() {
       return;
     }
     try {
-      const [catalog, definitions] = await Promise.all([loadPhysicsLabCatalog(), loadPhysicsLabRuntime()]);
+      const [catalog, definitions] = await Promise.all([
+        loadPhysicsLabCatalog(),
+        loadPhysicsLabRuntime(),
+      ]);
       const entry = catalog.labs.find((candidate) => candidate.id === labId);
       const definition = definitions[labId];
-      if (!entry || !definition) throw new Error('The selected Physics Lab activity is unavailable.');
+      if (!entry || !definition)
+        throw new Error('The selected Physics Lab activity is unavailable.');
       const resourceEntry = quickStartLabs.find((candidate) => candidate.project.labId === labId);
       const base = createPhysicsLabProject(entry, definition);
       setPhysicsLabStudio({
-        project: resourceEntry ? {
-          ...base,
-          metadata: {
-            ...base.metadata,
-            quickStartResourceId: resourceEntry.resourceId,
-            quickStartResourceVersionId: resourceEntry.versionId,
-          },
-        } : base,
+        project: resourceEntry
+          ? {
+              ...base,
+              metadata: {
+                ...base.metadata,
+                quickStartResourceId: resourceEntry.resourceId,
+                quickStartResourceVersionId: resourceEntry.versionId,
+              },
+            }
+          : base,
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to open Physics Lab.');
@@ -2640,7 +3296,11 @@ export default function TeachingStudioPage() {
 
   const openChemistryLab = async (labId?: string) => {
     if (editorReadOnly || !selectedScreen) {
-      toast.error(editorReadOnly ? 'Start an update before opening Chemistry Lab.' : 'Select a Screen before opening Chemistry Lab.');
+      toast.error(
+        editorReadOnly
+          ? 'Start an update before opening Chemistry Lab.'
+          : 'Select a Screen before opening Chemistry Lab.',
+      );
       return;
     }
     if (!labId) {
@@ -2651,13 +3311,22 @@ export default function TeachingStudioPage() {
       const catalog = await loadChemistryLabCatalog();
       const entry = catalog.labs.find((candidate) => candidate.id === labId);
       if (!entry) throw new Error('The selected Chemistry Lab activity is unavailable.');
-      const resourceEntry = quickStartLabs.find((candidate) => candidate.project.subject === 'chemistry' && candidate.project.labId === labId);
+      const resourceEntry = quickStartLabs.find(
+        (candidate) =>
+          candidate.project.subject === 'chemistry' && candidate.project.labId === labId,
+      );
       const base = createChemistryLabProject(entry);
       setChemistryLabStudio({
-        project: resourceEntry ? {
-          ...base,
-          metadata: { ...base.metadata, quickStartResourceId: resourceEntry.resourceId, quickStartResourceVersionId: resourceEntry.versionId },
-        } : base,
+        project: resourceEntry
+          ? {
+              ...base,
+              metadata: {
+                ...base.metadata,
+                quickStartResourceId: resourceEntry.resourceId,
+                quickStartResourceVersionId: resourceEntry.versionId,
+              },
+            }
+          : base,
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to open Chemistry Lab.');
@@ -2666,34 +3335,79 @@ export default function TeachingStudioPage() {
 
   const openMathematicsLab = async (labId?: string) => {
     if (editorReadOnly || !selectedScreen) {
-      toast.error(editorReadOnly ? 'Start an update before opening Mathematics Lab.' : 'Select a Screen before opening Mathematics Lab.');
+      toast.error(
+        editorReadOnly
+          ? 'Start an update before opening Mathematics Lab.'
+          : 'Select a Screen before opening Mathematics Lab.',
+      );
       return;
     }
-    if (!labId) { setMathematicsLabStudio({}); return; }
+    if (!labId) {
+      setMathematicsLabStudio({});
+      return;
+    }
     try {
       const catalog = await loadMathematicsLabCatalog();
       const entry = catalog.labs.find((candidate) => candidate.id === labId);
       if (!entry) throw new Error('The selected Mathematics Lab activity is unavailable.');
-      const resourceEntry = quickStartLabs.find((candidate) => candidate.project.subject === 'mathematics' && candidate.project.labId === labId);
+      const resourceEntry = quickStartLabs.find(
+        (candidate) =>
+          candidate.project.subject === 'mathematics' && candidate.project.labId === labId,
+      );
       const base = createMathematicsLabProject(entry);
-      setMathematicsLabStudio({ project: resourceEntry ? { ...base, metadata: { ...base.metadata, quickStartResourceId: resourceEntry.resourceId, quickStartResourceVersionId: resourceEntry.versionId } } : base });
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to open Mathematics Lab.'); }
+      setMathematicsLabStudio({
+        project: resourceEntry
+          ? {
+              ...base,
+              metadata: {
+                ...base.metadata,
+                quickStartResourceId: resourceEntry.resourceId,
+                quickStartResourceVersionId: resourceEntry.versionId,
+              },
+            }
+          : base,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to open Mathematics Lab.');
+    }
   };
 
   const openBiologyLab = async (labId?: string) => {
     if (editorReadOnly || !selectedScreen) {
-      toast.error(editorReadOnly ? 'Start an update before opening Biology Lab.' : 'Select a Screen before opening Biology Lab.');
+      toast.error(
+        editorReadOnly
+          ? 'Start an update before opening Biology Lab.'
+          : 'Select a Screen before opening Biology Lab.',
+      );
       return;
     }
-    if (!labId) { setBiologyLabStudio({}); return; }
+    if (!labId) {
+      setBiologyLabStudio({});
+      return;
+    }
     try {
       const catalog = await loadBiologyLabCatalog();
       const entry = catalog.labs.find((candidate) => candidate.id === labId);
       if (!entry) throw new Error('The selected Biology Lab activity is unavailable.');
-      const resourceEntry = quickStartLabs.find((candidate) => candidate.project.subject === 'biology' && candidate.project.labId === labId);
+      const resourceEntry = quickStartLabs.find(
+        (candidate) => candidate.project.subject === 'biology' && candidate.project.labId === labId,
+      );
       const base = createBiologyLabProject(entry);
-      setBiologyLabStudio({ project: resourceEntry ? { ...base, metadata: { ...base.metadata, quickStartResourceId: resourceEntry.resourceId, quickStartResourceVersionId: resourceEntry.versionId } } : base });
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to open Biology Lab.'); }
+      setBiologyLabStudio({
+        project: resourceEntry
+          ? {
+              ...base,
+              metadata: {
+                ...base.metadata,
+                quickStartResourceId: resourceEntry.resourceId,
+                quickStartResourceVersionId: resourceEntry.versionId,
+              },
+            }
+          : base,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to open Biology Lab.');
+    }
   };
 
   const editSelectedPhysicsLab = () => {
@@ -2709,13 +3423,25 @@ export default function TeachingStudioPage() {
     try {
       const subject = (element.content.labProject as { subject?: unknown }).subject;
       if (subject === 'chemistry') {
-        setChemistryLabStudio({ elementId: element.id, project: validateChemistryLabProject(element.content.labProject) });
+        setChemistryLabStudio({
+          elementId: element.id,
+          project: validateChemistryLabProject(element.content.labProject),
+        });
       } else if (subject === 'mathematics') {
-        setMathematicsLabStudio({ elementId: element.id, project: validateMathematicsLabProject(element.content.labProject) });
+        setMathematicsLabStudio({
+          elementId: element.id,
+          project: validateMathematicsLabProject(element.content.labProject),
+        });
       } else if (subject === 'biology') {
-        setBiologyLabStudio({ elementId: element.id, project: validateBiologyLabProject(element.content.labProject) });
+        setBiologyLabStudio({
+          elementId: element.id,
+          project: validateBiologyLabProject(element.content.labProject),
+        });
       } else {
-        setPhysicsLabStudio({ elementId: element.id, project: validatePhysicsLabProject(element.content.labProject) });
+        setPhysicsLabStudio({
+          elementId: element.id,
+          project: validatePhysicsLabProject(element.content.labProject),
+        });
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'This Lab uses an unsupported format.');
@@ -2729,17 +3455,27 @@ export default function TeachingStudioPage() {
     const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'physics-lab'}.html`;
     const linkedResourceId = Number(project.metadata?.quickStartResourceId);
     const knownEntry = quickStartLabs.find((entry) => entry.project.labId === project.labId);
-    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
-    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    const reusableResourceId =
+      Number.isInteger(linkedResourceId) && linkedResourceId > 0
+        ? linkedResourceId
+        : knownEntry?.resourceId;
+    const reusableVersionId =
+      Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
     setPhysicsLabSaving(true);
     try {
       const runtimeSource = await loadPhysicsLabRuntimeSource();
-      const file = new File([buildPhysicsLabHtml(project, runtimeSource)], fileName, { type: 'text/html' });
+      const file = new File([buildPhysicsLabHtml(project, runtimeSource)], fileName, {
+        type: 'text/html',
+      });
       const existing = physicsLabStudio.elementId
         ? selectedScreen.elements.find((element) => element.id === physicsLabStudio.elementId)
         : null;
-      if (physicsLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
-      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      if (physicsLabStudio.elementId && !existing)
+        throw new Error(
+          'The Lab being edited is no longer present on this Screen. Nothing was created.',
+        );
+      if (existing && !existing.resource?.resource_id)
+        throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
       if (existing?.resource?.resource_id) {
         const updated: StudioElement = {
           ...existing,
@@ -2751,17 +3487,29 @@ export default function TeachingStudioPage() {
             labProject: project,
             labTitle: cleanTitle,
             labSubject: 'physics',
-            labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id,
+            labBaseResourceVersionId:
+              Number(existing.content.labBaseResourceVersionId) ||
+              existing.resource.resource_version_id,
             labHasLocalChanges: true,
           },
         };
-        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
-        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+        commitElements(
+          selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+          updated.id,
+        );
+        toast.success(
+          `${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`,
+        );
       } else {
         let resourceId = reusableResourceId;
         let versionId = reusableVersionId;
         let registeredProject = project;
-        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
+        if (
+          !Number.isInteger(resourceId) ||
+          Number(resourceId) <= 0 ||
+          !Number.isInteger(versionId) ||
+          Number(versionId) <= 0
+        ) {
           const resource = await createStudioResource({
             name: cleanTitle,
             description: `SPECTROPY Physics Lab · ${project.topic} · Class ${project.classes.join(', ')}`,
@@ -2770,23 +3518,49 @@ export default function TeachingStudioPage() {
             width: 1920,
             height: 1080,
             entryPoint: fileName,
-            metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'physics', project } },
+            metadataJson: {
+              authoring: {
+                kind: 'spectropy_lab_studio',
+                schema: 'spectropy.lab.v1',
+                subject: 'physics',
+                project,
+              },
+            },
           });
-          if (!resource.latest_version) throw new Error('The Physics Lab Resource was created without a version.');
+          if (!resource.latest_version)
+            throw new Error('The Physics Lab Resource was created without a version.');
           resourceId = resource.id;
           versionId = resource.latest_version.id;
           registeredProject = {
             ...project,
-            metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId },
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: resourceId,
+              quickStartResourceVersionId: versionId,
+            },
           };
-          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => entry.project.labId !== project.labId)]);
+          setQuickStartLabs((current) => [
+            {
+              resourceId: Number(resourceId),
+              versionId: Number(versionId),
+              project: registeredProject,
+            },
+            ...current.filter((entry) => entry.project.labId !== project.labId),
+          ]);
         } else {
           registeredProject = {
             ...project,
-            metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) },
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: Number(resourceId),
+              quickStartResourceVersionId: Number(versionId),
+            },
           };
         }
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`;
         const id = `physics-lab-${token}`;
         const element: StudioElement = {
           id,
@@ -2803,11 +3577,23 @@ export default function TeachingStudioPage() {
             labBaseResourceVersionId: Number(versionId),
             labHasLocalChanges: false,
           },
-          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
-          resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } },
+          position: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            zIndex: selectedScreen.elements.length + 1,
+          },
+          resource: {
+            resource_id: Number(resourceId),
+            resource_version_id: Number(versionId),
+            usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
+          },
         };
         commitElements([...selectedScreen.elements, element], element.id);
-        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+        toast.success(
+          `${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`,
+        );
       }
       setPhysicsLabStudio(null);
     } catch (error) {
@@ -2823,17 +3609,27 @@ export default function TeachingStudioPage() {
     const cleanTitle = project.title.trim() || 'Interactive Chemistry Lab';
     const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'chemistry-lab'}.html`;
     const linkedResourceId = Number(project.metadata?.quickStartResourceId);
-    const knownEntry = quickStartLabs.find((entry) => entry.project.subject === 'chemistry' && entry.project.labId === project.labId);
-    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
-    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    const knownEntry = quickStartLabs.find(
+      (entry) => entry.project.subject === 'chemistry' && entry.project.labId === project.labId,
+    );
+    const reusableResourceId =
+      Number.isInteger(linkedResourceId) && linkedResourceId > 0
+        ? linkedResourceId
+        : knownEntry?.resourceId;
+    const reusableVersionId =
+      Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
     setPhysicsLabSaving(true);
     try {
       const file = new File([buildChemistryLabHtml(project)], fileName, { type: 'text/html' });
       const existing = chemistryLabStudio.elementId
         ? selectedScreen.elements.find((element) => element.id === chemistryLabStudio.elementId)
         : null;
-      if (chemistryLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
-      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      if (chemistryLabStudio.elementId && !existing)
+        throw new Error(
+          'The Lab being edited is no longer present on this Screen. Nothing was created.',
+        );
+      if (existing && !existing.resource?.resource_id)
+        throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
       if (existing?.resource?.resource_id) {
         const updated: StudioElement = {
           ...existing,
@@ -2845,45 +3641,116 @@ export default function TeachingStudioPage() {
             labProject: project,
             labTitle: cleanTitle,
             labSubject: 'chemistry',
-            labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id,
+            labBaseResourceVersionId:
+              Number(existing.content.labBaseResourceVersionId) ||
+              existing.resource.resource_version_id,
             labHasLocalChanges: true,
           },
         };
-        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
-        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+        commitElements(
+          selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+          updated.id,
+        );
+        toast.success(
+          `${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`,
+        );
       } else {
         let resourceId = reusableResourceId;
         let versionId = reusableVersionId;
         let registeredProject = project;
-        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
+        if (
+          !Number.isInteger(resourceId) ||
+          Number(resourceId) <= 0 ||
+          !Number.isInteger(versionId) ||
+          Number(versionId) <= 0
+        ) {
           const resource = await createStudioResource({
             name: cleanTitle,
             description: `SPECTROPY Chemistry Lab · ${project.topic} · Class ${project.classes.join(', ')}`,
-            resourceType: 'simulation', file, width: 1920, height: 1080, entryPoint: fileName,
-            metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'chemistry', project } },
+            resourceType: 'simulation',
+            file,
+            width: 1920,
+            height: 1080,
+            entryPoint: fileName,
+            metadataJson: {
+              authoring: {
+                kind: 'spectropy_lab_studio',
+                schema: 'spectropy.lab.v1',
+                subject: 'chemistry',
+                project,
+              },
+            },
           });
-          if (!resource.latest_version) throw new Error('The Chemistry Lab Resource was created without a version.');
+          if (!resource.latest_version)
+            throw new Error('The Chemistry Lab Resource was created without a version.');
           resourceId = resource.id;
           versionId = resource.latest_version.id;
-          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId } };
-          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => !(entry.project.subject === 'chemistry' && entry.project.labId === project.labId))]);
+          registeredProject = {
+            ...project,
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: resourceId,
+              quickStartResourceVersionId: versionId,
+            },
+          };
+          setQuickStartLabs((current) => [
+            {
+              resourceId: Number(resourceId),
+              versionId: Number(versionId),
+              project: registeredProject,
+            },
+            ...current.filter(
+              (entry) =>
+                !(entry.project.subject === 'chemistry' && entry.project.labId === project.labId),
+            ),
+          ]);
         } else {
-          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) } };
+          registeredProject = {
+            ...project,
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: Number(resourceId),
+              quickStartResourceVersionId: Number(versionId),
+            },
+          };
         }
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`;
         const id = `chemistry-lab-${token}`;
         const element: StudioElement = {
-          id, slotId: `free-${id}`, type: 'simulation',
+          id,
+          slotId: `free-${id}`,
+          type: 'simulation',
           content: {
-            text: cleanTitle, url: '', altText: `${cleanTitle} interactive Chemistry Lab`, source: 'SPECTROPY Chemistry Lab',
-            labProject: registeredProject, labTitle: cleanTitle, labSubject: 'chemistry',
-            labBaseResourceVersionId: Number(versionId), labHasLocalChanges: false,
+            text: cleanTitle,
+            url: '',
+            altText: `${cleanTitle} interactive Chemistry Lab`,
+            source: 'SPECTROPY Chemistry Lab',
+            labProject: registeredProject,
+            labTitle: cleanTitle,
+            labSubject: 'chemistry',
+            labBaseResourceVersionId: Number(versionId),
+            labHasLocalChanges: false,
           },
-          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
-          resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } },
+          position: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            zIndex: selectedScreen.elements.length + 1,
+          },
+          resource: {
+            resource_id: Number(resourceId),
+            resource_version_id: Number(versionId),
+            usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
+          },
         };
         commitElements([...selectedScreen.elements, element], element.id);
-        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+        toast.success(
+          `${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`,
+        );
       }
       setChemistryLabStudio(null);
     } catch (error) {
@@ -2899,37 +3766,154 @@ export default function TeachingStudioPage() {
     const cleanTitle = project.title.trim() || 'Interactive Mathematics Lab';
     const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'mathematics-lab'}.html`;
     const linkedResourceId = Number(project.metadata?.quickStartResourceId);
-    const knownEntry = quickStartLabs.find((entry) => entry.project.subject === 'mathematics' && entry.project.labId === project.labId);
-    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
-    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    const knownEntry = quickStartLabs.find(
+      (entry) => entry.project.subject === 'mathematics' && entry.project.labId === project.labId,
+    );
+    const reusableResourceId =
+      Number.isInteger(linkedResourceId) && linkedResourceId > 0
+        ? linkedResourceId
+        : knownEntry?.resourceId;
+    const reusableVersionId =
+      Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
     setPhysicsLabSaving(true);
     try {
       const file = new File([buildMathematicsLabHtml(project)], fileName, { type: 'text/html' });
-      const existing = mathematicsLabStudio.elementId ? selectedScreen.elements.find((element) => element.id === mathematicsLabStudio.elementId) : null;
-      if (mathematicsLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
-      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      const existing = mathematicsLabStudio.elementId
+        ? selectedScreen.elements.find((element) => element.id === mathematicsLabStudio.elementId)
+        : null;
+      if (mathematicsLabStudio.elementId && !existing)
+        throw new Error(
+          'The Lab being edited is no longer present on this Screen. Nothing was created.',
+        );
+      if (existing && !existing.resource?.resource_id)
+        throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
       if (existing?.resource?.resource_id) {
-        const updated: StudioElement = { ...existing, position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 }, content: { ...existing.content, text: cleanTitle, altText: `${cleanTitle} interactive Mathematics Lab`, labProject: project, labTitle: cleanTitle, labSubject: 'mathematics', labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id, labHasLocalChanges: true } };
-        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
-        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+        const updated: StudioElement = {
+          ...existing,
+          position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
+          content: {
+            ...existing.content,
+            text: cleanTitle,
+            altText: `${cleanTitle} interactive Mathematics Lab`,
+            labProject: project,
+            labTitle: cleanTitle,
+            labSubject: 'mathematics',
+            labBaseResourceVersionId:
+              Number(existing.content.labBaseResourceVersionId) ||
+              existing.resource.resource_version_id,
+            labHasLocalChanges: true,
+          },
+        };
+        commitElements(
+          selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+          updated.id,
+        );
+        toast.success(
+          `${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`,
+        );
       } else {
-        let resourceId = reusableResourceId; let versionId = reusableVersionId; let registeredProject = project;
-        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
-          const resource = await createStudioResource({ name: cleanTitle, description: `SPECTROPY Mathematics Lab · ${project.topic} · Class ${project.classes.join(', ')}`, resourceType: 'simulation', file, width: 1920, height: 1080, entryPoint: fileName, metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'mathematics', project } } });
-          if (!resource.latest_version) throw new Error('The Mathematics Lab Resource was created without a version.');
-          resourceId = resource.id; versionId = resource.latest_version.id;
-          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId } };
-          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => !(entry.project.subject === 'mathematics' && entry.project.labId === project.labId))]);
-        } else registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) } };
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        let resourceId = reusableResourceId;
+        let versionId = reusableVersionId;
+        let registeredProject = project;
+        if (
+          !Number.isInteger(resourceId) ||
+          Number(resourceId) <= 0 ||
+          !Number.isInteger(versionId) ||
+          Number(versionId) <= 0
+        ) {
+          const resource = await createStudioResource({
+            name: cleanTitle,
+            description: `SPECTROPY Mathematics Lab · ${project.topic} · Class ${project.classes.join(', ')}`,
+            resourceType: 'simulation',
+            file,
+            width: 1920,
+            height: 1080,
+            entryPoint: fileName,
+            metadataJson: {
+              authoring: {
+                kind: 'spectropy_lab_studio',
+                schema: 'spectropy.lab.v1',
+                subject: 'mathematics',
+                project,
+              },
+            },
+          });
+          if (!resource.latest_version)
+            throw new Error('The Mathematics Lab Resource was created without a version.');
+          resourceId = resource.id;
+          versionId = resource.latest_version.id;
+          registeredProject = {
+            ...project,
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: resourceId,
+              quickStartResourceVersionId: versionId,
+            },
+          };
+          setQuickStartLabs((current) => [
+            {
+              resourceId: Number(resourceId),
+              versionId: Number(versionId),
+              project: registeredProject,
+            },
+            ...current.filter(
+              (entry) =>
+                !(entry.project.subject === 'mathematics' && entry.project.labId === project.labId),
+            ),
+          ]);
+        } else
+          registeredProject = {
+            ...project,
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: Number(resourceId),
+              quickStartResourceVersionId: Number(versionId),
+            },
+          };
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`;
         const id = `mathematics-lab-${token}`;
-        const element: StudioElement = { id, slotId: `free-${id}`, type: 'simulation', content: { text: cleanTitle, url: '', altText: `${cleanTitle} interactive Mathematics Lab`, source: 'SPECTROPY Mathematics Lab', labProject: registeredProject, labTitle: cleanTitle, labSubject: 'mathematics', labBaseResourceVersionId: Number(versionId), labHasLocalChanges: false }, position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 }, resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } } };
+        const element: StudioElement = {
+          id,
+          slotId: `free-${id}`,
+          type: 'simulation',
+          content: {
+            text: cleanTitle,
+            url: '',
+            altText: `${cleanTitle} interactive Mathematics Lab`,
+            source: 'SPECTROPY Mathematics Lab',
+            labProject: registeredProject,
+            labTitle: cleanTitle,
+            labSubject: 'mathematics',
+            labBaseResourceVersionId: Number(versionId),
+            labHasLocalChanges: false,
+          },
+          position: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            zIndex: selectedScreen.elements.length + 1,
+          },
+          resource: {
+            resource_id: Number(resourceId),
+            resource_version_id: Number(versionId),
+            usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
+          },
+        };
         commitElements([...selectedScreen.elements, element], element.id);
-        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+        toast.success(
+          `${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`,
+        );
       }
       setMathematicsLabStudio(null);
-    } catch (error) { toast.error(getStudioErrorMessage(error) || 'Unable to save the Mathematics Lab.'); }
-    finally { setPhysicsLabSaving(false); }
+    } catch (error) {
+      toast.error(getStudioErrorMessage(error) || 'Unable to save the Mathematics Lab.');
+    } finally {
+      setPhysicsLabSaving(false);
+    }
   };
 
   const insertBiologyLab = async (inputProject: BiologyLabProject) => {
@@ -2938,64 +3922,230 @@ export default function TeachingStudioPage() {
     const cleanTitle = project.title.trim() || 'Interactive Biology Lab';
     const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || 'biology-lab'}.html`;
     const linkedResourceId = Number(project.metadata?.quickStartResourceId);
-    const knownEntry = quickStartLabs.find((entry) => entry.project.subject === 'biology' && entry.project.labId === project.labId);
-    const reusableResourceId = Number.isInteger(linkedResourceId) && linkedResourceId > 0 ? linkedResourceId : knownEntry?.resourceId;
-    const reusableVersionId = Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
+    const knownEntry = quickStartLabs.find(
+      (entry) => entry.project.subject === 'biology' && entry.project.labId === project.labId,
+    );
+    const reusableResourceId =
+      Number.isInteger(linkedResourceId) && linkedResourceId > 0
+        ? linkedResourceId
+        : knownEntry?.resourceId;
+    const reusableVersionId =
+      Number(project.metadata?.quickStartResourceVersionId) || knownEntry?.versionId;
     setPhysicsLabSaving(true);
     try {
       const file = new File([buildBiologyLabHtml(project)], fileName, { type: 'text/html' });
-      const existing = biologyLabStudio.elementId ? selectedScreen.elements.find((element) => element.id === biologyLabStudio.elementId) : null;
-      if (biologyLabStudio.elementId && !existing) throw new Error('The Lab being edited is no longer present on this Screen. Nothing was created.');
-      if (existing && !existing.resource?.resource_id) throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
+      const existing = biologyLabStudio.elementId
+        ? selectedScreen.elements.find((element) => element.id === biologyLabStudio.elementId)
+        : null;
+      if (biologyLabStudio.elementId && !existing)
+        throw new Error(
+          'The Lab being edited is no longer present on this Screen. Nothing was created.',
+        );
+      if (existing && !existing.resource?.resource_id)
+        throw new Error('The Lab being edited has lost its Resource link. Nothing was created.');
       if (existing?.resource?.resource_id) {
-        const updated: StudioElement = { ...existing, position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 }, content: { ...existing.content, text: cleanTitle, altText: `${cleanTitle} interactive Biology Lab`, labProject: project, labTitle: cleanTitle, labSubject: 'biology', labBaseResourceVersionId: Number(existing.content.labBaseResourceVersionId) || existing.resource.resource_version_id, labHasLocalChanges: true } };
-        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
-        toast.success(`${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`);
+        const updated: StudioElement = {
+          ...existing,
+          position: { ...existing.position, x: 0, y: 0, width: 1920, height: 1080 },
+          content: {
+            ...existing.content,
+            text: cleanTitle,
+            altText: `${cleanTitle} interactive Biology Lab`,
+            labProject: project,
+            labTitle: cleanTitle,
+            labSubject: 'biology',
+            labBaseResourceVersionId:
+              Number(existing.content.labBaseResourceVersionId) ||
+              existing.resource.resource_version_id,
+            labHasLocalChanges: true,
+          },
+        };
+        commitElements(
+          selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+          updated.id,
+        );
+        toast.success(
+          `${cleanTitle} updated only on this Screen. The Lab Resource was not changed.`,
+        );
       } else {
-        let resourceId = reusableResourceId; let versionId = reusableVersionId; let registeredProject = project;
-        if (!Number.isInteger(resourceId) || Number(resourceId) <= 0 || !Number.isInteger(versionId) || Number(versionId) <= 0) {
-          const resource = await createStudioResource({ name: cleanTitle, description: `SPECTROPY Biology Lab · ${project.topic} · Class ${project.classes.join(', ')}`, resourceType: 'simulation', file, width: 1920, height: 1080, entryPoint: fileName, metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: 'biology', project } } });
-          if (!resource.latest_version) throw new Error('The Biology Lab Resource was created without a version.');
-          resourceId = resource.id; versionId = resource.latest_version.id;
-          registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: resourceId, quickStartResourceVersionId: versionId } };
-          setQuickStartLabs((current) => [{ resourceId: Number(resourceId), versionId: Number(versionId), project: registeredProject }, ...current.filter((entry) => !(entry.project.subject === 'biology' && entry.project.labId === project.labId))]);
-        } else registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: Number(resourceId), quickStartResourceVersionId: Number(versionId) } };
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        let resourceId = reusableResourceId;
+        let versionId = reusableVersionId;
+        let registeredProject = project;
+        if (
+          !Number.isInteger(resourceId) ||
+          Number(resourceId) <= 0 ||
+          !Number.isInteger(versionId) ||
+          Number(versionId) <= 0
+        ) {
+          const resource = await createStudioResource({
+            name: cleanTitle,
+            description: `SPECTROPY Biology Lab · ${project.topic} · Class ${project.classes.join(', ')}`,
+            resourceType: 'simulation',
+            file,
+            width: 1920,
+            height: 1080,
+            entryPoint: fileName,
+            metadataJson: {
+              authoring: {
+                kind: 'spectropy_lab_studio',
+                schema: 'spectropy.lab.v1',
+                subject: 'biology',
+                project,
+              },
+            },
+          });
+          if (!resource.latest_version)
+            throw new Error('The Biology Lab Resource was created without a version.');
+          resourceId = resource.id;
+          versionId = resource.latest_version.id;
+          registeredProject = {
+            ...project,
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: resourceId,
+              quickStartResourceVersionId: versionId,
+            },
+          };
+          setQuickStartLabs((current) => [
+            {
+              resourceId: Number(resourceId),
+              versionId: Number(versionId),
+              project: registeredProject,
+            },
+            ...current.filter(
+              (entry) =>
+                !(entry.project.subject === 'biology' && entry.project.labId === project.labId),
+            ),
+          ]);
+        } else
+          registeredProject = {
+            ...project,
+            metadata: {
+              ...project.metadata,
+              quickStartResourceId: Number(resourceId),
+              quickStartResourceVersionId: Number(versionId),
+            },
+          };
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`;
         const id = `biology-lab-${token}`;
-        const element: StudioElement = { id, slotId: `free-${id}`, type: 'simulation', content: { text: cleanTitle, url: '', altText: `${cleanTitle} interactive Biology Lab`, source: 'SPECTROPY Biology Lab', labProject: registeredProject, labTitle: cleanTitle, labSubject: 'biology', labBaseResourceVersionId: Number(versionId), labHasLocalChanges: false }, position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 }, resource: { resource_id: Number(resourceId), resource_version_id: Number(versionId), usage: { slot_id: `free-${id}`, resource_type: 'simulation' } } };
+        const element: StudioElement = {
+          id,
+          slotId: `free-${id}`,
+          type: 'simulation',
+          content: {
+            text: cleanTitle,
+            url: '',
+            altText: `${cleanTitle} interactive Biology Lab`,
+            source: 'SPECTROPY Biology Lab',
+            labProject: registeredProject,
+            labTitle: cleanTitle,
+            labSubject: 'biology',
+            labBaseResourceVersionId: Number(versionId),
+            labHasLocalChanges: false,
+          },
+          position: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            zIndex: selectedScreen.elements.length + 1,
+          },
+          resource: {
+            resource_id: Number(resourceId),
+            resource_version_id: Number(versionId),
+            usage: { slot_id: `free-${id}`, resource_type: 'simulation' },
+          },
+        };
         commitElements([...selectedScreen.elements, element], element.id);
-        toast.success(`${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`);
+        toast.success(
+          `${cleanTitle} inserted at full canvas size without creating a duplicate Resource.`,
+        );
       }
       setBiologyLabStudio(null);
-    } catch (error) { toast.error(getStudioErrorMessage(error) || 'Unable to save the Biology Lab.'); }
-    finally { setPhysicsLabSaving(false); }
+    } catch (error) {
+      toast.error(getStudioErrorMessage(error) || 'Unable to save the Biology Lab.');
+    } finally {
+      setPhysicsLabSaving(false);
+    }
   };
 
   const updateSelectedPhysicsLabResource = async () => {
     if (editorReadOnly || !selectedScreen || !selectedElementId || physicsLabSaving) return;
     const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
-    if (!element?.resource?.resource_id || !element.content.labProject) return toast.error('Select an edited Physics Lab first.');
+    if (!element?.resource?.resource_id || !element.content.labProject)
+      return toast.error('Select an edited Physics Lab first.');
     try {
       setPhysicsLabSaving(true);
       const subject = (element.content.labProject as { subject?: unknown }).subject;
-      const project = subject === 'chemistry' ? validateChemistryLabProject(element.content.labProject)
-        : subject === 'mathematics' ? validateMathematicsLabProject(element.content.labProject)
-          : subject === 'biology' ? validateBiologyLabProject(element.content.labProject)
-          : validatePhysicsLabProject(element.content.labProject);
+      const project =
+        subject === 'chemistry'
+          ? validateChemistryLabProject(element.content.labProject)
+          : subject === 'mathematics'
+            ? validateMathematicsLabProject(element.content.labProject)
+            : subject === 'biology'
+              ? validateBiologyLabProject(element.content.labProject)
+              : validatePhysicsLabProject(element.content.labProject);
       const fileName = `${project.labId.replace(/[^a-z0-9_-]+/gi, '-') || `${project.subject}-lab`}.html`;
-      const html = subject === 'chemistry' ? buildChemistryLabHtml(project as ChemistryLabProject)
-        : subject === 'mathematics' ? buildMathematicsLabHtml(project as MathematicsLabProject)
-          : subject === 'biology' ? buildBiologyLabHtml(project as BiologyLabProject)
-          : buildPhysicsLabHtml(project as PhysicsLabProject, await loadPhysicsLabRuntimeSource());
+      const html =
+        subject === 'chemistry'
+          ? buildChemistryLabHtml(project as ChemistryLabProject)
+          : subject === 'mathematics'
+            ? buildMathematicsLabHtml(project as MathematicsLabProject)
+            : subject === 'biology'
+              ? buildBiologyLabHtml(project as BiologyLabProject)
+              : buildPhysicsLabHtml(
+                  project as PhysicsLabProject,
+                  await loadPhysicsLabRuntimeSource(),
+                );
       const file = new File([html], fileName, { type: 'text/html' });
       const created = await createStudioResourceVersion(element.resource.resource_id, {
-        file, width: 1920, height: 1080, entryPoint: fileName,
-        metadataJson: { authoring: { kind: 'spectropy_lab_studio', schema: 'spectropy.lab.v1', subject: project.subject, project } },
+        file,
+        width: 1920,
+        height: 1080,
+        entryPoint: fileName,
+        metadataJson: {
+          authoring: {
+            kind: 'spectropy_lab_studio',
+            schema: 'spectropy.lab.v1',
+            subject: project.subject,
+            project,
+          },
+        },
       });
-      const registeredProject = { ...project, metadata: { ...project.metadata, quickStartResourceId: element.resource.resource_id, quickStartResourceVersionId: created.version.id } };
-      const updated: StudioElement = { ...element, content: { ...element.content, labProject: registeredProject, labBaseResourceVersionId: created.version.id, labHasLocalChanges: false }, resource: { ...element.resource, resource_version_id: created.version.id } };
-      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
-      setQuickStartLabs((current) => current.map((entry) => entry.resourceId === element.resource?.resource_id ? { ...entry, versionId: created.version.id, project: registeredProject } : entry));
+      const registeredProject = {
+        ...project,
+        metadata: {
+          ...project.metadata,
+          quickStartResourceId: element.resource.resource_id,
+          quickStartResourceVersionId: created.version.id,
+        },
+      };
+      const updated: StudioElement = {
+        ...element,
+        content: {
+          ...element.content,
+          labProject: registeredProject,
+          labBaseResourceVersionId: created.version.id,
+          labHasLocalChanges: false,
+        },
+        resource: { ...element.resource, resource_version_id: created.version.id },
+      };
+      commitElements(
+        selectedScreen.elements.map((candidate) =>
+          candidate.id === updated.id ? updated : candidate,
+        ),
+        updated.id,
+      );
+      setQuickStartLabs((current) =>
+        current.map((entry) =>
+          entry.resourceId === element.resource?.resource_id
+            ? { ...entry, versionId: created.version.id, project: registeredProject }
+            : entry,
+        ),
+      );
       toast.success(`${project.title} was explicitly saved as a new Lab Resource version.`);
     } catch (error) {
       toast.error(getStudioErrorMessage(error) || 'Unable to update the Lab Resource.');
@@ -3007,21 +4157,49 @@ export default function TeachingStudioPage() {
   const resetSelectedPhysicsLabToResource = async () => {
     if (editorReadOnly || !selectedScreen || !selectedElementId || physicsLabSaving) return;
     const element = selectedScreen.elements.find((candidate) => candidate.id === selectedElementId);
-    if (!element?.resource?.resource_id || !element.content.labProject) return toast.error('Select an edited Physics Lab first.');
+    if (!element?.resource?.resource_id || !element.content.labProject)
+      return toast.error('Select an edited Physics Lab first.');
     try {
       setPhysicsLabSaving(true);
       const resource = await getStudioResource(element.resource.resource_id);
-      const baseVersionId = Number(element.content.labBaseResourceVersionId) || element.resource.resource_version_id;
-      const version = resource.versions.find((candidate) => candidate.id === baseVersionId) || resource.versions.find((candidate) => candidate.id === element.resource?.resource_version_id);
+      const baseVersionId =
+        Number(element.content.labBaseResourceVersionId) || element.resource.resource_version_id;
+      const version =
+        resource.versions.find((candidate) => candidate.id === baseVersionId) ||
+        resource.versions.find(
+          (candidate) => candidate.id === element.resource?.resource_version_id,
+        );
       const authoring = version?.metadata_json?.authoring;
-      const rawProject = authoring && typeof authoring === 'object' ? (authoring as Record<string, unknown>).project : null;
+      const rawProject =
+        authoring && typeof authoring === 'object'
+          ? (authoring as Record<string, unknown>).project
+          : null;
       const subject = (rawProject as { subject?: unknown })?.subject;
-      const project = subject === 'chemistry' ? validateChemistryLabProject(rawProject)
-        : subject === 'mathematics' ? validateMathematicsLabProject(rawProject)
-          : subject === 'biology' ? validateBiologyLabProject(rawProject)
-          : validatePhysicsLabProject(rawProject);
-      const updated: StudioElement = { ...element, content: { ...element.content, text: project.title, labProject: project, labTitle: project.title, labBaseResourceVersionId: version?.id || element.resource.resource_version_id, labHasLocalChanges: false } };
-      commitElements(selectedScreen.elements.map((candidate) => candidate.id === updated.id ? updated : candidate), updated.id);
+      const project =
+        subject === 'chemistry'
+          ? validateChemistryLabProject(rawProject)
+          : subject === 'mathematics'
+            ? validateMathematicsLabProject(rawProject)
+            : subject === 'biology'
+              ? validateBiologyLabProject(rawProject)
+              : validatePhysicsLabProject(rawProject);
+      const updated: StudioElement = {
+        ...element,
+        content: {
+          ...element.content,
+          text: project.title,
+          labProject: project,
+          labTitle: project.title,
+          labBaseResourceVersionId: version?.id || element.resource.resource_version_id,
+          labHasLocalChanges: false,
+        },
+      };
+      commitElements(
+        selectedScreen.elements.map((candidate) =>
+          candidate.id === updated.id ? updated : candidate,
+        ),
+        updated.id,
+      );
       toast.success(`${project.title} was reset to its linked Lab Resource version.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to reset the Physics Lab.');
@@ -3056,18 +4234,26 @@ export default function TeachingStudioPage() {
     try {
       setActivityStudio({ elementId: element.id, project: validateActivityDocument(project) });
     } catch (activityError) {
-      toast.error(activityError instanceof Error ? activityError.message : 'This Activity uses an unsupported format.');
+      toast.error(
+        activityError instanceof Error
+          ? activityError.message
+          : 'This Activity uses an unsupported format.',
+      );
     }
   };
 
   const insertActivity = async ({ project, title, html }: ActivityBuilderInsert) => {
     if (!selectedScreen || !activityStudio || activitySaving) return;
     const cleanTitle = title.trim() || 'Interactive Activity';
-    const fileName = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'interactive-activity'}.html`;
+    const fileName = `${
+      cleanTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'interactive-activity'
+    }.html`;
     const file = new File([html], fileName, { type: 'text/html' });
-    const authoringProject: ActivityDocument = project.sceneSource === 'resource'
-      ? { ...project, sceneUrl: '' }
-      : project;
+    const authoringProject: ActivityDocument =
+      project.sceneSource === 'resource' ? { ...project, sceneUrl: '' } : project;
     const metadataJson = {
       authoring: {
         kind: 'spectropy_activity_builder',
@@ -3082,7 +4268,11 @@ export default function TeachingStudioPage() {
         : null;
       if (existing?.resource?.resource_id) {
         const created = await createStudioResourceVersion(existing.resource.resource_id, {
-          file, width: 1920, height: 1080, entryPoint: fileName, metadataJson,
+          file,
+          width: 1920,
+          height: 1080,
+          entryPoint: fileName,
+          metadataJson,
         });
         const updated: StudioElement = {
           ...existing,
@@ -3098,7 +4288,10 @@ export default function TeachingStudioPage() {
           },
           resource: { ...existing.resource, resource_version_id: created.version.id },
         };
-        commitElements(selectedScreen.elements.map((element) => element.id === updated.id ? updated : element), updated.id);
+        commitElements(
+          selectedScreen.elements.map((element) => (element.id === updated.id ? updated : element)),
+          updated.id,
+        );
         toast.success(`${cleanTitle} updated and saved as a new Resource version.`);
       } else {
         const resource = await createStudioResource({
@@ -3113,7 +4306,10 @@ export default function TeachingStudioPage() {
         });
         const version = resource.latest_version;
         if (!version) throw new Error('The Activity Resource was created without a version.');
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`;
         const id = `activity-${token}`;
         const element: StudioElement = {
           id,
@@ -3127,7 +4323,13 @@ export default function TeachingStudioPage() {
             activityTitle: cleanTitle,
             activityType: project.activityType,
           },
-          position: { x: 0, y: 0, width: 1920, height: 1080, zIndex: selectedScreen.elements.length + 1 },
+          position: {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            zIndex: selectedScreen.elements.length + 1,
+          },
           resource: {
             resource_id: resource.id,
             resource_version_id: version.id,
@@ -3139,7 +4341,9 @@ export default function TeachingStudioPage() {
       }
       setActivityStudio(null);
     } catch (activityError) {
-      toast.error(activityError instanceof Error ? activityError.message : 'Unable to export the Activity.');
+      toast.error(
+        activityError instanceof Error ? activityError.message : 'Unable to export the Activity.',
+      );
     } finally {
       setActivitySaving(false);
     }
@@ -3247,17 +4451,20 @@ export default function TeachingStudioPage() {
       rememberScreenRevision(saved);
       const currentDraft = selectedScreenRef.current;
       const changedWhileSaving = currentDraft !== draft;
-      const synchronizedDraft = currentDraft?.id === saved.id
-        ? changedWhileSaving
-          ? { ...currentDraft, revision_no: saved.revision_no }
-          : saved
-        : null;
+      const synchronizedDraft =
+        currentDraft?.id === saved.id
+          ? changedWhileSaving
+            ? { ...currentDraft, revision_no: saved.revision_no }
+            : saved
+          : null;
       if (synchronizedDraft) selectedScreenRef.current = synchronizedDraft;
-      setSelectedScreen((current) => current?.id === saved.id ? synchronizedDraft ?? current : current);
+      setSelectedScreen((current) =>
+        current?.id === saved.id ? (synchronizedDraft ?? current) : current,
+      );
       setScreenList((current) => ({
         session_revision_no: saved.session_revision_no,
         screens: current.screens.map((screen) =>
-          screen.id === saved.id ? synchronizedDraft ?? saved : screen,
+          screen.id === saved.id ? (synchronizedDraft ?? saved) : screen,
         ),
       }));
       if (!changedWhileSaving) {
@@ -3324,19 +4531,31 @@ export default function TeachingStudioPage() {
     return () => window.removeEventListener('keydown', historyShortcut);
   }, [elementFuture, elementPast, redoElementChange, selectedScreen, undoElementChange]);
 
-  const selectedElementsForClipboard = () => selectedScreen
-    ? collectStudioClipboardElements(selectedScreen.elements, selectedElementIds, selectedElementId)
-    : [];
+  const selectedElementsForClipboard = () =>
+    selectedScreen
+      ? collectStudioClipboardElements(
+          selectedScreen.elements,
+          selectedElementIds,
+          selectedElementId,
+        )
+      : [];
 
   const selectedCharacterFormat = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
     const range = selection.getRangeAt(0);
-    const node = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement;
+    const node =
+      range.startContainer instanceof HTMLElement
+        ? range.startContainer
+        : range.startContainer.parentElement;
     const editor = node?.closest<HTMLElement>('.studio-canvas-rich-text[contenteditable="true"]');
     const elementRoot = editor?.closest<HTMLElement>('[data-element-id]');
-    if (!editor || !elementRoot?.dataset.elementId || !editor.contains(range.endContainer)) return null;
-    const styleTarget = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement ?? editor;
+    if (!editor || !elementRoot?.dataset.elementId || !editor.contains(range.endContainer))
+      return null;
+    const styleTarget =
+      range.startContainer instanceof HTMLElement
+        ? range.startContainer
+        : (range.startContainer.parentElement ?? editor);
     const computed = window.getComputedStyle(styleTarget);
     const offsetAt = (container: Node, offset: number) => {
       const prefix = document.createRange();
@@ -3356,7 +4575,9 @@ export default function TeachingStudioPage() {
         'font-style': computed.fontStyle,
         'text-decoration-line': computed.textDecorationLine,
         color: computed.color,
-        ...(computed.backgroundColor !== 'rgba(0, 0, 0, 0)' ? { 'background-color': computed.backgroundColor } : {}),
+        ...(computed.backgroundColor !== 'rgba(0, 0, 0, 0)'
+          ? { 'background-color': computed.backgroundColor }
+          : {}),
       },
     };
   };
@@ -3371,22 +4592,39 @@ export default function TeachingStudioPage() {
   };
 
   const studioClipboardRepresentations = (elements: StudioElement[]) => {
-    const escapeHtml = (value: string) => value
-      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-    const textFor = (element: StudioElement) => String(
-      element.content.text ?? element.content.altText ?? element.content.title ?? element.content.caption ?? element.type,
-    );
+    const escapeHtml = (value: string) =>
+      value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    const textFor = (element: StudioElement) =>
+      String(
+        element.content.text ??
+          element.content.altText ??
+          element.content.title ??
+          element.content.caption ??
+          element.type,
+      );
     const plain = elements.map(textFor).join('\n');
-    const html = elements.map((element) => {
-      const rich = typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : '';
-      const url = typeof element.content.url === 'string' ? element.content.url : '';
-      const mimeType = String(element.content.mimeType || '');
-      if (!rich && url && mimeType.startsWith('image/') && /^(?:data:image\/|https?:\/\/)/i.test(url)) {
-        return `<img src="${escapeHtml(url)}" alt="${escapeHtml(textFor(element))}">`;
-      }
-      return rich || `<p>${escapeHtml(textFor(element)).replaceAll('\n', '<br>')}</p>`;
-    }).join('');
+    const html = elements
+      .map((element) => {
+        const rich =
+          typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : '';
+        const url = typeof element.content.url === 'string' ? element.content.url : '';
+        const mimeType = String(element.content.mimeType || '');
+        if (
+          !rich &&
+          url &&
+          mimeType.startsWith('image/') &&
+          /^(?:data:image\/|https?:\/\/)/i.test(url)
+        ) {
+          return `<img src="${escapeHtml(url)}" alt="${escapeHtml(textFor(element))}">`;
+        }
+        return rich || `<p>${escapeHtml(textFor(element)).replaceAll('\n', '<br>')}</p>`;
+      })
+      .join('');
     return { plain, html };
   };
 
@@ -3395,15 +4633,26 @@ export default function TeachingStudioPage() {
     const element = elements[0];
     let url = typeof element.content.url === 'string' ? element.content.url : '';
     if (!url && element.resource?.resource_version_id) {
-      try { url = (await getStudioResourcePreview(element.resource.resource_version_id)).url; } catch { return null; }
+      try {
+        url = (await getStudioResourcePreview(element.resource.resource_version_id)).url;
+      } catch {
+        return null;
+      }
     }
     if (!url) return null;
     try {
       const blob = await (await fetch(url)).blob();
       if (!blob.type.startsWith('image/')) return null;
-      if (typeof ClipboardItem !== 'undefined' && typeof ClipboardItem.supports === 'function' && !ClipboardItem.supports(blob.type)) return null;
+      if (
+        typeof ClipboardItem !== 'undefined' &&
+        typeof ClipboardItem.supports === 'function' &&
+        !ClipboardItem.supports(blob.type)
+      )
+        return null;
       return blob;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
   const writeElementsToSystemClipboard = async (elements: StudioElement[]) => {
@@ -3419,10 +4668,12 @@ export default function TeachingStudioPage() {
           ...(image ? { [image.type]: image } : {}),
         };
         try {
-          await navigator.clipboard.write([new ClipboardItem({
-            [SPECTROPY_CLIPBOARD_MIME]: new Blob([native], { type: SPECTROPY_CLIPBOARD_MIME }),
-            ...standardRepresentations,
-          })]);
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              [SPECTROPY_CLIPBOARD_MIME]: new Blob([native], { type: SPECTROPY_CLIPBOARD_MIME }),
+              ...standardRepresentations,
+            }),
+          ]);
         } catch {
           await navigator.clipboard.write([new ClipboardItem(standardRepresentations)]);
         }
@@ -3450,8 +4701,13 @@ export default function TeachingStudioPage() {
     const copiedIds = new Set(copied.map((element) => element.id));
     setEditorClipboard(copied);
     void writeElementsToSystemClipboard(copied).finally(() => {
-      commitElements(selectedScreen.elements.filter((element) => !copiedIds.has(element.id)), null);
-      toast.success(`${copied.length === 1 ? 'Element' : `${copied.length} elements`} cut to the clipboard.`);
+      commitElements(
+        selectedScreen.elements.filter((element) => !copiedIds.has(element.id)),
+        null,
+      );
+      toast.success(
+        `${copied.length === 1 ? 'Element' : `${copied.length} elements`} cut to the clipboard.`,
+      );
     });
   };
 
@@ -3483,14 +4739,19 @@ export default function TeachingStudioPage() {
         remove: (resourceId) => deleteStudioResource(resourceId),
       });
       if (selectedScreenRef.current?.id !== targetScreen.id) {
-        await Promise.allSettled(committed.created_resource_ids.map((resourceId) => deleteStudioResource(resourceId)));
+        await Promise.allSettled(
+          committed.created_resource_ids.map((resourceId) => deleteStudioResource(resourceId)),
+        );
         toast.error('The Screen changed while pasting, so the paste was cancelled.');
         return false;
       }
       externalPasteSequenceRef.current = (externalPasteSequenceRef.current + 1) % 9;
       const offset = externalPasteSequenceRef.current * 24;
       const pasted = committed.elements.map((element, index) => {
-        const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${index}`;
+        const token =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${index}`;
         const id = `element-${token}`;
         const width = Number(element.position.width) || 400;
         const height = Number(element.position.height) || 240;
@@ -3503,25 +4764,48 @@ export default function TeachingStudioPage() {
             x: Math.max(0, Math.min(1920 - width, (Number(element.position.x) || 0) + offset)),
             y: Math.max(0, Math.min(1080 - height, (Number(element.position.y) || 0) + offset)),
           },
-          ...(element.resource ? { resource: { ...element.resource, usage: { ...element.resource.usage, slot_id: `free-${id}` } } } : {}),
+          ...(element.resource
+            ? {
+                resource: {
+                  ...element.resource,
+                  usage: { ...element.resource.usage, slot_id: `free-${id}` },
+                },
+              }
+            : {}),
         } as StudioElement;
       });
       commitElements([...targetScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
       const ids = pasted.map((element) => element.id);
       setSelectedElementIds(ids);
-      setExternalPasteOptions({ elementIds: ids, originalElements: pasted, modes: adaptation.available_modes });
+      setExternalPasteOptions({
+        elementIds: ids,
+        originalElements: pasted,
+        modes: adaptation.available_modes,
+      });
       const first = pasted[0];
       const resourceType = String(first?.resource?.usage.resource_type || '');
-      if (pasted.length === 1 && (first?.type === 'visual' || ['image', 'animation'].includes(resourceType))) setActiveRibbonTab('picture-format');
+      if (
+        pasted.length === 1 &&
+        (first?.type === 'visual' || ['image', 'animation'].includes(resourceType))
+      )
+        setActiveRibbonTab('picture-format');
       adaptation.warnings.forEach((warning) => toast(warning, { duration: 6500 }));
-      const warningCount = adaptation.document.issues.filter((entry) => entry.severity === 'warning').length;
-      toast.success(`${pasted.length === 1 ? 'Item' : `${pasted.length} items`} pasted${warningCount ? ` with ${warningCount} warning${warningCount === 1 ? '' : 's'}` : ''}.`);
+      const warningCount = adaptation.document.issues.filter(
+        (entry) => entry.severity === 'warning',
+      ).length;
+      toast.success(
+        `${pasted.length === 1 ? 'Item' : `${pasted.length} items`} pasted${warningCount ? ` with ${warningCount} warning${warningCount === 1 ? '' : 's'}` : ''}.`,
+      );
       return true;
     } catch (pasteError) {
       const cleanupIds = (pasteError as { cleanup_resource_ids?: number[] }).cleanup_resource_ids;
-      toast.error(cleanupIds?.length
-        ? `Paste failed and some temporary resources need cleanup (${cleanupIds.join(', ')}).`
-        : pasteError instanceof Error ? pasteError.message : 'Paste failed without changing the Screen.');
+      toast.error(
+        cleanupIds?.length
+          ? `Paste failed and some temporary resources need cleanup (${cleanupIds.join(', ')}).`
+          : pasteError instanceof Error
+            ? pasteError.message
+            : 'Paste failed without changing the Screen.',
+      );
       return false;
     } finally {
       externalPasteBusyRef.current = false;
@@ -3550,7 +4834,9 @@ export default function TeachingStudioPage() {
     commitElements([...selectedScreen.elements, ...pasted], pasted.at(-1)?.id ?? null);
     setSelectedElementIds(pasted.map((element) => element.id));
     if (mode === 'picture' && pasted.length === 1) setActiveRibbonTab('picture-format');
-    toast.success(`${pasted.length === 1 ? 'Element' : `${pasted.length} elements`} pasted using ${mode.replaceAll('-', ' ')}.`);
+    toast.success(
+      `${pasted.length === 1 ? 'Element' : `${pasted.length} elements`} pasted using ${mode.replaceAll('-', ' ')}.`,
+    );
   };
 
   const changeExternalPasteMode = (mode: StudioPasteMode) => {
@@ -3558,7 +4844,10 @@ export default function TeachingStudioPage() {
     if (!screen || !externalPasteOptions) return;
     const replacements = applyStudioPasteMode(externalPasteOptions.originalElements, mode);
     const byId = new Map(replacements.map((element) => [element.id, element]));
-    commitElements(screen.elements.map((element) => byId.get(element.id) || element), externalPasteOptions.elementIds.at(-1) ?? null);
+    commitElements(
+      screen.elements.map((element) => byId.get(element.id) || element),
+      externalPasteOptions.elementIds.at(-1) ?? null,
+    );
     setSelectedElementIds(externalPasteOptions.elementIds);
     toast.success(`Paste changed to ${mode.replaceAll('-', ' ')}.`);
   };
@@ -3577,16 +4866,26 @@ export default function TeachingStudioPage() {
       sourceElementId: source.id,
       format: copyStudioElementFormat(source),
       persistent,
-      ...(characterFormat?.elementId === source.id ? { textRangeFormat: characterFormat.styles, sourceSelectionText: characterFormat.text } : {}),
+      ...(characterFormat?.elementId === source.id
+        ? { textRangeFormat: characterFormat.styles, sourceSelectionText: characterFormat.text }
+        : {}),
     });
     formatPainterAppliedTargetRef.current = null;
-    toast.success(persistent
-      ? 'Format Painter locked. Select multiple targets; press Escape when finished.'
-      : 'Format Painter ready. Select one target element.');
+    toast.success(
+      persistent
+        ? 'Format Painter locked. Select multiple targets; press Escape when finished.'
+        : 'Format Painter ready. Select one target element.',
+    );
   };
 
   useEffect(() => {
-    if (!formatPainter || formatPainter.textRangeFormat || !selectedElementId || selectedElementId === formatPainter.sourceElementId) return;
+    if (
+      !formatPainter ||
+      formatPainter.textRangeFormat ||
+      !selectedElementId ||
+      selectedElementId === formatPainter.sourceElementId
+    )
+      return;
     if (formatPainterAppliedTargetRef.current === selectedElementId) return;
     const target = selectedScreen?.elements.find((element) => element.id === selectedElementId);
     if (!target || editorReadOnly) return;
@@ -3596,9 +4895,11 @@ export default function TeachingStudioPage() {
     }
     formatPainterAppliedTargetRef.current = selectedElementId;
     commitElements(
-      selectedScreen.elements.map((element) => element.id === target.id
-        ? applyStudioElementFormat(element, formatPainter.format)
-        : element),
+      selectedScreen.elements.map((element) =>
+        element.id === target.id
+          ? applyStudioElementFormat(element, formatPainter.format)
+          : element,
+      ),
       target.id,
     );
     toast.success('Formatting applied.');
@@ -3618,7 +4919,11 @@ export default function TeachingStudioPage() {
       timer = window.setTimeout(() => {
         const target = selectedCharacterFormat();
         if (!target || !formatPainter.textRangeFormat) return;
-        if (target.elementId === formatPainter.sourceElementId && target.text === formatPainter.sourceSelectionText) return;
+        if (
+          target.elementId === formatPainter.sourceElementId &&
+          target.text === formatPainter.sourceSelectionText
+        )
+          return;
         const signature = `text:${target.elementId}:${target.text}`;
         if (formatPainterAppliedTargetRef.current === signature) return;
         formatPainterAppliedTargetRef.current = signature;
@@ -3656,9 +4961,16 @@ export default function TeachingStudioPage() {
       const key = event.key.toLowerCase();
       const selected = selectedScreen?.elements.find((element) => element.id === selectedElementId);
 
-      if (!typingTarget && !modifier && !event.altKey && key === 's' && !spectropyShortcutHeldRef.current) {
+      if (
+        !typingTarget &&
+        !modifier &&
+        !event.altKey &&
+        key === 's' &&
+        !spectropyShortcutHeldRef.current
+      ) {
         spectropyShortcutHeldRef.current = true;
-        if (spectropyShortcutTimerRef.current !== null) window.clearTimeout(spectropyShortcutTimerRef.current);
+        if (spectropyShortcutTimerRef.current !== null)
+          window.clearTimeout(spectropyShortcutTimerRef.current);
         spectropyShortcutTimerRef.current = window.setTimeout(() => {
           spectropyShortcutHeldRef.current = false;
           spectropyShortcutTimerRef.current = null;
@@ -3670,7 +4982,8 @@ export default function TeachingStudioPage() {
       if (!typingTarget && spectropyShortcutHeldRef.current && key !== 's') {
         event.preventDefault();
         spectropyShortcutHeldRef.current = false;
-        if (spectropyShortcutTimerRef.current !== null) window.clearTimeout(spectropyShortcutTimerRef.current);
+        if (spectropyShortcutTimerRef.current !== null)
+          window.clearTimeout(spectropyShortcutTimerRef.current);
         spectropyShortcutTimerRef.current = null;
         if (key === 'a' && selectedScreen) {
           const ids = selectedScreen.elements.map((element) => element.id);
@@ -3679,41 +4992,43 @@ export default function TeachingStudioPage() {
         } else if (key === 'c' && event.shiftKey && selected) {
           setCopiedObjectFormat(copyStudioElementFormat(selected));
           toast.success('Object formatting copied.');
-        }
-        else if (key === 'v' && event.shiftKey && selected && copiedObjectFormat) {
-          if (studioElementFormatFamily(selected) !== copiedObjectFormat.family) toast.error('The copied formatting is not compatible with this element.');
-          else updateElementPreservingSelection(applyStudioElementFormat(selected, copiedObjectFormat));
-        }
-        else if (key === 'c' && selected) copySelectedElements();
+        } else if (key === 'v' && event.shiftKey && selected && copiedObjectFormat) {
+          if (studioElementFormatFamily(selected) !== copiedObjectFormat.family)
+            toast.error('The copied formatting is not compatible with this element.');
+          else
+            updateElementPreservingSelection(
+              applyStudioElementFormat(selected, copiedObjectFormat),
+            );
+        } else if (key === 'c' && selected) copySelectedElements();
         else if (key === 'x' && selected && !editorReadOnly) cutSelectedElements();
         else if (key === 'v' && selectedScreen && !editorReadOnly) {
           if (editorClipboard.length) pasteClipboard('source-formatting');
           else void pasteFromSystemClipboard();
-        }
-        else if (key === 'd' && selected && !editorReadOnly) duplicateElement(selected.id);
-        else if (key === 'g' && selectedElementIds.length > 1 && !editorReadOnly) groupSelectedElements();
+        } else if (key === 'd' && selected && !editorReadOnly) duplicateElement(selected.id);
+        else if (key === 'g' && selectedElementIds.length > 1 && !editorReadOnly)
+          groupSelectedElements();
         else if (key === 'u' && selectedHasGroup && !editorReadOnly) ungroupSelectedElements();
         else if (key === 'z' && !editorReadOnly) undoElementChange();
         else if (key === 'y' && !editorReadOnly) redoElementChange();
         else if (key === 'p') {
           if (event.shiftKey) void openPresentation();
           else void openPreview();
-        }
-        else if (key === 'r') openScreenScript();
+        } else if (key === 'r') openScreenScript();
         else if (key === 'l') openSelectionPane();
         else if (key === 'm' && !editorReadOnly) void createBlankScreen();
         else if (key === 'n' && selectedScreen) {
           const index = screenList.screens.findIndex((screen) => screen.id === selectedScreen.id);
           const next = screenList.screens[index + 1];
           if (next) void selectScreen(next.id);
-        }
-        else if (key === 'b' && selectedScreen) {
+        } else if (key === 'b' && selectedScreen) {
           const index = screenList.screens.findIndex((screen) => screen.id === selectedScreen.id);
           const previous = screenList.screens[index - 1];
           if (previous) void selectScreen(previous.id);
-        }
-        else if (key === 'f') void toggleEditorFocusMode();
-        else if (key === 'h') toast('Spectropy shortcuts: S+A select all · S+C/X/V clipboard · S+Shift+C/V copy/apply formatting · S+D duplicate · S+G/U group/ungroup · S+Z/Y undo/redo · S+M new Screen · S+N/B next/previous Screen · S+P preview · S+L layers · S+F fullscreen');
+        } else if (key === 'f') void toggleEditorFocusMode();
+        else if (key === 'h')
+          toast(
+            'Spectropy shortcuts: S+A select all · S+C/X/V clipboard · S+Shift+C/V copy/apply formatting · S+D duplicate · S+G/U group/ungroup · S+Z/Y undo/redo · S+M new Screen · S+N/B next/previous Screen · S+P preview · S+L layers · S+F fullscreen',
+          );
         else if (key === 'enter' && !editorReadOnly) void saveDraftRef.current('manual');
         return;
       }
@@ -3760,8 +5075,10 @@ export default function TeachingStudioPage() {
       }
       if (modifier && event.shiftKey && key === 'v' && selected && copiedObjectFormat) {
         event.preventDefault();
-        if (studioElementFormatFamily(selected) !== copiedObjectFormat.family) toast.error('The copied formatting is not compatible with this element.');
-        else updateElementPreservingSelection(applyStudioElementFormat(selected, copiedObjectFormat));
+        if (studioElementFormatFamily(selected) !== copiedObjectFormat.family)
+          toast.error('The copied formatting is not compatible with this element.');
+        else
+          updateElementPreservingSelection(applyStudioElementFormat(selected, copiedObjectFormat));
         return;
       }
       if (event.altKey && event.shiftKey && key === 'c' && selected) {
@@ -3775,8 +5092,18 @@ export default function TeachingStudioPage() {
       }
       if (event.altKey && event.shiftKey && key === 'v' && selected && copiedAnimation) {
         event.preventDefault();
-        const effects = (Array.isArray(copiedAnimation.effects) ? copiedAnimation.effects as Array<Record<string, unknown>> : []).map((effect, index) => ({ ...effect, id: `animation-${Date.now()}-${index}` }));
-        updateElementPreservingSelection({ ...selected, content: { ...selected.content, animation: { ...structuredClone(copiedAnimation), effects } } });
+        const effects = (
+          Array.isArray(copiedAnimation.effects)
+            ? (copiedAnimation.effects as Array<Record<string, unknown>>)
+            : []
+        ).map((effect, index) => ({ ...effect, id: `animation-${Date.now()}-${index}` }));
+        updateElementPreservingSelection({
+          ...selected,
+          content: {
+            ...selected.content,
+            animation: { ...structuredClone(copiedAnimation), effects },
+          },
+        });
         toast.success('Animation pasted.');
         return;
       }
@@ -3827,15 +5154,25 @@ export default function TeachingStudioPage() {
       }
       if (key === 'tab' && selectedScreen.elements.length) {
         event.preventDefault();
-        const currentIndex = selectedScreen.elements.findIndex((element) => element.id === selectedElementId);
+        const currentIndex = selectedScreen.elements.findIndex(
+          (element) => element.id === selectedElementId,
+        );
         const offset = event.shiftKey ? -1 : 1;
-        const nextIndex = (currentIndex + offset + selectedScreen.elements.length) % selectedScreen.elements.length;
+        const nextIndex =
+          (currentIndex + offset + selectedScreen.elements.length) % selectedScreen.elements.length;
         selectElementAndOpenControls(selectedScreen.elements[nextIndex].id);
         return;
       }
       if (modifier && event.shiftKey && (key === '[' || key === ']') && selected) {
         event.preventDefault();
-        commitElements(moveStudioLayer(selectedScreen.elements, selected.id, key === ']' ? 'forward' : 'backward'), selected.id);
+        commitElements(
+          moveStudioLayer(
+            selectedScreen.elements,
+            selected.id,
+            key === ']' ? 'forward' : 'backward',
+          ),
+          selected.id,
+        );
         return;
       }
       if ((key === 'delete' || key === 'backspace') && selected) {
@@ -3871,11 +5208,15 @@ export default function TeachingStudioPage() {
       setEditorClipboard(copied);
       if (cut && selectedScreen && !editorReadOnly) {
         const copiedIds = new Set(copied.map((element) => element.id));
-        commitElements(selectedScreen.elements.filter((element) => !copiedIds.has(element.id)), null);
+        commitElements(
+          selectedScreen.elements.filter((element) => !copiedIds.has(element.id)),
+          null,
+        );
       }
     };
     const pasteExternal = (event: ClipboardEvent) => {
-      if (isTypingTarget(event.target) || editorReadOnly || !selectedScreen || !event.clipboardData) return;
+      if (isTypingTarget(event.target) || editorReadOnly || !selectedScreen || !event.clipboardData)
+        return;
       const studioPayload = event.clipboardData.getData(SPECTROPY_CLIPBOARD_MIME);
       if (studioPayload) {
         event.preventDefault();
@@ -3903,11 +5244,23 @@ export default function TeachingStudioPage() {
       document.removeEventListener('copy', copyExternal, true);
       document.removeEventListener('cut', cutExternal, true);
       document.removeEventListener('paste', pasteExternal, true);
-      if (spectropyShortcutTimerRef.current !== null) window.clearTimeout(spectropyShortcutTimerRef.current);
+      if (spectropyShortcutTimerRef.current !== null)
+        window.clearTimeout(spectropyShortcutTimerRef.current);
     };
     // Command callbacks intentionally refresh with the editor state dependencies below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [copiedAnimation, copiedObjectFormat, editorClipboard, editorReadOnly, formatPainter, screenList, selectedElementId, selectedElementIds, selectedHasGroup, selectedScreen]);
+  }, [
+    copiedAnimation,
+    copiedObjectFormat,
+    editorClipboard,
+    editorReadOnly,
+    formatPainter,
+    screenList,
+    selectedElementId,
+    selectedElementIds,
+    selectedHasGroup,
+    selectedScreen,
+  ]);
 
   useEffect(() => {
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -3921,6 +5274,10 @@ export default function TeachingStudioPage() {
 
   const requestScreenAction = async (action: 'remove-layout' | 'delete-screen') => {
     if (!selectedScreen || editorReadOnly) return;
+    if (action === 'delete-screen' && selectedScreen.screen_kind === 'gap_bridge_child') {
+      toast.error('Remove a child Screen from its parent Gap Bridge panel.');
+      return;
+    }
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
     setScreenAction(action);
   };
@@ -4039,7 +5396,9 @@ export default function TeachingStudioPage() {
 
   const moveDraggedScreen = (event: React.PointerEvent) => {
     if (!draggingScreenId) return;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-reorder-screen-id]');
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-reorder-screen-id]');
     const targetId = Number(target?.dataset.reorderScreenId);
     if (!Number.isInteger(targetId) || targetId === draggingScreenId) return;
     setReorderIds((current) => {
@@ -4089,20 +5448,97 @@ export default function TeachingStudioPage() {
       void saveScreenOrder(reorderIdsRef.current);
   };
 
+  const moveDraggedChild = (event: React.PointerEvent) => {
+    if (!draggingChild) return;
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-child-drop-screen-id]');
+    const targetScreenId = Number(target?.dataset.childDropScreenId);
+    const nextTarget =
+      Number.isInteger(targetScreenId) && targetScreenId !== draggingChild.sourceScreenId
+        ? targetScreenId
+        : null;
+    childDropScreenIdRef.current = nextTarget;
+    setChildDropScreenId(nextTarget);
+  };
+
+  const moveChildToScreen = async (
+    bridgeId: number,
+    sourceScreenId: number,
+    targetScreenId: number,
+  ) => {
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    try {
+      const result = await moveStudioGapBridgeChild(
+        bridgeId,
+        targetScreenId,
+        screenListRef.current.session_revision_no,
+      );
+      setGapBridgesBySource((current) => {
+        const previous = (current[sourceScreenId] || [])
+          .filter((bridge) => bridge.id !== bridgeId)
+          .map((bridge, display_order) => ({ ...bridge, display_order }));
+        const target = [...(current[targetScreenId] || []), result.gap_bridge]
+          .sort((left, right) => left.display_order - right.display_order || left.id - right.id);
+        return { ...current, [sourceScreenId]: previous, [targetScreenId]: target };
+      });
+      setScreenList((current) => ({
+        ...current,
+        session_revision_no: result.source_session_revision_no,
+      }));
+      setSelectedScreen((current) =>
+        current?.id === result.gap_bridge.target.screen_id
+          ? { ...current, parent_screen_id: targetScreenId }
+          : current,
+      );
+      toast.success('Child Screen moved to its new parent Screen.');
+      await loadWorkflow();
+    } catch (requestError) {
+      toast.error(getStudioErrorMessage(requestError));
+      const [previous, target] = await Promise.all([
+        listStudioGapBridges(sourceScreenId),
+        listStudioGapBridges(targetScreenId),
+      ]).catch(() => []);
+      if (previous) updateGapBridgeMap(sourceScreenId, previous.bridges);
+      if (target) updateGapBridgeMap(targetScreenId, target.bridges);
+    }
+  };
+
+  const finishChildDrag = () => {
+    if (!draggingChild) return;
+    const targetScreenId = childDropScreenIdRef.current;
+    const dragged = draggingChild;
+    setDraggingChild(null);
+    setChildDropScreenId(null);
+    childDropScreenIdRef.current = null;
+    if (targetScreenId) {
+      void moveChildToScreen(dragged.bridgeId, dragged.sourceScreenId, targetScreenId);
+    }
+  };
+
   const selectedElement =
     selectedScreen?.elements.find((element) => element.id === selectedElementId) ?? null;
   const selectedElementType = selectedElement?.type ?? null;
   const selectedResourceType = String(selectedElement?.resource?.usage?.resource_type || '');
   const selectedVisualType = String(selectedElement?.content?.visualType || '');
-  const isSelectedAnimationEffectDisabled = (effect: string) => !studioAnimationEffectSupported(
-    String(selectedElementType || ''), selectedVisualType, selectedResourceType, effect,
-  );
+  const isSelectedAnimationEffectDisabled = (effect: string) =>
+    !studioAnimationEffectSupported(
+      String(selectedElementType || ''),
+      selectedVisualType,
+      selectedResourceType,
+      effect,
+    );
   const selectedModel3DSettings = model3DSettingsFrom(selectedElement?.content);
-  const selectedDiagramContent = selectedElement && isSmartDiagramContent(selectedElement.content) ? selectedElement.content : null;
-  const selectedChartContent = selectedElement?.content?.visualType === 'chart' ? selectedElement.content : null;
-  const selectedDiagramNode = selectedDiagramContent?.nodes.find((node) => node.id === selectedDiagramNodeId)
-    ?? selectedDiagramContent?.nodes[0]
-    ?? null;
+  const selectedDiagramContent =
+    selectedElement && isSmartDiagramContent(selectedElement.content)
+      ? selectedElement.content
+      : null;
+  const selectedChartContent =
+    selectedElement?.content?.visualType === 'chart' ? selectedElement.content : null;
+  const selectedDiagramNode =
+    selectedDiagramContent?.nodes.find((node) => node.id === selectedDiagramNodeId) ??
+    selectedDiagramContent?.nodes[0] ??
+    null;
   const updateSelectedDiagram = (changes: Partial<NonNullable<typeof selectedDiagramContent>>) => {
     if (!selectedElement || !selectedDiagramContent || editorReadOnly) return;
     updateElement({ ...selectedElement, content: { ...selectedDiagramContent, ...changes } });
@@ -4111,17 +5547,30 @@ export default function TeachingStudioPage() {
     if (!selectedElement || !selectedChartContent || editorReadOnly) return;
     updateElement({ ...selectedElement, content: { ...selectedChartContent, ...changes } });
   };
-  const replaceSelectedDiagramNodes = (nodes: SmartDiagramNode[]) => updateSelectedDiagram({ nodes: rebuildDiagramParents(nodes) });
+  const replaceSelectedDiagramNodes = (nodes: SmartDiagramNode[]) =>
+    updateSelectedDiagram({ nodes: rebuildDiagramParents(nodes) });
   const updateSelectedDiagramNode = (changes: Partial<SmartDiagramNode>) => {
     if (!selectedDiagramContent || !selectedDiagramNode) return;
-    replaceSelectedDiagramNodes(selectedDiagramContent.nodes.map((node) => node.id === selectedDiagramNode.id ? { ...node, ...changes } : node));
+    replaceSelectedDiagramNodes(
+      selectedDiagramContent.nodes.map((node) =>
+        node.id === selectedDiagramNode.id ? { ...node, ...changes } : node,
+      ),
+    );
   };
   const addSelectedDiagramNode = (placement: 'before' | 'after' | 'child' | 'assistant') => {
     if (!selectedDiagramContent) return;
     const anchor = selectedDiagramNode ?? selectedDiagramContent.nodes.at(-1);
-    const anchorIndex = anchor ? selectedDiagramContent.nodes.findIndex((node) => node.id === anchor.id) : -1;
-    const node = createSmartDiagramNode('New item', placement === 'child' ? Math.min(5, (anchor?.level ?? -1) + 1) : anchor?.level ?? 0);
-    if (placement === 'assistant') { node.level = Math.min(5, (anchor?.level ?? -1) + 1); node.role = 'assistant'; }
+    const anchorIndex = anchor
+      ? selectedDiagramContent.nodes.findIndex((node) => node.id === anchor.id)
+      : -1;
+    const node = createSmartDiagramNode(
+      'New item',
+      placement === 'child' ? Math.min(5, (anchor?.level ?? -1) + 1) : (anchor?.level ?? 0),
+    );
+    if (placement === 'assistant') {
+      node.level = Math.min(5, (anchor?.level ?? -1) + 1);
+      node.role = 'assistant';
+    }
     const nodes = [...selectedDiagramContent.nodes];
     nodes.splice(placement === 'before' ? Math.max(0, anchorIndex) : anchorIndex + 1, 0, node);
     replaceSelectedDiagramNodes(nodes);
@@ -4129,14 +5578,22 @@ export default function TeachingStudioPage() {
   };
   const changeSelectedDiagramNodeLevel = (delta: -1 | 1) => {
     if (!selectedDiagramContent || !selectedDiagramNode) return;
-    const index = selectedDiagramContent.nodes.findIndex((node) => node.id === selectedDiagramNode.id);
+    const index = selectedDiagramContent.nodes.findIndex(
+      (node) => node.id === selectedDiagramNode.id,
+    );
     const maximum = index > 0 ? Math.min(5, selectedDiagramContent.nodes[index - 1].level + 1) : 0;
     const level = Math.max(0, Math.min(maximum, selectedDiagramNode.level + delta));
-    replaceSelectedDiagramNodes(selectedDiagramContent.nodes.map((node) => node.id === selectedDiagramNode.id ? { ...node, level } : node));
+    replaceSelectedDiagramNodes(
+      selectedDiagramContent.nodes.map((node) =>
+        node.id === selectedDiagramNode.id ? { ...node, level } : node,
+      ),
+    );
   };
   const moveSelectedDiagramNode = (delta: -1 | 1) => {
     if (!selectedDiagramContent || !selectedDiagramNode) return;
-    const index = selectedDiagramContent.nodes.findIndex((node) => node.id === selectedDiagramNode.id);
+    const index = selectedDiagramContent.nodes.findIndex(
+      (node) => node.id === selectedDiagramNode.id,
+    );
     const target = index + delta;
     if (target < 0 || target >= selectedDiagramContent.nodes.length) return;
     const nodes = [...selectedDiagramContent.nodes];
@@ -4145,30 +5602,45 @@ export default function TeachingStudioPage() {
   };
   const updateSelectedModel3D = (changes: Partial<Model3DSettings>) => {
     if (!selectedElement || editorReadOnly) return;
-    changeElementContent(selectedElement.id, { model3d: { ...selectedModel3DSettings, ...changes } });
+    changeElementContent(selectedElement.id, {
+      model3d: { ...selectedModel3DSettings, ...changes },
+    });
   };
-  const ribbonTabs = useMemo(() => studioRibbonTabs({
-    elementType: selectedElementType,
-    resourceType: selectedResourceType,
-    visualType: selectedVisualType,
-    selectionCount: selectedElementIds.length,
-    drawingActive: false,
-  }), [selectedElementIds.length, selectedElementType, selectedResourceType, selectedVisualType]);
+  const ribbonTabs = useMemo(
+    () =>
+      studioRibbonTabs({
+        elementType: selectedElementType,
+        resourceType: selectedResourceType,
+        visualType: selectedVisualType,
+        selectionCount: selectedElementIds.length,
+        drawingActive: false,
+        gapBridgeActive: gapBridgeRibbonVisible,
+      }),
+    [
+      gapBridgeRibbonVisible,
+      selectedElementIds.length,
+      selectedElementType,
+      selectedResourceType,
+      selectedVisualType,
+    ],
+  );
   const contextualRibbonTabKey = ribbonTabs
     .filter((tab) => tab.contextual)
     .map((tab) => tab.id)
     .join('|');
   useEffect(() => {
-    const contextualIds = ribbonTabs
-      .filter((tab) => tab.contextual)
-      .map((tab) => tab.id);
+    const contextualIds = ribbonTabs.filter((tab) => tab.contextual).map((tab) => tab.id);
     setActiveRibbonTab((current) => {
+      if (current === 'gap-bridge' && ribbonTabs.some((tab) => tab.id === current)) return current;
       if (contextualIds[0]) return contextualIds[0];
       return ribbonTabs.some((tab) => tab.id === current) ? current : 'home';
     });
   }, [contextualRibbonTabKey, ribbonTabs]);
   const contextualFillColor = selectedElement
-    ? String(selectedElement.content[selectedElement.type === 'shape' ? 'fill' : 'backgroundColor'] || '#ffffff')
+    ? String(
+        selectedElement.content[selectedElement.type === 'shape' ? 'fill' : 'backgroundColor'] ||
+          '#ffffff',
+      )
     : String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff');
   const setContextualFillColor = (color: string) => {
     if (!selectedScreen || editorReadOnly) return;
@@ -4179,7 +5651,10 @@ export default function TeachingStudioPage() {
     }
     setSelectedScreen({
       ...selectedScreen,
-      screen_settings_json: { ...(selectedScreen.screen_settings_json ?? {}), backgroundColor: color },
+      screen_settings_json: {
+        ...(selectedScreen.screen_settings_json ?? {}),
+        backgroundColor: color,
+      },
     });
     setHasUnsavedChanges(true);
   };
@@ -4187,7 +5662,10 @@ export default function TeachingStudioPage() {
     if (!selectedScreen || editorReadOnly) return;
     setSelectedScreen({
       ...selectedScreen,
-      screen_settings_json: { ...(selectedScreen.screen_settings_json ?? {}), backgroundColor: color },
+      screen_settings_json: {
+        ...(selectedScreen.screen_settings_json ?? {}),
+        backgroundColor: color,
+      },
     });
     setHasUnsavedChanges(true);
   };
@@ -4204,21 +5682,30 @@ export default function TeachingStudioPage() {
   };
   const runTableAction = (action: import('./components/StudioTableElement').StudioTableAction) => {
     if (!selectedElement || selectedElement.type !== 'table' || editorReadOnly) return;
-    window.dispatchEvent(new CustomEvent('studio-table-control', { detail: { elementId: selectedElement.id, action } }));
+    window.dispatchEvent(
+      new CustomEvent('studio-table-control', {
+        detail: { elementId: selectedElement.id, action },
+      }),
+    );
   };
   const applyQuickAnimation = (effect: string, append = false) => {
     if (!selectedElement || editorReadOnly) return;
-    const groupedTargets = (selectedScreen?.elements ?? []).filter((candidate) => selectedElementIds.includes(candidate.id));
+    const groupedTargets = (selectedScreen?.elements ?? []).filter((candidate) =>
+      selectedElementIds.includes(candidate.id),
+    );
     if (groupedTargets.length > 1 && selectedScreen) {
       const baseOrder = buildStudioAnimationSequence(selectedScreen.elements).length;
       const batchId = Date.now();
       const updated = selectedScreen.elements.map((candidate) => {
         const groupedIndex = groupedTargets.findIndex((target) => target.id === candidate.id);
         if (groupedIndex < 0) return candidate;
-        const savedAnimation = candidate.content.animation && typeof candidate.content.animation === 'object'
-          ? candidate.content.animation as Record<string, unknown>
-          : {};
-        const existing = Array.isArray(savedAnimation.effects) ? savedAnimation.effects as Array<Record<string, unknown>> : [];
+        const savedAnimation =
+          candidate.content.animation && typeof candidate.content.animation === 'object'
+            ? (candidate.content.animation as Record<string, unknown>)
+            : {};
+        const existing = Array.isArray(savedAnimation.effects)
+          ? (savedAnimation.effects as Array<Record<string, unknown>>)
+          : [];
         const next = {
           id: `animation-${batchId}-${groupedIndex}`,
           effect,
@@ -4230,20 +5717,40 @@ export default function TeachingStudioPage() {
           sequenceOrder: baseOrder + groupedIndex,
         };
         const effects = append ? [...existing, next] : [next];
-        return { ...candidate, content: { ...candidate.content, animation: { ...savedAnimation, effects, effect, duration: 0.8, delay: 0 } } };
+        return {
+          ...candidate,
+          content: {
+            ...candidate.content,
+            animation: { ...savedAnimation, effects, effect, duration: 0.8, delay: 0 },
+          },
+        };
       });
       setSelectedScreen({ ...selectedScreen, elements: updated });
       setHasUnsavedChanges(true);
-      setSelectedAnimationEffectId(`animation-${batchId}-${Math.max(0, groupedTargets.findIndex((target) => target.id === selectedElement.id))}`);
-      if (animationAutoPreview) setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
+      setSelectedAnimationEffectId(
+        `animation-${batchId}-${Math.max(
+          0,
+          groupedTargets.findIndex((target) => target.id === selectedElement.id),
+        )}`,
+      );
+      if (animationAutoPreview)
+        setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
       return;
     }
-    const saved = selectedElement.content.animation && typeof selectedElement.content.animation === 'object'
-      ? selectedElement.content.animation as Record<string, unknown>
-      : {};
-    const existingEffects = Array.isArray(saved.effects) ? saved.effects as Array<Record<string, unknown>> : [];
-    const screenSequenceLength = buildStudioAnimationSequence(selectedScreen?.elements ?? []).length;
-    const selectedIndex = Math.max(0, existingEffects.findIndex((candidate) => String(candidate.id) === selectedAnimationEffectId));
+    const saved =
+      selectedElement.content.animation && typeof selectedElement.content.animation === 'object'
+        ? (selectedElement.content.animation as Record<string, unknown>)
+        : {};
+    const existingEffects = Array.isArray(saved.effects)
+      ? (saved.effects as Array<Record<string, unknown>>)
+      : [];
+    const screenSequenceLength = buildStudioAnimationSequence(
+      selectedScreen?.elements ?? [],
+    ).length;
+    const selectedIndex = Math.max(
+      0,
+      existingEffects.findIndex((candidate) => String(candidate.id) === selectedAnimationEffectId),
+    );
     const currentEffect = existingEffects[selectedIndex];
     const nextEffect = {
       ...(!append && currentEffect ? currentEffect : {}),
@@ -4262,17 +5769,26 @@ export default function TeachingStudioPage() {
     const nextEffects = append
       ? [...existingEffects, nextEffect]
       : existingEffects.length
-        ? existingEffects.map((candidate, index) => index === selectedIndex ? nextEffect : candidate)
+        ? existingEffects.map((candidate, index) =>
+            index === selectedIndex ? nextEffect : candidate,
+          )
         : [nextEffect];
     updateElement({
       ...selectedElement,
       content: {
         ...selectedElement.content,
-        animation: { ...saved, effects: nextEffects, effect: String(nextEffects[0]?.effect || 'none'), duration: Number(nextEffects[0]?.duration) || 0.8, delay: Number(nextEffects[0]?.delay) || 0 },
+        animation: {
+          ...saved,
+          effects: nextEffects,
+          effect: String(nextEffects[0]?.effect || 'none'),
+          duration: Number(nextEffects[0]?.duration) || 0.8,
+          delay: Number(nextEffects[0]?.delay) || 0,
+        },
       },
     });
     setSelectedAnimationEffectId(String(nextEffect.id));
-    if (animationAutoPreview) setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
+    if (animationAutoPreview)
+      setAnimationPreview({ elementId: selectedElement.id, token: Date.now() });
   };
   const selectedAnimationEffects = (() => {
     const animation = selectedElement?.content.animation;
@@ -4280,26 +5796,78 @@ export default function TeachingStudioPage() {
     const saved = animation as Record<string, unknown>;
     if (Array.isArray(saved.effects)) return saved.effects as Array<Record<string, unknown>>;
     const effect = String(saved.effect || 'none');
-    return effect === 'none' ? [] : [{ id: 'legacy', effect, duration: Number(saved.duration) || 0.8, delay: Number(saved.delay) || 0, start: 'on-click' }];
+    return effect === 'none'
+      ? []
+      : [
+          {
+            id: 'legacy',
+            effect,
+            duration: Number(saved.duration) || 0.8,
+            delay: Number(saved.delay) || 0,
+            start: 'on-click',
+          },
+        ];
   })();
-  const selectedAnimationEffectIndex = Math.max(0, selectedAnimationEffects.findIndex((effect) => String(effect.id) === selectedAnimationEffectId));
+  const selectedAnimationEffectIndex = Math.max(
+    0,
+    selectedAnimationEffects.findIndex((effect) => String(effect.id) === selectedAnimationEffectId),
+  );
   const activeSelectedAnimationEffect = selectedAnimationEffects[selectedAnimationEffectIndex];
   const globalAnimationSequence = buildStudioAnimationSequence(selectedScreen?.elements ?? []);
-  const selectedAnimationSequenceIndex = selectedElement && activeSelectedAnimationEffect
-    ? globalAnimationSequence.findIndex((entry) => entry.key === `${selectedElement.id}:${String(activeSelectedAnimationEffect.id)}`)
-    : -1;
-  const updateSelectedAnimationEffect = (changes: Record<string, unknown>, index = selectedAnimationEffectIndex) => {
+  const selectedAnimationSequenceIndex =
+    selectedElement && activeSelectedAnimationEffect
+      ? globalAnimationSequence.findIndex(
+          (entry) =>
+            entry.key === `${selectedElement.id}:${String(activeSelectedAnimationEffect.id)}`,
+        )
+      : -1;
+  const updateSelectedAnimationEffect = (
+    changes: Record<string, unknown>,
+    index = selectedAnimationEffectIndex,
+  ) => {
     if (!selectedElement || !selectedAnimationEffects[index]) return;
-    const effects = selectedAnimationEffects.map((effect, effectIndex) => effectIndex === index ? { ...effect, ...changes } : effect);
+    const effects = selectedAnimationEffects.map((effect, effectIndex) =>
+      effectIndex === index ? { ...effect, ...changes } : effect,
+    );
     const first = effects[0];
-    updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
+    updateElement({
+      ...selectedElement,
+      content: {
+        ...selectedElement.content,
+        animation: {
+          ...(selectedElement.content.animation as Record<string, unknown> | undefined),
+          effects,
+          effect: first?.effect || 'none',
+          duration: first?.duration || 0.8,
+          delay: first?.delay || 0,
+        },
+      },
+    });
   };
   const removeSelectedAnimation = () => {
     if (!selectedElement || !activeSelectedAnimationEffect) return;
-    const effects = selectedAnimationEffects.filter((_, index) => index !== selectedAnimationEffectIndex);
+    const effects = selectedAnimationEffects.filter(
+      (_, index) => index !== selectedAnimationEffectIndex,
+    );
     const first = effects[0];
-    updateElement({ ...selectedElement, content: { ...selectedElement.content, animation: { ...(selectedElement.content.animation as Record<string, unknown> | undefined), effects, effect: first?.effect || 'none', duration: first?.duration || 0.8, delay: first?.delay || 0 } } });
-    setSelectedAnimationEffectId(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)]?.id ? String(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)].id) : null);
+    updateElement({
+      ...selectedElement,
+      content: {
+        ...selectedElement.content,
+        animation: {
+          ...(selectedElement.content.animation as Record<string, unknown> | undefined),
+          effects,
+          effect: first?.effect || 'none',
+          duration: first?.duration || 0.8,
+          delay: first?.delay || 0,
+        },
+      },
+    });
+    setSelectedAnimationEffectId(
+      effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)]?.id
+        ? String(effects[Math.min(selectedAnimationEffectIndex, effects.length - 1)].id)
+        : null,
+    );
   };
   const moveSelectedAnimation = (delta: number, index = selectedAnimationEffectIndex) => {
     if (!selectedElement || !selectedScreen || !selectedAnimationEffects[index]) return;
@@ -4310,20 +5878,46 @@ export default function TeachingStudioPage() {
     if (from < 0 || target < 0 || target >= sequence.length) return;
     const keys = sequence.map((entry) => entry.key);
     [keys[from], keys[target]] = [keys[target], keys[from]];
-    commitElements(persistStudioAnimationSequence(selectedScreen.elements, keys), selectedElement.id);
+    commitElements(
+      persistStudioAnimationSequence(selectedScreen.elements, keys),
+      selectedElement.id,
+    );
     setSelectedAnimationEffectId(String(selectedAnimationEffects[index].id));
   };
-  const updateAnimationEffectById = (elementId: string, effectId: string, changes: Record<string, unknown>) => {
+  const updateAnimationEffectById = (
+    elementId: string,
+    effectId: string,
+    changes: Record<string, unknown>,
+  ) => {
     if (!selectedScreen || editorReadOnly) return;
     const elements = selectedScreen.elements.map((element) => {
       if (element.id !== elementId) return element;
-      const animation = element.content.animation && typeof element.content.animation === 'object' && !Array.isArray(element.content.animation)
-        ? element.content.animation as Record<string, unknown>
-        : {};
-      const effects = Array.isArray(animation.effects) ? animation.effects as Array<Record<string, unknown>> : [];
-      const nextEffects = effects.map((effect) => String(effect.id) === effectId ? { ...effect, ...changes } : effect);
+      const animation =
+        element.content.animation &&
+        typeof element.content.animation === 'object' &&
+        !Array.isArray(element.content.animation)
+          ? (element.content.animation as Record<string, unknown>)
+          : {};
+      const effects = Array.isArray(animation.effects)
+        ? (animation.effects as Array<Record<string, unknown>>)
+        : [];
+      const nextEffects = effects.map((effect) =>
+        String(effect.id) === effectId ? { ...effect, ...changes } : effect,
+      );
       const first = nextEffects[0];
-      return { ...element, content: { ...element.content, animation: { ...animation, effects: nextEffects, effect: first?.effect || 'none', duration: Number(first?.duration) || 0.8, delay: Number(first?.delay) || 0 } } };
+      return {
+        ...element,
+        content: {
+          ...element.content,
+          animation: {
+            ...animation,
+            effects: nextEffects,
+            effect: first?.effect || 'none',
+            duration: Number(first?.duration) || 0.8,
+            delay: Number(first?.delay) || 0,
+          },
+        },
+      };
     });
     commitElements(elements, elementId);
     setSelectedAnimationEffectId(effectId);
@@ -4332,13 +5926,31 @@ export default function TeachingStudioPage() {
     if (!selectedScreen || editorReadOnly) return;
     const elements = selectedScreen.elements.map((element) => {
       if (element.id !== elementId) return element;
-      const animation = element.content.animation && typeof element.content.animation === 'object' && !Array.isArray(element.content.animation)
-        ? element.content.animation as Record<string, unknown>
-        : {};
-      const effects = (Array.isArray(animation.effects) ? animation.effects as Array<Record<string, unknown>> : [])
-        .filter((effect) => String(effect.id) !== effectId);
+      const animation =
+        element.content.animation &&
+        typeof element.content.animation === 'object' &&
+        !Array.isArray(element.content.animation)
+          ? (element.content.animation as Record<string, unknown>)
+          : {};
+      const effects = (
+        Array.isArray(animation.effects)
+          ? (animation.effects as Array<Record<string, unknown>>)
+          : []
+      ).filter((effect) => String(effect.id) !== effectId);
       const first = effects[0];
-      return { ...element, content: { ...element.content, animation: { ...animation, effects, effect: first?.effect || 'none', duration: Number(first?.duration) || 0.8, delay: Number(first?.delay) || 0 } } };
+      return {
+        ...element,
+        content: {
+          ...element.content,
+          animation: {
+            ...animation,
+            effects,
+            effect: first?.effect || 'none',
+            duration: Number(first?.duration) || 0.8,
+            delay: Number(first?.delay) || 0,
+          },
+        },
+      };
     });
     commitElements(elements, elementId);
     setSelectedAnimationEffectId(null);
@@ -4347,14 +5959,26 @@ export default function TeachingStudioPage() {
     setSelectedElementId(entry.elementId);
     setSelectedElementIds([entry.elementId]);
     setSelectedAnimationEffectId(String(entry.effect.id));
-    setAnimationPreview({ mode: 'sequence', fromEffectId: String(entry.effect.id), token: Date.now() });
+    setAnimationPreview({
+      mode: 'sequence',
+      fromEffectId: String(entry.effect.id),
+      token: Date.now(),
+    });
   };
   const startAnimationPainter = (locked = false) => {
     if (!selectedElement || !selectedAnimationEffects.length) return;
     const animation = selectedElement.content.animation;
     if (!animation || typeof animation !== 'object' || Array.isArray(animation)) return;
-    setAnimationPaintSource({ elementId: selectedElement.id, animation: structuredClone(animation as Record<string, unknown>), locked });
-    toast.success(locked ? 'Animation Painter locked. Apply it to multiple components; press Escape to stop.' : 'Animation Painter active. Select another component.');
+    setAnimationPaintSource({
+      elementId: selectedElement.id,
+      animation: structuredClone(animation as Record<string, unknown>),
+      locked,
+    });
+    toast.success(
+      locked
+        ? 'Animation Painter locked. Apply it to multiple components; press Escape to stop.'
+        : 'Animation Painter active. Select another component.',
+    );
   };
   const openAnimationPane = () => {
     setPanel('animations');
@@ -4364,11 +5988,18 @@ export default function TeachingStudioPage() {
     setPanel('layers');
     setRightPanelOpen(true);
   };
-  const alignSelectedElement = (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
+  const alignSelectedElement = (
+    alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom',
+  ) => {
     if (!selectedElement) return;
     const width = Number(selectedElement.position.width) || 80;
     const height = Number(selectedElement.position.height) || 60;
-    const current = { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width, height };
+    const current = {
+      x: Number(selectedElement.position.x) || 0,
+      y: Number(selectedElement.position.y) || 0,
+      width,
+      height,
+    };
     if (alignment === 'left') current.x = 0;
     if (alignment === 'center') current.x = Math.round((1920 - width) / 2);
     if (alignment === 'right') current.x = Math.max(0, 1920 - width);
@@ -4380,19 +6011,36 @@ export default function TeachingStudioPage() {
   const allowedResourceTypes = resourceTypesForObject(selectedElement?.type);
   const selectElementAndOpenControls = (elementId: string, additive = false, direct = false) => {
     setAnimationPreview(null);
-    if (!additive && animationPaintSource && animationPaintSource.elementId !== elementId && selectedScreen && !editorReadOnly) {
+    if (
+      !additive &&
+      animationPaintSource &&
+      animationPaintSource.elementId !== elementId &&
+      selectedScreen &&
+      !editorReadOnly
+    ) {
       const baseOrder = buildStudioAnimationSequence(selectedScreen.elements).length;
       const copied = structuredClone(animationPaintSource.animation);
-      const copiedEffects = (Array.isArray(copied.effects) ? copied.effects as Array<Record<string, unknown>> : []).map((effect, index) => ({
+      const copiedEffects = (
+        Array.isArray(copied.effects) ? (copied.effects as Array<Record<string, unknown>>) : []
+      ).map((effect, index) => ({
         ...effect,
         id: `animation-${Date.now()}-${index}`,
         sequenceOrder: baseOrder + index,
       }));
       const first = copiedEffects[0];
-      const animation = { ...copied, effects: copiedEffects, effect: first?.effect || copied.effect || 'none' };
-      commitElements(selectedScreen.elements.map((candidate) => candidate.id === elementId
-        ? { ...candidate, content: { ...candidate.content, animation } }
-        : candidate), elementId);
+      const animation = {
+        ...copied,
+        effects: copiedEffects,
+        effect: first?.effect || copied.effect || 'none',
+      };
+      commitElements(
+        selectedScreen.elements.map((candidate) =>
+          candidate.id === elementId
+            ? { ...candidate, content: { ...candidate.content, animation } }
+            : candidate,
+        ),
+        elementId,
+      );
       if (!animationPaintSource.locked) setAnimationPaintSource(null);
       toast.success('Animation formatting copied.');
     }
@@ -4427,15 +6075,17 @@ export default function TeachingStudioPage() {
   };
   const selectElementsFromMarquee = (elementIds: string[], additive = false) => {
     setAnimationPreview(null);
-    const expandedIds = selectedScreen?.elements.reduce<string[]>((ids, element) => {
-      if (!elementIds.includes(element.id)) return ids;
-      const groupId = typeof element.position.groupId === 'string' ? element.position.groupId : null;
-      if (!groupId) return ids.includes(element.id) ? ids : [...ids, element.id];
-      for (const member of selectedScreen.elements) {
-        if (member.position.groupId === groupId && !ids.includes(member.id)) ids.push(member.id);
-      }
-      return ids;
-    }, []) ?? elementIds;
+    const expandedIds =
+      selectedScreen?.elements.reduce<string[]>((ids, element) => {
+        if (!elementIds.includes(element.id)) return ids;
+        const groupId =
+          typeof element.position.groupId === 'string' ? element.position.groupId : null;
+        if (!groupId) return ids.includes(element.id) ? ids : [...ids, element.id];
+        for (const member of selectedScreen.elements) {
+          if (member.position.groupId === groupId && !ids.includes(member.id)) ids.push(member.id);
+        }
+        return ids;
+      }, []) ?? elementIds;
     setSelectedElementIds((current) => {
       const next = additive ? [...new Set([...current, ...expandedIds])] : expandedIds;
       setSelectedElementId(next.at(-1) ?? null);
@@ -4446,25 +6096,36 @@ export default function TeachingStudioPage() {
   const groupSelectedElements = () => {
     if (!selectedScreen || selectedElementIds.length < 2 || editorReadOnly) return;
     const groupId = `group-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
-    commitElements(selectedScreen.elements.map((element) => selectedElementIds.includes(element.id)
-      ? { ...element, position: { ...element.position, groupId } }
-      : element));
+    commitElements(
+      selectedScreen.elements.map((element) =>
+        selectedElementIds.includes(element.id)
+          ? { ...element, position: { ...element.position, groupId } }
+          : element,
+      ),
+    );
     setSelectedElementIds(selectedElementIds);
     setSelectedElementId(selectedElementIds.at(-1) ?? null);
     toast.success(`${selectedElementIds.length} elements grouped.`);
   };
   const ungroupSelectedElements = () => {
     if (!selectedScreen || editorReadOnly) return;
-    const groupIds = new Set(selectedScreen.elements
-      .filter((element) => selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string')
-      .map((element) => String(element.position.groupId)));
+    const groupIds = new Set(
+      selectedScreen.elements
+        .filter(
+          (element) =>
+            selectedElementIds.includes(element.id) && typeof element.position.groupId === 'string',
+        )
+        .map((element) => String(element.position.groupId)),
+    );
     if (!groupIds.size) return;
-    commitElements(selectedScreen.elements.map((element) => {
-      if (!groupIds.has(String(element.position.groupId || ''))) return element;
-      const position = { ...element.position };
-      delete position.groupId;
-      return { ...element, position };
-    }));
+    commitElements(
+      selectedScreen.elements.map((element) => {
+        if (!groupIds.has(String(element.position.groupId || ''))) return element;
+        const position = { ...element.position };
+        delete position.groupId;
+        return { ...element, position };
+      }),
+    );
     toast.success('Elements ungrouped.');
   };
   const studioTools = [
@@ -4478,25 +6139,55 @@ export default function TeachingStudioPage() {
   ] as const;
   const toggleStudioTool = (tool: (typeof studioTools)[number]['id']) => {
     setPanel(tool);
-    setRightPanelOpen((open) => panel === tool ? !open : true);
+    setRightPanelOpen((open) => (panel === tool ? !open : true));
   };
-  const openRibbonTool = (tool: (typeof studioTools)[number]['id']) => () =>
-    toggleStudioTool(tool);
-  const elementCommands = (primaryTool: (typeof studioTools)[number]['id']): StudioRibbonGroup[] => [
+  const openRibbonTool = (tool: (typeof studioTools)[number]['id']) => () => toggleStudioTool(tool);
+  const elementCommands = (
+    primaryTool: (typeof studioTools)[number]['id'],
+  ): StudioRibbonGroup[] => [
     {
       id: 'selected-element-properties',
       label: 'Properties',
       commands: [
-        { id: `open-${primaryTool}`, label: 'Properties', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool(primaryTool), active: rightPanelOpen && panel === primaryTool },
-        { id: 'element-animations', label: 'Animations', icon: <Sparkles size={17} />, onExecute: openRibbonTool('animations'), active: rightPanelOpen && panel === 'animations' },
+        {
+          id: `open-${primaryTool}`,
+          label: 'Properties',
+          icon: <SlidersHorizontal size={17} />,
+          onExecute: openRibbonTool(primaryTool),
+          active: rightPanelOpen && panel === primaryTool,
+        },
+        {
+          id: 'element-animations',
+          label: 'Animations',
+          icon: <Sparkles size={17} />,
+          onExecute: openRibbonTool('animations'),
+          active: rightPanelOpen && panel === 'animations',
+        },
       ],
     },
     {
       id: 'selected-element-edit',
       label: 'Edit',
       commands: [
-        { id: 'duplicate-element', label: 'Duplicate', icon: <Boxes size={17} />, disabled: editorReadOnly || !selectedElement, onExecute: () => { if (selectedElement) duplicateElement(selectedElement.id); } },
-        { id: 'delete-element', label: 'Delete', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedElement, onExecute: () => { if (selectedElement) removeElement(selectedElement.id); } },
+        {
+          id: 'duplicate-element',
+          label: 'Duplicate',
+          icon: <Boxes size={17} />,
+          disabled: editorReadOnly || !selectedElement,
+          onExecute: () => {
+            if (selectedElement) duplicateElement(selectedElement.id);
+          },
+        },
+        {
+          id: 'delete-element',
+          label: 'Delete',
+          icon: <Trash2 size={17} />,
+          danger: true,
+          disabled: editorReadOnly || !selectedElement,
+          onExecute: () => {
+            if (selectedElement) removeElement(selectedElement.id);
+          },
+        },
       ],
     },
   ];
@@ -4511,25 +6202,142 @@ export default function TeachingStudioPage() {
   } satisfies Record<StudioDrawingTool, typeof PenLine>;
   const drawingRibbonGroups: StudioRibbonGroup[] = [
     {
-      id: 'draw-tools', label: 'Drawing Tools', commands: [
-        { id: 'draw-select', label: 'Select', icon: <MousePointer2 size={17} />, onExecute: () => setActiveRibbonTab('home') },
-        ...(['pen', 'pencil', 'fountain', 'highlighter', 'laser', 'eraser', 'object-eraser'] as StudioDrawingTool[]).map((tool) => {
+      id: 'draw-tools',
+      label: 'Drawing Tools',
+      commands: [
+        {
+          id: 'draw-select',
+          label: 'Select',
+          icon: <MousePointer2 size={17} />,
+          onExecute: () => setActiveRibbonTab('home'),
+        },
+        ...(
+          [
+            'pen',
+            'pencil',
+            'fountain',
+            'highlighter',
+            'laser',
+            'eraser',
+            'object-eraser',
+          ] as StudioDrawingTool[]
+        ).map((tool) => {
           const Icon = drawingToolIcons[tool];
-          return { id: `draw-${tool}`, label: tool === 'fountain' ? 'Fountain Pen' : tool === 'laser' ? 'Laser Pointer' : tool === 'eraser' ? 'Annotation Eraser' : tool === 'object-eraser' ? 'Object Eraser' : tool[0].toUpperCase() + tool.slice(1), icon: <Icon size={17} />, active: drawingTool === tool, onExecute: () => setDrawingTool(tool) };
+          return {
+            id: `draw-${tool}`,
+            label:
+              tool === 'fountain'
+                ? 'Fountain Pen'
+                : tool === 'laser'
+                  ? 'Laser Pointer'
+                  : tool === 'eraser'
+                    ? 'Annotation Eraser'
+                    : tool === 'object-eraser'
+                      ? 'Object Eraser'
+                      : tool[0].toUpperCase() + tool.slice(1),
+            icon: <Icon size={17} />,
+            active: drawingTool === tool,
+            onExecute: () => setDrawingTool(tool),
+          };
         }),
       ],
     },
     {
-      id: 'draw-colours', label: 'Colours', content: <div className="flex items-center gap-1 px-1"><label className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg border" title="Custom ink colour"><span className="h-5 w-5 rounded-full border" style={{ backgroundColor: drawingColor }} /><input type="color" value={drawingColor} onChange={(event) => setDrawingColor(event.target.value)} className="absolute inset-0 opacity-0" aria-label="Custom ink colour" /></label>{['#0f172a', '#2563eb', '#ef4444', '#16a34a', '#f59e0b', '#9333ea'].map((color) => <button key={color} type="button" title={`Use ${color}`} aria-label={`Use ${color}`} onClick={() => setDrawingColor(color)} className={`h-6 w-6 shrink-0 rounded-full border-2 ${drawingColor === color ? 'border-slate-900 ring-1 ring-slate-300' : 'border-white shadow'}`} style={{ backgroundColor: color }} />)}</div>,
+      id: 'draw-colours',
+      label: 'Colours',
+      content: (
+        <div className="flex items-center gap-1 px-1">
+          <label
+            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg border"
+            title="Custom ink colour"
+          >
+            <span
+              className="h-5 w-5 rounded-full border"
+              style={{ backgroundColor: drawingColor }}
+            />
+            <input
+              type="color"
+              value={drawingColor}
+              onChange={(event) => setDrawingColor(event.target.value)}
+              className="absolute inset-0 opacity-0"
+              aria-label="Custom ink colour"
+            />
+          </label>
+          {['#0f172a', '#2563eb', '#ef4444', '#16a34a', '#f59e0b', '#9333ea'].map((color) => (
+            <button
+              key={color}
+              type="button"
+              title={`Use ${color}`}
+              aria-label={`Use ${color}`}
+              onClick={() => setDrawingColor(color)}
+              className={`h-6 w-6 shrink-0 rounded-full border-2 ${drawingColor === color ? 'border-slate-900 ring-1 ring-slate-300' : 'border-white shadow'}`}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+      ),
     },
     {
-      id: 'draw-stroke', label: 'Stroke', content: <div className="grid w-48 shrink-0 gap-1 px-1 text-[9px] font-semibold text-slate-600"><label className="grid grid-cols-[44px_1fr_36px] items-center gap-2"><span>Width</span><input type="range" min="1" max="28" value={drawingWidth} onChange={(event) => setDrawingWidth(Number(event.target.value))} className="min-w-0 w-full" /><span className="whitespace-nowrap text-right tabular-nums">{drawingWidth}px</span></label><label className="grid grid-cols-[44px_1fr_36px] items-center gap-2"><span>Opacity</span><input type="range" min="0.1" max="1" step="0.1" value={drawingOpacity} onChange={(event) => setDrawingOpacity(Number(event.target.value))} className="min-w-0 w-full" /><span className="whitespace-nowrap text-right tabular-nums">{Math.round(drawingOpacity * 100)}%</span></label></div>,
+      id: 'draw-stroke',
+      label: 'Stroke',
+      content: (
+        <div className="grid w-48 shrink-0 gap-1 px-1 text-[9px] font-semibold text-slate-600">
+          <label className="grid grid-cols-[44px_1fr_36px] items-center gap-2">
+            <span>Width</span>
+            <input
+              type="range"
+              min="1"
+              max="28"
+              value={drawingWidth}
+              onChange={(event) => setDrawingWidth(Number(event.target.value))}
+              className="min-w-0 w-full"
+            />
+            <span className="whitespace-nowrap text-right tabular-nums">{drawingWidth}px</span>
+          </label>
+          <label className="grid grid-cols-[44px_1fr_36px] items-center gap-2">
+            <span>Opacity</span>
+            <input
+              type="range"
+              min="0.1"
+              max="1"
+              step="0.1"
+              value={drawingOpacity}
+              onChange={(event) => setDrawingOpacity(Number(event.target.value))}
+              className="min-w-0 w-full"
+            />
+            <span className="whitespace-nowrap text-right tabular-nums">
+              {Math.round(drawingOpacity * 100)}%
+            </span>
+          </label>
+        </div>
+      ),
     },
     {
-      id: 'draw-history', label: 'Ink History', commands: [
-        { id: 'undo-ink', label: 'Undo Ink', icon: <Undo2 size={17} />, disabled: drawingPast.length === 0, onExecute: undoDrawing },
-        { id: 'redo-ink', label: 'Redo Ink', icon: <Redo2 size={17} />, disabled: drawingFuture.length === 0, onExecute: redoDrawing },
-        { id: 'clear-ink', label: 'Clear Ink', icon: <Trash2 size={17} />, danger: true, disabled: authoredDrawingStrokes(selectedScreen).length === 0, onExecute: () => setAuthoredDrawings([]) },
+      id: 'draw-history',
+      label: 'Ink History',
+      commands: [
+        {
+          id: 'undo-ink',
+          label: 'Undo Ink',
+          icon: <Undo2 size={17} />,
+          disabled: drawingPast.length === 0,
+          onExecute: undoDrawing,
+        },
+        {
+          id: 'redo-ink',
+          label: 'Redo Ink',
+          icon: <Redo2 size={17} />,
+          disabled: drawingFuture.length === 0,
+          onExecute: redoDrawing,
+        },
+        {
+          id: 'clear-ink',
+          label: 'Clear Ink',
+          icon: <Trash2 size={17} />,
+          danger: true,
+          disabled: authoredDrawingStrokes(selectedScreen).length === 0,
+          onExecute: () => setAuthoredDrawings([]),
+        },
       ],
     },
   ];
@@ -4547,7 +6355,11 @@ export default function TeachingStudioPage() {
                 canCut={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
                 formatPainterActive={Boolean(formatPainter)}
                 formatPainterLocked={formatPainter?.persistent === true}
-                availablePasteModes={editorClipboard.length ? studioPasteModesForElements(editorClipboard) : ['source-formatting']}
+                availablePasteModes={
+                  editorClipboard.length
+                    ? studioPasteModesForElements(editorClipboard)
+                    : ['source-formatting']
+                }
                 onPaste={pasteClipboard}
                 onCopy={copySelectedElements}
                 onCut={cutSelectedElements}
@@ -4556,97 +6368,444 @@ export default function TeachingStudioPage() {
             ),
           },
           {
-            id: 'history', label: 'History', commands: [
-              { id: 'go-back', label: 'Back', icon: <ArrowLeft size={17} />, onExecute: () => void leaveEditor() },
-              { id: 'undo', label: 'Undo', icon: <Undo2 size={17} />, disabled: editorReadOnly || elementPast.length === 0, onExecute: undoElementChange },
-              { id: 'redo', label: 'Redo', icon: <Redo2 size={17} />, disabled: editorReadOnly || elementFuture.length === 0, onExecute: redoElementChange },
-              { id: 'save-now', label: 'Save', icon: savingScreen ? <LoaderCircle size={17} className="animate-spin" aria-label="Saving" /> : <Save size={17} />, disabled: editorReadOnly || !hasUnsavedChanges || savingScreen, onExecute: () => void saveScreenDraft('manual') },
+            id: 'history',
+            label: 'History',
+            commands: [
+              {
+                id: 'go-back',
+                label: 'Back',
+                icon: <ArrowLeft size={17} />,
+                onExecute: () => void leaveEditor(),
+              },
+              {
+                id: 'undo',
+                label: 'Undo',
+                icon: <Undo2 size={17} />,
+                disabled: editorReadOnly || elementPast.length === 0,
+                onExecute: undoElementChange,
+              },
+              {
+                id: 'redo',
+                label: 'Redo',
+                icon: <Redo2 size={17} />,
+                disabled: editorReadOnly || elementFuture.length === 0,
+                onExecute: redoElementChange,
+              },
+              {
+                id: 'save-now',
+                label: 'Save',
+                icon: savingScreen ? (
+                  <LoaderCircle size={17} className="animate-spin" aria-label="Saving" />
+                ) : (
+                  <Save size={17} />
+                ),
+                disabled: editorReadOnly || !hasUnsavedChanges || savingScreen,
+                onExecute: () => void saveScreenDraft('manual'),
+              },
             ],
-            content: <span className="inline-flex h-8 w-20 shrink-0 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`}>{saveStatus === 'saving' ? <LoaderCircle size={13} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={13} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={13} className="text-amber-700" /> : <Cloud size={13} />}<span className="w-11 text-center">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span></span>,
+            content: (
+              <span
+                className="inline-flex h-8 w-20 shrink-0 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-600"
+                title={`AutoSave: ${saveStatus}`}
+              >
+                {saveStatus === 'saving' ? (
+                  <LoaderCircle size={13} className="animate-spin" />
+                ) : saveStatus === 'saved' ? (
+                  <Check size={13} className="text-emerald-600" />
+                ) : saveStatus === 'offline' || saveStatus === 'error' ? (
+                  <CloudOff size={13} className="text-amber-700" />
+                ) : (
+                  <Cloud size={13} />
+                )}
+                <span className="w-11 text-center">
+                  {saveStatus === 'idle' ? 'AutoSave' : saveStatus}
+                </span>
+              </span>
+            ),
           },
           {
-            id: 'screen', label: 'Screen', commands: [
-              { id: 'add-screen', label: 'Add Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => void createBlankScreen() },
-              { id: 'import-powerpoint', label: 'Import PowerPoint', icon: <FileUp size={17} />, disabled: editorReadOnly || !sessionId, onExecute: () => setPptxImportOpen(true) },
-              { id: 'screen-metadata', label: 'Metadata', icon: <SlidersHorizontal size={17} />, disabled: editorReadOnly || !selectedScreenId, onExecute: () => void openScreenMetadata() },
-              { id: 'rename-screen', label: 'Rename', icon: <Pencil size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => void openRenameScreen() },
-              { id: 'delete-screen', label: 'Delete', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen, onExecute: () => void requestScreenAction('delete-screen') },
-              { id: 'edit-layout', label: 'Edit Layout', icon: <LayoutTemplate size={17} />, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => { if (!selectedScreen?.layout_id) return; setLayoutGalleryOpen(true); setLayoutEditRequest({ layoutId: selectedScreen.layout_id, requestId: Date.now() }); } },
-              { id: 'remove-layout', label: 'Remove Layout', icon: <Unlink size={17} />, danger: true, disabled: editorReadOnly || !selectedScreen?.layout_id, onExecute: () => void requestScreenAction('remove-layout') },
+            id: 'screen',
+            label: 'Screen',
+            commands: [
+              {
+                id: 'add-screen',
+                label: 'Add Screen',
+                icon: <Plus size={17} />,
+                disabled: editorReadOnly,
+                onExecute: () => void createBlankScreen(),
+              },
+              {
+                id: 'import-powerpoint',
+                label: 'Import PowerPoint',
+                icon: <FileUp size={17} />,
+                disabled: editorReadOnly || !sessionId,
+                onExecute: () => setPptxImportOpen(true),
+              },
+              {
+                id: 'screen-metadata',
+                label: 'Metadata',
+                icon: <SlidersHorizontal size={17} />,
+                disabled: editorReadOnly || !selectedScreenId,
+                onExecute: () => void openScreenMetadata(),
+              },
+              {
+                id: 'rename-screen',
+                label: 'Rename',
+                icon: <Pencil size={17} />,
+                disabled: editorReadOnly || !selectedScreen,
+                onExecute: () => void openRenameScreen(),
+              },
+              {
+                id: 'delete-screen',
+                label: 'Delete',
+                icon: <Trash2 size={17} />,
+                danger: true,
+                disabled: editorReadOnly || !selectedScreen || selectedIsGapBridgeChild,
+                onExecute: () => void requestScreenAction('delete-screen'),
+              },
+              {
+                id: 'edit-layout',
+                label: 'Edit Layout',
+                icon: <LayoutTemplate size={17} />,
+                disabled: editorReadOnly || !selectedScreen?.layout_id,
+                onExecute: () => {
+                  if (!selectedScreen?.layout_id) return;
+                  setLayoutGalleryOpen(true);
+                  setLayoutEditRequest({
+                    layoutId: selectedScreen.layout_id,
+                    requestId: Date.now(),
+                  });
+                },
+              },
+              {
+                id: 'remove-layout',
+                label: 'Remove Layout',
+                icon: <Unlink size={17} />,
+                danger: true,
+                disabled: editorReadOnly || !selectedScreen?.layout_id,
+                onExecute: () => void requestScreenAction('remove-layout'),
+              },
             ],
           },
           {
-            id: 'selection', label: 'Selection', commands: [
-              { id: 'open-layers', label: 'Layers', icon: <ListOrdered size={17} />, disabled: !selectedScreen, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
-              { id: 'open-elements', label: 'Properties', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('elements'), active: rightPanelOpen && panel === 'elements' },
-              { id: 'edit-hyperlink', label: 'Link', icon: <Link2 size={17} />, disabled: editorReadOnly || !selectedElement, onExecute: () => window.dispatchEvent(new Event('studio-open-hyperlink')) },
-              { id: 'crop-fit-media', label: 'Crop & Fit', icon: <Focus size={17} />, disabled: editorReadOnly || !selectedElement || !['image', 'animation', 'video'].includes(selectedResourceType), onExecute: () => window.dispatchEvent(new Event('studio-open-crop-fit')) },
-              { id: 'group-elements-home', label: 'Group', icon: <Boxes size={17} />, disabled: editorReadOnly || selectedElementIds.length < 2, onExecute: groupSelectedElements },
-              { id: 'ungroup-elements-home', label: 'Ungroup', icon: <Unlink size={17} />, disabled: editorReadOnly || !selectedHasGroup, onExecute: ungroupSelectedElements },
+            id: 'selection',
+            label: 'Selection',
+            commands: [
+              {
+                id: 'open-layers',
+                label: 'Layers',
+                icon: <ListOrdered size={17} />,
+                disabled: !selectedScreen,
+                onExecute: openSelectionPane,
+                active: rightPanelOpen && panel === 'layers',
+              },
+              {
+                id: 'open-elements',
+                label: 'Properties',
+                icon: <SlidersHorizontal size={17} />,
+                onExecute: openRibbonTool('elements'),
+                active: rightPanelOpen && panel === 'elements',
+              },
+              {
+                id: 'edit-hyperlink',
+                label: 'Link',
+                icon: <Link2 size={17} />,
+                disabled: editorReadOnly || !selectedElement,
+                onExecute: () => window.dispatchEvent(new Event('studio-open-hyperlink')),
+              },
+              {
+                id: 'crop-fit-media',
+                label: 'Crop & Fit',
+                icon: <Focus size={17} />,
+                disabled:
+                  editorReadOnly ||
+                  !selectedElement ||
+                  !['image', 'animation', 'video'].includes(selectedResourceType),
+                onExecute: () => window.dispatchEvent(new Event('studio-open-crop-fit')),
+              },
+              {
+                id: 'group-elements-home',
+                label: 'Group',
+                icon: <Boxes size={17} />,
+                disabled: editorReadOnly || selectedElementIds.length < 2,
+                onExecute: groupSelectedElements,
+              },
+              {
+                id: 'ungroup-elements-home',
+                label: 'Ungroup',
+                icon: <Unlink size={17} />,
+                disabled: editorReadOnly || !selectedHasGroup,
+                onExecute: ungroupSelectedElements,
+              },
             ],
           },
         ];
       case 'insert':
         return [
-          { id: 'insert-screen', label: 'Slides', commands: [
-            { id: 'insert-new-screen', label: 'New Screen', icon: <Plus size={17} />, disabled: editorReadOnly, onExecute: () => void createBlankScreen() },
-            { id: 'insert-powerpoint', label: 'Import PowerPoint', icon: <FileUp size={17} />, disabled: editorReadOnly || !sessionId, onExecute: () => setPptxImportOpen(true) },
-          ] },
           {
-            id: 'insert-text', label: 'Text', commands: [
-              { id: 'insert-text', label: 'Text', icon: <FileText size={17} />, disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id), onExecute: () => { addBlankElement('text', 'content', undefined, { text: 'Type here' }); } },
-              { id: 'insert-table', label: 'Table', icon: <Grid3X3 size={17} />, disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id), active: tablePickerOpen, onExecute: openTablePicker },
+            id: 'insert-screen',
+            label: 'Slides',
+            commands: [
+              {
+                id: 'insert-new-screen',
+                label: 'New Screen',
+                icon: <Plus size={17} />,
+                disabled: editorReadOnly,
+                onExecute: () => void createBlankScreen(),
+              },
+              {
+                id: 'insert-powerpoint',
+                label: 'Import PowerPoint',
+                icon: <FileUp size={17} />,
+                disabled: editorReadOnly || !sessionId,
+                onExecute: () => setPptxImportOpen(true),
+              },
             ],
           },
-          { id: 'insert-media', label: 'Resources', content: (
-            <StudioInsertResourceButtons
-              disabled={editorReadOnly || !selectedScreen}
-              onUpload={(type) => {
-                setInsertResourceType(type);
-                setResourceUploadOpen(true);
-              }}
-              onFromResource={(type) => {
-                setInsertResourceType(type);
-                setInsertResourceFilter(type);
+          {
+            id: 'insert-text',
+            label: 'Text',
+            commands: [
+              {
+                id: 'insert-text',
+                label: 'Text',
+                icon: <FileText size={17} />,
+                disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id),
+                onExecute: () => {
+                  addBlankElement('text', 'content', undefined, { text: 'Type here' });
+                },
+              },
+              {
+                id: 'insert-table',
+                label: 'Table',
+                icon: <Grid3X3 size={17} />,
+                disabled: editorReadOnly || !selectedScreen || Boolean(selectedScreen.layout_id),
+                active: tablePickerOpen,
+                onExecute: openTablePicker,
+              },
+            ],
+          },
+          {
+            id: 'insert-media',
+            label: 'Resources',
+            content: (
+              <StudioInsertResourceButtons
+                disabled={editorReadOnly || !selectedScreen}
+                onUpload={(type) => {
+                  setInsertResourceType(type);
+                  setResourceUploadOpen(true);
+                }}
+                onFromResource={(type) => {
+                  setInsertResourceType(type);
+                  setInsertResourceFilter(type);
+                  setPanel('insert-resources');
+                  setRightPanelOpen(true);
+                }}
+              />
+            ),
+            launcher: {
+              label: 'Open Resources',
+              onExecute: () => {
+                setInsertResourceFilter(null);
                 setPanel('insert-resources');
                 setRightPanelOpen(true);
-              }}
-            />
-          ), launcher: {
-            label: 'Open Resources',
-            onExecute: () => {
-              setInsertResourceFilter(null);
-              setPanel('insert-resources');
-              setRightPanelOpen(true);
+              },
             },
-          } },
-          { id: 'insert-illustrations', label: 'Illustrations', commands: [
-              { id: 'discover-assets', label: 'Discover Assets', icon: <Sparkles size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => setAssetCatalogOpen(true) },
-              { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: () => setDiagramChooserOpen(true), active: diagramChooserOpen },
-          ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes and Zoom"><div className="flex items-center gap-0.5" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div><StudioZoomMenu disabled={editorReadOnly || !selectedScreen} active={Boolean(zoomDialogMode)} onSelect={setZoomDialogMode} /></div> },
+          },
+          {
+            id: 'insert-illustrations',
+            label: 'Illustrations',
+            commands: [
+              {
+                id: 'discover-assets',
+                label: 'Discover Assets',
+                icon: <Sparkles size={17} />,
+                disabled: editorReadOnly || !selectedScreen,
+                onExecute: () => setAssetCatalogOpen(true),
+              },
+              {
+                id: 'insert-diagram',
+                label: 'Diagram',
+                icon: <Network size={17} />,
+                onExecute: () => setDiagramChooserOpen(true),
+                active: diagramChooserOpen,
+              },
+            ],
+            content: (
+              <div className="flex items-center gap-0.5 px-1" aria-label="Shapes gallery">
+                {RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    title={`Insert ${kind.replaceAll('-', ' ')}`}
+                    disabled={editorReadOnly || !selectedScreen}
+                    onClick={() => addShapeElement(kind)}
+                    className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"
+                  >
+                    <StudioShapeElement
+                      kind={kind}
+                      fill="#ffffff"
+                      stroke="#1e3a5f"
+                      strokeWidth={2}
+                    />
+                  </button>
+                ))}
+                <select
+                  aria-label="More shapes"
+                  defaultValue=""
+                  disabled={editorReadOnly || !selectedScreen}
+                  onChange={(event) => {
+                    if (event.target.value) addShapeElement(event.target.value);
+                    event.currentTarget.value = '';
+                  }}
+                  className="h-8 w-16 rounded border px-1 text-[9px]"
+                >
+                  <option value="">More</option>
+                  {STUDIO_SHAPE_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.shapes.map((kind) => (
+                        <option key={`${group.label}-${kind}`} value={kind}>
+                          {kind.replaceAll('-', ' ')}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            ),
+          },
+          {
+            id: 'insert-navigation',
+            label: 'Navigation',
+            commands: [
+              {
+                id: 'manage-gap-bridges',
+                label: 'Gap Bridge',
+                icon: <GitBranch size={17} />,
+                disabled: editorReadOnly || !selectedScreen || selectedIsGapBridgeChild,
+                active: rightPanelOpen && panel === 'gap-bridges',
+                onExecute: () => void openGapBridges(),
+              },
+            ],
+            content: (
+              <StudioZoomMenu
+                disabled={editorReadOnly || !selectedScreen}
+                active={Boolean(zoomDialogMode)}
+                onSelect={setZoomDialogMode}
+              />
+            ),
+          },
+        ];
+      case 'gap-bridge':
+        return [
+          {
+            id: 'gap-bridge-add',
+            label: 'Add',
+            content: (
+              <StudioGapBridgeRibbonAdd
+                disabled={editorReadOnly || !selectedGapBridgeSourceId}
+                onCreateNew={() => {
+                  setPanel('gap-bridges');
+                  setRightPanelOpen(true);
+                  setGapBridgeCommand({ action: 'add-new', token: Date.now() });
+                }}
+                onSelectExisting={() => {
+                  setPanel('gap-bridges');
+                  setRightPanelOpen(true);
+                  setGapBridgeCommand({ action: 'select-existing', token: Date.now() });
+                }}
+              />
+            ),
+          },
+          {
+            id: 'gap-bridge-manage',
+            label: 'Manage',
+            commands: [
+              {
+                id: 'gap-bridge-pane',
+                label: 'Gap Bridge Pane',
+                icon: <ListOrdered size={17} />,
+                disabled: !selectedGapBridgeSourceId,
+                active: rightPanelOpen && panel === 'gap-bridges',
+                onExecute: () => {
+                  setPanel('gap-bridges');
+                  setRightPanelOpen((open) => (panel === 'gap-bridges' ? !open : true));
+                },
+              },
+              {
+                id: 'gap-bridge-preview',
+                label: 'Preview',
+                icon: <Eye size={17} />,
+                disabled: !selectedGapBridge,
+                onExecute: () => {
+                  setPanel('gap-bridges');
+                  setRightPanelOpen(true);
+                  setGapBridgeCommand({ action: 'preview', token: Date.now() });
+                },
+              },
+              {
+                id: 'gap-bridge-delete',
+                label: 'Delete',
+                icon: <Trash2 size={17} />,
+                danger: true,
+                disabled: editorReadOnly || !selectedGapBridge,
+                onExecute: () => {
+                  setPanel('gap-bridges');
+                  setRightPanelOpen(true);
+                  setGapBridgeCommand({ action: 'delete', token: Date.now() });
+                },
+              },
+            ],
+          },
+          {
+            id: 'gap-bridge-selection',
+            label: 'Selected Gap Bridge',
+            content: (
+              <div className="flex h-10 min-w-52 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 text-xs text-violet-950">
+                <GitBranch size={15} />
+                <span className="truncate font-semibold">
+                  {selectedGapBridge?.name || 'Select a Gap Bridge in the pane'}
+                </span>
+              </div>
+            ),
+          },
         ];
       case 'simulation': {
         const subjectTemplates = SIMULATION_TEMPLATES.filter(
           (template) => template.subject === simulationRibbonSubject && template.kind !== 'scene',
         );
-        const subjectImports = quickStartSimulations.filter((entry) => entry.project.subject === simulationRibbonSubject);
-        const categories = Array.from(new Set([
-          ...subjectTemplates.map((template) => simulationCategory(template)),
-          ...subjectImports.map((entry) => simulationCategory(entry.project)),
-        ])).sort((left, right) => left.localeCompare(right));
+        const subjectImports = quickStartSimulations.filter(
+          (entry) => entry.project.subject === simulationRibbonSubject,
+        );
+        const categories = Array.from(
+          new Set([
+            ...subjectTemplates.map((template) => simulationCategory(template)),
+            ...subjectImports.map((entry) => simulationCategory(entry.project)),
+          ]),
+        ).sort((left, right) => left.localeCompare(right));
         const quickTemplates = subjectTemplates.filter(
-          (template) => simulationRibbonCategory === 'all' || simulationCategory(template) === simulationRibbonCategory,
+          (template) =>
+            simulationRibbonCategory === 'all' ||
+            simulationCategory(template) === simulationRibbonCategory,
         );
         const importedQuickStarts = subjectImports.filter(
-          (entry) => simulationRibbonCategory === 'all' || simulationCategory(entry.project) === simulationRibbonCategory,
+          (entry) =>
+            simulationRibbonCategory === 'all' ||
+            simulationCategory(entry.project) === simulationRibbonCategory,
         );
         const simulationRibbonEntries = [
           ...importedQuickStarts.map((entry) => ({ kind: 'imported' as const, entry })),
           ...quickTemplates.map((template) => ({ kind: 'template' as const, template })),
         ];
         const simulationRibbonPageSize = 15;
-        const simulationRibbonPageCount = Math.max(1, Math.ceil(simulationRibbonEntries.length / simulationRibbonPageSize));
-        const visibleSimulationRibbonPage = Math.min(simulationRibbonPage, simulationRibbonPageCount - 1);
+        const simulationRibbonPageCount = Math.max(
+          1,
+          Math.ceil(simulationRibbonEntries.length / simulationRibbonPageSize),
+        );
+        const visibleSimulationRibbonPage = Math.min(
+          simulationRibbonPage,
+          simulationRibbonPageCount - 1,
+        );
         const visibleSimulationRibbonEntries = simulationRibbonEntries.slice(
           visibleSimulationRibbonPage * simulationRibbonPageSize,
           (visibleSimulationRibbonPage + 1) * simulationRibbonPageSize,
@@ -4664,18 +6823,78 @@ export default function TeachingStudioPage() {
         };
         return [
           {
-            id: 'simulation-create', label: 'Creator', commands: [
-              { id: 'simulation-new', label: 'Open Simulation Creator', icon: simulationSaving ? <LoaderCircle size={17} className="animate-spin" /> : <WandSparkles size={17} />, disabled: editorReadOnly || !selectedScreen || simulationSaving, onExecute: () => openSimulationCreator() },
-              { id: 'simulation-edit', label: 'Edit Current Simulation', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.simulationProject !== 'object', onExecute: editSelectedSimulation },
-              { id: 'simulation-library', label: 'Resource Library', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
+            id: 'simulation-create',
+            label: 'Creator',
+            commands: [
+              {
+                id: 'simulation-new',
+                label: 'Open Simulation Creator',
+                icon: simulationSaving ? (
+                  <LoaderCircle size={17} className="animate-spin" />
+                ) : (
+                  <WandSparkles size={17} />
+                ),
+                disabled: editorReadOnly || !selectedScreen || simulationSaving,
+                onExecute: () => openSimulationCreator(),
+              },
+              {
+                id: 'simulation-edit',
+                label: 'Edit Current Simulation',
+                icon: <PencilIcon size={17} />,
+                disabled:
+                  editorReadOnly ||
+                  selectedElement?.type !== 'simulation' ||
+                  typeof selectedElement.content.simulationProject !== 'object',
+                onExecute: editSelectedSimulation,
+              },
+              {
+                id: 'simulation-library',
+                label: 'Resource Library',
+                icon: <BookOpenCheck size={17} />,
+                onExecute: () => {
+                  setInsertResourceFilter('simulation');
+                  setPanel('insert-resources');
+                  setRightPanelOpen(true);
+                },
+                active:
+                  rightPanelOpen &&
+                  panel === 'insert-resources' &&
+                  insertResourceFilter === 'simulation',
+              },
             ],
           },
           {
-            id: 'simulation-subjects', label: 'Subject Studios', commands: [
-              { id: 'simulation-physics', label: 'Physics', icon: <Orbit size={18} />, active: simulationRibbonSubject === 'physics', onExecute: () => selectSimulationSubject('physics') },
-              { id: 'simulation-chemistry', label: 'Chemistry', icon: <FlaskConical size={18} />, active: simulationRibbonSubject === 'chemistry', onExecute: () => selectSimulationSubject('chemistry') },
-              { id: 'simulation-biology', label: 'Biology', icon: <Dna size={18} />, active: simulationRibbonSubject === 'biology', onExecute: () => selectSimulationSubject('biology') },
-              { id: 'simulation-maths', label: 'Mathematics', icon: <Sigma size={18} />, active: simulationRibbonSubject === 'mathematics', onExecute: () => selectSimulationSubject('mathematics') },
+            id: 'simulation-subjects',
+            label: 'Subject Studios',
+            commands: [
+              {
+                id: 'simulation-physics',
+                label: 'Physics',
+                icon: <Orbit size={18} />,
+                active: simulationRibbonSubject === 'physics',
+                onExecute: () => selectSimulationSubject('physics'),
+              },
+              {
+                id: 'simulation-chemistry',
+                label: 'Chemistry',
+                icon: <FlaskConical size={18} />,
+                active: simulationRibbonSubject === 'chemistry',
+                onExecute: () => selectSimulationSubject('chemistry'),
+              },
+              {
+                id: 'simulation-biology',
+                label: 'Biology',
+                icon: <Dna size={18} />,
+                active: simulationRibbonSubject === 'biology',
+                onExecute: () => selectSimulationSubject('biology'),
+              },
+              {
+                id: 'simulation-maths',
+                label: 'Mathematics',
+                icon: <Sigma size={18} />,
+                active: simulationRibbonSubject === 'mathematics',
+                onExecute: () => selectSimulationSubject('mathematics'),
+              },
             ],
           },
           {
@@ -4692,7 +6911,11 @@ export default function TeachingStudioPage() {
                 className="h-9 w-36 min-w-36 max-w-36 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700"
               >
                 <option value="all">All topics</option>
-                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
               </select>
             ),
           },
@@ -4701,7 +6924,10 @@ export default function TeachingStudioPage() {
             label: 'Quick Start from a Template',
             fitAvailableSpace: true,
             content: (
-              <div className="flex w-[44rem] min-w-[44rem] items-center gap-0.5" aria-label="Simulation templates">
+              <div
+                className="flex w-[44rem] min-w-[44rem] items-center gap-0.5"
+                aria-label="Simulation templates"
+              >
                 {simulationRibbonPageCount > 1 ? (
                   <div className="mr-0.5 flex h-12 w-5 shrink-0 flex-col overflow-hidden rounded border border-slate-300 bg-white">
                     <button
@@ -4719,29 +6945,49 @@ export default function TeachingStudioPage() {
                       aria-label="Show next simulations"
                       title="Next simulations"
                       disabled={visibleSimulationRibbonPage >= simulationRibbonPageCount - 1}
-                      onClick={() => setSimulationRibbonPage((page) => Math.min(simulationRibbonPageCount - 1, page + 1))}
+                      onClick={() =>
+                        setSimulationRibbonPage((page) =>
+                          Math.min(simulationRibbonPageCount - 1, page + 1),
+                        )
+                      }
                       className="grid flex-1 place-items-center border-t border-slate-200 text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
                     >
                       <ChevronDown size={12} />
                     </button>
                   </div>
-                ) : <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />}
-                {Array.from({ length: simulationRibbonPageSize }, (_, index) => visibleSimulationRibbonEntries[index] ?? null).map((item, index) => {
+                ) : (
+                  <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />
+                )}
+                {Array.from(
+                  { length: simulationRibbonPageSize },
+                  (_, index) => visibleSimulationRibbonEntries[index] ?? null,
+                ).map((item, index) => {
                   if (!item) {
-                    return <div key={`empty-simulation-slot-${index}`} className="h-12 w-11 shrink-0" aria-hidden="true" />;
+                    return (
+                      <div
+                        key={`empty-simulation-slot-${index}`}
+                        className="h-12 w-11 shrink-0"
+                        aria-hidden="true"
+                      />
+                    );
                   }
                   const imported = item.kind === 'imported' ? item.entry : null;
                   const template = item.kind === 'template' ? item.template : null;
                   const title = imported?.project.title ?? template?.title ?? '';
                   return (
                     <button
-                      key={imported ? `imported-${imported.resourceId}` : `template-${template?.id}`}
+                      key={
+                        imported ? `imported-${imported.resourceId}` : `template-${template?.id}`
+                      }
                       type="button"
                       title={title}
                       disabled={editorReadOnly || !selectedScreen || simulationSaving}
                       onClick={() => {
                         if (imported) {
-                          setSimulationStudio({ subject: imported.project.subject, project: imported.project });
+                          setSimulationStudio({
+                            subject: imported.project.subject,
+                            project: imported.project,
+                          });
                         } else if (template) {
                           openSimulationCreator(template.subject, template.id);
                         }
@@ -4749,13 +6995,26 @@ export default function TeachingStudioPage() {
                       className={`flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-45 ${simulationSubjectButtonColour}`}
                     >
                       <span className="grid h-5 w-5 place-items-center" aria-hidden="true">
-                        {imported?.iconUrl
-                          ? <img src={imported.iconUrl} alt="" className="h-5 w-5 rounded object-contain" />
-                          : template
-                            ? <SimulationCatalogIcon simulation={template} size={18} />
-                            : imported
-                              ? <SimulationCatalogIcon simulation={{ icon: 'sparkles', title: imported.project.title, subject: imported.project.subject }} size={18} />
-                              : <Sparkles size={17} />}
+                        {imported?.iconUrl ? (
+                          <img
+                            src={imported.iconUrl}
+                            alt=""
+                            className="h-5 w-5 rounded object-contain"
+                          />
+                        ) : template ? (
+                          <SimulationCatalogIcon simulation={template} size={18} />
+                        ) : imported ? (
+                          <SimulationCatalogIcon
+                            simulation={{
+                              icon: 'sparkles',
+                              title: imported.project.title,
+                              subject: imported.project.subject,
+                            }}
+                            size={18}
+                          />
+                        ) : (
+                          <Sparkles size={17} />
+                        )}
                       </span>
                       <span className="block w-full truncate text-center">{title}</span>
                     </button>
@@ -4769,7 +7028,10 @@ export default function TeachingStudioPage() {
       case 'activity': {
         const quickActivities = ACTIVITY_TEMPLATES;
         const activityRibbonPageSize = 15;
-        const activityRibbonPageCount = Math.max(1, Math.ceil(quickActivities.length / activityRibbonPageSize));
+        const activityRibbonPageCount = Math.max(
+          1,
+          Math.ceil(quickActivities.length / activityRibbonPageSize),
+        );
         const visibleActivityRibbonPage = Math.min(activityRibbonPage, activityRibbonPageCount - 1);
         const visibleQuickActivities = quickActivities.slice(
           visibleActivityRibbonPage * activityRibbonPageSize,
@@ -4777,10 +7039,44 @@ export default function TeachingStudioPage() {
         );
         return [
           {
-            id: 'activity-builder', label: 'Builder', commands: [
-              { id: 'activity-new', label: 'Build an Activity', icon: activitySaving ? <LoaderCircle size={17} className="animate-spin" /> : <WandSparkles size={17} />, disabled: editorReadOnly || !selectedScreen || activitySaving, onExecute: () => openActivityBuilder() },
-              { id: 'activity-edit', label: 'Edit Current Activity', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.activityProject !== 'object', onExecute: editSelectedActivity },
-              { id: 'activity-library', label: 'Activity Resources', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
+            id: 'activity-builder',
+            label: 'Builder',
+            commands: [
+              {
+                id: 'activity-new',
+                label: 'Build an Activity',
+                icon: activitySaving ? (
+                  <LoaderCircle size={17} className="animate-spin" />
+                ) : (
+                  <WandSparkles size={17} />
+                ),
+                disabled: editorReadOnly || !selectedScreen || activitySaving,
+                onExecute: () => openActivityBuilder(),
+              },
+              {
+                id: 'activity-edit',
+                label: 'Edit Current Activity',
+                icon: <PencilIcon size={17} />,
+                disabled:
+                  editorReadOnly ||
+                  selectedElement?.type !== 'simulation' ||
+                  typeof selectedElement.content.activityProject !== 'object',
+                onExecute: editSelectedActivity,
+              },
+              {
+                id: 'activity-library',
+                label: 'Activity Resources',
+                icon: <BookOpenCheck size={17} />,
+                onExecute: () => {
+                  setInsertResourceFilter('simulation');
+                  setPanel('insert-resources');
+                  setRightPanelOpen(true);
+                },
+                active:
+                  rightPanelOpen &&
+                  panel === 'insert-resources' &&
+                  insertResourceFilter === 'simulation',
+              },
             ],
           },
           {
@@ -4788,7 +7084,10 @@ export default function TeachingStudioPage() {
             label: 'Quick Start from a Template',
             fitAvailableSpace: true,
             content: (
-              <div className="flex w-[44rem] min-w-[44rem] items-center gap-0.5" aria-label="Activity templates">
+              <div
+                className="flex w-[44rem] min-w-[44rem] items-center gap-0.5"
+                aria-label="Activity templates"
+              >
                 {activityRibbonPageCount > 1 ? (
                   <div className="mr-0.5 flex h-12 w-5 shrink-0 flex-col overflow-hidden rounded border border-slate-300 bg-white">
                     <button
@@ -4806,36 +7105,67 @@ export default function TeachingStudioPage() {
                       aria-label="Show next activities"
                       title="Next activities"
                       disabled={visibleActivityRibbonPage >= activityRibbonPageCount - 1}
-                      onClick={() => setActivityRibbonPage((page) => Math.min(activityRibbonPageCount - 1, page + 1))}
+                      onClick={() =>
+                        setActivityRibbonPage((page) =>
+                          Math.min(activityRibbonPageCount - 1, page + 1),
+                        )
+                      }
                       className="grid flex-1 place-items-center border-t border-slate-200 text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
                     >
                       <ChevronDown size={12} />
                     </button>
                   </div>
-                ) : <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />}
-                {Array.from({ length: activityRibbonPageSize }, (_, index) => visibleQuickActivities[index] ?? null).map((template, index) => template ? (
-                  <button
-                    key={`activity-template-${template.id}`}
-                    type="button"
-                    title={template.label}
-                    disabled={editorReadOnly || !selectedScreen || activitySaving}
-                    onClick={() => openActivityBuilder(template.id)}
-                    className="flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 hover:border-violet-300 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    <span className="grid h-5 w-5 place-items-center text-base" aria-hidden="true">{template.icon}</span>
-                    <span className="block w-full truncate text-center">{template.label}</span>
-                  </button>
-                ) : <div key={`empty-activity-slot-${index}`} className="h-12 w-11 shrink-0" aria-hidden="true" />)}
+                ) : (
+                  <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />
+                )}
+                {Array.from(
+                  { length: activityRibbonPageSize },
+                  (_, index) => visibleQuickActivities[index] ?? null,
+                ).map((template, index) =>
+                  template ? (
+                    <button
+                      key={`activity-template-${template.id}`}
+                      type="button"
+                      title={template.label}
+                      disabled={editorReadOnly || !selectedScreen || activitySaving}
+                      onClick={() => openActivityBuilder(template.id)}
+                      className="flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 hover:border-violet-300 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      <span
+                        className="grid h-5 w-5 place-items-center text-base"
+                        aria-hidden="true"
+                      >
+                        {template.icon}
+                      </span>
+                      <span className="block w-full truncate text-center">{template.label}</span>
+                    </button>
+                  ) : (
+                    <div
+                      key={`empty-activity-slot-${index}`}
+                      className="h-12 w-11 shrink-0"
+                      aria-hidden="true"
+                    />
+                  ),
+                )}
               </div>
             ),
           },
         ];
       }
       case 'lab': {
-        const activeLabCatalog = labRibbonSubject === 'chemistry' ? chemistryLabCatalog : labRibbonSubject === 'mathematics' ? mathematicsLabCatalog : labRibbonSubject === 'biology' ? biologyLabCatalog : physicsLabCatalog;
-        const labs = (activeLabCatalog?.labs || []).filter((entry) =>
-          (physicsLabClassFilter === 'all' || entry.classes.includes(physicsLabClassFilter))
-          && (physicsLabTopicFilter === 'all' || entry.topic === physicsLabTopicFilter));
+        const activeLabCatalog =
+          labRibbonSubject === 'chemistry'
+            ? chemistryLabCatalog
+            : labRibbonSubject === 'mathematics'
+              ? mathematicsLabCatalog
+              : labRibbonSubject === 'biology'
+                ? biologyLabCatalog
+                : physicsLabCatalog;
+        const labs = (activeLabCatalog?.labs || []).filter(
+          (entry) =>
+            (physicsLabClassFilter === 'all' || entry.classes.includes(physicsLabClassFilter)) &&
+            (physicsLabTopicFilter === 'all' || entry.topic === physicsLabTopicFilter),
+        );
         const labRibbonPageSize = 15;
         const labRibbonPageCount = Math.max(1, Math.ceil(labs.length / labRibbonPageSize));
         const visibleLabRibbonPage = Math.min(labRibbonPage, labRibbonPageCount - 1);
@@ -4843,38 +7173,179 @@ export default function TeachingStudioPage() {
           visibleLabRibbonPage * labRibbonPageSize,
           (visibleLabRibbonPage + 1) * labRibbonPageSize,
         );
-        const openActiveLab = (labId?: string) => labRibbonSubject === 'chemistry' ? void openChemistryLab(labId) : labRibbonSubject === 'mathematics' ? void openMathematicsLab(labId) : labRibbonSubject === 'biology' ? void openBiologyLab(labId) : void openPhysicsLab(labId);
+        const openActiveLab = (labId?: string) =>
+          labRibbonSubject === 'chemistry'
+            ? void openChemistryLab(labId)
+            : labRibbonSubject === 'mathematics'
+              ? void openMathematicsLab(labId)
+              : labRibbonSubject === 'biology'
+                ? void openBiologyLab(labId)
+                : void openPhysicsLab(labId);
         return [
           {
-            id: 'lab-workspace', label: 'Lab Workspace', commands: [
-              { id: 'lab-open', label: 'Open Lab', icon: physicsLabSaving ? <LoaderCircle size={17} className="animate-spin" /> : <FlaskConical size={17} />, disabled: editorReadOnly || !selectedScreen || physicsLabSaving, onExecute: () => openActiveLab() },
-              { id: 'lab-edit', label: 'Edit Current Lab', icon: <PencilIcon size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'simulation' || typeof selectedElement.content.labProject !== 'object', onExecute: editSelectedPhysicsLab },
-              { id: 'lab-update-resource', label: 'Update Resource Library', icon: <Save size={17} />, disabled: editorReadOnly || physicsLabSaving || selectedElement?.content.labHasLocalChanges !== true || !selectedElement?.resource?.resource_id, onExecute: updateSelectedPhysicsLabResource },
-              { id: 'lab-reset-resource', label: 'Reset to Resource', icon: <RefreshCw size={17} />, disabled: editorReadOnly || physicsLabSaving || selectedElement?.content.labHasLocalChanges !== true || !selectedElement?.resource?.resource_id, onExecute: resetSelectedPhysicsLabToResource },
-              { id: 'lab-library', label: 'Lab Resource Library', icon: <BookOpenCheck size={17} />, onExecute: () => { setInsertResourceFilter('simulation'); setPanel('insert-resources'); setRightPanelOpen(true); }, active: rightPanelOpen && panel === 'insert-resources' && insertResourceFilter === 'simulation' },
+            id: 'lab-workspace',
+            label: 'Lab Workspace',
+            commands: [
+              {
+                id: 'lab-open',
+                label: 'Open Lab',
+                icon: physicsLabSaving ? (
+                  <LoaderCircle size={17} className="animate-spin" />
+                ) : (
+                  <FlaskConical size={17} />
+                ),
+                disabled: editorReadOnly || !selectedScreen || physicsLabSaving,
+                onExecute: () => openActiveLab(),
+              },
+              {
+                id: 'lab-edit',
+                label: 'Edit Current Lab',
+                icon: <PencilIcon size={17} />,
+                disabled:
+                  editorReadOnly ||
+                  selectedElement?.type !== 'simulation' ||
+                  typeof selectedElement.content.labProject !== 'object',
+                onExecute: editSelectedPhysicsLab,
+              },
+              {
+                id: 'lab-update-resource',
+                label: 'Update Resource Library',
+                icon: <Save size={17} />,
+                disabled:
+                  editorReadOnly ||
+                  physicsLabSaving ||
+                  selectedElement?.content.labHasLocalChanges !== true ||
+                  !selectedElement?.resource?.resource_id,
+                onExecute: updateSelectedPhysicsLabResource,
+              },
+              {
+                id: 'lab-reset-resource',
+                label: 'Reset to Resource',
+                icon: <RefreshCw size={17} />,
+                disabled:
+                  editorReadOnly ||
+                  physicsLabSaving ||
+                  selectedElement?.content.labHasLocalChanges !== true ||
+                  !selectedElement?.resource?.resource_id,
+                onExecute: resetSelectedPhysicsLabToResource,
+              },
+              {
+                id: 'lab-library',
+                label: 'Lab Resource Library',
+                icon: <BookOpenCheck size={17} />,
+                onExecute: () => {
+                  setInsertResourceFilter('simulation');
+                  setPanel('insert-resources');
+                  setRightPanelOpen(true);
+                },
+                active:
+                  rightPanelOpen &&
+                  panel === 'insert-resources' &&
+                  insertResourceFilter === 'simulation',
+              },
             ],
           },
           {
-            id: 'lab-subjects', label: 'Subject Labs', commands: [
-              { id: 'lab-physics', label: 'Physics Lab', icon: <Orbit size={18} />, active: labRibbonSubject === 'physics', onExecute: () => { setLabRibbonSubject('physics'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
-              { id: 'lab-chemistry', label: 'Chemistry Lab', icon: <FlaskConical size={18} />, active: labRibbonSubject === 'chemistry', onExecute: () => { setLabRibbonSubject('chemistry'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
-              { id: 'lab-biology', label: 'Biology Lab', icon: <Dna size={18} />, active: labRibbonSubject === 'biology', onExecute: () => { setLabRibbonSubject('biology'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
-              { id: 'lab-mathematics', label: 'Mathematics Lab', icon: <Sigma size={18} />, active: labRibbonSubject === 'mathematics', onExecute: () => { setLabRibbonSubject('mathematics'); setPhysicsLabTopicFilter('all'); setLabRibbonPage(0); } },
+            id: 'lab-subjects',
+            label: 'Subject Labs',
+            commands: [
+              {
+                id: 'lab-physics',
+                label: 'Physics Lab',
+                icon: <Orbit size={18} />,
+                active: labRibbonSubject === 'physics',
+                onExecute: () => {
+                  setLabRibbonSubject('physics');
+                  setPhysicsLabTopicFilter('all');
+                  setLabRibbonPage(0);
+                },
+              },
+              {
+                id: 'lab-chemistry',
+                label: 'Chemistry Lab',
+                icon: <FlaskConical size={18} />,
+                active: labRibbonSubject === 'chemistry',
+                onExecute: () => {
+                  setLabRibbonSubject('chemistry');
+                  setPhysicsLabTopicFilter('all');
+                  setLabRibbonPage(0);
+                },
+              },
+              {
+                id: 'lab-biology',
+                label: 'Biology Lab',
+                icon: <Dna size={18} />,
+                active: labRibbonSubject === 'biology',
+                onExecute: () => {
+                  setLabRibbonSubject('biology');
+                  setPhysicsLabTopicFilter('all');
+                  setLabRibbonPage(0);
+                },
+              },
+              {
+                id: 'lab-mathematics',
+                label: 'Mathematics Lab',
+                icon: <Sigma size={18} />,
+                active: labRibbonSubject === 'mathematics',
+                onExecute: () => {
+                  setLabRibbonSubject('mathematics');
+                  setPhysicsLabTopicFilter('all');
+                  setLabRibbonPage(0);
+                },
+              },
             ],
           },
           {
-            id: 'lab-filters', label: 'Class & Topic Filters', content: <div className="flex items-center gap-2 px-1">
-              <select aria-label={`Filter ${labRibbonSubject} Labs by class`} value={physicsLabClassFilter} onChange={(event) => { setPhysicsLabClassFilter(event.target.value === 'all' ? 'all' : Number(event.target.value)); setLabRibbonPage(0); }} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
-                <option value="all">All classes</option>{[6, 7, 8, 9, 10, 11, 12].map((grade) => <option key={grade} value={grade}>Class {grade}</option>)}
-              </select>
-              <select aria-label={`Filter ${labRibbonSubject} Labs by topic`} value={physicsLabTopicFilter} onChange={(event) => { setPhysicsLabTopicFilter(event.target.value); setLabRibbonPage(0); }} className="h-9 min-w-36 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700">
-                <option value="all">All topics</option>{Object.entries(activeLabCatalog?.topics || {}).map(([id, topic]) => <option key={id} value={id}>{topic.label}</option>)}
-              </select>
-            </div>,
+            id: 'lab-filters',
+            label: 'Class & Topic Filters',
+            content: (
+              <div className="flex items-center gap-2 px-1">
+                <select
+                  aria-label={`Filter ${labRibbonSubject} Labs by class`}
+                  value={physicsLabClassFilter}
+                  onChange={(event) => {
+                    setPhysicsLabClassFilter(
+                      event.target.value === 'all' ? 'all' : Number(event.target.value),
+                    );
+                    setLabRibbonPage(0);
+                  }}
+                  className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700"
+                >
+                  <option value="all">All classes</option>
+                  {[6, 7, 8, 9, 10, 11, 12].map((grade) => (
+                    <option key={grade} value={grade}>
+                      Class {grade}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label={`Filter ${labRibbonSubject} Labs by topic`}
+                  value={physicsLabTopicFilter}
+                  onChange={(event) => {
+                    setPhysicsLabTopicFilter(event.target.value);
+                    setLabRibbonPage(0);
+                  }}
+                  className="h-9 min-w-36 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700"
+                >
+                  <option value="all">All topics</option>
+                  {Object.entries(activeLabCatalog?.topics || {}).map(([id, topic]) => (
+                    <option key={id} value={id}>
+                      {topic.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ),
           },
           {
-            id: 'lab-quick-start', label: 'Quick Start from a Template', fitAvailableSpace: true, content: (
-              <div className="flex w-[44rem] min-w-[44rem] items-center gap-0.5" aria-label="Lab templates">
+            id: 'lab-quick-start',
+            label: 'Quick Start from a Template',
+            fitAvailableSpace: true,
+            content: (
+              <div
+                className="flex w-[44rem] min-w-[44rem] items-center gap-0.5"
+                aria-label="Lab templates"
+              >
                 {labRibbonPageCount > 1 ? (
                   <div className="mr-0.5 flex h-12 w-5 shrink-0 flex-col overflow-hidden rounded border border-slate-300 bg-white">
                     <button
@@ -4892,34 +7363,71 @@ export default function TeachingStudioPage() {
                       aria-label="Show next labs"
                       title="Next labs"
                       disabled={visibleLabRibbonPage >= labRibbonPageCount - 1}
-                      onClick={() => setLabRibbonPage((page) => Math.min(labRibbonPageCount - 1, page + 1))}
+                      onClick={() =>
+                        setLabRibbonPage((page) => Math.min(labRibbonPageCount - 1, page + 1))
+                      }
                       className="grid flex-1 place-items-center border-t border-slate-200 text-slate-600 hover:bg-blue-50 disabled:text-slate-300"
                     >
                       <ChevronDown size={12} />
                     </button>
                   </div>
-                ) : <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />}
-                {Array.from({ length: labRibbonPageSize }, (_, index) => visibleLabs[index] ?? null).map((entry, index) => entry ? (
-                  <button
-                    key={`${labRibbonSubject}-lab-${entry.id}`}
-                    type="button"
-                    title={entry.title}
-                    disabled={editorReadOnly || !selectedScreen || physicsLabSaving}
-                    onClick={() => openActiveLab(entry.id)}
-                    className="flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    <span className="grid h-6 w-6 place-items-center" aria-hidden="true">
-                      {labRibbonSubject === 'chemistry'
-                        ? <ChemistryLabIcon entry={entry as import('./components/chemistryLabModel').ChemistryLabCatalogEntry} className="h-6 w-6" />
-                        : labRibbonSubject === 'mathematics'
-                          ? <MathematicsLabIcon entry={entry as import('./components/mathematicsLabModel').MathematicsLabCatalogEntry} className="h-6 w-6" />
-                          : labRibbonSubject === 'biology'
-                            ? <BiologyLabIcon entry={entry as import('./components/biologyLabModel').BiologyLabCatalogEntry} className="h-6 w-6" />
-                            : <PhysicsLabIcon entry={entry as import('./components/physicsLabModel').PhysicsLabCatalogEntry} className="h-6 w-6" />}
-                    </span>
-                    <span className="block w-full truncate text-center">{entry.title}</span>
-                  </button>
-                ) : <div key={`empty-lab-slot-${index}`} className="h-12 w-11 shrink-0" aria-hidden="true" />)}
+                ) : (
+                  <div className="mr-0.5 h-12 w-5 shrink-0" aria-hidden="true" />
+                )}
+                {Array.from(
+                  { length: labRibbonPageSize },
+                  (_, index) => visibleLabs[index] ?? null,
+                ).map((entry, index) =>
+                  entry ? (
+                    <button
+                      key={`${labRibbonSubject}-lab-${entry.id}`}
+                      type="button"
+                      title={entry.title}
+                      disabled={editorReadOnly || !selectedScreen || physicsLabSaving}
+                      onClick={() => openActiveLab(entry.id)}
+                      className="flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent px-0.5 text-[9px] font-semibold text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      <span className="grid h-6 w-6 place-items-center" aria-hidden="true">
+                        {labRibbonSubject === 'chemistry' ? (
+                          <ChemistryLabIcon
+                            entry={
+                              entry as import('./components/chemistryLabModel').ChemistryLabCatalogEntry
+                            }
+                            className="h-6 w-6"
+                          />
+                        ) : labRibbonSubject === 'mathematics' ? (
+                          <MathematicsLabIcon
+                            entry={
+                              entry as import('./components/mathematicsLabModel').MathematicsLabCatalogEntry
+                            }
+                            className="h-6 w-6"
+                          />
+                        ) : labRibbonSubject === 'biology' ? (
+                          <BiologyLabIcon
+                            entry={
+                              entry as import('./components/biologyLabModel').BiologyLabCatalogEntry
+                            }
+                            className="h-6 w-6"
+                          />
+                        ) : (
+                          <PhysicsLabIcon
+                            entry={
+                              entry as import('./components/physicsLabModel').PhysicsLabCatalogEntry
+                            }
+                            className="h-6 w-6"
+                          />
+                        )}
+                      </span>
+                      <span className="block w-full truncate text-center">{entry.title}</span>
+                    </button>
+                  ) : (
+                    <div
+                      key={`empty-lab-slot-${index}`}
+                      className="h-12 w-11 shrink-0"
+                      aria-hidden="true"
+                    />
+                  ),
+                )}
               </div>
             ),
           },
@@ -4933,26 +7441,60 @@ export default function TeachingStudioPage() {
             commands: group.items.map(([label, latex, glyph]) => ({
               id: `equation-${group.name.toLowerCase()}-${label.toLowerCase().replaceAll(' ', '-')}`,
               label,
-              icon: <span className="grid min-h-5 min-w-6 place-items-center font-serif text-base font-semibold leading-none" aria-hidden="true">{glyph}</span>,
+              icon: (
+                <span
+                  className="grid min-h-5 min-w-6 place-items-center font-serif text-base font-semibold leading-none"
+                  aria-hidden="true"
+                >
+                  {glyph}
+                </span>
+              ),
               disabled: editorReadOnly || !selectedScreen,
               onExecute: () => {
-                const inlineTarget = selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type)
-                  ? selectedElement
-                  : null;
+                const inlineTarget =
+                  selectedElement &&
+                  [
+                    'title',
+                    'text',
+                    'question',
+                    'response',
+                    'steps',
+                    'workspace',
+                    'footer',
+                    'options',
+                    'data',
+                  ].includes(selectedElement.type)
+                    ? selectedElement
+                    : null;
                 if (inlineTarget) {
                   const text = String(inlineTarget.content.text ?? '');
-                  const offset = inlineEquationInsertionOffset(text, inlineTarget.id, inlineEquationCaretRef.current);
-                  dispatchStudioTextCommand(inlineTarget.id, { type: 'insert-equation', latex, offset });
+                  const offset = inlineEquationInsertionOffset(
+                    text,
+                    inlineTarget.id,
+                    inlineEquationCaretRef.current,
+                  );
+                  dispatchStudioTextCommand(inlineTarget.id, {
+                    type: 'insert-equation',
+                    latex,
+                    offset,
+                  });
                   inlineEquationCaretRef.current = {
                     elementId: inlineTarget.id,
                     offset: offset + `\\(${latex}\\)`.length,
                   };
                   return;
                 }
-                const activeEquationId = (window as Window & { __studioActiveEquationElementId?: string }).__studioActiveEquationElementId;
-                const targetEquationId = selectedElement?.type === 'math' ? selectedElement.id : activeEquationId;
+                const activeEquationId = (
+                  window as Window & { __studioActiveEquationElementId?: string }
+                ).__studioActiveEquationElementId;
+                const targetEquationId =
+                  selectedElement?.type === 'math' ? selectedElement.id : activeEquationId;
                 if (targetEquationId) {
-                  window.dispatchEvent(new CustomEvent('studio-equation-control', { detail: { elementId: targetEquationId, action: 'insert', latex } }));
+                  window.dispatchEvent(
+                    new CustomEvent('studio-equation-control', {
+                      detail: { elementId: targetEquationId, action: 'insert', latex },
+                    }),
+                  );
                 } else addMathElement(latex);
               },
             })),
@@ -4967,12 +7509,37 @@ export default function TeachingStudioPage() {
                 readOnly={editorReadOnly}
                 onDuplicate={duplicateElement}
                 onRemove={removeElement}
-                preferInlineControl={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
+                preferInlineControl={Boolean(
+                  selectedElement &&
+                  [
+                    'title',
+                    'text',
+                    'question',
+                    'response',
+                    'steps',
+                    'workspace',
+                    'footer',
+                    'options',
+                    'data',
+                  ].includes(selectedElement.type),
+                )}
                 onRequestControl={(action, location) => {
                   const caret = inlineEquationCaretRef.current;
-                  const textTarget = selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type)
-                    ? selectedElement
-                    : null;
+                  const textTarget =
+                    selectedElement &&
+                    [
+                      'title',
+                      'text',
+                      'question',
+                      'response',
+                      'steps',
+                      'workspace',
+                      'footer',
+                      'options',
+                      'data',
+                    ].includes(selectedElement.type)
+                      ? selectedElement
+                      : null;
                   if (textTarget) {
                     const text = String(textTarget.content.text ?? '');
                     const offset = inlineEquationInsertionOffset(text, textTarget.id, caret);
@@ -4993,8 +7560,14 @@ export default function TeachingStudioPage() {
                   const elementId = addMathElement('', true);
                   if (!elementId) return;
                   const detail = { elementId, action, ...(location ?? {}) };
-                  (window as Window & { __studioPendingEquationControl?: typeof detail }).__studioPendingEquationControl = detail;
-                  window.setTimeout(() => window.dispatchEvent(new CustomEvent('studio-equation-control', { detail })), 0);
+                  (
+                    window as Window & { __studioPendingEquationControl?: typeof detail }
+                  ).__studioPendingEquationControl = detail;
+                  window.setTimeout(
+                    () =>
+                      window.dispatchEvent(new CustomEvent('studio-equation-control', { detail })),
+                    0,
+                  );
                 }}
               />
             ),
@@ -5005,203 +7578,1909 @@ export default function TeachingStudioPage() {
       case 'design':
         return [
           {
-            id: 'screen-layouts', label: 'Layouts', content: <StudioLayoutRibbon layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} disabled={editorReadOnly || !selectedScreen} onApply={requestLayoutApplication} onMore={() => setLayoutGalleryOpen(true)} />,
+            id: 'screen-layouts',
+            label: 'Layouts',
+            content: (
+              <StudioLayoutRibbon
+                layouts={layouts}
+                selectedLayoutId={selectedScreen?.layout_id ?? null}
+                applying={applyingLayout}
+                disabled={editorReadOnly || !selectedScreen}
+                onApply={requestLayoutApplication}
+                onMore={() => setLayoutGalleryOpen(true)}
+              />
+            ),
           },
-          { id: 'screen-background', label: 'Background', content: <StudioColourMenu label="Screen background colour" noColourLabel="No Fill" value={String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')} disabled={editorReadOnly || !selectedScreen} onChange={setScreenBackgroundColor} /> },
+          {
+            id: 'screen-background',
+            label: 'Background',
+            content: (
+              <StudioColourMenu
+                label="Screen background colour"
+                noColourLabel="No Fill"
+                value={String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')}
+                disabled={editorReadOnly || !selectedScreen}
+                onChange={setScreenBackgroundColor}
+              />
+            ),
+          },
         ];
       case 'transitions':
         return [
-          { id: 'transition-controls', label: 'Transition to This Screen', fitAvailableSpace: true, content: (
-            <StudioTransitionRibbon
-              settings={selectedScreen?.screen_settings_json ?? null}
-              disabled={editorReadOnly || !selectedScreen}
-              screenCount={screenList.screens.length}
-              onChange={setScreenTransition}
-              onApplyToAll={applyTransitionToAllScreens}
-            />
-          ) },
+          {
+            id: 'transition-controls',
+            label: 'Transition to This Screen',
+            fitAvailableSpace: true,
+            content: (
+              <StudioTransitionRibbon
+                settings={selectedScreen?.screen_settings_json ?? null}
+                disabled={editorReadOnly || !selectedScreen}
+                screenCount={screenList.screens.length}
+                onChange={setScreenTransition}
+                onApplyToAll={applyTransitionToAllScreens}
+              />
+            ),
+          },
         ];
       case 'animations':
         return [
-          { id: 'animation-preview', label: 'Preview', content: <div className="flex h-full items-center gap-1 px-1"><button type="button" title="Preview selected animation" aria-label="Preview selected animation" disabled={!selectedElement || selectedAnimationEffects.length === 0} onClick={() => selectedElement && setAnimationPreview({ elementId: selectedElement.id, token: Date.now() })} className="grid h-10 w-10 place-items-center rounded-lg text-blue-900 hover:bg-blue-50 disabled:opacity-35"><Eye size={18}/></button><label className="flex h-10 cursor-pointer flex-col items-center justify-center rounded px-1 text-[8px] font-semibold text-slate-600 hover:bg-slate-50"><input type="checkbox" checked={animationAutoPreview} onChange={(event) => setAnimationAutoPreview(event.target.checked)} className="h-3 w-3"/><span>AutoPreview</span></label></div> },
           {
-            id: 'animation-gallery', label: 'Animation', fitAvailableSpace: true, content: <StudioAnimationRibbonGallery activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')} disabled={!selectedElement || editorReadOnly} isEffectDisabled={isSelectedAnimationEffectDisabled} onSelect={(effect) => applyQuickAnimation(effect)} onRemove={removeSelectedAnimation} />,
+            id: 'animation-preview',
+            label: 'Preview',
+            content: (
+              <div className="flex h-full items-center gap-1 px-1">
+                <button
+                  type="button"
+                  title="Preview selected animation"
+                  aria-label="Preview selected animation"
+                  disabled={!selectedElement || selectedAnimationEffects.length === 0}
+                  onClick={() =>
+                    selectedElement &&
+                    setAnimationPreview({ elementId: selectedElement.id, token: Date.now() })
+                  }
+                  className="grid h-10 w-10 place-items-center rounded-lg text-blue-900 hover:bg-blue-50 disabled:opacity-35"
+                >
+                  <Eye size={18} />
+                </button>
+                <label className="flex h-10 cursor-pointer flex-col items-center justify-center rounded px-1 text-[8px] font-semibold text-slate-600 hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={animationAutoPreview}
+                    onChange={(event) => setAnimationAutoPreview(event.target.checked)}
+                    className="h-3 w-3"
+                  />
+                  <span>AutoPreview</span>
+                </label>
+              </div>
+            ),
           },
-          { id: 'animation-effect-options', label: 'Effect Options', content: <div data-studio-animation-effect-options><StudioAnimationAdvancedOptions effect={(activeSelectedAnimationEffect as StudioAnimationEffectDefinition | undefined) ?? null} element={selectedElement ?? null} onChange={updateSelectedAnimationEffect}/></div> },
-          { id: 'advanced-animation', label: 'Advanced Animation', commands: [
-            { id: 'animation-pane', label: 'Animation Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, active: rightPanelOpen && panel === 'animations', onExecute: openAnimationPane },
-            { id: 'animation-painter', label: animationPaintSource?.locked ? 'Painter Locked' : 'Animation Painter', icon: <Paintbrush size={17} />, disabled: !selectedElement || selectedAnimationEffects.length === 0, active: Boolean(animationPaintSource), onExecute: () => animationPaintSource ? setAnimationPaintSource(null) : startAnimationPainter(false), onDoubleClick: () => startAnimationPainter(true) },
-          ], content: <div className="flex h-full items-center"><StudioAnimationMenu label="Add Animation" addMode disabled={!selectedElement || editorReadOnly} isEffectDisabled={isSelectedAnimationEffectDisabled} onSelect={(effect) => applyQuickAnimation(effect, true)}/><StudioAnimationTriggerMenu effect={(activeSelectedAnimationEffect as StudioAnimationEffectDefinition | undefined) ?? null} element={selectedElement ?? null} elements={selectedScreen?.elements ?? []} disabled={!activeSelectedAnimationEffect || editorReadOnly} onChange={updateSelectedAnimationEffect}/></div> },
-          { id: 'animation-timing', label: 'Timing', content: <div className="grid w-52 grid-cols-2 gap-x-2 gap-y-0.5 px-1"><select aria-label="Animation start" disabled={!activeSelectedAnimationEffect || activeSelectedAnimationEffect?.start === 'trigger'} value={String(activeSelectedAnimationEffect?.start || 'on-click')} onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })} className="col-span-2 h-5 w-full rounded border px-1 text-[9px]"><option value="on-click">Start: On Click</option><option value="with-previous">Start: With Previous</option><option value="after-previous">Start: After Previous</option>{activeSelectedAnimationEffect?.start === 'trigger' ? <option value="trigger">Start: Trigger</option> : null}</select><select aria-label="Animation repeat" disabled={!activeSelectedAnimationEffect} value={String(activeSelectedAnimationEffect?.repeat || 1)} onChange={(event) => updateSelectedAnimationEffect({ repeat: /^\d+$/.test(event.target.value) ? Number(event.target.value) : event.target.value })} className="col-span-2 h-5 w-full rounded border px-1 text-[9px]"><option value="1">Repeat: Once</option><option value="2">Repeat: Twice</option><option value="3">Repeat: 3 times</option><option value="5">Repeat: 5 times</option><option value="10">Repeat: 10 times</option><option value="until-next-click">Until next click</option><option value="until-end">Until end of Screen</option></select><label className="flex min-w-0 items-center justify-between gap-1 text-[9px]">Duration<input aria-label="Animation duration" type="number" min="0.1" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.duration) || 0.8} onChange={(event) => updateSelectedAnimationEffect({ duration: Number(event.target.value) })} className="h-5 w-12 rounded border px-1" /></label><label className="flex min-w-0 items-center justify-between gap-1 text-[9px]">Delay<input aria-label="Animation delay" type="number" min="0" max="60" step="0.1" disabled={!activeSelectedAnimationEffect} value={Number(activeSelectedAnimationEffect?.delay) || 0} onChange={(event) => updateSelectedAnimationEffect({ delay: Number(event.target.value) })} className="h-5 w-12 rounded border px-1" /></label></div> },
-          { id: 'animation-reorder', label: 'Reorder Animation', content: <div className="grid gap-0.5"><button type="button" disabled={selectedAnimationSequenceIndex <= 0} onClick={() => moveSelectedAnimation(-1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronUp size={13}/>Move Earlier</button><button type="button" disabled={selectedAnimationSequenceIndex < 0 || selectedAnimationSequenceIndex >= globalAnimationSequence.length - 1} onClick={() => moveSelectedAnimation(1)} className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"><ChevronDown size={13}/>Move Later</button></div> },
+          {
+            id: 'animation-gallery',
+            label: 'Animation',
+            fitAvailableSpace: true,
+            content: (
+              <StudioAnimationRibbonGallery
+                activeEffect={String(activeSelectedAnimationEffect?.effect || 'none')}
+                disabled={!selectedElement || editorReadOnly}
+                isEffectDisabled={isSelectedAnimationEffectDisabled}
+                onSelect={(effect) => applyQuickAnimation(effect)}
+                onRemove={removeSelectedAnimation}
+              />
+            ),
+          },
+          {
+            id: 'animation-effect-options',
+            label: 'Effect Options',
+            content: (
+              <div data-studio-animation-effect-options>
+                <StudioAnimationAdvancedOptions
+                  effect={
+                    (activeSelectedAnimationEffect as
+                      StudioAnimationEffectDefinition | undefined) ?? null
+                  }
+                  element={selectedElement ?? null}
+                  onChange={updateSelectedAnimationEffect}
+                />
+              </div>
+            ),
+          },
+          {
+            id: 'advanced-animation',
+            label: 'Advanced Animation',
+            commands: [
+              {
+                id: 'animation-pane',
+                label: 'Animation Pane',
+                icon: <ListOrdered size={17} />,
+                disabled: !selectedScreen,
+                active: rightPanelOpen && panel === 'animations',
+                onExecute: openAnimationPane,
+              },
+              {
+                id: 'animation-painter',
+                label: animationPaintSource?.locked ? 'Painter Locked' : 'Animation Painter',
+                icon: <Paintbrush size={17} />,
+                disabled: !selectedElement || selectedAnimationEffects.length === 0,
+                active: Boolean(animationPaintSource),
+                onExecute: () =>
+                  animationPaintSource
+                    ? setAnimationPaintSource(null)
+                    : startAnimationPainter(false),
+                onDoubleClick: () => startAnimationPainter(true),
+              },
+            ],
+            content: (
+              <div className="flex h-full items-center">
+                <StudioAnimationMenu
+                  label="Add Animation"
+                  addMode
+                  disabled={!selectedElement || editorReadOnly}
+                  isEffectDisabled={isSelectedAnimationEffectDisabled}
+                  onSelect={(effect) => applyQuickAnimation(effect, true)}
+                />
+                <StudioAnimationTriggerMenu
+                  effect={
+                    (activeSelectedAnimationEffect as
+                      StudioAnimationEffectDefinition | undefined) ?? null
+                  }
+                  element={selectedElement ?? null}
+                  elements={selectedScreen?.elements ?? []}
+                  disabled={!activeSelectedAnimationEffect || editorReadOnly}
+                  onChange={updateSelectedAnimationEffect}
+                />
+              </div>
+            ),
+          },
+          {
+            id: 'animation-timing',
+            label: 'Timing',
+            content: (
+              <div className="grid w-52 grid-cols-2 gap-x-2 gap-y-0.5 px-1">
+                <select
+                  aria-label="Animation start"
+                  disabled={
+                    !activeSelectedAnimationEffect ||
+                    activeSelectedAnimationEffect?.start === 'trigger'
+                  }
+                  value={String(activeSelectedAnimationEffect?.start || 'on-click')}
+                  onChange={(event) => updateSelectedAnimationEffect({ start: event.target.value })}
+                  className="col-span-2 h-5 w-full rounded border px-1 text-[9px]"
+                >
+                  <option value="on-click">Start: On Click</option>
+                  <option value="with-previous">Start: With Previous</option>
+                  <option value="after-previous">Start: After Previous</option>
+                  {activeSelectedAnimationEffect?.start === 'trigger' ? (
+                    <option value="trigger">Start: Trigger</option>
+                  ) : null}
+                </select>
+                <select
+                  aria-label="Animation repeat"
+                  disabled={!activeSelectedAnimationEffect}
+                  value={String(activeSelectedAnimationEffect?.repeat || 1)}
+                  onChange={(event) =>
+                    updateSelectedAnimationEffect({
+                      repeat: /^\d+$/.test(event.target.value)
+                        ? Number(event.target.value)
+                        : event.target.value,
+                    })
+                  }
+                  className="col-span-2 h-5 w-full rounded border px-1 text-[9px]"
+                >
+                  <option value="1">Repeat: Once</option>
+                  <option value="2">Repeat: Twice</option>
+                  <option value="3">Repeat: 3 times</option>
+                  <option value="5">Repeat: 5 times</option>
+                  <option value="10">Repeat: 10 times</option>
+                  <option value="until-next-click">Until next click</option>
+                  <option value="until-end">Until end of Screen</option>
+                </select>
+                <label className="flex min-w-0 items-center justify-between gap-1 text-[9px]">
+                  Duration
+                  <input
+                    aria-label="Animation duration"
+                    type="number"
+                    min="0.1"
+                    max="60"
+                    step="0.1"
+                    disabled={!activeSelectedAnimationEffect}
+                    value={Number(activeSelectedAnimationEffect?.duration) || 0.8}
+                    onChange={(event) =>
+                      updateSelectedAnimationEffect({ duration: Number(event.target.value) })
+                    }
+                    className="h-5 w-12 rounded border px-1"
+                  />
+                </label>
+                <label className="flex min-w-0 items-center justify-between gap-1 text-[9px]">
+                  Delay
+                  <input
+                    aria-label="Animation delay"
+                    type="number"
+                    min="0"
+                    max="60"
+                    step="0.1"
+                    disabled={!activeSelectedAnimationEffect}
+                    value={Number(activeSelectedAnimationEffect?.delay) || 0}
+                    onChange={(event) =>
+                      updateSelectedAnimationEffect({ delay: Number(event.target.value) })
+                    }
+                    className="h-5 w-12 rounded border px-1"
+                  />
+                </label>
+              </div>
+            ),
+          },
+          {
+            id: 'animation-reorder',
+            label: 'Reorder Animation',
+            content: (
+              <div className="grid gap-0.5">
+                <button
+                  type="button"
+                  disabled={selectedAnimationSequenceIndex <= 0}
+                  onClick={() => moveSelectedAnimation(-1)}
+                  className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"
+                >
+                  <ChevronUp size={13} />
+                  Move Earlier
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    selectedAnimationSequenceIndex < 0 ||
+                    selectedAnimationSequenceIndex >= globalAnimationSequence.length - 1
+                  }
+                  onClick={() => moveSelectedAnimation(1)}
+                  className="flex h-6 items-center gap-1 rounded px-1 text-[9px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-35"
+                >
+                  <ChevronDown size={13} />
+                  Move Later
+                </button>
+              </div>
+            ),
+          },
         ];
       case 'present':
         return [
           {
-            id: 'presentation', label: 'Presentation', commands: [
-              { id: 'preview', label: 'Preview', icon: <Eye size={17} />, disabled: !selectedScreen, onExecute: () => void openPreview() },
-              { id: 'present-display', label: 'Present', icon: <Presentation size={17} />, disabled: !selectedScreen, onExecute: () => void openPresentation() },
-              { id: 'editor-fullscreen', label: editorFocusMode ? 'Exit Fullscreen' : 'Fullscreen', icon: editorFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />, onExecute: () => void toggleEditorFocusMode(), active: editorFocusMode },
+            id: 'presentation',
+            label: 'Presentation',
+            commands: [
+              {
+                id: 'preview',
+                label: 'Preview',
+                icon: <Eye size={17} />,
+                disabled: !selectedScreen,
+                onExecute: () => void openPreview(),
+              },
+              {
+                id: 'present-display',
+                label: 'Present',
+                icon: <Presentation size={17} />,
+                disabled: !selectedScreen,
+                onExecute: () => void openPresentation(),
+              },
+              {
+                id: 'editor-fullscreen',
+                label: editorFocusMode ? 'Exit Fullscreen' : 'Fullscreen',
+                icon: editorFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />,
+                onExecute: () => void toggleEditorFocusMode(),
+                active: editorFocusMode,
+              },
             ],
           },
         ];
       case 'review':
         return [
           {
-            id: 'publication', label: 'Publication', commands: [
-              { id: 'check-readiness', label: 'Check', icon: <Check size={17} />, disabled: loadingWorkflow, onExecute: () => void loadWorkflow(true) },
-              { id: 'review-issues', label: 'Issue Details', icon: <CircleAlert size={17} />, disabled: loadingWorkflow, active: workflowDetailsOpen, onExecute: () => void openWorkflowDetails() },
-              ...(workflowStatus?.status === 'rejected' ? [{ id: 'rejection-feedback', label: 'Rejected Feedback', icon: <CircleAlert size={17} />, active: rejectionDetailsOpen, onExecute: () => setRejectionDetailsOpen(true) }] : []),
-              { id: 'submit-session', label: workflowAction === 'submit' ? 'Submitting' : 'Submit', icon: <Upload size={17} />, disabled: loadingWorkflow || workflowAction !== null || !workflowStatus?.can_submit, onExecute: () => void runWorkflowAction('submit') },
+            id: 'publication',
+            label: 'Publication',
+            commands: [
+              {
+                id: 'check-readiness',
+                label: 'Check',
+                icon: <Check size={17} />,
+                disabled: loadingWorkflow,
+                onExecute: () => void loadWorkflow(true),
+              },
+              {
+                id: 'review-issues',
+                label: 'Issue Details',
+                icon: <CircleAlert size={17} />,
+                disabled: loadingWorkflow,
+                active: workflowDetailsOpen,
+                onExecute: () => void openWorkflowDetails(),
+              },
+              ...(workflowStatus?.status === 'rejected'
+                ? [
+                    {
+                      id: 'rejection-feedback',
+                      label: 'Rejected Feedback',
+                      icon: <CircleAlert size={17} />,
+                      active: rejectionDetailsOpen,
+                      onExecute: () => setRejectionDetailsOpen(true),
+                    },
+                  ]
+                : []),
+              {
+                id: 'submit-session',
+                label: workflowAction === 'submit' ? 'Submitting' : 'Submit',
+                icon: <Upload size={17} />,
+                disabled: loadingWorkflow || workflowAction !== null || !workflowStatus?.can_submit,
+                onExecute: () => void runWorkflowAction('submit'),
+              },
             ],
-            content: <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-semibold ${workflowStatus?.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>{workflowStatus?.validation.valid ? 'Ready' : 'Action required'}</span>,
+            content: (
+              <span
+                className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-semibold ${workflowStatus?.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
+              >
+                {workflowStatus?.validation.valid ? 'Ready' : 'Action required'}
+              </span>
+            ),
           },
         ];
       case 'view':
         return [
-          { id: 'view-show', label: 'Show', commands: [
-            { id: 'view-guides', label: 'Guides', icon: <Grid3X3 size={17} />, disabled: !selectedLayout, active: showCanvasGuides, onExecute: () => setShowCanvasGuides((visible) => !visible) },
-            { id: 'view-layers', label: 'Selection Pane', icon: <ListOrdered size={17} />, disabled: !selectedScreen, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
-            { id: 'view-script', label: 'Screen Script', icon: <FileText size={17} />, disabled: !selectedScreen, active: scriptOverlayOpen, onExecute: openScreenScript },
-          ] },
-          { id: 'view-window', label: 'Window', commands: [
-            { id: 'view-refresh', label: 'Refresh', icon: <RefreshCw size={17} className={loadingScreens ? 'animate-spin' : ''} />, disabled: loadingScreens, onExecute: () => void refreshScreens() },
-            { id: 'view-fullscreen', label: editorFocusMode ? 'Exit Fullscreen' : 'Fullscreen', icon: editorFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />, active: editorFocusMode, onExecute: () => void toggleEditorFocusMode() },
-          ] },
+          {
+            id: 'view-show',
+            label: 'Show',
+            commands: [
+              {
+                id: 'view-guides',
+                label: 'Guides',
+                icon: <Grid3X3 size={17} />,
+                disabled: !selectedLayout,
+                active: showCanvasGuides,
+                onExecute: () => setShowCanvasGuides((visible) => !visible),
+              },
+              {
+                id: 'view-layers',
+                label: 'Selection Pane',
+                icon: <ListOrdered size={17} />,
+                disabled: !selectedScreen,
+                onExecute: openSelectionPane,
+                active: rightPanelOpen && panel === 'layers',
+              },
+              {
+                id: 'view-script',
+                label: 'Screen Script',
+                icon: <FileText size={17} />,
+                disabled: !selectedScreen,
+                active: scriptOverlayOpen,
+                onExecute: openScreenScript,
+              },
+            ],
+          },
+          {
+            id: 'view-window',
+            label: 'Window',
+            commands: [
+              {
+                id: 'view-refresh',
+                label: 'Refresh',
+                icon: <RefreshCw size={17} className={loadingScreens ? 'animate-spin' : ''} />,
+                disabled: loadingScreens,
+                onExecute: () => void refreshScreens(),
+              },
+              {
+                id: 'view-fullscreen',
+                label: editorFocusMode ? 'Exit Fullscreen' : 'Fullscreen',
+                icon: editorFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />,
+                active: editorFocusMode,
+                onExecute: () => void toggleEditorFocusMode(),
+              },
+            ],
+          },
         ];
       case 'picture-format':
         return [
-          { id: 'picture-adjust', label: 'Adjust', commands: [
-            { id: 'replace-media', label: 'Change Picture', icon: <Upload size={17} />, onExecute: openRibbonTool('resources'), active: rightPanelOpen && panel === 'resources' },
-            { id: 'picture-reset', label: 'Reset Picture', icon: <RefreshCw size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, brightness: 1, contrast: 1, saturate: 1, grayscale: 0, blur: 0 } }) },
-            { id: 'picture-adjust-more', label: 'Corrections', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('elements'), active: rightPanelOpen && panel === 'elements' },
-          ] },
-          { id: 'picture-style', label: 'Picture Styles', content: <div className="flex items-center gap-1 px-1">{['#0f172a', '#2563eb', '#ffffff'].map((color) => <button key={color} type="button" title={`Apply ${color} picture border`} disabled={!selectedElement} onClick={() => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, borderColor: color, borderWidth: color === '#ffffff' ? 0 : 3, borderRadius: color === '#2563eb' ? 16 : 0 } })} className="h-9 w-10 rounded border-2 bg-slate-50" style={{ borderColor: color }} />)}</div> },
-          { id: 'picture-arrange', label: 'Arrange', commands: [
-            { id: 'picture-forward', label: 'Bring Forward', icon: <ChevronUp size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'), selectedElement.id) },
-            { id: 'picture-backward', label: 'Send Backward', icon: <ChevronDown size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'backward'), selectedElement.id) },
-            { id: 'picture-layers', label: 'Selection Pane', icon: <ListOrdered size={17} />, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
-            { id: 'picture-rotate', label: 'Rotate 90°', icon: <RefreshCw size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementRotation(selectedElement.id, (Number(selectedElement.position.rotation) || 0) + 90) },
-          ] },
-          { id: 'picture-size', label: 'Size', commands: [
-            { id: 'picture-fit', label: 'Fit', icon: <Minimize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'contain', scale: 1, x: 0, y: 0, cropped: false } }) },
-            { id: 'picture-fill', label: 'Fill', icon: <Maximize2 size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && changeElementContent(selectedElement.id, { mediaTransform: { ...(selectedElement.content.mediaTransform as Record<string, unknown> | undefined), fit: 'cover', scale: 1, x: 0, y: 0, cropped: true } }) },
-            { id: 'picture-crop', label: 'Crop', icon: <Focus size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && setCropRequest({ elementId: selectedElement.id, token: Date.now() }) },
-          ], content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="Picture width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="Picture height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
+          {
+            id: 'picture-adjust',
+            label: 'Adjust',
+            commands: [
+              {
+                id: 'replace-media',
+                label: 'Change Picture',
+                icon: <Upload size={17} />,
+                onExecute: openRibbonTool('resources'),
+                active: rightPanelOpen && panel === 'resources',
+              },
+              {
+                id: 'picture-reset',
+                label: 'Reset Picture',
+                icon: <RefreshCw size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  updateElement({
+                    ...selectedElement,
+                    content: {
+                      ...selectedElement.content,
+                      brightness: 1,
+                      contrast: 1,
+                      saturate: 1,
+                      grayscale: 0,
+                      blur: 0,
+                    },
+                  }),
+              },
+              {
+                id: 'picture-adjust-more',
+                label: 'Corrections',
+                icon: <SlidersHorizontal size={17} />,
+                onExecute: openRibbonTool('elements'),
+                active: rightPanelOpen && panel === 'elements',
+              },
+            ],
+          },
+          {
+            id: 'picture-style',
+            label: 'Picture Styles',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                {['#0f172a', '#2563eb', '#ffffff'].map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    title={`Apply ${color} picture border`}
+                    disabled={!selectedElement}
+                    onClick={() =>
+                      selectedElement &&
+                      updateElement({
+                        ...selectedElement,
+                        content: {
+                          ...selectedElement.content,
+                          borderColor: color,
+                          borderWidth: color === '#ffffff' ? 0 : 3,
+                          borderRadius: color === '#2563eb' ? 16 : 0,
+                        },
+                      })
+                    }
+                    className="h-9 w-10 rounded border-2 bg-slate-50"
+                    style={{ borderColor: color }}
+                  />
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'picture-arrange',
+            label: 'Arrange',
+            commands: [
+              {
+                id: 'picture-forward',
+                label: 'Bring Forward',
+                icon: <ChevronUp size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  selectedScreen &&
+                  commitElements(
+                    moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'),
+                    selectedElement.id,
+                  ),
+              },
+              {
+                id: 'picture-backward',
+                label: 'Send Backward',
+                icon: <ChevronDown size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  selectedScreen &&
+                  commitElements(
+                    moveStudioLayer(selectedScreen.elements, selectedElement.id, 'backward'),
+                    selectedElement.id,
+                  ),
+              },
+              {
+                id: 'picture-layers',
+                label: 'Selection Pane',
+                icon: <ListOrdered size={17} />,
+                onExecute: openSelectionPane,
+                active: rightPanelOpen && panel === 'layers',
+              },
+              {
+                id: 'picture-rotate',
+                label: 'Rotate 90°',
+                icon: <RefreshCw size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  changeElementRotation(
+                    selectedElement.id,
+                    (Number(selectedElement.position.rotation) || 0) + 90,
+                  ),
+              },
+            ],
+          },
+          {
+            id: 'picture-size',
+            label: 'Size',
+            commands: [
+              {
+                id: 'picture-fit',
+                label: 'Fit',
+                icon: <Minimize2 size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  changeElementContent(selectedElement.id, {
+                    mediaTransform: {
+                      ...(selectedElement.content.mediaTransform as
+                        Record<string, unknown> | undefined),
+                      fit: 'contain',
+                      scale: 1,
+                      x: 0,
+                      y: 0,
+                      cropped: false,
+                    },
+                  }),
+              },
+              {
+                id: 'picture-fill',
+                label: 'Fill',
+                icon: <Maximize2 size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  changeElementContent(selectedElement.id, {
+                    mediaTransform: {
+                      ...(selectedElement.content.mediaTransform as
+                        Record<string, unknown> | undefined),
+                      fit: 'cover',
+                      scale: 1,
+                      x: 0,
+                      y: 0,
+                      cropped: true,
+                    },
+                  }),
+              },
+              {
+                id: 'picture-crop',
+                label: 'Crop',
+                icon: <Focus size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  setCropRequest({ elementId: selectedElement.id, token: Date.now() }),
+              },
+            ],
+            content: selectedElement ? (
+              <div className="grid gap-0.5 px-1 text-[9px]">
+                <label>
+                  W{' '}
+                  <input
+                    aria-label="Picture width"
+                    type="number"
+                    min="20"
+                    value={Math.round(Number(selectedElement.position.width) || 0)}
+                    onChange={(event) =>
+                      changeElementBounds(selectedElement.id, {
+                        x: Number(selectedElement.position.x) || 0,
+                        y: Number(selectedElement.position.y) || 0,
+                        width: Number(event.target.value),
+                        height: Number(selectedElement.position.height) || 60,
+                      })
+                    }
+                    className="h-6 w-14 rounded border px-1"
+                  />
+                </label>
+                <label>
+                  H{' '}
+                  <input
+                    aria-label="Picture height"
+                    type="number"
+                    min="20"
+                    value={Math.round(Number(selectedElement.position.height) || 0)}
+                    onChange={(event) =>
+                      changeElementBounds(selectedElement.id, {
+                        x: Number(selectedElement.position.x) || 0,
+                        y: Number(selectedElement.position.y) || 0,
+                        width: Number(selectedElement.position.width) || 80,
+                        height: Number(event.target.value),
+                      })
+                    }
+                    className="h-6 w-14 rounded border px-1"
+                  />
+                </label>
+              </div>
+            ) : null,
+          },
         ];
       case 'shape-format':
         return [
-          { id: 'shape-insert', label: 'Shapes & Text', content: <ShapeGalleryDropdown groups={STUDIO_SHAPE_GROUPS} selectedKind={String(selectedElement?.content.kind || 'rectangle')} disabled={!selectedElement || editorReadOnly} onChange={chooseRibbonShape} /> },
-          { id: 'shape-styles', label: 'Shape Styles', content: <div className="flex items-center gap-1 px-1">{[['#dbeafe', '#1d4ed8'], ['#fee2e2', '#dc2626'], ['#dcfce7', '#16a34a'], ['#ffffff', '#0f172a']].map(([fill, stroke]) => <button key={`${fill}-${stroke}`} type="button" title="Apply shape style" disabled={!selectedElement} onClick={() => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, fill, stroke, strokeWidth: 2 } })} className="h-9 w-10 rounded-lg border-2" style={{ backgroundColor: fill, borderColor: stroke }} />)}</div> },
-          { id: 'shape-colours', label: 'Shape Formatting', content: <ShapeAppearanceControls elementId={selectedElement?.id || ''} fill={String(selectedElement?.content.fill || 'transparent')} stroke={String(selectedElement?.content.stroke || 'transparent')} strokeWidth={Math.max(0, Number(selectedElement?.content.strokeWidth) || 0)} strokeDash={String(selectedElement?.content.strokeDash || 'solid')} effect={String(selectedElement?.content.shapeEffect || 'none')} disabled={!selectedElement || editorReadOnly} onChange={(changes) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, ...changes } })} /> },
-          { id: 'shape-text', label: 'Text in Shape', content: <div className="grid gap-0.5 px-1"><select aria-label="Vertical text alignment" value={String(selectedElement?.content.verticalAlignment || (selectedElement?.type === 'shape' ? 'middle' : 'top'))} disabled={!selectedElement || editorReadOnly} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, verticalAlignment: event.target.value } })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[10px] outline-none ring-0"><option value="top">Align top</option><option value="middle">Align middle</option><option value="bottom">Align bottom</option></select><button type="button" disabled={!selectedElement || editorReadOnly} onClick={() => selectedElement && window.dispatchEvent(new CustomEvent('studio-edit-element-text', { detail: { elementId: selectedElement.id } }))} className="h-7 rounded bg-blue-50 px-2 text-[10px] font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-40">Add Text</button></div> },
-          { id: 'shape-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Shape alt text" type="text" value={String(selectedElement?.content.altText || '')} disabled={!selectedElement} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, altText: event.target.value } })} className="h-8 w-24 rounded border px-1 text-[10px]" /></label> },
-          { id: 'shape-arrange', label: 'Arrange & Rotate', content: <ShapeArrangeControls disabled={!selectedElement || editorReadOnly} groupDisabled={editorReadOnly || selectedElementIds.length < 2} rotation={Number(selectedElement?.position.rotation) || 0} selectionPaneActive={rightPanelOpen && panel === 'layers'} onForward={() => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'), selectedElement.id)} onBackward={() => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'backward'), selectedElement.id)} onSelectionPane={openSelectionPane} onGroup={groupSelectedElements} onAlign={alignSelectedElement} onRotate={(rotation) => selectedElement && changeElementRotation(selectedElement.id, rotation)} /> },
-          { id: 'shape-size', label: 'Size', content: selectedElement ? <ShapeSizeControls width={Number.isFinite(Number(selectedElement.position.width)) ? Number(selectedElement.position.width) : 80} height={Number.isFinite(Number(selectedElement.position.height)) ? Number(selectedElement.position.height) : 60} disabled={editorReadOnly} onChange={(size) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: size.width ?? (Number.isFinite(Number(selectedElement.position.width)) ? Number(selectedElement.position.width) : 80), height: size.height ?? (Number.isFinite(Number(selectedElement.position.height)) ? Number(selectedElement.position.height) : 60) })} /> : null },
+          {
+            id: 'shape-insert',
+            label: 'Shapes & Text',
+            content: (
+              <ShapeGalleryDropdown
+                groups={STUDIO_SHAPE_GROUPS}
+                selectedKind={String(selectedElement?.content.kind || 'rectangle')}
+                disabled={!selectedElement || editorReadOnly}
+                onChange={chooseRibbonShape}
+              />
+            ),
+          },
+          {
+            id: 'shape-styles',
+            label: 'Shape Styles',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                {[
+                  ['#dbeafe', '#1d4ed8'],
+                  ['#fee2e2', '#dc2626'],
+                  ['#dcfce7', '#16a34a'],
+                  ['#ffffff', '#0f172a'],
+                ].map(([fill, stroke]) => (
+                  <button
+                    key={`${fill}-${stroke}`}
+                    type="button"
+                    title="Apply shape style"
+                    disabled={!selectedElement}
+                    onClick={() =>
+                      selectedElement &&
+                      updateElement({
+                        ...selectedElement,
+                        content: { ...selectedElement.content, fill, stroke, strokeWidth: 2 },
+                      })
+                    }
+                    className="h-9 w-10 rounded-lg border-2"
+                    style={{ backgroundColor: fill, borderColor: stroke }}
+                  />
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'shape-colours',
+            label: 'Shape Formatting',
+            content: (
+              <ShapeAppearanceControls
+                elementId={selectedElement?.id || ''}
+                fill={String(selectedElement?.content.fill || 'transparent')}
+                stroke={String(selectedElement?.content.stroke || 'transparent')}
+                strokeWidth={Math.max(0, Number(selectedElement?.content.strokeWidth) || 0)}
+                strokeDash={String(selectedElement?.content.strokeDash || 'solid')}
+                effect={String(selectedElement?.content.shapeEffect || 'none')}
+                disabled={!selectedElement || editorReadOnly}
+                onChange={(changes) =>
+                  selectedElement &&
+                  updateElement({
+                    ...selectedElement,
+                    content: { ...selectedElement.content, ...changes },
+                  })
+                }
+              />
+            ),
+          },
+          {
+            id: 'shape-text',
+            label: 'Text in Shape',
+            content: (
+              <div className="grid gap-0.5 px-1">
+                <select
+                  aria-label="Vertical text alignment"
+                  value={String(
+                    selectedElement?.content.verticalAlignment ||
+                      (selectedElement?.type === 'shape' ? 'middle' : 'top'),
+                  )}
+                  disabled={!selectedElement || editorReadOnly}
+                  onChange={(event) =>
+                    selectedElement &&
+                    updateElement({
+                      ...selectedElement,
+                      content: {
+                        ...selectedElement.content,
+                        verticalAlignment: event.target.value,
+                      },
+                    })
+                  }
+                  className="h-6 w-24 rounded bg-slate-50 px-1 text-[10px] outline-none ring-0"
+                >
+                  <option value="top">Align top</option>
+                  <option value="middle">Align middle</option>
+                  <option value="bottom">Align bottom</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={!selectedElement || editorReadOnly}
+                  onClick={() =>
+                    selectedElement &&
+                    window.dispatchEvent(
+                      new CustomEvent('studio-edit-element-text', {
+                        detail: { elementId: selectedElement.id },
+                      }),
+                    )
+                  }
+                  className="h-7 rounded bg-blue-50 px-2 text-[10px] font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-40"
+                >
+                  Add Text
+                </button>
+              </div>
+            ),
+          },
+          {
+            id: 'shape-accessibility',
+            label: 'Accessibility',
+            content: (
+              <label className="grid px-1 text-[9px]">
+                Alt Text
+                <input
+                  aria-label="Shape alt text"
+                  type="text"
+                  value={String(selectedElement?.content.altText || '')}
+                  disabled={!selectedElement}
+                  onChange={(event) =>
+                    selectedElement &&
+                    updateElement({
+                      ...selectedElement,
+                      content: { ...selectedElement.content, altText: event.target.value },
+                    })
+                  }
+                  className="h-8 w-24 rounded border px-1 text-[10px]"
+                />
+              </label>
+            ),
+          },
+          {
+            id: 'shape-arrange',
+            label: 'Arrange & Rotate',
+            content: (
+              <ShapeArrangeControls
+                disabled={!selectedElement || editorReadOnly}
+                groupDisabled={editorReadOnly || selectedElementIds.length < 2}
+                rotation={Number(selectedElement?.position.rotation) || 0}
+                selectionPaneActive={rightPanelOpen && panel === 'layers'}
+                onForward={() =>
+                  selectedElement &&
+                  selectedScreen &&
+                  commitElements(
+                    moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'),
+                    selectedElement.id,
+                  )
+                }
+                onBackward={() =>
+                  selectedElement &&
+                  selectedScreen &&
+                  commitElements(
+                    moveStudioLayer(selectedScreen.elements, selectedElement.id, 'backward'),
+                    selectedElement.id,
+                  )
+                }
+                onSelectionPane={openSelectionPane}
+                onGroup={groupSelectedElements}
+                onAlign={alignSelectedElement}
+                onRotate={(rotation) =>
+                  selectedElement && changeElementRotation(selectedElement.id, rotation)
+                }
+              />
+            ),
+          },
+          {
+            id: 'shape-size',
+            label: 'Size',
+            content: selectedElement ? (
+              <ShapeSizeControls
+                width={
+                  Number.isFinite(Number(selectedElement.position.width))
+                    ? Number(selectedElement.position.width)
+                    : 80
+                }
+                height={
+                  Number.isFinite(Number(selectedElement.position.height))
+                    ? Number(selectedElement.position.height)
+                    : 60
+                }
+                disabled={editorReadOnly}
+                onChange={(size) =>
+                  changeElementBounds(selectedElement.id, {
+                    x: Number(selectedElement.position.x) || 0,
+                    y: Number(selectedElement.position.y) || 0,
+                    width:
+                      size.width ??
+                      (Number.isFinite(Number(selectedElement.position.width))
+                        ? Number(selectedElement.position.width)
+                        : 80),
+                    height:
+                      size.height ??
+                      (Number.isFinite(Number(selectedElement.position.height))
+                        ? Number(selectedElement.position.height)
+                        : 60),
+                  })
+                }
+              />
+            ) : null,
+          },
         ];
       case 'table-design':
         return [
-          { id: 'table-options', label: 'Table Style Options', content: <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 px-1 text-[9px] font-semibold text-slate-700">{([['headerRow', 'Header Row'], ['totalRow', 'Total Row'], ['firstColumn', 'First Column'], ['lastColumn', 'Last Column'], ['bandedRows', 'Banded Rows'], ['bandedColumns', 'Banded Columns']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-1 whitespace-nowrap"><input type="checkbox" checked={selectedElement?.content[key] === true} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ [key]: event.target.checked })} />{label}</label>)}</div> },
-          { id: 'table-styles', label: 'Table Styles', content: <div className="flex items-center gap-1 px-1">{[['#1d4ed8', '#dbeafe', '#ffffff'], ['#0f766e', '#ccfbf1', '#ffffff'], ['#b45309', '#fef3c7', '#ffffff'], ['#334155', '#e2e8f0', '#ffffff'], ['#7e22ce', '#f3e8ff', '#ffffff']].map(([headerFill, bandFill, cellFill]) => <button key={headerFill} type="button" title="Apply table style" disabled={editorReadOnly || selectedElement?.type !== 'table'} onClick={() => updateSelectedTable({ headerFill, bandFill, cellFill, borderColor: headerFill })} className="grid h-9 w-10 grid-rows-3 overflow-hidden rounded border border-slate-300"><span style={{ backgroundColor: headerFill }} /><span style={{ backgroundColor: cellFill }} /><span style={{ backgroundColor: bandFill }} /></button>)}</div> },
-          { id: 'table-colours', label: 'Table Formatting', content: <div className="flex items-center gap-1 px-1"><StudioColourMenu label="Table shading" noColourLabel="No Shading" value={String(selectedElement?.content.cellFill || '#ffffff')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(cellFill) => updateSelectedTable({ cellFill })} /><StudioColourMenu outline label="Table borders" noColourLabel="No Borders" value={String(selectedElement?.content.borderColor || '#64748b')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(borderColor) => updateSelectedTable({ borderColor, borderWidth: borderColor === 'transparent' ? 0 : Number(selectedElement?.content.borderWidth) || 1 })} /><select aria-label="Table border width" value={Number(selectedElement?.content.borderWidth) || 0} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ borderWidth: Number(event.target.value) })} className="h-9 w-16 rounded border px-1 text-[10px]"><option value="0">0 px</option><option value="1">1 px</option><option value="2">2 px</option><option value="3">3 px</option><option value="4">4 px</option></select><select aria-label="Table border style" value={String(selectedElement?.content.borderStyle || 'solid')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ borderStyle: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="double">Double</option></select></div> },
-          { id: 'table-effects', label: 'Effects', content: <select aria-label="Table effect" value={String(selectedElement?.content.effect || 'none')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ effect: event.target.value })} className="h-9 w-24 rounded border px-1 text-[10px]"><option value="none">No effect</option><option value="shadow">Shadow</option></select> },
+          {
+            id: 'table-options',
+            label: 'Table Style Options',
+            content: (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 px-1 text-[9px] font-semibold text-slate-700">
+                {(
+                  [
+                    ['headerRow', 'Header Row'],
+                    ['totalRow', 'Total Row'],
+                    ['firstColumn', 'First Column'],
+                    ['lastColumn', 'Last Column'],
+                    ['bandedRows', 'Banded Rows'],
+                    ['bandedColumns', 'Banded Columns'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-1 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedElement?.content[key] === true}
+                      disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                      onChange={(event) => updateSelectedTable({ [key]: event.target.checked })}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'table-styles',
+            label: 'Table Styles',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                {[
+                  ['#1d4ed8', '#dbeafe', '#ffffff'],
+                  ['#0f766e', '#ccfbf1', '#ffffff'],
+                  ['#b45309', '#fef3c7', '#ffffff'],
+                  ['#334155', '#e2e8f0', '#ffffff'],
+                  ['#7e22ce', '#f3e8ff', '#ffffff'],
+                ].map(([headerFill, bandFill, cellFill]) => (
+                  <button
+                    key={headerFill}
+                    type="button"
+                    title="Apply table style"
+                    disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                    onClick={() =>
+                      updateSelectedTable({
+                        headerFill,
+                        bandFill,
+                        cellFill,
+                        borderColor: headerFill,
+                      })
+                    }
+                    className="grid h-9 w-10 grid-rows-3 overflow-hidden rounded border border-slate-300"
+                  >
+                    <span style={{ backgroundColor: headerFill }} />
+                    <span style={{ backgroundColor: cellFill }} />
+                    <span style={{ backgroundColor: bandFill }} />
+                  </button>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'table-colours',
+            label: 'Table Formatting',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                <StudioColourMenu
+                  label="Table shading"
+                  noColourLabel="No Shading"
+                  value={String(selectedElement?.content.cellFill || '#ffffff')}
+                  disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                  onChange={(cellFill) => updateSelectedTable({ cellFill })}
+                />
+                <StudioColourMenu
+                  outline
+                  label="Table borders"
+                  noColourLabel="No Borders"
+                  value={String(selectedElement?.content.borderColor || '#64748b')}
+                  disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                  onChange={(borderColor) =>
+                    updateSelectedTable({
+                      borderColor,
+                      borderWidth:
+                        borderColor === 'transparent'
+                          ? 0
+                          : Number(selectedElement?.content.borderWidth) || 1,
+                    })
+                  }
+                />
+                <select
+                  aria-label="Table border width"
+                  value={Number(selectedElement?.content.borderWidth) || 0}
+                  disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                  onChange={(event) =>
+                    updateSelectedTable({ borderWidth: Number(event.target.value) })
+                  }
+                  className="h-9 w-16 rounded border px-1 text-[10px]"
+                >
+                  <option value="0">0 px</option>
+                  <option value="1">1 px</option>
+                  <option value="2">2 px</option>
+                  <option value="3">3 px</option>
+                  <option value="4">4 px</option>
+                </select>
+                <select
+                  aria-label="Table border style"
+                  value={String(selectedElement?.content.borderStyle || 'solid')}
+                  disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                  onChange={(event) => updateSelectedTable({ borderStyle: event.target.value })}
+                  className="h-9 w-20 rounded border px-1 text-[10px]"
+                >
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                  <option value="double">Double</option>
+                </select>
+              </div>
+            ),
+          },
+          {
+            id: 'table-effects',
+            label: 'Effects',
+            content: (
+              <select
+                aria-label="Table effect"
+                value={String(selectedElement?.content.effect || 'none')}
+                disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                onChange={(event) => updateSelectedTable({ effect: event.target.value })}
+                className="h-9 w-24 rounded border px-1 text-[10px]"
+              >
+                <option value="none">No effect</option>
+                <option value="shadow">Shadow</option>
+              </select>
+            ),
+          },
         ];
       case 'table-layout':
         return [
-          { id: 'table-rows-columns', label: 'Rows & Columns', commands: [
-            { id: 'table-row-above', label: 'Insert Above', icon: <ChevronUp size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-row-above') },
-            { id: 'table-row-below', label: 'Insert Below', icon: <ChevronDown size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-row-below') },
-            { id: 'table-column-left', label: 'Insert Left', icon: <ChevronLeft size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-column-left') },
-            { id: 'table-column-right', label: 'Insert Right', icon: <ChevronRight size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('insert-column-right') },
-          ] },
-          { id: 'table-delete', label: 'Delete', commands: [
-            { id: 'table-delete-row', label: 'Delete Row', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('delete-row') },
-            { id: 'table-delete-column', label: 'Delete Column', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('delete-column') },
-            { id: 'table-delete-table', label: 'Delete Table', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => selectedElement && removeElement(selectedElement.id) },
-          ] },
-          { id: 'table-merge', label: 'Merge', commands: [
-            { id: 'table-merge-right', label: 'Merge Right', icon: <Boxes size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('merge-right') },
-            { id: 'table-split-cell', label: 'Split Cell', icon: <Grid3X3 size={17} />, disabled: editorReadOnly || selectedElement?.type !== 'table', onExecute: () => runTableAction('split-cell') },
-          ] },
-          { id: 'table-cell-size', label: 'Cell Size', content: selectedElement?.type === 'table' ? <div className="grid gap-0.5 px-1 text-[9px]"><label>Width <input aria-label="Table width" type="number" min="120" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 200 })} className="h-6 w-16 rounded border px-1" /></label><label>Height <input aria-label="Table height" type="number" min="80" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 300, height: Number(event.target.value) })} className="h-6 w-16 rounded border px-1" /></label></div> : null },
-          { id: 'table-alignment', label: 'Alignment', content: <div className="flex items-center gap-1 px-1"><select aria-label="Cell horizontal alignment" value={String(selectedElement?.content.alignment || 'left')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ alignment: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select><select aria-label="Cell vertical alignment" value={String(selectedElement?.content.verticalAlignment || 'middle')} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ verticalAlignment: event.target.value })} className="h-9 w-20 rounded border px-1 text-[10px]"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select><label className="grid text-[9px]">Margin<input aria-label="Cell margin" type="number" min="0" max="40" value={Number(selectedElement?.content.cellMargin) || 0} disabled={editorReadOnly || selectedElement?.type !== 'table'} onChange={(event) => updateSelectedTable({ cellMargin: Number(event.target.value) })} className="h-6 w-12 rounded border px-1" /></label></div> },
+          {
+            id: 'table-rows-columns',
+            label: 'Rows & Columns',
+            commands: [
+              {
+                id: 'table-row-above',
+                label: 'Insert Above',
+                icon: <ChevronUp size={17} />,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('insert-row-above'),
+              },
+              {
+                id: 'table-row-below',
+                label: 'Insert Below',
+                icon: <ChevronDown size={17} />,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('insert-row-below'),
+              },
+              {
+                id: 'table-column-left',
+                label: 'Insert Left',
+                icon: <ChevronLeft size={17} />,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('insert-column-left'),
+              },
+              {
+                id: 'table-column-right',
+                label: 'Insert Right',
+                icon: <ChevronRight size={17} />,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('insert-column-right'),
+              },
+            ],
+          },
+          {
+            id: 'table-delete',
+            label: 'Delete',
+            commands: [
+              {
+                id: 'table-delete-row',
+                label: 'Delete Row',
+                icon: <Trash2 size={17} />,
+                danger: true,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('delete-row'),
+              },
+              {
+                id: 'table-delete-column',
+                label: 'Delete Column',
+                icon: <Trash2 size={17} />,
+                danger: true,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('delete-column'),
+              },
+              {
+                id: 'table-delete-table',
+                label: 'Delete Table',
+                icon: <Trash2 size={17} />,
+                danger: true,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => selectedElement && removeElement(selectedElement.id),
+              },
+            ],
+          },
+          {
+            id: 'table-merge',
+            label: 'Merge',
+            commands: [
+              {
+                id: 'table-merge-right',
+                label: 'Merge Right',
+                icon: <Boxes size={17} />,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('merge-right'),
+              },
+              {
+                id: 'table-split-cell',
+                label: 'Split Cell',
+                icon: <Grid3X3 size={17} />,
+                disabled: editorReadOnly || selectedElement?.type !== 'table',
+                onExecute: () => runTableAction('split-cell'),
+              },
+            ],
+          },
+          {
+            id: 'table-cell-size',
+            label: 'Cell Size',
+            content:
+              selectedElement?.type === 'table' ? (
+                <div className="grid gap-0.5 px-1 text-[9px]">
+                  <label>
+                    Width{' '}
+                    <input
+                      aria-label="Table width"
+                      type="number"
+                      min="120"
+                      value={Math.round(Number(selectedElement.position.width) || 0)}
+                      onChange={(event) =>
+                        changeElementBounds(selectedElement.id, {
+                          x: Number(selectedElement.position.x) || 0,
+                          y: Number(selectedElement.position.y) || 0,
+                          width: Number(event.target.value),
+                          height: Number(selectedElement.position.height) || 200,
+                        })
+                      }
+                      className="h-6 w-16 rounded border px-1"
+                    />
+                  </label>
+                  <label>
+                    Height{' '}
+                    <input
+                      aria-label="Table height"
+                      type="number"
+                      min="80"
+                      value={Math.round(Number(selectedElement.position.height) || 0)}
+                      onChange={(event) =>
+                        changeElementBounds(selectedElement.id, {
+                          x: Number(selectedElement.position.x) || 0,
+                          y: Number(selectedElement.position.y) || 0,
+                          width: Number(selectedElement.position.width) || 300,
+                          height: Number(event.target.value),
+                        })
+                      }
+                      className="h-6 w-16 rounded border px-1"
+                    />
+                  </label>
+                </div>
+              ) : null,
+          },
+          {
+            id: 'table-alignment',
+            label: 'Alignment',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                <select
+                  aria-label="Cell horizontal alignment"
+                  value={String(selectedElement?.content.alignment || 'left')}
+                  disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                  onChange={(event) => updateSelectedTable({ alignment: event.target.value })}
+                  className="h-9 w-20 rounded border px-1 text-[10px]"
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Centre</option>
+                  <option value="right">Right</option>
+                </select>
+                <select
+                  aria-label="Cell vertical alignment"
+                  value={String(selectedElement?.content.verticalAlignment || 'middle')}
+                  disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                  onChange={(event) =>
+                    updateSelectedTable({ verticalAlignment: event.target.value })
+                  }
+                  className="h-9 w-20 rounded border px-1 text-[10px]"
+                >
+                  <option value="top">Top</option>
+                  <option value="middle">Middle</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+                <label className="grid text-[9px]">
+                  Margin
+                  <input
+                    aria-label="Cell margin"
+                    type="number"
+                    min="0"
+                    max="40"
+                    value={Number(selectedElement?.content.cellMargin) || 0}
+                    disabled={editorReadOnly || selectedElement?.type !== 'table'}
+                    onChange={(event) =>
+                      updateSelectedTable({ cellMargin: Number(event.target.value) })
+                    }
+                    className="h-6 w-12 rounded border px-1"
+                  />
+                </label>
+              </div>
+            ),
+          },
         ];
       case 'diagram-design':
         return [
-          { id: 'diagram-create', label: 'Create Graphic', commands: [
-            { id: 'diagram-add-after', label: 'Add Shape', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('after') },
-            { id: 'diagram-promote', label: 'Promote', icon: <ChevronLeft size={17}/>, disabled: !selectedDiagramNode || selectedDiagramNode.level === 0, onExecute: () => changeSelectedDiagramNodeLevel(-1) },
-            { id: 'diagram-demote', label: 'Demote', icon: <ChevronRight size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id, onExecute: () => changeSelectedDiagramNodeLevel(1) },
-            { id: 'diagram-move-before', label: 'Move Before', icon: <ChevronUp size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id, onExecute: () => moveSelectedDiagramNode(-1) },
-            { id: 'diagram-move-after', label: 'Move After', icon: <ChevronDown size={17}/>, disabled: !selectedDiagramNode || selectedDiagramContent?.nodes.at(-1)?.id === selectedDiagramNode.id, onExecute: () => moveSelectedDiagramNode(1) },
-            { id: 'diagram-text-pane', label: 'Text Pane', icon: <FileText size={17}/>, disabled: !selectedDiagramContent, onExecute: () => setDiagramTextPaneOpen((open) => !open), active: diagramTextPaneOpen },
-            { id: 'diagram-direction', label: 'Right to Left', icon: <RefreshCw size={17}/>, disabled: !selectedDiagramContent, onExecute: () => updateSelectedDiagram({ direction: selectedDiagramContent?.direction === 'rtl' ? 'ltr' : 'rtl' }) },
-          ] },
-          { id: 'diagram-layouts', label: 'Layouts', content: <div className="flex items-center gap-1 px-1">{SMART_DIAGRAM_LAYOUTS.filter((layout) => layout.category === selectedDiagramContent?.category).slice(0, 5).map((layout) => <button key={layout.id} type="button" title={layout.name} onMouseEnter={() => setDiagramLivePreview({ layout: layout.id, category: layout.category })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ layout: layout.id, category: layout.category })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ layout: layout.id, category: layout.category }); }} className={`h-11 w-14 overflow-hidden rounded border bg-white p-0.5 ${selectedDiagramContent?.layout === layout.id ? 'border-blue-700 ring-1 ring-blue-300' : 'border-slate-200 hover:border-blue-400'}`}><StudioDiagramThumbnail layout={layout}/></button>)}<button type="button" title="More diagram layouts" onClick={() => setDiagramLayoutGalleryOpen(true)} className="grid h-11 w-6 place-items-center rounded border border-slate-200 hover:bg-blue-50"><ChevronDown size={14}/></button></div> },
-          { id: 'diagram-colours', label: 'Change Colours', content: <div className="flex items-center gap-1 px-1">{SMART_DIAGRAM_THEMES.map((theme) => <button key={theme.id} type="button" title={theme.name} onMouseEnter={() => setDiagramLivePreview({ themeId: theme.id })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ themeId: theme.id })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ themeId: theme.id }); }} className={`flex h-9 w-9 overflow-hidden rounded-full border-2 ${selectedDiagramContent?.themeId === theme.id ? 'border-blue-800' : 'border-white ring-1 ring-slate-300'}`}>{theme.colors.slice(0, 3).map((colour) => <span key={colour} className="h-full flex-1" style={{ backgroundColor: colour }}/>)}</button>)}</div> },
-          { id: 'diagram-styles', label: 'Diagram Styles', content: <div className="flex gap-1 px-1">{(['flat', 'outline', 'soft', 'polished', 'bevel'] as const).map((style) => <button key={style} type="button" onMouseEnter={() => setDiagramLivePreview({ styleId: style })} onMouseLeave={() => setDiagramLivePreview(null)} onFocus={() => setDiagramLivePreview({ styleId: style })} onBlur={() => setDiagramLivePreview(null)} onClick={() => { setDiagramLivePreview(null); updateSelectedDiagram({ styleId: style }); }} className={`h-9 rounded-lg border px-2 text-[9px] font-semibold capitalize ${selectedDiagramContent?.styleId === style ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>{style}</button>)}</div> },
-          { id: 'diagram-reset', label: 'Reset', commands: [
-            { id: 'diagram-reset-graphic', label: 'Reset Graphic', icon: <RefreshCw size={17}/>, disabled: !selectedDiagramContent, onExecute: () => updateSelectedDiagram({ themeId: 'spectropy', styleId: 'soft', connectorStyle: 'straight', nodes: selectedDiagramContent?.nodes.map((node) => ({ id: node.id, text: node.text, level: node.level, parentId: node.parentId, role: node.role, icon: node.icon })) }) },
-            { id: 'diagram-convert', label: 'Convert', icon: <Shapes size={17}/>, disabled: !selectedElement, onExecute: () => selectedElement && convertDiagramToShapes(selectedElement.id) },
-          ] },
+          {
+            id: 'diagram-create',
+            label: 'Create Graphic',
+            commands: [
+              {
+                id: 'diagram-add-after',
+                label: 'Add Shape',
+                icon: <Plus size={17} />,
+                disabled: !selectedDiagramContent,
+                onExecute: () => addSelectedDiagramNode('after'),
+              },
+              {
+                id: 'diagram-promote',
+                label: 'Promote',
+                icon: <ChevronLeft size={17} />,
+                disabled: !selectedDiagramNode || selectedDiagramNode.level === 0,
+                onExecute: () => changeSelectedDiagramNodeLevel(-1),
+              },
+              {
+                id: 'diagram-demote',
+                label: 'Demote',
+                icon: <ChevronRight size={17} />,
+                disabled:
+                  !selectedDiagramNode ||
+                  selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id,
+                onExecute: () => changeSelectedDiagramNodeLevel(1),
+              },
+              {
+                id: 'diagram-move-before',
+                label: 'Move Before',
+                icon: <ChevronUp size={17} />,
+                disabled:
+                  !selectedDiagramNode ||
+                  selectedDiagramContent?.nodes[0]?.id === selectedDiagramNode.id,
+                onExecute: () => moveSelectedDiagramNode(-1),
+              },
+              {
+                id: 'diagram-move-after',
+                label: 'Move After',
+                icon: <ChevronDown size={17} />,
+                disabled:
+                  !selectedDiagramNode ||
+                  selectedDiagramContent?.nodes.at(-1)?.id === selectedDiagramNode.id,
+                onExecute: () => moveSelectedDiagramNode(1),
+              },
+              {
+                id: 'diagram-text-pane',
+                label: 'Text Pane',
+                icon: <FileText size={17} />,
+                disabled: !selectedDiagramContent,
+                onExecute: () => setDiagramTextPaneOpen((open) => !open),
+                active: diagramTextPaneOpen,
+              },
+              {
+                id: 'diagram-direction',
+                label: 'Right to Left',
+                icon: <RefreshCw size={17} />,
+                disabled: !selectedDiagramContent,
+                onExecute: () =>
+                  updateSelectedDiagram({
+                    direction: selectedDiagramContent?.direction === 'rtl' ? 'ltr' : 'rtl',
+                  }),
+              },
+            ],
+          },
+          {
+            id: 'diagram-layouts',
+            label: 'Layouts',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                {SMART_DIAGRAM_LAYOUTS.filter(
+                  (layout) => layout.category === selectedDiagramContent?.category,
+                )
+                  .slice(0, 5)
+                  .map((layout) => (
+                    <button
+                      key={layout.id}
+                      type="button"
+                      title={layout.name}
+                      onMouseEnter={() =>
+                        setDiagramLivePreview({ layout: layout.id, category: layout.category })
+                      }
+                      onMouseLeave={() => setDiagramLivePreview(null)}
+                      onFocus={() =>
+                        setDiagramLivePreview({ layout: layout.id, category: layout.category })
+                      }
+                      onBlur={() => setDiagramLivePreview(null)}
+                      onClick={() => {
+                        setDiagramLivePreview(null);
+                        updateSelectedDiagram({ layout: layout.id, category: layout.category });
+                      }}
+                      className={`h-11 w-14 overflow-hidden rounded border bg-white p-0.5 ${selectedDiagramContent?.layout === layout.id ? 'border-blue-700 ring-1 ring-blue-300' : 'border-slate-200 hover:border-blue-400'}`}
+                    >
+                      <StudioDiagramThumbnail layout={layout} />
+                    </button>
+                  ))}
+                <button
+                  type="button"
+                  title="More diagram layouts"
+                  onClick={() => setDiagramLayoutGalleryOpen(true)}
+                  className="grid h-11 w-6 place-items-center rounded border border-slate-200 hover:bg-blue-50"
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+            ),
+          },
+          {
+            id: 'diagram-colours',
+            label: 'Change Colours',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                {SMART_DIAGRAM_THEMES.map((theme) => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    title={theme.name}
+                    onMouseEnter={() => setDiagramLivePreview({ themeId: theme.id })}
+                    onMouseLeave={() => setDiagramLivePreview(null)}
+                    onFocus={() => setDiagramLivePreview({ themeId: theme.id })}
+                    onBlur={() => setDiagramLivePreview(null)}
+                    onClick={() => {
+                      setDiagramLivePreview(null);
+                      updateSelectedDiagram({ themeId: theme.id });
+                    }}
+                    className={`flex h-9 w-9 overflow-hidden rounded-full border-2 ${selectedDiagramContent?.themeId === theme.id ? 'border-blue-800' : 'border-white ring-1 ring-slate-300'}`}
+                  >
+                    {theme.colors.slice(0, 3).map((colour) => (
+                      <span
+                        key={colour}
+                        className="h-full flex-1"
+                        style={{ backgroundColor: colour }}
+                      />
+                    ))}
+                  </button>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'diagram-styles',
+            label: 'Diagram Styles',
+            content: (
+              <div className="flex gap-1 px-1">
+                {(['flat', 'outline', 'soft', 'polished', 'bevel'] as const).map((style) => (
+                  <button
+                    key={style}
+                    type="button"
+                    onMouseEnter={() => setDiagramLivePreview({ styleId: style })}
+                    onMouseLeave={() => setDiagramLivePreview(null)}
+                    onFocus={() => setDiagramLivePreview({ styleId: style })}
+                    onBlur={() => setDiagramLivePreview(null)}
+                    onClick={() => {
+                      setDiagramLivePreview(null);
+                      updateSelectedDiagram({ styleId: style });
+                    }}
+                    className={`h-9 rounded-lg border px-2 text-[9px] font-semibold capitalize ${selectedDiagramContent?.styleId === style ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'diagram-reset',
+            label: 'Reset',
+            commands: [
+              {
+                id: 'diagram-reset-graphic',
+                label: 'Reset Graphic',
+                icon: <RefreshCw size={17} />,
+                disabled: !selectedDiagramContent,
+                onExecute: () =>
+                  updateSelectedDiagram({
+                    themeId: 'spectropy',
+                    styleId: 'soft',
+                    connectorStyle: 'straight',
+                    nodes: selectedDiagramContent?.nodes.map((node) => ({
+                      id: node.id,
+                      text: node.text,
+                      level: node.level,
+                      parentId: node.parentId,
+                      role: node.role,
+                      icon: node.icon,
+                    })),
+                  }),
+              },
+              {
+                id: 'diagram-convert',
+                label: 'Convert',
+                icon: <Shapes size={17} />,
+                disabled: !selectedElement,
+                onExecute: () => selectedElement && convertDiagramToShapes(selectedElement.id),
+              },
+            ],
+          },
         ];
       case 'diagram-format':
         return [
-          { id: 'diagram-node', label: 'Selected Shape', commands: [
-            { id: 'diagram-add-before', label: 'Add Before', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('before') },
-            { id: 'diagram-add-child', label: 'Add Below', icon: <Plus size={17}/>, disabled: !selectedDiagramContent, onExecute: () => addSelectedDiagramNode('child') },
-            { id: 'diagram-add-assistant', label: 'Assistant', icon: <Plus size={17}/>, disabled: selectedDiagramContent?.category !== 'hierarchy', onExecute: () => addSelectedDiagramNode('assistant') },
-          ] },
-          { id: 'diagram-node-colours', label: 'Shape & Text', content: <div className="flex items-center gap-1 px-1"><label className="relative grid h-9 w-9 place-items-center rounded border" title="Node fill"><span className="h-5 w-5 rounded" style={{ backgroundColor: selectedDiagramNode?.fill || '#1d4ed8' }}/><input type="color" value={selectedDiagramNode?.fill || '#1d4ed8'} disabled={!selectedDiagramNode} onChange={(event) => updateSelectedDiagramNode({ fill: event.target.value })} className="absolute inset-0 opacity-0" aria-label="Diagram node fill"/></label><label className="relative grid h-9 w-9 place-items-center rounded border" title="Node text colour"><span className="text-base font-black" style={{ color: selectedDiagramNode?.textColor || '#ffffff' }}>A</span><input type="color" value={selectedDiagramNode?.textColor || '#ffffff'} disabled={!selectedDiagramNode} onChange={(event) => updateSelectedDiagramNode({ textColor: event.target.value })} className="absolute inset-0 opacity-0" aria-label="Diagram node text colour"/></label></div> },
-          { id: 'diagram-connectors', label: 'Connectors', content: <select aria-label="Diagram connector style" value={selectedDiagramContent?.connectorStyle || 'straight'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ connectorStyle: event.target.value as SmartDiagramContent['connectorStyle'] })} className="mx-1 h-9 rounded border px-2 text-[10px]"><option value="straight">Straight</option><option value="elbow">Elbow</option><option value="curve">Curved</option><option value="none">None</option></select> },
-          { id: 'diagram-animation', label: 'Diagram Animation', content: <div className="flex gap-1 px-1"><select aria-label="Diagram animation mode" value={selectedDiagramContent?.revealMode || 'as-one-object'} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ revealMode: event.target.value as SmartDiagramContent['revealMode'] })} className="h-9 w-28 rounded border px-1 text-[9px]"><option value="as-one-object">As one object</option><option value="all-at-once">All at once</option><option value="one-by-one">One by one</option><option value="level-at-once">Level at once</option><option value="level-one-by-one">Level one by one</option></select><button type="button" disabled={!selectedDiagramContent} onClick={() => updateSelectedDiagram({ reverseAnimation: !selectedDiagramContent?.reverseAnimation })} className={`h-9 rounded border px-2 text-[9px] font-semibold ${selectedDiagramContent?.reverseAnimation ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}>Reverse</button></div> },
-          { id: 'diagram-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Diagram accessibility description" type="text" value={selectedDiagramContent?.altText || ''} disabled={!selectedDiagramContent} onChange={(event) => updateSelectedDiagram({ altText: event.target.value })} className="h-8 w-32 rounded border px-1 text-[10px]"/></label> },
+          {
+            id: 'diagram-node',
+            label: 'Selected Shape',
+            commands: [
+              {
+                id: 'diagram-add-before',
+                label: 'Add Before',
+                icon: <Plus size={17} />,
+                disabled: !selectedDiagramContent,
+                onExecute: () => addSelectedDiagramNode('before'),
+              },
+              {
+                id: 'diagram-add-child',
+                label: 'Add Below',
+                icon: <Plus size={17} />,
+                disabled: !selectedDiagramContent,
+                onExecute: () => addSelectedDiagramNode('child'),
+              },
+              {
+                id: 'diagram-add-assistant',
+                label: 'Assistant',
+                icon: <Plus size={17} />,
+                disabled: selectedDiagramContent?.category !== 'hierarchy',
+                onExecute: () => addSelectedDiagramNode('assistant'),
+              },
+            ],
+          },
+          {
+            id: 'diagram-node-colours',
+            label: 'Shape & Text',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                <label
+                  className="relative grid h-9 w-9 place-items-center rounded border"
+                  title="Node fill"
+                >
+                  <span
+                    className="h-5 w-5 rounded"
+                    style={{ backgroundColor: selectedDiagramNode?.fill || '#1d4ed8' }}
+                  />
+                  <input
+                    type="color"
+                    value={selectedDiagramNode?.fill || '#1d4ed8'}
+                    disabled={!selectedDiagramNode}
+                    onChange={(event) => updateSelectedDiagramNode({ fill: event.target.value })}
+                    className="absolute inset-0 opacity-0"
+                    aria-label="Diagram node fill"
+                  />
+                </label>
+                <label
+                  className="relative grid h-9 w-9 place-items-center rounded border"
+                  title="Node text colour"
+                >
+                  <span
+                    className="text-base font-black"
+                    style={{ color: selectedDiagramNode?.textColor || '#ffffff' }}
+                  >
+                    A
+                  </span>
+                  <input
+                    type="color"
+                    value={selectedDiagramNode?.textColor || '#ffffff'}
+                    disabled={!selectedDiagramNode}
+                    onChange={(event) =>
+                      updateSelectedDiagramNode({ textColor: event.target.value })
+                    }
+                    className="absolute inset-0 opacity-0"
+                    aria-label="Diagram node text colour"
+                  />
+                </label>
+              </div>
+            ),
+          },
+          {
+            id: 'diagram-connectors',
+            label: 'Connectors',
+            content: (
+              <select
+                aria-label="Diagram connector style"
+                value={selectedDiagramContent?.connectorStyle || 'straight'}
+                disabled={!selectedDiagramContent}
+                onChange={(event) =>
+                  updateSelectedDiagram({
+                    connectorStyle: event.target.value as SmartDiagramContent['connectorStyle'],
+                  })
+                }
+                className="mx-1 h-9 rounded border px-2 text-[10px]"
+              >
+                <option value="straight">Straight</option>
+                <option value="elbow">Elbow</option>
+                <option value="curve">Curved</option>
+                <option value="none">None</option>
+              </select>
+            ),
+          },
+          {
+            id: 'diagram-animation',
+            label: 'Diagram Animation',
+            content: (
+              <div className="flex gap-1 px-1">
+                <select
+                  aria-label="Diagram animation mode"
+                  value={selectedDiagramContent?.revealMode || 'as-one-object'}
+                  disabled={!selectedDiagramContent}
+                  onChange={(event) =>
+                    updateSelectedDiagram({
+                      revealMode: event.target.value as SmartDiagramContent['revealMode'],
+                    })
+                  }
+                  className="h-9 w-28 rounded border px-1 text-[9px]"
+                >
+                  <option value="as-one-object">As one object</option>
+                  <option value="all-at-once">All at once</option>
+                  <option value="one-by-one">One by one</option>
+                  <option value="level-at-once">Level at once</option>
+                  <option value="level-one-by-one">Level one by one</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={!selectedDiagramContent}
+                  onClick={() =>
+                    updateSelectedDiagram({
+                      reverseAnimation: !selectedDiagramContent?.reverseAnimation,
+                    })
+                  }
+                  className={`h-9 rounded border px-2 text-[9px] font-semibold ${selectedDiagramContent?.reverseAnimation ? 'border-blue-700 bg-blue-50' : 'border-slate-200'}`}
+                >
+                  Reverse
+                </button>
+              </div>
+            ),
+          },
+          {
+            id: 'diagram-accessibility',
+            label: 'Accessibility',
+            content: (
+              <label className="grid px-1 text-[9px]">
+                Alt Text
+                <input
+                  aria-label="Diagram accessibility description"
+                  type="text"
+                  value={selectedDiagramContent?.altText || ''}
+                  disabled={!selectedDiagramContent}
+                  onChange={(event) => updateSelectedDiagram({ altText: event.target.value })}
+                  className="h-8 w-32 rounded border px-1 text-[10px]"
+                />
+              </label>
+            ),
+          },
         ];
       case 'chart-design':
         return [
-          { id: 'chart-type', label: 'Change Chart Type', content: <div className="flex gap-1 px-1">{(['bar', 'line', 'pie', 'doughnut'] as const).map((chartType) => <button key={chartType} type="button" disabled={!selectedChartContent} onClick={() => updateSelectedChart({ chartType })} className={`h-10 rounded border px-3 text-[10px] font-semibold capitalize ${selectedChartContent?.chartType === chartType ? 'border-emerald-700 bg-emerald-50' : 'border-slate-200 hover:bg-emerald-50'}`}>{chartType}</button>)}</div> },
-          { id: 'chart-elements', label: 'Chart Elements', content: <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 px-1 text-[9px] font-semibold text-slate-700"><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showTitle !== false} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showTitle: event.target.checked })}/>Title</label><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showLegend === true} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showLegend: event.target.checked })}/>Legend</label><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showAxes !== false} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showAxes: event.target.checked })}/>Axes</label><label className="flex items-center gap-1"><input type="checkbox" checked={selectedChartContent?.showDataLabels === true} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ showDataLabels: event.target.checked })}/>Labels</label></div> },
-          { id: 'chart-title', label: 'Chart Title', content: <label className="grid px-1 text-[9px]">Title<input aria-label="Chart title" type="text" value={String(selectedChartContent?.title || '')} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ title: event.target.value })} className="h-8 w-40 rounded border px-2 text-[10px]"/></label> },
+          {
+            id: 'chart-type',
+            label: 'Change Chart Type',
+            content: (
+              <div className="flex gap-1 px-1">
+                {(['bar', 'line', 'pie', 'doughnut'] as const).map((chartType) => (
+                  <button
+                    key={chartType}
+                    type="button"
+                    disabled={!selectedChartContent}
+                    onClick={() => updateSelectedChart({ chartType })}
+                    className={`h-10 rounded border px-3 text-[10px] font-semibold capitalize ${selectedChartContent?.chartType === chartType ? 'border-emerald-700 bg-emerald-50' : 'border-slate-200 hover:bg-emerald-50'}`}
+                  >
+                    {chartType}
+                  </button>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'chart-elements',
+            label: 'Chart Elements',
+            content: (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 px-1 text-[9px] font-semibold text-slate-700">
+                <label className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedChartContent?.showTitle !== false}
+                    disabled={!selectedChartContent}
+                    onChange={(event) => updateSelectedChart({ showTitle: event.target.checked })}
+                  />
+                  Title
+                </label>
+                <label className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedChartContent?.showLegend === true}
+                    disabled={!selectedChartContent}
+                    onChange={(event) => updateSelectedChart({ showLegend: event.target.checked })}
+                  />
+                  Legend
+                </label>
+                <label className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedChartContent?.showAxes !== false}
+                    disabled={!selectedChartContent}
+                    onChange={(event) => updateSelectedChart({ showAxes: event.target.checked })}
+                  />
+                  Axes
+                </label>
+                <label className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedChartContent?.showDataLabels === true}
+                    disabled={!selectedChartContent}
+                    onChange={(event) =>
+                      updateSelectedChart({ showDataLabels: event.target.checked })
+                    }
+                  />
+                  Labels
+                </label>
+              </div>
+            ),
+          },
+          {
+            id: 'chart-title',
+            label: 'Chart Title',
+            content: (
+              <label className="grid px-1 text-[9px]">
+                Title
+                <input
+                  aria-label="Chart title"
+                  type="text"
+                  value={String(selectedChartContent?.title || '')}
+                  disabled={!selectedChartContent}
+                  onChange={(event) => updateSelectedChart({ title: event.target.value })}
+                  className="h-8 w-40 rounded border px-2 text-[10px]"
+                />
+              </label>
+            ),
+          },
         ];
       case 'chart-format':
         return [
-          { id: 'chart-colours', label: 'Series Colours', content: <div className="flex gap-1 px-1">{(Array.isArray((selectedChartContent?.data as Record<string, unknown> | undefined)?.datasets) ? ((selectedChartContent?.data as Record<string, unknown>).datasets as Array<Record<string, unknown>>) : []).slice(0, 6).map((dataset, index, datasets) => <label key={index} className="relative grid h-9 w-9 place-items-center rounded border" title={`Series ${index + 1}`}><span className="h-5 w-5 rounded" style={{ backgroundColor: String(dataset.color || '#2563eb') }}/><input type="color" value={String(dataset.color || '#2563eb')} onChange={(event) => updateSelectedChart({ data: { ...selectedChartContent?.data as Record<string, unknown>, datasets: datasets.map((entry, entryIndex) => entryIndex === index ? { ...entry, color: event.target.value } : entry) } })} className="absolute inset-0 opacity-0"/></label>)}</div> },
-          { id: 'chart-background', label: 'Chart Area', content: <label className="relative grid h-10 w-12 place-items-center rounded border" title="Chart background"><span className="h-6 w-8 rounded border" style={{ backgroundColor: String(selectedChartContent?.backgroundColor || '#ffffff') }}/><input aria-label="Chart background colour" type="color" value={String(selectedChartContent?.backgroundColor || '#ffffff')} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ backgroundColor: event.target.value })} className="absolute inset-0 opacity-0"/></label> },
-          { id: 'chart-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="Chart alt text" type="text" value={String(selectedChartContent?.altText || '')} disabled={!selectedChartContent} onChange={(event) => updateSelectedChart({ altText: event.target.value })} className="h-8 w-36 rounded border px-2 text-[10px]"/></label> },
+          {
+            id: 'chart-colours',
+            label: 'Series Colours',
+            content: (
+              <div className="flex gap-1 px-1">
+                {(Array.isArray(
+                  (selectedChartContent?.data as Record<string, unknown> | undefined)?.datasets,
+                )
+                  ? ((selectedChartContent?.data as Record<string, unknown>).datasets as Array<
+                      Record<string, unknown>
+                    >)
+                  : []
+                )
+                  .slice(0, 6)
+                  .map((dataset, index, datasets) => (
+                    <label
+                      key={index}
+                      className="relative grid h-9 w-9 place-items-center rounded border"
+                      title={`Series ${index + 1}`}
+                    >
+                      <span
+                        className="h-5 w-5 rounded"
+                        style={{ backgroundColor: String(dataset.color || '#2563eb') }}
+                      />
+                      <input
+                        type="color"
+                        value={String(dataset.color || '#2563eb')}
+                        onChange={(event) =>
+                          updateSelectedChart({
+                            data: {
+                              ...(selectedChartContent?.data as Record<string, unknown>),
+                              datasets: datasets.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, color: event.target.value }
+                                  : entry,
+                              ),
+                            },
+                          })
+                        }
+                        className="absolute inset-0 opacity-0"
+                      />
+                    </label>
+                  ))}
+              </div>
+            ),
+          },
+          {
+            id: 'chart-background',
+            label: 'Chart Area',
+            content: (
+              <label
+                className="relative grid h-10 w-12 place-items-center rounded border"
+                title="Chart background"
+              >
+                <span
+                  className="h-6 w-8 rounded border"
+                  style={{
+                    backgroundColor: String(selectedChartContent?.backgroundColor || '#ffffff'),
+                  }}
+                />
+                <input
+                  aria-label="Chart background colour"
+                  type="color"
+                  value={String(selectedChartContent?.backgroundColor || '#ffffff')}
+                  disabled={!selectedChartContent}
+                  onChange={(event) => updateSelectedChart({ backgroundColor: event.target.value })}
+                  className="absolute inset-0 opacity-0"
+                />
+              </label>
+            ),
+          },
+          {
+            id: 'chart-accessibility',
+            label: 'Accessibility',
+            content: (
+              <label className="grid px-1 text-[9px]">
+                Alt Text
+                <input
+                  aria-label="Chart alt text"
+                  type="text"
+                  value={String(selectedChartContent?.altText || '')}
+                  disabled={!selectedChartContent}
+                  onChange={(event) => updateSelectedChart({ altText: event.target.value })}
+                  className="h-8 w-36 rounded border px-2 text-[10px]"
+                />
+              </label>
+            ),
+          },
         ];
       case '3d-model':
         return [
-          { id: 'model-adjust', label: 'Adjust', commands: [
-            { id: 'model-reset', label: 'Reset 3D Model', icon: <RefreshCw size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, model3d: {} } }) },
-            { id: 'model-properties', label: 'Properties', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('elements'), active: rightPanelOpen && panel === 'elements' },
-          ] },
-          { id: 'model-views', label: '3D Model Views', content: <div className="flex items-center gap-1 px-1">{(['front', 'back', 'left', 'right', 'top', 'isometric'] as const).map((view) => <button key={view} type="button" disabled={!selectedElement} title={`${view} 3D view`} onClick={() => updateSelectedModel3D({ cameraOrbit: standardModel3DView(view), cameraTarget: '', fieldOfView: '30deg' })} className="grid h-10 w-12 place-items-center rounded-md border border-slate-200 bg-gradient-to-br from-white to-slate-100 text-[9px] font-semibold capitalize text-slate-700 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-40"><span className="grid h-5 w-5 place-items-center rounded bg-amber-300 text-[8px] text-amber-950">3D</span>{view === 'isometric' ? 'Iso' : view}</button>)}</div> },
-          { id: 'model-accessibility', label: 'Accessibility', content: <label className="grid px-1 text-[9px]">Alt Text<input aria-label="3D model alt text" type="text" value={String(selectedElement?.content.altText || '')} disabled={!selectedElement} onChange={(event) => selectedElement && changeElementContent(selectedElement.id, { altText: event.target.value })} className="h-8 w-28 rounded border px-1 text-[10px]" /></label> },
-          { id: 'model-arrange', label: 'Arrange', commands: [
-            { id: 'model-forward', label: 'Bring Forward', icon: <ChevronUp size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'), selectedElement.id) },
-            { id: 'model-backward', label: 'Send Backward', icon: <ChevronDown size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && selectedScreen && commitElements(moveStudioLayer(selectedScreen.elements, selectedElement.id, 'backward'), selectedElement.id) },
-            { id: 'model-layers', label: 'Selection Pane', icon: <ListOrdered size={17} />, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
-            { id: 'model-align', label: 'Align Center', icon: <Focus size={17} />, disabled: !selectedElement, onExecute: () => alignSelectedElement('center') },
-            { id: 'model-group', label: 'Group', icon: <Boxes size={17} />, disabled: selectedElementIds.length < 2, onExecute: groupSelectedElements },
-          ] },
-          { id: 'model-interaction', label: 'Interaction', commands: [
-            { id: 'model-pan-zoom', label: 'Pan & Zoom', icon: <Focus size={17} />, disabled: !selectedElement, onExecute: () => selectedElement && setModel3DModeRequest({ elementId: selectedElement.id, token: Date.now() }) },
-            { id: 'model-auto-rotate', label: selectedModel3DSettings.autoRotate ? 'Stop Rotate' : 'Auto Rotate', icon: <RefreshCw size={17} />, disabled: !selectedElement, active: selectedModel3DSettings.autoRotate, onExecute: () => updateSelectedModel3D({ autoRotate: !selectedModel3DSettings.autoRotate }) },
-          ] },
-          { id: 'model-size', label: 'Size', content: selectedElement ? <div className="grid gap-0.5 px-1 text-[9px]"><label>W <input aria-label="3D model width" type="number" min="20" value={Math.round(Number(selectedElement.position.width) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(event.target.value), height: Number(selectedElement.position.height) || 60 })} className="h-6 w-14 rounded border px-1" /></label><label>H <input aria-label="3D model height" type="number" min="20" value={Math.round(Number(selectedElement.position.height) || 0)} onChange={(event) => changeElementBounds(selectedElement.id, { x: Number(selectedElement.position.x) || 0, y: Number(selectedElement.position.y) || 0, width: Number(selectedElement.position.width) || 80, height: Number(event.target.value) })} className="h-6 w-14 rounded border px-1" /></label></div> : null },
+          {
+            id: 'model-adjust',
+            label: 'Adjust',
+            commands: [
+              {
+                id: 'model-reset',
+                label: 'Reset 3D Model',
+                icon: <RefreshCw size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  updateElement({
+                    ...selectedElement,
+                    content: { ...selectedElement.content, model3d: {} },
+                  }),
+              },
+              {
+                id: 'model-properties',
+                label: 'Properties',
+                icon: <SlidersHorizontal size={17} />,
+                onExecute: openRibbonTool('elements'),
+                active: rightPanelOpen && panel === 'elements',
+              },
+            ],
+          },
+          {
+            id: 'model-views',
+            label: '3D Model Views',
+            content: (
+              <div className="flex items-center gap-1 px-1">
+                {(['front', 'back', 'left', 'right', 'top', 'isometric'] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    disabled={!selectedElement}
+                    title={`${view} 3D view`}
+                    onClick={() =>
+                      updateSelectedModel3D({
+                        cameraOrbit: standardModel3DView(view),
+                        cameraTarget: '',
+                        fieldOfView: '30deg',
+                      })
+                    }
+                    className="grid h-10 w-12 place-items-center rounded-md border border-slate-200 bg-gradient-to-br from-white to-slate-100 text-[9px] font-semibold capitalize text-slate-700 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-40"
+                  >
+                    <span className="grid h-5 w-5 place-items-center rounded bg-amber-300 text-[8px] text-amber-950">
+                      3D
+                    </span>
+                    {view === 'isometric' ? 'Iso' : view}
+                  </button>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: 'model-accessibility',
+            label: 'Accessibility',
+            content: (
+              <label className="grid px-1 text-[9px]">
+                Alt Text
+                <input
+                  aria-label="3D model alt text"
+                  type="text"
+                  value={String(selectedElement?.content.altText || '')}
+                  disabled={!selectedElement}
+                  onChange={(event) =>
+                    selectedElement &&
+                    changeElementContent(selectedElement.id, { altText: event.target.value })
+                  }
+                  className="h-8 w-28 rounded border px-1 text-[10px]"
+                />
+              </label>
+            ),
+          },
+          {
+            id: 'model-arrange',
+            label: 'Arrange',
+            commands: [
+              {
+                id: 'model-forward',
+                label: 'Bring Forward',
+                icon: <ChevronUp size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  selectedScreen &&
+                  commitElements(
+                    moveStudioLayer(selectedScreen.elements, selectedElement.id, 'forward'),
+                    selectedElement.id,
+                  ),
+              },
+              {
+                id: 'model-backward',
+                label: 'Send Backward',
+                icon: <ChevronDown size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  selectedScreen &&
+                  commitElements(
+                    moveStudioLayer(selectedScreen.elements, selectedElement.id, 'backward'),
+                    selectedElement.id,
+                  ),
+              },
+              {
+                id: 'model-layers',
+                label: 'Selection Pane',
+                icon: <ListOrdered size={17} />,
+                onExecute: openSelectionPane,
+                active: rightPanelOpen && panel === 'layers',
+              },
+              {
+                id: 'model-align',
+                label: 'Align Center',
+                icon: <Focus size={17} />,
+                disabled: !selectedElement,
+                onExecute: () => alignSelectedElement('center'),
+              },
+              {
+                id: 'model-group',
+                label: 'Group',
+                icon: <Boxes size={17} />,
+                disabled: selectedElementIds.length < 2,
+                onExecute: groupSelectedElements,
+              },
+            ],
+          },
+          {
+            id: 'model-interaction',
+            label: 'Interaction',
+            commands: [
+              {
+                id: 'model-pan-zoom',
+                label: 'Pan & Zoom',
+                icon: <Focus size={17} />,
+                disabled: !selectedElement,
+                onExecute: () =>
+                  selectedElement &&
+                  setModel3DModeRequest({ elementId: selectedElement.id, token: Date.now() }),
+              },
+              {
+                id: 'model-auto-rotate',
+                label: selectedModel3DSettings.autoRotate ? 'Stop Rotate' : 'Auto Rotate',
+                icon: <RefreshCw size={17} />,
+                disabled: !selectedElement,
+                active: selectedModel3DSettings.autoRotate,
+                onExecute: () =>
+                  updateSelectedModel3D({ autoRotate: !selectedModel3DSettings.autoRotate }),
+              },
+            ],
+          },
+          {
+            id: 'model-size',
+            label: 'Size',
+            content: selectedElement ? (
+              <div className="grid gap-0.5 px-1 text-[9px]">
+                <label>
+                  W{' '}
+                  <input
+                    aria-label="3D model width"
+                    type="number"
+                    min="20"
+                    value={Math.round(Number(selectedElement.position.width) || 0)}
+                    onChange={(event) =>
+                      changeElementBounds(selectedElement.id, {
+                        x: Number(selectedElement.position.x) || 0,
+                        y: Number(selectedElement.position.y) || 0,
+                        width: Number(event.target.value),
+                        height: Number(selectedElement.position.height) || 60,
+                      })
+                    }
+                    className="h-6 w-14 rounded border px-1"
+                  />
+                </label>
+                <label>
+                  H{' '}
+                  <input
+                    aria-label="3D model height"
+                    type="number"
+                    min="20"
+                    value={Math.round(Number(selectedElement.position.height) || 0)}
+                    onChange={(event) =>
+                      changeElementBounds(selectedElement.id, {
+                        x: Number(selectedElement.position.x) || 0,
+                        y: Number(selectedElement.position.y) || 0,
+                        width: Number(selectedElement.position.width) || 80,
+                        height: Number(event.target.value),
+                      })
+                    }
+                    className="h-6 w-14 rounded border px-1"
+                  />
+                </label>
+              </div>
+            ) : null,
+          },
         ];
       case 'drawing-format':
         return drawingRibbonGroups;
       case 'group-format':
         return [
-          { id: 'group-actions', label: 'Group', commands: [
-            { id: 'group-selected', label: 'Group', icon: <Boxes size={17} />, disabled: editorReadOnly || selectedElementIds.length < 2, onExecute: groupSelectedElements },
-            { id: 'ungroup-selected', label: 'Ungroup', icon: <Unlink size={17} />, disabled: editorReadOnly || !selectedHasGroup, onExecute: ungroupSelectedElements },
-          ] },
-          { id: 'group-arrange', label: 'Arrange', commands: [
-            { id: 'group-layers', label: 'Layers', icon: <ListOrdered size={17} />, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
-            { id: 'group-animations', label: 'Animations', icon: <Sparkles size={17} />, onExecute: () => setActiveRibbonTab('animations'), active: activeRibbonTab === 'animations' },
-          ] },
+          {
+            id: 'group-actions',
+            label: 'Group',
+            commands: [
+              {
+                id: 'group-selected',
+                label: 'Group',
+                icon: <Boxes size={17} />,
+                disabled: editorReadOnly || selectedElementIds.length < 2,
+                onExecute: groupSelectedElements,
+              },
+              {
+                id: 'ungroup-selected',
+                label: 'Ungroup',
+                icon: <Unlink size={17} />,
+                disabled: editorReadOnly || !selectedHasGroup,
+                onExecute: ungroupSelectedElements,
+              },
+            ],
+          },
+          {
+            id: 'group-arrange',
+            label: 'Arrange',
+            commands: [
+              {
+                id: 'group-layers',
+                label: 'Layers',
+                icon: <ListOrdered size={17} />,
+                onExecute: openSelectionPane,
+                active: rightPanelOpen && panel === 'layers',
+              },
+              {
+                id: 'group-animations',
+                label: 'Animations',
+                icon: <Sparkles size={17} />,
+                onExecute: () => setActiveRibbonTab('animations'),
+                active: activeRibbonTab === 'animations',
+              },
+            ],
+          },
         ];
       default:
         return [];
@@ -5210,8 +9489,14 @@ export default function TeachingStudioPage() {
   const workflowDetailItems = workflowProblems.length
     ? workflowProblems.map((problem) => ({ problem, severity: 'error' as const }))
     : [
-        ...(workflowStatus?.validation.errors ?? []).map((problem) => ({ problem, severity: 'error' as const })),
-        ...(workflowStatus?.validation.warnings ?? []).map((problem) => ({ problem, severity: 'warning' as const })),
+        ...(workflowStatus?.validation.errors ?? []).map((problem) => ({
+          problem,
+          severity: 'error' as const,
+        })),
+        ...(workflowStatus?.validation.warnings ?? []).map((problem) => ({
+          problem,
+          severity: 'warning' as const,
+        })),
       ];
 
   if (rawSessionId && !sessionId) {
@@ -5249,8 +9534,15 @@ export default function TeachingStudioPage() {
           onInsert={(project) => void insertPhysicsLab(project)}
         />
         {physicsLabSaving ? (
-          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
-            <div className="flex items-center gap-3 rounded-xl border border-cyan-300/30 bg-slate-950 px-5 py-3 font-semibold text-cyan-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-cyan-300" />Saving the Physics Lab activity…</div>
+          <div
+            className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-3 rounded-xl border border-cyan-300/30 bg-slate-950 px-5 py-3 font-semibold text-cyan-50 shadow-2xl">
+              <LoaderCircle size={20} className="animate-spin text-cyan-300" />
+              Saving the Physics Lab activity…
+            </div>
           </div>
         ) : null}
       </div>
@@ -5267,8 +9559,15 @@ export default function TeachingStudioPage() {
           onInsert={(project) => void insertChemistryLab(project)}
         />
         {physicsLabSaving ? (
-          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
-            <div className="flex items-center gap-3 rounded-xl border border-emerald-300/30 bg-slate-950 px-5 py-3 font-semibold text-emerald-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-emerald-300" />Saving the Chemistry Lab activity…</div>
+          <div
+            className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-300/30 bg-slate-950 px-5 py-3 font-semibold text-emerald-50 shadow-2xl">
+              <LoaderCircle size={20} className="animate-spin text-emerald-300" />
+              Saving the Chemistry Lab activity…
+            </div>
           </div>
         ) : null}
       </div>
@@ -5278,8 +9577,24 @@ export default function TeachingStudioPage() {
   if (mathematicsLabStudio) {
     return (
       <div className="relative h-dvh w-full overflow-hidden">
-        <MathematicsLabStudio initialProject={mathematicsLabStudio.project} editingExisting={Boolean(mathematicsLabStudio.elementId)} onBack={() => setMathematicsLabStudio(null)} onInsert={(project) => void insertMathematicsLab(project)} />
-        {physicsLabSaving ? <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite"><div className="flex items-center gap-3 rounded-xl border border-amber-300/30 bg-slate-950 px-5 py-3 font-semibold text-amber-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-amber-300"/>Saving the Mathematics Lab activity…</div></div> : null}
+        <MathematicsLabStudio
+          initialProject={mathematicsLabStudio.project}
+          editingExisting={Boolean(mathematicsLabStudio.elementId)}
+          onBack={() => setMathematicsLabStudio(null)}
+          onInsert={(project) => void insertMathematicsLab(project)}
+        />
+        {physicsLabSaving ? (
+          <div
+            className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-3 rounded-xl border border-amber-300/30 bg-slate-950 px-5 py-3 font-semibold text-amber-50 shadow-2xl">
+              <LoaderCircle size={20} className="animate-spin text-amber-300" />
+              Saving the Mathematics Lab activity…
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -5287,8 +9602,24 @@ export default function TeachingStudioPage() {
   if (biologyLabStudio) {
     return (
       <div className="relative h-dvh w-full overflow-hidden">
-        <BiologyLabStudio initialProject={biologyLabStudio.project} editingExisting={Boolean(biologyLabStudio.elementId)} onBack={() => setBiologyLabStudio(null)} onInsert={(project) => void insertBiologyLab(project)} />
-        {physicsLabSaving ? <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite"><div className="flex items-center gap-3 rounded-xl border border-emerald-300/30 bg-slate-950 px-5 py-3 font-semibold text-emerald-50 shadow-2xl"><LoaderCircle size={20} className="animate-spin text-emerald-300"/>Saving the Biology Lab activity…</div></div> : null}
+        <BiologyLabStudio
+          initialProject={biologyLabStudio.project}
+          editingExisting={Boolean(biologyLabStudio.elementId)}
+          onBack={() => setBiologyLabStudio(null)}
+          onInsert={(project) => void insertBiologyLab(project)}
+        />
+        {physicsLabSaving ? (
+          <div
+            className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-300/30 bg-slate-950 px-5 py-3 font-semibold text-emerald-50 shadow-2xl">
+              <LoaderCircle size={20} className="animate-spin text-emerald-300" />
+              Saving the Biology Lab activity…
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -5303,7 +9634,11 @@ export default function TeachingStudioPage() {
           onInsert={(activity) => void insertActivity(activity)}
         />
         {activitySaving ? (
-          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
+          <div
+            className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+          >
             <div className="flex items-center gap-3 rounded-xl border border-blue-300/30 bg-slate-950 px-5 py-3 font-semibold text-blue-50 shadow-2xl">
               <LoaderCircle size={20} className="animate-spin text-blue-300" />
               Exporting Activity and inserting it as a Simulation Resource…
@@ -5327,7 +9662,11 @@ export default function TeachingStudioPage() {
           onInsert={(simulation) => void insertSimulation(simulation)}
         />
         {simulationSaving ? (
-          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]" role="status" aria-live="polite">
+          <div
+            className="absolute inset-0 z-50 grid place-items-center bg-slate-950/55 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+          >
             <div className="flex items-center gap-3 rounded-xl border border-cyan-300/30 bg-slate-950 px-5 py-3 font-semibold text-cyan-50 shadow-2xl">
               <LoaderCircle size={20} className="animate-spin text-cyan-300" />
               Saving Simulation and inserting it into the Screen…
@@ -5402,158 +9741,222 @@ export default function TeachingStudioPage() {
         </div>
       }
     >
-      <div ref={editorViewportRef} className={`studio-editor-viewport relative flex h-full min-h-0 flex-col gap-1 overflow-hidden bg-slate-100 p-1.5 ${editorFocusMode ? 'studio-editor-focus-mode' : ''}`}>
+      <div
+        ref={editorViewportRef}
+        className={`studio-editor-viewport relative flex h-full min-h-0 flex-col gap-1 overflow-hidden bg-slate-100 p-1.5 ${editorFocusMode ? 'studio-editor-focus-mode' : ''}`}
+      >
         <section className="studio-context-bar hidden" aria-hidden="true">
-            <div className="studio-context-primary flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto overscroll-contain">
-              <span className="shrink-0 rounded-lg bg-slate-900 px-2.5 py-2 text-xs font-bold text-white" title={`Screen Editor · Session ${sessionId}`}>
-                Editor · S{sessionId}
-              </span>
-              <span
-                title={sessionContext?.chapter_name || '—'}
-                className="w-44 min-w-0 shrink truncate rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs"
+          <div className="studio-context-primary flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto overscroll-contain">
+            <span
+              className="shrink-0 rounded-lg bg-slate-900 px-2.5 py-2 text-xs font-bold text-white"
+              title={`Screen Editor · Session ${sessionId}`}
+            >
+              Editor · S{sessionId}
+            </span>
+            <span
+              title={sessionContext?.chapter_name || '—'}
+              className="w-44 min-w-0 shrink truncate rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs"
+            >
+              <b>Chapter:</b> {sessionContext?.chapter_name || '—'}
+            </span>
+            <span
+              title={sessionContext?.topic_name || '—'}
+              className="w-44 min-w-0 shrink truncate rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs"
+            >
+              <b>Topic:</b> {sessionContext?.topic_name || '—'}
+            </span>
+            <span
+              title={sessionContext?.subtopic_name || '—'}
+              className="w-44 min-w-0 shrink truncate rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs"
+            >
+              <b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}
+            </span>
+            <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
+              <select
+                aria-label="Select Session"
+                value={sessionId}
+                onChange={(event) => navigate(`/studio/editor/${event.target.value}`)}
+                className="studio-context-select h-9 max-w-28 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none"
               >
-                <b>Chapter:</b> {sessionContext?.chapter_name || '—'}
-              </span>
-              <span
-                title={sessionContext?.topic_name || '—'}
-                className="w-44 min-w-0 shrink truncate rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs"
-              >
-                <b>Topic:</b> {sessionContext?.topic_name || '—'}
-              </span>
-              <span
-                title={sessionContext?.subtopic_name || '—'}
-                className="w-44 min-w-0 shrink truncate rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs"
-              >
-                <b>Subtopic:</b> {sessionContext?.subtopic_name || '—'}
-              </span>
-              <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                <select aria-label="Select Session" value={sessionId} onChange={(event) => navigate(`/studio/editor/${event.target.value}`)} className="studio-context-select h-9 max-w-28 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none">
-                  {sessionOptions.map((session) => <option key={session.id} value={session.id}>Session {session.session_number}: {session.title}</option>)}
-                </select>
-                <ChevronDown size={15} className="pointer-events-none absolute right-2" aria-hidden="true" />
-              </label>
-              <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
-                <select aria-label="Select Screen" value={selectedScreenId || ''} onChange={(event) => void selectScreen(Number(event.target.value))} className="studio-context-select h-9 max-w-24 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none">
-                  {screenList.screens.map((screen) => <option key={screen.id} value={screen.id}>Screen {screen.screen_number}: {screenDisplayTitle(screen)}</option>)}
-                </select>
-                <ChevronDown size={15} className="pointer-events-none absolute right-2" aria-hidden="true" />
-              </label>
-              <StudioIconButton
-                label="Rename Screen"
-                icon={<Pencil size={15} />}
-                disabled={editorReadOnly || !selectedScreen}
-                onClick={() => void openRenameScreen()}
+                {sessionOptions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    Session {session.session_number}: {session.title}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={15}
+                className="pointer-events-none absolute right-2"
+                aria-hidden="true"
               />
-              <StudioIconButton
-                label="Delete Screen"
-                icon={<Trash2 size={15} />}
-                disabled={editorReadOnly || !selectedScreen}
-                onClick={() => void requestScreenAction('delete-screen')}
+            </label>
+            <label className="relative flex h-9 shrink-0 items-center rounded-lg bg-blue-900 pl-2 text-xs font-semibold text-white">
+              <select
+                aria-label="Select Screen"
+                value={selectedScreenId || ''}
+                onChange={(event) => void selectScreen(Number(event.target.value))}
+                className="studio-context-select h-9 max-w-24 cursor-pointer appearance-none rounded-r-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-xs font-semibold text-white outline-none"
+              >
+                {screenList.screens.map((screen) => (
+                  <option key={screen.id} value={screen.id}>
+                    Screen {screen.screen_number}: {screenDisplayTitle(screen)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={15}
+                className="pointer-events-none absolute right-2"
+                aria-hidden="true"
               />
-              <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
-                <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-semibold text-slate-600" title={`AutoSave: ${saveStatus}`} aria-live="polite">
-                  {saveStatus === 'saving' ? <LoaderCircle size={14} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={14} className="text-emerald-600" /> : saveStatus === 'offline' || saveStatus === 'error' ? <CloudOff size={14} className="text-amber-700" /> : <Cloud size={14} />}
-                  <span className="hidden w-11 text-center xl:inline">{saveStatus === 'idle' ? 'AutoSave' : saveStatus}</span>
-                </span>
-                <StudioIconButton label="Back" icon={<ArrowLeft size={15} />} onClick={() => void leaveEditor()} />
-                <StudioIconButton label={loadingScreens ? 'Refreshing Screens' : 'Refresh Screens'} icon={<RefreshCw size={15} className={loadingScreens ? 'animate-spin' : ''} />} onClick={() => void refreshScreens()} disabled={loadingScreens} />
-                <StudioIconButton
-                  label="Undo"
-                  icon={<Undo2 size={15} />}
-                  disabled={editorReadOnly || elementPast.length === 0}
-                  onClick={undoElementChange}
-                />
-                <StudioIconButton
-                  label="Redo"
-                  icon={<Redo2 size={15} />}
-                  disabled={editorReadOnly || elementFuture.length === 0}
-                  onClick={redoElementChange}
-                />
-                <StudioIconButton
-                  label={savingScreen ? 'Saving Screen' : 'Save now'}
-                  icon={
-                    savingScreen ? (
-                      <LoaderCircle size={15} className="animate-spin" />
-                    ) : (
-                      <Save size={15} />
-                    )
-                  }
-                  disabled={editorReadOnly || !hasUnsavedChanges || savingScreen}
-                  onClick={() => void saveScreenDraft('manual')}
-                />
-                <StudioIconButton
-                  label="Preview Session"
-                  icon={<Eye size={15} />}
-                  tone="primary"
-                  disabled={!selectedScreen}
-                  onClick={() => void openPreview()}
-                />
-                <StudioIconButton
-                  label="Present on another display"
-                  icon={<Presentation size={15} />}
-                  disabled={!selectedScreen}
-                  onClick={() => void openPresentation()}
-                />
-                <StudioIconButton
-                  label={showCanvasGuides ? 'Hide layout guides' : 'Show layout guides'}
-                  icon={<Grid3X3 size={15} />}
-                  active={showCanvasGuides}
-                  disabled={!selectedLayout}
-                  onClick={() => setShowCanvasGuides((visible) => !visible)}
-                />
-                <label className="relative inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50" title={selectedElement ? 'Element fill colour' : 'Screen fill colour'}>
-                  <span className="h-5 w-5 rounded border border-slate-400" style={{ backgroundColor: contextualFillColor }} />
-                  <input type="color" value={contextualFillColor} disabled={editorReadOnly || !selectedScreen} onChange={(event) => setContextualFillColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" aria-label={selectedElement ? 'Element fill colour' : 'Screen fill colour'} />
-                </label>
-                <StudioIconButton
-                  label={editorFocusMode ? 'Exit Editor Fullscreen' : 'Editor Fullscreen'}
-                  icon={editorFocusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-                  active={editorFocusMode}
-                  onClick={() => void toggleEditorFocusMode()}
-                />
-                <StudioIconButton
-                  label={
-                    loadingWorkflow
-                      ? 'Checking publication readiness'
-                      : 'Check publication readiness'
-                  }
-                  icon={
-                    loadingWorkflow ? (
-                      <LoaderCircle size={15} className="animate-spin" />
-                    ) : (
-                      <Check size={15} />
-                    )
-                  }
-                  onClick={() => void loadWorkflow(true)}
-                  disabled={loadingWorkflow}
-                />
-                <button
-                  type="button"
-                  onClick={() => void runWorkflowAction('submit')}
-                  disabled={
-                    loadingWorkflow || workflowAction !== null || !workflowStatus?.can_submit
-                  }
-                  title={
-                    workflowStatus?.can_submit
-                      ? 'Submit this Session for review'
-                      : 'Resolve the publication requirements before submitting'
-                  }
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-                >
-                  {workflowAction === 'submit' && (
-                    <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
-                  )}
-                  {workflowAction === 'submit' ? 'Submitting…' : 'Submit'}
-                </button>
-                {workflowStatus && (
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
-                  >
-                    Publication: {workflowStatus.validation.valid ? 'Ready' : 'Action required'}
-                  </span>
+            </label>
+            <StudioIconButton
+              label="Rename Screen"
+              icon={<Pencil size={15} />}
+              disabled={editorReadOnly || !selectedScreen}
+              onClick={() => void openRenameScreen()}
+            />
+            <StudioIconButton
+              label="Delete Screen"
+              icon={<Trash2 size={15} />}
+              disabled={editorReadOnly || !selectedScreen || selectedIsGapBridgeChild}
+              onClick={() => void requestScreenAction('delete-screen')}
+            />
+            <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
+              <span
+                className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-semibold text-slate-600"
+                title={`AutoSave: ${saveStatus}`}
+                aria-live="polite"
+              >
+                {saveStatus === 'saving' ? (
+                  <LoaderCircle size={14} className="animate-spin" />
+                ) : saveStatus === 'saved' ? (
+                  <Check size={14} className="text-emerald-600" />
+                ) : saveStatus === 'offline' || saveStatus === 'error' ? (
+                  <CloudOff size={14} className="text-amber-700" />
+                ) : (
+                  <Cloud size={14} />
                 )}
-              </div>
+                <span className="hidden w-11 text-center xl:inline">
+                  {saveStatus === 'idle' ? 'AutoSave' : saveStatus}
+                </span>
+              </span>
+              <StudioIconButton
+                label="Back"
+                icon={<ArrowLeft size={15} />}
+                onClick={() => void leaveEditor()}
+              />
+              <StudioIconButton
+                label={loadingScreens ? 'Refreshing Screens' : 'Refresh Screens'}
+                icon={<RefreshCw size={15} className={loadingScreens ? 'animate-spin' : ''} />}
+                onClick={() => void refreshScreens()}
+                disabled={loadingScreens}
+              />
+              <StudioIconButton
+                label="Undo"
+                icon={<Undo2 size={15} />}
+                disabled={editorReadOnly || elementPast.length === 0}
+                onClick={undoElementChange}
+              />
+              <StudioIconButton
+                label="Redo"
+                icon={<Redo2 size={15} />}
+                disabled={editorReadOnly || elementFuture.length === 0}
+                onClick={redoElementChange}
+              />
+              <StudioIconButton
+                label={savingScreen ? 'Saving Screen' : 'Save now'}
+                icon={
+                  savingScreen ? (
+                    <LoaderCircle size={15} className="animate-spin" />
+                  ) : (
+                    <Save size={15} />
+                  )
+                }
+                disabled={editorReadOnly || !hasUnsavedChanges || savingScreen}
+                onClick={() => void saveScreenDraft('manual')}
+              />
+              <StudioIconButton
+                label="Preview Session"
+                icon={<Eye size={15} />}
+                tone="primary"
+                disabled={!selectedScreen}
+                onClick={() => void openPreview()}
+              />
+              <StudioIconButton
+                label="Present on another display"
+                icon={<Presentation size={15} />}
+                disabled={!selectedScreen}
+                onClick={() => void openPresentation()}
+              />
+              <StudioIconButton
+                label={showCanvasGuides ? 'Hide layout guides' : 'Show layout guides'}
+                icon={<Grid3X3 size={15} />}
+                active={showCanvasGuides}
+                disabled={!selectedLayout}
+                onClick={() => setShowCanvasGuides((visible) => !visible)}
+              />
+              <label
+                className="relative inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50"
+                title={selectedElement ? 'Element fill colour' : 'Screen fill colour'}
+              >
+                <span
+                  className="h-5 w-5 rounded border border-slate-400"
+                  style={{ backgroundColor: contextualFillColor }}
+                />
+                <input
+                  type="color"
+                  value={contextualFillColor}
+                  disabled={editorReadOnly || !selectedScreen}
+                  onChange={(event) => setContextualFillColor(event.target.value)}
+                  className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  aria-label={selectedElement ? 'Element fill colour' : 'Screen fill colour'}
+                />
+              </label>
+              <StudioIconButton
+                label={editorFocusMode ? 'Exit Editor Fullscreen' : 'Editor Fullscreen'}
+                icon={editorFocusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                active={editorFocusMode}
+                onClick={() => void toggleEditorFocusMode()}
+              />
+              <StudioIconButton
+                label={
+                  loadingWorkflow ? 'Checking publication readiness' : 'Check publication readiness'
+                }
+                icon={
+                  loadingWorkflow ? (
+                    <LoaderCircle size={15} className="animate-spin" />
+                  ) : (
+                    <Check size={15} />
+                  )
+                }
+                onClick={() => void loadWorkflow(true)}
+                disabled={loadingWorkflow}
+              />
+              <button
+                type="button"
+                onClick={() => void runWorkflowAction('submit')}
+                disabled={loadingWorkflow || workflowAction !== null || !workflowStatus?.can_submit}
+                title={
+                  workflowStatus?.can_submit
+                    ? 'Submit this Session for review'
+                    : 'Resolve the publication requirements before submitting'
+                }
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+              >
+                {workflowAction === 'submit' && (
+                  <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+                )}
+                {workflowAction === 'submit' ? 'Submitting…' : 'Submit'}
+              </button>
+              {workflowStatus && (
+                <span
+                  className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${workflowStatus.validation.valid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
+                >
+                  Publication: {workflowStatus.validation.valid ? 'Ready' : 'Action required'}
+                </span>
+              )}
             </div>
+          </div>
         </section>
         <StudioAdaptiveRibbon
           tabs={ribbonTabs}
@@ -5594,69 +9997,226 @@ export default function TeachingStudioPage() {
         <div
           className={`studio-editor-workspace relative grid min-h-0 flex-1 overflow-hidden ${leftPanelOpen ? 'has-left-panel' : ''} ${toolPanelOpen ? 'has-right-panel has-compact-right-panel' : ''} ${toolPanelOpen && panel === 'layers' ? 'has-layers-panel' : ''} ${toolPanelOpen && panel === 'animations' ? 'has-animation-panel' : ''}`}
         >
-          <aside className={`studio-editor-left-panel ${leftPanelOpen ? 'is-expanded' : ''} flex min-h-0 overflow-visible`}>
-            {!leftPanelOpen ? <nav aria-label="Open Screen navigation" className="flex shrink-0 items-center">
-              <button
-                type="button"
-                onClick={openScreenReorder}
-                disabled={screenList.screens.length === 0 || hasUnsavedChanges}
-                title={hasUnsavedChanges ? 'Wait for AutoSave before opening Screens' : 'Open Screens'}
-                aria-label="Open Screens"
-                aria-expanded={false}
-                className="inline-flex h-9 w-8 items-center justify-center rounded-r-lg border border-l-0 border-white/80 bg-white/90 text-slate-700 shadow-lg backdrop-blur hover:bg-white disabled:opacity-35"
+          <aside
+            className={`studio-editor-left-panel ${leftPanelOpen ? 'is-expanded' : ''} flex min-h-0 overflow-visible`}
+          >
+            {!leftPanelOpen ? (
+              <nav aria-label="Open Screen navigation" className="flex shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={openScreenReorder}
+                  disabled={screenList.screens.length === 0 || hasUnsavedChanges}
+                  title={
+                    hasUnsavedChanges ? 'Wait for AutoSave before opening Screens' : 'Open Screens'
+                  }
+                  aria-label="Open Screens"
+                  aria-expanded={false}
+                  className="inline-flex h-9 w-8 items-center justify-center rounded-r-lg border border-l-0 border-white/80 bg-white/90 text-slate-700 shadow-lg backdrop-blur hover:bg-white disabled:opacity-35"
+                >
+                  <ListOrdered size={16} />
+                </button>
+              </nav>
+            ) : null}
+            {leftPanelOpen ? (
+              <section
+                onPointerMove={(event) => {
+                  moveDraggedScreen(event);
+                  moveDraggedChild(event);
+                }}
+                onPointerUp={() => {
+                  finishScreenDrag();
+                  finishChildDrag();
+                }}
+                onPointerCancel={() => {
+                  finishScreenDrag();
+                  finishChildDrag();
+                }}
+                className="studio-editor-left-content is-open flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2"
               >
-                <ListOrdered size={16} />
-              </button>
-            </nav> : null}
-              {leftPanelOpen ? <section onPointerMove={moveDraggedScreen} onPointerUp={finishScreenDrag} onPointerCancel={finishScreenDrag} className="studio-editor-left-content is-open flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2">
-                <div className="mb-1.5 flex h-8 shrink-0 items-center justify-between rounded-lg bg-slate-100 px-2" aria-label="Screen navigation">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-950"><ListOrdered size={13} />Screens</span>
-                  <button type="button" title="Close Screens" aria-label="Close Screens" onClick={() => setLeftPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white hover:text-slate-800"><X size={13} /></button>
+                <div
+                  className="mb-1.5 flex h-8 shrink-0 items-center justify-between rounded-lg bg-slate-100 px-2"
+                  aria-label="Screen navigation"
+                >
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-950">
+                    <ListOrdered size={13} />
+                    Screens
+                  </span>
+                  <button
+                    type="button"
+                    title="Close Screens"
+                    aria-label="Close Screens"
+                    onClick={() => setLeftPanelOpen(false)}
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white hover:text-slate-800"
+                  >
+                    <X size={13} />
+                  </button>
                 </div>
                 <label className="relative mb-2 flex h-9 shrink-0 items-center rounded-lg bg-blue-900 text-[11px] font-semibold text-white">
                   <span className="pl-2">Session</span>
-                  <select aria-label="Select Session" value={sessionId} onChange={(event) => navigate(`/studio/editor/${event.target.value}`)} className="h-9 min-w-0 flex-1 cursor-pointer appearance-none rounded-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-[11px] font-semibold text-white outline-none">
-                    {sessionOptions.map((session) => <option key={session.id} value={session.id}>Session {session.session_number}: {session.title}</option>)}
+                  <select
+                    aria-label="Select Session"
+                    value={sessionId}
+                    onChange={(event) => navigate(`/studio/editor/${event.target.value}`)}
+                    className="h-9 min-w-0 flex-1 cursor-pointer appearance-none rounded-lg border-0 bg-blue-900 py-0 pl-2 pr-7 text-[11px] font-semibold text-white outline-none"
+                  >
+                    {sessionOptions.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        Session {session.session_number}: {session.title}
+                      </option>
+                    ))}
                   </select>
                   <ChevronDown size={13} className="pointer-events-none absolute right-2" />
                 </label>
                 <>
-                    <div className="flex shrink-0 items-center justify-between gap-2">
-                      <div><h2 className="font-semibold">Screens</h2><p className="text-[11px] text-slate-500">Select or drag to reorder</p></div>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{screenList.screens.length}</span>
+                  <div className="flex shrink-0 items-center justify-between gap-2">
+                    <div>
+                      <h2 className="font-semibold">Screens</h2>
+                      <p className="text-[11px] text-slate-500">Select or drag to reorder</p>
                     </div>
-                    <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                      {reorderIds.map((screenId, index) => {
-                        const screen = screenList.screens.find((candidate) => candidate.id === screenId);
-                        if (!screen) return null;
-                        const selected = selectedScreenId === screenId;
-                        return (
-                          <div key={screenId} data-reorder-screen-id={screenId} className={`flex items-stretch gap-1 rounded-lg border p-1 transition ${draggingScreenId === screenId ? 'border-blue-700 bg-blue-100 opacity-70' : selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
-                            <button type="button" onClick={() => void selectScreen(screenId)} className="min-w-0 flex-1 text-left" aria-current={selected ? 'page' : undefined}>
-                              <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Screen {index + 1}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">
+                      {screenList.screens.length}
+                    </span>
+                  </div>
+                  <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                    {reorderIds.map((screenId, index) => {
+                      const screen = screenList.screens.find(
+                        (candidate) => candidate.id === screenId,
+                      );
+                      if (!screen) return null;
+                      const selected = selectedScreenId === screenId;
+                      const childBridges = (gapBridgesBySource[screenId] || []).filter(
+                        (bridge) => bridge.target_kind === 'child',
+                      );
+                      return (
+                        <div key={screenId} className="space-y-1">
+                          <div
+                            data-reorder-screen-id={screenId}
+                            data-child-drop-screen-id={screenId}
+                            className={`flex items-stretch gap-1 rounded-lg border p-1 transition ${childDropScreenId === screenId ? 'border-violet-600 bg-violet-100 ring-2 ring-violet-300' : draggingScreenId === screenId ? 'border-blue-700 bg-blue-100 opacity-70' : selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => void selectScreen(screenId)}
+                              className="min-w-0 flex-1 text-left"
+                              aria-current={selected ? 'page' : undefined}
+                            >
+                              <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">
+                                Screen {index + 1}
+                              </span>
                               <span className="grid aspect-video w-full place-items-center overflow-hidden rounded border border-slate-200 bg-gradient-to-br from-white to-slate-100 px-2 text-center text-xs font-semibold text-slate-700 shadow-sm">
-                                <span><span className="line-clamp-2">{screenDisplayTitle(screen)}</span><span className="mt-1 block text-[9px] font-normal text-slate-500">{screen.elements.length} elements</span></span>
+                                <span>
+                                  <span className="line-clamp-2">{screenDisplayTitle(screen)}</span>
+                                  <span className="mt-1 block text-[9px] font-normal text-slate-500">
+                                    {screen.elements.length} elements
+                                  </span>
+                                </span>
                               </span>
                             </button>
-                            {!editorReadOnly && <button type="button" title="Drag Screen to reorder" aria-label={`Drag Screen ${index + 1} to reorder`} onPointerDown={(event) => { event.preventDefault(); setDraggingScreenId(screenId); reorderIdsRef.current = reorderIds; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex w-8 touch-none items-center justify-center rounded text-slate-500 hover:bg-slate-100"><GripVertical size={18} /></button>}
+                            {!editorReadOnly && (
+                              <button
+                                type="button"
+                                title="Drag Screen to reorder"
+                                aria-label={`Drag Screen ${index + 1} to reorder`}
+                                onPointerDown={(event) => {
+                                  event.preventDefault();
+                                  setDraggingScreenId(screenId);
+                                  reorderIdsRef.current = reorderIds;
+                                  event.currentTarget.setPointerCapture(event.pointerId);
+                                }}
+                                className="flex w-8 touch-none items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+                              >
+                                <GripVertical size={18} />
+                              </button>
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                    {reorderingScreens && <p className="mt-2 text-center text-xs font-semibold text-blue-800">Saving Screen order…</p>}
+                          {childBridges.map((bridge) => {
+                            const childTitle =
+                              'title' in bridge.target ? bridge.target.title : null;
+                            const childSelected = selectedScreenId === bridge.target.screen_id;
+                            return (
+                              <div
+                                key={bridge.id}
+                                className={`group ml-4 flex w-[calc(100%-1rem)] items-center rounded-lg border transition ${draggingChild?.bridgeId === bridge.id ? 'border-violet-600 bg-violet-100 opacity-70' : childSelected ? 'border-violet-500 bg-violet-50 text-violet-950' : 'border-violet-200 bg-white text-slate-700 hover:bg-violet-50'}`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => openGapBridgeChild(bridge)}
+                                  aria-current={childSelected ? 'page' : undefined}
+                                  className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left text-[11px]"
+                                >
+                                  <GitBranch size={13} className="shrink-0 text-violet-600" />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate font-bold">{bridge.name}</span>
+                                    <span className="block truncate text-[9px] text-slate-500">
+                                      Child · {childTitle || 'Untitled child Screen'}
+                                    </span>
+                                  </span>
+                                </button>
+                                {!editorReadOnly ? (
+                                  <button
+                                    type="button"
+                                    title="Drag child to another parent Screen"
+                                    aria-label={`Move ${bridge.name} to another parent Screen`}
+                                    onPointerDown={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setDraggingChild({
+                                        bridgeId: bridge.id,
+                                        sourceScreenId: screenId,
+                                      });
+                                      childDropScreenIdRef.current = null;
+                                      event.currentTarget.setPointerCapture(event.pointerId);
+                                    }}
+                                    className="grid h-7 w-7 shrink-0 touch-none place-items-center rounded text-violet-600 hover:bg-violet-100"
+                                  >
+                                    <GripVertical size={14} />
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  title="Manage Gap Bridge"
+                                  aria-label={`Manage ${bridge.name}`}
+                                  onClick={() => {
+                                    setSelectedGapBridgeId(bridge.id);
+                                    setGapBridgeRibbonVisible(true);
+                                    setActiveRibbonTab('gap-bridge');
+                                    setPanel('gap-bridges');
+                                    setRightPanelOpen(true);
+                                  }}
+                                  className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded text-violet-700 opacity-0 hover:bg-violet-100 group-hover:opacity-100 focus:opacity-100"
+                                >
+                                  <MoreVertical size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {reorderingScreens && (
+                    <p className="mt-2 text-center text-xs font-semibold text-blue-800">
+                      Saving Screen order…
+                    </p>
+                  )}
                 </>
-              </section> : null}
+              </section>
+            ) : null}
           </aside>
           <main
             className="studio-editor-canvas flex min-h-0 flex-col overflow-hidden"
             onContextMenu={(event) => {
-              const target = (event.target as HTMLElement).closest<HTMLElement>('[data-element-id]');
+              const target = (event.target as HTMLElement).closest<HTMLElement>(
+                '[data-element-id]',
+              );
               const elementId = target?.dataset.elementId;
               if (!elementId) return;
               event.preventDefault();
               setAnimationPreview(null);
               setSelectedElementId(elementId);
-              setSelectedElementIds((current) => current.includes(elementId) ? current : [elementId]);
+              setSelectedElementIds((current) =>
+                current.includes(elementId) ? current : [elementId],
+              );
               setElementContextMenu({ elementId, x: event.clientX, y: event.clientY });
             }}
           >
@@ -5664,15 +10224,25 @@ export default function TeachingStudioPage() {
               <BlankScreenCanvas
                 screen={selectedScreen}
                 screenTitle={selectedScreen ? screenDisplayTitle(selectedScreen) : undefined}
-                contextBreadcrumb={[sessionContext?.chapter_name, sessionContext?.topic_name, sessionContext?.subtopic_name].filter(Boolean).join(' › ')}
+                contextBreadcrumb={[
+                  sessionContext?.chapter_name,
+                  sessionContext?.topic_name,
+                  sessionContext?.subtopic_name,
+                ]
+                  .filter(Boolean)
+                  .join(' › ')}
                 loading={loadingScreen}
                 layout={selectedLayout}
-                layoutLoading={Boolean(selectedScreen?.layout_id && layoutsLoading && !selectedLayout)}
+                layoutLoading={Boolean(
+                  selectedScreen?.layout_id && layoutsLoading && !selectedLayout,
+                )}
                 resourceCache={screenResourceCache}
                 showGuides={showCanvasGuides}
                 animationPreview={animationPreview}
                 selectedAnimationEffect={activeSelectedAnimationEffect ?? null}
-                onChangeSelectedAnimationEffect={editorReadOnly ? undefined : updateSelectedAnimationEffect}
+                onChangeSelectedAnimationEffect={
+                  editorReadOnly ? undefined : updateSelectedAnimationEffect
+                }
                 cropRequest={cropRequest}
                 model3DModeRequest={model3DModeRequest}
                 selectedElementId={selectedElementId}
@@ -5684,23 +10254,43 @@ export default function TeachingStudioPage() {
                 selectedSlotId={selectedLayoutSlotId}
                 onSelectElement={selectElementAndOpenControls}
                 onSelectElements={selectElementsFromMarquee}
-                onSelectDiagramNode={(elementId, nodeId) => { setAnimationPreview(null); setSelectedElementId(elementId); setSelectedDiagramNodeId(nodeId); }}
-                onSelectSlot={(slotId) => { setAnimationPreview(null); setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(slotId); }}
-                onClearElementSelection={() => { setAnimationPreview(null); setSelectedElementId(null); setSelectedElementIds([]); setSelectedLayoutSlotId(null); }}
+                onSelectDiagramNode={(elementId, nodeId) => {
+                  setAnimationPreview(null);
+                  setSelectedElementId(elementId);
+                  setSelectedDiagramNodeId(nodeId);
+                }}
+                onSelectSlot={(slotId) => {
+                  setAnimationPreview(null);
+                  setSelectedElementId(null);
+                  setSelectedElementIds([]);
+                  setSelectedLayoutSlotId(slotId);
+                }}
+                onClearElementSelection={() => {
+                  setAnimationPreview(null);
+                  setSelectedElementId(null);
+                  setSelectedElementIds([]);
+                  setSelectedLayoutSlotId(null);
+                }}
                 onChangeElement={editorReadOnly ? undefined : updateElement}
-                onCommitElementChange={editorReadOnly ? undefined : updateElementPreservingSelection}
+                onCommitElementChange={
+                  editorReadOnly ? undefined : updateElementPreservingSelection
+                }
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementRotation={editorReadOnly ? undefined : changeElementRotation}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
                 onTextCaretChange={(elementId, offset) => {
                   inlineEquationCaretRef.current = { elementId, offset };
-                  const controlWindow = window as Window & { __studioActiveEquationElementId?: string };
+                  const controlWindow = window as Window & {
+                    __studioActiveEquationElementId?: string;
+                  };
                   delete controlWindow.__studioActiveEquationElementId;
                 }}
                 onCanvasPointChange={(point) => {
                   equationCanvasPointRef.current = point;
                   inlineEquationCaretRef.current = null;
-                  const controlWindow = window as Window & { __studioActiveEquationElementId?: string };
+                  const controlWindow = window as Window & {
+                    __studioActiveEquationElementId?: string;
+                  };
                   delete controlWindow.__studioActiveEquationElementId;
                 }}
                 onEditInlineShape={(elementId, shape, start, end) => {
@@ -5710,16 +10300,27 @@ export default function TeachingStudioPage() {
                   setRightPanelOpen(true);
                 }}
                 onEditInlineEquation={(elementId, latex, start, end) => {
-                  const element = selectedScreen?.elements.find((candidate) => candidate.id === elementId);
+                  const element = selectedScreen?.elements.find(
+                    (candidate) => candidate.id === elementId,
+                  );
                   if (!element) return;
                   const text = String(element.content.text ?? '');
                   const content = { ...element.content };
                   delete content.richTextHtml;
-                  updateElement({ ...element, content: { ...content, text: `${text.slice(0, start)}\\(${latex}\\)${text.slice(end)}` } });
+                  updateElement({
+                    ...element,
+                    content: {
+                      ...content,
+                      text: `${text.slice(0, start)}\\(${latex}\\)${text.slice(end)}`,
+                    },
+                  });
                 }}
                 onRemoveElement={editorReadOnly ? undefined : removeElement}
                 drawingStrokes={authoredDrawingStrokes(selectedScreen)}
-                drawingEnabled={!editorReadOnly && (activeRibbonTab === 'draw' || activeRibbonTab === 'drawing-format')}
+                drawingEnabled={
+                  !editorReadOnly &&
+                  (activeRibbonTab === 'draw' || activeRibbonTab === 'drawing-format')
+                }
                 drawingTool={drawingTool}
                 drawingColor={drawingColor}
                 drawingWidth={drawingWidth}
@@ -5729,9 +10330,12 @@ export default function TeachingStudioPage() {
                   editorReadOnly || !selectedLayout
                     ? undefined
                     : (point) => {
-                        const slot = selectedLayout.slots.find(({ bounds }) =>
-                          point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
-                          point.y >= bounds.y && point.y <= bounds.y + bounds.height,
+                        const slot = selectedLayout.slots.find(
+                          ({ bounds }) =>
+                            point.x >= bounds.x &&
+                            point.x <= bounds.x + bounds.width &&
+                            point.y >= bounds.y &&
+                            point.y <= bounds.y + bounds.height,
                         );
                         return slot ? addElement(slot) : undefined;
                       }
@@ -5739,57 +10343,132 @@ export default function TeachingStudioPage() {
                 onDropFiles={editorReadOnly ? undefined : addDroppedFiles}
               />
             </div>
-            {externalPasteOptions ? <PasteOptionsMenu
-              modes={externalPasteOptions.modes}
-              onChoose={changeExternalPasteMode}
-              onClose={() => setExternalPasteOptions(null)}
-            /> : null}
-            {elementContextMenu ? <StudioElementContextMenu
-              position={{ x: elementContextMenu.x, y: elementContextMenu.y }}
-              canPaste={!editorReadOnly && Boolean(selectedScreen) && !externalPasteBusy}
-              canGroup={!editorReadOnly && selectedElementIds.length > 1}
-              canUngroup={!editorReadOnly && selectedHasGroup}
-              onCut={cutSelectedElements}
-              onCopy={copySelectedElements}
-              onPaste={() => pasteClipboard('source-formatting')}
-              onDuplicate={() => duplicateElement(elementContextMenu.elementId)}
-              onDelete={() => removeElement(elementContextMenu.elementId)}
-              onGroup={groupSelectedElements}
-              onUngroup={ungroupSelectedElements}
-              onLayers={openSelectionPane}
-              onClose={() => setElementContextMenu(null)}
-            /> : null}
+            {externalPasteOptions ? (
+              <PasteOptionsMenu
+                modes={externalPasteOptions.modes}
+                onChoose={changeExternalPasteMode}
+                onClose={() => setExternalPasteOptions(null)}
+              />
+            ) : null}
+            {elementContextMenu ? (
+              <StudioElementContextMenu
+                position={{ x: elementContextMenu.x, y: elementContextMenu.y }}
+                canPaste={!editorReadOnly && Boolean(selectedScreen) && !externalPasteBusy}
+                canGroup={!editorReadOnly && selectedElementIds.length > 1}
+                canUngroup={!editorReadOnly && selectedHasGroup}
+                onCut={cutSelectedElements}
+                onCopy={copySelectedElements}
+                onPaste={() => pasteClipboard('source-formatting')}
+                onDuplicate={() => duplicateElement(elementContextMenu.elementId)}
+                onDelete={() => removeElement(elementContextMenu.elementId)}
+                onGroup={groupSelectedElements}
+                onUngroup={ungroupSelectedElements}
+                onLayers={openSelectionPane}
+                onClose={() => setElementContextMenu(null)}
+              />
+            ) : null}
             {presentationActive ? (
-              <div className="absolute bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-blue-200 bg-slate-950/92 p-2 text-white shadow-2xl backdrop-blur" role="toolbar" aria-label="Audience presentation controls">
-                <span className="px-2 text-xs font-bold">Presenting · {presentationDisplayName}</span>
-                <button type="button" onClick={() => sendPresentationCommand('previous')} className="rounded-lg p-2 hover:bg-white/15" title="Previous"><ChevronLeft size={19} /></button>
-                <button type="button" onClick={() => sendPresentationCommand('next')} className="rounded-lg p-2 hover:bg-white/15" title="Next"><ChevronRight size={19} /></button>
-                <button type="button" onClick={() => sendPresentationCommand('fullscreen')} className="rounded-lg p-2 hover:bg-white/15" title="Audience fullscreen"><Maximize2 size={17} /></button>
-                <button type="button" onClick={closePresentationControls} className="rounded-lg p-2 text-red-200 hover:bg-red-500/20" title="End presentation"><X size={17} /></button>
+              <div
+                className="absolute bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-blue-200 bg-slate-950/92 p-2 text-white shadow-2xl backdrop-blur"
+                role="toolbar"
+                aria-label="Audience presentation controls"
+              >
+                <span className="px-2 text-xs font-bold">
+                  Presenting · {presentationDisplayName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => sendPresentationCommand('previous')}
+                  className="rounded-lg p-2 hover:bg-white/15"
+                  title="Previous"
+                >
+                  <ChevronLeft size={19} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => sendPresentationCommand('next')}
+                  className="rounded-lg p-2 hover:bg-white/15"
+                  title="Next"
+                >
+                  <ChevronRight size={19} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => sendPresentationCommand('fullscreen')}
+                  className="rounded-lg p-2 hover:bg-white/15"
+                  title="Audience fullscreen"
+                >
+                  <Maximize2 size={17} />
+                </button>
+                <button
+                  type="button"
+                  onClick={closePresentationControls}
+                  className="rounded-lg p-2 text-red-200 hover:bg-red-500/20"
+                  title="End presentation"
+                >
+                  <X size={17} />
+                </button>
               </div>
             ) : null}
           </main>
           {!editorReadOnly && rightPanelOpen && (
-            <aside className={`studio-editor-tools-panel ${toolPanelOpen ? 'is-expanded is-compact' : ''} ${panel === 'layers' ? 'is-layers' : ''} ${panel === 'animations' ? 'is-animation' : ''} flex min-h-0 overflow-visible`}>
+            <aside
+              className={`studio-editor-tools-panel ${toolPanelOpen ? 'is-expanded is-compact' : ''} ${panel === 'layers' ? 'is-layers' : ''} ${panel === 'animations' ? 'is-animation' : ''} flex min-h-0 overflow-visible`}
+            >
               <nav aria-label="Studio tools" className="hidden">
-                {studioTools.filter((tool) => !('hidden' in tool && tool.hidden)).map((tool) => (
-                  <button
-                    key={tool.id}
-                    type="button"
-                    onClick={() => toggleStudioTool(tool.id)}
-                    title={tool.label}
-                    aria-label={tool.label}
-                    aria-expanded={rightPanelOpen && panel === tool.id}
-                    className={`inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-lg ${rightPanelOpen && panel === tool.id ? 'bg-blue-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
-                  >
-                    {tool.icon}
-                  </button>
-                ))}
+                {studioTools
+                  .filter((tool) => !('hidden' in tool && tool.hidden))
+                  .map((tool) => (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      onClick={() => toggleStudioTool(tool.id)}
+                      title={tool.label}
+                      aria-label={tool.label}
+                      aria-expanded={rightPanelOpen && panel === tool.id}
+                      className={`inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-lg ${rightPanelOpen && panel === tool.id ? 'bg-blue-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+                    >
+                      {tool.icon}
+                    </button>
+                  ))}
               </nav>
-              <div aria-hidden={!toolPanelOpen} className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} relative min-h-0 min-w-0 flex-1 overscroll-contain ${panel === 'animations' ? 'overflow-hidden p-2' : 'overflow-auto [scrollbar-gutter:stable]'} ${panel === 'layers' ? 'p-1.5' : panel === 'animations' ? '' : 'p-2'}`}>
-                {panel !== 'insert-resources' ? panel === 'animations' ? <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"><X size={13} /></button> : <div className="mb-1 flex justify-end"><button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"><X size={13} /></button></div> : null}
+              <div
+                aria-hidden={!toolPanelOpen}
+                className={`studio-editor-tools-content ${toolPanelOpen ? 'is-open' : 'is-closed'} relative min-h-0 min-w-0 flex-1 overscroll-contain ${panel === 'animations' ? 'overflow-hidden p-2' : 'overflow-auto [scrollbar-gutter:stable]'} ${panel === 'layers' ? 'p-1.5' : panel === 'animations' ? '' : 'p-2'}`}
+              >
+                {panel !== 'insert-resources' ? (
+                  panel === 'animations' ? (
+                    <button
+                      type="button"
+                      title="Close pane"
+                      aria-label="Close pane"
+                      onClick={() => setRightPanelOpen(false)}
+                      className="absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                    >
+                      <X size={13} />
+                    </button>
+                  ) : (
+                    <div className="mb-1 flex justify-end">
+                      <button
+                        type="button"
+                        title="Close pane"
+                        aria-label="Close pane"
+                        onClick={() => setRightPanelOpen(false)}
+                        className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )
+                ) : null}
                 {panel === 'layers' && (
-                  <StudioLayersPanel screen={selectedScreen} selectedElementId={selectedElementId} readOnly={editorReadOnly} onSelect={(elementId) => selectElementAndOpenControls(elementId, false, true)} onCommit={commitElements} />
+                  <StudioLayersPanel
+                    screen={selectedScreen}
+                    selectedElementId={selectedElementId}
+                    readOnly={editorReadOnly}
+                    onSelect={(elementId) => selectElementAndOpenControls(elementId, false, true)}
+                    onCommit={commitElements}
+                  />
                 )}
                 {panel === 'resources' && (
                   <ResourceLibrary mode="picker" onPick={bindResourceToSelectedElement} />
@@ -5799,9 +10478,19 @@ export default function TeachingStudioPage() {
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <h2 className="font-bold text-slate-900">From Resource</h2>
-                        <button type="button" title="Close pane" aria-label="Close pane" onClick={() => setRightPanelOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-slate-100"><X size={13} /></button>
+                        <button
+                          type="button"
+                          title="Close pane"
+                          aria-label="Close pane"
+                          onClick={() => setRightPanelOpen(false)}
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-slate-100"
+                        >
+                          <X size={13} />
+                        </button>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Choose a Resource to add directly to the current Screen.
+                      </p>
                     </div>
                     <ResourceLibrary
                       mode="picker"
@@ -5832,8 +10521,29 @@ export default function TeachingStudioPage() {
                     selectedElementId={selectedElementId}
                     onAdd={addShapeElement}
                     onInsertInline={insertInlineShape}
-                    canInsertInline={Boolean(selectedElement && ['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(selectedElement.type))}
-                    inlineEditRequest={inlineShapeEdit ? { shape: inlineShapeEdit.shape, onSave: saveInlineShapeEdit, onCancel: () => setInlineShapeEdit(null) } : null}
+                    canInsertInline={Boolean(
+                      selectedElement &&
+                      [
+                        'title',
+                        'text',
+                        'question',
+                        'response',
+                        'steps',
+                        'workspace',
+                        'footer',
+                        'options',
+                        'data',
+                      ].includes(selectedElement.type),
+                    )}
+                    inlineEditRequest={
+                      inlineShapeEdit
+                        ? {
+                            shape: inlineShapeEdit.shape,
+                            onSave: saveInlineShapeEdit,
+                            onCancel: () => setInlineShapeEdit(null),
+                          }
+                        : null
+                    }
                     onUpdate={updateElement}
                     onDuplicate={duplicateElement}
                     onRemove={removeElement}
@@ -5858,7 +10568,9 @@ export default function TeachingStudioPage() {
                     onCommit={commitElements}
                     onSelectElement={selectElementAndOpenControls}
                     onSelectAnimation={setSelectedAnimationEffectId}
-                    onPreviewAll={() => setAnimationPreview({ mode: 'sequence', token: Date.now() })}
+                    onPreviewAll={() =>
+                      setAnimationPreview({ mode: 'sequence', token: Date.now() })
+                    }
                     onPreviewFrom={previewAnimationFrom}
                     onUpdateEffect={updateAnimationEffectById}
                     onRemoveEffect={removeAnimationEffectById}
@@ -5882,6 +10594,23 @@ export default function TeachingStudioPage() {
                     onClear={() => setAuthoredDrawings([])}
                   />
                 )}
+                {panel === 'gap-bridges' &&
+                  selectedGapBridgeSourceId &&
+                  selectedGapBridgeSourceScreen && (
+                    <StudioGapBridgePane
+                      sourceSessionId={sessionId}
+                      sourceScreenId={selectedGapBridgeSourceId}
+                      sourceScreenTitle={screenDisplayTitle(selectedGapBridgeSourceScreen)}
+                      sessionRevisionNo={screenList.session_revision_no}
+                      selectedBridgeId={selectedGapBridgeId}
+                      onSelectBridge={setSelectedGapBridgeId}
+                      onRevisionChange={updateGapBridgeSessionRevision}
+                      onBridgesChange={updateGapBridgeMap}
+                      onOpenChild={openGapBridgeChild}
+                      command={gapBridgeCommand}
+                      onCommandHandled={() => setGapBridgeCommand(null)}
+                    />
+                  )}
               </div>
             </aside>
           )}
@@ -6019,9 +10748,16 @@ export default function TeachingStudioPage() {
                 <>
                   <div className="mb-3">
                     <h2 className="font-semibold">From Resource</h2>
-                    <p className="mt-1 text-sm text-slate-500">Choose a Resource to add directly to the current Screen.</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Choose a Resource to add directly to the current Screen.
+                    </p>
                   </div>
-                  <ResourceLibrary mode="picker" initialType={insertResourceFilter ?? ''} allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined} onPick={placeResourceDirectly} />
+                  <ResourceLibrary
+                    mode="picker"
+                    initialType={insertResourceFilter ?? ''}
+                    allowedTypes={insertResourceFilter ? [insertResourceFilter] : undefined}
+                    onPick={placeResourceDirectly}
+                  />
                 </>
               )}
               {panel === 'script' && (
@@ -6109,7 +10845,9 @@ export default function TeachingStudioPage() {
               screen={selectedScreen}
               loading={loadingScreen}
               layout={selectedLayout}
-              layoutLoading={Boolean(selectedScreen?.layout_id && layoutsLoading && !selectedLayout)}
+              layoutLoading={Boolean(
+                selectedScreen?.layout_id && layoutsLoading && !selectedLayout,
+              )}
               resourceCache={screenResourceCache}
               showGuides={showCanvasGuides}
               selectedElementId={selectedElementId}
@@ -6123,16 +10861,51 @@ export default function TeachingStudioPage() {
       )}
       {tablePickerOpen && selectedScreen && (
         <>
-          <button type="button" aria-label="Close table picker" onClick={() => setTablePickerOpen(false)} className="fixed inset-0 z-[89] cursor-default bg-transparent" />
-          <div className="fixed z-[90] w-[242px] rounded-md border border-slate-300 bg-white shadow-2xl" style={{ left: tablePickerPosition.left, top: tablePickerPosition.top }} role="menu" aria-label="Insert table options">
-            <div className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">{tablePickerHover.rows && tablePickerHover.columns ? `${tablePickerHover.columns} × ${tablePickerHover.rows} Table` : 'Insert Table'}</div>
-            <div className="grid grid-cols-10 gap-1 p-2" onMouseLeave={() => setTablePickerHover({ rows: 0, columns: 0 })} aria-label="Choose table dimensions">
-              {Array.from({ length: 8 }, (_, row) => Array.from({ length: 10 }, (__, column) => {
-                const rows = row + 1;
-                const columns = column + 1;
-                const highlighted = rows <= tablePickerHover.rows && columns <= tablePickerHover.columns;
-                return <button key={`${rows}-${columns}`} type="button" title={`${columns} columns by ${rows} rows`} aria-label={`Insert ${columns} columns by ${rows} rows table`} onMouseEnter={() => setTablePickerHover({ rows, columns })} onFocus={() => setTablePickerHover({ rows, columns })} onClick={() => { setTablePickerOpen(false); addTableElement(rows, columns); }} className={`h-4 w-4 border ${highlighted ? 'border-blue-700 bg-blue-200' : 'border-slate-500 bg-white hover:bg-blue-100'}`} />;
-              }))}
+          <button
+            type="button"
+            aria-label="Close table picker"
+            onClick={() => setTablePickerOpen(false)}
+            className="fixed inset-0 z-[89] cursor-default bg-transparent"
+          />
+          <div
+            className="fixed z-[90] w-[242px] rounded-md border border-slate-300 bg-white shadow-2xl"
+            style={{ left: tablePickerPosition.left, top: tablePickerPosition.top }}
+            role="menu"
+            aria-label="Insert table options"
+          >
+            <div className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-900">
+              {tablePickerHover.rows && tablePickerHover.columns
+                ? `${tablePickerHover.columns} × ${tablePickerHover.rows} Table`
+                : 'Insert Table'}
+            </div>
+            <div
+              className="grid grid-cols-10 gap-1 p-2"
+              onMouseLeave={() => setTablePickerHover({ rows: 0, columns: 0 })}
+              aria-label="Choose table dimensions"
+            >
+              {Array.from({ length: 8 }, (_, row) =>
+                Array.from({ length: 10 }, (__, column) => {
+                  const rows = row + 1;
+                  const columns = column + 1;
+                  const highlighted =
+                    rows <= tablePickerHover.rows && columns <= tablePickerHover.columns;
+                  return (
+                    <button
+                      key={`${rows}-${columns}`}
+                      type="button"
+                      title={`${columns} columns by ${rows} rows`}
+                      aria-label={`Insert ${columns} columns by ${rows} rows table`}
+                      onMouseEnter={() => setTablePickerHover({ rows, columns })}
+                      onFocus={() => setTablePickerHover({ rows, columns })}
+                      onClick={() => {
+                        setTablePickerOpen(false);
+                        addTableElement(rows, columns);
+                      }}
+                      className={`h-4 w-4 border ${highlighted ? 'border-blue-700 bg-blue-200' : 'border-slate-500 bg-white hover:bg-blue-100'}`}
+                    />
+                  );
+                }),
+              )}
             </div>
           </div>
         </>
@@ -6410,32 +11183,104 @@ export default function TeachingStudioPage() {
         </div>
       )}
       {scriptOverlayOpen ? (
-        <div className="fixed inset-0 z-[240] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Screen Script viewer">
+        <div
+          className="fixed inset-0 z-[240] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Screen Script viewer"
+        >
           <section className="flex h-[min(90dvh,900px)] w-[min(94vw,1280px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-bold text-slate-950">Screen Script</h2>
-                <p className="truncate text-xs text-slate-500">{selectedScreen ? `Screen ${selectedScreen.screen_number}: ${screenDisplayTitle(selectedScreen)}` : 'No Screen selected'}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {selectedScreen
+                    ? `Screen ${selectedScreen.screen_number}: ${screenDisplayTitle(selectedScreen)}`
+                    : 'No Screen selected'}
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <button type="button" disabled={!sessionId} onClick={() => void studioDocumentsApi.downloadScreenScriptSource(sessionId).catch((downloadError) => toast.error(getStudioErrorMessage(downloadError)))} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-900 px-3 text-xs font-semibold text-white disabled:opacity-40"><Download size={15} />Download script</button>
-                <button type="button" onClick={() => setScriptOverlayOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Screen Script"><X size={17} /></button>
+                <button
+                  type="button"
+                  disabled={!sessionId}
+                  onClick={() =>
+                    void studioDocumentsApi
+                      .downloadScreenScriptSource(sessionId)
+                      .catch((downloadError) => toast.error(getStudioErrorMessage(downloadError)))
+                  }
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-900 px-3 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  <Download size={15} />
+                  Download script
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScriptOverlayOpen(false)}
+                  className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+                  aria-label="Close Screen Script"
+                >
+                  <X size={17} />
+                </button>
               </div>
             </header>
             <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-5">
               {(() => {
-                const script = scripts.find((row) => row.screen_id === selectedScreenId)?.content_json;
-                if (script?.sections?.length) return <StructuredScreenScriptEditor content={script} editable={false} onChange={() => undefined} />;
+                const script = scripts.find(
+                  (row) => row.screen_id === selectedScreenId,
+                )?.content_json;
+                if (script?.sections?.length)
+                  return (
+                    <StructuredScreenScriptEditor
+                      content={script}
+                      editable={false}
+                      onChange={() => undefined}
+                    />
+                  );
                 const entries = screenScriptEntries(script);
-                if (!entries.length) return <div className="grid h-full place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500">No saved script is available for this Screen.</div>;
-                return <div className="mx-auto max-w-5xl space-y-3">{entries.map(([key, value]) => <section key={key} className="rounded-xl border border-slate-200 bg-white p-4"><h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{key.replaceAll('_', ' ')}</h3><div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800"><StudioScreenScriptMath text={value || '—'} /></div></section>)}</div>;
+                if (!entries.length)
+                  return (
+                    <div className="grid h-full place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500">
+                      No saved script is available for this Screen.
+                    </div>
+                  );
+                return (
+                  <div className="mx-auto max-w-5xl space-y-3">
+                    {entries.map(([key, value]) => (
+                      <section
+                        key={key}
+                        className="rounded-xl border border-slate-200 bg-white p-4"
+                      >
+                        <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          {key.replaceAll('_', ' ')}
+                        </h3>
+                        <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                          <StudioScreenScriptMath text={value || '—'} />
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                );
               })()}
             </div>
           </section>
         </div>
       ) : null}
-      {diagramChooserOpen ? <StudioDiagramChooser onInsert={addSmartDiagram} onClose={() => setDiagramChooserOpen(false)} /> : null}
-      {diagramLayoutGalleryOpen ? <StudioDiagramChooser onInsert={(layoutId) => { const layout = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === layoutId); if (layout) updateSelectedDiagram({ layout: layout.id, category: layout.category }); setDiagramLayoutGalleryOpen(false); }} onClose={() => setDiagramLayoutGalleryOpen(false)} /> : null}
+      {diagramChooserOpen ? (
+        <StudioDiagramChooser
+          onInsert={addSmartDiagram}
+          onClose={() => setDiagramChooserOpen(false)}
+        />
+      ) : null}
+      {diagramLayoutGalleryOpen ? (
+        <StudioDiagramChooser
+          onInsert={(layoutId) => {
+            const layout = SMART_DIAGRAM_LAYOUTS.find((candidate) => candidate.id === layoutId);
+            if (layout) updateSelectedDiagram({ layout: layout.id, category: layout.category });
+            setDiagramLayoutGalleryOpen(false);
+          }}
+          onClose={() => setDiagramLayoutGalleryOpen(false)}
+        />
+      ) : null}
       {layoutGalleryOpen && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4"
@@ -6450,9 +11295,16 @@ export default function TeachingStudioPage() {
             <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
               <div className="min-w-0">
                 <h2 className="text-base font-bold text-slate-900">Layouts</h2>
-                <p className="truncate text-xs text-slate-500">Choose a reusable Screen layout or manage custom layouts.</p>
+                <p className="truncate text-xs text-slate-500">
+                  Choose a reusable Screen layout or manage custom layouts.
+                </p>
               </div>
-              <button type="button" onClick={() => setLayoutGalleryOpen(false)} className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close layouts">
+              <button
+                type="button"
+                onClick={() => setLayoutGalleryOpen(false)}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"
+                aria-label="Close layouts"
+              >
                 <X size={16} />
               </button>
             </header>
@@ -6473,7 +11325,12 @@ export default function TeachingStudioPage() {
           </section>
         </div>
       )}
-      {rejectionDetailsOpen && workflowStatus?.status === 'rejected' ? <StudioRejectionDetailsDialog status={workflowStatus} onClose={() => setRejectionDetailsOpen(false)} /> : null}
+      {rejectionDetailsOpen && workflowStatus?.status === 'rejected' ? (
+        <StudioRejectionDetailsDialog
+          status={workflowStatus}
+          onClose={() => setRejectionDetailsOpen(false)}
+        />
+      ) : null}
       {pptxImportOpen && sessionId ? (
         <PptxImportDialog
           sessionId={sessionId}
@@ -6483,8 +11340,12 @@ export default function TeachingStudioPage() {
           onImported={async (result, destinationSessionId) => {
             const firstScreenId = result.screens_created[0];
             if (destinationSessionId !== sessionId) {
-              navigate(`/studio/editor/${destinationSessionId}${firstScreenId ? `?screen=${firstScreenId}` : ''}`);
-              toast.success(`Imported ${result.report.counts.screens} PowerPoint slide${result.report.counts.screens === 1 ? '' : 's'} into the selected Session.`);
+              navigate(
+                `/studio/editor/${destinationSessionId}${firstScreenId ? `?screen=${firstScreenId}` : ''}`,
+              );
+              toast.success(
+                `Imported ${result.report.counts.screens} PowerPoint slide${result.report.counts.screens === 1 ? '' : 's'} into the selected Session.`,
+              );
               return;
             }
             if (firstScreenId) {
@@ -6493,35 +11354,88 @@ export default function TeachingStudioPage() {
               setSearchParams(next, { replace: true });
             }
             await loadScreens();
-            toast.success(`Imported ${result.report.counts.screens} PowerPoint slide${result.report.counts.screens === 1 ? '' : 's'} as editable Screens.`);
+            toast.success(
+              `Imported ${result.report.counts.screens} PowerPoint slide${result.report.counts.screens === 1 ? '' : 's'} as editable Screens.`,
+            );
           }}
         />
       ) : null}
       {workflowDetailsOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Publication issue details">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Publication issue details"
+        >
           <div className="flex max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-3 px-6 pb-3 pt-5">
               <div>
-                <h2 className="flex items-center gap-2 font-bold text-slate-900"><CircleAlert size={18} className={workflowStatus?.validation.valid ? 'text-emerald-700' : 'text-amber-700'} />Publication readiness details</h2>
-                <p className="mt-1 text-xs text-slate-500">Review blocking issues and optional warnings for this Session.</p>
+                <h2 className="flex items-center gap-2 font-bold text-slate-900">
+                  <CircleAlert
+                    size={18}
+                    className={
+                      workflowStatus?.validation.valid ? 'text-emerald-700' : 'text-amber-700'
+                    }
+                  />
+                  Publication readiness details
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Review blocking issues and optional warnings for this Session.
+                </p>
               </div>
-              <button type="button" onClick={() => setWorkflowDetailsOpen(false)} className="grid h-8 w-8 shrink-0 place-items-center text-slate-500 hover:text-slate-900" aria-label="Close publication issue details"><X size={17} /></button>
+              <button
+                type="button"
+                onClick={() => setWorkflowDetailsOpen(false)}
+                className="grid h-8 w-8 shrink-0 place-items-center text-slate-500 hover:text-slate-900"
+                aria-label="Close publication issue details"
+              >
+                <X size={17} />
+              </button>
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
               {workflowDetailItems.length > 0 ? (
                 <ul className="divide-y divide-slate-100">
                   {workflowDetailItems.map(({ problem, severity }, index) => (
-                    <li key={`${severity}-${problem.code}-${problem.screen_id ?? index}`} className="flex gap-3 py-4 first:pt-2">
-                      <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${severity === 'warning' ? 'bg-blue-500' : 'bg-amber-500'}`} aria-hidden="true" />
+                    <li
+                      key={`${severity}-${problem.code}-${problem.screen_id ?? index}`}
+                      className="flex gap-3 py-4 first:pt-2"
+                    >
+                      <span
+                        className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${severity === 'warning' ? 'bg-blue-500' : 'bg-amber-500'}`}
+                        aria-hidden="true"
+                      />
                       <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-x-4 gap-y-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{severity === 'warning' ? 'Warning' : 'Required'} · {problem.code.replaceAll('_', ' ')}</p>
-                          {problem.code !== 'SCREEN_SCRIPT_MISSING' ? <p className="mt-1 text-sm text-slate-800">{problem.message}</p> : null}
-                          {problem.screen_id ? <p className="mt-1 text-xs text-slate-500">Screen ID {problem.screen_id}</p> : null}
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                            {severity === 'warning' ? 'Warning' : 'Required'} ·{' '}
+                            {problem.code.replaceAll('_', ' ')}
+                          </p>
+                          {problem.code !== 'SCREEN_SCRIPT_MISSING' ? (
+                            <p className="mt-1 text-sm text-slate-800">{problem.message}</p>
+                          ) : null}
+                          {problem.screen_id ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              Screen ID {problem.screen_id}
+                            </p>
+                          ) : null}
                         </div>
-                        {['SESSION_PLAN_MISSING', 'SCREENS_MISSING', 'SCREEN_SCRIPT_MISSING'].includes(problem.code) ? (
-                          <button type="button" disabled={editorReadOnly} onClick={() => void openWorkflowProblemTarget(problem)} className="inline-flex shrink-0 items-center gap-1 py-1 text-xs font-semibold text-blue-700 hover:text-blue-950 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline">
-                            {problem.code === 'SESSION_PLAN_MISSING' ? 'Open Session Plan' : problem.code === 'SCREENS_MISSING' ? 'Add Screen' : 'Edit Screen Script'} <ChevronRight size={13} />
+                        {[
+                          'SESSION_PLAN_MISSING',
+                          'SCREENS_MISSING',
+                          'SCREEN_SCRIPT_MISSING',
+                        ].includes(problem.code) ? (
+                          <button
+                            type="button"
+                            disabled={editorReadOnly}
+                            onClick={() => void openWorkflowProblemTarget(problem)}
+                            className="inline-flex shrink-0 items-center gap-1 py-1 text-xs font-semibold text-blue-700 hover:text-blue-950 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
+                          >
+                            {problem.code === 'SESSION_PLAN_MISSING'
+                              ? 'Open Session Plan'
+                              : problem.code === 'SCREENS_MISSING'
+                                ? 'Add Screen'
+                                : 'Edit Screen Script'}{' '}
+                            <ChevronRight size={13} />
                           </button>
                         ) : null}
                       </div>
@@ -6531,13 +11445,23 @@ export default function TeachingStudioPage() {
               ) : (
                 <div className="py-8 text-center">
                   <Check size={24} className="mx-auto text-emerald-700" />
-                  <p className="mt-2 font-semibold text-emerald-900">No publication issues found.</p>
-                  <p className="mt-1 text-sm text-emerald-700">This Session currently satisfies the readiness checks.</p>
+                  <p className="mt-2 font-semibold text-emerald-900">
+                    No publication issues found.
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-700">
+                    This Session currently satisfies the readiness checks.
+                  </p>
                 </div>
               )}
             </div>
             <footer className="flex justify-end px-6 pb-5 pt-1">
-              <button type="button" onClick={() => setWorkflowDetailsOpen(false)} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">Close</button>
+              <button
+                type="button"
+                onClick={() => setWorkflowDetailsOpen(false)}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                Close
+              </button>
             </footer>
           </div>
         </div>
@@ -6553,9 +11477,16 @@ export default function TeachingStudioPage() {
             <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
               <div>
                 <h2 className="font-bold text-slate-900">Discover Assets</h2>
-                <p className="text-xs text-slate-500">Choose a reusable asset to add directly to the current Screen.</p>
+                <p className="text-xs text-slate-500">
+                  Choose a reusable asset to add directly to the current Screen.
+                </p>
               </div>
-              <button type="button" onClick={() => setAssetCatalogOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Discover Assets">
+              <button
+                type="button"
+                onClick={() => setAssetCatalogOpen(false)}
+                className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+                aria-label="Close Discover Assets"
+              >
                 <X size={17} />
               </button>
             </header>
@@ -6572,12 +11503,39 @@ export default function TeachingStudioPage() {
         </div>
       )}
       {zoomDialogMode && sessionId && selectedScreen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label={`${zoomDialogMode} Zoom`} onPointerDown={(event) => { if (event.target === event.currentTarget) setZoomDialogMode(null); }}>
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${zoomDialogMode} Zoom`}
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setZoomDialogMode(null);
+          }}
+        >
           <div className="relative flex h-[84dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
             <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 px-4 py-2.5">
-              <h2 className="shrink-0 text-base font-semibold text-slate-900">{zoomDialogMode === 'summary' ? 'Insert Summary Zoom' : zoomDialogMode === 'section' ? 'Insert Section Zoom' : 'Insert Screen (Slide) Zoom'}</h2>
-              <p className="min-w-0 flex-1 truncate text-xs text-slate-500">{zoomDialogMode === 'summary' ? 'Select the Sections to include in the ordered Summary Zoom.' : zoomDialogMode === 'section' ? 'Select a Section, or create one from Screens.' : 'Select the Screen to open before returning to this Screen.'}</p>
-              <button type="button" onClick={() => setZoomDialogMode(null)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Close Zoom window"><X size={14} /></button>
+              <h2 className="shrink-0 text-base font-semibold text-slate-900">
+                {zoomDialogMode === 'summary'
+                  ? 'Insert Summary Zoom'
+                  : zoomDialogMode === 'section'
+                    ? 'Insert Section Zoom'
+                    : 'Insert Screen (Slide) Zoom'}
+              </h2>
+              <p className="min-w-0 flex-1 truncate text-xs text-slate-500">
+                {zoomDialogMode === 'summary'
+                  ? 'Select the Sections to include in the ordered Summary Zoom.'
+                  : zoomDialogMode === 'section'
+                    ? 'Select a Section, or create one from Screens.'
+                    : 'Select the Screen to open before returning to this Screen.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setZoomDialogMode(null)}
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"
+                aria-label="Close Zoom window"
+              >
+                <X size={14} />
+              </button>
             </header>
             <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
               <StudioZoomPanel

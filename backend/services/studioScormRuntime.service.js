@@ -1,6 +1,7 @@
 import { query as dbQuery, getClient } from '../repositories/db.repository.js';
 import { AppError } from '../utils/errors.js';
 import { createRuntimeLaunch } from './studioResourceRuntime.service.js';
+import { assertPinnedPublishedResourceAccess } from './studioReleases.service.js';
 
 const AUTHOR_ROLES = new Set(['super_admin', 'content_authorizer']);
 const ACTIVE_STATUSES = ['active', 'suspended'];
@@ -95,7 +96,10 @@ const loadAttempt = async (attemptId, user, query = dbQuery) => {
   return { attempt, states };
 };
 
-const releaseContainsVersion = (manifest, versionId) => (manifest?.screens || []).some((screen) =>
+const releaseContainsVersion = (manifest, versionId) => [
+  ...(manifest?.screens || []),
+  ...(manifest?.gap_bridge_screens || []),
+].some((screen) =>
   (screen.elements || []).some((element) => Number(element.resource_mapping?.resource_version_id) === versionId));
 
 const assertTeacherReleaseAccess = async (manifest, user) => {
@@ -116,7 +120,7 @@ const assertTeacherReleaseAccess = async (manifest, user) => {
   if (!ownsProgram && !assigned) throw new AppError('Access denied', 403);
 };
 
-export const startScormAttempt = async ({ versionId: rawVersionId, releaseId: rawReleaseId, resume = true, user }) => {
+export const startScormAttempt = async ({ versionId: rawVersionId, releaseId: rawReleaseId, sourceReleaseId, gapBridgeId, resume = true, user }) => {
   const versionId = parseId(rawVersionId, 'Resource version ID');
   const releaseId = rawReleaseId ? parseId(rawReleaseId, 'Release ID') : null;
   const versionResult = await dbQuery(
@@ -131,12 +135,22 @@ export const startScormAttempt = async ({ versionId: rawVersionId, releaseId: ra
   }
   if (!AUTHOR_ROLES.has(user.role)) {
     if (!releaseId) throw new AppError('A published release is required for learner SCORM launch', 403);
-    const release = (await dbQuery(
-      `SELECT id, client_id, manifest_json FROM session_releases WHERE id = $1 AND client_id = $2`,
-      [releaseId, user.client_id],
-    )).rows[0];
-    if (!release || !releaseContainsVersion(release.manifest_json, versionId)) throw new AppError('Published release does not contain this Resource version', 403);
-    await assertTeacherReleaseAccess(release.manifest_json, user);
+    if (sourceReleaseId !== undefined || gapBridgeId !== undefined) {
+      await assertPinnedPublishedResourceAccess({
+        releaseId,
+        versionId,
+        sourceReleaseId,
+        gapBridgeId,
+        user,
+      });
+    } else {
+      const release = (await dbQuery(
+        `SELECT id, client_id, manifest_json FROM session_releases WHERE id = $1 AND client_id = $2`,
+        [releaseId, user.client_id],
+      )).rows[0];
+      if (!release || !releaseContainsVersion(release.manifest_json, versionId)) throw new AppError('Published release does not contain this Resource version', 403);
+      await assertTeacherReleaseAccess(release.manifest_json, user);
+    }
   }
   const runtime = version.metadata_json?.runtime;
   const scorm = runtime?.scorm;

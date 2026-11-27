@@ -269,10 +269,14 @@ export const createStudioResourceVersion = async (
 export const launchStudioResourceVersion = async (versionId: number) =>
   dataOf<StudioResourceLaunch>((await api.post(`/studio/resource-versions/${versionId}/launch`)).data);
 
-export const startStudioScormAttempt = async (versionId: number, releaseId?: number) =>
+export const startStudioScormAttempt = async (versionId: number, releaseId?: number, gapBridgeContext?: { sourceReleaseId: number; gapBridgeId: number }) =>
   dataOf<StudioScormAttempt>((await api.post('/studio/scorm/attempts', {
     resource_version_id: versionId,
     release_id: releaseId,
+    ...(gapBridgeContext ? {
+      source_release_id: gapBridgeContext.sourceReleaseId,
+      gap_bridge_id: gapBridgeContext.gapBridgeId,
+    } : {}),
     resume: true,
   })).data);
 

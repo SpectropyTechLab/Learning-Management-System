@@ -311,7 +311,7 @@ export const createScreen = async ({ sessionId: rawSessionId, body = {}, user })
     const orderResult = await client.query(
       `SELECT COALESCE(MAX(screen_number), 0) + 1 AS screen_number,
               COALESCE(MAX(display_order), -1) + 1 AS display_order
-       FROM screens WHERE session_id = $1`,
+       FROM screens WHERE session_id = $1 AND screen_kind = 'main'`,
       [session.id]
     );
     const screenNumber = Number(orderResult.rows[0].screen_number);
@@ -319,8 +319,9 @@ export const createScreen = async ({ sessionId: rawSessionId, body = {}, user })
     const screenResult = await client.query(
       `INSERT INTO screens (
          client_id, session_id, title, screen_number, layout_id,
-         screen_settings_json, display_order, created_by, creation_mode, revision_no
-       ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, 1)
+         screen_settings_json, display_order, created_by, creation_mode, revision_no,
+         screen_kind
+       ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, 1, 'main')
        RETURNING id, client_id, session_id, title, screen_number, layout_id,
                  screen_settings_json, display_order, creation_mode, revision_no,
                  created_by, created_at, updated_at`,

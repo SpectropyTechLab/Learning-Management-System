@@ -42,7 +42,7 @@ export interface PublishedScreen {
   screen_id: number;
   revision_no: number;
   title: string;
-  screen_number: number;
+  screen_number: number | null;
   display_order: number;
   creation_mode: 'blank' | 'layout';
   screen_settings_json?: StudioScreenSettings | null;
@@ -58,6 +58,29 @@ export interface PublishedScreen {
   branches: PublishedBranch[];
 }
 
+export interface PublishedGapBridge {
+  gap_bridge_id: number;
+  source_screen_id: number;
+  name: string;
+  display_order: number;
+  target_kind: 'child' | 'external';
+  child_screen_id: number | null;
+  external_target: null | { session_id: number; screen_id: number };
+}
+
+export interface PublishedGapBridgeResolution {
+  gap_bridge_id: number;
+  name: string;
+  target_kind: 'child' | 'external';
+  target_release_id: number;
+  screen: PublishedScreen;
+}
+
+export interface PublishedGapBridgeContext {
+  sourceReleaseId: number;
+  gapBridgeId: number;
+}
+
 export interface PublishedRelease {
   id: number;
   client_id: number | null;
@@ -71,6 +94,8 @@ export interface PublishedRelease {
       description?: string | null;
     };
     screens: PublishedScreen[];
+    gap_bridges?: PublishedGapBridge[];
+    gap_bridge_screens?: PublishedScreen[];
     sections?: Array<{
       section_id: number;
       name: string;
@@ -115,21 +140,33 @@ export const listPublishedReleaseHistory = async (sessionId: number) => {
   return response.data.releases;
 };
 
-export const previewPublishedResource = async (releaseId: number, versionId: number) =>
+const gapBridgeParams = (context?: PublishedGapBridgeContext) => context ? {
+  source_release_id: context.sourceReleaseId,
+  gap_bridge_id: context.gapBridgeId,
+} : {};
+
+export const resolvePublishedGapBridge = async (sourceReleaseId: number, gapBridgeId: number) =>
+  dataOf<PublishedGapBridgeResolution>((await api.get(
+    `/studio/published-releases/${sourceReleaseId}/gap-bridges/${gapBridgeId}/resolve`,
+  )).data);
+
+export const previewPublishedResource = async (releaseId: number, versionId: number, context?: PublishedGapBridgeContext) =>
   dataOf<{ url: string }>((await api.get(
     `/studio/published-releases/${releaseId}/resource-versions/${versionId}/preview`,
-    { params: { fresh: Date.now() }, headers: { 'Cache-Control': 'no-cache' } },
+    { params: { fresh: Date.now(), ...gapBridgeParams(context) }, headers: { 'Cache-Control': 'no-cache' } },
   )).data);
 
-export const launchPublishedResource = async (releaseId: number, versionId: number) =>
+export const launchPublishedResource = async (releaseId: number, versionId: number, context?: PublishedGapBridgeContext) =>
   dataOf<{ launchable: boolean; launch_url?: string; message?: string }>((await api.post(
     `/studio/published-releases/${releaseId}/resource-versions/${versionId}/launch`,
+    undefined,
+    { params: gapBridgeParams(context) },
   )).data);
 
-export const previewPublishedObject = async (releaseId: number, versionId: number) =>
+export const previewPublishedObject = async (releaseId: number, versionId: number, context?: PublishedGapBridgeContext) =>
   dataOf<import('./studioResourcesApi').StudioObjectPreviewDescriptor>((await api.get(
     `/studio/published-releases/${releaseId}/resource-versions/${versionId}/object-preview`,
-    { params: { fresh: Date.now() }, headers: { 'Cache-Control': 'no-cache' } },
+    { params: { fresh: Date.now(), ...gapBridgeParams(context) }, headers: { 'Cache-Control': 'no-cache' } },
   )).data);
 
 export interface PublishedTeachingMaterials {

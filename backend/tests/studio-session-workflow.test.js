@@ -186,6 +186,63 @@ test('missing modern Screen Scripts are warnings and do not block submission', a
   assert.ok(calls.includes('commit'));
 });
 
+test('review validation blocks an unavailable external Gap Bridge target', async (t) => {
+  const calls = [];
+  const client = {
+    async query(text) {
+      const sql = normalizedSql(text);
+      calls.push(sql);
+      if (sql === 'begin' || sql === 'rollback') return { rows: [] };
+      if (sql.includes('from sessions') && sql.includes('for update')) {
+        return { rows: [{
+          id: 41, client_id: 12, subtopic_id: 9, title: 'Fractions',
+          status: 'draft', revision_no: 4,
+        }] };
+      }
+      if (sql.includes('from session_documents')) {
+        return { rows: [
+          { id: 101, document_type: 'session_plan', revision_no: 2 },
+          { id: 102, document_type: 'screen_script', revision_no: 4 },
+        ] };
+      }
+      if (sql.includes('from screens sc')) {
+        assert.match(sql, /external_available/);
+        return { rows: [{
+          id: 71,
+          screen_number: 1,
+          revision_no: 5,
+          gap_bridges: [{
+            gap_bridge_id: 501,
+            name: 'Force refresher',
+            target_kind: 'external',
+            child_valid: true,
+            external_available: false,
+          }],
+        }] };
+      }
+      if (sql.startsWith('insert into session_validations')) {
+        return { rows: [{ id: 201, session_id: 41, session_revision_no: 4, is_valid: false }] };
+      }
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  await assert.rejects(
+    submitSession({
+      sessionId: 41,
+      user: { id: 8, role: 'content_authorizer', client_id: 12 },
+    }),
+    (error) => error?.status === 422
+      && error?.details?.some((item) => item.code === 'GAP_BRIDGE_EXTERNAL_TARGET_UNAVAILABLE'
+        && item.gap_bridge_id === 501),
+  );
+  assert.ok(calls.includes('rollback'));
+});
+
 test('startSessionRevision preserves a published release while creating a new draft revision', async (t) => {
   const calls = [];
   const client = {

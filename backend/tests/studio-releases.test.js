@@ -12,6 +12,7 @@ import {
   listPublishedSessionReleases,
   listPublishedSessions,
   publishSessionRelease,
+  resolvePublishedGapBridge,
 } from '../services/studioReleases.service.js';
 
 const normalizeSql = (text) => String(text).replace(/\s+/g, ' ').trim().toLowerCase();
@@ -136,6 +137,7 @@ test('publishing pins exact authorized document, screen, layout and Resource rev
       if (sql.includes('from screen_zoom_links')) return { rows: [] };
       if (sql.includes('from screen_sections')) return { rows: [] };
       if (sql.includes('from screen_taxonomy_terms')) return { rows: [] };
+      if (sql.includes('from gap_bridges gb')) return { rows: [] };
       if (sql.startsWith('select coalesce(max(release_number)')) {
         return { rows: [{ release_number: 1 }] };
       }
@@ -172,7 +174,9 @@ test('publishing pins exact authorized document, screen, layout and Resource rev
   });
 
   assert.equal(release.release_number, 1);
-  assert.equal(insertedManifest.manifest_version, 4);
+  assert.equal(insertedManifest.manifest_version, 5);
+  assert.deepEqual(insertedManifest.gap_bridges, []);
+  assert.deepEqual(insertedManifest.gap_bridge_screens, []);
   assert.equal(insertedManifest.session.revision_no, 6);
   assert.equal(insertedManifest.documents.session_plan.document_id, 91);
   assert.equal(insertedManifest.documents.screen_script.revision_no, 3);
@@ -183,6 +187,81 @@ test('publishing pins exact authorized document, screen, layout and Resource rev
   assert.equal(insertedManifest.screens[0].elements[0].resource_mapping.resource_version_id, 82);
   assert.equal(insertedManifest.screens[0].elements[0].resource_mapping.version_number, 2);
   assert.ok(calls.includes('commit'));
+});
+
+test('publishing accepts an authorized revision with optional Screen Scripts omitted', async (t) => {
+  const originalConnect = pool.connect;
+  let insertedManifest;
+  const client = {
+    async query(text, params = []) {
+      const sql = normalizeSql(text);
+      if (['begin', 'commit', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('from sessions') && sql.includes('for update')) {
+        return { rows: [{
+          id: 25, client_id: 7, subtopic_id: 8, title: 'Optional script Session',
+          description: null, status: 'approved', revision_no: 6, program_id: 4,
+          program_school_id: 9, approved_by: 12, approved_at: '2026-10-28T09:30:00.000Z',
+        }] };
+      }
+      if (sql.includes('from session_authorizations sa')) {
+        return { rows: [{
+          authorization_id: 301, validation_id: 201, session_revision_no: 6,
+          session_plan_document_id: 91, screen_script_document_id: null,
+          screen_revisions_json: [{ screen_id: 40, screen_number: 1, revision_no: 4 }],
+          screen_script_revisions_json: [], authorized_by: 12,
+          authorized_at: '2026-10-28T09:30:00.000Z',
+        }] };
+      }
+      if (sql.includes('from session_documents')) {
+        return { rows: [{
+          id: 91, session_id: 25, document_type: 'session_plan', revision_no: 2,
+          source_mode: 'manual', storage_key: null, original_file_name: null,
+          content_type: null, size_bytes: null, content_sha256: null,
+          manual_content: { title: 'Plan' }, structured_content: null,
+          metadata_json: {}, created_by: 21, created_at: '2026-10-28T09:00:00Z',
+        }] };
+      }
+      if (sql.includes('from screens sc')) {
+        return { rows: [{
+          id: 40, client_id: 7, title: 'Screen without narration', screen_number: 1,
+          display_order: 0, creation_mode: 'blank', revision_no: 4,
+          screen_settings_json: {}, layout_id: null,
+        }] };
+      }
+      if (sql.includes('from screen_elements se') || sql.includes('from screen_tags')
+          || sql.includes('from screen_branches') || sql.includes('from screen_zoom_links')
+          || sql.includes('from screen_sections') || sql.includes('from screen_taxonomy_terms')
+          || sql.includes('from gap_bridges gb')) return { rows: [] };
+      if (sql.startsWith('select coalesce(max(release_number)')) {
+        return { rows: [{ release_number: 1 }] };
+      }
+      if (sql.startsWith('insert into session_releases')) {
+        insertedManifest = JSON.parse(params[6]);
+        return { rows: [{
+          id: '101', client_id: 7, session_id: 25, release_number: 1,
+          manifest_json: insertedManifest, authorization_id: 301, validation_id: 201,
+          published_by: 21, published_at: '2026-10-28T10:00:00.000Z',
+        }] };
+      }
+      if (sql.startsWith("update sessions set status = 'published'")) {
+        return { rows: [{ id: 25 }], rowCount: 1 };
+      }
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() {},
+  };
+
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  const release = await publishSessionRelease({
+    sessionId: 25,
+    user: { id: 21, role: 'content_authorizer', client_id: 7 },
+  });
+
+  assert.equal(release.release_number, 1);
+  assert.equal(insertedManifest.documents.screen_script, null);
+  assert.deepEqual(insertedManifest.screen_scripts, []);
 });
 
 test('teacher current-release read comes only from session_releases and is tenant scoped', async (t) => {
@@ -316,6 +395,7 @@ test('author player preview returns current draft screens without creating a rel
     if (sql.includes('from screen_branches')) return { rows: [] };
     if (sql.includes('from screen_zoom_links')) return { rows: [] };
     if (sql.includes('from screen_sections')) return { rows: [] };
+    if (sql.includes('from gap_bridges gb')) return { rows: [] };
     throw new Error(`Unhandled query: ${sql}`);
   };
   t.after(() => { pool.query = originalQuery; });
@@ -495,6 +575,148 @@ test('teacher presenter data exposes only pinned per-screen narration to an assi
   await assert.rejects(
     () => getPublishedPresenterData({ releaseId: 101, user: { id: 31, role: 'client_admin', client_id: 7 } }),
     /Teacher access required/,
+  );
+});
+
+test('external Gap Bridge resolves its stable locator from the latest same-tenant publication', async (t) => {
+  const originalQuery = pool.query;
+  const sourceRelease = {
+    id: 101,
+    client_id: 7,
+    session_id: 25,
+    release_number: 3,
+    manifest_json: {
+      session: { program_id: 4, program_school_id: 12 },
+      gap_bridges: [{
+        gap_bridge_id: 501,
+        source_screen_id: 40,
+        name: 'Force refresher',
+        target_kind: 'external',
+        child_screen_id: null,
+        external_target: { session_id: 70, screen_id: 301 },
+      }],
+    },
+  };
+  const latestTarget = {
+    id: 205,
+    client_id: 7,
+    session_id: 70,
+    release_number: 9,
+    manifest_json: {
+      screens: [{
+        screen_id: 301,
+        title: 'Latest force Screen',
+        elements: [{ resource_mapping: { resource_version_id: 9001 } }],
+      }],
+    },
+  };
+  pool.query = async (text, params) => {
+    const sql = normalizeSql(text);
+    if (sql.includes('from session_releases') && sql.includes('where id = $1')) {
+      assert.deepEqual(params, [101, 7]);
+      return { rows: [sourceRelease] };
+    }
+    if (sql.includes('from session_releases') && sql.includes('where session_id = $1')) {
+      assert.deepEqual(params, [70, 7]);
+      return { rows: [latestTarget] };
+    }
+    throw new Error(`Unhandled query: ${sql}`);
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const resolved = await resolvePublishedGapBridge({
+    sourceReleaseId: 101,
+    gapBridgeId: 501,
+    user: { id: 21, role: 'content_authorizer', client_id: 7 },
+  });
+  assert.equal(resolved.target_release_id, 205);
+  assert.equal(resolved.screen.title, 'Latest force Screen');
+
+  const access = await assertPinnedPublishedResourceAccess({
+    releaseId: 205,
+    versionId: 9001,
+    sourceReleaseId: 101,
+    gapBridgeId: 501,
+    user: { id: 21, role: 'content_authorizer', client_id: 7 },
+  });
+  assert.equal(access.versionId, 9001);
+});
+
+test('local Gap Bridge resolves only its frozen child snapshot from the source release', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async (text) => {
+    const sql = normalizeSql(text);
+    if (sql.includes('from session_releases') && sql.includes('where id = $1')) return { rows: [{
+      id: 101,
+      client_id: 7,
+      session_id: 25,
+      release_number: 3,
+      manifest_json: {
+        session: { program_id: 4, program_school_id: 12 },
+        gap_bridges: [{
+          gap_bridge_id: 502,
+          source_screen_id: 40,
+          name: 'Local refresher',
+          target_kind: 'child',
+          child_screen_id: 91,
+          external_target: null,
+        }],
+        gap_bridge_screens: [{ screen_id: 91, parent_screen_id: 40, title: 'Frozen child', elements: [] }],
+      },
+    }] };
+    throw new Error(`Unhandled query: ${sql}`);
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  const resolved = await resolvePublishedGapBridge({
+    sourceReleaseId: 101,
+    gapBridgeId: 502,
+    user: { id: 21, role: 'content_authorizer', client_id: 7 },
+  });
+  assert.equal(resolved.target_kind, 'child');
+  assert.equal(resolved.target_release_id, 101);
+  assert.equal(resolved.screen.title, 'Frozen child');
+});
+
+test('removed external Gap Bridge Screen returns the controlled unavailable code', async (t) => {
+  const originalQuery = pool.query;
+  pool.query = async (text) => {
+    const sql = normalizeSql(text);
+    if (sql.includes('from session_releases') && sql.includes('where id = $1')) return { rows: [{
+      id: 101,
+      client_id: 7,
+      session_id: 25,
+      release_number: 3,
+      manifest_json: {
+        session: { program_id: 4, program_school_id: 12 },
+        gap_bridges: [{
+          gap_bridge_id: 503,
+          source_screen_id: 40,
+          name: 'Removed refresher',
+          target_kind: 'external',
+          child_screen_id: null,
+          external_target: { session_id: 70, screen_id: 999 },
+        }],
+      },
+    }] };
+    if (sql.includes('from session_releases') && sql.includes('where session_id = $1')) return { rows: [{
+      id: 206,
+      client_id: 7,
+      session_id: 70,
+      release_number: 10,
+      manifest_json: { screens: [{ screen_id: 301, title: 'Different Screen' }] },
+    }] };
+    throw new Error(`Unhandled query: ${sql}`);
+  };
+  t.after(() => { pool.query = originalQuery; });
+
+  await assert.rejects(
+    resolvePublishedGapBridge({
+      sourceReleaseId: 101,
+      gapBridgeId: 503,
+      user: { id: 21, role: 'content_authorizer', client_id: 7 },
+    }),
+    (error) => error?.status === 409 && error?.code === 'GAP_BRIDGE_TARGET_UNAVAILABLE',
   );
 });
 

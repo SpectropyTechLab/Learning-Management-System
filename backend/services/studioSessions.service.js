@@ -133,7 +133,8 @@ export const listAllStudioSessions = async ({ status, user, db = { query: dbQuer
             ch.id AS chapter_id, ch.chapter_number, ch.name AS chapter_name,
             t.id AS topic_id, t.name AS topic_name,
             st.name AS subtopic_name,
-            (SELECT COUNT(*)::int FROM screens sc WHERE sc.session_id = s.id) AS screen_count,
+            (SELECT COUNT(*)::int FROM screens sc
+             WHERE sc.session_id = s.id AND sc.screen_kind = 'main') AS screen_count,
             (SELECT sr.release_number
              FROM session_releases sr
              WHERE sr.session_id = s.id

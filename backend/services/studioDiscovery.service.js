@@ -127,7 +127,8 @@ const discoverCurrentScreens = async ({ tags, sessionId, user, db }) => {
      JOIN screen_tags matched_tags
        ON matched_tags.screen_id = sc.id AND matched_tags.tag = ANY($1::text[])
      JOIN screen_tags all_tags ON all_tags.screen_id = sc.id
-     WHERE ($3::int IS NULL OR se.client_id = $3)
+     WHERE sc.screen_kind = 'main'
+       AND ($3::int IS NULL OR se.client_id = $3)
        AND ($4::int IS NULL OR se.id = $4)
      GROUP BY sc.id, sc.session_id, sc.screen_number, sc.display_order,
               sc.revision_no, sc.title, sc.layout_id
@@ -212,7 +213,7 @@ const getCurrentBranchDestinations = async ({ screenId, user, db }) => {
   const sourceResult = await db.query(
     `SELECT sc.id, sc.session_id, sc.client_id, sc.title
      FROM screens sc JOIN sessions se ON se.id = sc.session_id
-     WHERE sc.id = $1`,
+     WHERE sc.id = $1 AND sc.screen_kind = 'main'`,
     [screenId],
   );
   const source = sourceResult.rows[0];
@@ -228,8 +229,10 @@ const getCurrentBranchDestinations = async ({ screenId, user, db }) => {
             return_screen.session_id AS return_session_id,
             return_screen.title AS return_title
      FROM screen_branches sb
-     JOIN screens destination ON destination.id = sb.destination_screen_id
-     JOIN screens return_screen ON return_screen.id = sb.return_screen_id
+     JOIN screens destination
+       ON destination.id = sb.destination_screen_id AND destination.screen_kind = 'main'
+     JOIN screens return_screen
+       ON return_screen.id = sb.return_screen_id AND return_screen.screen_kind = 'main'
      WHERE sb.source_screen_id = $1
      ORDER BY sb.display_order, sb.id`,
     [screenId],

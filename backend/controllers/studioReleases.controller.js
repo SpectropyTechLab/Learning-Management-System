@@ -1,6 +1,6 @@
 import * as releases from '../services/studioReleases.service.js';
 import { createRuntimeLaunch, getObjectPreviewDescriptor, getRuntimePreview } from '../services/studioResourceRuntime.service.js';
-import { handleServiceError } from '../utils/errors.js';
+import { handleServiceError, handleStudioServiceError } from '../utils/errors.js';
 
 const sendError = (res, error) => {
   if (error?.details && error?.status) {
@@ -90,6 +90,8 @@ export const launchPublishedResource = async (req, res) => {
     const { versionId } = await releases.assertPinnedPublishedResourceAccess({
       releaseId: req.params.releaseId,
       versionId: req.params.versionId,
+      sourceReleaseId: req.query.source_release_id,
+      gapBridgeId: req.query.gap_bridge_id,
       user: req.user,
     });
     const data = await createRuntimeLaunch({ versionId, user: req.user, allowAuthorizedReader: true });
@@ -104,6 +106,8 @@ export const previewPublishedResource = async (req, res) => {
     const { versionId } = await releases.assertPinnedPublishedResourceAccess({
       releaseId: req.params.releaseId,
       versionId: req.params.versionId,
+      sourceReleaseId: req.query.source_release_id,
+      gapBridgeId: req.query.gap_bridge_id,
       user: req.user,
     });
     const data = await getRuntimePreview({ versionId, user: req.user, allowAuthorizedReader: true });
@@ -118,6 +122,8 @@ export const previewPublishedObject = async (req, res) => {
     const { versionId } = await releases.assertPinnedPublishedResourceAccess({
       releaseId: req.params.releaseId,
       versionId: req.params.versionId,
+      sourceReleaseId: req.query.source_release_id,
+      gapBridgeId: req.query.gap_bridge_id,
       user: req.user,
     });
     const data = await getObjectPreviewDescriptor({
@@ -140,6 +146,19 @@ export const getPublishedTeachingMaterials = async (req, res) => {
     return res.json({ data: materials });
   } catch (error) {
     return sendError(res, error);
+  }
+};
+
+export const resolvePublishedGapBridge = async (req, res) => {
+  try {
+    const data = await releases.resolvePublishedGapBridge({
+      sourceReleaseId: req.params.sourceReleaseId,
+      gapBridgeId: req.params.gapBridgeId,
+      user: req.user,
+    });
+    return res.json({ data });
+  } catch (error) {
+    return handleStudioServiceError(res, error, 'Gap Bridge resolution failed');
   }
 };
 

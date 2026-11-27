@@ -68,6 +68,8 @@ export interface StudioScreen {
   elements: StudioElement[];
   tags: string[];
   branches: unknown[];
+  screen_kind?: 'main' | 'gap_bridge_child';
+  parent_screen_id?: number | null;
 }
 
 export interface StudioScreenList {

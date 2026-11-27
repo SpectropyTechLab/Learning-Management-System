@@ -64,7 +64,8 @@ const analyzePlanTaxonomy = async ({ db, sessionId, content, user }) => {
   const termByKey = new Map(termResult.rows.map((term) => [`${term.taxonomy_type}:${term.code}`, term]));
   const screensResult = await db.query(
     `SELECT id, screen_number, title, display_order FROM screens
-     WHERE session_id = $1 ORDER BY display_order, screen_number, id`, [sessionId],
+     WHERE session_id = $1 AND screen_kind = 'main'
+     ORDER BY display_order, screen_number, id`, [sessionId],
   );
   const unknown = new Map();
   const rows = content.rows.map((row, index) => {
@@ -103,15 +104,16 @@ const synchronizePlanScreens = async ({ client, session, content, user, createMi
   }
   const existingResult = await client.query(
     `SELECT id, screen_number, display_order FROM screens
-     WHERE session_id = $1 ORDER BY display_order, screen_number, id FOR UPDATE`, [session.id],
+     WHERE session_id = $1 AND screen_kind = 'main'
+     ORDER BY display_order, screen_number, id FOR UPDATE`, [session.id],
   );
   const screens = [...existingResult.rows];
   let nextNumber = screens.reduce((max, screen) => Math.max(max, Number(screen.screen_number)), 0) + 1;
   let nextOrder = screens.reduce((max, screen) => Math.max(max, Number(screen.display_order)), -1) + 1;
   while (screens.length < content.rows.length) {
     const inserted = await client.query(
-      `INSERT INTO screens (client_id, session_id, title, screen_number, display_order, creation_mode, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'blank', $6)
+      `INSERT INTO screens (client_id, session_id, title, screen_number, display_order, creation_mode, created_by, screen_kind)
+       VALUES ($1, $2, $3, $4, $5, 'blank', $6, 'main')
        RETURNING id, screen_number, display_order`,
       [session.client_id, session.id, `Screen ${nextNumber}`, nextNumber, nextOrder, user?.id || null],
     );
@@ -119,7 +121,8 @@ const synchronizePlanScreens = async ({ client, session, content, user, createMi
   }
   await client.query(
     `DELETE FROM screen_taxonomy_terms stt USING screens sc
-     WHERE stt.screen_id = sc.id AND sc.session_id = $1 AND stt.source = 'session_plan'`, [session.id],
+     WHERE stt.screen_id = sc.id AND sc.session_id = $1
+       AND sc.screen_kind = 'main' AND stt.source = 'session_plan'`, [session.id],
   );
   const termsResult = await client.query(
     `SELECT id, taxonomy_type, code FROM studio_taxonomy_terms
@@ -408,7 +411,8 @@ export const previewScreenScriptImport = async ({ sessionId: rawSessionId, file,
     parseScreenScriptDocx(file),
     dbQuery(
       `SELECT id, screen_number, title, display_order
-       FROM screens WHERE session_id = $1 ORDER BY display_order, screen_number, id`,
+       FROM screens WHERE session_id = $1 AND screen_kind = 'main'
+       ORDER BY display_order, screen_number, id`,
       [sessionId],
     ),
   ]);
@@ -540,7 +544,8 @@ export const listScreenScripts = async ({ sessionId: rawSessionId, user }) => {
             ssr.source_mode, ssr.source_document_id, ssr.content_json, ssr.created_at
      FROM screens sc
      LEFT JOIN screen_script_revisions ssr ON ssr.screen_id = sc.id AND ssr.is_current = TRUE
-     WHERE sc.session_id = $1 ORDER BY sc.display_order, sc.screen_number, sc.id`,
+     WHERE sc.session_id = $1 AND sc.screen_kind = 'main'
+     ORDER BY sc.display_order, sc.screen_number, sc.id`,
     [sessionId],
   );
   return result.rows.map((row) => ({
@@ -595,7 +600,7 @@ const templateSessionContext = async ({ sessionId: rawSessionId, user }) => {
   assertTenant(session, user);
   const screens = await dbQuery(
     `SELECT id, screen_number, title, display_order
-     FROM screens WHERE session_id = $1
+     FROM screens WHERE session_id = $1 AND screen_kind = 'main'
      ORDER BY display_order, screen_number, id`,
     [sessionId],
   );
