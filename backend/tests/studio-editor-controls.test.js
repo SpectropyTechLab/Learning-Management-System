@@ -550,7 +550,8 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   const retreatStart = player.indexOf('const retreatPresenter =');
   const retreatEnd = player.indexOf('useEffect(() => {', retreatStart);
   const retreatImplementation = player.slice(retreatStart, retreatEnd);
-  assert.match(player, /<PublishedCanvas key=\{`\$\{release\.id\}:\$\{screen\.screen_id\}:\$\{previewMode \? 'preview' : 'published'\}:active`\}/);
+  assert.match(player, /<div key=\{`\$\{release\.id\}:\$\{preparedScreen\.screen_id\}:prepared`\}/);
+  assert.match(player, /<PublishedCanvas key=\{`\$\{release\.id\}:\$\{screen\.screen_id\}:published:active`\}/);
   assert.doesNotMatch(player, /<PublishedCanvas key=\{[^}]*playbackCycle/);
   assert.doesNotMatch(retreatImplementation, /setPlaybackCycle/);
   assert.match(runtime, /presenterElementPlaybackState/);
