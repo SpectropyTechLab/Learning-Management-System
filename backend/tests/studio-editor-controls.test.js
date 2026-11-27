@@ -464,6 +464,18 @@ test('Session Preview renders uncropped images with the same full-frame fit as t
   assert.match(player, /className="h-full w-full object-fill"/);
 });
 
+test('Session Preview prepares presentation images and keeps adjacent Screens mounted', () => {
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(editor, /cacheSessionPreview\(sessionId, preview/);
+  assert.match(editor, /prepareSessionPreviewImages\(preview, getStudioResourcePreview\)/);
+  assert.match(player, /getCachedSessionPreview\(sessionId\)/);
+  assert.match(player, /getCachedResourcePreviewUrl\(mapping\.resource_version_id\)/);
+  assert.match(player, /preparedPreviewScreens\.map/);
+  assert.match(player, /passivePreview=\{!active\}/);
+  assert.match(player, /Preparing presentation/);
+});
+
 test('Home ribbon Clipboard group shares multi-element paste and Format Painter workflows', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const clipboard = readFrontend('components/StudioClipboardGroup.tsx');
@@ -538,7 +550,8 @@ test('Backward animation preserves the slide tree and remounts only changed elem
   const retreatStart = player.indexOf('const retreatPresenter =');
   const retreatEnd = player.indexOf('useEffect(() => {', retreatStart);
   const retreatImplementation = player.slice(retreatStart, retreatEnd);
-  assert.match(player, /<PublishedCanvas key=\{`\$\{release\.id\}:\$\{screen\.screen_id\}:\$\{previewMode \? 'preview' : 'published'\}:active`\}/);
+  assert.match(player, /<div key=\{`\$\{release\.id\}:\$\{preparedScreen\.screen_id\}:prepared`\}/);
+  assert.match(player, /<PublishedCanvas key=\{`\$\{release\.id\}:\$\{screen\.screen_id\}:published:active`\}/);
   assert.doesNotMatch(player, /<PublishedCanvas key=\{[^}]*playbackCycle/);
   assert.doesNotMatch(retreatImplementation, /setPlaybackCycle/);
   assert.match(runtime, /presenterElementPlaybackState/);
