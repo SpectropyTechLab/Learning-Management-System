@@ -21,7 +21,6 @@ export type StudioRibbonTabId =
   | 'chart-design'
   | 'chart-format'
   | '3d-model'
-  | 'group-format'
   | 'drawing-format';
 
 export type StudioRibbonTab = {
@@ -62,10 +61,7 @@ export const studioContextualRibbonTabs = (selection: StudioRibbonSelection): St
   const visualType = String(selection.visualType || '');
   const tabs: StudioRibbonTab[] = [];
 
-  if ((selection.selectionCount ?? 0) > 1) {
-    tabs.push({ id: 'group-format', label: 'Group Format', contextual: true, accent: 'violet' });
-    return tabs;
-  }
+  if ((selection.selectionCount ?? 0) > 1) return tabs;
   if (selection.drawingActive) {
     tabs.push({ id: 'drawing-format', label: 'Drawing', contextual: true, accent: 'amber' });
   }

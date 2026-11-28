@@ -81,6 +81,16 @@ export const importPptx = async (sessionId: number, file: File, options: PptxImp
   { signal, onUploadProgress: (event) => onProgress?.(event.total ? Math.round(event.loaded * 100 / event.total) : 0) },
 ));
 
+export const exportPptx = async (sessionId: number) => {
+  const response = await api.get<Blob>(`/studio/sessions/${sessionId}/exports/pptx`, { responseType: 'blob' });
+  const disposition = String(response.headers['content-disposition'] || '');
+  const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  return {
+    blob: response.data,
+    fileName: encodedName ? decodeURIComponent(encodedName) : 'presentation.pptx',
+  };
+};
+
 export const getPptxImportErrorMessage = (error: unknown) => {
   const details = getApiErrorDetails(error, 'PowerPoint import failed. Please try again.');
   if (details.status === 404 && !details.code) {

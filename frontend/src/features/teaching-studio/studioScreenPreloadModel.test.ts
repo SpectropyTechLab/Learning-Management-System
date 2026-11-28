@@ -65,3 +65,15 @@ test('resource preloading collects each visible resource binding once for safe m
     { versionId: 42, resourceId: 142, resourceType: 'simulation' },
   ]);
 });
+
+test('resource preloading includes screen and shape background image fills', () => {
+  const target = screen(2, 1, [{
+    id: 'shape', slotId: 'free-shape', type: 'shape', position: {},
+    content: { backgroundImage: { resourceId: 202, resourceVersionId: 102, name: 'Shape', fit: 'cover', scale: 1, x: 0, y: 0, opacity: 1 } },
+  }]);
+  target.screen_settings_json = { backgroundImage: { resourceId: 201, resourceVersionId: 101, name: 'Screen', fit: 'cover', scale: 1, x: 0, y: 0, opacity: 1 } };
+  assert.deepEqual(studioScreenPreloadResources(target), [
+    { versionId: 101, resourceId: 201, resourceType: 'image' },
+    { versionId: 102, resourceId: 202, resourceType: 'image' },
+  ]);
+});

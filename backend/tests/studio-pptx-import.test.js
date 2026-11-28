@@ -141,8 +141,11 @@ test('PPTX adapter creates rich editable text, shapes, groups, image resources a
   const grouped = firstSourceSlide.elements.filter((element) => element.group?.source_id);
   assert.equal(grouped.length, 2);
   assert.equal(grouped[0].group.source_id, grouped[1].group.source_id);
-  assert.equal(document.resources.length, 1);
-  assert.ok(firstSourceSlide.elements.some((element) => element.resource_reference?.source_id === document.resources[0].source_id));
+  assert.equal(document.resources.length, 2);
+  const importedImage = document.resources.find((resource) => resource.media_type === 'image/png');
+  assert.ok(importedImage);
+  assert.ok(firstSourceSlide.elements.some((element) => element.resource_reference?.source_id === importedImage.source_id));
+  assert.ok(document.resources.some((resource) => resource.metadata?.usage === 'pptx_round_trip_source'));
   assert.ok(document.issues.some((issue) => issue.code === 'PPTX_GRAPHIC_FRAME_DEFERRED'));
   const transparentText = firstSourceSlide.elements.find((element) => element.content.text === 'Transparent');
   assert.equal(transparentText.content.fill, 'transparent');
@@ -173,7 +176,7 @@ test('PPTX commit selects slides, persists resources/screens, reorders, and retu
   assert.equal(result.screens_created.length, 1);
   assert.equal(result.report.counts.screens, 1);
   assert.equal(calls.reorder.screen_ids[0], result.screens_created[0]);
-  assert.equal(calls.resources.length, 1);
+  assert.equal(calls.resources.length, 2);
   assert.ok(calls.screens[0].savedElements.some((element) => element.position.groupId));
   assert.ok(calls.screens[0].savedElements.some((element) => Array.isArray(element.content.importSource.group?.hierarchy)));
 });
@@ -201,7 +204,7 @@ test('Phase 5 baseline protects editable teaching objects, grouped media, and su
   const grouped = screen.elements.filter((element) => ['equation', 'image', 'audio', 'video'].includes(element.kind));
   assert.equal(new Set(grouped.map((element) => element.group?.source_id)).size, 1);
   assert.ok(grouped.every((element) => element.group?.source_id));
-  assert.deepEqual(document.resources.map((resource) => resource.media_type).sort(), ['audio/mp4', 'image/png', 'video/mp4']);
+  assert.deepEqual(document.resources.map((resource) => resource.media_type).sort(), ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'audio/mp4', 'image/png', 'video/mp4']);
   assert.equal(screen.transition.effect, 'split');
   assert.equal(screen.transition.option, 'vertical-out');
   assert.ok(document.issues.some((issue) => issue.code === 'PPTX_CHART_APPROXIMATED'));

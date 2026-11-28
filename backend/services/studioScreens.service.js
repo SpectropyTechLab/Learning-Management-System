@@ -30,6 +30,20 @@ const ELEMENT_TYPES = new Set([
   'data',
   'options', 'math', 'shape', 'zoom', 'embedded_object',
 ]);
+const TRANSITION_EFFECTS = new Set([
+  'none', 'morph', 'fade', 'push', 'wipe', 'split', 'reveal', 'cut', 'random-bars',
+  'shape', 'uncover', 'cover', 'flash', 'fall-over', 'drape', 'curtains', 'wind',
+  'prestige', 'fracture', 'crush', 'peel-off', 'page-curl', 'airplane', 'origami',
+  'dissolve', 'checkerboard', 'blinds', 'clock', 'ripple', 'honeycomb', 'glitter',
+  'vortex', 'shred', 'switch', 'flip', 'gallery', 'cube', 'doors', 'box', 'comb',
+  'zoom', 'random', 'pan', 'ferris-wheel', 'conveyor', 'rotate', 'window', 'orbit',
+  'fly-through',
+]);
+const TRANSITION_EASINGS = new Set([
+  'smooth', 'decelerate', 'accelerate', 'linear', 'cinematic',
+  'ease-in-out', 'ease-out', 'ease-in', 'cubic-bezier(.2,.8,.2,1)',
+]);
+const TRANSITION_INTENSITIES = new Set(['subtle', 'standard', 'dramatic']);
 const normalizeZoom = (value, elementKey) => {
   if (value === undefined || value === null) return null;
   const zoom = assertObject(value, `Element ${elementKey} zoom`);
@@ -157,8 +171,59 @@ const normalizePosition = (value, label, { allowCanvasOverflow = false, allowSma
   return normalized;
 };
 
+const boundedNumber = (value, fallback, min, max, label) => {
+  const number = value === undefined ? fallback : Number(value);
+  if (!Number.isFinite(number) || number < min || number > max) {
+    throw new AppError(`${label} must be between ${min} and ${max}`, 422);
+  }
+  return number;
+};
+
+const normalizeTransition = (value) => {
+  const transition = assertObject(value, 'screen_settings transition');
+  const effect = String(transition.effect || 'none');
+  if (!TRANSITION_EFFECTS.has(effect)) throw new AppError('Transition effect is unsupported', 422);
+  const easing = String(transition.easing || 'ease-in-out');
+  if (!TRANSITION_EASINGS.has(easing)) throw new AppError('Transition easing is invalid', 422);
+  const intensity = String(transition.intensity || 'standard');
+  if (!TRANSITION_INTENSITIES.has(intensity)) throw new AppError('Transition intensity is invalid', 422);
+  const normalized = {
+    schemaVersion: 1,
+    effect,
+    duration: boundedNumber(transition.duration, 0.7, 0.1, 20, 'Transition duration'),
+    sound: optionalText(transition.sound || 'none', 'Transition sound', 80) || 'none',
+    loopSound: transition.loopSound === true,
+    advanceOnClick: transition.advanceOnClick !== false,
+    advanceAfterEnabled: transition.advanceAfterEnabled === true,
+    advanceAfterSeconds: boundedNumber(transition.advanceAfterSeconds, 0, 0, 3600, 'Transition automatic advance'),
+    easing,
+    intensity,
+    respectReducedMotion: transition.respectReducedMotion !== false,
+  };
+  const option = optionalText(transition.option || transition.direction, 'Transition option', 80);
+  if (option) {
+    normalized.option = option;
+    normalized.direction = option;
+  }
+  if (transition.customSound != null) {
+    const custom = assertObject(transition.customSound, 'Transition custom sound');
+    normalized.customSound = {
+      resourceId: parseId(custom.resourceId, 'Transition sound Resource ID'),
+      resourceVersionId: parseId(custom.resourceVersionId, 'Transition sound Resource version ID'),
+      name: optionalText(custom.name || 'Custom sound', 'Transition sound name', 250) || 'Custom sound',
+      ...(custom.mimeType ? { mimeType: optionalText(custom.mimeType, 'Transition sound MIME type', 120) } : {}),
+    };
+    normalized.sound = 'custom';
+  }
+  return normalized;
+};
+
 const normalizeScreenSettings = (value) => {
-  const settings = assertObject(value, 'screen_settings');
+  const settings = { ...assertObject(value, 'screen_settings') };
+  if (settings.hidden !== undefined && typeof settings.hidden !== 'boolean') {
+    throw new AppError('screen_settings hidden must be true or false', 422);
+  }
+  if (settings.transition !== undefined) settings.transition = normalizeTransition(settings.transition);
   const drawings = settings.author_drawings;
   if (drawings === undefined) return settings;
   assertObject(drawings, 'screen_settings author_drawings');
@@ -563,6 +628,70 @@ export const listSessionScreens = async ({ sessionId: rawSessionId, user }) => {
   return { session_revision_no: Number(session.revision_no), screens };
 };
 
+export const updateSessionScreenTransitions = async ({ sessionId: rawSessionId, body = {}, user }) => {
+  assertAuthor(user);
+  const sessionId = parseId(rawSessionId, 'Session ID');
+  const expectedRevision = parseRevision(body.session_revision_no, 'session_revision_no');
+  const updates = Array.isArray(body.updates) && body.updates.length
+    ? body.updates.map((entry) => {
+        const update = assertObject(entry, 'Transition update');
+        return { screenId: parseId(update.screen_id, 'screen_id'), transition: normalizeTransition(update.transition ?? {}) };
+      })
+    : Array.isArray(body.screen_ids) && body.screen_ids.length
+      ? body.screen_ids.map((id) => ({ screenId: parseId(id, 'screen_id'), transition: normalizeTransition(body.transition ?? {}) }))
+      : [];
+  if (!updates.length) throw new AppError('screen_ids or updates must be a non-empty array', 422);
+  const screenIds = updates.map((entry) => entry.screenId);
+  if (new Set(screenIds).size !== screenIds.length) throw new AppError('screen_ids cannot contain duplicates', 422);
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const session = await loadSession(client, sessionId, user, { lock: true });
+    if (Number(session.revision_no) !== expectedRevision) {
+      throw new AppError('Session revision is stale; reload before changing transitions', 409);
+    }
+    const rows = await client.query(
+      'SELECT * FROM screens WHERE session_id = $1 AND id = ANY($2::int[]) ORDER BY display_order, screen_number, id FOR UPDATE',
+      [session.id, screenIds],
+    );
+    if (rows.rows.length !== screenIds.length) throw new AppError('One or more selected Screens are unavailable', 404);
+    for (const { transition } of updates) if (transition.customSound) {
+      const sound = await client.query(
+        `SELECT r.id FROM resources r JOIN resource_versions rv ON rv.resource_id = r.id
+         WHERE r.id = $1 AND rv.id = $2 AND r.resource_type = 'audio' AND r.is_active = TRUE
+           AND (r.client_id IS NULL OR r.client_id IS NOT DISTINCT FROM $3)`,
+        [transition.customSound.resourceId, transition.customSound.resourceVersionId, session.client_id],
+      );
+      if (!sound.rows[0]) throw new AppError('Transition custom sound Resource is unavailable', 422);
+    }
+    const updatedRows = [];
+    for (const { screenId, transition } of updates) {
+      const updated = await client.query(
+        `UPDATE screens
+         SET screen_settings_json = jsonb_set(COALESCE(screen_settings_json, '{}'::jsonb), '{transition}', $1::jsonb, TRUE),
+             revision_no = revision_no + 1, updated_at = NOW()
+         WHERE session_id = $2 AND id = $3
+         RETURNING *`,
+        [JSON.stringify(transition), session.id, screenId],
+      );
+      updatedRows.push(updated.rows[0]);
+    }
+    const draftSession = await returnSessionToDraft(session.id, client);
+    const hydrated = await hydrateScreens(client, updatedRows);
+    await client.query('COMMIT');
+    return {
+      session_id: session.id,
+      session_revision_no: Number(draftSession.revision_no),
+      screens: hydrated,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const validateResourceBindings = async (db, elements, clientId) => {
   for (const element of elements.filter((candidate) => candidate.resource)) {
     const result = await db.query(
@@ -606,6 +735,34 @@ const validateZoomLinks = async (db, elements, sessionId, sourceScreenId) => {
   }
 };
 
+const validateBackgroundImages = async (db, settings, elements, clientId) => {
+  const fills = [settings?.backgroundImage, ...elements.map((element) => element.content?.backgroundImage)];
+  const checked = new Set();
+  for (const fill of fills) {
+    if (fill == null) continue;
+    const image = assertObject(fill, 'Background image');
+    const resourceId = parseId(image.resourceId, 'Background image Resource ID');
+    const versionId = parseId(image.resourceVersionId, 'Background image Resource version ID');
+    if (!['cover', 'contain'].includes(image.fit) ||
+      ![['scale', 1, 3], ['x', -100, 100], ['y', -100, 100], ['opacity', 0, 1]].every(([key, min, max]) =>
+        Number.isFinite(image[key]) && image[key] >= min && image[key] <= max)) {
+      throw new AppError('Background image placement is invalid', 422);
+    }
+    const key = `${resourceId}:${versionId}`;
+    if (checked.has(key)) continue;
+    const result = await db.query(
+      `SELECT r.id
+       FROM resources r
+       JOIN resource_versions rv ON rv.resource_id = r.id
+       WHERE r.id = $1 AND rv.id = $2 AND r.resource_type = 'image' AND r.is_active = TRUE
+         AND (r.client_id IS NULL OR r.client_id IS NOT DISTINCT FROM $3)`,
+      [resourceId, versionId, clientId],
+    );
+    if (!result.rows[0]) throw new AppError('Background image Resource version is unavailable', 422);
+    checked.add(key);
+  }
+};
+
 export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => {
   assertAuthor(user);
   const screenId = parseId(rawScreenId, 'Screen ID');
@@ -639,6 +796,7 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
         ? screen.screen_settings_json
         : normalizeScreenSettings(body.screen_settings);
     await validateResourceBindings(client, elements, screen.client_id);
+    await validateBackgroundImages(client, settings, elements, screen.client_id);
     await validateZoomLinks(client, elements, screen.session_id, screen.id);
 
     const updateResult = await client.query(
@@ -726,6 +884,93 @@ export const saveScreen = async ({ screenId: rawScreenId, body = {}, user }) => 
     }
     const session = await returnSessionToDraft(screen.session_id, client);
     const hydrated = await hydrateScreen(client, updateResult.rows[0]);
+    await client.query('COMMIT');
+    return { ...hydrated, session_revision_no: Number(session.revision_no) };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const duplicateScreen = async ({ screenId: rawScreenId, user }) => {
+  assertAuthor(user);
+  const screenId = parseId(rawScreenId, 'Screen ID');
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const source = await loadScreenRow(client, screenId, user, { lock: true });
+    await client.query(
+      `UPDATE screens
+       SET display_order = display_order + 1, updated_at = NOW()
+       WHERE session_id = $1 AND display_order > $2`,
+      [source.session_id, source.display_order],
+    );
+    const numberResult = await client.query(
+      'SELECT COALESCE(MAX(screen_number), 0) + 1 AS screen_number FROM screens WHERE session_id = $1',
+      [source.session_id],
+    );
+    const inserted = await client.query(
+      `INSERT INTO screens (
+         client_id, session_id, title, screen_number, layout_id,
+         screen_settings_json, display_order, created_by, creation_mode, revision_no
+       ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, 1)
+       RETURNING *`,
+      [
+        source.client_id,
+        source.session_id,
+        source.title,
+        Number(numberResult.rows[0].screen_number),
+        source.layout_id,
+        JSON.stringify(source.screen_settings_json || {}),
+        Number(source.display_order) + 1,
+        user?.id || null,
+        source.creation_mode,
+      ],
+    );
+    const duplicate = inserted.rows[0];
+    await client.query(
+      `INSERT INTO screen_elements (
+         screen_id, element_key, slot_id, element_type,
+         content_json, position_json, display_order
+       )
+       SELECT $1, element_key, slot_id, element_type,
+              content_json, position_json, display_order
+       FROM screen_elements WHERE screen_id = $2`,
+      [duplicate.id, source.id],
+    );
+    await client.query(
+      `INSERT INTO resource_mappings (
+         resource_id, resource_version_id, screen_id, element_id,
+         usage_details_json, created_by
+       )
+       SELECT resource_id, resource_version_id, $1, element_id,
+              usage_details_json, $2
+       FROM resource_mappings WHERE screen_id = $3`,
+      [duplicate.id, user?.id || null, source.id],
+    );
+    await client.query(
+      `INSERT INTO screen_tags (screen_id, tag)
+       SELECT $1, tag FROM screen_tags WHERE screen_id = $2`,
+      [duplicate.id, source.id],
+    );
+    await client.query(
+      `INSERT INTO screen_zoom_links (
+         source_screen_id, element_id, session_id, zoom_kind,
+         target_screen_id, target_section_id, return_to_zoom,
+         transition_enabled, transition_duration_ms, thumbnail_mode,
+         custom_thumbnail_url
+       )
+       SELECT $1, element_id, session_id, zoom_kind,
+              target_screen_id, target_section_id, return_to_zoom,
+              transition_enabled, transition_duration_ms, thumbnail_mode,
+              custom_thumbnail_url
+       FROM screen_zoom_links WHERE source_screen_id = $2`,
+      [duplicate.id, source.id],
+    );
+    const session = await returnSessionToDraft(source.session_id, client);
+    const hydrated = await hydrateScreen(client, duplicate);
     await client.query('COMMIT');
     return { ...hydrated, session_revision_no: Number(session.revision_no) };
   } catch (error) {

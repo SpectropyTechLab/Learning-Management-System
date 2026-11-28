@@ -108,7 +108,7 @@ export default function PptxImportDialog({ sessionId, sessions, currentScreenId,
       <div className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <header className="flex items-center gap-3 border-b border-slate-200 px-5 py-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-orange-100 text-orange-700"><Presentation size={21}/></span>
-          <div className="min-w-0 flex-1"><h2 className="font-bold text-slate-900">Import PowerPoint as editable Screens</h2><p className="text-xs text-slate-500">{stageLabel[stage]} · .pptx only · original file is not retained</p></div>
+          <div className="min-w-0 flex-1"><h2 className="font-bold text-slate-900">Import PowerPoint as editable Screens</h2><p className="text-xs text-slate-500">{stageLabel[stage]} · .pptx only · original file retained for round-trip export</p></div>
           <button type="button" onClick={closeOrCancel} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 hover:bg-slate-100" aria-label={busy ? 'Cancel import' : 'Close'}><X size={17}/></button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">

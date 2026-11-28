@@ -33,6 +33,7 @@ const popupPosition = (target: HTMLElement, width: number): MenuPosition => {
 
 export function ShapeGalleryDropdown({ groups, selectedKind, disabled, onChange }: { groups: readonly ShapeGroup[]; selectedKind: string; disabled?: boolean; onChange: (kind: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const [position, setPosition] = useState<MenuPosition>({ left: 8, top: 80 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -47,13 +48,17 @@ export function ShapeGalleryDropdown({ groups, selectedKind, disabled, onChange 
     return () => document.removeEventListener('pointerdown', close);
   }, [open]);
   return <>
-    <button ref={triggerRef} type="button" disabled={disabled} aria-label="Open Shapes and Text gallery" aria-expanded={open} onClick={() => { if (triggerRef.current) setPosition(popupPosition(triggerRef.current, 430)); setOpen((value) => !value); }} className="flex h-11 min-w-36 items-center gap-2 rounded-md px-2 text-left hover:bg-blue-50 disabled:opacity-40">
+    <button ref={triggerRef} type="button" disabled={disabled} aria-label="Open Shapes and Text gallery" aria-expanded={open} onClick={() => { if (triggerRef.current) setPosition(popupPosition(triggerRef.current, 340)); setOpen((value) => !value); }} className="flex h-11 min-w-36 items-center gap-2 rounded-md px-2 text-left hover:bg-blue-50 disabled:opacity-40">
       <span className="grid h-8 w-10 place-items-center rounded border border-slate-200 bg-white p-1">{selectedKind ? <StudioShapeElement kind={selectedKind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /> : <Shapes size={18} />}</span>
-      <span className="leading-3"><span className="block text-[10px] font-semibold text-slate-800">Shapes &amp; Text</span><span className="text-[9px] text-slate-500">Change shape</span></span><ChevronDown size={13} className="ml-auto" />
+      <span className="leading-3"><span className="block text-[10px] font-semibold text-slate-800">{selectedKind ? 'Edit Shape' : 'More shapes'}</span>{selectedKind ? <span className="text-[9px] text-slate-500">Change Shape</span> : null}</span><ChevronDown size={13} className="ml-auto" />
     </button>
-    {open && typeof document !== 'undefined' ? createPortal(<div ref={popupRef} role="dialog" aria-label="Shapes and Text gallery" className="fixed z-[300] max-h-[70vh] w-[430px] overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 shadow-2xl" style={position}>
-      <div className="mb-2 flex items-center gap-2 border-b border-slate-100 pb-2"><Shapes size={16} className="text-blue-800"/><div><h3 className="text-xs font-bold text-slate-900">Shapes &amp; Text</h3><p className="text-[10px] text-slate-500">Select a shape while keeping its text and formatting.</p></div></div>
-      {groups.map((group) => <section key={group.label} className="mb-3 last:mb-0"><h4 className="mb-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">{group.label}</h4><div className="grid grid-cols-8 gap-1">{group.shapes.map((kind) => <button key={kind} type="button" title={kind.replaceAll('-', ' ')} onClick={() => { onChange(kind); setOpen(false); }} className={`h-10 rounded border p-1 hover:border-blue-500 hover:bg-blue-50 ${selectedKind === kind ? 'border-blue-700 bg-blue-50 ring-1 ring-blue-300' : 'border-slate-200 bg-white'}`}><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}</div></section>)}
+    {open && typeof document !== 'undefined' ? createPortal(<div ref={popupRef} role="dialog" aria-label="Shapes and Text gallery" className="fixed z-[300] flex max-h-[360px] w-[340px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl" style={position}>
+      <div className="shrink-0 border-b border-slate-100 bg-white p-2.5"><div className="flex items-center gap-2"><Shapes size={16} className="text-blue-800"/><div><h3 className="text-xs font-bold text-slate-900">Change Shape</h3><p className="text-[10px] text-slate-500">Keep the current text and formatting.</p></div></div><input autoFocus aria-label="Search shapes" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search shapes" className="mt-2 h-7 w-full rounded border border-slate-300 px-2 text-[11px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200" /></div>
+      <div className="overflow-y-auto p-2.5">{groups.map((group) => {
+        const visibleShapes = group.shapes.filter((kind) => kind.replaceAll('-', ' ').includes(query.trim().toLowerCase()));
+        if (!visibleShapes.length) return null;
+        return <section key={group.label} className="mb-2.5 last:mb-0"><h4 className="mb-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">{group.label}</h4><div className="grid grid-cols-7 gap-1">{visibleShapes.map((kind) => <button key={kind} type="button" aria-label={kind.replaceAll('-', ' ')} title={kind.replaceAll('-', ' ')} onClick={() => { onChange(kind); setOpen(false); setQuery(''); }} className={`h-9 rounded border p-1 hover:border-blue-500 hover:bg-blue-50 ${selectedKind === kind ? 'border-blue-700 bg-blue-50 ring-1 ring-blue-300' : 'border-slate-200 bg-white'}`}><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}</div></section>;
+      })}</div>
     </div>, document.body) : null}
   </>;
 }

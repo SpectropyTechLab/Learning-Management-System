@@ -49,10 +49,23 @@ export type StudioDrawingTool = 'pen' | 'pencil' | 'fountain' | 'highlighter' | 
 
 export interface StudioScreenSettings extends Record<string, unknown> {
   backgroundColor?: string;
+  backgroundImage?: StudioBackgroundImageFill | null;
+  hidden?: boolean;
   author_drawings?: {
     strokes: AuthorDrawingStroke[];
   };
-  transition?: Record<string, unknown>;
+  transition?: import('./components/studioTransitionModel').StudioTransitionSettings;
+}
+
+export interface StudioBackgroundImageFill {
+  resourceId: number;
+  resourceVersionId: number;
+  name: string;
+  fit: 'cover' | 'contain';
+  scale: number;
+  x: number;
+  y: number;
+  opacity: number;
 }
 
 export interface StudioScreen {

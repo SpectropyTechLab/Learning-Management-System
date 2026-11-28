@@ -14,7 +14,17 @@ export const studioScreenCacheKey = (screen: Pick<StudioScreen, 'id' | 'revision
 
 export const studioScreenPreloadResources = (screen: StudioScreen) => {
   const byVersion = new Map<number, { resourceId: number; resourceType: string }>();
+  const addBackground = (value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+    const background = value as Record<string, unknown>;
+    const versionId = Number(background.resourceVersionId);
+    const resourceId = Number(background.resourceId);
+    if (Number.isInteger(resourceId) && resourceId > 0 && Number.isInteger(versionId) && versionId > 0)
+      byVersion.set(versionId, { resourceId, resourceType: 'image' });
+  };
+  addBackground(screen.screen_settings_json?.backgroundImage);
   for (const element of screen.elements) {
+    addBackground(element.content.backgroundImage);
     if (element.position.hidden === true || !element.resource) continue;
     const versionId = Number(element.resource.resource_version_id);
     const resourceId = Number(element.resource.resource_id);

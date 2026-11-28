@@ -1,6 +1,7 @@
 import { isAxiosError } from 'axios';
 import api from '@/lib/api';
 import type { StudioScreen, StudioScreenList, StudioScreenSection } from '../types';
+import type { StudioTransitionSettings } from '../components/studioTransitionModel';
 import { prepareStudioElementForSave } from '../studioElementBounds';
 
 interface DataEnvelope<T> {
@@ -94,6 +95,11 @@ export const updateStudioScreen = async (
   }),
 ));
 
+export const duplicateStudioScreen = async (screenId: number) =>
+  restoreTableElementTypes(unwrap<StudioScreen & { session_revision_no: number }>(
+    await api.post(`/studio/screens/${screenId}/duplicate`),
+  ));
+
 export const deleteStudioScreen = async (screenId: number) =>
   unwrap<{ id: number; session_revision_no: number }>(await api.delete(`/studio/screens/${screenId}`));
 
@@ -102,6 +108,32 @@ export const reorderStudioScreens = async (sessionId: number, sessionRevisionNo:
     `/studio/sessions/${sessionId}/screens/reorder`,
     { session_revision_no: sessionRevisionNo, screen_ids: screenIds },
   ));
+
+export const updateStudioScreenTransitions = async (
+  sessionId: number,
+  sessionRevisionNo: number,
+  screenIds: number[],
+  transition: StudioTransitionSettings,
+) => {
+  const result = unwrap<StudioScreenList>(await api.patch(`/studio/sessions/${sessionId}/screens/transitions`, {
+    session_revision_no: sessionRevisionNo,
+    screen_ids: screenIds,
+    transition,
+  }));
+  return { ...result, screens: result.screens.map(restoreTableElementTypes) };
+};
+
+export const restoreStudioScreenTransitions = async (
+  sessionId: number,
+  sessionRevisionNo: number,
+  updates: Array<{ screen_id: number; transition: StudioTransitionSettings }>,
+) => {
+  const result = unwrap<StudioScreenList>(await api.patch(`/studio/sessions/${sessionId}/screens/transitions`, {
+    session_revision_no: sessionRevisionNo,
+    updates,
+  }));
+  return { ...result, screens: result.screens.map(restoreTableElementTypes) };
+};
 
 export const listStudioScreenSections = async (sessionId: number) =>
   unwrap<StudioScreenSection[]>(await api.get(`/studio/sessions/${sessionId}/sections`));
