@@ -273,7 +273,7 @@ test('Insert ribbon uploads or picks filtered Resources and places them without 
   assert.match(catalog, /const \[query, setQuery\] = useState\(''\)/);
   assert.match(catalog, /const \[submitted, setSubmitted\] = useState\(''\)/);
   assert.match(library, /if \(initialType !== undefined\) setResourceType\(initialType\)/);
-  assert.match(library, /mode === 'manage' \? <div[\s\S]*Discover Assets/);
+  assert.match(library, /mode === 'manage' && !hideTabs \? <div[\s\S]*Discover Assets/);
   assert.match(library, /if \(resource\.latest_version\) onPick\?\.\(resource, resource\.latest_version\)/);
   assert.match(library, /function PickerResourceActions/);
   assert.match(library, /Select version/);

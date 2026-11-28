@@ -222,6 +222,11 @@ const createMockDb = () => {
         return { rows: [] };
       }
 
+      if (normalized.startsWith('select id, client_id, school_id from programs where id = $1 limit 1')) {
+        const program = data.programs.find((item) => Number(item.id) === Number(params[0]));
+        return { rows: program ? [{ ...program, school_id: program.school_id ?? null }] : [] };
+      }
+
       if (normalized.startsWith('select id, client_id, school_id, is_active from question_folders where id = $1 limit 1')) {
         const folder = data.questionFolders.find((item) => Number(item.id) === Number(params[0]));
         return { rows: folder ? [{ ...folder }] : [] };
