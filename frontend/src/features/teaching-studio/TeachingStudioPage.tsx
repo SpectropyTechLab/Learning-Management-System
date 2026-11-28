@@ -228,6 +228,8 @@ import {
   supportsResourcePlacement,
 } from './resourcePlacement';
 import { studioSetupApi } from './api/studioSetupApi';
+import { getSessionPlayerPreview } from './api/studioPublishedApi';
+import { cacheSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
 import type { StudioSession } from './api/studioSetupApi';
 import { studioTaxonomyApi } from './api/studioTaxonomyApi';
 import type { StudioTaxonomyTerm } from './api/studioTaxonomyApi';
@@ -1099,6 +1101,17 @@ export default function TeachingStudioPage() {
   const openPreview = async () => {
     if (!sessionId) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    const loadingToast = toast.loading('Preparing Session Preview…');
+    try {
+      const preview = await getSessionPlayerPreview(sessionId);
+      const preferredScreenId = selectedScreenRef.current?.id ?? null;
+      cacheSessionPreview(sessionId, preview, preferredScreenId);
+      await prepareSessionPreviewImages(preview, getStudioResourcePreview);
+    } catch {
+      // The player keeps its existing request path as a safe fallback.
+    } finally {
+      toast.dismiss(loadingToast);
+    }
     navigate(`/studio/player/${sessionId}/preview`);
   };
 
