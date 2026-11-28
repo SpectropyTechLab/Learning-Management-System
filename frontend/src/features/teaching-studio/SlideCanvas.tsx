@@ -920,6 +920,7 @@ export default function SlideCanvas({
                   data-slot={field.id}
                   data-element-id={object?.id}
                   data-transition-content={object && !objectOverlays[object.id] ? 'true' : undefined}
+                  data-transition-ready={object && hiddenObjectIdSet.has(object.id) ? 'false' : 'true'}
                   transform={object ? `rotate(${rotationFor(object)} ${bounds.x + bounds.width / 2} ${bounds.y + bounds.height / 2})` : undefined}
                   role={object ? 'button' : undefined}
                   tabIndex={object ? 0 : undefined}
@@ -1065,6 +1066,7 @@ export default function SlideCanvas({
                 key={`overlay-${object.id}`}
                 data-element-id={object.id}
                 data-transition-content="true"
+                data-transition-ready={hiddenUntilReady ? 'false' : 'true'}
                 data-selection-chrome={selected ? 'true' : undefined}
                 onClickCapture={(event) => {
                   if (!suppressClickAfterDragRef.current) return;

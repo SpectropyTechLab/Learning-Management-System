@@ -50,7 +50,7 @@ import type { PublishedPresenterData, PublishedRelease, PublishedResourceMapping
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
-import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioUsesViewTransition, unlockStudioTransitionAudio } from './components/studioTransition';
+import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioTransitionHandledByPlayer, unlockStudioTransitionAudio } from './components/studioTransition';
 import { playStudioAnimationSound } from './components/studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './components/studioAnimationModel';
 
@@ -547,8 +547,8 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
   const drawingEnabled = annotationTool === 'pen' || annotationTool === 'highlighter' || annotationTool === 'eraser';
   const drawingTool = annotationTool === 'eraser' ? 'eraser' : annotationTool === 'highlighter' ? 'highlighter' : 'pen';
   const slideTransition = screen.screen_settings_json?.transition;
-  const useLayeredBrowserTransition = studioUsesViewTransition(slideTransition);
-  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={useLayeredBrowserTransition ? undefined : slideTransition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} onDrawingPreviewChange={onLiveAnnotationChange} />;
+  const transitionHandledByPlayer = studioTransitionHandledByPlayer(slideTransition);
+  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={transitionHandledByPlayer ? undefined : slideTransition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} onDrawingPreviewChange={onLiveAnnotationChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -653,7 +653,13 @@ export default function StudioSessionPlayerPage() {
       ? transition as Record<string, unknown>
       : undefined;
     const updateScreen = () => setScreenId(nextScreenId);
-    if (!startStudioSlideTransition(updateScreen, transitionSettings)) updateScreen();
+    if (!startStudioSlideTransition(
+      updateScreen,
+      transitionSettings,
+      null,
+      playerRef.current,
+      presenterSlideRef.current || audienceSlideHostRef.current,
+    )) updateScreen();
   }, [screens]);
   const animationTimeline = useMemo(() => buildPresenterAnimationTimeline(screen?.elements ?? []), [screen]);
   const zoomElements = useMemo(() => [...(screen?.elements ?? [])]

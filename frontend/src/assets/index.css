@@ -448,7 +448,7 @@ html.studio-vt-split-horizontal-out::view-transition-new(studio-slide) { animati
 @keyframes studio-vt-split-horizontal-out { from { clip-path: inset(50% 0); } 55% { clip-path: inset(22% 0); } to { clip-path: inset(0); } }
 html.studio-vt-reveal::view-transition-old(studio-slide) { animation-name: studio-vt-reveal-out; }
 html.studio-vt-reveal::view-transition-new(studio-slide) { animation-name: studio-vt-reveal-under; }
-@keyframes studio-vt-reveal-out { to { opacity: .35; transform: translateX(var(--studio-vt-x)) scale(.985); filter: brightness(.65); } }
+@keyframes studio-vt-reveal-out { 0% { opacity: 1; transform: translateX(0) scale(1); filter: brightness(1); } 58% { opacity: .92; transform: translateX(calc(var(--studio-vt-x) * .22)) scale(.99); filter: brightness(.82); } to { opacity: 0; transform: translateX(var(--studio-vt-x)) scale(.985); filter: brightness(.65); } }
 @keyframes studio-vt-reveal-under { from { opacity: 1; } to { opacity: 1; } }
 html.studio-vt-reveal-black-left::view-transition-old(studio-slide),
 html.studio-vt-reveal-black-right::view-transition-old(studio-slide) { animation-name: studio-vt-reveal-black-out; }
@@ -520,7 +520,7 @@ html.studio-vt-clock::view-transition-new(studio-slide) { animation-name: studio
 html.studio-vt-clock-counterclockwise::view-transition-new(studio-slide) { animation-name: studio-vt-clock-counter-in; }
 html.studio-vt-clock-wedge::view-transition-new(studio-slide) { animation-name: studio-vt-clock-wedge-in; }
 @keyframes studio-vt-clock-counter-in { from { clip-path: polygon(50% 50%,50% 0,50% 0); } 25% { clip-path: polygon(50% 50%,50% 0,0 0,0 50%); } 50% { clip-path: polygon(50% 50%,50% 0,0 0,0 100%,50% 100%); } 75% { clip-path: polygon(50% 50%,50% 0,0 0,0 100%,100% 100%,100% 50%); } to { clip-path: inset(0); } }
-@keyframes studio-vt-clock-wedge-in { from { clip-path: polygon(50% 50%,50% 50%,50% 50%); } 50% { clip-path: polygon(50% 50%,50% 0,100% 50%); } to { clip-path: polygon(50% 50%,50% 0,100% 50%,50% 100%,0 50%); } }
+@keyframes studio-vt-clock-wedge-in { from { clip-path: polygon(50% 50%,50% 50%,50% 50%); } 50% { clip-path: polygon(50% 50%,50% 0,100% 50%); } to { clip-path: inset(0); } }
 html.studio-vt-ripple::view-transition-new(studio-slide) { animation-name: studio-vt-ripple-in; }
 @keyframes studio-vt-ripple-in { 0% { opacity: 0; clip-path: circle(0 at 50% 50%); filter: blur(12px); } 70% { opacity: 1; filter: blur(1px); } to { clip-path: circle(150% at 50% 50%); filter: none; } }
 html.studio-vt-honeycomb::view-transition-new(studio-slide) { animation-name: studio-vt-honeycomb-in; }
@@ -729,7 +729,7 @@ html.studio-vt-flash::view-transition-new(studio-slide) { animation-name: studio
 @keyframes studio-transition-clock-wedge {
   0% { clip-path: polygon(50% 50%,50% 0,50% 0); }
   50% { clip-path: polygon(50% 50%,0 0,100% 0); }
-  100% { clip-path: polygon(50% 50%,0 0,100% 0,100% 100%,0 100%); }
+  100% { clip-path: inset(0); }
 }
 @keyframes studio-transition-ripple {
   0% { opacity: 0; clip-path: circle(0 at var(--studio-transition-origin-x) var(--studio-transition-origin-y)); filter: blur(14px); }

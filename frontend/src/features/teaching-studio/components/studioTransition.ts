@@ -151,8 +151,15 @@ const RANDOM_TRANSITION_EFFECTS = [
   'fly-through',
 ] as const;
 
-const randomTransitionEffect = () =>
-  RANDOM_TRANSITION_EFFECTS[Math.floor(Math.random() * RANDOM_TRANSITION_EFFECTS.length)];
+let lastRandomTransitionEffect: string | null = null;
+
+const randomTransitionEffect = () => {
+  if (RANDOM_TRANSITION_EFFECTS.length < 2) return RANDOM_TRANSITION_EFFECTS[0] || 'fade';
+  const choices = RANDOM_TRANSITION_EFFECTS.filter((effect) => effect !== lastRandomTransitionEffect);
+  const selected = choices[Math.floor(Math.random() * choices.length)] || RANDOM_TRANSITION_EFFECTS[0];
+  lastRandomTransitionEffect = selected;
+  return selected;
+};
 
 const steppedBarsClip = (axis: 'horizontal' | 'vertical', lengths: number[]) => {
   const points = ['0% 0%'];
@@ -221,13 +228,32 @@ const DYNAMIC_CONTENT_EFFECTS = new Set([
   'pan', 'ferris-wheel', 'conveyor', 'rotate', 'window', 'orbit', 'fly-through',
 ]);
 
+const LAYERED_TRANSITION_EFFECTS = new Set([
+  'fracture', 'crush', 'peel-off', 'page-curl', 'airplane', 'origami', 'cube',
+]);
+
 export const studioDynamicTransitionClass = (transition?: Record<string, unknown>) => {
   const effect = String(transition?.effect || '');
   return DYNAMIC_CONTENT_EFFECTS.has(effect) ? `studio-dynamic-transition studio-dynamic-transition-${effect}` : '';
 };
 
+export const studioUsesDynamicContentTransition = (transition?: Record<string, unknown>) =>
+  typeof Element !== 'undefined'
+  && typeof Element.prototype.animate === 'function'
+  && DYNAMIC_CONTENT_EFFECTS.has(String(transition?.effect || ''));
+
+export const studioTransitionHandledByPlayer = (transition?: Record<string, unknown>) => {
+  const effect = String(transition?.effect || 'none');
+  return studioUsesViewTransition(transition)
+    || studioUsesDynamicContentTransition(transition)
+    || (LAYERED_TRANSITION_EFFECTS.has(effect)
+      && supportsStudioSlideTransitions()
+      && typeof Element !== 'undefined'
+      && typeof Element.prototype.animate === 'function');
+};
+
 type ViewTransitionDocument = Document & {
-  startViewTransition?: (update: () => void) => { finished: Promise<void> };
+  startViewTransition?: (update: () => void) => { finished: Promise<void>; skipTransition?: () => void };
 };
 
 export const supportsStudioSlideTransitions = () =>
@@ -240,10 +266,14 @@ export const studioUsesViewTransition = (transition?: Record<string, unknown>) =
 
 let studioTransitionGeneration = 0;
 let activeStudioViewTransition: { skipTransition?: () => void } | null = null;
+let activeStudioViewTransitionCleanup: (() => void) | null = null;
 
 export const startStudioSlideTransition = (
   update: () => void,
   transition?: Record<string, unknown>,
+  viewTransitionTarget?: HTMLElement | null,
+  dynamicTransitionHost?: ParentNode | null,
+  transitionArtifactHost?: HTMLElement | null,
 ) => {
   const requestedEffect = String(transition?.effect || 'none');
   const effect = requestedEffect === 'random'
@@ -251,30 +281,52 @@ export const startStudioSlideTransition = (
     : requestedEffect;
   if (requestedEffect === 'none' || requestedEffect === 'cover') return false;
 
-  if (requestedEffect === 'random' && DYNAMIC_CONTENT_EFFECTS.has(effect)) {
-    const generation = ++studioTransitionGeneration;
+  if (DYNAMIC_CONTENT_EFFECTS.has(effect)) {
+    if (typeof Element === 'undefined' || typeof Element.prototype.animate !== 'function') return false;
     activeStudioViewTransition?.skipTransition?.();
     activeStudioViewTransition = null;
+    activeStudioViewTransitionCleanup?.();
+    activeStudioViewTransitionCleanup = null;
+    const generation = ++studioTransitionGeneration;
     flushSync(update);
     window.requestAnimationFrame(() => {
       if (generation !== studioTransitionGeneration) return;
-      const layer = document.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]');
+      const layer = dynamicTransitionHost?.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]')
+        || document.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]');
       replayDynamicContentTransition(layer, { ...transition, effect });
     });
     return true;
   }
-  if (DYNAMIC_CONTENT_EFFECTS.has(effect)) return false;
+  if (LAYERED_TRANSITION_EFFECTS.has(effect) && transitionArtifactHost && supportsStudioSlideTransitions()) {
+    activeStudioViewTransition?.skipTransition?.();
+    activeStudioViewTransition = null;
+    activeStudioViewTransitionCleanup?.();
+    activeStudioViewTransitionCleanup = null;
+    const layer = dynamicTransitionHost?.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]')
+      || document.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]');
+    if (layer && replayLayeredTransition(layer, { ...transition, effect }, transitionArtifactHost)) {
+      studioTransitionGeneration += 1;
+      flushSync(update);
+      return true;
+    }
+  }
   if (!supportsStudioSlideTransitions()) return false;
 
   const option = String(transition?.option || transition?.direction || 'right');
   const duration = Math.max(100, (Number(transition?.duration) || 0.7) * 1000);
   const root = document.documentElement;
-  const generation = ++studioTransitionGeneration;
   activeStudioViewTransition?.skipTransition?.();
   activeStudioViewTransition = null;
+  activeStudioViewTransitionCleanup?.();
+  activeStudioViewTransitionCleanup = null;
+  const generation = ++studioTransitionGeneration;
   [...root.classList].filter((name) => name.startsWith('studio-vt-')).forEach((name) => root.classList.remove(name));
   root.classList.add(`studio-vt-${effect}`, `studio-vt-${effect}-${option}`);
   root.style.setProperty('--studio-vt-duration', `${duration}ms`);
+  const previousViewTransitionName = viewTransitionTarget?.style.getPropertyValue('view-transition-name') ?? '';
+  const targetAlreadyPreviewing = viewTransitionTarget?.classList.contains('studio-transition-previewing') ?? false;
+  viewTransitionTarget?.classList.add('studio-transition-previewing');
+  if (viewTransitionTarget) viewTransitionTarget.style.setProperty('view-transition-name', 'studio-slide');
   const fromLeft = option.includes('left');
   const fromTop = option.includes('top');
   root.style.setProperty('--studio-vt-x', fromLeft ? '-100%' : option.includes('right') ? '100%' : '0%');
@@ -318,6 +370,13 @@ export const startStudioSlideTransition = (
   const clear = () => {
     if (generation !== studioTransitionGeneration) return;
     activeStudioViewTransition = null;
+    if (activeStudioViewTransitionCleanup === clear) activeStudioViewTransitionCleanup = null;
+    if (viewTransitionTarget?.style.getPropertyValue('view-transition-name') === 'studio-slide') {
+      if (previousViewTransitionName) viewTransitionTarget.style.setProperty('view-transition-name', previousViewTransitionName);
+      else viewTransitionTarget.style.removeProperty('view-transition-name');
+    }
+    if (viewTransitionTarget && !targetAlreadyPreviewing)
+      viewTransitionTarget.classList.remove('studio-transition-previewing');
     root.classList.remove(`studio-vt-${effect}`, `studio-vt-${effect}-${option}`);
     for (const property of ['--studio-vt-duration', '--studio-vt-x', '--studio-vt-y', '--studio-vt-sign', '--studio-vt-cube-out-rotation', '--studio-vt-cube-in-rotation', '--studio-vt-clip-from', '--studio-bars-start', '--studio-bars-middle', '--studio-bars-end', '--studio-blinds-mask', '--studio-blind-width', '--studio-checker-mask', '--studio-honeycomb-mask', '--studio-glitter-mask', '--studio-fracture-mask'])
       root.style.removeProperty(property);
@@ -326,18 +385,19 @@ export const startStudioSlideTransition = (
     const viewTransition = viewDocument.startViewTransition?.(() => flushSync(update));
     if (!viewTransition) { clear(); return false; }
     activeStudioViewTransition = viewTransition;
+    activeStudioViewTransitionCleanup = clear;
     void viewTransition.finished.then(clear, clear);
-    window.setTimeout(clear, duration + 300);
+    window.setTimeout(() => {
+      if (generation !== studioTransitionGeneration || activeStudioViewTransition !== viewTransition) return;
+      viewTransition.skipTransition?.();
+      clear();
+    }, duration + 500);
     return true;
   } catch {
     clear();
     return false;
   }
 };
-
-const LAYERED_PREVIEW_EFFECTS = new Set([
-  'fracture', 'crush', 'peel-off', 'page-curl', 'airplane', 'origami', 'cube',
-]);
 
 const clearTransitionPreviewState = (element: HTMLElement) => {
   element.classList.remove('studio-transition-previewing');
@@ -363,14 +423,39 @@ const previewClone = (element: HTMLElement) => {
 const replayLayeredTransition = (
   element: HTMLElement,
   transition: Record<string, unknown>,
+  stableArtifactContainer?: HTMLElement | null,
 ) => {
   const effect = String(transition.effect || '');
-  if (!LAYERED_PREVIEW_EFFECTS.has(effect) || !element.parentElement || typeof element.animate !== 'function') return false;
+  if (!LAYERED_TRANSITION_EFFECTS.has(effect) || (!element.parentElement && !stableArtifactContainer) || typeof element.animate !== 'function') return false;
+  if (element.querySelector('model-viewer,canvas,iframe,video,audio')) return false;
   clearTransitionPreviewState(element);
+  stableArtifactContainer?.querySelectorAll('[data-studio-transition-host="true"]')
+    .forEach((artifact) => artifact.remove());
   element.classList.add('studio-transition-previewing');
   element.style.animation = 'none';
   element.style.opacity = '0';
   const parent = element.parentElement;
+  let artifactHost: HTMLElement | null = null;
+  let animationParent: HTMLElement | null = parent;
+  if (stableArtifactContainer) {
+    const slideRect = element.getBoundingClientRect();
+    const hostRect = stableArtifactContainer.getBoundingClientRect();
+    artifactHost = document.createElement('div');
+    artifactHost.dataset.studioTransitionHost = 'true';
+    Object.assign(artifactHost.style, {
+      position: 'absolute',
+      left: `${slideRect.left - hostRect.left}px`,
+      top: `${slideRect.top - hostRect.top}px`,
+      width: `${slideRect.width}px`,
+      height: `${slideRect.height}px`,
+      zIndex: '80',
+      pointerEvents: 'none',
+      overflow: 'visible',
+    });
+    stableArtifactContainer.append(artifactHost);
+    animationParent = artifactHost;
+  }
+  if (!animationParent) return false;
   const duration = Math.max(180, (Number(transition.duration) || 0.9) * 1000);
   const easing = String(transition.easing || 'cubic-bezier(.22,.75,.18,1)');
   const option = String(transition.option || transition.direction || 'right');
@@ -394,7 +479,7 @@ const replayLayeredTransition = (
         triangles.forEach((clipPath, half) => {
           const piece = previewClone(element);
           piece.style.clipPath = clipPath;
-          parent.append(piece);
+          animationParent.append(piece);
           const seed = cell * 2 + half;
           const flightX = (column - 1.5) * 74 + (half ? -28 : 28);
           animations.push(piece.animate([
@@ -407,7 +492,7 @@ const replayLayeredTransition = (
     }
   } else {
     const clone = previewClone(element);
-    parent.append(clone);
+    animationParent.append(clone);
     const frames: Keyframe[] = effect === 'crush'
       ? [{ opacity: 1, transform: 'scale(1)' }, { opacity: .75, offset: .45, transform: `perspective(1200px) scaleX(.55) scaleY(1.08) rotateY(${sign * 12}deg)` }, { opacity: 0, transform: `perspective(1200px) scaleX(.03) scaleY(1.35) rotateY(${sign * 70}deg)` }]
       : effect === 'peel-off'
@@ -422,11 +507,14 @@ const replayLayeredTransition = (
     animations.push(clone.animate(frames, { duration, easing, fill: 'both' }));
   }
 
-  window.setTimeout(() => { element.style.opacity = '1'; }, Math.max(0, duration - 60));
+  if (!stableArtifactContainer)
+    window.setTimeout(() => { if (element.isConnected) element.style.opacity = '1'; }, Math.max(0, duration - 60));
   void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
     animations.forEach((animation) => animation.cancel());
+    artifactHost?.remove();
     clearTransitionPreviewState(element);
   });
+  if (artifactHost) window.setTimeout(() => artifactHost?.remove(), duration + 500);
   return true;
 };
 
@@ -455,7 +543,7 @@ const replayDynamicContentTransition = (
   const seen = new Set<string>();
   const targets = candidates.filter((candidate) => {
     const id = (candidate as HTMLElement).dataset.elementId || candidate.getAttribute('data-element-id') || '';
-    if (!id || seen.has(id)) return false;
+    if (!id || seen.has(id) || (candidate as HTMLElement).dataset.transitionReady === 'false') return false;
     seen.add(id);
     return true;
   });
@@ -600,6 +688,17 @@ export const replayStudioTransition = (
     ? { ...transition, effect: randomTransitionEffect() }
     : transition || {};
   if (replayDynamicContentTransition(animationTarget, resolvedTransition)) return;
+  if (LAYERED_TRANSITION_EFFECTS.has(String(resolvedTransition.effect || ''))
+    && replayLayeredTransition(animationTarget, resolvedTransition)) return;
+  if (studioUsesViewTransition(resolvedTransition)) {
+    const previewRun = String(Number(animationTarget.dataset.studioTransitionPreviewRun || 0) + 1);
+    const started = startStudioSlideTransition(
+      () => { animationTarget.dataset.studioTransitionPreviewRun = previewRun; },
+      resolvedTransition,
+      animationTarget,
+    );
+    if (started) return;
+  }
   if (replayLayeredTransition(animationTarget, resolvedTransition)) return;
   clearTransitionPreviewState(animationTarget);
   animationTarget.classList.add('studio-transition-previewing');
