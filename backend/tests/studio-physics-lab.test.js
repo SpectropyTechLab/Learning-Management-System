@@ -79,7 +79,7 @@ test('Physics Lab is a permanent editor workflow with filters, versioning, and p
   assert.match(editor, /fitAvailableSpace: true/);
   assert.doesNotMatch(editor, /RIBBON_QUICK_START_LIMIT/);
   assert.match(editor, /const visibleLabs = labs\.slice/);
-  assert.match(editor, /Array\.from\(\{ length: labRibbonPageSize \}/);
+  assert.match(editor, /Array\.from\(\s*\{\s*length:\s*labRibbonPageSize\s*\}/);
   assert.match(editor, /openActiveLab\(entry\.id\)/);
   assert.match(editor, /quickActivities/);
   const exported = fs.readFileSync(frontend('components', 'physicsLabExport.ts'), 'utf8');

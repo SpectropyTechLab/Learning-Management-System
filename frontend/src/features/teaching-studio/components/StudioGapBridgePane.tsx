@@ -44,7 +44,7 @@ type Props = {
   onBridgesChange: (screenId: number, bridges: StudioGapBridge[]) => void;
   onOpenChild: (bridge: StudioGapBridge) => void;
   command?: {
-    action: 'add-new' | 'select-existing' | 'rename' | 'preview' | 'delete';
+    action: 'add-new' | 'select-existing' | 'preview' | 'delete';
     token: number;
   } | null;
   onCommandHandled?: () => void;
@@ -110,13 +110,13 @@ function PublishedScreenCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 p-3 text-left transition ${nested ? 'ml-7 w-[calc(100%-1.75rem)] border-l-2 border-violet-200' : ''} ${selected ? 'bg-blue-50 ring-2 ring-inset ring-blue-500' : 'hover:bg-slate-50'}`}
+      className={`flex w-full items-center gap-3 p-3 text-left transition ${nested ? 'ml-7 w-[calc(100%-1.75rem)] border-l-2 border-blue-200' : ''} ${selected ? 'bg-blue-50 ring-2 ring-inset ring-blue-500' : 'hover:bg-slate-50'}`}
     >
       <StudioPublishedScreenThumbnail target={target} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span
-            className={`rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase ${isChild ? 'bg-violet-100 text-violet-800' : 'bg-blue-100 text-blue-800'}`}
+            className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-blue-900"
           >
             {isChild ? 'Gap Bridge child' : `Screen ${target.screen_number ?? '—'}`}
           </span>
@@ -128,7 +128,7 @@ function PublishedScreenCard({
           {target.screen_title || `Screen ${target.screen_number ?? target.screen_id}`}
         </span>
         {isChild ? (
-          <span className="mt-1 block truncate text-[10px] text-violet-700">
+          <span className="mt-1 block truncate text-[10px] text-blue-900">
             Parent: Screen {target.parent_screen_number ?? '—'} ·{' '}
             {target.parent_screen_title || 'Untitled Screen'}
           </span>
@@ -160,7 +160,6 @@ export default function StudioGapBridgePane({
   const [busy, setBusy] = useState(false);
   const [menuId, setMenuId] = useState<number | null>(null);
   const [dialog, setDialog] = useState<'child' | 'external' | 'rename' | null>(null);
-  const [replacementId, setReplacementId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [childTitle, setChildTitle] = useState('');
   const [targets, setTargets] = useState<StudioGapBridgeTarget[]>([]);
@@ -178,6 +177,7 @@ export default function StudioGapBridgePane({
   const [draggingBridgeId, setDraggingBridgeId] = useState<number | null>(null);
   const bridgeOrderRef = useRef<number[]>([]);
   const dragStartOrderRef = useRef<number[]>([]);
+  const reloadRequestRef = useRef(0);
 
   useEffect(() => {
     if (menuId === null) return;
@@ -202,18 +202,24 @@ export default function StudioGapBridgePane({
     [onBridgesChange, onRevisionChange, sourceScreenId],
   );
   const reload = useCallback(async () => {
+    const requestId = ++reloadRequestRef.current;
     setLoading(true);
     try {
       const result = await listStudioGapBridges(sourceScreenId);
+      if (requestId !== reloadRequestRef.current) return;
       publish(result.bridges, result.source_session_revision_no);
     } catch (error) {
+      if (requestId !== reloadRequestRef.current) return;
       toast.error(getStudioErrorDetails(error).message);
     } finally {
-      setLoading(false);
+      if (requestId === reloadRequestRef.current) setLoading(false);
     }
   }, [publish, sourceScreenId]);
   useEffect(() => {
     void reload();
+    return () => {
+      reloadRequestRef.current += 1;
+    };
   }, [reload]);
 
   useEffect(() => {
@@ -221,22 +227,37 @@ export default function StudioGapBridgePane({
     let active = true;
     const timer = window.setTimeout(() => {
       setTargetsLoading(true);
-      void searchStudioGapBridgeTargets(sourceSessionId, { ...filters, limit: 100 })
-        .then((result) => {
+      void (async () => {
+        const allTargets: StudioGapBridgeTarget[] = [];
+        const visitedCursors = new Set<string>();
+        let cursor: string | null = null;
+        let latestResult: Awaited<ReturnType<typeof searchStudioGapBridgeTargets>> | null = null;
+        do {
+          latestResult = await searchStudioGapBridgeTargets(sourceSessionId, {
+            ...filters,
+            cursor,
+            limit: 100,
+          });
           if (!active) return;
-          setTargets(result.targets);
-          setFacets(result.facets || emptyFacets);
-          setTargetContext(result.context || null);
-          setSelectedTarget((current) =>
-            current &&
-            result.targets.some(
-              (target) =>
-                target.screen_id === current.screen_id && target.session_id === current.session_id,
-            )
-              ? current
-              : null,
-          );
-        })
+          allTargets.push(...latestResult.targets);
+          cursor = latestResult.next_cursor;
+          if (cursor && visitedCursors.has(cursor)) break;
+          if (cursor) visitedCursors.add(cursor);
+        } while (cursor);
+        if (!latestResult || !active) return;
+        setTargets(allTargets);
+        setFacets(latestResult.facets || emptyFacets);
+        setTargetContext(latestResult.context || null);
+        setSelectedTarget((current) =>
+          current &&
+          allTargets.some(
+            (target) =>
+              target.screen_id === current.screen_id && target.session_id === current.session_id,
+          )
+            ? current
+            : null,
+        );
+      })()
         .catch((error) => active && toast.error(getStudioErrorDetails(error).message))
         .finally(() => active && setTargetsLoading(false));
     }, 300);
@@ -248,14 +269,12 @@ export default function StudioGapBridgePane({
 
   const resetDialog = () => {
     setDialog(null);
-    setReplacementId(null);
     setName('');
     setChildTitle('');
     setSelectedTarget(null);
     setFilters({});
   };
   const openAdd = (kind: 'child' | 'external') => {
-    setReplacementId(null);
     setName('');
     setChildTitle('');
     setSelectedTarget(null);
@@ -267,10 +286,6 @@ export default function StudioGapBridgePane({
     if (!command) return;
     if (command.action === 'add-new') openAdd('child');
     if (command.action === 'select-existing') openAdd('external');
-    if (command.action === 'rename' && selectedBridge) {
-      setName(selectedBridge.name);
-      setDialog('rename');
-    }
     if (command.action === 'preview' && selectedBridge) preview(selectedBridge);
     if (command.action === 'delete' && selectedBridge) void remove(selectedBridge);
     onCommandHandled?.();
@@ -314,68 +329,22 @@ export default function StudioGapBridgePane({
           result.source_session_revision_no,
         );
       } else if (dialog === 'child') {
-        if (replacementId) {
-          const existing = bridges.find((bridge) => bridge.id === replacementId);
-          if (
-            existing?.target_kind === 'child' &&
-            !window.confirm(
-              'Replace and permanently delete the current child Screen and its draft content?',
-            )
-          )
-            return;
-          const result = await updateStudioGapBridge(replacementId, {
-            name: normalized,
-            target_kind: 'child',
-            title: childTitle.trim() || normalized,
-            replace_child: true,
-            source_session_revision_no: revision,
-          });
-          publish(
-            bridges.map((bridge) => (bridge.id === replacementId ? result.gap_bridge : bridge)),
-            result.source_session_revision_no,
-          );
-          onOpenChild(result.gap_bridge);
-        } else {
-          const result = await createStudioChildGapBridge(sourceScreenId, {
-            name: normalized,
-            title: childTitle.trim() || normalized,
-            source_session_revision_no: revision,
-          });
-          publish([...bridges, result.gap_bridge], result.source_session_revision_no);
-          onSelectBridge(result.gap_bridge.id);
-          onOpenChild(result.gap_bridge);
-        }
+        const result = await createStudioChildGapBridge(sourceScreenId, {
+          name: normalized,
+          title: childTitle.trim() || normalized,
+          source_session_revision_no: revision,
+        });
+        publish([...bridges, result.gap_bridge], result.source_session_revision_no);
+        onSelectBridge(result.gap_bridge.id);
+        onOpenChild(result.gap_bridge);
       } else if (dialog === 'external' && selectedTarget) {
-        const existing = replacementId
-          ? bridges.find((bridge) => bridge.id === replacementId)
-          : null;
-        if (
-          existing?.target_kind === 'child' &&
-          !window.confirm(
-            'Replace and permanently delete the current child Screen and its draft content?',
-          )
-        )
-          return;
-        const result = replacementId
-          ? await updateStudioGapBridge(replacementId, {
-              name: normalized,
-              target_kind: 'external',
-              external_session_id: selectedTarget.session_id,
-              external_screen_id: selectedTarget.screen_id,
-              source_session_revision_no: revision,
-            })
-          : await createStudioExternalGapBridge(sourceScreenId, {
-              name: normalized,
-              external_session_id: selectedTarget.session_id,
-              external_screen_id: selectedTarget.screen_id,
-              source_session_revision_no: revision,
-            });
-        publish(
-          replacementId
-            ? bridges.map((bridge) => (bridge.id === replacementId ? result.gap_bridge : bridge))
-            : [...bridges, result.gap_bridge],
-          result.source_session_revision_no,
-        );
+        const result = await createStudioExternalGapBridge(sourceScreenId, {
+          name: normalized,
+          external_session_id: selectedTarget.session_id,
+          external_screen_id: selectedTarget.screen_id,
+          source_session_revision_no: revision,
+        });
+        publish([...bridges, result.gap_bridge], result.source_session_revision_no);
         onSelectBridge(result.gap_bridge.id);
       }
       resetDialog();
@@ -459,15 +428,6 @@ export default function StudioGapBridgePane({
     }
   };
 
-  const startReplacement = (bridge: StudioGapBridge, kind: 'child') => {
-    setReplacementId(bridge.id);
-    setName(bridge.name);
-    setChildTitle('');
-    setSelectedTarget(null);
-    setMenuId(null);
-    setDialog(kind);
-  };
-
   const groupedTargets = useMemo(() => {
     const topics = new Map<
       number,
@@ -503,7 +463,7 @@ export default function StudioGapBridgePane({
     <div className="space-y-3">
       <header>
         <div className="flex items-center gap-2">
-          <GitBranch size={17} className="text-violet-700" />
+          <GitBranch size={17} className="text-blue-900" />
           <h2 className="font-bold text-slate-950">Gap Bridges</h2>
         </div>
         <p className="mt-1 truncate text-xs text-slate-500">{sourceScreenTitle}</p>
@@ -551,7 +511,7 @@ export default function StudioGapBridgePane({
               key={bridge.id}
               data-gap-bridge-id={bridge.id}
               onClick={() => onSelectBridge(bridge.id)}
-              className={`relative ml-3 rounded-xl border p-3 ${draggingBridgeId === bridge.id ? 'border-violet-600 bg-violet-100 opacity-70' : selectedBridgeId === bridge.id ? 'border-violet-500 bg-violet-50' : 'border-slate-200 bg-white'}`}
+              className={`relative ml-3 rounded-xl border p-3 ${draggingBridgeId === bridge.id ? 'border-blue-700 bg-blue-100 opacity-70' : selectedBridgeId === bridge.id ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}
             >
               <div className="flex items-start gap-2">
                 <button
@@ -568,11 +528,11 @@ export default function StudioGapBridgePane({
                     setDraggingBridgeId(bridge.id);
                     event.currentTarget.setPointerCapture(event.pointerId);
                   }}
-                  className="mt-0.5 flex h-6 w-5 touch-none items-center justify-center rounded text-violet-600 hover:bg-violet-100 disabled:opacity-40"
+                  className="mt-0.5 flex h-6 w-5 touch-none items-center justify-center rounded text-blue-900 hover:bg-blue-100 disabled:opacity-40"
                 >
                   <GripVertical size={15} />
                 </button>
-                <ChevronRight size={14} className="mt-1 text-violet-600" />
+                <ChevronRight size={14} className="mt-1 text-blue-900" />
                 <button type="button" className="min-w-0 flex-1 text-left">
                   <span className="block truncate text-sm font-bold">{bridge.name}</span>
                   <span className="block truncate text-[10px] text-slate-500">
@@ -621,13 +581,6 @@ export default function StudioGapBridgePane({
                   >
                     <Eye size={13} />
                     Preview
-                  </button>
-                  <button
-                    className="flex w-full gap-2 rounded px-2 py-2 hover:bg-slate-50"
-                    onClick={() => startReplacement(bridge, 'child')}
-                  >
-                    <Plus size={13} />
-                    Replace with child
                   </button>
                   <button
                     className="flex w-full gap-2 rounded px-2 py-2 text-red-700 hover:bg-red-50"

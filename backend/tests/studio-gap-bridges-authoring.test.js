@@ -197,9 +197,8 @@ test('renaming a mapping preserves its target and increments the source Session 
   };
   const boundary = transactionDb((sql, params) => {
     if (sql.includes('FROM gap_bridges gb') && sql.includes('FOR UPDATE OF gb, sc, se')) return { rows: [bridge] };
-    if (sql.includes('FROM screens sc') && sql.includes('FOR UPDATE OF sc, se')) return { rows: [sourceRow] };
     if (sql.startsWith('UPDATE gap_bridges SET name')) {
-      assert.deepEqual(params.slice(0, 5), ['New name', 'external', null, 70, 301]);
+      assert.deepEqual(params, ['New name', 12]);
       return { rows: [{ ...bridge, name: 'New name' }] };
     }
     if (sql.startsWith('UPDATE sessions')) return { rows: [{ id: 25, status: 'draft', revision_no: 7 }] };
@@ -216,42 +215,18 @@ test('renaming a mapping preserves its target and increments the source Session 
   assert.equal(result.source_session_revision_no, 7);
 });
 
-test('replacing a local child creates the new child before deleting the old owned Screen', async () => {
-  const bridge = {
-    id: 12, source_session_id: 25, source_screen_id: 40, name: 'Local help',
-    target_kind: 'child', child_screen_id: 91, child_title: 'Old child',
-    external_session_id: null, external_screen_id: null, display_order: 0,
-    client_id: 7, screen_kind: 'main', session_revision_no: 6,
-  };
-  const boundary = transactionDb((sql, params) => {
-    if (sql.includes('FROM gap_bridges gb') && sql.includes('FOR UPDATE OF gb, sc, se')) return { rows: [bridge] };
-    if (sql.includes('FROM screens sc') && sql.includes('FOR UPDATE OF sc, se')) return { rows: [sourceRow] };
-    if (sql.startsWith('INSERT INTO screens')) return { rows: [{ id: 92, title: 'New child' }] };
-    if (sql.startsWith('UPDATE gap_bridges SET name')) {
-      assert.deepEqual(params.slice(0, 5), ['Local help', 'child', 92, null, null]);
-      return { rows: [{ ...bridge, child_screen_id: 92 }] };
-    }
-    if (sql.startsWith('DELETE FROM screen_script_revisions')) return { rows: [] };
-    if (sql.startsWith('DELETE FROM screens')) {
-      assert.deepEqual(params, [91]);
-      return { rows: [] };
-    }
-    if (sql.startsWith('UPDATE sessions')) return { rows: [{ id: 25, status: 'draft', revision_no: 7 }] };
-    throw new Error(`Unexpected SQL: ${sql}`);
-  });
-  const result = await updateGapBridge({
-    gapBridgeId: 12,
-    body: {
-      target_kind: 'child', title: 'New child', replace_child: true,
-      source_session_revision_no: 6,
-    },
-    user: author,
-    getDbClient: boundary.getDbClient,
-  });
-  assert.equal(result.gap_bridge.target.screen_id, 92);
-  const statements = boundary.calls.map((call) => call.sql);
-  assert.ok(statements.findIndex((sql) => sql.startsWith('INSERT INTO screens'))
-    < statements.indexOf('DELETE FROM screens WHERE id = $1'));
+test('target replacement is rejected so authors delete and recreate the Gap Bridge', async () => {
+  await assert.rejects(
+    updateGapBridge({
+      gapBridgeId: 12,
+      body: {
+        name: 'Local help', target_kind: 'child', title: 'New child', replace_child: true,
+        source_session_revision_no: 6,
+      },
+      user: author,
+    }),
+    (error) => error.status === 422 && error.code === 'GAP_BRIDGE_TARGET_REPLACEMENT_UNSUPPORTED',
+  );
 });
 
 test('deleting a local mapping also deletes its exclusively owned child in one transaction', async () => {

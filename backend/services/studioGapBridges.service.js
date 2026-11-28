@@ -308,71 +308,34 @@ export const updateGapBridge = async ({ gapBridgeId: rawBridgeId, body = {}, use
   assertAuthor(user);
   const bridgeId = parseId(rawBridgeId, 'Gap Bridge ID');
   const revision = parseRevision(body.source_session_revision_no);
-  const name = optionalText(body.name, 'name', MAX_NAME_LENGTH);
-  if (body.replace_child !== undefined && typeof body.replace_child !== 'boolean') {
-    throw new AppError('replace_child must be a boolean', 422);
+  const replacementFields = [
+    'target_kind',
+    'title',
+    'replace_child',
+    'external_session_id',
+    'external_screen_id',
+  ];
+  if (replacementFields.some((field) => body[field] !== undefined)) {
+    throw new AppError(
+      'Gap Bridge targets cannot be replaced; delete the Gap Bridge and create a new one',
+      422,
+      'GAP_BRIDGE_TARGET_REPLACEMENT_UNSUPPORTED',
+    );
   }
-  if (name === undefined && body.target_kind === undefined && body.external_session_id === undefined && body.external_screen_id === undefined) {
-    throw new AppError('Provide a name or replacement target', 422);
-  }
+  const name = requiredText(body.name, 'name', MAX_NAME_LENGTH);
   return runTransaction(async (db) => {
     const bridge = await loadBridge(db, bridgeId, user, { lock: true });
     assertCurrentRevision(bridge, revision);
-    const source = await loadSourceScreen(db, bridge.source_screen_id, user, { lock: true });
-    let targetKind = bridge.target_kind;
-    let childScreenId = bridge.child_screen_id;
-    let externalSessionId = bridge.external_session_id;
-    let externalScreenId = bridge.external_screen_id;
-    let externalTarget = null;
-    let childTitle = bridge.child_title ?? null;
-    const oldChildId = bridge.target_kind === 'child' ? Number(bridge.child_screen_id) : null;
-
-    const requestedKind = body.target_kind ||
-      (body.external_session_id !== undefined || body.external_screen_id !== undefined ? 'external' : null);
-    if (requestedKind !== null && !['external', 'child'].includes(requestedKind)) {
-      throw new AppError('target_kind must be external or child', 422);
-    }
-    if (requestedKind === 'external') {
-      externalSessionId = parseId(body.external_session_id, 'external_session_id');
-      externalScreenId = parseId(body.external_screen_id, 'external_screen_id');
-      externalTarget = await loadLatestPublishedTarget(db, { externalSessionId, externalScreenId, source });
-      targetKind = 'external';
-      childScreenId = null;
-    } else if (requestedKind === 'child' && (bridge.target_kind !== 'child' || body.replace_child === true)) {
-      const title = optionalText(body.title, 'title', MAX_TITLE_LENGTH) || name || bridge.name;
-      const child = await db.query(
-        `INSERT INTO screens (
-           client_id, session_id, title, screen_number, screen_settings_json,
-           display_order, created_by, creation_mode, revision_no, screen_kind, parent_screen_id
-         ) VALUES ($1, $2, $3, NULL, '{}'::jsonb, 0, $4, 'blank', 1, 'gap_bridge_child', $5)
-         RETURNING id, title`,
-        [source.client_id, source.session_id, title, user?.id || null, source.id],
-      );
-      targetKind = 'child';
-      childScreenId = child.rows[0].id;
-      childTitle = child.rows[0].title;
-      externalSessionId = null;
-      externalScreenId = null;
-    }
-
     const updated = await db.query(
       `UPDATE gap_bridges
-       SET name = $1, target_kind = $2, child_screen_id = $3,
-           external_session_id = $4, external_screen_id = $5, updated_at = NOW()
-       WHERE id = $6
+       SET name = $1, updated_at = NOW()
+       WHERE id = $2
        RETURNING *`,
-      [name || bridge.name, targetKind, childScreenId, externalSessionId, externalScreenId, bridgeId],
+      [name, bridgeId],
     );
-    if (oldChildId && Number(childScreenId) !== oldChildId) {
-      await db.query('DELETE FROM screen_script_revisions WHERE screen_id = $1', [oldChildId]);
-      await db.query('DELETE FROM screens WHERE id = $1', [oldChildId]);
-    }
-    const session = await returnSessionToDraft(source.session_id, db);
+    const session = await returnSessionToDraft(bridge.source_session_id, db);
     return {
-      gap_bridge: bridgeView(
-        { ...updated.rows[0], child_title: childTitle },
-        externalTarget ? { ...externalTarget, available: true } : null,
-      ),
+      gap_bridge: bridgeView({ ...bridge, ...updated.rows[0] }),
       source_session_revision_no: Number(session.revision_no),
     };
   }, getDbClient);

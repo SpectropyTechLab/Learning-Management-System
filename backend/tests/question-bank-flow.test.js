@@ -40,8 +40,8 @@ const parsePassageInsertColumns = (sql) => {
 const createMockDb = () => {
   const data = {
     programs: [
-      { id: 401, client_id: 101, name: 'STEM' },
-      { id: 402, client_id: 202, name: 'STEM' },
+      { id: 401, client_id: 101, school_id: 10001, name: 'STEM' },
+      { id: 402, client_id: 202, school_id: 10002, name: 'STEM' },
     ],
     grades: [
       { id: 501, program_id: 401, grade_number: 11 },
@@ -56,15 +56,15 @@ const createMockDb = () => {
       { id: 2002, subject_id: 1002, client_id: 202, name: 'Thermodynamics' },
     ],
     questionFolders: [
-      { id: 701, client_id: 101, school_id: null, is_active: true, name: 'Tenant A Folder' },
-      { id: 702, client_id: 101, school_id: null, is_active: true, name: 'Tenant A Folder Two' },
-      { id: 801, client_id: 202, school_id: null, is_active: true, name: 'Tenant B Folder' },
+      { id: 701, client_id: 101, school_id: 10001, is_active: true, name: 'Tenant A Folder' },
+      { id: 702, client_id: 101, school_id: 10001, is_active: true, name: 'Tenant A Folder Two' },
+      { id: 801, client_id: 202, school_id: 10002, is_active: true, name: 'Tenant B Folder' },
     ],
     comprehensionPassages: [
       {
         id: 901,
         client_id: 101,
-        school_id: null,
+        school_id: 10001,
         title: { html: '<p>Heat Transfer Passage</p>' },
         passage_content: { html: '<p>Passage body</p>' },
         subject_id: 1001,
@@ -81,10 +81,13 @@ const createMockDb = () => {
 
   const enrichQuestion = (question) => {
     const subject = data.subjects.find((item) => item.id === question.subject_id) ?? null;
+    const program = data.programs.find((item) => item.id === subject?.program_id) ?? null;
     return {
       ...question,
       grade_id: subject?.grade_id ?? null,
       program_id: subject?.program_id ?? null,
+      program_client_id: program?.client_id ?? question.client_id ?? null,
+      program_school_id: program?.school_id ?? null,
     };
   };
 
@@ -100,6 +103,16 @@ const createMockDb = () => {
 
     if (normalized.includes('q.school_id is null')) {
       rows = rows.filter((question) => question.school_id == null);
+    }
+
+    const ownedProgramSchoolMatch = normalized.match(/owned_programs\.school_id = any\(\$(\d+)\)/);
+    if (ownedProgramSchoolMatch) {
+      const schoolIds = params[Number(ownedProgramSchoolMatch[1]) - 1] ?? [];
+      rows = rows.filter((question) => {
+        const subject = data.subjects.find((item) => item.id === question.subject_id);
+        const program = data.programs.find((item) => item.id === subject?.program_id);
+        return schoolIds.map(Number).includes(Number(program?.school_id));
+      });
     }
 
     const idMatch = normalized.match(/q\.id = \$(\d+)/);
@@ -172,6 +185,14 @@ const createMockDb = () => {
         return { rows: [] };
       }
 
+      if (normalized.startsWith('create table if not exists question_bank_school_assignments')) {
+        return { rows: [] };
+      }
+
+      if (normalized.startsWith('create index if not exists idx_question_bank_school_assignments_')) {
+        return { rows: [] };
+      }
+
       if (normalized.includes("from information_schema.columns") && normalized.includes("table_name = 'questions'")) {
         return {
           rows: [
@@ -185,6 +206,50 @@ const createMockDb = () => {
 
       if (normalized.includes("from information_schema.tables") && normalized.includes("table_name = 'comprehension_passages'")) {
         return { rows: [{ '?column?': 1 }] };
+      }
+
+      if (
+        normalized.includes('select pg_get_constraintdef(c.oid) as definition') &&
+        normalized.includes("c.conname = 'questions_question_type_check'")
+      ) {
+        return {
+          rows: [{
+            definition: "CHECK (question_type::text = ANY (ARRAY['mcq_single', 'assertion_reasoning']))",
+          }],
+        };
+      }
+
+      if (normalized.startsWith('select id, client_id, school_id from programs where id = $1 limit 1')) {
+        const program = data.programs.find((item) => Number(item.id) === Number(params[0]));
+        return {
+          rows: program
+            ? [{ id: program.id, client_id: program.client_id, school_id: program.school_id }]
+            : [],
+        };
+      }
+
+      if (normalized.startsWith('select id from programs where id = $1 and client_id = $2')) {
+        const program = data.programs.find(
+          (item) => Number(item.id) === Number(params[0]) && Number(item.client_id) === Number(params[1]),
+        );
+        return { rows: program ? [{ id: program.id }] : [] };
+      }
+
+      if (
+        normalized.startsWith('select g.id, g.program_id from grades g join programs p on p.id = g.program_id') &&
+        normalized.includes('where g.grade_number = $1 and g.program_id = $2 and p.client_id = $3')
+      ) {
+        const grade = data.grades.find(
+          (item) =>
+            Number(item.grade_number) === Number(params[0]) &&
+            Number(item.program_id) === Number(params[1]),
+        );
+        const program = data.programs.find((item) => Number(item.id) === Number(grade?.program_id));
+        return {
+          rows: grade && Number(program?.client_id) === Number(params[2])
+            ? [{ id: grade.id, program_id: grade.program_id }]
+            : [],
+        };
       }
 
       if (normalized.includes('from subjects s left join grades g on g.id = s.grade_id where s.id = $1')) {
@@ -219,7 +284,14 @@ const createMockDb = () => {
       }
 
       if (normalized.startsWith('select school_id from school_memberships where user_id = $1')) {
-        return { rows: [] };
+        const schoolIdByUserId = new Map([
+          [11, 10001],
+          [22, 10002],
+          [31, 10001],
+          [32, 10002],
+        ]);
+        const schoolId = schoolIdByUserId.get(Number(params[0]));
+        return { rows: schoolId ? [{ school_id: schoolId }] : [] };
       }
 
       if (normalized.startsWith('select id, client_id, school_id, is_active from question_folders where id = $1 limit 1')) {
@@ -416,8 +488,8 @@ test('Question Bank flow: create, approve, search, and isolate tenants', async (
 
   const teacherTenantA = { id: 11, role: 'teacher', client_id: 101 };
   const teacherTenantB = { id: 22, role: 'teacher', client_id: 202 };
-  const adminTenantA = { id: 31, role: 'client_admin', client_id: 101 };
-  const adminTenantB = { id: 32, role: 'client_admin', client_id: 202 };
+  const adminTenantA = { id: 31, role: 'school_owner', client_id: 101 };
+  const adminTenantB = { id: 32, role: 'school_owner', client_id: 202 };
 
   const createReq = {
     user: teacherTenantA,
@@ -561,7 +633,7 @@ test('Question rejection clears approval fields and remains atomic', async (t) =
   });
 
   const teacherTenantA = { id: 11, role: 'teacher', client_id: 101 };
-  const adminTenantA = { id: 31, role: 'client_admin', client_id: 101 };
+  const adminTenantA = { id: 31, role: 'school_owner', client_id: 101 };
 
   const createRes = makeRes();
   await createQuestion(
@@ -799,8 +871,8 @@ test('Bulk upload can create one linked passage and reuse it across multiple chi
       buffer: Buffer.from(
         [
           'Type,Question,Options,Correct Answer,Solution,Program,Grade,Subject,Chapter,Topic,Has Comprehension,Passage Key,Passage Title,Passage Content,Passage Action',
-          'mcq_single,What is the main idea?,Forest life;Ocean life;Desert life;Mountain life,A,The passage focuses on forest life.,401,501,1001,2001,,yes,P1,Rainforest Reading,"<p>Rainforests support rich biodiversity.</p>",create',
-          'mcq_single,Which habitat is described?,Forest;Ocean;Desert;Tundra,A,The habitat is forest.,401,501,1001,2001,,yes,P1,Rainforest Reading,"<p>Rainforests support rich biodiversity.</p>",create',
+          'mcq_single,What is the main idea?,Forest life;Ocean life;Desert life;Mountain life,A,The passage focuses on forest life.,401,11,1001,2001,,yes,P1,Rainforest Reading,"<p>Rainforests support rich biodiversity.</p>",create',
+          'mcq_single,Which habitat is described?,Forest;Ocean;Desert;Tundra,A,The habitat is forest.,401,11,1001,2001,,yes,P1,Rainforest Reading,"<p>Rainforests support rich biodiversity.</p>",create',
         ].join('\n'),
         'utf8'
       ),
@@ -810,7 +882,7 @@ test('Bulk upload can create one linked passage and reuse it across multiple chi
 
   await bulkUploadQuestions(bulkReq, bulkRes);
 
-  assert.equal(bulkRes.statusCode, 200);
+  assert.equal(bulkRes.statusCode, 200, JSON.stringify(bulkRes.body));
   assert.equal(bulkRes.body.inserted, 2);
   assert.equal(bulkRes.body.errors.length, 0);
   assert.equal(mockDb.comprehensionPassages.length, 2);
@@ -842,7 +914,7 @@ test('Bulk upload maps Category only to category', async (t) => {
       buffer: Buffer.from(
         [
           'Type,Question,Options,Correct Answer,Tags,Category,Program,Grade,Subject,Chapter',
-          'mcq_single,Which value is grouped?,A;B;C;D,A,physics,direction,401,501,1001,2001',
+          'mcq_single,Which value is grouped?,A;B;C;D,A,physics,direction,401,11,1001,2001',
         ].join('\n'),
         'utf8'
       ),
@@ -852,7 +924,7 @@ test('Bulk upload maps Category only to category', async (t) => {
 
   await bulkUploadQuestions(bulkReq, bulkRes);
 
-  assert.equal(bulkRes.statusCode, 200);
+  assert.equal(bulkRes.statusCode, 200, JSON.stringify(bulkRes.body));
   assert.equal(bulkRes.body.inserted, 1);
   assert.equal(bulkRes.body.data[0].category, 'direction');
   assert.deepEqual(bulkRes.body.data[0].exam_tags, ['physics']);
@@ -879,7 +951,7 @@ test('Bulk upload maps Marks- into marks_negative', async (t) => {
       buffer: Buffer.from(
         [
           'Type,Question,Options,Correct Answer,Marks+,Marks-,Program,Grade,Subject,Chapter',
-          'mcq_single,Which value is negative?,A;B;C;D,A,4,1,401,501,1001,2001',
+          'mcq_single,Which value is negative?,A;B;C;D,A,4,1,401,11,1001,2001',
         ].join('\n'),
         'utf8'
       ),
@@ -889,7 +961,7 @@ test('Bulk upload maps Marks- into marks_negative', async (t) => {
 
   await bulkUploadQuestions(bulkReq, bulkRes);
 
-  assert.equal(bulkRes.statusCode, 200);
+  assert.equal(bulkRes.statusCode, 200, JSON.stringify(bulkRes.body));
   assert.equal(bulkRes.body.inserted, 1);
   assert.equal(Number(bulkRes.body.data[0].marks_positive), 4);
   assert.equal(Number(bulkRes.body.data[0].marks_negative), 1);
@@ -973,7 +1045,7 @@ test('Folder question bulk delete archives all questions in that folder', async 
     pool.query = originalQuery;
   });
 
-  const adminTenantA = { id: 31, role: 'client_admin', client_id: 101 };
+  const adminTenantA = { id: 31, role: 'school_owner', client_id: 101 };
 
   const firstCreateRes = makeRes();
   await createQuestion(

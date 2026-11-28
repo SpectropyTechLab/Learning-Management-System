@@ -26,7 +26,7 @@ test('AutoSave preserves Screen undo and redo history', () => {
 test('Studio navigation stays outside Home while tools are allocated to ribbon tabs', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const ribbonModel = readFrontend('components/studioRibbonModel.ts');
-  assert.match(editor, /studioTools\.filter/);
+  assert.match(editor, /studioTools\s*\.filter/);
   assert.match(editor, /toggleStudioTool\(tool\.id\)/);
   assert.match(editor, /aria-label="Open Screens"/);
   assert.match(editor, /aria-label="Screen navigation"/);
@@ -135,7 +135,7 @@ test('Screens alone use the left pane while Script opens from View', () => {
   const leftPaneStart = editor.indexOf('aria-label="Screen navigation"');
   const leftPaneEnd = editor.indexOf('aria-label="Select Session"', leftPaneStart);
   const leftPane = editor.slice(leftPaneStart, leftPaneEnd);
-  assert.match(leftPane, />Screens</);
+  assert.match(leftPane, />\s*Screens\s*</);
   assert.doesNotMatch(leftPane, />Script</);
   assert.match(leftPane, /Close Screens/);
   assert.doesNotMatch(leftPane, /Add Screen|Screen metadata|Edit layout|Remove layout/);

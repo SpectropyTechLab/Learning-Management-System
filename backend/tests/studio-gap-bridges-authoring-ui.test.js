@@ -32,7 +32,11 @@ test('expanded Gap Bridge authoring uses a dedicated ribbon, right pane and comp
   assert.match(pane, /createPortal/);
   assert.match(pane, /document\.body/);
   assert.match(editor, /Gap Bridge Pane/);
-  assert.match(editor, /group-hover:opacity-100/);
+  assert.match(editor, /id: 'gap-bridge-rename'/);
+  assert.match(editor, /onExecute: openGapBridgeRename/);
+  assert.match(editor, /aria-label="Rename Gap Bridge"/);
+  assert.match(editor, /renameSelectedGapBridge/);
+  assert.doesNotMatch(editor, /Manage Gap Bridge/);
   assert.match(pane, /MoreVertical/);
   assert.match(pane, /Hierarchy/);
   assert.match(pane, /All results/);
@@ -58,8 +62,10 @@ test('Gap Bridge author panel supports published targets, local children and man
   assert.doesNotMatch(pane, /Choose existing/);
   assert.doesNotMatch(pane, /Edit child/);
   assert.match(pane, /Preview/);
-  assert.match(pane, /replace_child: true/);
-  assert.match(pane, /permanently delete the current child Screen/);
+  assert.doesNotMatch(pane, /replace_child/);
+  assert.doesNotMatch(pane, /Replace with child/);
+  assert.match(pane, /while \(cursor\)/);
+  assert.match(pane, /reloadRequestRef/);
   assert.match(pane, /studio\/player\/\$\{sourceSessionId\}\/preview\?screen=/);
   assert.match(pane, /reorderStudioGapBridges/);
   assert.match(pane, /Drag to reorder/);
@@ -76,9 +82,9 @@ test('Insert ribbon and Screen navigator keep Gap Bridge children outside linear
   assert.doesNotMatch(editor, /outside the numbered Session flow/);
   assert.doesNotMatch(editor, />Return to parent</);
   assert.doesNotMatch(editor, /id: 'gap-bridge-edit-child'/);
-  assert.match(editor, /moveStudioGapBridgeChild/);
-  assert.match(editor, /data-child-drop-screen-id/);
-  assert.match(editor, /Drag child to another parent Screen/);
+  assert.doesNotMatch(editor, /moveStudioGapBridgeChild/);
+  assert.doesNotMatch(editor, /data-child-drop-screen-id/);
+  assert.doesNotMatch(editor, /Drag child to another parent Screen/);
   assert.match(editor, /onCommandHandled/);
   assert.match(editor, /gapBridgeActive: gapBridgeRibbonVisible/);
   assert.match(ribbon, /selection\.gapBridgeActive/);

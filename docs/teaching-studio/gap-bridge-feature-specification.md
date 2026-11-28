@@ -79,7 +79,7 @@ The right-side pane shows the parent Screen and only its Gap Bridges as children
 - selecting an external published Screen;
 - previewing a target;
 - renaming a Gap Bridge;
-- replacing its target;
+- changing a target by deleting the Gap Bridge and creating a new one;
 - reordering multiple Gap Bridges;
 - removing a Gap Bridge; and
 - opening a local child Screen in the normal Screen editor.
@@ -393,7 +393,7 @@ Because a Gap Bridge contains one Screen:
 - The navigator shows local children beneath their parent.
 - Main Screen reordering and numbering exclude child Screens.
 - A child cannot own a Gap Bridge.
-- Rename, reorder, replace, preview, and remove operations persist correctly.
+- Rename, reorder, preview, and remove operations persist correctly; target replacement is rejected.
 - Every mutation returns the source Session to draft and participates in revision conflict handling.
 
 ### Review and publication

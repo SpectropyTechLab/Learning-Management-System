@@ -33,7 +33,6 @@ import {
   LoaderCircle,
   Maximize2,
   Minimize2,
-  MoreVertical,
   MousePointer2,
   Microscope,
   Orbit,
@@ -75,7 +74,7 @@ import StudioGapBridgePane from './components/StudioGapBridgePane';
 import StudioGapBridgeRibbonAdd from './components/StudioGapBridgeRibbonAdd';
 import {
   listStudioGapBridges,
-  moveStudioGapBridgeChild,
+  updateStudioGapBridge,
   type StudioGapBridge,
 } from './api/studioGapBridgesApi';
 import StudioShell from './components/StudioShell';
@@ -533,9 +532,12 @@ export default function TeachingStudioPage() {
   const [selectedGapBridgeId, setSelectedGapBridgeId] = useState<number | null>(null);
   const [gapBridgeRibbonVisible, setGapBridgeRibbonVisible] = useState(false);
   const [gapBridgeCommand, setGapBridgeCommand] = useState<{
-    action: 'add-new' | 'select-existing' | 'rename' | 'preview' | 'delete';
+    action: 'add-new' | 'select-existing' | 'preview' | 'delete';
     token: number;
   } | null>(null);
+  const [gapBridgeRenameOpen, setGapBridgeRenameOpen] = useState(false);
+  const [gapBridgeRenameName, setGapBridgeRenameName] = useState('');
+  const [renamingGapBridge, setRenamingGapBridge] = useState(false);
   const [gapBridgesBySource, setGapBridgesBySource] = useState<Record<number, StudioGapBridge[]>>(
     {},
   );
@@ -882,12 +884,6 @@ export default function TeachingStudioPage() {
   const [reorderingScreens, setReorderingScreens] = useState(false);
   const [draggingScreenId, setDraggingScreenId] = useState<number | null>(null);
   const reorderIdsRef = useRef<number[]>([]);
-  const [draggingChild, setDraggingChild] = useState<{
-    bridgeId: number;
-    sourceScreenId: number;
-  } | null>(null);
-  const [childDropScreenId, setChildDropScreenId] = useState<number | null>(null);
-  const childDropScreenIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (draggingScreenId) return;
     const ids = screenList.screens.map((screen) => screen.id);
@@ -1272,6 +1268,61 @@ export default function TeachingStudioPage() {
   const selectedGapBridgeSourceScreen = selectedGapBridgeSourceId
     ? screenList.screens.find((screen) => screen.id === selectedGapBridgeSourceId) || null
     : null;
+
+  const openGapBridgeRename = () => {
+    if (!selectedGapBridge || editorReadOnly) return;
+    setGapBridgeRenameName(selectedGapBridge.name);
+    setGapBridgeRenameOpen(true);
+  };
+
+  const renameSelectedGapBridge = async () => {
+    if (
+      !selectedGapBridge ||
+      !selectedGapBridgeSourceId ||
+      renamingGapBridge ||
+      editorReadOnly
+    )
+      return;
+    const name = gapBridgeRenameName.trim();
+    if (!name) {
+      toast.error('Gap Bridge name is required.');
+      return;
+    }
+    if (name === selectedGapBridge.name) {
+      setGapBridgeRenameOpen(false);
+      return;
+    }
+    setRenamingGapBridge(true);
+    try {
+      const result = await updateStudioGapBridge(selectedGapBridge.id, {
+        name,
+        source_session_revision_no: screenListRef.current.session_revision_no,
+      });
+      updateGapBridgeMap(
+        selectedGapBridgeSourceId,
+        selectedSourceGapBridges.map((bridge) =>
+          bridge.id === selectedGapBridge.id
+            ? { ...result.gap_bridge, target: bridge.target }
+            : bridge,
+        ),
+      );
+      updateGapBridgeSessionRevision(result.source_session_revision_no);
+      setGapBridgeRenameOpen(false);
+      toast.success('Gap Bridge renamed.');
+    } catch (requestError) {
+      const details = getStudioErrorDetails(requestError);
+      toast.error(details.message);
+      if (details.status === 409) {
+        const result = await listStudioGapBridges(selectedGapBridgeSourceId).catch(() => null);
+        if (result) {
+          updateGapBridgeMap(selectedGapBridgeSourceId, result.bridges);
+          updateGapBridgeSessionRevision(result.source_session_revision_no);
+        }
+      }
+    } finally {
+      setRenamingGapBridge(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedGapBridgeSourceId) return;
@@ -5448,74 +5499,6 @@ export default function TeachingStudioPage() {
       void saveScreenOrder(reorderIdsRef.current);
   };
 
-  const moveDraggedChild = (event: React.PointerEvent) => {
-    if (!draggingChild) return;
-    const target = document
-      .elementFromPoint(event.clientX, event.clientY)
-      ?.closest<HTMLElement>('[data-child-drop-screen-id]');
-    const targetScreenId = Number(target?.dataset.childDropScreenId);
-    const nextTarget =
-      Number.isInteger(targetScreenId) && targetScreenId !== draggingChild.sourceScreenId
-        ? targetScreenId
-        : null;
-    childDropScreenIdRef.current = nextTarget;
-    setChildDropScreenId(nextTarget);
-  };
-
-  const moveChildToScreen = async (
-    bridgeId: number,
-    sourceScreenId: number,
-    targetScreenId: number,
-  ) => {
-    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    try {
-      const result = await moveStudioGapBridgeChild(
-        bridgeId,
-        targetScreenId,
-        screenListRef.current.session_revision_no,
-      );
-      setGapBridgesBySource((current) => {
-        const previous = (current[sourceScreenId] || [])
-          .filter((bridge) => bridge.id !== bridgeId)
-          .map((bridge, display_order) => ({ ...bridge, display_order }));
-        const target = [...(current[targetScreenId] || []), result.gap_bridge]
-          .sort((left, right) => left.display_order - right.display_order || left.id - right.id);
-        return { ...current, [sourceScreenId]: previous, [targetScreenId]: target };
-      });
-      setScreenList((current) => ({
-        ...current,
-        session_revision_no: result.source_session_revision_no,
-      }));
-      setSelectedScreen((current) =>
-        current?.id === result.gap_bridge.target.screen_id
-          ? { ...current, parent_screen_id: targetScreenId }
-          : current,
-      );
-      toast.success('Child Screen moved to its new parent Screen.');
-      await loadWorkflow();
-    } catch (requestError) {
-      toast.error(getStudioErrorMessage(requestError));
-      const [previous, target] = await Promise.all([
-        listStudioGapBridges(sourceScreenId),
-        listStudioGapBridges(targetScreenId),
-      ]).catch(() => []);
-      if (previous) updateGapBridgeMap(sourceScreenId, previous.bridges);
-      if (target) updateGapBridgeMap(targetScreenId, target.bridges);
-    }
-  };
-
-  const finishChildDrag = () => {
-    if (!draggingChild) return;
-    const targetScreenId = childDropScreenIdRef.current;
-    const dragged = draggingChild;
-    setDraggingChild(null);
-    setChildDropScreenId(null);
-    childDropScreenIdRef.current = null;
-    if (targetScreenId) {
-      void moveChildToScreen(dragged.bridgeId, dragged.sourceScreenId, targetScreenId);
-    }
-  };
-
   const selectedElement =
     selectedScreen?.elements.find((element) => element.id === selectedElementId) ?? null;
   const selectedElementType = selectedElement?.type ?? null;
@@ -6733,6 +6716,13 @@ export default function TeachingStudioPage() {
                 },
               },
               {
+                id: 'gap-bridge-rename',
+                label: 'Rename',
+                icon: <Pencil size={17} />,
+                disabled: editorReadOnly || !selectedGapBridge,
+                onExecute: openGapBridgeRename,
+              },
+              {
                 id: 'gap-bridge-preview',
                 label: 'Preview',
                 icon: <Eye size={17} />,
@@ -6761,7 +6751,7 @@ export default function TeachingStudioPage() {
             id: 'gap-bridge-selection',
             label: 'Selected Gap Bridge',
             content: (
-              <div className="flex h-10 min-w-52 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 text-xs text-violet-950">
+              <div className="flex h-10 min-w-52 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs text-blue-950">
                 <GitBranch size={15} />
                 <span className="truncate font-semibold">
                   {selectedGapBridge?.name || 'Select a Gap Bridge in the pane'}
@@ -10019,17 +10009,12 @@ export default function TeachingStudioPage() {
             ) : null}
             {leftPanelOpen ? (
               <section
-                onPointerMove={(event) => {
-                  moveDraggedScreen(event);
-                  moveDraggedChild(event);
-                }}
+                onPointerMove={moveDraggedScreen}
                 onPointerUp={() => {
                   finishScreenDrag();
-                  finishChildDrag();
                 }}
                 onPointerCancel={() => {
                   finishScreenDrag();
-                  finishChildDrag();
                 }}
                 className="studio-editor-left-content is-open flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2"
               >
@@ -10091,8 +10076,7 @@ export default function TeachingStudioPage() {
                         <div key={screenId} className="space-y-1">
                           <div
                             data-reorder-screen-id={screenId}
-                            data-child-drop-screen-id={screenId}
-                            className={`flex items-stretch gap-1 rounded-lg border p-1 transition ${childDropScreenId === screenId ? 'border-violet-600 bg-violet-100 ring-2 ring-violet-300' : draggingScreenId === screenId ? 'border-blue-700 bg-blue-100 opacity-70' : selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}
+                            className={`flex items-stretch gap-1 rounded-lg border p-1 transition ${draggingScreenId === screenId ? 'border-blue-700 bg-blue-100 opacity-70' : selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}
                           >
                             <button
                               type="button"
@@ -10136,7 +10120,7 @@ export default function TeachingStudioPage() {
                             return (
                               <div
                                 key={bridge.id}
-                                className={`group ml-4 flex w-[calc(100%-1rem)] items-center rounded-lg border transition ${draggingChild?.bridgeId === bridge.id ? 'border-violet-600 bg-violet-100 opacity-70' : childSelected ? 'border-violet-500 bg-violet-50 text-violet-950' : 'border-violet-200 bg-white text-slate-700 hover:bg-violet-50'}`}
+                                className={`ml-4 flex w-[calc(100%-1rem)] items-center rounded-lg border transition ${childSelected ? 'border-blue-600 bg-blue-50 text-blue-950' : 'border-blue-200 bg-white text-slate-700 hover:bg-blue-50'}`}
                               >
                                 <button
                                   type="button"
@@ -10144,48 +10128,13 @@ export default function TeachingStudioPage() {
                                   aria-current={childSelected ? 'page' : undefined}
                                   className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left text-[11px]"
                                 >
-                                  <GitBranch size={13} className="shrink-0 text-violet-600" />
+                                  <GitBranch size={13} className="shrink-0 text-blue-900" />
                                   <span className="min-w-0 flex-1">
                                     <span className="block truncate font-bold">{bridge.name}</span>
                                     <span className="block truncate text-[9px] text-slate-500">
                                       Child · {childTitle || 'Untitled child Screen'}
                                     </span>
                                   </span>
-                                </button>
-                                {!editorReadOnly ? (
-                                  <button
-                                    type="button"
-                                    title="Drag child to another parent Screen"
-                                    aria-label={`Move ${bridge.name} to another parent Screen`}
-                                    onPointerDown={(event) => {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      setDraggingChild({
-                                        bridgeId: bridge.id,
-                                        sourceScreenId: screenId,
-                                      });
-                                      childDropScreenIdRef.current = null;
-                                      event.currentTarget.setPointerCapture(event.pointerId);
-                                    }}
-                                    className="grid h-7 w-7 shrink-0 touch-none place-items-center rounded text-violet-600 hover:bg-violet-100"
-                                  >
-                                    <GripVertical size={14} />
-                                  </button>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  title="Manage Gap Bridge"
-                                  aria-label={`Manage ${bridge.name}`}
-                                  onClick={() => {
-                                    setSelectedGapBridgeId(bridge.id);
-                                    setGapBridgeRibbonVisible(true);
-                                    setActiveRibbonTab('gap-bridge');
-                                    setPanel('gap-bridges');
-                                    setRightPanelOpen(true);
-                                  }}
-                                  className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded text-violet-700 opacity-0 hover:bg-violet-100 group-hover:opacity-100 focus:opacity-100"
-                                >
-                                  <MoreVertical size={14} />
                                 </button>
                               </div>
                             );
@@ -10953,6 +10902,54 @@ export default function TeachingStudioPage() {
                 className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {renamingScreen ? 'Saving…' : 'Save title'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {gapBridgeRenameOpen && selectedGapBridge && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Rename Gap Bridge"
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void renameSelectedGapBridge();
+            }}
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <h2 className="text-lg font-semibold text-slate-900">Rename Gap Bridge</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Change the teacher-facing name of the selected Gap Bridge.
+            </p>
+            <label className="mt-4 block text-sm font-semibold text-slate-700">
+              Gap Bridge name
+              <input
+                autoFocus
+                maxLength={120}
+                value={gapBridgeRenameName}
+                onChange={(event) => setGapBridgeRenameName(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={renamingGapBridge}
+                onClick={() => setGapBridgeRenameOpen(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={renamingGapBridge || !gapBridgeRenameName.trim()}
+                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {renamingGapBridge ? 'Savingâ€¦' : 'Save name'}
               </button>
             </div>
           </form>

@@ -161,12 +161,7 @@ export const updateStudioGapBridge = async (
   gapBridgeId: number,
   payload: {
     source_session_revision_no: number;
-    name?: string;
-    target_kind?: 'child' | 'external';
-    title?: string;
-    replace_child?: boolean;
-    external_session_id?: number;
-    external_screen_id?: number;
+    name: string;
   },
 ) =>
   unwrap<{ gap_bridge: StudioGapBridge; source_session_revision_no: number }>(

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test --test-concurrency=1 --experimental-test-isolation=none",
+    "test": "node --test --test-concurrency=1",
     "test:ci": "node scripts/run-ci-tests.mjs",
     "studio:day1:fixtures": "node scripts/build-studio-day1-fixtures.mjs",
     "studio:day1:verify": "node scripts/verify-studio-day1-baseline.mjs",

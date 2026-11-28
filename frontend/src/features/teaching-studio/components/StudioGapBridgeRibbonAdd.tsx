@@ -67,7 +67,7 @@ export default function StudioGapBridgeRibbonAdd({
         aria-label="Add Gap Bridge"
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`studio-ribbon-command inline-flex min-h-9 min-w-14 max-w-16 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-0.5 text-[9px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${open ? 'border-violet-300 bg-violet-50 text-violet-950' : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50'}`}
+        className={`studio-ribbon-command inline-flex min-h-9 min-w-14 max-w-16 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-0.5 text-[9px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${open ? 'border-blue-300 bg-blue-50 text-blue-950' : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50'}`}
       >
         <span className="relative" aria-hidden="true">
           <Plus size={17} />
@@ -88,9 +88,9 @@ export default function StudioGapBridgeRibbonAdd({
                 type="button"
                 role="menuitem"
                 onClick={() => choose(onCreateNew)}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-violet-50"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-blue-50"
               >
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-100 text-violet-800">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-100 text-blue-900">
                   <FilePlus2 size={16} />
                 </span>
                 <span>

@@ -5444,13 +5444,14 @@ export const approveQuestion = async (req, res) => {
     if (clientId && question.client_id !== clientId) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    const rowPermissions = await buildQuestionRowPermissions(question, req.user);
-    if (!rowPermissions.canApprove) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
 
     if (question.status !== 'draft') {
       return res.status(400).json({ error: 'Only draft questions can be approved' });
+    }
+
+    const rowPermissions = await buildQuestionRowPermissions(question, req.user);
+    if (!rowPermissions.canApprove) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     const result = await dbQuery(
