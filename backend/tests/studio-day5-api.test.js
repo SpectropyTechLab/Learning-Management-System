@@ -9,7 +9,7 @@ const { default: pool } = await import('../config/db.js');
 const { default: resourceRouter } = await import('../routes/studioResources.routes.js');
 const { default: screenRouter } = await import('../routes/studioScreens.routes.js');
 const { getResourceUsages } = await import('../services/studioResources.service.js');
-const { deleteScreen, saveScreen } = await import('../services/studioScreens.service.js');
+const { deleteScreen, duplicateScreen, saveScreen } = await import('../services/studioScreens.service.js');
 const { submitSession } = await import('../services/studioSessionWorkflow.service.js');
 
 const normalizedSql = (value) => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
@@ -29,7 +29,60 @@ test('Day 5 routers expose resource versions, reverse usages and screen persiste
   assert.ok(screens.includes('GET /studio/sessions/:sessionId/screens'));
   assert.ok(screens.includes('GET /studio/screens/:screenId'));
   assert.ok(screens.includes('PATCH /studio/screens/:screenId'));
+  assert.ok(screens.includes('POST /studio/screens/:screenId/duplicate'));
   assert.ok(screens.includes('PATCH /studio/sessions/:sessionId/screens/reorder'));
+});
+
+test('Screen duplication copies authored content and inserts the duplicate after its source', async (t) => {
+  const calls = [];
+  const client = {
+    async query(text, params = []) {
+      const sql = normalizedSql(text);
+      calls.push({ sql, params });
+      if (['begin', 'commit', 'rollback'].includes(sql)) return { rows: [] };
+      if (sql.includes('from screens s join sessions se') && sql.includes('for update')) {
+        return { rows: [{
+          id: 31, session_id: 21, client_id: 12, title: 'Worked example', layout_id: null,
+          screen_number: 3, display_order: 2, creation_mode: 'blank', revision_no: 4,
+          screen_settings_json: { transition: { type: 'fade' } }, session_status: 'draft',
+          session_revision_no: 6,
+        }] };
+      }
+      if (sql.startsWith('update screens set display_order')) return { rows: [] };
+      if (sql.startsWith('select coalesce(max(screen_number)')) return { rows: [{ screen_number: 6 }] };
+      if (sql.startsWith('insert into screens')) return { rows: [{
+        id: 44, session_id: 21, client_id: 12, title: 'Worked example', layout_id: null,
+        screen_number: 6, display_order: 3, creation_mode: 'blank', revision_no: 1,
+        screen_settings_json: { transition: { type: 'fade' } },
+      }] };
+      if (sql.startsWith('insert into screen_elements') || sql.startsWith('insert into resource_mappings') || sql.startsWith('insert into screen_tags') || sql.startsWith('insert into screen_zoom_links')) return { rows: [] };
+      if (sql.startsWith('update sessions set status')) return { rows: [{ id: 21, status: 'draft', revision_no: 7 }] };
+      if (sql.includes('from screen_elements se')) return { rows: [{
+        id: 'shape-1', slot_id: 'free-shape-1', type: 'shape', content: { text: 'Keep me' },
+        position: { x: 10, y: 20, width: 300, height: 160 }, resource_id: null,
+        resource_version_id: null, usage: null,
+      }] };
+      if (sql.startsWith('select tag from screen_tags')) return { rows: [{ tag: 'quadratics' }] };
+      if (sql.includes('from screen_branches')) return { rows: [] };
+      if (sql.includes('from screen_zoom_links')) return { rows: [] };
+      throw new Error(`Unhandled query: ${sql}`);
+    },
+    release() {},
+  };
+  const originalConnect = pool.connect;
+  pool.connect = async () => client;
+  t.after(() => { pool.connect = originalConnect; });
+
+  const result = await duplicateScreen({ screenId: 31, user: author });
+
+  assert.equal(result.id, 44);
+  assert.equal(result.display_order, 3);
+  assert.equal(result.elements[0].content.text, 'Keep me');
+  assert.deepEqual(result.tags, ['quadratics']);
+  assert.equal(result.session_revision_no, 7);
+  assert.ok(calls.some(({ sql, params }) => sql.startsWith('update screens set display_order') && params[1] === 2));
+  assert.ok(calls.some(({ sql, params }) => sql.startsWith('insert into screen_elements') && params[0] === 44 && params[1] === 31));
+  assert.ok(calls.some(({ sql }) => sql === 'commit'));
 });
 
 test('reverse usage reports placement count separately from distinct Screen count', async (t) => {

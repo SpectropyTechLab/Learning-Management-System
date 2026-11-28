@@ -443,6 +443,8 @@ export const commitImportDocument = async ({
       persistedResources.set(entry.plan_id, persisted);
       createdResources.push({ entry, persisted });
     }
+    const sourcePlanId = resourcePlan.source_to_plan_id.get(text(document.source?.resource_source_id));
+    const persistedSource = sourcePlanId ? persistedResources.get(sourcePlanId) : null;
     for (const importScreen of document.screens) {
       assertNotAborted(signal);
       const created = await ports.createScreen(sessionId, text(importScreen.title) || 'Imported Screen', user);
@@ -463,6 +465,24 @@ export const commitImportDocument = async ({
           delete effect.triggerSourceElementId;
         }
       }
+      let importedTransition = isRecord(importScreen.transition) ? structuredClone(importScreen.transition) : null;
+      if (importedTransition && isRecord(importedTransition.customSound)) {
+        const sourceId = text(importedTransition.customSound.resourceSourceId);
+        const planId = sourceId ? resourcePlan.source_to_plan_id.get(sourceId) : null;
+        const persisted = planId ? persistedResources.get(planId) : null;
+        if (persisted) {
+          importedTransition.customSound = {
+            resourceId: Number(persisted.resource_id),
+            resourceVersionId: Number(persisted.resource_version_id),
+            name: text(importedTransition.customSound.name) || 'Imported transition sound',
+            ...(text(importedTransition.customSound.mimeType) ? { mimeType: text(importedTransition.customSound.mimeType) } : {}),
+          };
+          importedTransition.sound = 'custom';
+        } else {
+          delete importedTransition.customSound;
+          importedTransition.sound = 'none';
+        }
+      }
       const saved = await ports.saveScreen(created.id, {
         revision_no: Number(created.revision_no),
         title: text(importScreen.title) || 'Imported Screen',
@@ -470,14 +490,23 @@ export const commitImportDocument = async ({
         elements,
         tags: [],
         screen_settings: {
+          hidden: Boolean(importScreen.metadata?.hidden),
           background: importScreen.background || {},
           ...(importScreen.background?.color ? { backgroundColor: importScreen.background.color } : {}),
-          ...(importScreen.transition ? { transition: importScreen.transition } : {}),
+          ...(importedTransition ? { transition: importedTransition } : {}),
           ...(text(importScreen.notes?.speaker_notes) ? { speaker_notes: text(importScreen.notes.speaker_notes) } : {}),
           import: {
             schema_version: document.schema_version,
             source: document.source,
             source_screen_id: importScreen.source_id,
+            ...(persistedSource ? {
+              source_resource: {
+                resource_id: Number(persistedSource.resource_id),
+                resource_version_id: Number(persistedSource.resource_version_id),
+                file_name: text(document.source?.name),
+                sha256: text(document.source?.sha256),
+              },
+            } : {}),
             hidden: Boolean(importScreen.metadata?.hidden),
             notes: importScreen.notes || {},
           },

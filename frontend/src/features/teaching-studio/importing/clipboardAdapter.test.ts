@@ -25,6 +25,27 @@ test('rich HTML stays editable while active content and unsafe CSS are removed',
   assert.equal(result.available_modes.includes('editable-content'), true);
 });
 
+test('PowerPoint editable HTML wins over its flattened image fallback and keeps separate text boxes', () => {
+  const image = new File(['png'], 'PowerPoint.png', { type: 'image/png' });
+  const input = snapshot({
+    files: [image],
+    html: '<div style="mso-special-format: yes"><p>First box</p><p>Second box</p></div>',
+    plain: 'First box\nSecond box',
+    types: ['Files', 'text/html', 'text/plain'],
+  });
+  assert.equal(selectClipboardRepresentation(input), 'html');
+  const result = adaptClipboardSnapshot(input);
+  assert.equal(result.document.screens[0].elements.length, 2);
+  assert.deepEqual(result.document.screens[0].elements.map((element) => element.content?.text), ['First box', 'Second box']);
+});
+
+test('browser-normalized clipboard text takes priority over a PNG', () => {
+  const files = [new File(['png'], 'image.png', { type: 'image/png' })];
+  assert.equal(adaptClipboardSnapshot(snapshot({ files, html: '<p>Editable</p>' })).document.screens[0].elements[0].kind, 'text');
+  assert.equal(adaptClipboardSnapshot(snapshot({ files, plain: 'Editable' })).representation, 'text');
+  assert.match(adaptClipboardSnapshot(snapshot({ files })).warnings[0], /Import PowerPoint/);
+});
+
 test('SVG sanitizer removes executable and external content but preserves local vector references', () => {
   const safe = sanitizeClipboardSvg('<svg onload="bad()"><script>bad()</script><use href="https://evil/x"/><use href="#local"/><path fill="url(https://evil/x)"/></svg>');
   assert.doesNotMatch(safe, /onload|script|https:\/\/evil/i);

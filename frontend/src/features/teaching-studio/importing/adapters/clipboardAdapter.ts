@@ -144,6 +144,15 @@ const baseDocument = (elements: ImportElement[], resources: ImportResource[], is
 
 export const selectClipboardRepresentation = (snapshot: ClipboardSnapshot): ClipboardRepresentation => {
   if (parseNativeClipboardPayload(snapshot.native_payload)) return 'native';
+  const officeHtml = /mso-|urn:schemas-microsoft-com:office|powerpoint/i.test(snapshot.html || '');
+  const officeText = (snapshot.plain || textFromHtml(snapshot.html || '')).trim();
+  // PowerPoint commonly exposes both an editable HTML representation and a
+  // PNG fallback. Prefer HTML when it contains text; otherwise every copied
+  // text box is flattened into one picture before the adapter can inspect it.
+  if (officeHtml && officeText) return 'html';
+  const onlyImages = snapshot.files.length > 0 && snapshot.files.every((file) => file.type.startsWith('image/'));
+  if (onlyImages && snapshot.html && textFromHtml(sanitizeClipboardHtml(snapshot.html))) return 'html';
+  if (onlyImages && snapshot.plain?.trim()) return 'text';
   if (snapshot.files.length) return 'files';
   if (snapshot.svg?.trim()) return 'svg';
   if (snapshot.html?.trim()) return 'html';
@@ -192,8 +201,8 @@ export const adaptClipboardSnapshot = (snapshot: ClipboardSnapshot): ClipboardAd
       source_id: `clipboard-resource-${index + 1}`, file_name: file.name, media_type: file.type || 'application/octet-stream', read_bytes: async () => new Uint8Array(await file.arrayBuffer()), metadata: { resource_type: resourceTypeFor(file), source: 'clipboard' },
     }));
     const elements = supported.map((file, index) => elementForFile(file, index, resources[index].source_id));
-    if ((snapshot.types.some((type) => /powerpoint|presentation|office/i.test(type)) || /mso-|urn:schemas-microsoft-com:office/i.test(snapshot.html || '')) && supported.every((file) => file.type.startsWith('image/'))) {
-      warnings.push('PowerPoint content was provided only as an image. Import the original PPTX to reconstruct editable objects.');
+    if (supported.length && supported.every((file) => file.type.startsWith('image/'))) {
+      warnings.push('The clipboard supplied a picture. For editable PowerPoint objects, use Import PowerPoint with the original file.');
     }
     return { representation, document: baseDocument(elements, resources, issues, snapshot.source_application), available_modes: ['source-formatting', 'picture'], warnings };
   }
@@ -210,8 +219,34 @@ export const adaptClipboardSnapshot = (snapshot: ClipboardSnapshot): ClipboardAd
   if (representation === 'html') {
     const richTextHtml = sanitizeClipboardHtml(snapshot.html || '');
     const text = (snapshot.plain || textFromHtml(richTextHtml)).trim();
-    const element: ImportElement = { source_id: 'clipboard-rich-text', kind: 'text', bounds: { x: 360, y: 280, width: 760, height: 300 }, content: { text, richTextHtml, source: 'clipboard' }, style: { fontFamily: 'Arial', fontSize: 32, color: '#0f172a' } };
-    return { representation, document: baseDocument([element], [], issues, snapshot.source_application), available_modes: ['source-formatting', 'editable-content', 'destination-theme', 'text-only'], warnings };
+    const officeHtml = /mso-|urn:schemas-microsoft-com:office|powerpoint/i.test(snapshot.html || '');
+    let blocks: Array<{ text: string; html: string }> = [];
+    if (officeHtml && typeof DOMParser !== 'undefined') {
+      const body = new DOMParser().parseFromString(`<body>${richTextHtml}</body>`, 'text/html').body;
+      blocks = Array.from(body.querySelectorAll('p, div'))
+        .filter((node) => (node.textContent || '').trim() && !Array.from(node.children).some((child) => ['P', 'DIV'].includes(child.tagName) && (child.textContent || '').trim()))
+        .map((node) => ({ text: (node.textContent || '').trim(), html: node.outerHTML }))
+        .slice(0, 20);
+    } else if (officeHtml) {
+      const paragraphMatches = Array.from(richTextHtml.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi));
+      const matches = paragraphMatches.length ? paragraphMatches : Array.from(richTextHtml.matchAll(/<div\b[^>]*>([\s\S]*?)<\/div>/gi));
+      blocks = matches
+        .filter((match) => !/<(?:p|div)\b/i.test(match[1]))
+        .map((match) => ({ text: textFromHtml(match[0]), html: match[0] }))
+        .filter((block) => block.text)
+        .slice(0, 20);
+    }
+    if (!blocks.length) blocks = [{ text, html: richTextHtml }];
+    const elements: ImportElement[] = blocks.map((block, index) => ({
+      source_id: `clipboard-rich-text-${index + 1}`,
+      kind: 'text',
+      bounds: { x: 360 + index * 28, y: 240 + index * 150, width: 760, height: 130 },
+      z_index: index + 1,
+      content: { text: block.text, richTextHtml: block.html, source: 'clipboard' },
+      style: { fontFamily: 'Arial', fontSize: 32, color: '#0f172a' },
+    }));
+    if (officeHtml) issues.push(issue('info', 'CLIPBOARD_OFFICE_EDITABLE', `${elements.length} editable PowerPoint text object${elements.length === 1 ? '' : 's'} reconstructed from the clipboard.`, 'editable text'));
+    return { representation, document: baseDocument(elements, [], issues, snapshot.source_application), available_modes: ['source-formatting', 'editable-content', 'destination-theme', 'text-only'], warnings };
   }
 
   if (representation === 'text') {

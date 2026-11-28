@@ -8,6 +8,7 @@ import StudioRichTextElement, { hasInlineEquation, inlineEquationParts } from '.
 import StudioShapeElement from './StudioShapeElement';
 import type { InlineShapeData } from './studioInlineShape';
 import { STUDIO_TEXT_COMMAND_EVENT, type StudioTextCommand } from './studioTextCommands';
+import type { StudioElement } from '../types';
 import MathLiveEquationEditor from './MathLiveEquationEditor';
 import { normalizeStudioFontFamily, studioFontCssFamily } from './studioFonts';
 
@@ -114,6 +115,7 @@ const sanitizeStudioRichText = (html: string) => {
       marginTop: node.style.marginTop,
       marginBottom: node.style.marginBottom,
       listStyleType: node.style.listStyleType,
+      listPadding: /^(UL|OL)$/.test(node.tagName) && /^\d+(?:\.\d+)?em$/.test(node.style.paddingLeft) ? Number.parseFloat(node.style.paddingLeft) : 0,
       textStrokeColor: node.style.webkitTextStrokeColor,
       textStrokeWidth: node.style.webkitTextStrokeWidth,
     };
@@ -142,6 +144,7 @@ const sanitizeStudioRichText = (html: string) => {
     if (marginTop !== null) node.style.marginTop = `${marginTop}px`;
     if (marginBottom !== null) node.style.marginBottom = `${marginBottom}px`;
     if (originalStyle.listStyleType && !/[;{}]/.test(originalStyle.listStyleType)) node.style.listStyleType = originalStyle.listStyleType;
+    if (originalStyle.listPadding >= 1.5 && originalStyle.listPadding <= 7.75) node.style.paddingLeft = `${originalStyle.listPadding}em`;
     if (strokeWidth !== null && safeCssColor(originalStyle.textStrokeColor)) {
       node.style.webkitTextStrokeColor = originalStyle.textStrokeColor;
       node.style.webkitTextStrokeWidth = `${strokeWidth}px`;
@@ -270,6 +273,119 @@ const selectedBlocks = (editor: HTMLElement, range: Range) => {
   return blocks.filter((node) => !blocks.some((candidate) => candidate !== node && node.contains(candidate)));
 };
 const plainTextPasteHtml = (value: string) => escapeHtml(value).replaceAll(/\r?\n/g, '<br>');
+const removeListFormatting = (lists: Element[]) => {
+  [...lists].reverse().forEach((list) => {
+    list.replaceWith(...Array.from(list.children).map((item) => {
+      const paragraph = document.createElement('div');
+      paragraph.append(...Array.from(item.childNodes));
+      return paragraph;
+    }));
+  });
+};
+const syncListMarkerStyles = (root: HTMLElement) => {
+  root.querySelectorAll<HTMLElement>('li').forEach((item) => {
+    const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+    let source: HTMLElement = item;
+    let node = walker.nextNode();
+    while (node) {
+      const owner = node.parentElement;
+      if (node.textContent?.trim() && owner?.closest('li') === item) {
+        source = owner;
+        break;
+      }
+      node = walker.nextNode();
+    }
+    const computed = window.getComputedStyle(source);
+    item.style.setProperty('--studio-list-marker-color', computed.color);
+    item.style.setProperty('--studio-list-marker-font-family', computed.fontFamily);
+    item.style.setProperty('--studio-list-marker-font-size', computed.fontSize);
+    item.style.setProperty('--studio-list-marker-font-weight', computed.fontWeight);
+    item.style.setProperty('--studio-list-marker-font-style', computed.fontStyle);
+  });
+};
+
+const studioTextBoxTypes = new Set(['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data', 'shape']);
+export const isStudioTextBox = (element: StudioElement) => studioTextBoxTypes.has(element.type);
+
+export function applyStudioTextBoxCommand(element: StudioElement, command: StudioTextCommand, toggleValue?: boolean): StudioElement {
+  if (!isStudioTextBox(element)) return element;
+  const content = { ...element.content };
+  const source = content.text ?? content.value ?? content.title;
+  const text = typeof source === 'string' ? source : '';
+  const root = document.createElement('div');
+  root.innerHTML = consistentRichTextHtml(typeof content.richTextHtml === 'string' ? content.richTextHtml : undefined, text) ?? editableHtml(text);
+
+  if (command.type === 'style') {
+    const property = { fontFamily: 'font-family', fontSize: 'font-size', color: 'color' }[command.property];
+    clearDescendantFormatting(root, property);
+    content[command.property] = command.property === 'fontSize' ? Number.parseFloat(command.value) : command.value;
+  } else if (command.type === 'format') {
+    const property = { bold: 'font-weight', italic: 'font-style', underline: 'text-decoration' }[command.command];
+    clearDescendantFormatting(root, property);
+    content[command.command] = toggleValue ?? content[command.command] !== true;
+  } else if (command.type === 'block-style') {
+    const properties = {
+      textAlign: ['text-align', 'alignment'],
+      lineHeight: ['line-height', 'lineHeight'],
+      marginTop: ['margin-top', 'paragraphSpacingBefore'],
+      marginBottom: ['margin-bottom', 'paragraphSpacingAfter'],
+    } as const;
+    const [cssProperty, field] = properties[command.property];
+    clearDescendantFormatting(root, cssProperty);
+    content[field] = field === 'alignment' ? command.value : Number.parseFloat(command.value);
+  } else if (command.type === 'clear-list') {
+    removeListFormatting(Array.from(root.querySelectorAll('ul,ol')));
+    content.list = false;
+    content.text = serializeNodes(root.childNodes);
+  } else if (command.type === 'bullet' || command.type === 'number') {
+    if (!text.trim()) return element;
+    const tag = command.type === 'bullet' ? 'ul' : 'ol';
+    const existingLists = Array.from(root.querySelectorAll('ul,ol'));
+    const remove = command.toggle && (toggleValue ?? (existingLists.length > 0 || content.list === true));
+    removeListFormatting(existingLists);
+    if (!remove) {
+      const list = document.createElement(tag);
+      list.style.listStyleType = command.style;
+      let item = document.createElement('li');
+      const flush = () => {
+        if (!item.hasChildNodes()) return;
+        list.append(item);
+        item = document.createElement('li');
+      };
+      const appendLine = (node: ChildNode) => {
+        if (node instanceof HTMLElement && ['DIV', 'P'].includes(node.tagName)) {
+          flush();
+          Array.from(node.childNodes).forEach(appendLine);
+          flush();
+        } else if (node instanceof HTMLElement && node.tagName === 'BR') {
+          flush();
+        } else {
+          item.append(node);
+        }
+      };
+      Array.from(root.childNodes).forEach(appendLine);
+      flush();
+      root.replaceChildren(list);
+    }
+    content.list = false;
+    content.text = serializeNodes(root.childNodes);
+  } else if (command.type === 'indent' || command.type === 'outdent') {
+    const lists = root.querySelectorAll<HTMLElement>(':scope > ul, :scope > ol');
+    if (!lists.length) return element;
+    const delta = command.type === 'indent' ? 1 : -1;
+    lists.forEach((list) => {
+      const currentDepth = ((Number.parseFloat(list.style.paddingLeft) || 1.5) - 1.5) / 1.25;
+      const depth = Math.max(0, Math.min(5, currentDepth + delta));
+      list.style.paddingLeft = `${1.5 + depth * 1.25}em`;
+    });
+  } else {
+    return element;
+  }
+  if (typeof content.richTextHtml === 'string' || ['bullet', 'number', 'indent', 'outdent'].includes(command.type)) {
+    content.richTextHtml = root.innerHTML;
+  }
+  return { ...element, content };
+}
 const removeTrailingEditorPlaceholder = (root: HTMLElement) => {
   while (root.lastChild?.nodeType === Node.TEXT_NODE && !root.lastChild.textContent?.trim()) {
     root.lastChild.remove();
@@ -413,6 +529,10 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     editor.innerHTML = renderedRichTextHtml ?? editableHtml(text);
     initializedEditorRef.current = editor;
   }, [editing, renderedRichTextHtml, text]);
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (content) syncListMarkerStyles(content);
+  }, [editing, renderedRichTextHtml, text, color, fontSize, fontFamily, bold, italic]);
   const reportCaret = () => {
     const editor = editorRef.current;
     const selection = window.getSelection();
@@ -652,6 +772,14 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
       } else {
         document.execCommand(command.command);
       }
+    } else if (command.type === 'clear-list') {
+      const lists = Array.from(editor.querySelectorAll('ul,ol')).filter((list) => (
+        selectedRange.collapsed
+          ? list.contains(selectedRange.startContainer)
+          : (() => { try { return selectedRange.intersectsNode(list); } catch { return false; } })()
+      ));
+      removeListFormatting(lists);
+      formatting.list = false;
     } else if (command.type === 'bullet' || command.type === 'number') {
       const tagName = command.type === 'bullet' ? 'UL' : 'OL';
       const selectedLines = hasSelection
@@ -682,6 +810,7 @@ export default function StudioCanvasTextElement({ elementId, text, richTextHtml,
     } else {
       document.execCommand(command.type);
     }
+    syncListMarkerStyles(editor);
     reportCaret();
     commitEditorAfterLayout(formatting);
     if (command.type === 'style' && command.restoreEditorFocus) {

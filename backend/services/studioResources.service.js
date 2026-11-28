@@ -448,8 +448,20 @@ export const deleteResource = async ({ resourceId: rawResourceId, user }) => {
     client = await getClient();
     await client.query('BEGIN');
     const resource = await loadResource(client, resourceId, user, { lock: true });
-    const [placements, attempts, releases, versions] = await Promise.all([
+    const [placements, backgroundPlacements, attempts, releases, versions] = await Promise.all([
       client.query('SELECT COUNT(*)::int AS total FROM resource_mappings WHERE resource_id = $1', [resource.id]),
+      client.query(
+        `SELECT COUNT(*)::int AS total FROM (
+           SELECT s.id, 'screen' AS target
+           FROM screens s
+           WHERE s.screen_settings_json->'backgroundImage'->>'resourceId' = $1::text
+           UNION ALL
+           SELECT se.id, 'element' AS target
+           FROM screen_elements se
+           WHERE se.content_json->'backgroundImage'->>'resourceId' = $1::text
+         ) background_placements`,
+        [resource.id]
+      ),
       client.query('SELECT COUNT(*)::int AS total FROM studio_scorm_attempts WHERE resource_id = $1', [resource.id]),
       client.query(
         `SELECT COUNT(DISTINCT sr.id)::int AS total
@@ -458,17 +470,19 @@ export const deleteResource = async ({ resourceId: rawResourceId, user }) => {
            CASE WHEN jsonb_typeof(sr.manifest_json->'screens') = 'array'
              THEN sr.manifest_json->'screens' ELSE '[]'::jsonb END
          ) AS screen
-         CROSS JOIN LATERAL jsonb_array_elements(
+         LEFT JOIN LATERAL jsonb_array_elements(
            CASE WHEN jsonb_typeof(screen->'elements') = 'array'
              THEN screen->'elements' ELSE '[]'::jsonb END
-         ) AS element
-         WHERE element->'resource_mapping'->>'resource_id' = $1::text`,
+         ) AS element ON TRUE
+         WHERE screen->'screen_settings_json'->'backgroundImage'->>'resourceId' = $1::text
+            OR element->'resource_mapping'->>'resource_id' = $1::text
+            OR element->'content_json'->'backgroundImage'->>'resourceId' = $1::text`,
         [resource.id]
       ),
       client.query('SELECT storage_key, metadata_json FROM resource_versions WHERE resource_id = $1', [resource.id]),
     ]);
     const blockers = {
-      placement_count: Number(placements.rows[0].total),
+      placement_count: Number(placements.rows[0].total) + Number(backgroundPlacements.rows[0].total),
       scorm_attempt_count: Number(attempts.rows[0].total),
       published_release_count: Number(releases.rows[0].total),
     };

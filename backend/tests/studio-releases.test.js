@@ -393,6 +393,35 @@ test('published Resource access is limited to versions pinned in the authorized 
   );
 });
 
+test('published background access checks the exact image binding and release tenant', async (t) => {
+  const originalQuery = pool.query;
+  t.after(() => { pool.query = originalQuery; });
+  pool.query = async (query, params) => {
+    const sql = normalizeSql(query);
+    if (sql.includes('join resources r')) {
+      assert.equal(params[2], 7);
+      assert.match(sql, /r\.client_id is null or r\.client_id = \$3/);
+      return { rows: params[0] === 82 && params[1].includes(12) ? [{ id: 82 }] : [] };
+    }
+    return { rows: [{
+      id: 101, client_id: 7, session_id: 25, release_number: 2,
+      manifest_json: {
+        screens: [{
+          screen_id: 40,
+          screen_settings_json: { backgroundImage: { resourceVersionId: 82, resourceId: 12 } },
+          elements: [{ content_json: { backgroundImage: { resourceVersionId: 99, resourceId: 30 } } }],
+        }],
+      },
+    }] };
+  };
+  const user = { id: 30, role: 'client_admin', client_id: 7 };
+  assert.equal((await assertPinnedPublishedResourceAccess({ releaseId: 101, versionId: 82, user })).versionId, 82);
+  await assert.rejects(
+    assertPinnedPublishedResourceAccess({ releaseId: 101, versionId: 99, user }),
+    (error) => error.status === 403,
+  );
+});
+
 test('published teaching materials expose Curriculum and a pinned Session Plan without Screen Scripts', async (t) => {
   const originalQuery = pool.query;
 

@@ -1,6 +1,7 @@
 export type StudioTextCommand =
   | { type: 'bullet'; style: string; toggle?: boolean }
   | { type: 'number'; style: string; toggle?: boolean }
+  | { type: 'clear-list' }
   | { type: 'indent' }
   | { type: 'outdent' }
   | { type: 'format'; command: 'bold' | 'italic' | 'underline' }

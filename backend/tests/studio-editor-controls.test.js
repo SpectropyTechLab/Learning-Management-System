@@ -495,6 +495,12 @@ test('Home ribbon Clipboard group shares multi-element paste and Format Painter 
   assert.match(clipboard, /Picture/);
   assert.match(clipboard, /Keep Text Only/);
   assert.match(clipboard, /onDoubleClick/);
+  assert.match(clipboard, /Copy and Duplicate options/);
+  assert.match(clipboard, />Duplicate<\/button>/);
+  assert.match(editor, /duplicateSelectionOrScreen/);
+  assert.match(editor, /canDuplicate=/);
+  assert.match(editor, /onDuplicate=\{duplicateSelectionOrScreen\}/);
+  assert.doesNotMatch(editor, /id: 'duplicate-screen'/);
   assert.match(model, /collectStudioClipboardElements/);
   assert.match(model, /pasteStudioClipboardElements/);
   assert.match(model, /copyStudioElementFormat/);
@@ -516,7 +522,44 @@ test('Spectropy shortcuts select and operate on canvas elements without browser 
   assert.match(editor, /key === 'g'/);
   assert.match(editor, /key === 'u'/);
   assert.match(editor, /key === 'r'/);
+  assert.match(editor, /duplicateSelectedScreen/);
+  assert.match(editor, /duplicateSelectionOrScreen\(\)/);
   assert.match(editor, /window\.addEventListener\('keyup', releaseSpectropyShortcut\)/);
+});
+
+test('Text list menu offers None and shape points edit directly on the canvas', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const commands = readFrontend('components/studioTextCommands.ts');
+  const textElement = readFrontend('components/StudioCanvasTextElement.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(toolbar, /No bullets or numbering/);
+  assert.match(commands, /type: 'clear-list'/);
+  assert.match(textElement, /removeListFormatting/);
+  assert.match(textElement, /syncListMarkerStyles/);
+  assert.match(textElement, /--studio-list-marker-color/);
+  assert.match(textElement, /computed\.fontSize/);
+  assert.match(canvas, /data-inline-shape-point-editor="true"/);
+  assert.match(canvas, /data-canvas-interactive="true"/);
+  assert.match(canvas, /canvasSelectionChromeHidden/);
+  assert.match(canvas, /r="7"/);
+  assert.match(canvas, /onCommitShapePoints/);
+  assert.doesNotMatch(editor, /<ShapePointEditor/);
+  assert.match(editor, /if \(shapePointTarget\)/);
+  assert.match(editor, /setShapePointTarget\(null\)/);
+});
+
+test('Background images can be uploaded or selected from image Resources', () => {
+  const menu = readFrontend('components/StudioBackgroundImageMenu.tsx');
+  assert.match(menu, /ResourceLibrary/);
+  assert.match(menu, /allowedTypes=\{\['image'\]\}/);
+  assert.match(menu, /initialType="image"/);
+  assert.match(menu, /Choose a background Resource/);
+  assert.match(menu, /resourceVersionId: version\.id/);
+  assert.match(menu, /Background image source/);
+  assert.match(menu, /Upload from device/);
+  assert.match(menu, /Choose from Resources/);
+  assert.match(menu, /<span>Background image<\/span>/);
 });
 
 test('Diagram Text Pane preserves a trailing Enter while synchronizing node changes', () => {

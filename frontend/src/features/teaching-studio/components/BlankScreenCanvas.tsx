@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Crop, FileText, LoaderCircle, Maximize2, Minimize2, Minus, Music, Plus, Scan, Video } from 'lucide-react';
@@ -7,12 +7,13 @@ import type { StudioResourceDetails, StudioResourceVersion } from '../api/studio
 import type { StudioScreenResourceCache } from '../studioScreenResourceCache';
 import type { Layout, ObjectType, Rect, Slide, Slot } from '../layouts';
 import SlideCanvas from '../SlideCanvas';
-import type { AuthorDrawingStroke, StudioDrawingTool, StudioElement, StudioScreen } from '../types';
+import type { AuthorDrawingStroke, StudioBackgroundImageFill, StudioDrawingTool, StudioElement, StudioScreen } from '../types';
 import StudioResourcePlayer from './resources/StudioResourcePlayer';
 import { model3DSettingsFrom, type Model3DSettings } from './resources/model3DSettings';
 import StudioMathElement from './StudioMathElement';
 import MathLiveEquationEditor from './MathLiveEquationEditor';
-import StudioCanvasTextElement from './StudioCanvasTextElement';
+import StudioCanvasTextElement, { isStudioTextBox } from './StudioCanvasTextElement';
+import type { StudioTextCommand } from './studioTextCommands';
 import StudioElementToolbar from './StudioElementToolbar';
 import StudioShapeElement from './StudioShapeElement';
 import StudioTableElement from './StudioTableElement';
@@ -44,6 +45,7 @@ import {
   type PresenterAnimationNavigation,
 } from './studioClickerRuntime';
 import { studioElementSlotId } from '../importing/elementSlot';
+import { useStudioBackgroundImageUrl } from './StudioBackgroundImageMenu';
 
 interface BlankScreenCanvasProps {
   screen: StudioScreen | null;
@@ -71,6 +73,11 @@ interface BlankScreenCanvasProps {
   onChangeElementBounds?: (elementId: string, bounds: Rect) => void;
   onChangeElementRotation?: (elementId: string, rotation: number) => void;
   onChangeElementContent?: (elementId: string, changes: Record<string, unknown>) => void;
+  shapePointEditElementId?: string | null;
+  onCommitShapePoints?: (elementId: string, customPath: string) => void;
+  onExitShapePointEdit?: () => void;
+  onChangeSelectedElementsContent?: (changes: Record<string, unknown>) => void;
+  onFormatSelectedTextBoxes?: (command: StudioTextCommand) => void;
   onTextCaretChange?: (elementId: string, offset: number) => void;
   onEditInlineShape?: (elementId: string, shape: InlineShapeData, start: number, end: number) => void;
   onEditInlineEquation?: (elementId: string, latex: string, start: number, end: number) => void;
@@ -99,12 +106,136 @@ interface BlankScreenCanvasProps {
 
 const emptySlide: Slide = {
   title: '',
-  creationMode: 'layout',
+  creationMode: 'blank',
   objects: [],
 };
 
 const EMPTY_READY_MEDIA_KEYS = new Set<string>();
 const MAX_READY_SCREEN_STATES = 64;
+
+function StudioShapeWithBackground({ element, resourceCache, moveOutline, animationStyle }: { element: StudioElement; resourceCache?: StudioScreenResourceCache; moveOutline: boolean; animationStyle?: CSSProperties }) {
+  const backgroundImage = element.content.backgroundImage && typeof element.content.backgroundImage === 'object'
+    ? element.content.backgroundImage as StudioBackgroundImageFill
+    : null;
+  const backgroundImageUrl = useStudioBackgroundImageUrl(backgroundImage, resourceCache);
+  return <StudioShapeElement
+    elementId={element.id}
+    moveOutline={moveOutline}
+    kind={String(element.content.kind || 'rectangle')}
+    fill={typeof element.content.fill === 'string' ? element.content.fill : element.type === 'shape' ? undefined : 'transparent'}
+    stroke={typeof element.content.stroke === 'string' ? element.content.stroke : element.type === 'shape' ? undefined : 'transparent'}
+    strokeWidth={Number(element.content.strokeWidth) || undefined}
+    opacity={Number(element.content.opacity) || undefined}
+    strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
+    customPath={typeof element.content.customPath === 'string' ? element.content.customPath : undefined}
+    arrowStart={element.content.arrowStart === true}
+    arrowEnd={element.content.arrowEnd === true}
+    effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
+    effectColor={typeof element.content.shapeEffectColor === 'string' ? element.content.shapeEffectColor : undefined}
+    gradient={element.content.gradient && typeof element.content.gradient === 'object' ? element.content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
+    backgroundImageUrl={backgroundImageUrl}
+    backgroundImageFit={backgroundImage?.fit}
+    backgroundImageOpacity={backgroundImage?.opacity}
+    backgroundImageScale={backgroundImage?.scale}
+    backgroundImageX={backgroundImage?.x}
+    backgroundImageY={backgroundImage?.y}
+    animationStyle={animationStyle}
+  />;
+}
+
+type EditableShapePoint = { x: number; y: number };
+
+function InlineShapePointEditor({ element, onCommit, onExit }: {
+  element: StudioElement;
+  onCommit: (customPath: string) => void;
+  onExit: () => void;
+}) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<number | null>(null);
+  const pointsRef = useRef<EditableShapePoint[]>([]);
+  const [points, setPoints] = useState<EditableShapePoint[]>([]);
+  const [closed, setClosed] = useState(true);
+  const kind = String(element.content.kind || 'rectangle');
+  const customPath = typeof element.content.customPath === 'string' ? element.content.customPath : undefined;
+
+  useLayoutEffect(() => {
+    let nextPoints: EditableShapePoint[] = [];
+    let nextClosed = true;
+    const geometry = previewRef.current?.querySelector('svg > :is(polygon,rect,line,path)');
+    if (geometry instanceof SVGPolygonElement) {
+      nextPoints = Array.from(geometry.points, ({ x, y }) => ({ x, y }));
+    } else if (geometry instanceof SVGRectElement && geometry.rx.baseVal.value === 0) {
+      const { x, y, width, height } = geometry.getBBox();
+      nextPoints = [{ x, y }, { x: x + width, y }, { x: x + width, y: y + height }, { x, y: y + height }];
+    } else if (geometry instanceof SVGLineElement) {
+      nextClosed = false;
+      nextPoints = [{ x: geometry.x1.baseVal.value, y: geometry.y1.baseVal.value }, { x: geometry.x2.baseVal.value, y: geometry.y2.baseVal.value }];
+    } else if (kind === 'custom-geometry' && customPath) {
+      const segments = [...customPath.matchAll(/([ML])([\d.]+),([\d.]+)/g)];
+      nextClosed = customPath.endsWith('Z');
+      if (segments.length >= 2) nextPoints = segments.map(([, , x, y]) => ({ x: Number(x), y: Number(y) }));
+    }
+    pointsRef.current = nextPoints;
+    setPoints(nextPoints);
+    setClosed(nextClosed);
+  }, [customPath, kind]);
+
+  useEffect(() => {
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onExit();
+    };
+    window.addEventListener('keydown', closeWithEscape);
+    return () => window.removeEventListener('keydown', closeWithEscape);
+  }, [onExit]);
+
+  const pathFor = (value: EditableShapePoint[]) => value.map(({ x, y }, index) => `${index ? 'L' : 'M'}${Math.round(x)},${Math.round(y)}`).join(' ') + (closed ? ' Z' : '');
+  const updatePoint = (index: number, point: EditableShapePoint) => {
+    const next = pointsRef.current.map((current, pointIndex) => pointIndex === index ? point : current);
+    pointsRef.current = next;
+    setPoints(next);
+  };
+  const commit = () => {
+    if (pointsRef.current.length >= 2) onCommit(pathFor(pointsRef.current));
+  };
+
+  return <div className="absolute inset-0 z-30 select-none overscroll-contain" data-inline-shape-point-editor="true" data-canvas-interactive="true" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+    <div ref={previewRef} aria-hidden="true" className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0">
+      <StudioShapeElement kind={kind} customPath={customPath} />
+    </div>
+    {points.length ? <svg ref={svgRef} viewBox="0 0 200 120" className="h-full w-full touch-none overflow-visible" aria-label="Edit shape points on canvas"
+      onPointerMove={(event) => {
+        const index = dragRef.current;
+        const matrix = svgRef.current?.getScreenCTM();
+        if (index === null || !matrix) return;
+        event.preventDefault();
+        const position = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+        updatePoint(index, {
+          x: Math.round(Math.min(193, Math.max(7, position.x))),
+          y: Math.round(Math.min(113, Math.max(7, position.y))),
+        });
+      }}
+      onPointerUp={() => { if (dragRef.current !== null) commit(); dragRef.current = null; }}
+      onPointerCancel={() => { dragRef.current = null; }}
+    >
+      <path d={pathFor(points)} fill={closed ? 'rgba(37,99,235,0.12)' : 'none'} stroke="#2563eb" strokeWidth="1.5" strokeDasharray="4 2" />
+      {points.map(({ x, y }, index) => <circle key={index} cx={x} cy={y} r="7" fill="#1e3a8a" stroke="white" strokeWidth="2" tabIndex={0} aria-label={`Shape point ${index + 1}`} className="cursor-grab focus:outline-none focus-visible:stroke-amber-400"
+        onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); dragRef.current = index; event.currentTarget.setPointerCapture(event.pointerId); }}
+        onKeyDown={(event) => {
+          const offsets: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+          const delta = offsets[event.key];
+          if (!delta) return;
+          event.preventDefault();
+          updatePoint(index, {
+            x: Math.min(193, Math.max(7, x + delta[0])),
+            y: Math.min(113, Math.max(7, y + delta[1])),
+          });
+          window.requestAnimationFrame(commit);
+        }}
+      />)}
+    </svg> : <div className="grid h-full w-full place-items-center rounded border-2 border-dashed border-blue-500 bg-blue-50/80 p-2 text-center text-[10px] font-semibold text-blue-900">Point editing is available for polygons, rectangles, and lines.</div>}
+  </div>;
+}
 
 const elementText = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title;
@@ -574,6 +705,11 @@ export default function BlankScreenCanvas({
   onChangeElementBounds,
   onChangeElementRotation,
   onChangeElementContent,
+  shapePointEditElementId = null,
+  onCommitShapePoints,
+  onExitShapePointEdit,
+  onChangeSelectedElementsContent,
+  onFormatSelectedTextBoxes,
   onTextCaretChange,
   onEditInlineShape,
   onEditInlineEquation,
@@ -628,9 +764,14 @@ export default function BlankScreenCanvas({
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
   const [croppingElementId, setCroppingElementId] = useState<string | null>(null);
+  const screenBackgroundImage = screen?.screen_settings_json?.backgroundImage && typeof screen.screen_settings_json.backgroundImage === 'object'
+    ? screen.screen_settings_json.backgroundImage as StudioBackgroundImageFill
+    : null;
+  const screenBackgroundImageUrl = useStudioBackgroundImageUrl(screenBackgroundImage, resourceCache);
   const screenReadyKey = screen ? String(screen.id) : null;
   const [readyMediaByScreen, setReadyMediaByScreen] = useState<Map<string, Set<string>>>(() => new Map());
   const selectionChromeHidden = previewMode || Boolean(animationPreview);
+  const canvasSelectionChromeHidden = selectionChromeHidden || Boolean(shapePointEditElementId);
   const slideFrameRef = useRef<HTMLDivElement>(null);
   const zoomPointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | null>(null);
@@ -1111,24 +1252,8 @@ export default function BlankScreenCanvas({
     if (element.type === 'shape') {
       objectOverlays[element.id] = (
         <div className="relative h-full w-full overflow-hidden">
-          <div className="absolute inset-0 z-10">
-            <StudioShapeElement
-              elementId={element.id}
-              moveOutline={!previewMode && Boolean(onChangeElementBounds) && element.position.locked !== true}
-              kind={String(element.content.kind || 'rectangle')}
-              fill={typeof element.content.fill === 'string' ? element.content.fill : undefined}
-              stroke={typeof element.content.stroke === 'string' ? element.content.stroke : undefined}
-              strokeWidth={Number(element.content.strokeWidth) || undefined}
-              opacity={Number(element.content.opacity) || undefined}
-              strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
-              customPath={typeof element.content.customPath === 'string' ? element.content.customPath : undefined}
-              arrowStart={element.content.arrowStart === true}
-              arrowEnd={element.content.arrowEnd === true}
-              effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
-              effectColor={typeof element.content.shapeEffectColor === 'string' ? element.content.shapeEffectColor : undefined}
-              gradient={element.content.gradient && typeof element.content.gradient === 'object' ? element.content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
-              animationStyle={shapePaintAnimationStyle}
-            />
+          <div className={element.content.backgroundImage ? 'absolute inset-0' : 'absolute inset-0 z-10'}>
+            <StudioShapeWithBackground element={element} resourceCache={resourceCache} moveOutline={!previewMode && Boolean(onChangeElementBounds) && element.position.locked !== true} animationStyle={shapePaintAnimationStyle} />
           </div>
           <div className="absolute inset-0 overflow-hidden">
             <StudioCanvasTextElement
@@ -1172,6 +1297,11 @@ export default function BlankScreenCanvas({
               }}
             />
           </div>
+          {!selectionChromeHidden && shapePointEditElementId === element.id && onCommitShapePoints && onExitShapePointEdit ? <InlineShapePointEditor
+            element={element}
+            onCommit={(customPath) => onCommitShapePoints(element.id, customPath)}
+            onExit={onExitShapePointEdit}
+          /> : null}
         </div>
       );
       continue;
@@ -1218,19 +1348,13 @@ export default function BlankScreenCanvas({
       ].includes(element.type)
     ) {
       const textFrameKind = typeof element.content.kind === 'string' ? element.content.kind : '';
+      const hasTextBackgroundImage = Boolean(element.content.backgroundImage && typeof element.content.backgroundImage === 'object');
       objectOverlays[element.id] = (
         <div className="relative h-full w-full overflow-visible">
-        {textFrameKind ? <div className="pointer-events-none absolute inset-0"><StudioShapeElement
-          elementId={element.id}
-          kind={textFrameKind}
-          fill={typeof element.content.fill === 'string' ? element.content.fill : 'transparent'}
-          stroke={typeof element.content.stroke === 'string' ? element.content.stroke : 'transparent'}
-          strokeWidth={Number(element.content.strokeWidth) || undefined}
-          opacity={Number(element.content.opacity) || undefined}
-          strokeDash={typeof element.content.strokeDash === 'string' ? element.content.strokeDash : undefined}
-          effect={typeof element.content.shapeEffect === 'string' ? element.content.shapeEffect : undefined}
-          effectColor={typeof element.content.shapeEffectColor === 'string' ? element.content.shapeEffectColor : undefined}
-          gradient={element.content.gradient && typeof element.content.gradient === 'object' ? element.content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
+        {textFrameKind || hasTextBackgroundImage ? <div className="pointer-events-none absolute inset-0"><StudioShapeWithBackground
+          element={element}
+          resourceCache={resourceCache}
+          moveOutline={false}
           animationStyle={shapePaintAnimationStyle}
         /></div> : null}
         <div className="absolute inset-0"><StudioCanvasTextElement
@@ -1239,7 +1363,7 @@ export default function BlankScreenCanvas({
           text={text}
           richTextHtml={typeof element.content.richTextHtml === 'string' ? element.content.richTextHtml : undefined}
           color={typeof element.content.color === 'string' ? element.content.color : undefined}
-          backgroundColor={textFrameKind ? 'transparent' : typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
+          backgroundColor={textFrameKind || hasTextBackgroundImage ? 'transparent' : typeof element.content.backgroundColor === 'string' ? element.content.backgroundColor : undefined}
           borderColor={textFrameKind ? 'transparent' : typeof element.content.borderColor === 'string' ? element.content.borderColor : undefined}
           borderWidth={textFrameKind ? 0 : Number(element.content.borderWidth) || undefined}
           fontSize={Number(element.content.fontSize) || undefined}
@@ -1531,11 +1655,15 @@ export default function BlankScreenCanvas({
         {!selectionChromeHidden && toolbarHost && screen && onChangeElementContent
           ? createPortal(
               <StudioElementToolbar
-                element={selectedElement}
+                element={selectedElementIds.length > 1
+                  ? screen.elements.find((element) => selectedElementIds.includes(element.id) && isStudioTextBox(element)) ?? selectedElement
+                  : selectedElement}
                 selectionFontSize={selectedElement && textSelectionFontSize?.elementId === selectedElement.id ? textSelectionFontSize.value : null}
                 selectionFontFamily={selectedElement && textSelectionFontFamily?.elementId === selectedElement.id ? textSelectionFontFamily.value : null}
                 selectionSpacing={selectedElement && textSelectionSpacing?.elementId === selectedElement.id ? textSelectionSpacing.value : null}
-                onChange={(changes) => { if (selectedElement) onChangeElementContent(selectedElement.id, changes); }}
+                selectionCount={selectedElementIds.length || (selectedElement ? 1 : 0)}
+                onBatchTextCommand={onFormatSelectedTextBoxes}
+                onChange={(changes) => { if (selectedElementIds.length > 1 && onChangeSelectedElementsContent) onChangeSelectedElementsContent(changes); else if (selectedElement) onChangeElementContent(selectedElement.id, changes); }}
                 />,
               toolbarHost,
             )
@@ -1622,7 +1750,7 @@ export default function BlankScreenCanvas({
               effect={selectedAnimationEffect}
               onChange={onChangeSelectedAnimationEffect}
             /> : null}
-            selectionChromeHidden={selectionChromeHidden}
+            selectionChromeHidden={canvasSelectionChromeHidden}
             allowCanvasOverflow={!previewMode}
             showTextEditorOutlines={!selectionChromeHidden}
             transition={
@@ -1641,6 +1769,7 @@ export default function BlankScreenCanvas({
             onRemoveObject={onRemoveElement}
             zoom={previewMode ? 1 : canvasZoom}
             backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'}
+            backgroundImage={screenBackgroundImageUrl && screenBackgroundImage ? { ...screenBackgroundImage, url: screenBackgroundImageUrl } : null}
             onCanvasDoubleClick={!previewMode && onActivateSlotAt ? (point) => {
               const createdId = onActivateSlotAt(point);
               if (createdId) setEditingElementId(createdId);
@@ -1657,6 +1786,7 @@ export default function BlankScreenCanvas({
               slide={emptySlide}
               allowCanvasOverflow={!previewMode}
               backgroundColor={typeof screen?.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'}
+              backgroundImage={screenBackgroundImageUrl && screenBackgroundImage ? { ...screenBackgroundImage, url: screenBackgroundImageUrl } : null}
             />
             <p
                 className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-slate-500"

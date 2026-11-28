@@ -421,6 +421,15 @@ html[class*="studio-vt-"]::view-transition-new(studio-slide) { animation-name: s
 @keyframes studio-vt-fade-in { from { opacity: 0; } to { opacity: 1; } }
 html.studio-vt-morph::view-transition-old(studio-slide) { animation-name: studio-vt-morph-out; }
 html.studio-vt-morph::view-transition-new(studio-slide) { animation-name: studio-vt-morph-in; }
+html.studio-vt-morph::view-transition-group(*) {
+  animation-duration: var(--studio-vt-duration, 700ms);
+  animation-timing-function: cubic-bezier(.2,.75,.18,1);
+}
+html.studio-vt-morph::view-transition-old(*),
+html.studio-vt-morph::view-transition-new(*) {
+  animation-duration: var(--studio-vt-duration, 700ms);
+  mix-blend-mode: normal;
+}
 @keyframes studio-vt-morph-out { to { opacity: 0; filter: blur(8px); transform: scale(.94); } }
 @keyframes studio-vt-morph-in { from { opacity: 0; filter: blur(8px); transform: scale(1.06); } to { opacity: 1; filter: none; transform: none; } }
 html.studio-vt-push::view-transition-old(studio-slide) { animation-name: studio-vt-push-out; }
@@ -1302,14 +1311,6 @@ html.studio-vt-flash::view-transition-new(studio-slide) { animation-name: studio
   height: 4px;
 }
 
-.studio-ribbon-groups {
-  scrollbar-width: none;
-}
-
-.studio-ribbon-groups::-webkit-scrollbar {
-  display: none;
-}
-
 .studio-ribbon-tabs::-webkit-scrollbar-thumb,
 .studio-ribbon-groups::-webkit-scrollbar-thumb,
 [data-studio-element-toolbar]::-webkit-scrollbar-thumb {
@@ -1750,6 +1751,13 @@ html.studio-vt-flash::view-transition-new(studio-slide) { animation-name: studio
 .studio-canvas-rich-text ul { list-style-type: disc; }
 .studio-canvas-rich-text ol { list-style-type: decimal; }
 .studio-canvas-rich-text li { display: list-item; margin: 0.12em 0; }
+.studio-canvas-rich-text li::marker {
+  color: var(--studio-list-marker-color, currentColor);
+  font-family: var(--studio-list-marker-font-family, inherit);
+  font-size: var(--studio-list-marker-font-size, 1em);
+  font-weight: var(--studio-list-marker-font-weight, inherit);
+  font-style: var(--studio-list-marker-font-style, inherit);
+}
 .studio-canvas-rich-text a { color: #1d4ed8; text-decoration: underline; }
 .studio-canvas-rich-text > p,
 .studio-canvas-rich-text > div {

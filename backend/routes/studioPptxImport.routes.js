@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { authenticateToken, attachClientContext, requireRole } from '../middleware/auth.js';
 import { commitPptx, preflightPptx } from '../controllers/studioPptxImport.controller.js';
+import { exportPptx } from '../controllers/studioPptxExport.controller.js';
 import { handleStudioServiceError, AppError } from '../utils/errors.js';
 
 const router = Router();
@@ -25,5 +26,6 @@ const acceptPptx = (req, res, next) => upload.single('file')(req, res, (error) =
 router.use('/studio/sessions/:sessionId/imports/pptx', authenticateToken, attachClientContext, authors);
 router.post('/studio/sessions/:sessionId/imports/pptx/preflight', acceptPptx, preflightPptx);
 router.post('/studio/sessions/:sessionId/imports/pptx/commit', acceptPptx, commitPptx);
+router.get('/studio/sessions/:sessionId/exports/pptx', authenticateToken, attachClientContext, authors, exportPptx);
 
 export default router;

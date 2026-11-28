@@ -1112,7 +1112,7 @@ const directionFromTransition = (effectNode) => {
   const direction = String(attr(effectNode, 'dir', '') || '').toLowerCase();
   return ({ l: 'left', r: 'right', u: 'top', d: 'bottom', horz: 'horizontal', horizontal: 'horizontal', vert: 'vertical', vertical: 'vertical' })[direction] || undefined;
 };
-const transitionForSlide = (slideRoot, issues, slidePart, enabled) => {
+const transitionForSlide = (slideRoot, issues, slidePart, enabled, packageView, slideRelationships, resources) => {
   const transition = firstDescendant(slideRoot, 'transition');
   if (!transition) return undefined;
   if (!enabled) {
@@ -1125,32 +1125,63 @@ const transitionForSlide = (slideRoot, issues, slidePart, enabled) => {
     checker: 'checkerboard', checkerboard: 'checkerboard', circle: 'shape', diamond: 'shape', plus: 'shape', comb: 'comb',
     wedge: 'clock', random: 'random', strips: 'random-bars', newsflash: 'flash', flash: 'flash', fallover: 'fall-over',
     drape: 'drape', curtains: 'curtains', wind: 'wind', prestige: 'prestige', fracture: 'fracture', crush: 'crush',
-    peeloff: 'peel-off', pagecurl: 'page-curl', airplane: 'airplane', origami: 'origami', conveyor: 'conveyor',
+    peeloff: 'peel-off', pagecurl: 'page-curl', pagecurlsingle: 'page-curl', airplane: 'airplane', origami: 'origami', conveyor: 'conveyor',
     doors: 'doors', ferris: 'ferris-wheel', ferriswheel: 'ferris-wheel', flip: 'flip', flythrough: 'fly-through',
     gallery: 'gallery', glitter: 'glitter', honeycomb: 'honeycomb', pan: 'pan', ripple: 'ripple', rotate: 'rotate',
     shred: 'shred', switch: 'switch', vortex: 'vortex', warp: 'fly-through', prism: 'cube', cube: 'cube', window: 'window',
   }));
-  const effectNode = [transition, ...allDescendants(transition)].find((entry) => effectAliases.has(localName(entry?.['#name']).toLowerCase()));
-  const effectName = localName(effectNode?.['#name'] || '');
+  const effectNode = [transition, ...allDescendants(transition)].find((entry) => {
+    const name = localName(entry?.['#name']).toLowerCase();
+    return effectAliases.has(name) || name === 'prsttrans';
+  });
+  const nodeName = localName(effectNode?.['#name'] || '');
+  const effectName = nodeName.toLowerCase() === 'prsttrans' ? String(attr(effectNode, 'prst', '')) : nodeName;
   const effect = effectAliases.get(effectName.toLowerCase());
   if (!effect) {
     issues.push(importIssue({ severity: 'warning', code: 'PPTX_TRANSITION_UNSUPPORTED', message: 'This PowerPoint transition is not mapped to a supported Spectropy transition', sourceScreenId: slidePart, fallbackApplied: 'no-transition', details: { effect: effectName || 'unknown' } }));
     return undefined;
   }
   const speed = String(attr(transition, 'spd', 'med')).toLowerCase();
-  const duration = speed === 'slow' ? 1.2 : speed === 'fast' ? 0.4 : 0.7;
+  const explicitDuration = Number(attr(transition, 'dur'));
+  const duration = Number.isFinite(explicitDuration) && explicitDuration > 0
+    ? Math.max(0.1, Math.min(20, explicitDuration / 1000))
+    : speed === 'slow' ? 1.2 : speed === 'fast' ? 0.4 : 0.7;
   const advanceAfter = attr(transition, 'advTm');
-  const direction = directionFromTransition(effectNode) || 'right';
+  const direction = String(attr(effectNode, 'invX', '0')) === '1' ? 'left' : directionFromTransition(effectNode) || 'right';
   const option = effect === 'split'
     ? `${String(attr(effectNode, 'orient', 'vertical')).startsWith('h') ? 'horizontal' : 'vertical'}-${String(attr(effectNode, 'dir', 'out')).toLowerCase() === 'in' ? 'in' : 'out'}`
     : effect === 'shape' ? ({ circle: 'circle', diamond: 'diamond', plus: 'plus' })[effectName.toLowerCase()] || 'circle'
       : effect === 'clock' && effectName.toLowerCase() === 'wedge' ? 'wedge'
+        : effect === 'morph' ? ({ byobject: 'objects', byword: 'words', bychar: 'characters' })[String(attr(effectNode, 'option', 'byObject')).toLowerCase()] || 'objects'
         : direction;
+  const transitionSoundNode = firstDescendant(transition, 'snd');
+  const transitionSoundRelationship = transitionSoundNode
+    ? slideRelationships?.get(attr(transitionSoundNode, 'embed'))
+    : null;
+  const transitionSoundPart = transitionSoundRelationship?.target;
+  const transitionSoundType = transitionSoundPart ? mediaTypeFor(transitionSoundPart) : null;
+  let customSound;
+  if (transitionSoundPart && transitionSoundType?.startsWith('audio/') && packageView?.entries.has(transitionSoundPart)) {
+    const resourceSourceId = `pptx:${transitionSoundPart}`;
+    if (!resources.some((resource) => resource.source_id === resourceSourceId)) {
+      const bytes = packageView.bytes(transitionSoundPart);
+      resources.push({
+        source_id: resourceSourceId,
+        file_name: path.posix.basename(transitionSoundPart),
+        media_type: transitionSoundType,
+        bytes,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        metadata: { name: path.posix.basename(transitionSoundPart), package_part: transitionSoundPart, resource_type: 'audio', usage: 'transition_sound' },
+      });
+    }
+    customSound = { resourceSourceId, name: path.posix.basename(transitionSoundPart), mimeType: transitionSoundType };
+  }
   return {
     effect, option, direction: option, duration,
     advanceOnClick: String(attr(transition, 'advClick', '1')) !== '0',
     advanceAfterEnabled: advanceAfter !== undefined,
     advanceAfterSeconds: advanceAfter === undefined ? 0 : Math.max(0, Number(advanceAfter) || 0) / 1000,
+    ...(customSound ? { sound: 'custom', customSound } : {}),
   };
 };
 const animationsForSlide = (slideRoot, elements, issues, slidePart, enabled) => {
@@ -1672,7 +1703,7 @@ const packageModel = async (buffer, fileName, options = {}) => {
     });
     const importAnimations = options.animations !== false;
     animationsForSlide(slideRoot, elements, issues, slidePart, importAnimations);
-    const transition = transitionForSlide(slideRoot, issues, slidePart, importAnimations);
+    const transition = transitionForSlide(slideRoot, issues, slidePart, importAnimations, packageView, slideRelationships, resources);
     const notesRelationship = [...slideRelationships.values()].find((relationship) => /notesSlide$/i.test(relationship.type));
     let speakerNotes = '';
     if (notesRelationship?.target && packageView.entries.has(notesRelationship.target)) {
@@ -1732,6 +1763,8 @@ export const preflightPptxImport = async ({ file, options = {} }) => {
 
 export const buildPptxImportDocument = async ({ file, options = {} }) => {
   const model = await packageModel(file?.buffer, file?.originalname, options);
+  const sourceSha256 = createHash('sha256').update(file.buffer).digest('hex');
+  const sourceResourceId = `pptx:source:${sourceSha256}`;
   const requested = Array.isArray(options.selected_slide_ids) ? new Set(options.selected_slide_ids.map(String)) : null;
   const selectedScreens = requested ? model.slides.filter((slide) => requested.has(slide.source_id)) : model.slides;
   const screens = options.formatting === 'destination' ? selectedScreens.map((screen) => ({
@@ -1750,16 +1783,30 @@ export const buildPptxImportDocument = async ({ file, options = {} }) => {
     }),
   })) : selectedScreens;
   if (!screens.length) throw new AppError('Select at least one slide to import', 422, 'PPTX_SLIDE_SELECTION_REQUIRED');
-  const referenced = new Set(screens.flatMap((screen) => screen.elements.map((element) => element.resource_reference?.source_id).filter(Boolean)));
+  const referenced = new Set(screens.flatMap((screen) => [
+    ...screen.elements.map((element) => element.resource_reference?.source_id).filter(Boolean),
+    screen.transition?.customSound?.resourceSourceId,
+  ].filter(Boolean)));
   return {
     schema_version: IMPORT_SCHEMA_VERSION,
     source: {
       kind: 'pptx', name: cleanFileName(file.originalname),
-      sha256: createHash('sha256').update(file.buffer).digest('hex'),
+      sha256: sourceSha256,
+      resource_source_id: sourceResourceId,
       options: { formatting: options.formatting || 'source', fit_mode: options.fit_mode || 'fit', fallback: options.fallback || 'picture', animations: options.animations !== false },
     },
     screens,
-    resources: model.resources.filter((resource) => referenced.has(resource.source_id)),
+    resources: [
+      ...model.resources.filter((resource) => referenced.has(resource.source_id)),
+      {
+        source_id: sourceResourceId,
+        file_name: cleanFileName(file.originalname),
+        media_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        bytes: file.buffer,
+        sha256: sourceSha256,
+        metadata: { name: cleanFileName(file.originalname), resource_type: 'presentation', usage: 'pptx_round_trip_source' },
+      },
+    ],
     issues: model.issues.filter((issue) => !issue.source_screen_id || screens.some((screen) => screen.source_id === issue.source_screen_id)),
   };
 };

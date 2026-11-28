@@ -21,6 +21,12 @@ interface Props {
   effect?: string;
   effectColor?: string;
   gradient?: ShapeGradient | null;
+  backgroundImageUrl?: string;
+  backgroundImageFit?: 'cover' | 'contain';
+  backgroundImageOpacity?: number;
+  backgroundImageScale?: number;
+  backgroundImageX?: number;
+  backgroundImageY?: number;
   animationStyle?: CSSProperties;
 }
 export default function StudioShapeElement({
@@ -38,10 +44,17 @@ export default function StudioShapeElement({
   effect = 'none',
   effectColor = '#2563eb',
   gradient = null,
+  backgroundImageUrl,
+  backgroundImageFit = 'cover',
+  backgroundImageOpacity = 1,
+  backgroundImageScale = 1,
+  backgroundImageX = 0,
+  backgroundImageY = 0,
   animationStyle,
 }: Props) {
   const gradientId = `studio-shape-gradient-${useId().replaceAll(':', '')}`;
   const arrowId = `studio-shape-arrow-${useId().replaceAll(':', '')}`;
+  const imagePatternId = `studio-shape-image-${useId().replaceAll(':', '')}`;
   const [preview, setPreview] = useState<Partial<Pick<Props, 'fill' | 'stroke' | 'strokeWidth' | 'opacity' | 'strokeDash' | 'effect'>> | null>(null);
   useEffect(() => {
     if (!elementId) return;
@@ -62,7 +75,7 @@ export default function StudioShapeElement({
   const renderedEffect = typeof preview?.effect === 'string' ? preview.effect : effect;
   const validGradient = gradient && Array.isArray(gradient.stops) && gradient.stops.length >= 2;
   const common = {
-    fill: `var(--studio-shape-fill, ${validGradient ? `url(#${gradientId})` : renderedFill})`,
+    fill: `var(--studio-shape-fill, ${backgroundImageUrl ? `url(#${imagePatternId})` : validGradient ? `url(#${gradientId})` : renderedFill})`,
     stroke: `var(--studio-shape-stroke, ${renderedStroke})`,
     strokeWidth: renderedStrokeWidth,
     opacity: renderedOpacity,
@@ -94,6 +107,7 @@ export default function StudioShapeElement({
       }}
     >
       <defs>
+        {backgroundImageUrl ? <pattern id={imagePatternId} width="1" height="1" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox"><image href={backgroundImageUrl} x={-(Math.max(1, backgroundImageScale) - 1) / 2 + backgroundImageX / 200} y={-(Math.max(1, backgroundImageScale) - 1) / 2 + backgroundImageY / 200} width={Math.max(1, backgroundImageScale)} height={Math.max(1, backgroundImageScale)} preserveAspectRatio={backgroundImageFit === 'contain' ? 'xMidYMid meet' : 'xMidYMid slice'} opacity={Math.max(0, Math.min(1, Number(backgroundImageOpacity) || 0))}/></pattern> : null}
         {validGradient ? <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0" gradientTransform={`rotate(${Number(gradient.angle) || 0} .5 .5)`}>{gradient.stops.map((stop, index) => <stop key={`${stop.position}-${index}`} offset={`${Math.max(0, Math.min(1, Number(stop.position) || 0)) * 100}%`} stopColor={stop.color}/>)}</linearGradient> : null}
         <marker id={`${arrowId}-end`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill={`var(--studio-shape-stroke, ${renderedStroke})`}/></marker>
         <marker id={`${arrowId}-start`} viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M10 0L0 5L10 10Z" fill={`var(--studio-shape-stroke, ${renderedStroke})`}/></marker>

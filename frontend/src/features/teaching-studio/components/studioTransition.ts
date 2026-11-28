@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 
 let transitionAudioContext: AudioContext | null = null;
 let transitionSoundTimer: number | null = null;
+let transitionCustomAudio: HTMLAudioElement | null = null;
 const activeTransitionSources = new Set<AudioScheduledSourceNode>();
 
 const audioContext = () => {
@@ -19,6 +20,12 @@ export const unlockStudioTransitionAudio = async () => {
 export const stopStudioTransitionSound = () => {
   if (transitionSoundTimer !== null) window.clearTimeout(transitionSoundTimer);
   transitionSoundTimer = null;
+  if (transitionCustomAudio) {
+    transitionCustomAudio.pause();
+    transitionCustomAudio.removeAttribute('src');
+    transitionCustomAudio.load();
+    transitionCustomAudio = null;
+  }
   activeTransitionSources.forEach((source) => {
     try { source.stop(); } catch { /* source already stopped */ }
   });
@@ -85,12 +92,24 @@ const playNoise = (
 
 export const playStudioTransitionSound = async (
   value: unknown,
-  options: { loop?: boolean } = {},
+  options: { loop?: boolean; customUrl?: string | null } = {},
 ) => {
   const sound = String(value || 'none').toLowerCase();
   if (sound === 'none') return;
   stopStudioTransitionSound();
   if (sound === 'stop') return;
+  if (sound === 'custom') {
+    if (!options.customUrl) return;
+    const audio = new Audio(options.customUrl);
+    audio.preload = 'auto';
+    audio.loop = options.loop === true;
+    transitionCustomAudio = audio;
+    audio.addEventListener('ended', () => {
+      if (transitionCustomAudio === audio) transitionCustomAudio = null;
+    }, { once: true });
+    await audio.play();
+    return;
+  }
   const context = audioContext();
   if (!context) return;
   if (context.state === 'suspended') await context.resume();
@@ -268,6 +287,94 @@ let studioTransitionGeneration = 0;
 let activeStudioViewTransition: { skipTransition?: () => void } | null = null;
 let activeStudioViewTransitionCleanup: (() => void) | null = null;
 
+type MorphNamedNode = { node: HTMLElement; previousName: string; key: string; name: string };
+
+const morphNodeKey = (node: HTMLElement, mode: string, index: number) => {
+  const elementId = node.dataset.elementId;
+  if (elementId) return `id:${elementId}`;
+  const media = node.querySelector<HTMLImageElement | HTMLVideoElement>('img,video');
+  const mediaSource = media?.currentSrc || media?.getAttribute('src') || '';
+  if (mediaSource) return `media:${mediaSource.split(/[?#]/)[0].split('/').at(-1)}`;
+  const text = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+  if (text) {
+    const content = mode === 'characters' ? text : mode === 'words' ? text.split(' ').slice(0, 12).join(' ') : text;
+    return `text:${content.slice(0, 180)}`;
+  }
+  return `${node.tagName.toLowerCase()}:${index}`;
+};
+
+const morphCandidates = (root: HTMLElement, mode: string) => {
+  const objects = [...root.querySelectorAll<HTMLElement>('[data-element-id]')];
+  if (mode === 'objects') return objects;
+  const textDescendants = objects.flatMap((object) => {
+    const descendants = [...object.querySelectorAll<HTMLElement>('span,p,li,h1,h2,h3,h4,h5,h6')]
+      .filter((node) => !(node.innerText || node.textContent || '').trim() ? false : !node.querySelector('span,p,li,h1,h2,h3,h4,h5,h6'));
+    return descendants.length ? descendants : [object];
+  });
+  return [...new Set(textDescendants)];
+};
+
+const prepareMorphOldNodes = (root: HTMLElement, mode: string) => {
+  const occurrences = new Map<string, number>();
+  return morphCandidates(root, mode).map((node, index): MorphNamedNode => {
+    const baseKey = morphNodeKey(node, mode, index);
+    const occurrence = occurrences.get(baseKey) || 0;
+    occurrences.set(baseKey, occurrence + 1);
+    const key = `${baseKey}#${occurrence}`;
+    const name = `studio-morph-${index}`;
+    const previousName = node.style.getPropertyValue('view-transition-name');
+    node.style.setProperty('view-transition-name', name);
+    return { node, previousName, key, name };
+  });
+};
+
+const prepareMorphNewNodes = (root: HTMLElement, mode: string, oldNodes: MorphNamedNode[]) => {
+  const namesByKey = new Map(oldNodes.map((item) => [item.key, item.name]));
+  const occurrences = new Map<string, number>();
+  const named: MorphNamedNode[] = [];
+  morphCandidates(root, mode).forEach((node, index) => {
+    const baseKey = morphNodeKey(node, mode, index);
+    const occurrence = occurrences.get(baseKey) || 0;
+    occurrences.set(baseKey, occurrence + 1);
+    const key = `${baseKey}#${occurrence}`;
+    const name = namesByKey.get(key);
+    if (!name) return;
+    const previousName = node.style.getPropertyValue('view-transition-name');
+    node.style.setProperty('view-transition-name', name);
+    named.push({ node, previousName, key, name });
+  });
+  return named;
+};
+
+const restoreMorphNodes = (nodes: MorphNamedNode[]) => nodes.forEach(({ node, previousName, name }) => {
+  if (node.style.getPropertyValue('view-transition-name') !== name) return;
+  if (previousName) node.style.setProperty('view-transition-name', previousName);
+  else node.style.removeProperty('view-transition-name');
+});
+
+const LIVE_MEDIA_SELECTOR = 'video,canvas,model-viewer,iframe,audio';
+
+const playLiveMediaTransition = (
+  update: () => void,
+  transition: Record<string, unknown>,
+  dynamicTransitionHost?: ParentNode | null,
+) => {
+  flushSync(update);
+  window.requestAnimationFrame(() => {
+    const layer = dynamicTransitionHost?.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]')
+      || document.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]');
+    if (!layer) return;
+    const duration = Math.max(100, (Number(transition.duration) || 0.7) * 1000);
+    const option = String(transition.option || transition.direction || 'right');
+    const x = option.includes('left') ? '-8%' : option.includes('right') ? '8%' : '0%';
+    const y = option.includes('top') ? '-8%' : option.includes('bottom') ? '8%' : '0%';
+    layer.animate([
+      { opacity: 0, transform: `translate(${x},${y}) rotateY(${option.includes('left') ? -12 : 12}deg) scale(.96)`, filter: 'blur(5px)' },
+      { opacity: 1, transform: 'none', filter: 'none' },
+    ], { duration, easing: String(transition.easing || 'ease-in-out'), fill: 'both' });
+  });
+};
+
 export const startStudioSlideTransition = (
   update: () => void,
   transition?: Record<string, unknown>,
@@ -304,6 +411,11 @@ export const startStudioSlideTransition = (
     activeStudioViewTransitionCleanup = null;
     const layer = dynamicTransitionHost?.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]')
       || document.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]');
+    if (layer?.querySelector(LIVE_MEDIA_SELECTOR)) {
+      studioTransitionGeneration += 1;
+      playLiveMediaTransition(update, { ...transition, effect }, dynamicTransitionHost);
+      return true;
+    }
     if (layer && replayLayeredTransition(layer, { ...transition, effect }, transitionArtifactHost)) {
       studioTransitionGeneration += 1;
       flushSync(update);
@@ -327,6 +439,11 @@ export const startStudioSlideTransition = (
   const targetAlreadyPreviewing = viewTransitionTarget?.classList.contains('studio-transition-previewing') ?? false;
   viewTransitionTarget?.classList.add('studio-transition-previewing');
   if (viewTransitionTarget) viewTransitionTarget.style.setProperty('view-transition-name', 'studio-slide');
+  const morphMode = String(transition?.option || 'objects');
+  const oldMorphNodes = effect === 'morph' && viewTransitionTarget
+    ? prepareMorphOldNodes(viewTransitionTarget, morphMode)
+    : [];
+  let newMorphNodes: MorphNamedNode[] = [];
   const fromLeft = option.includes('left');
   const fromTop = option.includes('top');
   root.style.setProperty('--studio-vt-x', fromLeft ? '-100%' : option.includes('right') ? '100%' : '0%');
@@ -377,12 +494,18 @@ export const startStudioSlideTransition = (
     }
     if (viewTransitionTarget && !targetAlreadyPreviewing)
       viewTransitionTarget.classList.remove('studio-transition-previewing');
+    restoreMorphNodes(oldMorphNodes);
+    restoreMorphNodes(newMorphNodes);
     root.classList.remove(`studio-vt-${effect}`, `studio-vt-${effect}-${option}`);
     for (const property of ['--studio-vt-duration', '--studio-vt-x', '--studio-vt-y', '--studio-vt-sign', '--studio-vt-cube-out-rotation', '--studio-vt-cube-in-rotation', '--studio-vt-clip-from', '--studio-bars-start', '--studio-bars-middle', '--studio-bars-end', '--studio-blinds-mask', '--studio-blind-width', '--studio-checker-mask', '--studio-honeycomb-mask', '--studio-glitter-mask', '--studio-fracture-mask'])
       root.style.removeProperty(property);
   };
   try {
-    const viewTransition = viewDocument.startViewTransition?.(() => flushSync(update));
+    const viewTransition = viewDocument.startViewTransition?.(() => {
+      flushSync(update);
+      if (effect === 'morph' && viewTransitionTarget)
+        newMorphNodes = prepareMorphNewNodes(viewTransitionTarget, morphMode, oldMorphNodes);
+    });
     if (!viewTransition) { clear(); return false; }
     activeStudioViewTransition = viewTransition;
     activeStudioViewTransitionCleanup = clear;
@@ -677,13 +800,17 @@ export const studioTransitionStyle = (
 export const replayStudioTransition = (
   element: HTMLElement | null,
   transition?: Record<string, unknown>,
+  soundOptions: { customUrl?: string | null } = {},
 ) => {
   if (!element) return;
   const animationTarget = element.dataset.testid === 'slide-surface'
     ? element.querySelector<HTMLElement>('[data-testid="slide-transition-layer"]')
     : element;
   if (!animationTarget) return;
-  void playStudioTransitionSound(transition?.sound).catch(() => undefined);
+  void playStudioTransitionSound(transition?.sound, {
+    loop: transition?.loopSound === true,
+    customUrl: soundOptions.customUrl,
+  }).catch(() => undefined);
   const resolvedTransition = transition?.effect === 'random'
     ? { ...transition, effect: randomTransitionEffect() }
     : transition || {};

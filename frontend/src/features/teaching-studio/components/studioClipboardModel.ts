@@ -22,7 +22,12 @@ const FORMAT_KEYS = new Set([
 ]);
 
 const TEXT_FORMAT_KEYS = new Set(['alignment', 'backgroundColor', 'bold', 'color', 'fill', 'fontFamily', 'fontSize', 'italic', 'lineHeight', 'opacity', 'paragraphSpacingAfter', 'paragraphSpacingBefore', 'shapeEffect', 'stroke', 'strokeDash', 'strokeWidth', 'underline', 'verticalAlignment']);
-const SHAPE_FORMAT_KEYS = new Set(['fill', 'opacity', 'shapeEffect', 'stroke', 'strokeDash', 'strokeWidth', 'borderRadius']);
+// Shapes can also act as text boxes. Keep their shape appearance and copy the
+// supported text presentation properties without ever copying the text itself.
+const SHAPE_FORMAT_KEYS = new Set([
+  ...TEXT_FORMAT_KEYS,
+  'borderRadius',
+]);
 const PICTURE_FORMAT_KEYS = new Set(['borderColor', 'borderRadius', 'borderWidth', 'grayscale', 'opacity', 'saturate', 'shapeEffect']);
 const resourceTypeOf = (element: StudioElement) => String(element.resource?.usage.resource_type || '');
 

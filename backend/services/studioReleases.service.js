@@ -707,11 +707,43 @@ export const assertPinnedPublishedResourceAccess = async ({ releaseId: rawReleas
   )).rows[0];
   if (!release) throw new AppError('Published Session release not found', 404);
   await assertPublishedReleaseAccess(release, user);
-  const pinned = (release.manifest_json?.screens || []).some((screen) =>
-    (screen.elements || []).some((element) =>
-      Number(element.resource_mapping?.resource_version_id) === versionId));
-  if (!pinned) throw new AppError('Resource version is not part of this published release', 403);
-  return { release, versionId };
+  const screens = release.manifest_json?.screens || [];
+  const pinned = screens.some((screen) => (screen.elements || []).some((element) =>
+    Number(element.resource_mapping?.resource_version_id) === versionId));
+  if (pinned) return { release, versionId };
+  const transitionSoundBindings = screens
+    .map((screen) => screen.screen_settings_json?.transition?.customSound)
+    .filter((sound) => Number(sound?.resourceVersionId) === versionId);
+  const transitionSoundResourceIds = transitionSoundBindings
+    .map((sound) => Number(sound.resourceId))
+    .filter((id) => Number.isSafeInteger(id) && id > 0 && id <= 2147483647);
+  if (transitionSoundResourceIds.length) {
+    const result = await dbQuery(
+      `SELECT rv.id FROM resource_versions rv JOIN resources r ON r.id = rv.resource_id
+       WHERE rv.id = $1 AND r.id = ANY($2::int[]) AND r.resource_type = 'audio'
+         AND (r.client_id IS NULL OR r.client_id = $3)`,
+      [versionId, transitionSoundResourceIds, release.client_id],
+    );
+    if (result.rows[0]) return { release, versionId };
+  }
+  const imageBindings = screens.flatMap((screen) => [
+    screen.screen_settings_json?.backgroundImage,
+    ...(screen.elements || []).map((element) => element.content_json?.backgroundImage),
+  ]);
+  const resourceIds = imageBindings
+    .filter((image) => Number(image?.resourceVersionId) === versionId)
+    .map((image) => Number(image.resourceId))
+    .filter((id) => Number.isSafeInteger(id) && id > 0 && id <= 2147483647);
+  if (resourceIds.length) {
+    const result = await dbQuery(
+      `SELECT rv.id FROM resource_versions rv JOIN resources r ON r.id = rv.resource_id
+       WHERE rv.id = $1 AND r.id = ANY($2::int[]) AND r.resource_type = 'image'
+         AND (r.client_id IS NULL OR r.client_id = $3)`,
+      [versionId, resourceIds, release.client_id],
+    );
+    if (result.rows[0]) return { release, versionId };
+  }
+  throw new AppError('Resource version is not part of this published release', 403);
 };
 
 export const getPublishedTeachingMaterials = async ({ releaseId: rawReleaseId, user }) => {
