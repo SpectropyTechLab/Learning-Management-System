@@ -89,6 +89,55 @@ test('Format Painter ignores incompatible element families', () => {
   assert.deepEqual(applyStudioElementFormat(shape, copyStudioElementFormat(source)), shape);
 });
 
+test('Format Painter copies text presentation between text-bearing shapes without replacing content', () => {
+  const source = element('source-shape', {
+    type: 'shape',
+    content: {
+      kind: 'parallelogram',
+      text: 'Source text',
+      fill: '#0ea5e9',
+      stroke: '#22d3ee',
+      fontFamily: 'Arial Black',
+      fontSize: 60,
+      color: '#0f2747',
+      bold: true,
+      italic: true,
+      underline: true,
+      alignment: 'center',
+      lineHeight: 0.8,
+      verticalAlignment: 'middle',
+    },
+  });
+  const target = element('target-shape', {
+    type: 'shape',
+    content: {
+      kind: 'rectangle',
+      text: 'Keep this target text',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      fontSize: 24,
+      color: '#000000',
+      alignment: 'left',
+    },
+  });
+
+  const painted = applyStudioElementFormat(target, copyStudioElementFormat(source));
+
+  assert.equal(painted.content.text, 'Keep this target text');
+  assert.equal(painted.content.kind, 'rectangle');
+  assert.equal(painted.content.fontFamily, 'Arial Black');
+  assert.equal(painted.content.fontSize, 60);
+  assert.equal(painted.content.color, '#0f2747');
+  assert.equal(painted.content.bold, true);
+  assert.equal(painted.content.italic, true);
+  assert.equal(painted.content.underline, true);
+  assert.equal(painted.content.alignment, 'center');
+  assert.equal(painted.content.lineHeight, 0.8);
+  assert.equal(painted.content.verticalAlignment, 'middle');
+  assert.equal(painted.content.fill, '#0ea5e9');
+  assert.equal(painted.content.stroke, '#22d3ee');
+});
+
 test('native paste preserves supported metadata without mutating its clipboard source', () => {
   const source = element('source', {
     content: {

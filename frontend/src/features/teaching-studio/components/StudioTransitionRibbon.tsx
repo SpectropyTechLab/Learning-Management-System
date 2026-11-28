@@ -1,9 +1,10 @@
-import { Check, ChevronDown, ChevronUp, CopyCheck, Eye, GalleryVertical, LoaderCircle, MousePointerClick, ShieldCheck, SlidersHorizontal, Volume2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, CopyCheck, Download, Eye, GalleryVertical, LoaderCircle, MousePointerClick, ShieldCheck, SlidersHorizontal, Upload, Volume2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { StudioScreenSettings } from '../types';
 import { playStudioTransitionSound, replayStudioTransition } from './studioTransition';
 import { STUDIO_TRANSITION_GROUPS, STUDIO_TRANSITION_SOUNDS } from './studioTransitionCatalog';
+import type { StudioTransitionCustomSound } from './studioTransitionModel';
 
 type Props = {
   settings: StudioScreenSettings | null;
@@ -11,6 +12,9 @@ type Props = {
   screenCount?: number;
   onChange: (transition: Record<string, unknown>) => void;
   onApplyToAll?: (transition: Record<string, unknown>) => Promise<void>;
+  onUploadCustomSound?: (file: File) => Promise<StudioTransitionCustomSound>;
+  onPreview?: (transition: Record<string, unknown>) => void | Promise<void>;
+  onExportPowerPoint?: () => void | Promise<void>;
 };
 
 const TransitionIcon = ({ effect }: { effect: string }) => {
@@ -58,17 +62,18 @@ const EffectOptionIcon = ({ value }: { value: string }) => {
   );
 };
 
-const controlClass = 'h-8 rounded-md border-0 bg-transparent px-2 text-[10px] font-medium text-slate-800 outline-none hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 disabled:text-slate-400';
+const controlClass = 'h-7 rounded-md border-0 bg-transparent px-2 text-[10px] font-medium text-slate-800 outline-none hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 disabled:text-slate-400';
 const galleryPageSize = 8;
 const allTransitionEffects = STUDIO_TRANSITION_GROUPS.flatMap((item) => item.effects);
 
-export default function StudioTransitionRibbon({ settings, disabled, screenCount = 1, onChange, onApplyToAll }: Props) {
+export default function StudioTransitionRibbon({ settings, disabled, screenCount = 1, onChange, onApplyToAll, onUploadCustomSound, onPreview, onExportPowerPoint }: Props) {
   const [galleryPage, setGalleryPage] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryPosition, setGalleryPosition] = useState({ left: 0, top: 0 });
   const [effectOptionsOpen, setEffectOptionsOpen] = useState(false);
   const [effectOptionsPosition, setEffectOptionsPosition] = useState({ left: 0, top: 0 });
   const [applying, setApplying] = useState(false);
+  const [uploadingSound, setUploadingSound] = useState(false);
   const galleryRef = useRef<HTMLDivElement>(null);
   const effectOptionsRef = useRef<HTMLButtonElement>(null);
   const saved = settings?.transition && typeof settings.transition === 'object'
@@ -80,7 +85,10 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
     ...saved, ...changes,
   });
   const update = (changes: Record<string, unknown>) => onChange(transitionWith(changes));
-  const preview = (transition = saved) => replayStudioTransition(document.querySelector<HTMLElement>('[data-testid=slide-transition-layer]'), transition);
+  const preview = (transition = saved) => {
+    if (onPreview) void onPreview(transition);
+    else replayStudioTransition(document.querySelector<HTMLElement>('[data-testid=slide-transition-layer]'), transition);
+  };
   const effect = String(saved.effect || 'none');
   const selectedEffect = allTransitionEffects.find((item) => item.value === effect);
   const persistedOption = String(saved.option || saved.direction || '');
@@ -143,10 +151,10 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
   }, [effectOptionsOpen, galleryOpen]);
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-2" aria-label="Transition controls">
-      <div className="flex min-w-0 flex-1 items-center gap-2 border-r border-slate-200 pr-3">
+    <div className="flex w-max items-center gap-2 whitespace-nowrap [&>*]:shrink-0" aria-label="Transition controls">
+      <div className="flex items-center gap-2 border-r border-slate-200 pr-3">
         <button type="button" disabled={disabled} onClick={() => preview()} title="Preview transition" className="flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-lg border border-transparent text-blue-900 hover:border-blue-200 hover:bg-blue-50 disabled:opacity-40"><Eye size={21} /><span className="text-[9px] font-semibold">Preview</span></button>
-        <div ref={galleryRef} className="flex h-14 min-w-[18rem] max-w-[36rem] flex-1 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+        <div ref={galleryRef} className="flex h-14 w-[clamp(21rem,34vw,36rem)] shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
           <div className="grid min-w-0 flex-1 grid-cols-8 items-center gap-0.5 px-1">
             {visibleEffects.map((item) => (
               <button key={item.value} type="button" disabled={disabled} title={item.label} aria-label={`Use ${item.label} transition`} onClick={() => chooseEffect(item.value)} className={`flex h-12 min-w-0 flex-col items-center justify-center rounded-md border px-1 text-[10px] font-semibold ${effect === item.value ? 'border-blue-600 bg-blue-100 text-blue-950' : 'border-transparent bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'}`}>
@@ -168,7 +176,7 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
             {STUDIO_TRANSITION_GROUPS.map((transitionGroup) => (
               <section key={transitionGroup.name} className="mb-3 last:mb-0">
                 <h3 className="mb-1 border-b border-slate-200 pb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">{transitionGroup.name}</h3>
-                <div className="grid grid-cols-8 gap-1">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(3rem,1fr))] gap-1">
                   {transitionGroup.effects.map((item) => (
                     <button key={item.value} type="button" title={item.label} aria-label={`Use ${item.label} transition`} onClick={() => chooseEffect(item.value)} className={`flex h-12 min-w-0 flex-col items-center justify-center rounded-md border px-1 text-[9px] font-semibold ${effect === item.value ? 'border-blue-600 bg-blue-100 text-blue-950' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'}`}>
                       <TransitionIcon effect={item.value} /><span className="w-full truncate text-center">{item.label}</span>
@@ -198,7 +206,7 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
         document.body,
       ) : null}
 
-      <div className="grid grid-cols-[8.5rem_7.5rem] gap-1 border-r border-slate-200 pr-2">
+      <div className="grid grid-cols-[8.5rem_7.5rem] gap-1 border-r border-slate-200 pr-2 [&>button]:h-7 [&>label]:h-7">
         <button ref={effectOptionsRef} type="button" aria-haspopup="menu" aria-expanded={effectOptionsOpen} title="Effect Options" disabled={disabled || !selectedEffect?.options?.length} onClick={openEffectOptions} className="flex h-8 w-[8.5rem] items-center justify-center gap-1 rounded-md bg-slate-100 px-2 text-[10px] font-semibold text-slate-800 hover:bg-blue-50 disabled:text-slate-400"><SlidersHorizontal size={14} /><span>Effect Options</span><ChevronDown size={11} /></button>
         <label className="flex h-8 items-center gap-1 rounded-md bg-slate-100 px-2 text-[10px] font-semibold text-slate-600">Duration<input aria-label="Transition duration" title="Duration in seconds" type="number" min="0.1" max="20" step="0.1" disabled={disabled} value={Number(saved.duration) || 0.7} onChange={(event) => update({ duration: Number(event.target.value) })} className={`${controlClass} min-w-0 flex-1 bg-transparent px-0`} /></label>
         <select aria-label="Motion intensity" title="Motion intensity" disabled={disabled} value={String(saved.intensity || 'standard')} onChange={(event) => update({ intensity: event.target.value })} className={`${controlClass} w-[8.5rem] bg-slate-100`}><option value="subtle">Subtle motion</option><option value="standard">Standard motion</option><option value="dramatic">Dramatic motion</option></select>
@@ -209,7 +217,26 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
         <Volume2 size={15} className="text-slate-500" />
         <select aria-label="Transition sound" title="Sound" disabled={disabled} value={String(saved.sound || 'none')} onChange={(event) => { const sound = event.target.value; update({ sound }); void playStudioTransitionSound(sound).catch(() => undefined); }} className={`${controlClass} w-[7.5rem] bg-slate-100`}>
           {STUDIO_TRANSITION_SOUNDS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          {saved.customSound ? <option value="custom">{String((saved.customSound as Record<string, unknown>).name || 'Custom sound')}</option> : null}
         </select>
+        {onUploadCustomSound ? <label title="Upload a custom transition sound" className="col-span-2 flex h-6 cursor-pointer items-center justify-center gap-1 rounded border border-slate-200 px-1 text-[9px] font-semibold text-slate-700 hover:bg-blue-50">
+          {uploadingSound ? <LoaderCircle size={12} className="animate-spin" /> : <Upload size={12} />}
+          <span>{uploadingSound ? 'Uploading…' : saved.customSound ? 'Replace custom sound' : 'Custom sound'}</span>
+          <input type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.aac" disabled={disabled || uploadingSound} className="sr-only" onChange={async (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            setUploadingSound(true);
+            try {
+              const customSound = await onUploadCustomSound(file);
+              update({ sound: 'custom', customSound });
+            } catch {
+              // The parent reports the actionable upload error.
+            } finally {
+              setUploadingSound(false);
+            }
+          }} />
+        </label> : null}
         <label className="col-span-2 flex h-6 items-center gap-1 rounded px-1 text-[10px] font-semibold hover:bg-slate-50"><input className="h-3.5 w-3.5" type="checkbox" disabled={disabled || ['none', 'stop'].includes(String(saved.sound || 'none'))} checked={saved.loopSound === true} onChange={(event) => update({ loopSound: event.target.checked })} />Loop sound</label>
       </div>
 
@@ -220,6 +247,7 @@ export default function StudioTransitionRibbon({ settings, disabled, screenCount
       </div>
 
       {onApplyToAll && screenCount > 1 ? <button type="button" disabled={disabled || applying} onClick={async () => { setApplying(true); try { await onApplyToAll(transitionWith({})); } finally { setApplying(false); } }} className="inline-flex h-12 items-center gap-1 rounded-md bg-blue-50 px-3 text-[10px] font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-40">{applying ? <LoaderCircle size={15} className="animate-spin" /> : <CopyCheck size={15} />}{applying ? 'Applying…' : 'Apply to all'}{!applying ? <Check size={11} /> : null}</button> : null}
+      {onExportPowerPoint ? <button type="button" disabled={disabled} onClick={() => void onExportPowerPoint()} title="Export retained PowerPoint with current transition settings" className="inline-flex h-12 items-center gap-1 rounded-md border border-blue-200 bg-white px-3 text-[10px] font-semibold text-blue-900 hover:bg-blue-50 disabled:opacity-40"><Download size={15} />Export PPTX</button> : null}
     </div>
   );
 }

@@ -154,6 +154,7 @@ export default function SlideCanvas({
   onRemoveObject,
   zoom = 1,
   backgroundColor = '#f9fcff',
+  backgroundImage,
   onCanvasDoubleClick,
   onCanvasClick,
 }: {
@@ -195,6 +196,7 @@ export default function SlideCanvas({
   onRemoveObject?: (objectId: string) => void;
   zoom?: number;
   backgroundColor?: string;
+  backgroundImage?: { url: string; fit?: 'cover' | 'contain'; scale?: number; x?: number; y?: number; opacity?: number } | null;
   onCanvasDoubleClick?: (point: { x: number; y: number }) => void;
   onCanvasClick?: (point: { x: number; y: number }) => void;
 }) {
@@ -864,6 +866,18 @@ export default function SlideCanvas({
             data-scale={scale}
           >
             <rect width={MASTER.width} height={MASTER.height} fill={backgroundColor} />
+            {backgroundImage?.url ? (
+              <image
+                aria-hidden="true"
+                href={backgroundImage.url}
+                x={(MASTER.width - MASTER.width * Math.max(1, Number(backgroundImage.scale) || 1)) / 2 + (Math.max(-100, Math.min(100, Number(backgroundImage.x) || 0)) / 100) * (MASTER.width / 2)}
+                y={(MASTER.height - MASTER.height * Math.max(1, Number(backgroundImage.scale) || 1)) / 2 + (Math.max(-100, Math.min(100, Number(backgroundImage.y) || 0)) / 100) * (MASTER.height / 2)}
+                width={MASTER.width * Math.max(1, Number(backgroundImage.scale) || 1)}
+                height={MASTER.height * Math.max(1, Number(backgroundImage.scale) || 1)}
+                opacity={Number.isFinite(Number(backgroundImage.opacity)) ? Math.max(0, Math.min(1, Number(backgroundImage.opacity))) : 1}
+                preserveAspectRatio={`xMidYMid ${backgroundImage.fit === 'contain' ? 'meet' : 'slice'}`}
+              />
+            ) : null}
             {showGuides && (
               <>
                 <rect
@@ -920,6 +934,7 @@ export default function SlideCanvas({
                   data-slot={field.id}
                   data-element-id={object?.id}
                   data-transition-content={object && !objectOverlays[object.id] ? 'true' : undefined}
+                  data-transition-ready={object && hiddenObjectIdSet.has(object.id) ? 'false' : 'true'}
                   transform={object ? `rotate(${rotationFor(object)} ${bounds.x + bounds.width / 2} ${bounds.y + bounds.height / 2})` : undefined}
                   role={object ? 'button' : undefined}
                   tabIndex={object ? 0 : undefined}
@@ -1065,6 +1080,7 @@ export default function SlideCanvas({
                 key={`overlay-${object.id}`}
                 data-element-id={object.id}
                 data-transition-content="true"
+                data-transition-ready={hiddenUntilReady ? 'false' : 'true'}
                 data-selection-chrome={selected ? 'true' : undefined}
                 onClickCapture={(event) => {
                   if (!suppressClickAfterDragRef.current) return;

@@ -354,6 +354,48 @@ export const listResources = async ({ query = {}, user }) => {
   const resourceType = query.resource_type ? String(query.resource_type).trim() : null;
   if (resourceType && !RESOURCE_TYPES.has(resourceType)) throw new AppError('Unsupported resource_type');
   const search = String(query.search || '').trim() || null;
+  const paginated = query.page !== undefined || query.page_size !== undefined;
+  const page = Math.max(1, Number.parseInt(String(query.page || '1'), 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(query.page_size || '30'), 10) || 30));
+  const sortSql = {
+    recently_updated: 'r.updated_at DESC, r.id DESC',
+    name_asc: 'LOWER(r.name) ASC, r.id DESC',
+    name_desc: 'LOWER(r.name) DESC, r.id DESC',
+    newest: 'r.created_at DESC, r.id DESC',
+    type: 'r.resource_type ASC, LOWER(r.name) ASC, r.id DESC',
+  }[String(query.sort || 'recently_updated')] || 'r.updated_at DESC, r.id DESC';
+  if (paginated) {
+    const result = await dbQuery(
+      `SELECT r.id, r.client_id, r.name, r.description, r.resource_type, r.is_active,
+              r.created_at, r.updated_at, (COUNT(*) OVER())::int AS total_count,
+              json_build_object(
+                'id', rv.id, 'resource_id', rv.resource_id, 'version_number', rv.version_number,
+                'original_file_name', rv.original_file_name, 'mime_type', rv.mime_type,
+                'file_size', rv.file_size, 'external_url', rv.external_url,
+                'width', rv.width, 'height', rv.height, 'duration_seconds', rv.duration_seconds,
+                'entry_point', rv.entry_point, 'uploaded_at', rv.created_at, 'created_at', rv.created_at
+              ) AS latest_version
+       FROM resources r
+       JOIN LATERAL (
+         SELECT * FROM resource_versions candidate
+         WHERE candidate.resource_id = r.id
+         ORDER BY candidate.version_number DESC LIMIT 1
+       ) rv ON TRUE
+       WHERE r.is_active = TRUE
+         AND ($1::boolean OR r.client_id IS NULL OR r.client_id = $2)
+         AND ($3::text IS NULL OR r.resource_type = $3)
+         AND ($4::text IS NULL OR r.name ILIKE '%' || $4 || '%')
+       ORDER BY ${sortSql}
+       LIMIT $5 OFFSET $6`,
+      [allTenants, clientId, resourceType, search, pageSize, (page - 1) * pageSize]
+    );
+    return {
+      items: result.rows.map(({ total_count: _totalCount, ...row }) => row),
+      total: Number(result.rows[0]?.total_count || 0),
+      page,
+      page_size: pageSize,
+    };
+  }
   const result = await dbQuery(
     `SELECT r.*, row_to_json(rv) AS latest_version
      FROM resources r
@@ -448,8 +490,20 @@ export const deleteResource = async ({ resourceId: rawResourceId, user }) => {
     client = await getClient();
     await client.query('BEGIN');
     const resource = await loadResource(client, resourceId, user, { lock: true });
-    const [placements, attempts, releases, versions] = await Promise.all([
+    const [placements, backgroundPlacements, attempts, releases, versions] = await Promise.all([
       client.query('SELECT COUNT(*)::int AS total FROM resource_mappings WHERE resource_id = $1', [resource.id]),
+      client.query(
+        `SELECT COUNT(*)::int AS total FROM (
+           SELECT s.id, 'screen' AS target
+           FROM screens s
+           WHERE s.screen_settings_json->'backgroundImage'->>'resourceId' = $1::text
+           UNION ALL
+           SELECT se.id, 'element' AS target
+           FROM screen_elements se
+           WHERE se.content_json->'backgroundImage'->>'resourceId' = $1::text
+         ) background_placements`,
+        [resource.id]
+      ),
       client.query('SELECT COUNT(*)::int AS total FROM studio_scorm_attempts WHERE resource_id = $1', [resource.id]),
       client.query(
         `SELECT COUNT(DISTINCT sr.id)::int AS total
@@ -458,17 +512,19 @@ export const deleteResource = async ({ resourceId: rawResourceId, user }) => {
            CASE WHEN jsonb_typeof(sr.manifest_json->'screens') = 'array'
              THEN sr.manifest_json->'screens' ELSE '[]'::jsonb END
          ) AS screen
-         CROSS JOIN LATERAL jsonb_array_elements(
+         LEFT JOIN LATERAL jsonb_array_elements(
            CASE WHEN jsonb_typeof(screen->'elements') = 'array'
              THEN screen->'elements' ELSE '[]'::jsonb END
-         ) AS element
-         WHERE element->'resource_mapping'->>'resource_id' = $1::text`,
+         ) AS element ON TRUE
+         WHERE screen->'screen_settings_json'->'backgroundImage'->>'resourceId' = $1::text
+            OR element->'resource_mapping'->>'resource_id' = $1::text
+            OR element->'content_json'->'backgroundImage'->>'resourceId' = $1::text`,
         [resource.id]
       ),
       client.query('SELECT storage_key, metadata_json FROM resource_versions WHERE resource_id = $1', [resource.id]),
     ]);
     const blockers = {
-      placement_count: Number(placements.rows[0].total),
+      placement_count: Number(placements.rows[0].total) + Number(backgroundPlacements.rows[0].total),
       scorm_attempt_count: Number(attempts.rows[0].total),
       published_release_count: Number(releases.rows[0].total),
     };

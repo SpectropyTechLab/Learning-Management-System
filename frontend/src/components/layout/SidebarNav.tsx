@@ -9,6 +9,7 @@ export interface SidebarNavItem {
   icon: React.ReactNode;
   active: boolean;
   onClick: () => void;
+  onPrefetch?: () => void;
 }
 
 interface SidebarNavProps {
@@ -110,6 +111,9 @@ export default function SidebarNav({
         {navItems.map((item) => (
           <button
             key={item.key}
+            onMouseEnter={item.onPrefetch}
+            onFocus={item.onPrefetch}
+            onPointerDown={item.onPrefetch}
             onClick={() => {
               item.onClick();
               if (closeOnNavigate) onClose();

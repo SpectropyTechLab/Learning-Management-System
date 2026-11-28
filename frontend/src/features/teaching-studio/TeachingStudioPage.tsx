@@ -16,6 +16,7 @@ import {
   CloudOff,
   Download,
   Eye,
+  EyeOff,
   Eraser,
   Focus,
   FileUp,
@@ -60,12 +61,15 @@ import toast from 'react-hot-toast';
 import {
   createBlankStudioScreen,
   deleteStudioScreen,
+  duplicateStudioScreen,
   getStudioErrorDetails,
   getStudioErrorMessage,
   getStudioScreen,
   listStudioScreens,
+  restoreStudioScreenTransitions,
   reorderStudioScreens,
   updateStudioScreen,
+  updateStudioScreenTransitions,
 } from './api/studioScreensApi';
 import BlankScreenCanvas from './components/BlankScreenCanvas';
 import StudioScreenNavigator from './components/StudioScreenNavigator';
@@ -74,6 +78,7 @@ import StudioLayoutGallery from './components/StudioLayoutGallery';
 import StudioLayoutRibbon from './components/StudioLayoutRibbon';
 import StudioWorkflowPanel from './components/StudioWorkflowPanel';
 import StudioElementPanel from './components/StudioElementPanel';
+import { applyStudioTextBoxCommand } from './components/StudioCanvasTextElement';
 import StudioAnimationsPanel from './components/StudioAnimationsPanel';
 import StudioAnimationRibbonGallery from './components/StudioAnimationRibbonGallery';
 import StudioAnimationMenu from './components/StudioAnimationMenu';
@@ -83,10 +88,11 @@ import { studioAnimationDefaultOptions, studioAnimationEffectSupported, type Stu
 import { STUDIO_EQUATION_GROUPS } from './components/StudioMathPanel';
 import StudioEquationRibbon from './components/StudioEquationRibbon';
 import { inlineEquationInsertionOffset } from './components/studioEquationControlModel';
-import { dispatchStudioTextCommand } from './components/studioTextCommands';
+import { dispatchStudioTextCommand, type StudioTextCommand } from './components/studioTextCommands';
 import StudioShapesPanel, { STUDIO_SHAPE_GROUPS } from './components/StudioShapesPanel';
 import StudioShapeElement from './components/StudioShapeElement';
 import StudioColourMenu from './components/StudioColourMenu';
+import StudioBackgroundImageMenu from './components/StudioBackgroundImageMenu';
 import { inlineShapeToken, type InlineShapeData } from './components/studioInlineShape';
 import StudioIconButton from './components/StudioIconButton';
 import StudioAdaptiveRibbon, {
@@ -95,6 +101,7 @@ import StudioAdaptiveRibbon, {
 import StudioClipboardGroup from './components/StudioClipboardGroup';
 import PasteOptionsMenu from './components/PasteOptionsMenu';
 import PptxImportDialog from './importing/ui/PptxImportDialog';
+import { exportPptx } from './api/studioPptxImportApi';
 import StudioElementContextMenu from './components/StudioElementContextMenu';
 import {
   applyStudioElementFormat,
@@ -117,6 +124,8 @@ import {
 } from './components/studioRibbonModel';
 import StudioDrawingPanel from './components/StudioDrawingPanel';
 import StudioTransitionRibbon from './components/StudioTransitionRibbon';
+import { replayStudioTransition } from './components/studioTransition';
+import { normalizeStudioTransition, type StudioTransitionCustomSound, type StudioTransitionSettings } from './components/studioTransitionModel';
 import StudioRejectionDetailsDialog from './components/StudioRejectionDetailsDialog';
 import StudioTaxonomySelect from './components/StudioTaxonomySelect';
 import {
@@ -213,8 +222,10 @@ import type {
   AuthorDrawingStroke,
   StudioDrawingTool,
   StudioElement,
+  StudioBackgroundImageFill,
   StudioScreen,
   StudioScreenList,
+  StudioScreenSettings,
 } from './types';
 import type { Layout, ObjectType, Slot } from './layouts';
 import { preserveStudioElementBounds } from './studioElementBounds';
@@ -229,8 +240,8 @@ import {
 } from './resourcePlacement';
 import { studioSetupApi } from './api/studioSetupApi';
 import { getSessionPlayerPreview } from './api/studioPublishedApi';
-import { cacheSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
 import type { StudioSession } from './api/studioSetupApi';
+import { prepareSessionPreviewCriticalScreen, prepareSessionPreviewImages, primeSessionPreview } from './studioSessionPreviewCache';
 import { studioTaxonomyApi } from './api/studioTaxonomyApi';
 import type { StudioTaxonomyTerm } from './api/studioTaxonomyApi';
 
@@ -411,6 +422,7 @@ export default function TeachingStudioPage() {
     screens: [],
   });
   const [selectedScreen, setSelectedScreen] = useState<StudioScreen | null>(null);
+  const [selectedScreenIds, setSelectedScreenIds] = useState<number[]>([]);
   const selectedScreenId = useMemo(() => {
     if (requestedScreenId && screenList.screens.some((screen) => screen.id === requestedScreenId)) {
       return requestedScreenId;
@@ -421,6 +433,13 @@ export default function TeachingStudioPage() {
   const [screenListLoaded, setScreenListLoaded] = useState(false);
   const [loadingScreen, setLoadingScreen] = useState(Boolean(sessionId));
   const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    if (!selectedScreenId) {
+      setSelectedScreenIds([]);
+      return;
+    }
+    setSelectedScreenIds((current) => current.includes(selectedScreenId) ? current : [selectedScreenId]);
+  }, [selectedScreenId]);
   const [createScreenOpen, setCreateScreenOpen] = useState(false);
   const [screenMetadataOpen, setScreenMetadataOpen] = useState(false);
   const [newScreenTitle, setNewScreenTitle] = useState('Untitled Screen');
@@ -510,6 +529,7 @@ export default function TeachingStudioPage() {
     setAnimationPreview(null);
   }, [selectedScreenId]);
   const [activeRibbonTab, setActiveRibbonTab] = useState<StudioRibbonTabId>('home');
+  const [shapePointTarget, setShapePointTarget] = useState<string | null>(null);
   const [simulationStudio, setSimulationStudio] = useState<{
     subject?: SimulationSubject;
     templateId?: string;
@@ -675,8 +695,17 @@ export default function TeachingStudioPage() {
     start: number;
     end: number;
   } | null>(null);
-  const [elementPast, setElementPast] = useState<StudioElement[][]>([]);
-  const [elementFuture, setElementFuture] = useState<StudioElement[][]>([]);
+  type ScreenHistorySnapshot = {
+    elements: StudioElement[];
+    settings: StudioScreenSettings;
+    batchTransitions?: Array<{ screenId: number; transition: StudioTransitionSettings }>;
+  };
+  const [elementPast, setElementPast] = useState<ScreenHistorySnapshot[]>([]);
+  const [elementFuture, setElementFuture] = useState<ScreenHistorySnapshot[]>([]);
+  const elementHistoryByScreenRef = useRef(new Map<number, {
+    past: ScreenHistorySnapshot[];
+    future: ScreenHistorySnapshot[];
+  }>());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [savingScreen, setSavingScreen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<
@@ -738,6 +767,10 @@ export default function TeachingStudioPage() {
   const saveDraftRef = useRef<(source?: 'autosave' | 'manual' | 'navigation') => Promise<boolean>>(
     async () => true,
   );
+
+  useEffect(() => {
+    elementHistoryByScreenRef.current.clear();
+  }, [sessionId]);
 
   useEffect(() => {
     screenListRef.current = screenList;
@@ -941,10 +974,11 @@ export default function TeachingStudioPage() {
     }
 
     const applySelectedScreen = (screen: StudioScreen) => {
+      const history = elementHistoryByScreenRef.current.get(screen.id);
       setSelectedScreen(screen);
       setSelectedElementId(null);
-      setElementPast([]);
-      setElementFuture([]);
+      setElementPast(history?.past ?? []);
+      setElementFuture(history?.future ?? []);
       setDrawingPast([]);
       setDrawingFuture([]);
       setHasUnsavedChanges(false);
@@ -995,6 +1029,31 @@ export default function TeachingStudioPage() {
     }
     setError(null);
     setSearchParams({ screen: String(screenId) }, { replace: true });
+  };
+
+  const duplicateSelectedScreen = async () => {
+    if (!sessionId || !selectedScreen || creating || editorReadOnly) return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const duplicated = await duplicateStudioScreen(selectedScreen.id);
+      rememberScreenRevision(duplicated);
+      const refreshed = await listStudioScreens(sessionId);
+      refreshed.screens.forEach(rememberScreenRevision);
+      setScreenList(refreshed);
+      setSelectedElementId(null);
+      setSelectedElementIds([]);
+      setSearchParams({ screen: String(duplicated.id) }, { replace: true });
+      toast.success('Screen duplicated.');
+      void loadWorkflow();
+    } catch (requestError) {
+      const message = getStudioErrorMessage(requestError);
+      setError(message);
+      toast.error(message);
+    } finally {
+      setCreating(false);
+    }
   };
 
   const editSelectedScreenScript = async () => {
@@ -1101,14 +1160,20 @@ export default function TeachingStudioPage() {
   const openPreview = async () => {
     if (!sessionId) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    const loadingToast = toast.loading('Preparing Session Preview…');
+    const preferredScreenId = selectedScreenRef.current?.id ?? null;
+    const previewRequest = primeSessionPreview(sessionId, () => getSessionPlayerPreview(sessionId), preferredScreenId);
+    const loadingToast = toast.loading('Preparing presentation…');
     try {
-      const preview = await getSessionPlayerPreview(sessionId);
-      const preferredScreenId = selectedScreenRef.current?.id ?? null;
-      cacheSessionPreview(sessionId, preview, preferredScreenId);
-      await prepareSessionPreviewImages(preview, getStudioResourcePreview);
+      const preview = await previewRequest;
+      let timeoutId = 0;
+      await Promise.race([
+        prepareSessionPreviewCriticalScreen(preview, preferredScreenId, getStudioResourcePreview).catch(() => undefined),
+        new Promise<void>((resolve) => { timeoutId = window.setTimeout(resolve, 1_500); }),
+      ]);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      void prepareSessionPreviewImages(preview, getStudioResourcePreview, preferredScreenId);
     } catch {
-      // The player keeps its existing request path as a safe fallback.
+      // The player retains its normal request path as a safe fallback.
     } finally {
       toast.dismiss(loadingToast);
     }
@@ -1437,9 +1502,18 @@ export default function TeachingStudioPage() {
     });
   }, [activeScreenId, screenList.screens, screenResourceCache]);
 
+  const screenHistorySnapshot = useCallback((screen: StudioScreen): ScreenHistorySnapshot => ({
+    elements: screen.elements,
+    settings: screen.screen_settings_json ?? {},
+  }), []);
+
   const commitElements = useCallback((elements: StudioElement[], selectElementId?: string | null) => {
     if (!selectedScreen || editorReadOnly) return;
-    setElementPast((past) => [...past.slice(-99), selectedScreen.elements]);
+    setElementPast((past) => {
+      const nextPast = [...past.slice(-99), screenHistorySnapshot(selectedScreen)];
+      elementHistoryByScreenRef.current.set(selectedScreen.id, { past: nextPast, future: [] });
+      return nextPast;
+    });
     setElementFuture([]);
     setSelectedScreen({ ...selectedScreen, elements });
     if (selectElementId !== undefined) {
@@ -1447,7 +1521,7 @@ export default function TeachingStudioPage() {
       setSelectedElementIds(selectElementId ? [selectElementId] : []);
     }
     setHasUnsavedChanges(true);
-  }, [editorReadOnly, selectedScreen]);
+  }, [editorReadOnly, screenHistorySnapshot, selectedScreen]);
 
   const setAuthoredDrawings = (strokes: AuthorDrawingStroke[], recordHistory = true) => {
     if (!selectedScreen || editorReadOnly) return;
@@ -1468,11 +1542,18 @@ export default function TeachingStudioPage() {
 
   const setScreenTransition = (transition: Record<string, unknown>) => {
     if (!selectedScreen || editorReadOnly) return;
+    const normalized = normalizeStudioTransition(transition);
+    setElementPast((past) => {
+      const nextPast = [...past.slice(-99), screenHistorySnapshot(selectedScreen)];
+      elementHistoryByScreenRef.current.set(selectedScreen.id, { past: nextPast, future: [] });
+      return nextPast;
+    });
+    setElementFuture([]);
     setSelectedScreen({
       ...selectedScreen,
       screen_settings_json: {
         ...(selectedScreen.screen_settings_json ?? {}),
-        transition,
+        transition: normalized,
       },
     });
     setHasUnsavedChanges(true);
@@ -1480,44 +1561,39 @@ export default function TeachingStudioPage() {
 
   const applyTransitionToAllScreens = async (transition: Record<string, unknown>) => {
     if (!selectedScreen || editorReadOnly || saveInFlightRef.current) return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('manual'))) return;
     saveInFlightRef.current = true;
     setSavingScreen(true);
     setSaveStatus('saving');
     try {
-      const sourceScreens = screenList.screens.map((screen) => screen.id === selectedScreen.id
-        ? {
-            ...selectedScreen,
-            screen_settings_json: {
-              ...(selectedScreen.screen_settings_json ?? {}),
-              transition,
-            },
-          }
-        : screen);
-      const savedScreens: StudioScreen[] = [];
-      let sessionRevisionNo = screenList.session_revision_no;
-      for (const screen of sourceScreens) {
-        const saved = await updateStudioScreen(screen.id, {
-          revision_no: latestScreenRevision(screen),
-          title: screen.title,
-          layout_id: screen.layout_id,
-          elements: screen.elements,
-          tags: screen.tags,
-          screen_settings: {
-            ...(screen.screen_settings_json ?? {}),
-            transition,
-          },
-        });
-        rememberScreenRevision(saved);
-        sessionRevisionNo = saved.session_revision_no;
-        savedScreens.push(saved);
-      }
-      setScreenList({ session_revision_no: sessionRevisionNo, screens: savedScreens });
-      const savedSelected = savedScreens.find((screen) => screen.id === selectedScreen.id) ?? null;
+      const normalized = normalizeStudioTransition(transition);
+      const before = screenList.screens.map((screen) => ({
+        screenId: screen.id,
+        transition: normalizeStudioTransition(screen.screen_settings_json?.transition),
+      }));
+      const result = await updateStudioScreenTransitions(
+        selectedScreen.session_id,
+        screenList.session_revision_no,
+        screenList.screens.map((screen) => screen.id),
+        normalized,
+      );
+      const savedById = new Map(result.screens.map((screen) => [screen.id, screen]));
+      const savedScreens = screenList.screens.map((screen) => savedById.get(screen.id) ?? screen);
+      savedScreens.forEach(rememberScreenRevision);
+      setScreenList({ session_revision_no: result.session_revision_no, screens: savedScreens });
+      const savedSelected = savedById.get(selectedScreen.id) ?? null;
       setSelectedScreen(savedSelected);
       selectedScreenRef.current = savedSelected;
+      setElementPast((past) => {
+        const snapshot = { ...screenHistorySnapshot(selectedScreen), batchTransitions: before };
+        const nextPast = [...past.slice(-99), snapshot];
+        elementHistoryByScreenRef.current.set(selectedScreen.id, { past: nextPast, future: [] });
+        return nextPast;
+      });
+      setElementFuture([]);
       setHasUnsavedChanges(false);
       setSaveStatus('saved');
-      toast.success(`Transition applied to all ${savedScreens.length} Screens.`);
+      toast.success(`Transition applied atomically to all ${savedScreens.length} Screens.`);
       void loadWorkflow();
     } catch (error) {
       setSaveStatus('error');
@@ -1526,6 +1602,138 @@ export default function TeachingStudioPage() {
     } finally {
       saveInFlightRef.current = false;
       setSavingScreen(false);
+    }
+  };
+
+  const applyTransitionToSelectedScreens = async (transition: Record<string, unknown>) => {
+    if (!selectedScreen || editorReadOnly || saveInFlightRef.current || selectedScreenIds.length < 2) return;
+    if (hasUnsavedChanges && !(await saveDraftRef.current('manual'))) return;
+    saveInFlightRef.current = true;
+    setSavingScreen(true);
+    setSaveStatus('saving');
+    try {
+      const normalized = normalizeStudioTransition(transition);
+      const targets = screenList.screens.filter((screen) => selectedScreenIds.includes(screen.id));
+      const before = targets.map((screen) => ({
+        screenId: screen.id,
+        transition: normalizeStudioTransition(screen.screen_settings_json?.transition),
+      }));
+      const result = await updateStudioScreenTransitions(
+        selectedScreen.session_id,
+        screenList.session_revision_no,
+        targets.map((screen) => screen.id),
+        normalized,
+      );
+      const savedById = new Map(result.screens.map((screen) => [screen.id, screen]));
+      const savedScreens = screenList.screens.map((screen) => savedById.get(screen.id) ?? screen);
+      savedScreens.forEach(rememberScreenRevision);
+      setScreenList({ session_revision_no: result.session_revision_no, screens: savedScreens });
+      const savedSelected = savedById.get(selectedScreen.id) ?? selectedScreen;
+      setSelectedScreen(savedSelected);
+      selectedScreenRef.current = savedSelected;
+      setElementPast((past) => {
+        const snapshot = { ...screenHistorySnapshot(selectedScreen), batchTransitions: before };
+        const nextPast = [...past.slice(-99), snapshot];
+        elementHistoryByScreenRef.current.set(selectedScreen.id, { past: nextPast, future: [] });
+        return nextPast;
+      });
+      setElementFuture([]);
+      setHasUnsavedChanges(false);
+      setSaveStatus('saved');
+      toast.success(`Transition applied to ${targets.length} selected Screens.`);
+    } catch (requestError) {
+      setSaveStatus('error');
+      toast.error(getStudioErrorMessage(requestError));
+    } finally {
+      saveInFlightRef.current = false;
+      setSavingScreen(false);
+    }
+  };
+
+  const toggleScreenHidden = async (screen: StudioScreen) => {
+    if (editorReadOnly || saveInFlightRef.current) return;
+    if (screen.id === selectedScreen?.id && hasUnsavedChanges && !(await saveDraftRef.current('manual'))) return;
+    try {
+      const saved = await updateStudioScreen(screen.id, {
+        revision_no: latestScreenRevision(screen),
+        title: screen.title,
+        layout_id: screen.layout_id,
+        elements: screen.elements,
+        tags: screen.tags,
+        screen_settings: { ...(screen.screen_settings_json ?? {}), hidden: screen.screen_settings_json?.hidden !== true },
+      });
+      rememberScreenRevision(saved);
+      setScreenList((current) => ({
+        session_revision_no: saved.session_revision_no,
+        screens: current.screens.map((candidate) => candidate.id === saved.id ? saved : candidate),
+      }));
+      if (selectedScreen?.id === saved.id) setSelectedScreen(saved);
+      toast.success(saved.screen_settings_json?.hidden ? 'Screen hidden from normal Slide Show navigation.' : 'Screen restored to Slide Show navigation.');
+    } catch (requestError) {
+      toast.error(getStudioErrorMessage(requestError));
+    }
+  };
+
+  const uploadTransitionSound = async (file: File): Promise<StudioTransitionCustomSound> => {
+    try {
+      if (!file.type.startsWith('audio/')) throw new Error('Choose an audio file for the transition sound.');
+      const resource = await createStudioResource({
+        name: file.name.replace(/\.[^.]+$/, '') || 'Custom transition sound',
+        description: 'Custom transition sound uploaded from Teaching Studio.',
+        resourceType: 'audio',
+        file,
+        metadataJson: { usage: 'transition_sound' },
+      });
+      if (!resource.latest_version?.id) throw new Error('The transition sound was uploaded without a usable version.');
+      toast.success(`${resource.name} is ready as a transition sound.`);
+      return {
+        resourceId: resource.id,
+        resourceVersionId: resource.latest_version.id,
+        name: resource.name,
+        mimeType: resource.latest_version.mime_type || file.type || null,
+      };
+    } catch (requestError) {
+      toast.error(getStudioErrorMessage(requestError));
+      throw requestError;
+    }
+  };
+
+  const previewScreenTransition = async (transition: Record<string, unknown>) => {
+    const normalized = normalizeStudioTransition(transition);
+    let customUrl: string | null = null;
+    if (normalized.sound === 'custom' && normalized.customSound?.resourceVersionId) {
+      try {
+        customUrl = (await getStudioResourcePreview(normalized.customSound.resourceVersionId)).url;
+      } catch (requestError) {
+        toast.error(getStudioErrorMessage(requestError));
+      }
+    }
+    replayStudioTransition(
+      document.querySelector<HTMLElement>('[data-testid=slide-transition-layer]'),
+      normalized,
+      { customUrl },
+    );
+  };
+
+  const exportSessionPowerPoint = async () => {
+    if (!sessionId) return;
+    const loadingToast = toast.loading('Preparing PowerPoint export…');
+    try {
+      if (hasUnsavedChanges && !(await saveDraftRef.current('manual'))) return;
+      const exported = await exportPptx(sessionId);
+      const url = URL.createObjectURL(exported.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = exported.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('PowerPoint exported with current transition settings.');
+    } catch (requestError) {
+      toast.error(getStudioErrorMessage(requestError));
+    } finally {
+      toast.dismiss(loadingToast);
     }
   };
 
@@ -2013,6 +2221,31 @@ export default function TeachingStudioPage() {
     updateElement({ ...element, content: { ...element.content, ...changes } });
   };
 
+  const changeSelectedElementsContent = (changes: Record<string, unknown>) => {
+    if (!selectedScreen || editorReadOnly || selectedElementIds.length === 0) return;
+    const selected = new Set(selectedElementIds);
+    const textFormattingKeys = new Set(['fontFamily', 'fontSize', 'color', 'bold', 'italic', 'underline', 'alignment', 'lineHeight', 'paragraphSpacingBefore', 'paragraphSpacingAfter']);
+    const textOnly = Object.keys(changes).some((key) => textFormattingKeys.has(key));
+    const textTypes = new Set(['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data', 'shape']);
+    commitElements(selectedScreen.elements.map((element) => selected.has(element.id) && (!textOnly || textTypes.has(element.type))
+      ? { ...element, content: { ...element.content, ...changes } }
+      : element));
+    setSelectedElementIds(selectedElementIds);
+    setSelectedElementId(selectedElementIds.at(-1) ?? null);
+  };
+
+  const formatSelectedTextBoxes = (command: StudioTextCommand) => {
+    if (!selectedScreen || editorReadOnly || selectedElementIds.length < 2) return;
+    const ids = new Set(selectedElementIds);
+    const toggleValue = command.type === 'format'
+      ? selectedScreen.elements.some((element) => ids.has(element.id) && element.content[command.command] !== true)
+      : undefined;
+    const elements = selectedScreen.elements.map((element) => ids.has(element.id)
+      ? applyStudioTextBoxCommand(element, command, toggleValue)
+      : element);
+    if (elements.some((element, index) => element !== selectedScreen.elements[index])) commitElements(elements);
+  };
+
   const changeElementBounds = (
     elementId: string,
     bounds: { x: number; y: number; width: number; height: number },
@@ -2095,11 +2328,14 @@ export default function TeachingStudioPage() {
 
   const removeElement = (elementId: string) => {
     if (!selectedScreen) return;
+    const ids = selectedElementIds.length > 1 && selectedElementIds.includes(elementId)
+      ? new Set(selectedElementIds)
+      : new Set([elementId]);
     commitElements(
-      selectedScreen.elements.filter((element) => element.id !== elementId),
+      selectedScreen.elements.filter((element) => !ids.has(element.id)),
       null,
     );
-    toast.success('Element removed. AutoSave will store the updated draft.');
+    toast.success(`${ids.size === 1 ? 'Element' : `${ids.size} elements`} removed. AutoSave will store the updated draft.`);
   };
 
   const duplicateElement = (elementId: string) => {
@@ -3211,28 +3447,65 @@ export default function TeachingStudioPage() {
     );
   };
 
-  const undoElementChange = () => {
-    if (!selectedScreen || elementPast.length === 0) return;
-    const previous = elementPast[elementPast.length - 1];
-    setElementPast((past) => past.slice(0, -1));
-    setElementFuture((future) => [selectedScreen.elements, ...future]);
-    setSelectedScreen({ ...selectedScreen, elements: previous });
-    setSelectedElementId(null);
-    // Undo changes the current draft even when AutoSave already persisted the
-    // newer state, so the restored state must itself be saved.
+  const applyHistorySnapshot = async (snapshot: ScreenHistorySnapshot, direction: 'undo' | 'redo') => {
+    if (!selectedScreen) return null;
+    if (snapshot.batchTransitions?.length) {
+      const targetIds = new Set(snapshot.batchTransitions.map((entry) => entry.screenId));
+      const currentBatch = screenList.screens
+        .filter((screen) => targetIds.has(screen.id))
+        .map((screen) => ({
+          screenId: screen.id,
+          transition: normalizeStudioTransition(screen.screen_settings_json?.transition),
+        }));
+      const result = await restoreStudioScreenTransitions(
+        selectedScreen.session_id,
+        screenList.session_revision_no,
+        snapshot.batchTransitions.map((entry) => ({ screen_id: entry.screenId, transition: entry.transition })),
+      );
+      const restoredById = new Map(result.screens.map((screen) => [screen.id, screen]));
+      const restoredScreens = screenList.screens.map((screen) => restoredById.get(screen.id) ?? screen);
+      restoredScreens.forEach(rememberScreenRevision);
+      setScreenList({ session_revision_no: result.session_revision_no, screens: restoredScreens });
+      const restoredSelected = restoredById.get(selectedScreen.id) ?? selectedScreen;
+      setSelectedScreen(restoredSelected);
+      selectedScreenRef.current = restoredSelected;
+      setHasUnsavedChanges(false);
+      setSaveStatus('saved');
+      toast.success(`${direction === 'undo' ? 'Undid' : 'Redid'} Apply To All.`);
+      return { ...screenHistorySnapshot(selectedScreen), batchTransitions: currentBatch };
+    }
+    const restored = { ...selectedScreen, elements: snapshot.elements, screen_settings_json: snapshot.settings };
+    setSelectedScreen(restored);
+    selectedScreenRef.current = restored;
     setHasUnsavedChanges(true);
     setSaveStatus('pending');
+    return screenHistorySnapshot(selectedScreen);
   };
 
-  const redoElementChange = () => {
+  const undoElementChange = async () => {
+    if (!selectedScreen || elementPast.length === 0) return;
+    const previous = elementPast[elementPast.length - 1];
+    const nextPast = elementPast.slice(0, -1);
+    const current = await applyHistorySnapshot(previous, 'undo');
+    if (!current) return;
+    const nextFuture = [current, ...elementFuture];
+    elementHistoryByScreenRef.current.set(selectedScreen.id, { past: nextPast, future: nextFuture });
+    setElementPast(nextPast);
+    setElementFuture(nextFuture);
+    setSelectedElementId(null);
+  };
+
+  const redoElementChange = async () => {
     if (!selectedScreen || elementFuture.length === 0) return;
     const next = elementFuture[0];
-    setElementFuture((future) => future.slice(1));
-    setElementPast((past) => [...past, selectedScreen.elements]);
-    setSelectedScreen({ ...selectedScreen, elements: next });
+    const nextFuture = elementFuture.slice(1);
+    const current = await applyHistorySnapshot(next, 'redo');
+    if (!current) return;
+    const nextPast = [...elementPast, current];
+    elementHistoryByScreenRef.current.set(selectedScreen.id, { past: nextPast, future: nextFuture });
+    setElementFuture(nextFuture);
+    setElementPast(nextPast);
     setSelectedElementId(null);
-    setHasUnsavedChanges(true);
-    setSaveStatus('pending');
   };
 
   const saveScreenDraft = async (source: 'autosave' | 'manual' | 'navigation' = 'manual') => {
@@ -3340,6 +3613,50 @@ export default function TeachingStudioPage() {
   const selectedElementsForClipboard = () => selectedScreen
     ? collectStudioClipboardElements(selectedScreen.elements, selectedElementIds, selectedElementId)
     : [];
+
+  const duplicateSelectionOrScreen = () => {
+    if (!selectedScreen || editorReadOnly) return;
+    const sources = selectedElementsForClipboard();
+    if (!sources.length) {
+      void duplicateSelectedScreen();
+      return;
+    }
+    if (sources.length === 1) {
+      duplicateElement(sources[0].id);
+      return;
+    }
+    if (selectedScreen.layout_id && sources.some((source) => source.type !== 'math' && source.type !== 'shape')) {
+      toast.error('This layout only allows math and shape elements to be duplicated.');
+      return;
+    }
+    const groupIds = new Map<string, string>();
+    const duplicates = sources.map((source) => {
+      const token = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const id = `element-${token}`;
+      const width = Number(source.position.width) || 400;
+      const height = Number(source.position.height) || 240;
+      const sourceGroupId = typeof source.position.groupId === 'string' ? source.position.groupId : '';
+      if (sourceGroupId && !groupIds.has(sourceGroupId)) groupIds.set(sourceGroupId, `group-${token}`);
+      return {
+        ...source,
+        id,
+        slotId: `free-${id}`,
+        content: { ...source.content },
+        position: {
+          ...source.position,
+          x: Math.min((Number(source.position.x) || 0) + 40, 1920 - width),
+          y: Math.min((Number(source.position.y) || 0) + 40, 1080 - height),
+          ...(sourceGroupId ? { groupId: groupIds.get(sourceGroupId) } : {}),
+        },
+        resource: source.resource
+          ? { ...source.resource, usage: { ...source.resource.usage, slot_id: `free-${id}` } }
+          : undefined,
+      } satisfies StudioElement;
+    });
+    commitElements([...selectedScreen.elements, ...duplicates], duplicates.at(-1)?.id ?? null);
+    setSelectedElementIds(duplicates.map((element) => element.id));
+    toast.success(`${duplicates.length} elements duplicated.`);
+  };
 
   const selectedCharacterFormat = () => {
     const selection = window.getSelection();
@@ -3703,7 +4020,7 @@ export default function TeachingStudioPage() {
           if (editorClipboard.length) pasteClipboard('source-formatting');
           else void pasteFromSystemClipboard();
         }
-        else if (key === 'd' && selected && !editorReadOnly) duplicateElement(selected.id);
+        else if (key === 'd' && !editorReadOnly) duplicateSelectionOrScreen();
         else if (key === 'g' && selectedElementIds.length > 1 && !editorReadOnly) groupSelectedElements();
         else if (key === 'u' && selectedHasGroup && !editorReadOnly) ungroupSelectedElements();
         else if (key === 'z' && !editorReadOnly) undoElementChange();
@@ -3757,6 +4074,12 @@ export default function TeachingStudioPage() {
         return;
       }
       if (key === 'escape') {
+        if (shapePointTarget) {
+          event.preventDefault();
+          event.stopPropagation();
+          setShapePointTarget(null);
+          return;
+        }
         if (formatPainter) {
           setFormatPainter(null);
           formatPainterAppliedTargetRef.current = null;
@@ -3795,9 +4118,9 @@ export default function TeachingStudioPage() {
       }
       // Copy, cut and paste are handled by ClipboardEvent so the operating-system
       // clipboard remains interoperable with PowerPoint, Word and browsers.
-      if (modifier && key === 'd' && selected) {
+      if (modifier && key === 'd' && selectedScreen) {
         event.preventDefault();
-        duplicateElement(selected.id);
+        duplicateSelectionOrScreen();
         return;
       }
       if (modifier && key === 'z') {
@@ -3920,7 +4243,7 @@ export default function TeachingStudioPage() {
     };
     // Command callbacks intentionally refresh with the editor state dependencies below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [copiedAnimation, copiedObjectFormat, editorClipboard, editorReadOnly, formatPainter, screenList, selectedElementId, selectedElementIds, selectedHasGroup, selectedScreen]);
+  }, [copiedAnimation, copiedObjectFormat, editorClipboard, editorReadOnly, formatPainter, screenList, selectedElementId, selectedElementIds, selectedHasGroup, selectedScreen, shapePointTarget]);
 
   useEffect(() => {
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -4011,17 +4334,20 @@ export default function TeachingStudioPage() {
         setPanel('elements');
         toast.success('Layout removed. Existing elements are preserved as freeform content.');
       } else {
+        const deletedIndex = screenList.screens.findIndex((screen) => screen.id === selectedScreen.id);
+        const adjacent = screenList.screens[deletedIndex - 1] ?? screenList.screens[deletedIndex + 1] ?? null;
         const deleted = await deleteStudioScreen(selectedScreen.id);
         const remaining = screenList.screens.filter((screen) => screen.id !== selectedScreen.id);
         setScreenList({ session_revision_no: deleted.session_revision_no, screens: remaining });
-        await reloadScreenScripts();
-        setSelectedScreen(null);
+        setSelectedScreen(adjacent);
+        setSelectedElementIds([]);
         setSelectedElementId(null);
         setElementPast([]);
         setElementFuture([]);
         setHasUnsavedChanges(false);
-        if (remaining[0]) setSearchParams({ screen: String(remaining[0].id) });
-        else setSearchParams({});
+        if (adjacent) setSearchParams({ screen: String(adjacent.id) }, { replace: true });
+        else setSearchParams({}, { replace: true });
+        await reloadScreenScripts();
         toast.success('Screen deleted successfully.');
       }
       setScreenAction(null);
@@ -4186,8 +4512,14 @@ export default function TeachingStudioPage() {
   const setContextualFillColor = (color: string) => {
     if (!selectedScreen || editorReadOnly) return;
     if (selectedElement) {
-      const key = selectedElement.type === 'shape' ? 'fill' : 'backgroundColor';
-      updateElement({ ...selectedElement, content: { ...selectedElement.content, [key]: color } });
+      const ids = selectedElementIds.length > 1 ? new Set(selectedElementIds) : new Set([selectedElement.id]);
+      commitElements(selectedScreen.elements.map((element) => {
+        if (!ids.has(element.id)) return element;
+        const key = element.type === 'shape' ? 'fill' : 'backgroundColor';
+        return { ...element, content: { ...element.content, [key]: color } };
+      }));
+      setSelectedElementIds([...ids]);
+      setSelectedElementId(selectedElement.id);
       return;
     }
     setSelectedScreen({
@@ -4204,9 +4536,29 @@ export default function TeachingStudioPage() {
     });
     setHasUnsavedChanges(true);
   };
+  const contextualBackgroundImage = selectedElement && (selectedElement.type === 'shape' || selectedElement.type === 'text')
+    ? selectedElement.content.backgroundImage as StudioBackgroundImageFill | null | undefined
+    : selectedScreen?.screen_settings_json?.backgroundImage;
+  const setContextualBackgroundImage = (backgroundImage: StudioBackgroundImageFill | null) => {
+    if (!selectedScreen || editorReadOnly) return;
+    if (selectedElement && (selectedElement.type === 'shape' || selectedElement.type === 'text')) {
+      const ids = selectedElementIds.length > 1 ? new Set(selectedElementIds) : new Set([selectedElement.id]);
+      commitElements(selectedScreen.elements.map((element) => ids.has(element.id) && (element.type === 'shape' || element.type === 'text')
+        ? { ...element, content: { ...element.content, backgroundImage } }
+        : element));
+      setSelectedElementIds([...ids]);
+      setSelectedElementId(selectedElement.id);
+      return;
+    }
+    setSelectedScreen({
+      ...selectedScreen,
+      screen_settings_json: { ...(selectedScreen.screen_settings_json ?? {}), backgroundImage },
+    });
+    setHasUnsavedChanges(true);
+  };
   const chooseRibbonShape = (kind: string) => {
     if (selectedElement?.type === 'shape' || selectedElement?.type === 'text') {
-      updateElement({ ...selectedElement, content: { ...selectedElement.content, kind } });
+      changeElementContent(selectedElement.id, { kind, customPath: undefined });
       return;
     }
     addShapeElement(kind);
@@ -4558,11 +4910,13 @@ export default function TeachingStudioPage() {
                 canPaste={!editorReadOnly && Boolean(selectedScreen) && !externalPasteBusy}
                 canCopy={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
                 canCut={!editorReadOnly && Boolean(selectedElementIds.length || selectedElement)}
+                canDuplicate={!editorReadOnly && Boolean(selectedScreen) && !creating}
                 formatPainterActive={Boolean(formatPainter)}
                 formatPainterLocked={formatPainter?.persistent === true}
                 availablePasteModes={editorClipboard.length ? studioPasteModesForElements(editorClipboard) : ['source-formatting']}
                 onPaste={pasteClipboard}
                 onCopy={copySelectedElements}
+                onDuplicate={duplicateSelectionOrScreen}
                 onCut={cutSelectedElements}
                 onFormatPainter={toggleFormatPainter}
               />
@@ -4590,6 +4944,7 @@ export default function TeachingStudioPage() {
           },
           {
             id: 'selection', label: 'Selection', commands: [
+              { id: 'delete-elements-home', label: 'Delete Elements', icon: <Trash2 size={17} />, danger: true, disabled: editorReadOnly || !selectedElement, onExecute: () => selectedElement && removeElement(selectedElement.id) },
               { id: 'open-layers', label: 'Layers', icon: <ListOrdered size={17} />, disabled: !selectedScreen, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
               { id: 'open-elements', label: 'Properties', icon: <SlidersHorizontal size={17} />, onExecute: openRibbonTool('elements'), active: rightPanelOpen && panel === 'elements' },
               { id: 'edit-hyperlink', label: 'Link', icon: <Link2 size={17} />, disabled: editorReadOnly || !selectedElement, onExecute: () => window.dispatchEvent(new Event('studio-open-hyperlink')) },
@@ -4636,7 +4991,7 @@ export default function TeachingStudioPage() {
           { id: 'insert-illustrations', label: 'Illustrations', commands: [
               { id: 'discover-assets', label: 'Discover Assets', icon: <Sparkles size={17} />, disabled: editorReadOnly || !selectedScreen, onExecute: () => setAssetCatalogOpen(true) },
               { id: 'insert-diagram', label: 'Diagram', icon: <Network size={17} />, onExecute: () => setDiagramChooserOpen(true), active: diagramChooserOpen },
-          ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes and Zoom"><div className="flex items-center gap-0.5" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<select aria-label="More shapes" defaultValue="" disabled={editorReadOnly || !selectedScreen} onChange={(event) => { if (event.target.value) addShapeElement(event.target.value); event.currentTarget.value = ''; }} className="h-8 w-16 rounded border px-1 text-[9px]"><option value="">More</option>{STUDIO_SHAPE_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.shapes.map((kind) => <option key={`${group.label}-${kind}`} value={kind}>{kind.replaceAll('-', ' ')}</option>)}</optgroup>)}</select></div><StudioZoomMenu disabled={editorReadOnly || !selectedScreen} active={Boolean(zoomDialogMode)} onSelect={setZoomDialogMode} /></div> },
+          ], content: <div className="flex items-center gap-0.5 px-1" aria-label="Shapes and Zoom"><div className="flex items-center gap-0.5" aria-label="Shapes gallery">{RIBBON_VISIBLE_SHAPES.slice(0, 6).map((kind) => <button key={kind} type="button" title={`Insert ${kind.replaceAll('-', ' ')}`} disabled={editorReadOnly || !selectedScreen} onClick={() => addShapeElement(kind)} className="h-8 w-8 rounded border border-slate-200 bg-white p-1 hover:border-blue-500 hover:bg-blue-50"><StudioShapeElement kind={kind} fill="#ffffff" stroke="#1e3a5f" strokeWidth={2} /></button>)}<ShapeGalleryDropdown groups={STUDIO_SHAPE_GROUPS} selectedKind="" disabled={editorReadOnly || !selectedScreen} onChange={addShapeElement} /></div><StudioZoomMenu disabled={editorReadOnly || !selectedScreen} active={Boolean(zoomDialogMode)} onSelect={setZoomDialogMode} /></div> },
         ];
       case 'simulation': {
         const subjectTemplates = SIMULATION_TEMPLATES.filter(
@@ -5020,17 +5375,22 @@ export default function TeachingStudioPage() {
           {
             id: 'screen-layouts', label: 'Layouts', content: <StudioLayoutRibbon layouts={layouts} selectedLayoutId={selectedScreen?.layout_id ?? null} applying={applyingLayout} disabled={editorReadOnly || !selectedScreen} onApply={requestLayoutApplication} onMore={() => setLayoutGalleryOpen(true)} />,
           },
-          { id: 'screen-background', label: 'Background', content: <StudioColourMenu label="Screen background colour" noColourLabel="No Fill" value={String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')} disabled={editorReadOnly || !selectedScreen} onChange={setScreenBackgroundColor} /> },
+          { id: 'screen-background', label: selectedElement && (selectedElement.type === 'shape' || selectedElement.type === 'text') ? 'Selected Element Background' : 'Screen Background', content: <div className="flex items-center gap-1 px-1"><StudioColourMenu label={selectedElement ? 'Element background colour' : 'Screen background colour'} noColourLabel="No Fill" value={selectedElement ? contextualFillColor : String(selectedScreen?.screen_settings_json?.backgroundColor || '#f9fcff')} disabled={editorReadOnly || !selectedScreen} onChange={selectedElement ? setContextualFillColor : setScreenBackgroundColor} /><StudioBackgroundImageMenu targetKey={JSON.stringify([selectedScreen?.id, selectedElement?.id, selectedElementIds])} label={selectedElement ? 'Element background image' : 'Screen background image'} value={contextualBackgroundImage && typeof contextualBackgroundImage === 'object' ? contextualBackgroundImage as StudioBackgroundImageFill : null} disabled={editorReadOnly || !selectedScreen || Boolean(selectedElement && !['shape', 'text'].includes(selectedElement.type))} onChange={setContextualBackgroundImage} /></div> },
         ];
       case 'transitions':
         return [
-          { id: 'transition-controls', label: 'Transition to This Screen', fitAvailableSpace: true, content: (
+          { id: 'transition-controls', label: 'Transition to This Screen', content: (
             <StudioTransitionRibbon
               settings={selectedScreen?.screen_settings_json ?? null}
               disabled={editorReadOnly || !selectedScreen}
               screenCount={screenList.screens.length}
-              onChange={setScreenTransition}
+              onChange={selectedScreenIds.length > 1
+                ? (transition) => { void applyTransitionToSelectedScreens(transition); }
+                : setScreenTransition}
               onApplyToAll={applyTransitionToAllScreens}
+              onUploadCustomSound={uploadTransitionSound}
+              onPreview={previewScreenTransition}
+              onExportPowerPoint={exportSessionPowerPoint}
             />
           ) },
         ];
@@ -5104,7 +5464,8 @@ export default function TeachingStudioPage() {
         ];
       case 'shape-format':
         return [
-          { id: 'shape-insert', label: 'Shapes & Text', content: <ShapeGalleryDropdown groups={STUDIO_SHAPE_GROUPS} selectedKind={String(selectedElement?.content.kind || 'rectangle')} disabled={!selectedElement || editorReadOnly} onChange={chooseRibbonShape} /> },
+          { id: 'shape-insert', label: 'Edit Shape', content: <><ShapeGalleryDropdown groups={STUDIO_SHAPE_GROUPS} selectedKind={String(selectedElement?.content.kind || 'rectangle')} disabled={!selectedElement || editorReadOnly} onChange={chooseRibbonShape} />
+            <button type="button" aria-pressed={Boolean(selectedElement && shapePointTarget === selectedElement.id)} disabled={!selectedElement || editorReadOnly} onClick={() => selectedElement && setShapePointTarget((current) => current === selectedElement.id ? null : selectedElement.id)} className={`h-8 whitespace-nowrap rounded px-2 text-[10px] font-semibold hover:bg-blue-50 disabled:opacity-40 ${selectedElement && shapePointTarget === selectedElement.id ? 'bg-blue-100 text-blue-900 ring-1 ring-blue-500' : ''}`}>Edit Points</button></> },
           { id: 'shape-styles', label: 'Shape Styles', content: <div className="flex items-center gap-1 px-1">{[['#dbeafe', '#1d4ed8'], ['#fee2e2', '#dc2626'], ['#dcfce7', '#16a34a'], ['#ffffff', '#0f172a']].map(([fill, stroke]) => <button key={`${fill}-${stroke}`} type="button" title="Apply shape style" disabled={!selectedElement} onClick={() => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, fill, stroke, strokeWidth: 2 } })} className="h-9 w-10 rounded-lg border-2" style={{ backgroundColor: fill, borderColor: stroke }} />)}</div> },
           { id: 'shape-colours', label: 'Shape Formatting', content: <ShapeAppearanceControls elementId={selectedElement?.id || ''} fill={String(selectedElement?.content.fill || 'transparent')} stroke={String(selectedElement?.content.stroke || 'transparent')} strokeWidth={Math.max(0, Number(selectedElement?.content.strokeWidth) || 0)} strokeDash={String(selectedElement?.content.strokeDash || 'solid')} effect={String(selectedElement?.content.shapeEffect || 'none')} disabled={!selectedElement || editorReadOnly} onChange={(changes) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, ...changes } })} /> },
           { id: 'shape-text', label: 'Text in Shape', content: <div className="grid gap-0.5 px-1"><select aria-label="Vertical text alignment" value={String(selectedElement?.content.verticalAlignment || (selectedElement?.type === 'shape' ? 'middle' : 'top'))} disabled={!selectedElement || editorReadOnly} onChange={(event) => selectedElement && updateElement({ ...selectedElement, content: { ...selectedElement.content, verticalAlignment: event.target.value } })} className="h-6 w-24 rounded bg-slate-50 px-1 text-[10px] outline-none ring-0"><option value="top">Align top</option><option value="middle">Align middle</option><option value="bottom">Align bottom</option></select><button type="button" disabled={!selectedElement || editorReadOnly} onClick={() => selectedElement && window.dispatchEvent(new CustomEvent('studio-edit-element-text', { detail: { elementId: selectedElement.id } }))} className="h-7 rounded bg-blue-50 px-2 text-[10px] font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-40">Add Text</button></div> },
@@ -5205,17 +5566,6 @@ export default function TeachingStudioPage() {
         ];
       case 'drawing-format':
         return drawingRibbonGroups;
-      case 'group-format':
-        return [
-          { id: 'group-actions', label: 'Group', commands: [
-            { id: 'group-selected', label: 'Group', icon: <Boxes size={17} />, disabled: editorReadOnly || selectedElementIds.length < 2, onExecute: groupSelectedElements },
-            { id: 'ungroup-selected', label: 'Ungroup', icon: <Unlink size={17} />, disabled: editorReadOnly || !selectedHasGroup, onExecute: ungroupSelectedElements },
-          ] },
-          { id: 'group-arrange', label: 'Arrange', commands: [
-            { id: 'group-layers', label: 'Layers', icon: <ListOrdered size={17} />, onExecute: openSelectionPane, active: rightPanelOpen && panel === 'layers' },
-            { id: 'group-animations', label: 'Animations', icon: <Sparkles size={17} />, onExecute: () => setActiveRibbonTab('animations'), active: activeRibbonTab === 'animations' },
-          ] },
-        ];
       default:
         return [];
     }
@@ -5642,15 +5992,18 @@ export default function TeachingStudioPage() {
                       {reorderIds.map((screenId, index) => {
                         const screen = screenList.screens.find((candidate) => candidate.id === screenId);
                         if (!screen) return null;
-                        const selected = selectedScreenId === screenId;
+                        const selected = selectedScreenIds.includes(screenId);
+                        const active = selectedScreenId === screenId;
                         return (
                           <div key={screenId} data-reorder-screen-id={screenId} className={`flex items-stretch gap-1 rounded-lg border p-1 transition ${draggingScreenId === screenId ? 'border-blue-700 bg-blue-100 opacity-70' : selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
-                            <button type="button" onClick={() => void selectScreen(screenId)} className="min-w-0 flex-1 text-left" aria-current={selected ? 'page' : undefined}>
-                              <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Screen {index + 1}</span>
+                            <label className="flex w-5 shrink-0 items-start justify-center pt-1" title={active ? 'The active Screen remains selected' : 'Select Screen for batch transition editing'}><input type="checkbox" checked={selected} disabled={active} onChange={(event) => setSelectedScreenIds((current) => event.target.checked ? [...new Set([...current, screenId])] : current.filter((id) => id !== screenId))} aria-label={`Select Screen ${index + 1}`} /></label>
+                            <button type="button" onClick={() => { setSelectedScreenIds((current) => current.includes(screenId) ? current : [screenId]); void selectScreen(screenId); }} className="min-w-0 flex-1 text-left" aria-current={active ? 'page' : undefined}>
+                              <span className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase text-slate-500"><span>Screen {index + 1}</span>{screen.screen_settings_json?.hidden === true ? <span className="text-amber-700">Hidden</span> : null}</span>
                               <span className="grid aspect-video w-full place-items-center overflow-hidden rounded border border-slate-200 bg-gradient-to-br from-white to-slate-100 px-2 text-center text-xs font-semibold text-slate-700 shadow-sm">
                                 <span><span className="line-clamp-2">{screenDisplayTitle(screen)}</span><span className="mt-1 block text-[9px] font-normal text-slate-500">{screen.elements.length} elements</span></span>
                               </span>
                             </button>
+                            {!editorReadOnly && <button type="button" title={screen.screen_settings_json?.hidden === true ? 'Show Screen in Slide Show' : 'Hide Screen from normal Slide Show'} aria-label={screen.screen_settings_json?.hidden === true ? `Show Screen ${index + 1}` : `Hide Screen ${index + 1}`} onClick={() => void toggleScreenHidden(screen)} className="flex w-8 items-center justify-center rounded text-slate-500 hover:bg-slate-100">{screen.screen_settings_json?.hidden === true ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
                             {!editorReadOnly && <button type="button" title="Drag Screen to reorder" aria-label={`Drag Screen ${index + 1} to reorder`} onPointerDown={(event) => { event.preventDefault(); setDraggingScreenId(screenId); reorderIdsRef.current = reorderIds; event.currentTarget.setPointerCapture(event.pointerId); }} className="flex w-8 touch-none items-center justify-center rounded text-slate-500 hover:bg-slate-100"><GripVertical size={18} /></button>}
                           </div>
                         );
@@ -5705,6 +6058,11 @@ export default function TeachingStudioPage() {
                 onChangeElementBounds={editorReadOnly ? undefined : changeElementBounds}
                 onChangeElementRotation={editorReadOnly ? undefined : changeElementRotation}
                 onChangeElementContent={editorReadOnly ? undefined : changeElementContent}
+                shapePointEditElementId={shapePointTarget}
+                onCommitShapePoints={editorReadOnly ? undefined : (elementId, customPath) => changeElementContent(elementId, { kind: 'custom-geometry', customPath })}
+                onExitShapePointEdit={() => setShapePointTarget(null)}
+                onChangeSelectedElementsContent={editorReadOnly ? undefined : changeSelectedElementsContent}
+                onFormatSelectedTextBoxes={editorReadOnly ? undefined : formatSelectedTextBoxes}
                 onTextCaretChange={(elementId, offset) => {
                   inlineEquationCaretRef.current = { elementId, offset };
                   const controlWindow = window as Window & { __studioActiveEquationElementId?: string };

@@ -273,7 +273,7 @@ test('Insert ribbon uploads or picks filtered Resources and places them without 
   assert.match(catalog, /const \[query, setQuery\] = useState\(''\)/);
   assert.match(catalog, /const \[submitted, setSubmitted\] = useState\(''\)/);
   assert.match(library, /if \(initialType !== undefined\) setResourceType\(initialType\)/);
-  assert.match(library, /mode === 'manage' \? <div[\s\S]*Discover Assets/);
+  assert.match(library, /mode === 'manage' && !hideTabs \? <div[\s\S]*Discover Assets/);
   assert.match(library, /if \(resource\.latest_version\) onPick\?\.\(resource, resource\.latest_version\)/);
   assert.match(library, /function PickerResourceActions/);
   assert.match(library, /Select version/);
@@ -464,18 +464,49 @@ test('Session Preview renders uncropped images with the same full-frame fit as t
   assert.match(player, /className="h-full w-full object-fill"/);
 });
 
-test('Session Preview uses the prepared editor manifest before its background refresh', () => {
+test('Session Preview prepares prioritized resources in the background and keeps adjacent Screens mounted', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const player = readFrontend('StudioSessionPlayerPage.tsx');
-  assert.match(editor, /cacheSessionPreview\(sessionId, preview/);
+  const preparation = readFrontend('studioSessionPreviewCache.ts');
+  assert.match(editor, /primeSessionPreview\(sessionId/);
+  assert.match(editor, /toast\.loading\('Preparing presentation…'\)/);
+  assert.match(editor, /const preview = await previewRequest/);
+  assert.match(editor, /prepareSessionPreviewCriticalScreen\(preview, preferredScreenId, getStudioResourcePreview\)/);
+  assert.match(editor, /navigate\(`\/studio\/player\/\$\{sessionId\}\/preview`\)/);
+  assert.match(editor, /prepareSessionPreviewImages\(preview, getStudioResourcePreview, preferredScreenId\)/);
+  assert.doesNotMatch(editor, /await prepareSessionPreviewImages/);
   assert.match(player, /getCachedSessionPreview\(sessionId\)/);
   assert.match(player, /useState\(!initialPreviewRef\.current\)/);
   assert.match(player, /clearCachedSessionPreview\(sessionId\)/);
-  assert.match(editor, /prepareSessionPreviewImages\(preview, getStudioResourcePreview\)/);
   assert.match(player, /getCachedResourcePreviewUrl\(mapping\.resource_version_id\)/);
+  assert.match(player, /void prepareSessionPreviewResources/);
+  assert.doesNotMatch(player, /await prepareSessionPreviewResources/);
   assert.match(player, /preparedPreviewScreens\.map/);
   assert.match(player, /passivePreview=\{!active\}/);
+  assert.match(player, /getPendingSessionPreview\(sessionId\)/);
+  assert.match(player, /getPreferredSessionPreviewScreen\(sessionId\)/);
   assert.match(player, /Preparing presentation/);
+  assert.match(player, /prepareSessionPreviewCriticalScreen\(data, targetScreenId, getStudioResourcePreview\)/);
+  assert.match(player, /window\.setTimeout\(resolve, 1_500\)/);
+  assert.doesNotMatch(player, /Preparing current screen/);
+  assert.doesNotMatch(player, /readyPreviewScreenIds/);
+  assert.match(player, /data-resource-placeholder/);
+  assert.match(player, /transition: 'opacity 150ms ease-out'/);
+  assert.match(preparation, /PREPARATION_CONCURRENCY/);
+  assert.match(preparation, /previewRequestCache/);
+  assert.match(preparation, /previewPreferenceCache\.set\(sessionId, preferredScreenId\)/);
+  assert.match(preparation, /prepareSessionPreviewCriticalScreen/);
+  assert.match(preparation, /media\.preload = 'metadata'/);
+  assert.match(preparation, /preload\.rel = 'prefetch'/);
+});
+
+test('Session Preview uses the same isolated simulation renderer as the editor canvas', () => {
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(canvas, /<ScreenSimulationPlayer simulation=\{simulationProject\}/);
+  assert.match(player, /<ScreenSimulationPlayer simulation=\{isolatedProject\}/);
+  assert.match(player, /structuredClone\(project\)/);
+  assert.doesNotMatch(player, /<StudioLocalSimulationFrame/);
 });
 
 test('Home ribbon Clipboard group shares multi-element paste and Format Painter workflows', () => {
@@ -495,6 +526,12 @@ test('Home ribbon Clipboard group shares multi-element paste and Format Painter 
   assert.match(clipboard, /Picture/);
   assert.match(clipboard, /Keep Text Only/);
   assert.match(clipboard, /onDoubleClick/);
+  assert.match(clipboard, /Copy and Duplicate options/);
+  assert.match(clipboard, />Duplicate<\/button>/);
+  assert.match(editor, /duplicateSelectionOrScreen/);
+  assert.match(editor, /canDuplicate=/);
+  assert.match(editor, /onDuplicate=\{duplicateSelectionOrScreen\}/);
+  assert.doesNotMatch(editor, /id: 'duplicate-screen'/);
   assert.match(model, /collectStudioClipboardElements/);
   assert.match(model, /pasteStudioClipboardElements/);
   assert.match(model, /copyStudioElementFormat/);
@@ -516,7 +553,44 @@ test('Spectropy shortcuts select and operate on canvas elements without browser 
   assert.match(editor, /key === 'g'/);
   assert.match(editor, /key === 'u'/);
   assert.match(editor, /key === 'r'/);
+  assert.match(editor, /duplicateSelectedScreen/);
+  assert.match(editor, /duplicateSelectionOrScreen\(\)/);
   assert.match(editor, /window\.addEventListener\('keyup', releaseSpectropyShortcut\)/);
+});
+
+test('Text list menu offers None and shape points edit directly on the canvas', () => {
+  const toolbar = readFrontend('components/StudioElementToolbar.tsx');
+  const commands = readFrontend('components/studioTextCommands.ts');
+  const textElement = readFrontend('components/StudioCanvasTextElement.tsx');
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const editor = readFrontend('TeachingStudioPage.tsx');
+  assert.match(toolbar, /No bullets or numbering/);
+  assert.match(commands, /type: 'clear-list'/);
+  assert.match(textElement, /removeListFormatting/);
+  assert.match(textElement, /syncListMarkerStyles/);
+  assert.match(textElement, /--studio-list-marker-color/);
+  assert.match(textElement, /computed\.fontSize/);
+  assert.match(canvas, /data-inline-shape-point-editor="true"/);
+  assert.match(canvas, /data-canvas-interactive="true"/);
+  assert.match(canvas, /canvasSelectionChromeHidden/);
+  assert.match(canvas, /r="7"/);
+  assert.match(canvas, /onCommitShapePoints/);
+  assert.doesNotMatch(editor, /<ShapePointEditor/);
+  assert.match(editor, /if \(shapePointTarget\)/);
+  assert.match(editor, /setShapePointTarget\(null\)/);
+});
+
+test('Background images can be uploaded or selected from image Resources', () => {
+  const menu = readFrontend('components/StudioBackgroundImageMenu.tsx');
+  assert.match(menu, /ResourceLibrary/);
+  assert.match(menu, /allowedTypes=\{\['image'\]\}/);
+  assert.match(menu, /initialType="image"/);
+  assert.match(menu, /Choose a background Resource/);
+  assert.match(menu, /resourceVersionId: version\.id/);
+  assert.match(menu, /Background image source/);
+  assert.match(menu, /Upload from device/);
+  assert.match(menu, /Choose from Resources/);
+  assert.match(menu, /<span>Background image<\/span>/);
 });
 
 test('Diagram Text Pane preserves a trailing Enter while synchronizing node changes', () => {
@@ -756,5 +830,6 @@ test('Simulation is a permanent native PCMB workspace with JSON import and full-
   assert.match(localFrame, /buildSimulationHtml\(result\.simulation\)/);
   assert.match(localFrame, /srcDoc=\{html\}/);
   assert.match(localFrame, /validateSimulationDocument/);
-  assert.match(publishedPlayer, /<StudioLocalSimulationFrame/);
+  assert.match(publishedPlayer, /<PublishedSimulation/);
+  assert.match(publishedPlayer, /<ScreenSimulationPlayer simulation=\{isolatedProject\}/);
 });

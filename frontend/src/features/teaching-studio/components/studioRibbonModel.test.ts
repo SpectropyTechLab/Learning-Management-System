@@ -51,6 +51,13 @@ test('element selection exposes only its applicable contextual tabs', () => {
   );
 });
 
+test('multi-selection uses the standard ribbon tabs', () => {
+  const tabs = studioRibbonTabs({ elementType: 'shape', selectionCount: 3 });
+  assert.deepEqual(tabs, studioRibbonTabs({}));
+  assert.equal(preferredStudioRibbonTab('insert', [], tabs), 'insert');
+  assert.equal(preferredStudioRibbonTab('shape-format', ['shape-format'], tabs), 'home');
+});
+
 test('a newly selected contextual family becomes the preferred tab', () => {
   const tabs = studioRibbonTabs({ elementType: 'shape' });
   assert.equal(preferredStudioRibbonTab('home', [], tabs), 'shape-format');

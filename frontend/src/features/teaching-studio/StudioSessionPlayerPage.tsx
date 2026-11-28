@@ -35,10 +35,11 @@ import {
 import StudioCanvasTextElement from './components/StudioCanvasTextElement';
 import StudioMathElement from './components/StudioMathElement';
 import StudioShapeElement from './components/StudioShapeElement';
+import { useStudioBackgroundImageUrl } from './components/StudioBackgroundImageMenu';
 import StudioSmartDiagram from './components/StudioSmartDiagram';
 import StudioTableElement from './components/StudioTableElement';
 import StudioChartElement from './components/StudioChartElement';
-import StudioLocalSimulationFrame from './components/StudioLocalSimulationFrame';
+import ScreenSimulationPlayer from './components/ScreenSimulationPlayer';
 import StudioLocalPhysicsLabFrame from './components/StudioLocalPhysicsLabFrame';
 import StudioLocalChemistryLabFrame from './components/StudioLocalChemistryLabFrame';
 import StudioLocalMathematicsLabFrame from './components/StudioLocalMathematicsLabFrame';
@@ -48,12 +49,14 @@ import { isSmartDiagramContent } from './components/smartDiagramModel';
 import StudioBranchDiscoveryPanel from './components/StudioBranchDiscoveryPanel';
 import type { PublishedPresenterData, PublishedRelease, PublishedResourceMapping, PublishedScreen, PublishedTeachingMaterials } from './api/studioPublishedApi';
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
-import type { AuthorDrawingStroke } from './types';
+import type { AuthorDrawingStroke, StudioBackgroundImageFill } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
-import { clearCachedSessionPreview, getCachedResourcePreviewUrl, getCachedSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
-import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioUsesViewTransition, unlockStudioTransitionAudio } from './components/studioTransition';
+import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioTransitionHandledByPlayer, unlockStudioTransitionAudio } from './components/studioTransition';
+import { normalizeStudioTransition, studioScreenIsHidden } from './components/studioTransitionModel';
 import { playStudioAnimationSound } from './components/studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './components/studioAnimationModel';
+import type { SimulationDocument } from './components/simulationStudioModel';
+import { clearCachedSessionPreview, getCachedResourcePreviewUrl, getCachedSessionPreview, getPendingSessionPreview, getPreferredSessionPreviewScreen, prepareSessionPreviewCriticalScreen, prepareSessionPreviewResources } from './studioSessionPreviewCache';
 
 const textFrom = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title ?? content.caption;
@@ -142,9 +145,14 @@ const afterVisiblePaint = (callback?: () => void) => {
 };
 
 function PublishedImage({ source, alt, content, children, onReady }: { source: string; alt: string; content?: Record<string, unknown>; children?: ReactNode; onReady?: () => void }) {
+  const [painted, setPainted] = useState(false);
+  useEffect(() => setPainted(false), [source]);
   const markImageReady = (image: HTMLImageElement) => {
     const markPainted = () => {
-      if (image.complete && image.naturalWidth > 0) afterVisiblePaint(onReady);
+      if (image.complete && image.naturalWidth > 0) {
+        setPainted(true);
+        afterVisiblePaint(onReady);
+      }
     };
     void image.decode().catch(() => undefined).finally(markPainted);
   };
@@ -154,7 +162,7 @@ function PublishedImage({ source, alt, content, children, onReady }: { source: s
   const cropped = mediaTransform?.cropped === true || mediaTransform?.edgeCrop === true || mediaTransform?.cropGeometry === true;
   const imageFilter = typeof mediaTransform?.filter === 'string' ? mediaTransform.filter : undefined;
   const imageOpacity = Number.isFinite(Number(mediaTransform?.opacity)) ? Math.max(0, Math.min(1, Number(mediaTransform?.opacity))) : undefined;
-  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><img src={source} alt={alt} onLoad={(event) => markImageReady(event.currentTarget)} className="h-full w-full object-fill" style={{ filter: imageFilter, opacity: imageOpacity }} />{children}</div>;
+  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><div data-resource-placeholder aria-hidden="true" className={`absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-opacity duration-150 ${painted ? 'opacity-0' : 'opacity-100'}`} /><img src={source} alt={alt} onLoad={(event) => markImageReady(event.currentTarget)} className="h-full w-full object-fill" style={{ filter: imageFilter, opacity: painted ? imageOpacity ?? 1 : 0, transition: 'opacity 150ms ease-out' }} />{children}</div>;
   const hasEdgeCrop = mediaTransform?.edgeCrop === true;
   const hasCropGeometry = mediaTransform?.cropGeometry === true;
   const cropScaleX = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleX) || 1) : 1;
@@ -179,9 +187,11 @@ function PublishedImage({ source, alt, content, children, onReady }: { source: s
           : 'none',
         transformOrigin: 'center',
         filter: imageFilter,
-        opacity: imageOpacity,
+        opacity: painted ? imageOpacity ?? 1 : 0,
+        transition: 'opacity 150ms ease-out',
       }}
     />
+    <div data-resource-placeholder aria-hidden="true" className={`pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-opacity duration-150 ${painted ? 'opacity-0' : 'opacity-100'}`} />
     {children}
   </div>;
 }
@@ -247,7 +257,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   }, [mapping.external_url, mapping.resource_type, mapping.resource_version_id, previewMode, releaseId, source]);
 
   if (error) return <div className="grid h-full place-items-center bg-slate-950 p-3 text-center text-xs text-white">{error}</div>;
-  if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
+  if (!source) return <div data-resource-placeholder aria-busy="true" className="grid h-full place-items-center bg-gradient-to-br from-slate-100 to-slate-200 p-3 text-center text-slate-500"><div><Presentation className="mx-auto text-slate-400" size={30} /><p className="mt-2 max-w-48 truncate text-xs font-medium">{mapping.name}</p></div></div>;
   if (mapping.resource_type === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} className="h-full w-full" onReady={markReady} />;
   if (mapping.resource_type === 'image' || (mapping.resource_type === 'animation' && mapping.mime_type?.startsWith('image/'))) return <PublishedImage source={source} alt={String(elementContent?.altText || mapping.name)} content={elementContent} onReady={markReady} />;
   if (mapping.resource_type === 'video' || (mapping.resource_type === 'animation' && mapping.mime_type?.startsWith('video/')) || mapping.mime_type?.startsWith('video/')) return <video src={source} controls preload="auto" aria-label={mapping.name} className="h-full w-full" onCanPlayThrough={markReady} onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }} />;
@@ -276,6 +286,15 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   } : undefined} />;
 }
 
+function PublishedSimulation({ project, passive = false, onReady }: { project: object; passive?: boolean; onReady?: () => void }) {
+  const isolatedProject = useMemo(() => {
+    if (typeof structuredClone === 'function') return structuredClone(project) as SimulationDocument;
+    return JSON.parse(JSON.stringify(project)) as SimulationDocument;
+  }, [project]);
+  if (passive) return <div className="grid h-full w-full place-items-center bg-[#09111d] text-sm font-semibold text-slate-300">Interactive Simulation</div>;
+  return <ScreenSimulationPlayer simulation={isolatedProject} onReady={onReady} />;
+}
+
 const publishedTextPadding = (content: Record<string, unknown>) => {
   const margins = content.margins;
   if (!margins || typeof margins !== 'object') return 12;
@@ -285,10 +304,12 @@ const publishedTextPadding = (content: Record<string, unknown>) => {
   return raw.map((value) => `${Number((value * factor).toFixed(3))}px`).join(' ');
 };
 
-function PublishedTextFrame({ element, shape = false, animationEffects = [] }: { element: PublishedScreen['elements'][number]; shape?: boolean; animationEffects?: Array<Record<string, unknown>> }) {
+function PublishedTextFrame({ element, shape = false, animationEffects = [], resolveBackgroundPreview }: { element: PublishedScreen['elements'][number]; shape?: boolean; animationEffects?: Array<Record<string, unknown>>; resolveBackgroundPreview?: (versionId: number) => Promise<{ url: string }> }) {
   const content = element.content_json ?? {};
+  const backgroundImage = content.backgroundImage && typeof content.backgroundImage === 'object' ? content.backgroundImage as StudioBackgroundImageFill : null;
+  const backgroundImageUrl = useStudioBackgroundImageUrl(backgroundImage, undefined, resolveBackgroundPreview);
   const text = shape ? (typeof content.text === 'string' ? content.text : '') : textFrom(content);
-  const kind = shape ? String(content.kind || 'rectangle') : typeof content.kind === 'string' ? content.kind : '';
+  const kind = shape ? String(content.kind || 'rectangle') : typeof content.kind === 'string' ? content.kind : backgroundImage ? 'rectangle' : '';
   const textSequence = String(animationEffects[0]?.textSequence || 'object');
   const animationTextSequence = textSequence === 'paragraph' || textSequence === 'word' || textSequence === 'letter' ? textSequence : undefined;
   const shapePaintEffects = kind ? studioShapePaintAnimationEffects(animationEffects) : [];
@@ -334,6 +355,12 @@ function PublishedTextFrame({ element, shape = false, animationEffects = [] }: {
       effect={typeof content.shapeEffect === 'string' ? content.shapeEffect : undefined}
       effectColor={typeof content.shapeEffectColor === 'string' ? content.shapeEffectColor : undefined}
       gradient={content.gradient && typeof content.gradient === 'object' ? content.gradient as { angle?: number; stops: Array<{ position: number; color: string }> } : undefined}
+      backgroundImageUrl={backgroundImageUrl}
+      backgroundImageFit={backgroundImage?.fit}
+      backgroundImageOpacity={backgroundImage?.opacity}
+      backgroundImageScale={backgroundImage?.scale}
+      backgroundImageX={backgroundImage?.x}
+      backgroundImageY={backgroundImage?.y}
       animationStyle={shapePaintEffects.length ? studioAnimationStyle({ effects: shapePaintEffects }) : undefined}
     /></div>
     <div className={shape ? 'absolute inset-0 overflow-hidden' : 'absolute inset-0'}>{textElement}</div>
@@ -367,6 +394,9 @@ const publishedElementReadinessKey = (screenId: number, element: PublishedScreen
 
 function PublishedCanvas({ releaseId, screen, previewMode = false, passivePreview = false, immersiveViewport = false, teacherAnnotations, annotationTool, annotationColor, annotationWidth, onAnnotationsChange, onLiveAnnotationChange, onZoom, animationTimeline, animationStep, playbackCycle, animationNavigation, triggeredCueIds = new Set(), onTriggerElement, onMediaTime }: { releaseId: number; screen: PublishedScreen; previewMode?: boolean; passivePreview?: boolean; immersiveViewport?: boolean; teacherAnnotations: AuthorDrawingStroke[]; annotationTool: PresenterAnnotationTool; annotationColor: string; annotationWidth: number; onAnnotationsChange: (strokes: AuthorDrawingStroke[]) => void; onLiveAnnotationChange?: (stroke: AuthorDrawingStroke | null) => void; onZoom?: (element: PublishedScreen['elements'][number]) => void; animationTimeline?: PresenterAnimationTimeline; animationStep?: number; playbackCycle?: number; animationNavigation?: PresenterAnimationNavigation | null; triggeredCueIds?: ReadonlySet<string>; onTriggerElement?: (elementKey: string) => void; onMediaTime?: (elementKey: string, previousSeconds: number, currentSeconds: number) => void }) {
   const [readyResourceKeys, setReadyResourceKeys] = useState<Set<string>>(() => new Set());
+  const resolveBackgroundPreview = useCallback((versionId: number) => previewMode ? getStudioResourcePreview(versionId) : previewPublishedResource(releaseId, versionId), [previewMode, releaseId]);
+  const screenBackgroundImage = screen.screen_settings_json?.backgroundImage && typeof screen.screen_settings_json.backgroundImage === 'object' ? screen.screen_settings_json.backgroundImage as StudioBackgroundImageFill : null;
+  const screenBackgroundImageUrl = useStudioBackgroundImageUrl(screenBackgroundImage, undefined, resolveBackgroundPreview);
   useEffect(() => {
     setReadyResourceKeys(new Set());
   }, [passivePreview, previewMode, releaseId, screen.screen_id]);
@@ -427,7 +457,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
     if (element.element_type === 'math') return [[element.element_key, <StudioMathElement key={element.element_key} latex={String(element.content_json?.latex ?? element.content_json?.text ?? '')} color={typeof element.content_json?.color === 'string' ? element.content_json.color : undefined} backgroundColor={typeof element.content_json?.backgroundColor === 'string' ? element.content_json.backgroundColor : undefined} fontSize={Number(element.content_json?.fontSize) || undefined} alignment={element.content_json?.alignment === 'left' || element.content_json?.alignment === 'right' ? element.content_json.alignment : 'center'} />]];
     if (element.content_json?.visualType === 'chart') return [[element.element_key, <StudioChartElement key={element.element_key} content={element.content_json || {}} animationBuildState={animationTimeline && animationStep !== undefined ? presenterComponentBuildState(animationTimeline, element.element_key, animationStep, triggeredCueIds) : null}/>]];
     if (element.element_type === 'table' || element.content_json?.visualType === 'table') return [[element.element_key, <StudioTableElement key={element.element_key} elementId={element.element_key} content={element.content_json || {}} editable={false} animationBuildState={animationTimeline && animationStep !== undefined ? presenterComponentBuildState(animationTimeline, element.element_key, animationStep, triggeredCueIds) : null} />]];
-    if (element.element_type === 'shape') return [[element.element_key, <PublishedTextFrame key={element.element_key} element={element} shape animationEffects={textPlaybackEffects} />]];
+    if (element.element_type === 'shape') return [[element.element_key, <PublishedTextFrame key={element.element_key} element={element} shape animationEffects={textPlaybackEffects} resolveBackgroundPreview={resolveBackgroundPreview} />]];
     if (element.element_type === 'zoom' && element.zoom) return [[element.element_key, <button key={element.element_key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onZoom?.(element); }} className="group grid h-full w-full touch-manipulation place-items-center overflow-hidden rounded-xl border-2 border-white/70 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-600 p-5 text-center text-white shadow-xl transition hover:scale-[1.02] hover:shadow-2xl"><span><span className="block text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">{element.content_json?.zoom_summary_group ? 'Summary Zoom' : element.zoom.zoom_kind === 'section' ? 'Section Zoom' : 'Screen Zoom'}</span><span className="mt-2 block text-xl font-black">{textFrom(element.content_json || {}) || 'Open linked teaching content'}</span><span className="mt-2 block text-xs text-blue-100">Select once to explore · returns here</span></span></button>]];
     const droppedUrl = typeof element.content_json?.url === 'string' ? element.content_json.url : '';
     const droppedMime = typeof element.content_json?.mimeType === 'string' ? element.content_json.mimeType : '';
@@ -439,7 +469,7 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
       if (droppedMime === 'application/pdf') return [[element.element_key, <div key={element.element_key} className="relative h-full w-full bg-slate-200"><iframe src={droppedUrl} title={name} onLoad={() => afterVisiblePaint(() => markResourceReady(element.element_key))} className="h-full w-full border-0"/><span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white"><FileText size={11}/>PDF · {name}</span></div>]];
       return [[element.element_key, <div key={element.element_key} className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-50 to-blue-50 p-6 text-center"><div><FileText size={48} className="mx-auto text-blue-800"/><p className="mt-3 break-all text-sm font-bold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{droppedMime || 'Document'}</p><a href={droppedUrl} download={name} className="mt-4 inline-flex rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white">Download and open</a></div></div>]];
     }
-    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <PublishedTextFrame key={element.element_key} element={element} animationEffects={textPlaybackEffects} />]];
+    if (['title', 'text', 'question', 'response', 'steps', 'workspace', 'footer', 'options', 'data'].includes(element.element_type)) return [[element.element_key, <PublishedTextFrame key={element.element_key} element={element} animationEffects={textPlaybackEffects} resolveBackgroundPreview={resolveBackgroundPreview} />]];
     if (element.element_type === 'simulation' && element.content_json?.labProject && typeof element.content_json.labProject === 'object') {
       const subject = (element.content_json.labProject as { subject?: unknown }).subject;
       const Frame = subject === 'chemistry' ? StudioLocalChemistryLabFrame : subject === 'mathematics' ? StudioLocalMathematicsLabFrame : subject === 'biology' ? StudioLocalBiologyLabFrame : StudioLocalPhysicsLabFrame;
@@ -453,13 +483,11 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
       />]];
     }
     if (element.element_type === 'simulation' && element.content_json?.simulationProject && typeof element.content_json.simulationProject === 'object') {
-      return [[element.element_key, <StudioLocalSimulationFrame
+      return [[element.element_key, <PublishedSimulation
         key={element.element_key}
         project={element.content_json.simulationProject}
-        title={String(element.content_json.simulationTitle || element.content_json.text || 'Interactive Simulation')}
-        interactive={!passivePreview}
+        passive={passivePreview}
         onReady={() => markResourceReady(element.element_key)}
-        className="h-full w-full"
       />]];
     }
     if (!element.resource_mapping) return [];
@@ -548,8 +576,8 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
   const drawingEnabled = annotationTool === 'pen' || annotationTool === 'highlighter' || annotationTool === 'eraser';
   const drawingTool = annotationTool === 'eraser' ? 'eraser' : annotationTool === 'highlighter' ? 'highlighter' : 'pen';
   const slideTransition = screen.screen_settings_json?.transition;
-  const useLayeredBrowserTransition = studioUsesViewTransition(slideTransition);
-  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={useLayeredBrowserTransition ? undefined : slideTransition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} onDrawingPreviewChange={onLiveAnnotationChange} />;
+  const transitionHandledByPlayer = studioTransitionHandledByPlayer(slideTransition);
+  return <SlideCanvas layout={layout} slide={slide} compactViewport immersiveViewport={immersiveViewport} backgroundColor={typeof screen.screen_settings_json?.backgroundColor === 'string' ? screen.screen_settings_json.backgroundColor : '#f9fcff'} backgroundImage={screenBackgroundImageUrl && screenBackgroundImage ? { ...screenBackgroundImage, url: screenBackgroundImageUrl } : null} objectOverlays={overlays} objectAnimationStyles={objectAnimationStyles} objectAnimationKeys={objectAnimationKeys} transition={transitionHandledByPlayer ? undefined : slideTransition} fixedDrawingStrokes={screen.screen_settings_json?.author_drawings?.strokes ?? []} drawingStrokes={teacherAnnotations} drawingEnabled={drawingEnabled} drawingTool={drawingTool} drawingColor={annotationColor} drawingWidth={annotationWidth} onDrawingChange={onAnnotationsChange} onDrawingPreviewChange={onLiveAnnotationChange} />;
 }
 
 export default function StudioSessionPlayerPage() {
@@ -584,10 +612,8 @@ export default function StudioSessionPlayerPage() {
   const [release, setRelease] = useState<PublishedRelease | null>(() => initialPreviewRef.current?.release ?? null);
   const [screenId, setScreenId] = useState<number | null>(() => {
     const cached = initialPreviewRef.current;
-    if (!cached) return null;
-    if (cached.preferredScreenId && cached.release.manifest.screens.some((screen) => screen.screen_id === cached.preferredScreenId)) {
-      return cached.preferredScreenId;
-    }
+    if (!cached) return previewMode ? getPreferredSessionPreviewScreen(sessionId) : null;
+    if (cached.preferredScreenId && cached.release.manifest.screens.some((screen) => screen.screen_id === cached.preferredScreenId)) return cached.preferredScreenId;
     return [...cached.release.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0]?.screen_id ?? null;
   });
   const [loading, setLoading] = useState(!initialPreviewRef.current);
@@ -637,19 +663,36 @@ export default function StudioSessionPlayerPage() {
     if (!initialPreviewRef.current) setLoading(true);
     setError('');
     const request = previewMode
-      ? getSessionPlayerPreview(sessionId)
+      ? getPendingSessionPreview(sessionId) ?? getSessionPlayerPreview(sessionId)
       : getPublishedRelease(sessionId, releaseNumber);
     void request
       .then(async (data) => {
-        if (previewMode) await prepareSessionPreviewImages(data, getStudioResourcePreview);
-        setRelease(data);
-        const first = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0];
-        setScreenId((current) => audienceMode && remotePresenterStateRef.current?.screenId
+        const orderedScreens = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order);
+        const first = orderedScreens.find((screen) => !studioScreenIsHidden(screen.screen_settings_json)) ?? orderedScreens[0];
+        const targetScreenId = audienceMode && remotePresenterStateRef.current?.screenId
           ? remotePresenterStateRef.current.screenId
-          : current && data.manifest.screens.some((screen) => screen.screen_id === current)
-            ? current
-            : first?.screen_id ?? null);
+          : screenIdRef.current && data.manifest.screens.some((screen) => screen.screen_id === screenIdRef.current)
+            ? screenIdRef.current
+            : first?.screen_id ?? null;
+        if (previewMode) {
+          let timeoutId = 0;
+          await Promise.race([
+            prepareSessionPreviewCriticalScreen(data, targetScreenId, getStudioResourcePreview).catch(() => undefined),
+            new Promise<void>((resolve) => { timeoutId = window.setTimeout(resolve, 1_500); }),
+          ]);
+          if (timeoutId) window.clearTimeout(timeoutId);
+        }
+        setRelease(data);
+        setScreenId(targetScreenId);
         if (previewMode) clearCachedSessionPreview(sessionId);
+        if (previewMode) void prepareSessionPreviewResources(data, async (mapping) => {
+          if (['html', 'zip', 'simulation'].includes(mapping.resource_type)) {
+            const launch = await launchStudioResourceVersion(mapping.resource_version_id);
+            if (!launch.launchable || !launch.launch_url) throw new Error(launch.message || 'Resource cannot be prepared.');
+            return { url: resolveAssetUrl(launch.launch_url) || launch.launch_url };
+          }
+          return getStudioResourcePreview(mapping.resource_version_id);
+        }, targetScreenId);
       })
       .catch((requestError) => {
         if (!initialPreviewRef.current) setError(getApiErrorDetails(requestError).message);
@@ -658,8 +701,16 @@ export default function StudioSessionPlayerPage() {
   }, [audienceMode, previewMode, releaseNumber, sessionId]);
 
   const screens = useMemo(() => [...(release?.manifest.screens || [])].sort((a, b) => a.display_order - b.display_order), [release]);
+  const visibleScreens = useMemo(() => screens.filter((item) => !studioScreenIsHidden(item.screen_settings_json)), [screens]);
   const currentIndex = screens.findIndex((screen) => screen.screen_id === screenId);
   const screen = currentIndex >= 0 ? screens[currentIndex] : null;
+  const visibleIndex = visibleScreens.findIndex((item) => item.screen_id === screenId);
+  const previousVisibleScreen = currentIndex > 0
+    ? [...screens.slice(0, currentIndex)].reverse().find((item) => !studioScreenIsHidden(item.screen_settings_json)) ?? null
+    : null;
+  const nextVisibleScreen = currentIndex >= 0
+    ? screens.slice(currentIndex + 1).find((item) => !studioScreenIsHidden(item.screen_settings_json)) ?? null
+    : null;
   const preparedPreviewScreens = previewMode && currentIndex >= 0
     ? screens.filter((_, index) => Math.abs(index - currentIndex) <= 1)
     : [];
@@ -671,7 +722,13 @@ export default function StudioSessionPlayerPage() {
       ? transition as Record<string, unknown>
       : undefined;
     const updateScreen = () => setScreenId(nextScreenId);
-    if (!startStudioSlideTransition(updateScreen, transitionSettings)) updateScreen();
+    if (!startStudioSlideTransition(
+      updateScreen,
+      transitionSettings,
+      null,
+      playerRef.current,
+      presenterSlideRef.current || audienceSlideHostRef.current,
+    )) updateScreen();
   }, [screens]);
   const animationTimeline = useMemo(() => buildPresenterAnimationTimeline(screen?.elements ?? []), [screen]);
   const zoomElements = useMemo(() => [...(screen?.elements ?? [])]
@@ -688,7 +745,7 @@ export default function StudioSessionPlayerPage() {
   const isTrackedBranchUser = user?.role === 'teacher';
   const teacherAnnotations = screenId ? (annotationsByScreen[screenId] ?? []) : [];
   screenIdRef.current = screenId;
-  const nextScreen = currentIndex >= 0 ? screens[currentIndex + 1] ?? null : null;
+  const nextScreen = nextVisibleScreen;
   const currentPresenterScript = presenterData?.screen_scripts.find((item) => item.screen_id === screenId);
   const teacherNarration = presenterText(currentPresenterScript?.content.teacher_narration);
   const presenterNotes = presenterText(currentPresenterScript?.content.teacher_presenter_notes_production_checks);
@@ -736,10 +793,27 @@ export default function StudioSessionPlayerPage() {
 
   useEffect(() => {
     if (!screen) return;
-    const transition = screen.screen_settings_json?.transition;
-    if (transition && typeof transition === 'object')
-      void playStudioTransitionSound(transition.sound, { loop: transition.loopSound === true }).catch(() => undefined);
-  }, [screen]);
+    const transition = normalizeStudioTransition(screen.screen_settings_json?.transition);
+    let cancelled = false;
+    const play = async () => {
+      let customUrl: string | null = null;
+      if (transition.sound === 'custom' && transition.customSound?.resourceVersionId) {
+        const preview = previewMode
+          ? await getStudioResourcePreview(transition.customSound.resourceVersionId)
+          : await previewPublishedResource(releaseId, transition.customSound.resourceVersionId);
+        customUrl = preview.url;
+      }
+      if (!cancelled) await playStudioTransitionSound(transition.sound, {
+        loop: transition.loopSound === true,
+        customUrl,
+      });
+    };
+    void play().catch(() => undefined);
+    return () => {
+      cancelled = true;
+      stopStudioTransitionSound();
+    };
+  }, [previewMode, releaseId, screen]);
 
   useEffect(() => () => stopStudioTransitionSound(), []);
 
@@ -964,15 +1038,15 @@ export default function StudioSessionPlayerPage() {
           section?.screens.forEach((item) => zoomTargetIds.add(item.screen_id));
         }
       }
-      const followingScreen = screens.slice(currentIndex + 1).find((candidate) => !zoomTargetIds.has(candidate.screen_id));
+      const followingScreen = screens.slice(currentIndex + 1).find((candidate) => !studioScreenIsHidden(candidate.screen_settings_json) && !zoomTargetIds.has(candidate.screen_id));
       if (followingScreen) {
         setZoomHubRun(null);
         navigateToScreen(followingScreen.screen_id);
       }
       return;
     }
-    if (currentIndex >= 0 && currentIndex < screens.length - 1)
-      navigateToScreen(screens[currentIndex + 1]?.screen_id ?? null);
+    const followingScreen = screens.slice(currentIndex + 1).find((candidate) => !studioScreenIsHidden(candidate.screen_settings_json));
+    if (followingScreen) navigateToScreen(followingScreen.screen_id);
   };
   advancePresenterRef.current = advancePresenter;
 
@@ -1018,9 +1092,12 @@ export default function StudioSessionPlayerPage() {
       }
       return;
     }
-    if (currentIndex > 0) {
+    const previousScreen = currentIndex > 0
+      ? [...screens.slice(0, currentIndex)].reverse().find((candidate) => !studioScreenIsHidden(candidate.screen_settings_json))
+      : null;
+    if (previousScreen) {
       enterScreenAtEndRef.current = true;
-      navigateToScreen(screens[currentIndex - 1]?.screen_id ?? null);
+      navigateToScreen(previousScreen.screen_id);
     }
   };
   retreatPresenterRef.current = retreatPresenter;
@@ -1216,14 +1293,14 @@ export default function StudioSessionPlayerPage() {
       } else if (navigationAction === 'next') {
         event.preventDefault();
         advancePresenter();
-      } else if (event.key === 'Home' && screens.length > 0) {
+      } else if (event.key === 'Home' && visibleScreens.length > 0) {
         event.preventDefault();
         enterScreenAtEndRef.current = false;
-        navigateToScreen(screens[0].screen_id);
-      } else if (event.key === 'End' && screens.length > 0) {
+        navigateToScreen(visibleScreens[0].screen_id);
+      } else if (event.key === 'End' && visibleScreens.length > 0) {
         event.preventDefault();
         enterScreenAtEndRef.current = false;
-        navigateToScreen(screens.at(-1)?.screen_id ?? null);
+        navigateToScreen(visibleScreens.at(-1)?.screen_id ?? null);
       } else if (event.key.toLowerCase() === 'f' || event.key === 'F5') {
         event.preventDefault();
         void toggleFullScreen();
@@ -1279,7 +1356,7 @@ export default function StudioSessionPlayerPage() {
     };
     window.addEventListener('keydown', handleClicker);
     return () => window.removeEventListener('keydown', handleClicker);
-  }, [animationStep, animationTimeline.maxStep, audienceMode, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, navigateToScreen, previewMode, screens, shortcutGuideOpen, teacherAnnotations.length, zoomElements]);
+  }, [animationStep, animationTimeline.maxStep, audienceMode, blankMode, currentIndex, discoveryIndex, discoveryItem, discoveryPanelOpen, discoveryScreens, materialsOpen, navigateToScreen, previewMode, screens, shortcutGuideOpen, teacherAnnotations.length, visibleScreens, zoomElements]);
 
   const downloadPlan = async () => {
     if (!release) return;
@@ -1438,7 +1515,7 @@ export default function StudioSessionPlayerPage() {
           </header>
           <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.65fr)_minmax(17rem,0.85fr)] gap-3 p-3">
             <section className="flex min-h-0 flex-col gap-2">
-              <div className="flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">Current slide</h2><span className="text-xs text-slate-400">{currentIndex + 1} / {screens.length} · Build {animationStep}/{animationTimeline.maxStep}</span></div>
+              <div className="flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">Current slide</h2><span className="text-xs text-slate-400">{visibleIndex >= 0 ? visibleIndex + 1 : 'Hidden'} / {visibleScreens.length} · Build {animationStep}/{animationTimeline.maxStep}</span></div>
               <div ref={presenterSlideRef} className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/20 bg-slate-900" style={{ viewTransitionName: 'studio-slide' }} onPointerMove={(event) => { if (annotationTool === 'pointer') broadcastPointer(event); }} onPointerLeave={() => { if (annotationTool === 'pointer') clearBroadcastPointer(); }}>
                 <PublishedCanvas releaseId={release.id} screen={screen} teacherAnnotations={teacherAnnotations} annotationTool={annotationTool} annotationColor={annotationColor} annotationWidth={annotationWidth} onAnnotationsChange={setTeacherAnnotations} onLiveAnnotationChange={broadcastLiveAnnotation} onZoom={openZoom} animationTimeline={animationTimeline} animationStep={animationStep} playbackCycle={playbackCycle} animationNavigation={animationNavigation} triggeredCueIds={triggeredAnimationCueIds} onTriggerElement={triggerAnimationForElement} onMediaTime={triggerAnimationAtMediaBookmark} />
                 {annotationTool === 'pointer' ? <span ref={presenterPointerDotRef} className="pointer-events-none absolute z-[65] hidden h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow-md" /> : null}
@@ -1453,8 +1530,8 @@ export default function StudioSessionPlayerPage() {
                   <button type="button" disabled={teacherAnnotations.length === 0} onClick={() => setTeacherAnnotations([])} className="rounded-lg p-2 text-red-300 hover:bg-red-500/15 disabled:opacity-30" title="Clear ink"><Trash2 size={18} /></button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-white/25 px-3 text-sm font-semibold hover:bg-white/10 disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
-                  <button type="button" disabled={animationStep >= animationTimeline.maxStep && currentIndex >= screens.length - 1} onClick={advancePresenter} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-bold hover:bg-blue-500 disabled:opacity-30">Next<ChevronRight size={18} /></button>
+                  <button type="button" disabled={animationStep <= 0 && !previousVisibleScreen} onClick={retreatPresenter} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-white/25 px-3 text-sm font-semibold hover:bg-white/10 disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
+                  <button type="button" disabled={animationStep >= animationTimeline.maxStep && !nextVisibleScreen} onClick={advancePresenter} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-bold hover:bg-blue-500 disabled:opacity-30">Next<ChevronRight size={18} /></button>
                 </div>
               </div>
             </section>
@@ -1676,7 +1753,7 @@ export default function StudioSessionPlayerPage() {
                 <button type="button" disabled={discoveryItem.type !== 'session' || discoveryIndex <= 0} onClick={() => setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold disabled:opacity-30"><ChevronLeft size={18} />Previous</button>
               </div>
             ) : (
-                <button type="button" disabled={animationStep <= 0 && currentIndex <= 0} onClick={retreatPresenter} className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30">
+                <button type="button" disabled={animationStep <= 0 && !previousVisibleScreen} onClick={retreatPresenter} className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30">
                 <ChevronLeft size={16} />
                 Previous
               </button>
@@ -1687,13 +1764,13 @@ export default function StudioSessionPlayerPage() {
           </div>
           <span className="text-center text-xs text-slate-700">
             <span className="block">
-              {discoveryItem ? discoveryItem.type === 'session' ? `${discoveryIndex + 1} / ${discoveryScreens.length}` : discoveryItem.type : `${currentIndex + 1} / ${screens.length}`}
+              {discoveryItem ? discoveryItem.type === 'session' ? `${discoveryIndex + 1} / ${discoveryScreens.length}` : discoveryItem.type : `${visibleIndex >= 0 ? visibleIndex + 1 : 'Hidden'} / ${visibleScreens.length}`}
             </span>
             <span className="hidden text-[10px] text-slate-500 sm:block">{discoveryItem ? 'Esc closes Branching' : `Animation build ${animationStep}/${animationTimeline.maxStep} · Clicker: ← previous · → next`}</span>
           </span>
           <div className="flex items-center gap-2">
             {isTrackedBranchUser ? <FloatingWhiteboards sessionId={sessionId} inlineLauncher /> : null}
-              <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30 sm:gap-1.5">
+              <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && !nextVisibleScreen} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="inline-flex min-h-11 touch-manipulation items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-30 sm:gap-1.5">
               Next
               <ChevronRight size={16} />
             </button>
@@ -1719,12 +1796,12 @@ export default function StudioSessionPlayerPage() {
             ) : null}
             <div className="absolute bottom-2 left-3 z-[100] flex items-center gap-2">
               <div className="flex items-center gap-1.5" role="toolbar" aria-label="Fullscreen presentation controls">
-                <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex <= 0 : animationStep <= 0 && currentIndex <= 0} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null) : retreatPresenter()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100 disabled:opacity-30" title="Previous" aria-label="Previous"><ChevronLeft size={20} /></button>
+                <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex <= 0 : animationStep <= 0 && !previousVisibleScreen} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex - 1]?.screen_id ?? null) : retreatPresenter()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100 disabled:opacity-30" title="Previous" aria-label="Previous"><ChevronLeft size={20} /></button>
                 <button type="button" onClick={() => { setFullscreenSlidesOpen(false); if (fullscreenDrawOpen || annotationTool !== 'pointer') { setFullscreenDrawOpen(false); setAnnotationTool('pointer'); } else setFullscreenDrawOpen(true); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${fullscreenDrawOpen || annotationTool !== 'pointer' ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-label={annotationTool !== 'pointer' ? 'Turn off drawing tools' : 'Drawing tools'} aria-expanded={fullscreenDrawOpen} aria-pressed={annotationTool !== 'pointer'}><PenLine size={19} /></button>
                 <button type="button" onClick={() => { setFullscreenSlidesOpen((open) => !open); setFullscreenDrawOpen(false); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${fullscreenSlidesOpen ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title="All slides" aria-label="All slides" aria-expanded={fullscreenSlidesOpen}><Grid3X3 size={19} /></button>
                 {!previewMode ? <button type="button" disabled={!release || !screen} onClick={() => { if (discoveryItem) closeDiscoveredContent(); else { const open = !discoveryPanelOpen; setMaterialsOpen(false); setCurriculumPreview(null); setDiscoveryPanelOpen(open); } setFullscreenDrawOpen(false); setFullscreenSlidesOpen(false); setAnnotationTool('pointer'); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${discoveryPanelOpen || discoveryItem ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'} disabled:opacity-30`} title={discoveryPanelOpen || discoveryItem ? 'Close Branching' : 'Branching'} aria-label={discoveryPanelOpen || discoveryItem ? 'Close Branching' : 'Branching'} aria-pressed={discoveryPanelOpen || Boolean(discoveryItem)}>{discoveryPanelOpen || discoveryItem ? <X size={18} /> : <GitBranch size={18} />}</button> : null}
                 {!previewMode ? <button type="button" onClick={() => { setFullscreenDrawOpen(false); setFullscreenSlidesOpen(false); setAnnotationTool('pointer'); void openTeachingMaterials(); }} className={`grid h-10 w-10 place-items-center rounded-lg border text-black shadow-sm ${materialsOpen || curriculumPreview ? 'border-slate-400 bg-slate-200' : 'border-slate-300 bg-white hover:bg-slate-100'}`} title={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'Teaching materials'} aria-label={materialsOpen || curriculumPreview ? 'Close teaching materials' : 'Teaching materials'} aria-pressed={materialsOpen || Boolean(curriculumPreview)}><FileText size={18} /></button> : null}
-                <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && (currentIndex < 0 || currentIndex >= screens.length - 1)} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100 disabled:opacity-30" title="Next" aria-label="Next"><ChevronRight size={20} /></button>
+                <button type="button" disabled={discoveryItem ? discoveryItem.type !== 'session' || discoveryIndex < 0 || discoveryIndex >= discoveryScreens.length - 1 : animationStep >= animationTimeline.maxStep && !nextVisibleScreen} onClick={() => discoveryItem ? setDiscoveryScreenId(discoveryScreens[discoveryIndex + 1]?.screen_id ?? null) : advancePresenter()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100 disabled:opacity-30" title="Next" aria-label="Next"><ChevronRight size={20} /></button>
                 <button type="button" onClick={() => void toggleFullScreen()} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white text-black shadow-sm hover:bg-slate-100" title="Exit full screen" aria-label="Exit full screen"><Minimize2 size={19} /></button>
               </div>
             </div>

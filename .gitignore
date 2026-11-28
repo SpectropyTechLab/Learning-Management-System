@@ -10,6 +10,7 @@
 # Installed and generated dependencies
 node_modules/
 frontend/dist/
+deliverables/
 
 # Local runtime output
 *.log

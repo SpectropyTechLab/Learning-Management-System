@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken, attachClientContext, requireRole } from '../middleware/auth.js';
 import {
-  listSessionScreens, getScreen, saveScreen, deleteScreen, reorderScreens,
+  listSessionScreens, updateSessionScreenTransitions, getScreen, saveScreen, duplicateScreen, deleteScreen, reorderScreens,
   listScreenSections, createScreenSection, updateScreenSection, deleteScreenSection,
 } from '../controllers/studioScreens.controller.js';
 import {
@@ -20,8 +20,10 @@ router.get('/studio/discovery', discoveryReaders, discoverPublishedContent);
 router.get('/studio/screens/discovery', discoveryReaders, discoverScreens);
 router.get('/studio/screens/:screenId/branches', discoveryReaders, getBranchDestinations);
 router.get('/studio/sessions/:sessionId/screens', listSessionScreens);
+router.patch('/studio/sessions/:sessionId/screens/transitions', authors, updateSessionScreenTransitions);
 router.get('/studio/screens/:screenId', getScreen);
 router.patch('/studio/screens/:screenId', authors, saveScreen);
+router.post('/studio/screens/:screenId/duplicate', authors, duplicateScreen);
 router.delete('/studio/screens/:screenId', authors, deleteScreen);
 router.patch('/studio/sessions/:sessionId/screens/reorder', authors, reorderScreens);
 router.get('/studio/sessions/:sessionId/sections', listScreenSections);
