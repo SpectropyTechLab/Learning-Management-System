@@ -3,6 +3,7 @@ import {
   getRuntimeDownload,
   getObjectPreviewDescriptor,
   getRuntimePreview,
+  getRuntimeThumbnail,
   loadRuntimeAsset,
 } from '../services/studioResourceRuntime.service.js';
 import { handleServiceError } from '../utils/errors.js';
@@ -32,6 +33,11 @@ export const downloadResourceVersion = respond((req) => getRuntimeDownload({
 }));
 
 export const previewResourceVersion = respond((req) => getRuntimePreview({
+  versionId: req.params.versionId,
+  user: req.user,
+}));
+
+export const thumbnailResourceVersion = respond((req) => getRuntimeThumbnail({
   versionId: req.params.versionId,
   user: req.user,
 }));
@@ -106,6 +112,13 @@ const prependRuntimeBootstrap = (html, scormRuntime) => {
   return `${bootstrap}${html}`;
 };
 
+const injectBeforeFinalClosingTag = (html, tagName, content) => {
+  const closingTag = `</${tagName}>`;
+  const index = html.toLowerCase().lastIndexOf(closingTag);
+  if (index < 0) return null;
+  return `${html.slice(0, index)}${content}${html.slice(index)}`;
+};
+
 export const serveRuntimeAsset = async (req, res) => {
   // A sandboxed iframe has an opaque origin. Apply these headers before token
   // validation so error responses are visible instead of being replaced by
@@ -173,12 +186,18 @@ export const serveRuntimeAsset = async (req, res) => {
     })();</script>`;
     const html = /^text\/html\b/i.test(asset.mimeType);
     const htmlText = html ? asset.buffer.toString('utf8') : '';
-    const bootstrappedHtml = html ? prependRuntimeBootstrap(htmlText, asset.scormRuntime) : '';
-    const bridgedHtml = !html ? '' : /<\/body>/i.test(bootstrappedHtml)
-      ? bootstrappedHtml.replace(/<\/body>/i, `${bridge}</body>`)
-      : /<\/html>/i.test(bootstrappedHtml)
-        ? bootstrappedHtml.replace(/<\/html>/i, `${bridge}</html>`)
-        : `${bootstrappedHtml}${bridge}`;
+    const bootstrappedHtml = html ? prependRuntimeBootstrap(
+      htmlText,
+      asset.scormRuntime,
+    ) : '';
+    // Search from the end of the document. Export-capable simulations commonly
+    // contain strings such as "</body></html>" inside their JavaScript source;
+    // replacing the first match would inject a real script tag into that string
+    // and prematurely terminate the surrounding script element.
+    const bridgedHtml = !html ? ''
+      : injectBeforeFinalClosingTag(bootstrappedHtml, 'body', bridge)
+        ?? injectBeforeFinalClosingTag(bootstrappedHtml, 'html', bridge)
+        ?? `${bootstrappedHtml}${bridge}`;
     const responseBuffer = html ? Buffer.from(bridgedHtml) : asset.buffer;
     res.setHeader('Content-Type', asset.mimeType);
     res.setHeader('Content-Length', String(responseBuffer.length));

@@ -8,6 +8,15 @@ interface Props {
   onReady?: () => void;
 }
 
+const workbookCells = (row: unknown): Array<string | number | boolean | null> => {
+  if (Array.isArray(row)) return row;
+  if (row && typeof row === 'object' && 'values' in row && Array.isArray((row as { values?: unknown }).values)) {
+    return (row as { values: Array<string | number | boolean | null> }).values;
+  }
+  if (row === null || row === undefined) return [];
+  return [String(row)];
+};
+
 export default function EmbeddedObjectViewer({ descriptor, className = '', onReady }: Props) {
   const [sheetIndex, setSheetIndex] = useState(0);
   const readyReportedRef = useRef(false);
@@ -44,7 +53,7 @@ export default function EmbeddedObjectViewer({ descriptor, className = '', onRea
           {(descriptor.sheets || []).map((item, index) => <button key={`${item.name}-${index}`} type="button" onClick={() => setSheetIndex(index)} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${index === sheetIndex ? 'bg-emerald-700 text-white' : 'bg-white text-slate-700'}`}>{item.name}</button>)}
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
-          {sheet ? <table className="min-w-full border-collapse text-xs"><tbody>{sheet.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} className="max-w-80 border border-slate-200 px-2 py-1.5 align-top">{String(cell ?? '')}</td>)}</tr>)}</tbody></table> : <div className="grid h-full place-items-center text-slate-500"><FileSpreadsheet size={38} /><span>No worksheet data</span></div>}
+          {sheet ? <table className="min-w-full border-collapse text-xs"><tbody>{sheet.rows.map((row, rowIndex) => <tr key={rowIndex}>{workbookCells(row).map((cell, cellIndex) => <td key={cellIndex} className="max-w-80 border border-slate-200 px-2 py-1.5 align-top">{String(cell ?? '')}</td>)}</tr>)}</tbody></table> : <div className="grid h-full place-items-center text-slate-500"><FileSpreadsheet size={38} /><span>No worksheet data</span></div>}
         </div>
       </div>
     );

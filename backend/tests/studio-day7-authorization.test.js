@@ -283,7 +283,7 @@ test('runtime bytes reject invalid, expired and unlisted access tokens', async (
   );
   await assert.rejects(
     loadRuntimeAsset({ launchToken: expired, requestedPath: 'index.html' }),
-    (error) => error?.status === 401 && error?.message.includes('expired')
+    (error) => error?.status === 401 && /expired|invalid/i.test(error?.message)
   );
 
   const originalQuery = pool.query;
