@@ -16,6 +16,7 @@ import SidebarNav from '@/components/layout/SidebarNav';
 import { getDashboardTheme } from '@/components/layout/dashboardTheme';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import StudioAccountMenu from './StudioAccountMenu';
+import { prefetchStudioResourceLibrary } from '../api/studioResourcesApi';
 
 const sections = [
   ['Dashboard', '/studio', LayoutDashboard],
@@ -94,6 +95,7 @@ export default function StudioShell({
         path === '/studio'
           ? location.pathname === path
           : location.pathname === path || location.pathname.startsWith(`${path}/`),
+      onPrefetch: path === '/studio/resources' ? () => { void prefetchStudioResourceLibrary().catch(() => undefined); } : undefined,
       onClick: () => {
         navigate(path);
         if (window.matchMedia('(max-width: 767px)').matches) setSidebarOpen(false);

@@ -1,6 +1,6 @@
 import { Component, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
-import { Plus } from 'lucide-react';
+import { Layers3, Plus, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
 import { createStudioResource, type StudioResourceUploadInput } from './api/studioResourcesApi';
@@ -32,6 +32,7 @@ export default function StudioResourceLibraryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [libraryTab, setLibraryTab] = useState<'mine' | 'catalog'>('mine');
 
   const createResource = async (input: StudioResourceUploadInput) => {
     setSubmitting(true);
@@ -55,10 +56,11 @@ export default function StudioResourceLibraryPage() {
       title="Resource Library"
       subtitle="Find, filter and manage reusable Resources for your teaching content."
       wrapContent={false}
-      actions={<button type="button" onClick={() => { setServerError(''); setCreateOpen(true); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-800"><Plus size={18} />Add Resource</button>}
+      scrollContent={false}
+      actions={<><div className="inline-flex rounded-lg border border-slate-200 bg-white p-1"><button type="button" onClick={() => setLibraryTab('mine')} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-bold ${libraryTab === 'mine' ? 'bg-blue-50 text-blue-950' : 'text-slate-600 hover:bg-slate-50'}`}><Layers3 size={16} />My Resources</button><button type="button" onClick={() => setLibraryTab('catalog')} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-bold ${libraryTab === 'catalog' ? 'bg-blue-50 text-blue-950' : 'text-slate-600 hover:bg-slate-50'}`}><Sparkles size={16} />Discover Assets</button></div><button type="button" onClick={() => { setServerError(''); setCreateOpen(true); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-800"><Plus size={18} />Add Resource</button></>}
     >
       <ResourcePageErrorBoundary>
-        <ResourceLibrary refreshKey={refreshKey} />
+        <ResourceLibrary refreshKey={refreshKey} activeTab={libraryTab} onTabChange={setLibraryTab} hideTabs />
         <ResourceUploadModal open={createOpen} mode="create" submitting={submitting} serverError={serverError} onClose={() => setCreateOpen(false)} onSubmit={createResource} />
       </ResourcePageErrorBoundary>
     </StudioShell>

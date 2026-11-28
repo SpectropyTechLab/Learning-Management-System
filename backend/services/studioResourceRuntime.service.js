@@ -70,13 +70,13 @@ const workbookPreview = async (bytes, kind) => {
   const sheets = [];
   for (const worksheet of workbook.worksheets.slice(0, 12)) {
     const rows = [];
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    worksheet.eachRow({ includeEmpty: false }, (row) => {
       if (rows.length >= 500) return;
       const values = [];
       for (let column = 1; column <= Math.min(Math.max(row.cellCount, 1), 100); column += 1) {
         values.push(cellValue(row.getCell(column)));
       }
-      rows.push({ row_number: rowNumber, values });
+      rows.push(values);
     });
     sheets.push({ name: worksheet.name, rows, truncated: worksheet.actualRowCount > rows.length });
   }
@@ -289,6 +289,25 @@ export const getRuntimePreview = async ({ versionId: rawVersionId, user, allowAu
     expires_in_seconds: previewSeconds,
     mime_type: version.mime_type,
   };
+};
+
+export const getRuntimeThumbnail = async ({ versionId: rawVersionId, user, allowAuthorizedReader = false }) => {
+  if (!AUTHOR_ROLES.has(user?.role) && !allowAuthorizedReader) throw new AppError('Access denied', 403);
+  const versionId = parseId(rawVersionId, 'Resource version ID');
+  const version = await loadVersion(versionId);
+  if (!version || !canAccessTenant(version.client_id, user)) throw new AppError('Resource version not found', 404);
+  if (version.thumbnail_storage_key) {
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(version.thumbnail_storage_key, 300);
+    if (!error && data?.signedUrl) return { available: true, url: data.signedUrl, expires_in_seconds: 300 };
+  }
+  if (version.mime_type?.startsWith('image/')) {
+    if (version.external_url) return { available: true, url: version.external_url, expires_in_seconds: 300 };
+    if (version.storage_key) {
+      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(version.storage_key, 300);
+      if (!error && data?.signedUrl) return { available: true, url: data.signedUrl, expires_in_seconds: 300 };
+    }
+  }
+  return { available: false, url: null, expires_in_seconds: 0 };
 };
 
 export const getObjectPreviewDescriptor = async ({

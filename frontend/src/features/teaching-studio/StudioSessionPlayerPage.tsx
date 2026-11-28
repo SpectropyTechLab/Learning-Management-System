@@ -39,7 +39,7 @@ import { useStudioBackgroundImageUrl } from './components/StudioBackgroundImageM
 import StudioSmartDiagram from './components/StudioSmartDiagram';
 import StudioTableElement from './components/StudioTableElement';
 import StudioChartElement from './components/StudioChartElement';
-import StudioLocalSimulationFrame from './components/StudioLocalSimulationFrame';
+import ScreenSimulationPlayer from './components/ScreenSimulationPlayer';
 import StudioLocalPhysicsLabFrame from './components/StudioLocalPhysicsLabFrame';
 import StudioLocalChemistryLabFrame from './components/StudioLocalChemistryLabFrame';
 import StudioLocalMathematicsLabFrame from './components/StudioLocalMathematicsLabFrame';
@@ -51,11 +51,12 @@ import type { PublishedPresenterData, PublishedRelease, PublishedResourceMapping
 import type { StudioDiscoveryItem } from './api/studioDiscoveryApi';
 import type { AuthorDrawingStroke, StudioBackgroundImageFill } from './types';
 import FloatingWhiteboards from './components/FloatingWhiteboards';
-import { clearCachedSessionPreview, getCachedResourcePreviewUrl, getCachedSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
 import { playStudioTransitionSound, startStudioSlideTransition, stopStudioTransitionSound, studioTransitionHandledByPlayer, unlockStudioTransitionAudio } from './components/studioTransition';
 import { normalizeStudioTransition, studioScreenIsHidden } from './components/studioTransitionModel';
 import { playStudioAnimationSound } from './components/studioAnimationAudio';
 import type { StudioAnimationEffectDefinition } from './components/studioAnimationModel';
+import type { SimulationDocument } from './components/simulationStudioModel';
+import { clearCachedSessionPreview, getCachedResourcePreviewUrl, getCachedSessionPreview, getPendingSessionPreview, getPreferredSessionPreviewScreen, prepareSessionPreviewCriticalScreen, prepareSessionPreviewResources } from './studioSessionPreviewCache';
 
 const textFrom = (content: Record<string, unknown>) => {
   const preferred = content.text ?? content.value ?? content.title ?? content.caption;
@@ -144,9 +145,14 @@ const afterVisiblePaint = (callback?: () => void) => {
 };
 
 function PublishedImage({ source, alt, content, children, onReady }: { source: string; alt: string; content?: Record<string, unknown>; children?: ReactNode; onReady?: () => void }) {
+  const [painted, setPainted] = useState(false);
+  useEffect(() => setPainted(false), [source]);
   const markImageReady = (image: HTMLImageElement) => {
     const markPainted = () => {
-      if (image.complete && image.naturalWidth > 0) afterVisiblePaint(onReady);
+      if (image.complete && image.naturalWidth > 0) {
+        setPainted(true);
+        afterVisiblePaint(onReady);
+      }
     };
     void image.decode().catch(() => undefined).finally(markPainted);
   };
@@ -156,7 +162,7 @@ function PublishedImage({ source, alt, content, children, onReady }: { source: s
   const cropped = mediaTransform?.cropped === true || mediaTransform?.edgeCrop === true || mediaTransform?.cropGeometry === true;
   const imageFilter = typeof mediaTransform?.filter === 'string' ? mediaTransform.filter : undefined;
   const imageOpacity = Number.isFinite(Number(mediaTransform?.opacity)) ? Math.max(0, Math.min(1, Number(mediaTransform?.opacity))) : undefined;
-  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><img src={source} alt={alt} onLoad={(event) => markImageReady(event.currentTarget)} className="h-full w-full object-fill" style={{ filter: imageFilter, opacity: imageOpacity }} />{children}</div>;
+  if (!cropped) return <div className="relative h-full w-full overflow-hidden"><div data-resource-placeholder aria-hidden="true" className={`absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-opacity duration-150 ${painted ? 'opacity-0' : 'opacity-100'}`} /><img src={source} alt={alt} onLoad={(event) => markImageReady(event.currentTarget)} className="h-full w-full object-fill" style={{ filter: imageFilter, opacity: painted ? imageOpacity ?? 1 : 0, transition: 'opacity 150ms ease-out' }} />{children}</div>;
   const hasEdgeCrop = mediaTransform?.edgeCrop === true;
   const hasCropGeometry = mediaTransform?.cropGeometry === true;
   const cropScaleX = hasCropGeometry ? Math.max(1, Number(mediaTransform?.cropScaleX) || 1) : 1;
@@ -181,9 +187,11 @@ function PublishedImage({ source, alt, content, children, onReady }: { source: s
           : 'none',
         transformOrigin: 'center',
         filter: imageFilter,
-        opacity: imageOpacity,
+        opacity: painted ? imageOpacity ?? 1 : 0,
+        transition: 'opacity 150ms ease-out',
       }}
     />
+    <div data-resource-placeholder aria-hidden="true" className={`pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-opacity duration-150 ${painted ? 'opacity-0' : 'opacity-100'}`} />
     {children}
   </div>;
 }
@@ -249,7 +257,7 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
   }, [mapping.external_url, mapping.resource_type, mapping.resource_version_id, previewMode, releaseId, source]);
 
   if (error) return <div className="grid h-full place-items-center bg-slate-950 p-3 text-center text-xs text-white">{error}</div>;
-  if (!source) return <div className="grid h-full place-items-center bg-slate-950 text-xs text-white">Loading resource…</div>;
+  if (!source) return <div data-resource-placeholder aria-busy="true" className="grid h-full place-items-center bg-gradient-to-br from-slate-100 to-slate-200 p-3 text-center text-slate-500"><div><Presentation className="mx-auto text-slate-400" size={30} /><p className="mt-2 max-w-48 truncate text-xs font-medium">{mapping.name}</p></div></div>;
   if (mapping.resource_type === 'document' && objectPreview) return <EmbeddedObjectViewer descriptor={objectPreview} className="h-full w-full" onReady={markReady} />;
   if (mapping.resource_type === 'image' || (mapping.resource_type === 'animation' && mapping.mime_type?.startsWith('image/'))) return <PublishedImage source={source} alt={String(elementContent?.altText || mapping.name)} content={elementContent} onReady={markReady} />;
   if (mapping.resource_type === 'video' || (mapping.resource_type === 'animation' && mapping.mime_type?.startsWith('video/')) || mapping.mime_type?.startsWith('video/')) return <video src={source} controls preload="auto" aria-label={mapping.name} className="h-full w-full" onCanPlayThrough={markReady} onTimeUpdate={(event) => { const previous = Number(event.currentTarget.dataset.animationPreviousTime) || 0; const current = event.currentTarget.currentTime; onMediaTime?.(previous, current); event.currentTarget.dataset.animationPreviousTime = String(current); }} />;
@@ -276,6 +284,15 @@ function PublishedResource({ releaseId, mapping, previewMode = false, elementCon
     const event = data.event === 'suspend' || data.event === 'terminate' ? data.event : 'commit';
     void commitStudioScormAttempt(scormAttemptId, String(data.scoIdentifier || ''), values, event).catch(() => undefined);
   } : undefined} />;
+}
+
+function PublishedSimulation({ project, passive = false, onReady }: { project: object; passive?: boolean; onReady?: () => void }) {
+  const isolatedProject = useMemo(() => {
+    if (typeof structuredClone === 'function') return structuredClone(project) as SimulationDocument;
+    return JSON.parse(JSON.stringify(project)) as SimulationDocument;
+  }, [project]);
+  if (passive) return <div className="grid h-full w-full place-items-center bg-[#09111d] text-sm font-semibold text-slate-300">Interactive Simulation</div>;
+  return <ScreenSimulationPlayer simulation={isolatedProject} onReady={onReady} />;
 }
 
 const publishedTextPadding = (content: Record<string, unknown>) => {
@@ -466,13 +483,11 @@ function PublishedCanvas({ releaseId, screen, previewMode = false, passivePrevie
       />]];
     }
     if (element.element_type === 'simulation' && element.content_json?.simulationProject && typeof element.content_json.simulationProject === 'object') {
-      return [[element.element_key, <StudioLocalSimulationFrame
+      return [[element.element_key, <PublishedSimulation
         key={element.element_key}
         project={element.content_json.simulationProject}
-        title={String(element.content_json.simulationTitle || element.content_json.text || 'Interactive Simulation')}
-        interactive={!passivePreview}
+        passive={passivePreview}
         onReady={() => markResourceReady(element.element_key)}
-        className="h-full w-full"
       />]];
     }
     if (!element.resource_mapping) return [];
@@ -597,10 +612,8 @@ export default function StudioSessionPlayerPage() {
   const [release, setRelease] = useState<PublishedRelease | null>(() => initialPreviewRef.current?.release ?? null);
   const [screenId, setScreenId] = useState<number | null>(() => {
     const cached = initialPreviewRef.current;
-    if (!cached) return null;
-    if (cached.preferredScreenId && cached.release.manifest.screens.some((screen) => screen.screen_id === cached.preferredScreenId)) {
-      return cached.preferredScreenId;
-    }
+    if (!cached) return previewMode ? getPreferredSessionPreviewScreen(sessionId) : null;
+    if (cached.preferredScreenId && cached.release.manifest.screens.some((screen) => screen.screen_id === cached.preferredScreenId)) return cached.preferredScreenId;
     return [...cached.release.manifest.screens].sort((a, b) => a.display_order - b.display_order)[0]?.screen_id ?? null;
   });
   const [loading, setLoading] = useState(!initialPreviewRef.current);
@@ -650,20 +663,36 @@ export default function StudioSessionPlayerPage() {
     if (!initialPreviewRef.current) setLoading(true);
     setError('');
     const request = previewMode
-      ? getSessionPlayerPreview(sessionId)
+      ? getPendingSessionPreview(sessionId) ?? getSessionPlayerPreview(sessionId)
       : getPublishedRelease(sessionId, releaseNumber);
     void request
       .then(async (data) => {
-        if (previewMode) await prepareSessionPreviewImages(data, getStudioResourcePreview);
-        setRelease(data);
         const orderedScreens = [...data.manifest.screens].sort((a, b) => a.display_order - b.display_order);
         const first = orderedScreens.find((screen) => !studioScreenIsHidden(screen.screen_settings_json)) ?? orderedScreens[0];
-        setScreenId((current) => audienceMode && remotePresenterStateRef.current?.screenId
+        const targetScreenId = audienceMode && remotePresenterStateRef.current?.screenId
           ? remotePresenterStateRef.current.screenId
-          : current && data.manifest.screens.some((screen) => screen.screen_id === current)
-            ? current
-            : first?.screen_id ?? null);
+          : screenIdRef.current && data.manifest.screens.some((screen) => screen.screen_id === screenIdRef.current)
+            ? screenIdRef.current
+            : first?.screen_id ?? null;
+        if (previewMode) {
+          let timeoutId = 0;
+          await Promise.race([
+            prepareSessionPreviewCriticalScreen(data, targetScreenId, getStudioResourcePreview).catch(() => undefined),
+            new Promise<void>((resolve) => { timeoutId = window.setTimeout(resolve, 1_500); }),
+          ]);
+          if (timeoutId) window.clearTimeout(timeoutId);
+        }
+        setRelease(data);
+        setScreenId(targetScreenId);
         if (previewMode) clearCachedSessionPreview(sessionId);
+        if (previewMode) void prepareSessionPreviewResources(data, async (mapping) => {
+          if (['html', 'zip', 'simulation'].includes(mapping.resource_type)) {
+            const launch = await launchStudioResourceVersion(mapping.resource_version_id);
+            if (!launch.launchable || !launch.launch_url) throw new Error(launch.message || 'Resource cannot be prepared.');
+            return { url: resolveAssetUrl(launch.launch_url) || launch.launch_url };
+          }
+          return getStudioResourcePreview(mapping.resource_version_id);
+        }, targetScreenId);
       })
       .catch((requestError) => {
         if (!initialPreviewRef.current) setError(getApiErrorDetails(requestError).message);

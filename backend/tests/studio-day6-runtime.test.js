@@ -202,7 +202,7 @@ test('runtime launch serves a prepared package asset with isolation headers', as
       assert.match(storageKey, /^runtime-packages\/package-1\/lesson\/(?:index|content)\.html$/);
       const html = storageKey.endsWith('/content.html')
         ? '<h1>Nested runtime</h1>'
-        : '<h1>Runtime</h1><script>localStorage.getItem("theme")</script>';
+        : '<html><head><title>Runtime</title></head><body><h1>Runtime</h1><script>localStorage.getItem("theme");const exported="</style></head><body></body></html>";</script></body></html>';
       return { data: new Blob([html], { type: 'text/html' }), error: null };
     },
   });
@@ -252,6 +252,8 @@ test('runtime launch serves a prepared package asset with isolation headers', as
   assert.ok(runtimeHtml.indexOf('data-spectropy-runtime-storage') < runtimeHtml.indexOf('localStorage.getItem("theme")'));
   assert.match(runtimeHtml, /Object\.defineProperty\(window,name/);
   assert.match(runtimeHtml, /data-spectropy-runtime-bridge/);
+  assert.ok(runtimeHtml.indexOf('const exported="</style></head><body></body></html>"') < runtimeHtml.indexOf('data-spectropy-runtime-bridge'));
+  assert.ok(runtimeHtml.indexOf('data-spectropy-runtime-bridge') < runtimeHtml.lastIndexOf('</body>'));
   assert.match(runtimeHtml, /STUDIO_CLICKER_INPUT/);
   assert.match(runtimeHtml, /STUDIO_RUNTIME_COMPLETE/);
   assert.match(
@@ -281,6 +283,7 @@ test('Day 6 runtime routes expose launch, fallback download and tokenized asset 
       .map((method) => `${method.toUpperCase()} ${layer.route.path}`));
   assert.ok(routes.includes('GET /studio/runtime/:launchToken/*'));
   assert.ok(routes.includes('POST /studio/resource-versions/:versionId/launch'));
+  assert.ok(routes.includes('GET /studio/resource-versions/:versionId/thumbnail'));
   assert.ok(routes.includes('GET /studio/resource-versions/:versionId/download'));
 });
 
