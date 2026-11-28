@@ -3,7 +3,7 @@ import { Eye, Grid2X2, Layers3, List, MoreVertical, Pencil, Play, RefreshCw, Sea
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getApiErrorDetails } from '@/lib/api';
-import { deleteStudioResource, getStudioResource, getStudioResourcePreview, listStudioResources, renameStudioResource, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
+import { deleteStudioResource, getStudioResource, getStudioResourceThumbnail, listStudioResourcesPage, renameStudioResource, STUDIO_RESOURCE_TYPES, studioResourceTypeLabel, type StudioResourceSummary, type StudioResourceDetails, type StudioResourceVersion, type StudioResourceType } from '../../api/studioResourcesApi';
 import DeleteResourceModal from './DeleteResourceModal';
 import AssetCatalogPanel from './AssetCatalogPanel';
 import { formatResourceTypeLabel, getResourceTypeStyle } from './resourcePresentation';
@@ -17,12 +17,22 @@ interface ResourceLibraryProps {
   refreshKey?: number;
   allowedTypes?: readonly StudioResourceType[];
   initialType?: StudioResourceType | '';
+  activeTab?: ResourceLibraryTab;
+  onTabChange?: (tab: ResourceLibraryTab) => void;
+  hideTabs?: boolean;
 }
 
 const formatDuration = (seconds?: number | null) => {
   if (!seconds || seconds <= 0) return null;
   const rounded = Math.round(seconds);
   return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`;
+};
+
+const generatedResourceCover = (resource: StudioResourceSummary) => {
+  const label = studioResourceTypeLabel(resource.resource_type);
+  const title = resource.name.slice(0, 34).replace(/[<>&"]/g, '');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071a35"/><stop offset="1" stop-color="#183c69"/></linearGradient></defs><rect width="480" height="270" fill="url(#g)"/><circle cx="405" cy="48" r="86" fill="#22d3ee" opacity=".14"/><path d="M30 205h420" stroke="#67e8f9" opacity=".35"/><text x="30" y="62" fill="#67e8f9" font-family="Arial,sans-serif" font-size="19" font-weight="700">${label.toUpperCase()}</text><text x="30" y="130" fill="white" font-family="Arial,sans-serif" font-size="25" font-weight="700">${title}</text><text x="30" y="225" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15">SPECTROPY Resource</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 };
 
 function ResourcePreview({ resource, card = false }: { resource: StudioResourceSummary; card?: boolean }) {
@@ -34,23 +44,37 @@ function ResourcePreview({ resource, card = false }: { resource: StudioResourceS
   const canShowCover = mediaType.startsWith('image/') || mediaType.startsWith('video/');
   const isGif = mediaType.toLowerCase() === 'image/gif';
   const gifCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [nearViewport, setNearViewport] = useState(false);
 
   useEffect(() => {
-    if (!canShowCover || source || !resource.latest_version?.id) return;
+    const node = previewRef.current;
+    if (!node || nearViewport) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      setNearViewport(true);
+      observer.disconnect();
+    }, { rootMargin: '900px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nearViewport]);
+
+  useEffect(() => {
+    if (!nearViewport || source || !resource.latest_version?.id) return;
     let active = true;
-    void getStudioResourcePreview(resource.latest_version.id)
-      .then((preview) => { if (active) setSource(preview.url); })
+    void getStudioResourceThumbnail(resource.latest_version.id)
+      .then((preview) => { if (active && preview.available && preview.url) setSource(preview.url); })
       .catch(() => { /* Keep the type icon as the fallback cover. */ });
     return () => { active = false; };
-  }, [canShowCover, resource.latest_version?.id, source]);
+  }, [nearViewport, resource.latest_version?.id, source]);
   return (
-    <div className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br ${style.preview} ${card ? 'h-36 w-full rounded-t-xl' : 'h-24 w-28 rounded-l-xl'}`}>
-      {source && canShowCover ? mediaType.startsWith('video/')
+    <div ref={previewRef} className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br ${style.preview} ${card ? 'h-36 w-full rounded-t-xl' : 'h-24 w-28 rounded-l-xl'}`}>
+      {source && nearViewport && canShowCover ? mediaType.startsWith('video/')
         ? <video src={source} muted playsInline preload="metadata" className="h-full w-full object-cover" />
         : isGif
           ? <><canvas ref={gifCanvasRef} className="h-full w-full object-cover" aria-label={`${resource.name} static cover`} /><img src={source} alt="" className="hidden" onLoad={(event) => { const image = event.currentTarget; const canvas = gifCanvasRef.current; if (!canvas) return; canvas.width = image.naturalWidth || 160; canvas.height = image.naturalHeight || 90; canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height); }} /></>
-          : <img src={source} alt={`${resource.name} cover`} className="h-full w-full object-cover" />
-        : <><div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_20%_20%,white_0,transparent_35%),radial-gradient(circle_at_80%_70%,white_0,transparent_30%)]" /><Icon size={30} strokeWidth={1.7} className="relative" /></>}
+          : <img src={source} alt={`${resource.name} cover`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+        : nearViewport ? <img src={generatedResourceCover(resource)} alt={`${resource.name} ${studioResourceTypeLabel(resource.resource_type)} cover`} className="h-full w-full object-cover" /> : <><div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_20%_20%,white_0,transparent_35%),radial-gradient(circle_at_80%_70%,white_0,transparent_30%)]" /><Icon size={30} strokeWidth={1.7} className="relative" /></>}
       {!isGif && ['video', 'animation', 'simulation'].includes(resource.resource_type) ? <span className="absolute grid h-7 w-7 place-items-center rounded-full border border-white bg-slate-950/55 text-white"><Play size={13} fill="currentColor" /></span> : null}
       {duration ? <span className="absolute bottom-1 right-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[10px] font-bold text-white">{duration}</span> : null}
     </div>
@@ -117,7 +141,7 @@ const LoadingCards = () => (
   </div>
 );
 
-export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 0, allowedTypes, initialType }: ResourceLibraryProps) {
+export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 0, allowedTypes, initialType, activeTab, onTabChange, hideTabs = false }: ResourceLibraryProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const initial = new URLSearchParams(location.search);
@@ -135,9 +159,17 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   }, [initialType]);
   const [sort, setSort] = useState<ResourceSort>('recently_updated');
   const [view, setView] = useState<ResourceView>('grid');
-  const [libraryTab, setLibraryTab] = useState<ResourceLibraryTab>('mine');
+  const [internalLibraryTab, setInternalLibraryTab] = useState<ResourceLibraryTab>('mine');
+  const libraryTab = activeTab ?? internalLibraryTab;
+  const setLibraryTab = (tab: ResourceLibraryTab) => {
+    setInternalLibraryTab(tab);
+    onTabChange?.(tab);
+  };
   const [resources, setResources] = useState<StudioResourceSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadedPage, setLoadedPage] = useState(1);
+  const [totalResources, setTotalResources] = useState(0);
   const [error, setError] = useState('');
   const [menuResourceId, setMenuResourceId] = useState<number | null>(null);
   const [renameTarget, setRenameTarget] = useState<StudioResourceSummary | null>(null);
@@ -152,6 +184,8 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerError, setPickerError] = useState('');
   const requestRef = useRef(0);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const pageSize = 30;
   const visibleResourceTypes = useMemo(
     () => STUDIO_RESOURCE_TYPES.filter((type) => mode !== 'picker' || type !== 'html'),
     [mode],
@@ -176,8 +210,12 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
     setLoading(true);
     setError('');
     try {
-      const rows = await listStudioResources({ search: debouncedSearch, resourceType });
-      if (requestId === requestRef.current) setResources(rows);
+      const result = await listStudioResourcesPage({ search: debouncedSearch, resourceType, page: 1, pageSize, sort });
+      if (requestId === requestRef.current) {
+        setResources(result.items);
+        setTotalResources(result.total);
+        setLoadedPage(1);
+      }
     } catch (loadError) {
       if (requestId === requestRef.current) {
         setResources([]);
@@ -186,11 +224,42 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
     } finally {
       if (requestId === requestRef.current) setLoading(false);
     }
-  }, [debouncedSearch, resourceType]);
+  }, [debouncedSearch, resourceType, sort]);
 
   useEffect(() => {
     void load();
   }, [load, refreshKey]);
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || resources.length >= totalResources) return;
+    const requestId = requestRef.current;
+    setLoadingMore(true);
+    try {
+      const nextPage = loadedPage + 1;
+      const result = await listStudioResourcesPage({ search: debouncedSearch, resourceType, page: nextPage, pageSize, sort });
+      if (requestId !== requestRef.current) return;
+      setResources((current) => {
+        const known = new Set(current.map((resource) => resource.id));
+        return [...current, ...result.items.filter((resource) => !known.has(resource.id))];
+      });
+      setTotalResources(result.total);
+      setLoadedPage(nextPage);
+    } catch (loadError) {
+      toast.error(getApiErrorDetails(loadError, 'Unable to load more Studio Resources.').message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [debouncedSearch, loadedPage, loading, loadingMore, resourceType, resources.length, sort, totalResources]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || loading || resources.length >= totalResources) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) void loadMore();
+    }, { rootMargin: '1400px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMore, loading, resources.length, totalResources]);
 
   const sorted = useMemo(
     () =>
@@ -297,27 +366,27 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
   const filtersActive = Boolean(searchInput || resourceType);
 
   return (
-    <section className="border-b border-gray-200 bg-white">
-      {mode === 'manage' ? <div className="flex items-center gap-2 border-b border-gray-200 px-4 pt-3 sm:px-6">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden border-b border-gray-200 bg-white">
+      {mode === 'manage' && !hideTabs ? <div className="flex items-center gap-2 border-b border-gray-200 px-4 pt-3 sm:px-6">
         <button type="button" onClick={() => setLibraryTab('mine')} className={`inline-flex items-center gap-2 rounded-t-lg border-b-2 px-3 py-2 text-sm font-bold transition ${libraryTab === 'mine' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Layers3 size={17} />My Resources</button>
         <button type="button" onClick={() => setLibraryTab('catalog')} className={`inline-flex items-center gap-2 rounded-t-lg border-b-2 px-3 py-2 text-sm font-bold transition ${libraryTab === 'catalog' ? 'border-blue-900 bg-blue-50 text-blue-950' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Sparkles size={17} />Discover Assets</button>
       </div> : null}
       {libraryTab === 'mine' || mode === 'picker' ? <>
-      <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
-        <div className={`grid gap-3 ${mode === 'manage' ? 'md:grid-cols-[minmax(0,1fr)_240px] md:items-center' : 'grid-cols-1'}`}>
+      <div className="border-b border-gray-200 px-3 py-1.5 sm:px-5">
+        <div className={`grid gap-2 ${mode === 'manage' ? 'md:grid-cols-[minmax(260px,1fr)_170px_auto_auto] md:items-center' : 'grid-cols-1'}`}>
           <label className="relative block min-w-0">
             <span className="sr-only">Search Resources</span>
-            <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-            <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search resources (e.g. speed, motion, simulation)" className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-10 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100" />
+            <Search className="absolute left-3 top-2 text-slate-400" size={16} />
+            <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search resources (e.g. speed, motion, simulation)" className="w-full rounded-lg border border-gray-300 py-1.5 pl-9 pr-9 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100" />
             {searchInput ? (
-              <button type="button" onClick={() => setSearchInput('')} className="absolute right-2 top-2 rounded-md p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Clear search">
+              <button type="button" onClick={() => setSearchInput('')} className="absolute right-2 top-1 rounded-md p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Clear search">
                 <X size={16} />
               </button>
             ) : null}
           </label>
           <label className="min-w-0">
             <span className="sr-only">Resource type</span>
-            <select value={resourceType} onChange={(event) => setResourceType(event.target.value as StudioResourceType | '')} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
+            <select value={resourceType} onChange={(event) => setResourceType(event.target.value as StudioResourceType | '')} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700">
               <option value="">All</option>
               {visibleResourceTypes.filter((type) => !allowedTypes || allowedTypes.includes(type)).map((type) => (
                 <option key={type} value={type}>
@@ -326,47 +395,13 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
               ))}
             </select>
           </label>
+          {mode === 'manage' ? <div className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-slate-600"><span>{totalResources} Resources</span>{filtersActive ? <button type="button" onClick={() => { setSearchInput(''); setResourceType(''); }} className="rounded px-1.5 py-1 text-blue-800 hover:bg-blue-50">Clear</button> : null}</div> : null}
+          {mode === 'manage' ? <div className="flex items-center justify-end gap-2"><select value={sort} onChange={(event) => setSort(event.target.value as ResourceSort)} aria-label="Sort Resources" className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm font-semibold text-slate-700"><option value="recently_updated">Recently updated</option><option value="name_asc">Name: A–Z</option><option value="name_desc">Name: Z–A</option><option value="newest">Newest created</option><option value="type">Resource type</option></select><div className="inline-flex rounded-lg border border-gray-200 p-0.5"><button type="button" onClick={() => setView('grid')} className={`rounded-md p-1.5 ${view === 'grid' ? 'bg-blue-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`} aria-label="Grid view"><Grid2X2 size={16} /></button><button type="button" onClick={() => setView('list')} className={`rounded-md p-1.5 ${view === 'list' ? 'bg-blue-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`} aria-label="List view"><List size={16} /></button></div></div> : null}
         </div>
       </div>
 
-      <div className="p-4 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-bold text-slate-900">
-              {sorted.length} {sorted.length === 1 ? 'Resource' : 'Resources'}
-            </p>
-            {filtersActive ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchInput('');
-                  setResourceType('');
-                }}
-                className="mt-1 text-xs font-semibold text-blue-800 hover:underline"
-              >
-                Clear filters
-              </button>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2">
-            <select value={sort} onChange={(event) => setSort(event.target.value as ResourceSort)} aria-label="Sort Resources" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-              <option value="recently_updated">Recently updated</option>
-              <option value="name_asc">Name: A–Z</option>
-              <option value="name_desc">Name: Z–A</option>
-              <option value="newest">Newest created</option>
-              <option value="type">Resource type</option>
-            </select>
-            <div className="inline-flex rounded-lg border border-gray-200 p-1">
-              <button type="button" onClick={() => setView('grid')} className={`rounded-md p-2 ${view === 'grid' ? 'bg-blue-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`} aria-label="Grid view">
-                <Grid2X2 size={17} />
-              </button>
-              <button type="button" onClick={() => setView('list')} className={`rounded-md p-2 ${view === 'list' ? 'bg-blue-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`} aria-label="List view">
-                <List size={17} />
-              </button>
-            </div>
-          </div>
-        </div>
-
+      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
         {loading ? (
           <LoadingCards />
         ) : error ? (
@@ -468,12 +503,13 @@ export default function ResourceLibrary({ mode = 'manage', onPick, refreshKey = 
             })}
           </div>
         )}
+        {!loading && !error && resources.length < totalResources ? <div ref={loadMoreRef} className="flex h-16 items-center justify-center text-sm text-slate-500">{loadingMore ? 'Loading more Resources…' : 'Scroll to load more'}</div> : null}
       </div>
-      </> : <AssetCatalogPanel mode={mode} onImported={(resource) => {
+      </div></> : <div className="min-h-0 flex-1 overflow-y-auto"><AssetCatalogPanel mode={mode} onImported={(resource) => {
         setResources((current) => [resource, ...current.filter((item) => item.id !== resource.id)]);
         if (mode === 'picker' && resource.latest_version) onPick?.(resource, resource.latest_version);
         else setLibraryTab('mine');
-      }} />}
+      }} /></div>}
 
       {mode === 'picker' && pickerResource ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="Choose Resource version">

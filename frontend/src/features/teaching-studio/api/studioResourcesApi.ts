@@ -127,6 +127,19 @@ export interface StudioResourceFilters {
   resourceType?: StudioResourceType | '';
 }
 
+export interface StudioResourcePageResult {
+  items: StudioResourceSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+const resourcePageCache = new Map<string, { expiresAt: number; promise: Promise<StudioResourcePageResult> }>();
+const resourcePreviewCache = new Map<number, { expiresAt: number; promise: Promise<StudioResourcePreview> }>();
+const resourceThumbnailCache = new Map<number, { expiresAt: number; promise: Promise<{ available: boolean; url: string | null }> }>();
+const invalidateResourceLibraryCache = () => resourcePageCache.clear();
+
+
 export interface StudioResourceUploadInput {
   name?: string;
   description?: string;
@@ -192,6 +205,29 @@ export const listStudioResources = async (filters: StudioResourceFilters = {}) =
   return resources as StudioResourceSummary[];
 };
 
+export const listStudioResourcesPage = async (filters: StudioResourceFilters & {
+  page: number;
+  pageSize?: number;
+  sort?: 'recently_updated' | 'name_asc' | 'name_desc' | 'newest' | 'type';
+}) => {
+  const key = JSON.stringify([filters.search?.trim() || '', filters.resourceType || '', filters.page, filters.pageSize || 30, filters.sort || 'recently_updated']);
+  const cached = resourcePageCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+  const promise = api.get('/studio/resources', { params: {
+    search: filters.search?.trim() || undefined,
+    resource_type: filters.resourceType || undefined,
+    page: filters.page,
+    page_size: filters.pageSize || 30,
+    sort: filters.sort || 'recently_updated',
+  } }).then((response) => {
+    const result = dataOf<StudioResourcePageResult>(response.data);
+    if (!result || !Array.isArray(result.items)) throw new Error('The Resource Library returned an invalid response.');
+    return result;
+  }).catch((error) => { resourcePageCache.delete(key); throw error; });
+  resourcePageCache.set(key, { expiresAt: Date.now() + 30_000, promise });
+  return promise;
+};
+
 export const searchStudioAssetCatalog = async (filters: {
   search: string;
   kind?: StudioAssetCatalogKind;
@@ -226,11 +262,14 @@ export const getStudioResource = async (resourceId: number) =>
 export const getStudioResourceUsages = async (resourceId: number) =>
   dataOf<StudioResourceUsageReport>((await api.get(`/studio/resources/${resourceId}/usages`)).data);
 
-export const renameStudioResource = async (resourceId: number, name: string) =>
-  dataOf<Pick<StudioResourceSummary, 'id' | 'name' | 'updated_at'>>((await api.patch(
+export const renameStudioResource = async (resourceId: number, name: string) => {
+  const result = dataOf<Pick<StudioResourceSummary, 'id' | 'name' | 'updated_at'>>((await api.patch(
     `/studio/resources/${resourceId}`,
     { name: name.trim() },
   )).data);
+  invalidateResourceLibraryCache();
+  return result;
+};
 
 const appendNumber = (formData: FormData, key: string, value?: number | null) => {
   if (value !== undefined && value !== null && Number.isFinite(value)) {
@@ -255,16 +294,23 @@ const resourceFormData = (input: StudioResourceUploadInput, includeIdentity: boo
   return formData;
 };
 
-export const createStudioResource = async (input: StudioResourceUploadInput) =>
-  dataOf<StudioResourceSummary>((await api.post('/studio/resources', resourceFormData(input, true))).data);
+export const createStudioResource = async (input: StudioResourceUploadInput) => {
+  const result = dataOf<StudioResourceSummary>((await api.post('/studio/resources', resourceFormData(input, true))).data);
+  invalidateResourceLibraryCache();
+  return result;
+};
 
 export const createStudioResourceVersion = async (
   resourceId: number,
   input: StudioResourceUploadInput,
-) => dataOf<{ resource_id: number; version: StudioResourceVersion }>((await api.post(
-  `/studio/resources/${resourceId}/versions`,
-  resourceFormData(input, false),
-)).data);
+) => {
+  const result = dataOf<{ resource_id: number; version: StudioResourceVersion }>((await api.post(
+    `/studio/resources/${resourceId}/versions`,
+    resourceFormData(input, false),
+  )).data);
+  invalidateResourceLibraryCache();
+  return result;
+};
 
 export const launchStudioResourceVersion = async (versionId: number) =>
   dataOf<StudioResourceLaunch>((await api.post(`/studio/resource-versions/${versionId}/launch`)).data);
@@ -290,11 +336,34 @@ export const commitStudioScormAttempt = async (
 export const getStudioResourceDownload = async (versionId: number) =>
   dataOf<StudioResourceDownload>((await api.get(`/studio/resource-versions/${versionId}/download`)).data);
 
-export const getStudioResourcePreview = async (versionId: number) =>
-  dataOf<StudioResourcePreview>((await api.get(`/studio/resource-versions/${versionId}/preview`, {
-    params: { fresh: Date.now() },
-    headers: { 'Cache-Control': 'no-cache' },
-  })).data);
+export const getStudioResourcePreview = async (versionId: number) => {
+  const cached = resourcePreviewCache.get(versionId);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+  const promise = api.get(`/studio/resource-versions/${versionId}/preview`)
+    .then((response) => dataOf<StudioResourcePreview>(response.data))
+    .catch((error) => { resourcePreviewCache.delete(versionId); throw error; });
+  resourcePreviewCache.set(versionId, { expiresAt: Date.now() + 240_000, promise });
+  return promise;
+};
+
+export const getStudioResourceThumbnail = async (versionId: number) => {
+  const cached = resourceThumbnailCache.get(versionId);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+  const promise = api.get(`/studio/resource-versions/${versionId}/thumbnail`)
+    .then((response) => dataOf<{ available: boolean; url: string | null }>(response.data))
+    .catch((error) => { resourceThumbnailCache.delete(versionId); throw error; });
+  resourceThumbnailCache.set(versionId, { expiresAt: Date.now() + 240_000, promise });
+  return promise;
+};
+
+export const prefetchStudioResourceLibrary = async () => {
+  const page = await listStudioResourcesPage({ page: 1, pageSize: 30, sort: 'recently_updated' });
+  await Promise.allSettled(page.items.slice(0, 12).filter((resource) => {
+    const mime = resource.latest_version?.mime_type || '';
+    return mime.startsWith('image/') || mime.startsWith('video/');
+  }).map((resource) => getStudioResourceThumbnail(resource.latest_version.id)));
+  return page;
+};
 
 export interface StudioObjectPreviewDescriptor {
   resource_id: number;
@@ -319,5 +388,8 @@ export const getStudioObjectPreview = async (versionId: number) =>
     { params: { fresh: Date.now() }, headers: { 'Cache-Control': 'no-cache' } },
   )).data);
 
-export const deleteStudioResource = async (resourceId: number) =>
-  dataOf<{ id: number; deleted: true; storage_cleanup_complete?: boolean }>((await api.delete(`/studio/resources/${resourceId}`)).data);
+export const deleteStudioResource = async (resourceId: number) => {
+  const result = dataOf<{ id: number; deleted: true; storage_cleanup_complete?: boolean }>((await api.delete(`/studio/resources/${resourceId}`)).data);
+  invalidateResourceLibraryCache();
+  return result;
+};

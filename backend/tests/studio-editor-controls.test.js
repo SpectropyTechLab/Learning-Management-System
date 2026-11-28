@@ -464,16 +464,47 @@ test('Session Preview renders uncropped images with the same full-frame fit as t
   assert.match(player, /className="h-full w-full object-fill"/);
 });
 
-test('Session Preview prepares presentation images and keeps adjacent Screens mounted', () => {
+test('Session Preview prepares prioritized resources in the background and keeps adjacent Screens mounted', () => {
   const editor = readFrontend('TeachingStudioPage.tsx');
   const player = readFrontend('StudioSessionPlayerPage.tsx');
-  assert.match(editor, /cacheSessionPreview\(sessionId, preview/);
-  assert.match(editor, /prepareSessionPreviewImages\(preview, getStudioResourcePreview\)/);
+  const preparation = readFrontend('studioSessionPreviewCache.ts');
+  assert.match(editor, /primeSessionPreview\(sessionId/);
+  assert.match(editor, /toast\.loading\('Preparing presentation…'\)/);
+  assert.match(editor, /const preview = await previewRequest/);
+  assert.match(editor, /prepareSessionPreviewCriticalScreen\(preview, preferredScreenId, getStudioResourcePreview\)/);
+  assert.match(editor, /navigate\(`\/studio\/player\/\$\{sessionId\}\/preview`\)/);
+  assert.match(editor, /prepareSessionPreviewImages\(preview, getStudioResourcePreview, preferredScreenId\)/);
+  assert.doesNotMatch(editor, /await prepareSessionPreviewImages/);
   assert.match(player, /getCachedSessionPreview\(sessionId\)/);
   assert.match(player, /getCachedResourcePreviewUrl\(mapping\.resource_version_id\)/);
+  assert.match(player, /void prepareSessionPreviewResources/);
+  assert.doesNotMatch(player, /await prepareSessionPreviewResources/);
   assert.match(player, /preparedPreviewScreens\.map/);
   assert.match(player, /passivePreview=\{!active\}/);
+  assert.match(player, /getPendingSessionPreview\(sessionId\)/);
+  assert.match(player, /getPreferredSessionPreviewScreen\(sessionId\)/);
   assert.match(player, /Preparing presentation/);
+  assert.match(player, /prepareSessionPreviewCriticalScreen\(data, targetScreenId, getStudioResourcePreview\)/);
+  assert.match(player, /window\.setTimeout\(resolve, 1_500\)/);
+  assert.doesNotMatch(player, /Preparing current screen/);
+  assert.doesNotMatch(player, /readyPreviewScreenIds/);
+  assert.match(player, /data-resource-placeholder/);
+  assert.match(player, /transition: 'opacity 150ms ease-out'/);
+  assert.match(preparation, /PREPARATION_CONCURRENCY/);
+  assert.match(preparation, /previewRequestCache/);
+  assert.match(preparation, /previewPreferenceCache\.set\(sessionId, preferredScreenId\)/);
+  assert.match(preparation, /prepareSessionPreviewCriticalScreen/);
+  assert.match(preparation, /media\.preload = 'metadata'/);
+  assert.match(preparation, /preload\.rel = 'prefetch'/);
+});
+
+test('Session Preview uses the same isolated simulation renderer as the editor canvas', () => {
+  const canvas = readFrontend('components/BlankScreenCanvas.tsx');
+  const player = readFrontend('StudioSessionPlayerPage.tsx');
+  assert.match(canvas, /<ScreenSimulationPlayer simulation=\{simulationProject\}/);
+  assert.match(player, /<ScreenSimulationPlayer simulation=\{isolatedProject\}/);
+  assert.match(player, /structuredClone\(project\)/);
+  assert.doesNotMatch(player, /<StudioLocalSimulationFrame/);
 });
 
 test('Home ribbon Clipboard group shares multi-element paste and Format Painter workflows', () => {
@@ -754,5 +785,6 @@ test('Simulation is a permanent native PCMB workspace with JSON import and full-
   assert.match(localFrame, /buildSimulationHtml\(result\.simulation\)/);
   assert.match(localFrame, /srcDoc=\{html\}/);
   assert.match(localFrame, /validateSimulationDocument/);
-  assert.match(publishedPlayer, /<StudioLocalSimulationFrame/);
+  assert.match(publishedPlayer, /<PublishedSimulation/);
+  assert.match(publishedPlayer, /<ScreenSimulationPlayer simulation=\{isolatedProject\}/);
 });

@@ -354,6 +354,48 @@ export const listResources = async ({ query = {}, user }) => {
   const resourceType = query.resource_type ? String(query.resource_type).trim() : null;
   if (resourceType && !RESOURCE_TYPES.has(resourceType)) throw new AppError('Unsupported resource_type');
   const search = String(query.search || '').trim() || null;
+  const paginated = query.page !== undefined || query.page_size !== undefined;
+  const page = Math.max(1, Number.parseInt(String(query.page || '1'), 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(query.page_size || '30'), 10) || 30));
+  const sortSql = {
+    recently_updated: 'r.updated_at DESC, r.id DESC',
+    name_asc: 'LOWER(r.name) ASC, r.id DESC',
+    name_desc: 'LOWER(r.name) DESC, r.id DESC',
+    newest: 'r.created_at DESC, r.id DESC',
+    type: 'r.resource_type ASC, LOWER(r.name) ASC, r.id DESC',
+  }[String(query.sort || 'recently_updated')] || 'r.updated_at DESC, r.id DESC';
+  if (paginated) {
+    const result = await dbQuery(
+      `SELECT r.id, r.client_id, r.name, r.description, r.resource_type, r.is_active,
+              r.created_at, r.updated_at, (COUNT(*) OVER())::int AS total_count,
+              json_build_object(
+                'id', rv.id, 'resource_id', rv.resource_id, 'version_number', rv.version_number,
+                'original_file_name', rv.original_file_name, 'mime_type', rv.mime_type,
+                'file_size', rv.file_size, 'external_url', rv.external_url,
+                'width', rv.width, 'height', rv.height, 'duration_seconds', rv.duration_seconds,
+                'entry_point', rv.entry_point, 'uploaded_at', rv.created_at, 'created_at', rv.created_at
+              ) AS latest_version
+       FROM resources r
+       JOIN LATERAL (
+         SELECT * FROM resource_versions candidate
+         WHERE candidate.resource_id = r.id
+         ORDER BY candidate.version_number DESC LIMIT 1
+       ) rv ON TRUE
+       WHERE r.is_active = TRUE
+         AND ($1::boolean OR r.client_id IS NULL OR r.client_id = $2)
+         AND ($3::text IS NULL OR r.resource_type = $3)
+         AND ($4::text IS NULL OR r.name ILIKE '%' || $4 || '%')
+       ORDER BY ${sortSql}
+       LIMIT $5 OFFSET $6`,
+      [allTenants, clientId, resourceType, search, pageSize, (page - 1) * pageSize]
+    );
+    return {
+      items: result.rows.map(({ total_count: _totalCount, ...row }) => row),
+      total: Number(result.rows[0]?.total_count || 0),
+      page,
+      page_size: pageSize,
+    };
+  }
   const result = await dbQuery(
     `SELECT r.*, row_to_json(rv) AS latest_version
      FROM resources r

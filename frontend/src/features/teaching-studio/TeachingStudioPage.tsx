@@ -230,7 +230,7 @@ import {
 import { studioSetupApi } from './api/studioSetupApi';
 import type { StudioSession } from './api/studioSetupApi';
 import { getSessionPlayerPreview } from './api/studioPublishedApi';
-import { cacheSessionPreview, prepareSessionPreviewImages } from './studioSessionPreviewCache';
+import { prepareSessionPreviewCriticalScreen, prepareSessionPreviewImages, primeSessionPreview } from './studioSessionPreviewCache';
 import { studioTaxonomyApi } from './api/studioTaxonomyApi';
 import type { StudioTaxonomyTerm } from './api/studioTaxonomyApi';
 
@@ -1101,13 +1101,20 @@ export default function TeachingStudioPage() {
   const openPreview = async () => {
     if (!sessionId) return;
     if (hasUnsavedChanges && !(await saveDraftRef.current('navigation'))) return;
-    const loadingToast = toast.loading('Preparing Session Preview…');
+    const preferredScreenId = selectedScreenRef.current?.id ?? null;
+    const previewRequest = primeSessionPreview(sessionId, () => getSessionPlayerPreview(sessionId), preferredScreenId);
+    const loadingToast = toast.loading('Preparing presentation…');
     try {
-      const preview = await getSessionPlayerPreview(sessionId);
-      cacheSessionPreview(sessionId, preview, selectedScreenRef.current?.id ?? null);
-      await prepareSessionPreviewImages(preview, getStudioResourcePreview);
+      const preview = await previewRequest;
+      let timeoutId = 0;
+      await Promise.race([
+        prepareSessionPreviewCriticalScreen(preview, preferredScreenId, getStudioResourcePreview).catch(() => undefined),
+        new Promise<void>((resolve) => { timeoutId = window.setTimeout(resolve, 1_500); }),
+      ]);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      void prepareSessionPreviewImages(preview, getStudioResourcePreview, preferredScreenId);
     } catch {
-      // Preserve the player's normal request path as a safe fallback.
+      // The player retains its normal request path as a safe fallback.
     } finally {
       toast.dismiss(loadingToast);
     }
